@@ -132,6 +132,19 @@ context. The lookup is per-request; there is no cache. A
 misconfigured DNS that flips between a public IP and a private
 IP is caught on every request.
 
+**Test-only escape hatch (added in M4-T5.2, 2026-09-05).** The
+`Policy` exposes a `insecureSkipPrivateIPGuard` field (set via
+`PolicyOptions.InsecureSkipPrivateIPGuard`, never via the
+production `NewPolicy` shorthand). The field's purpose is to
+let the unit tests dial `httptest` servers bound to
+`127.0.0.1` without weakening the production §21.5 §4
+guarantee. The field's name is the friction: any reader sees
+the `insecureSkip` prefix and a future contributor who copies
+the pattern into production is on notice. The
+`cmd/athanor/gateway.go` wire-up never sets the flag. A
+future M4-T8 regression test will assert the field is
+`false` in the production default.
+
 ### 5. Rate limiting: in-process token bucket, per-host
 
 A per-host token bucket, ~30 lines of Go, no new dependency. The

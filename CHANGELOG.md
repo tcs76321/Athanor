@@ -10,8 +10,102 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
-### M4 — Airlock & Gateway (started)
+### M4 — Airlock & Gateway (in progress)
 
+- **M4-T5.2 (`225ed38`).** Gateway runtime per
+  [ADR-0017](docs/adr/0017-gateway.md). The
+  `Client` interface in `internal/gateway/client.go`
+  is the §21.5 *only* outbound HTTP surface;
+  consumers (M4-T7 tools, M6 credential broker)
+  take the interface, not the concrete type, so
+  a fake is substitutable in tests. `Client.Fetch`
+  orchestrates the full §21.5 flow: `Policy.Eval` →
+  per-host token-bucket rate-limit check → fixed
+  deny-list header sanitizer (Cookie, Authorization,
+  Proxy-Authorization, X-Api-Key, X-Auth-Token,
+  X-Secret stripped by name; User-Agent set to a
+  fixed Athanor UA) → per-request transport with
+  `DialContext` pinned to the IPs the policy
+  resolved (the §21.5 DNS-rebinding defense at
+  the TCP layer) → streamed response size cap
+  (truncate + flag, do not fail) → one `network`
+  event appended under `category=network` with
+  the full outcome (`fetched` / `truncated` /
+  `denied` / `private_ip` / `rate_limited` /
+  `error`). The daemon wires the gateway at boot
+  via `cmd/athanor/gateway.go` (calls
+  `gateway.NewPolicy` from `cfg.Network` and
+  `gateway.NewClient` with the production
+  `NetworkResolver{}` zero value that delegates to
+  `net.DefaultResolver`); failure to construct is
+  fatal so an operator who fat-fingers the config
+  sees the error at startup, not at first fetch.
+  ~14 `Test*` functions cover the Fetch flow
+  against `httptest`: happy path, header stripping
+  on the wire, fixed User-Agent, oversized
+  response truncation, rate-limit denial,
+  policy-short-circuit (transport panics if
+  invoked — proves the policy runs first),
+  private-IP refusal, invalid URL forms, nil
+  request, transport error, audit shape (the
+  on-the-wire `network` event), pinned-IP dial
+  end-to-end (the `httptest` server actually
+  receives the request through the pinned dial),
+  `NewClient` validation. Total test count in
+  `internal/gateway` after T5.2: ~30 `Test*`
+  functions, all passing under `-race`. The
+  `Policy` exposes a `PolicyOptions.InsecureSkipPrivateIPGuard`
+  field that is **test-only**: the production
+  `NewPolicy` shorthand never sets it, the daemon
+  wire-up never sets it, and a future M4-T8
+  regression test will assert the field is `false`
+  in production. The flag exists so unit tests can
+  dial `httptest` servers bound to 127.0.0.1
+  without weakening the production §21.5 §4
+  guarantee. Zero new dependencies; the project's
+  dep list stays at two (`mattn/go-sqlite3`,
+  `gopkg.in/yaml.v3`). Reference run on macOS 14,
+  `make check`: `golangci-lint` 0 issues, `go vet`
+  clean, `go test -race ./...` all green; Gate G1
+  re-proven.
+- **M4-T5.1 (`ab082e8`).** Gateway package
+  skeleton at `internal/gateway/`. ADR-0017
+  documents the §21.5 architecture: `internal/gateway/`
+  is the only outbound HTTP door, Gate G1 rule 6
+  (added in a follow-up T5.4) will fail the build
+  if any other package uses `http.Get` / `http.Post` /
+  `http.DefaultClient`, the §21.5 responsibilities
+  1–5 land in T5.1/T5.2 and responsibilities 6
+  (Reader Mode) and 7 (cloud-inference mediation)
+  are explicitly deferred (T6 and M6 respectively).
+  T5.1 ships the pure `Policy` value type, the
+  `Resolver` interface (so tests inject a
+  hand-written map; production wires
+  `NetworkResolver{}` → `net.DefaultResolver`), the
+  `Eval` method (URL parse → ASCII check → denylist
+  → allowlist with suffix-match + explicit `.`
+  separator → DNS-rebinding guard via the injected
+  resolver), the `matchHost` helper (the
+  `evilwikipedia.org` gotcha fix), the
+  `nonRoutableCIDRs` deny-list (RFC 1918, loopback,
+  link-local, CGN, multicast, unspecified,
+  documentation/reserved — parsed once at package
+  init via `mustParseCIDRs`), the closed `Decision`
+  enum, the five sentinel errors
+  (`ErrDeniedOffList`, `ErrDeniedDenyList`,
+  `ErrDeniedPrivateIP`, `ErrIDNNotSupported`,
+  `ErrInvalidURL`), and ~13 `Test*` functions that
+  pin the suffix-match gotcha, the IDN ASCII-only
+  constraint, every non-routable CIDR range as its
+  own row, the deny-list override, the
+  `default_policy: allow` + empty allowlist escape
+  hatch, and the "default-deny never consults the
+  resolver" durability property. The ASCII-only
+  constraint is a deliberate T5 limitation; IDN is
+  a T6+ concern that requires the
+  `golang.org/x/net/idn` package — see the
+  Forward references section of ADR-0017. `make
+  check` clean; Gate G1 re-proven.
 - **M4-T1 (`5f829b7`).** Path containment library at
   `internal/airlock/paths`. Three layers: `Resolve` (path
   arithmetic — absolute, traversal, NULL bytes), `Validate`
@@ -67,6 +161,89 @@ New entries are appended at the top. Do not rewrite history.
   helper's normalization contract and the sorted
   `allowedInternalSyscallIdentsKeyList` output. The actual
   library ships in `5f829b7`.
+- **M4-T4 (`3b41b89`).** Egress pipeline per
+  ADR-0015. `internal/airlock/egress` subscribes
+  to the append-only event log for
+  `category=artifact, event=accepted` rows, runs
+  the egress scanner registry (size + zipbomb +
+  clamav + yara — no prompt-injection, see the
+  T3 close-out), validates the export tree
+  through `airlock/paths`, and copies a clean
+  export to `<state>/workspace/exports/<project>/<artifact>-<sha12>/`.
+  The exporter is best-effort and asynchronous
+  (poll on `airlock.egress_poll_interval`, default
+  5s); the engine's `artifact_accepted` event is
+  durable in the artifact store *before* the
+  event row is appended, so a crash between
+  append and export means the next daemon boot
+  re-exports on the next poll cycle. The export
+  is idempotent: the SHA-12 suffix is the content
+  hash, so re-writing the same export is a no-op.
+  The same `/internal/v1/exports/<id>` API serves
+  the manual `athanor export` CLI subcommand
+  synchronously. `internal/api.SetManualExporter`
+  is the seam between the asynchronous pipeline
+  and the synchronous CLI; the interface keeps
+  the `internal/api` package free of the egress
+  import (Gate G1 keeps the dependency graph
+  narrow). `make check` clean.
+- **M4-T3 (`28e53cc`).** Pluggable scanners. The
+  `Scanner` interface in `internal/airlock/scanner`
+  is pure, streaming-aware, and explicit-verdict
+  (`VerdictClean` / `VerdictUncertain` /
+  `VerdictRejected`); the per-pipeline registry's
+  `RunAll` returns the most-severe verdict across
+  all scanners. In-tree scanners: `size`
+  (configurable byte cap, default 100 MiB),
+  `zipbomb` (decompression ratio + entry count,
+  defaults 100x and 10k), `heuristic` (the
+  prompt-injection keyword scanner, gated on a
+  2 KiB long-prompt threshold; only the
+  `PipelineUserPrompt` pipeline uses it). The
+  ClamAV and YARA adapters live in
+  `cmd/athanor/scanners/`; Gate G1's AST walk now
+  allowlists that directory for `os/exec` (the
+  same shape as the M2 production Podman client's
+  named-file exception, extended from a single
+  file to a directory — see the `54d8d7c` /
+  `28e53cc` allowlist evolution). Scanner-absent
+  at construction degrades to `VerdictUncertain`
+  at scan time: a named scanner the registry
+  cannot instantiate (e.g. "clamav" without a
+  `clamdscan` binary on PATH) is fail-closed, so
+  the pipeline refuses rather than silently
+  passes. The M3-T1 ADR-0015 four-crossing table
+  is the durable record of "which scanners run
+  where": ingress is the full set (heuristic +
+  size + zipbomb + clamav + yara), egress
+  intentionally omits the prompt-injection
+  scanner (LLM-generated data is not adversarial
+  to itself), and `user_prompt` is the heuristic
+  only over the 2 KiB threshold. `make check`
+  clean.
+- **M4-T2 (`0f727b0`).** Ingress pipeline per
+  ADR-0015. `internal/airlock/ingress` watches
+  `<state>/workspace/inbox/` with `fsnotify`,
+  routes new files through `airlock/paths` for
+  path-containment (T1) and the per-pipeline
+  scanner registry for byte + zipbomb + (optional)
+  prompt-injection scanning, then disposes to
+  `.processed/` (clean) or `quarantine/` (rejected
+  or uncertain). The `quarantined_files` table
+  (migration 0008) records every quarantine with
+  the deciding scanner's reason keyed by SHA-256;
+  the `QuarantineRepo` exposes `Put` / `Get` /
+  `ListByReason` for the operator's audit
+  workflow. The watcher is bound to the daemon's
+  lifetime; deferred `Close` drains the pending
+  queue before the process exits. The same scanner
+  registry is reused for the egress pipeline (T4)
+  — one registry, three pipeline selections. The
+  audit row carries a synthetic `event` key (the
+  row's primary dispatcher: `accepted`,
+  `quarantined`, `rejected`, `duplicate_ignored`)
+  so a SQL filter on `events.data_json` can find
+  rows without parsing JSON. `make check` clean.
 
 ### M3 follow-ups
 
