@@ -12,6 +12,60 @@ New entries are appended at the top. Do not rewrite history.
 
 ### M4 — Airlock & Gateway (in progress)
 
+- **M4-T5.4 (this commit).** Gate G1 rule 6 per
+  ADR-0017 §2: an AST walk in
+  `TestGateG1NoOutboundHTTPOutsideGateway`
+  (`internal/gate/gate_test.go`) fails the build
+  if any non-test production source under
+  `internal/` or `cmd/` references the
+  package-level outbound HTTP helpers
+  `http.Get`, `http.Post`, or `http.DefaultClient`
+  outside the §21.5 gateway package
+  (`internal/gateway/`) or the four
+  `cmd/athanor/cli*.go` loopback-CLI files
+  (`cli.go`, `cli_control.go`, `cli_export.go`,
+  `cli_project.go`). The walk is a separate test
+  function so the violation counter is per-rule;
+  a future contributor who adds a single bad
+  call site gets a single, focused failure. The
+  inner walk is extracted into the
+  `checkOutboundHTTP` helper, which the
+  `TestCheckOutboundHTTP` unit test exercises
+  against synthetic source: 3 forbidden-selector
+  rows (`Get`, `Post`, `DefaultClient` — each
+  caught independently), 4 positive controls
+  (constructed `*http.Client` with explicit
+  timeout, comment-position text, string literal,
+  `http.MethodGet` / `http.MethodPost` constants
+  — all correctly not flagged), and 1
+  multi-violation row (all three caught in source
+  order, sorted on output). The 8 subtests prove
+  the rule actually catches violations; a
+  regression that silently no-ops the walk (e.g.
+  always returns nil) trips the unit test even
+  if the integration test continues to pass
+  against a known-good tree. Companion tests in
+  `internal/gate/gate_relpath_test.go` pin the
+  rule's data: `TestRule6ForbiddenIdentsPinned`
+  pins the forbidden-ident set to
+  `{DefaultClient, Get, Post}`;
+  `TestRule6AllowedLocationsPinned` pins the
+  allowlist to the four CLI files;
+  `TestIsUnderGatewayPackage` exercises the
+  prefix-match helper across the seven cases the
+  walk relies on. The rule uses the same
+  `ast.Inspect` shape as the syscall walk in
+  rules 3/5 so a reader who knows one rule knows
+  the other. Constructed `*http.Client` usage
+  (e.g. the LLM client in `internal/llm/client.go`,
+  the Job Pod runner in
+  `internal/internalapi/runner/httpclient.go`) is
+  not in the rule: those callers construct
+  explicit timeouts and are sanctioned for
+  loopback / Ollama use. The rule targets the
+  "I'll just use http.Get" anti-pattern, not the
+  explicit-timeout pattern. `make check` clean;
+  all 7 gate tests green; Gate G1 strengthened.
 - **M4-T5.2 (`225ed38`).** Gateway runtime per
   [ADR-0017](docs/adr/0017-gateway.md). The
   `Client` interface in `internal/gateway/client.go`

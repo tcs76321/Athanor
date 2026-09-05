@@ -40,9 +40,32 @@
 //     of containment. Adding a new platform is a one-line entry in
 //     `allowedInternalSyscallIdents` plus a new build-tag-gated file.
 //
-// The implementation is a single AST walk in TestGateG1NoToolExecution.
-// Adding a new forbidden import, a new tool surface, or a new syscall
-// identifier requires extending this test and updating this comment.
+//  6. `http.Get`, `http.Post`, and `http.DefaultClient` may not be
+//     used outside `internal/gateway/` (the §21.5 Internet Gated
+//     Reader) or the four `cmd/athanor/cli*.go` files (the loopback
+//     CLI client — `cmd/athanor/cli.go`'s `apiCall` helper, plus the
+//     three subcommand files that call it or call `http.DefaultClient.Do`
+//     directly with a loopback URL). The gate walks every
+//     production source file under `internal/` and `cmd/` and asserts
+//     the forbidden selectors only appear in the allowlisted
+//     locations. Constructed `*http.Client` usage (e.g. the LLM
+//     client in `internal/llm/client.go`, the Job Pod runner in
+//     `internal/internalapi/runner/httpclient.go`) is not in the
+//     rule — those callers construct explicit timeouts and are
+//     sanctioned for loopback / Ollama use. The rule is in its
+//     own test (`TestGateG1NoOutboundHTTPOutsideGateway`) so the
+//     violation counter is per-rule and a future contributor can
+//     diagnose a single failure in isolation. M4-T5.4 / ADR-0017
+//     §2 is the durable record of the rule's design; the
+//     adversarial suite (M4-T8) extends it with `http.Get`-family
+//     fuzz cases.
+//
+// The implementation is a single AST walk in TestGateG1NoToolExecution
+// (rules 1–5) plus a separate AST walk in
+// TestGateG1NoOutboundHTTPOutsideGateway (rule 6). Adding a new
+// forbidden import, a new tool surface, a new syscall identifier,
+// or a new outbound-HTTP helper requires extending these tests and
+// updating this comment.
 //
 // # What Gate G1 does NOT prove
 //
@@ -72,6 +95,7 @@ import (
 	"go/token"
 	"os"
 	"path/filepath"
+	"reflect"
 	"sort"
 	"strings"
 	"testing"
@@ -346,4 +370,314 @@ func allowedInternalSyscallIdentsKeyList() []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+// forbiddenOutboundHTTPIdents are the package-level
+// outbound HTTP helpers rule 6 (M4-T5.4, ADR-0017 §2)
+// forbids outside the §21.5 gateway. A future
+// contributor who adds `http.Get(remoteURL)` to any
+// non-allowlisted file trips the build. The set is the
+// lazy "I don't want to construct an http.Client"
+// pattern; the project convention is to construct
+// `*http.Client` with explicit timeouts (see the LLM
+// client and the Job Pod runner for sanctioned
+// examples).
+//
+// The identifiers are the *package-level* helpers
+// only. Constructed-client usage (e.g.
+// `(&http.Client{Timeout: ...}).Do(req)`) is not in
+// the rule: those callers construct explicit
+// timeouts and are loopback / Ollama use. The rule
+// targets the "I'll just use http.Get" anti-pattern,
+// not the explicit-timeout pattern.
+var forbiddenOutboundHTTPIdents = map[string]bool{
+	"Get":           true, // http.Get(url)
+	"Post":          true, // http.Post(url, contentType, body)
+	"DefaultClient": true, // http.DefaultClient; .Do via the field name
+}
+
+// allowedOutboundHTTPLocations are the files where
+// the forbidden selectors may appear. The set is
+// path-keyed (full repo-relative path) so a future
+// contributor cannot create a sibling file and have
+// it pass.
+//
+// The §21.5 Internet Gated Reader
+// (`internal/gateway/`) is the only place outbound
+// HTTP to non-loopback destinations may originate.
+// The `cmd/athanor/cli*.go` files are the loopback
+// CLI client; they talk to the daemon over the
+// loopback socket (default `127.0.0.1:7420` per
+// §21.8) and are the canonical "CLI to daemon"
+// surface. `cli.go` provides the `apiCall` helper;
+// `cli_control.go` and `cli_project.go` use
+// `apiCall` transitively; `cli_export.go` calls
+// `http.DefaultClient.Do(req)` directly with a
+// loopback URL. The daemon's own HTTP server is
+// tested via `httptest.NewServer` in `*_test.go`
+// files, which are exempt from rule 6 (the test
+// exemption is the same one rules 1–5 use).
+var allowedOutboundHTTPLocations = map[string]bool{
+	"cmd/athanor/cli.go":          true, // apiCall helper + http.DefaultClient.Do
+	"cmd/athanor/cli_control.go": true, // uses apiCall
+	"cmd/athanor/cli_export.go":  true, // http.DefaultClient.Do directly
+	"cmd/athanor/cli_project.go": true, // uses apiCall
+}
+
+// isUnderGatewayPackage reports whether the file at
+// `walkerPath` lives under `internal/gateway/`. The
+// §21.5 gateway is the only place the package-level
+// outbound HTTP helpers may appear (the gateway
+// constructs a per-request `*http.Client`; the
+// `http.Get` / `http.Post` / `http.DefaultClient`
+// helpers in `internal/gateway/dial.go` and
+// `client.go` are a deliberate but narrow exception
+// — see the test's allowlist comment for the
+// rationale). The check is a prefix match on the
+// repo-relative path; a future contributor cannot
+// create a sibling directory and have it pass.
+func isUnderGatewayPackage(walkerPath string) bool {
+	rel := relPath(walkerPath)
+	return rel == "internal/gateway" || strings.HasPrefix(rel, "internal/gateway/")
+}
+
+// checkOutboundHTTP reports whether `file` (already
+// parsed) contains a forbidden outbound-HTTP
+// selector. It is the inner walk the test extracts
+// from `TestGateG1NoOutboundHTTPOutsideGateway` so
+// the walk's logic has a unit-level regression
+// surface in addition to the integration test that
+// walks the real tree. The function returns the
+// sorted list of forbidden selector names it
+// found (empty for a clean file); the integration
+// test counts violations, the unit test asserts
+// the *names*. Sorting keeps the test output
+// stable across AST-traversal orderings.
+func checkOutboundHTTP(file *ast.File) []string {
+	var found []string
+	ast.Inspect(file, func(n ast.Node) bool {
+		sel, ok := n.(*ast.SelectorExpr)
+		if !ok {
+			return true
+		}
+		id, ok := sel.X.(*ast.Ident)
+		if !ok || id.Name != "http" {
+			return true
+		}
+		if forbiddenOutboundHTTPIdents[sel.Sel.Name] {
+			found = append(found, sel.Sel.Name)
+		}
+		return true
+	})
+	sort.Strings(found)
+	return found
+}
+
+// TestGateG1NoOutboundHTTPOutsideGateway is rule 6
+// (M4-T5.4, ADR-0017 §2). The walk is a separate
+// test function so the violation counter is
+// per-rule: a future contributor who adds a single
+// bad call site gets a single, focused failure,
+// not a cascade of `TestGateG1NoToolExecution`
+// violations to sift through. The walk uses the
+// same `ast.Inspect` shape as the syscall walk in
+// `TestGateG1NoToolExecution` (rule 3 / 5) so a
+// reader who knows one rule knows the other.
+func TestGateG1NoOutboundHTTPOutsideGateway(t *testing.T) {
+	roots := []struct {
+		dir      string
+		internal bool
+	}{
+		{"../../internal", true},
+		{"../../cmd", false},
+	}
+	violations := 0
+	for _, root := range roots {
+		err := filepath.WalkDir(root.dir, func(path string, d os.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+				// The `_test.go` exemption is the
+				// same one rules 1–5 use; the
+				// daemon's HTTP server is tested
+				// via `httptest.NewServer` (loopback)
+				// in `internal/server/*_test.go`
+				// and `internal/api/e2e_test.go`,
+				// all of which legitimately call
+				// `http.Get` / `http.Post` /
+				// `http.DefaultClient` against
+				// the test server.
+				return nil
+			}
+			rel := relPath(path)
+			// Allowlist 1: the §21.5 gateway
+			// itself. The package constructs a
+			// per-request `*http.Client`; the
+			// `http.Get` / `http.Post` /
+			// `http.DefaultClient` selectors
+			// that appear in its source today
+			// (the T6 follow-up will add a
+			// `*http.Client` literal in
+			// `client_test.go` if the tests
+			// need one) are deliberate.
+			if isUnderGatewayPackage(path) {
+				return nil
+			}
+			// Allowlist 2: the four loopback
+			// CLI files in `cmd/athanor/`. The
+			// list is path-keyed so a sibling
+			// file (e.g. `cmd/athanor/cli_foo.go`)
+			// added by a future contributor
+			// does not silently pass.
+			if allowedOutboundHTTPLocations[rel] {
+				return nil
+			}
+			fset := token.NewFileSet()
+			file, perr := parser.ParseFile(fset, path, nil, 0)
+			if perr != nil {
+				t.Errorf("parsing %s: %v", path, perr)
+				return nil
+			}
+			for _, ident := range checkOutboundHTTP(file) {
+				t.Errorf("%s references http.%s — outbound HTTP must go through internal/gateway (M4-T5.4, ADR-0017 §2)", path, ident)
+				violations++
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	if violations > 0 {
+		t.Fatalf("%d Gate G1 rule 6 violations: outbound HTTP used outside the §21.5 gateway", violations)
+	}
+	if violations > 0 {
+		t.Fatalf("%d Gate G1 rule 6 violations: outbound HTTP used outside the §21.5 gateway", violations)
+	}
+}
+
+// TestCheckOutboundHTTP is the unit-level proof that
+// `checkOutboundHTTP` actually catches the
+// forbidden selectors. The integration test
+// (`TestGateG1NoOutboundHTTPOutsideGateway`)
+// walks the real tree and asserts the absence of
+// violations; this test feeds synthetic source
+// to the inner walk and asserts the *presence* of
+// the expected violations. A regression that
+// silently no-ops the walk (e.g. always returns
+// nil) trips this test even if the integration
+// test continues to pass against a known-good
+// tree.
+//
+// The cases cover the three forbidden selectors
+// (Get, Post, DefaultClient) plus a positive
+// control (a constructed *http.Client with an
+// explicit timeout) and a comment-position
+// control (text that mentions http.Get inside a
+// `// ...` line, which the AST does not tokenize
+// into SelectorExprs).
+func TestCheckOutboundHTTP(t *testing.T) {
+	cases := []struct {
+		name string
+		src  string
+		want []string
+	}{
+		{
+			name: "clean_constructed_client",
+			src: `package x
+import "net/http"
+func f() {
+	c := &http.Client{Timeout: 5e9}
+	_ = c
+}`,
+			want: nil,
+		},
+		{
+			name: "http_get_caught",
+			src: `package x
+import "net/http"
+func f() { _ = http.Get("https://example.com/") }`,
+			want: []string{"Get"},
+		},
+		{
+			name: "http_post_caught",
+			src: `package x
+import "net/http"
+func f() { _ = http.Post("https://example.com/", "text/plain", nil) }`,
+			want: []string{"Post"},
+		},
+		{
+			name: "http_default_client_do_caught",
+			src: `package x
+import "net/http"
+func f() { _ = http.DefaultClient.Do(nil) }`,
+			want: []string{"DefaultClient"},
+		},
+		{
+			name: "multiple_violations",
+			src: `package x
+import "net/http"
+func f() {
+	_ = http.Get("https://a.example/")
+	_ = http.Post("https://b.example/", "text/plain", nil)
+	_ = http.DefaultClient.Do(nil)
+}`,
+			want: []string{"DefaultClient", "Get", "Post"},
+		},
+		{
+			name: "comment_position_not_counted",
+			// AST does not tokenize the inside
+			// of a `// ...` comment, so the
+			// `http.Get` and `http.Post`
+			// mentions in the doc comment do
+			// not produce SelectorExpr nodes.
+			src: `package x
+// uses http.Get and http.Post in the doc.
+import "net/http"
+func f() { _ = &http.Client{Timeout: 1e9} }`,
+			want: nil,
+		},
+		{
+			name: "string_literal_not_counted",
+			// The AST places a BasicLit node
+			// here, not a SelectorExpr, so
+			// the walk does not see it as a
+			// reference.
+			src: `package x
+var s = "http.Get is forbidden"`,
+			want: nil,
+		},
+		{
+			name: "http_method_constants_ok",
+			// http.MethodGet, .MethodPost, etc.
+			// are *string* constants, not the
+			// forbidden outbound-client
+			// helpers. The walk's SelectorExpr
+			// check is on the Sel name; the
+			// constant access uses
+			// `http.MethodGet` which is not in
+			// the forbidden set.
+			src: `package x
+import "net/http"
+func f(m string) string {
+	if m == http.MethodGet { return "get" }
+	return http.MethodPost
+}`,
+			want: nil,
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			fset := token.NewFileSet()
+			file, err := parser.ParseFile(fset, "synthetic.go", c.src, 0)
+			if err != nil {
+				t.Fatalf("parse: %v", err)
+			}
+			got := checkOutboundHTTP(file)
+			if !reflect.DeepEqual(got, c.want) {
+				t.Errorf("checkOutboundHTTP = %v, want %v", got, c.want)
+			}
+		})
+	}
 }

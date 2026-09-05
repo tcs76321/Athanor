@@ -20,7 +20,7 @@ same surface.
 
 | Property | Structural proof (CI) | Behavioral proof (local) |
 |---|---|---|
-| Outbound HTTP lives only in `internal/gateway/` | `TestGateG1NoOutboundHTTPOutsideGateway` (T5.4) | — |
+| Outbound HTTP lives only in `internal/gateway/` (rule 6) | `TestGateG1NoOutboundHTTPOutsideGateway` (T5.4 — landed 2026-09-05) | `TestCheckOutboundHTTP` unit test (8 subtests, synthetic source) |
 | Allowlist is suffix-match with `.` separator | `TestMatchHost` in `internal/gateway/policy_test.go` (the `evilwikipedia.org` gotcha) | `TestGateway_PolicyAllowsSubdomainButNotTyposquat` (T8) |
 | Denylist overrides allowlist | `TestEval_DenyListOverridesAllow` | `TestGateway_DenyListWinsOverAllow` (T8) |
 | DNS-rebinding guard refuses private/loopback/link-local/CGN | `TestEval_DenyPrivateIP` (13 rows) | `TestGateway_DNSRebindAttemptFails` (T8) |
