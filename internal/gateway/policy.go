@@ -40,6 +40,19 @@ type Policy struct {
 	// §3); it ships because operators will widen the
 	// allowlist to escape the smell otherwise.
 	denyList []string
+
+	// insecureSkipPrivateIPGuard disables the
+	// §21.5 DNS-rebinding guard's CIDR check.
+	// Production never sets this. The test suite
+	// uses it to dial `httptest` servers bound to
+	// 127.0.0.1. The flag's name is the friction:
+	// any reader of the code sees the
+	// `InsecureSkip` prefix and the `TestOnly`
+	// / doc comment, and a future contributor
+	// who copies the pattern into production is
+	// on notice. ADR-0017 §4 documents the
+	// production-only invariant.
+	insecureSkipPrivateIPGuard bool
 }
 
 // Resolver is the DNS-resolution surface the policy uses to
@@ -68,23 +81,64 @@ type Resolver interface {
 //     error (T5 is ASCII-only; IDN is a T6+ concern).
 //   - Empty entries in either list are rejected.
 func NewPolicy(defaultPolicy string, allowList, denyList []string) (*Policy, error) {
-	switch defaultPolicy {
+	return NewPolicyWithOptions(PolicyOptions{
+		DefaultPolicy: defaultPolicy,
+		AllowList:     allowList,
+		DenyList:      denyList,
+	})
+}
+
+// PolicyOptions is the §21.5 policy configuration. The
+// `NewPolicy` shorthand constructor is the production
+// path; `NewPolicyWithOptions` is the explicit form tests
+// use to opt into test-only behavior.
+//
+// The two fields with `_` suffixes are test-only escape
+// hatches. Setting either to `true` is a documented
+// configuration smell; the production wire never sets
+// them. The long names are the friction the §21.5
+// discipline depends on.
+type PolicyOptions struct {
+	// DefaultPolicy, AllowList, DenyList mirror the
+	// positional NewPolicy arguments.
+	DefaultPolicy string
+	AllowList     []string
+	DenyList      []string
+	// InsecureSkipPrivateIPGuard disables the
+	// §21.5 DNS-rebinding guard's CIDR check.
+	// Setting this to true makes a hostname that
+	// resolves to 127.0.0.1, 10.0.0.0/8, etc.
+	// pass through. The test suite sets this; the
+	// production wire never does. A future M4-T8
+	// regression test asserts the field is `false`
+	// in the production default.
+	InsecureSkipPrivateIPGuard bool
+}
+
+// NewPolicyWithOptions constructs a Policy from a
+// `PolicyOptions` struct. Production code uses
+// `NewPolicy` (which calls this with all defaults);
+// tests use this directly to set the test-only
+// escape hatches.
+func NewPolicyWithOptions(o PolicyOptions) (*Policy, error) {
+	switch o.DefaultPolicy {
 	case "deny", "allow":
 	default:
-		return nil, fmt.Errorf("gateway: default_policy must be \"deny\" or \"allow\", got %q", defaultPolicy)
+		return nil, fmt.Errorf("gateway: default_policy must be \"deny\" or \"allow\", got %q", o.DefaultPolicy)
 	}
-	al, err := normalizeHostList(allowList, "allow_list")
+	al, err := normalizeHostList(o.AllowList, "allow_list")
 	if err != nil {
 		return nil, err
 	}
-	dl, err := normalizeHostList(denyList, "deny_list")
+	dl, err := normalizeHostList(o.DenyList, "deny_list")
 	if err != nil {
 		return nil, err
 	}
 	return &Policy{
-		defaultPolicy: defaultPolicy,
-		allowList:     al,
-		denyList:      dl,
+		defaultPolicy:             o.DefaultPolicy,
+		allowList:                 al,
+		denyList:                  dl,
+		insecureSkipPrivateIPGuard: o.InsecureSkipPrivateIPGuard,
 	}, nil
 }
 
@@ -283,6 +337,12 @@ func (p *Policy) Eval(ctx context.Context, rawURL string, r Resolver) (EvalResul
 	}
 	for _, ip := range ips {
 		if isNonRoutable(ip) {
+			if p.insecureSkipPrivateIPGuard {
+				// Test-only escape hatch.
+				// Production never sets
+				// this; see ADR-0017 §4.
+				continue
+			}
 			return EvalResult{Decision: DecisionDeniedPrivateIP, Host: host, ResolvedIPs: ips, Reason: "denied_private_ip"}, ErrDeniedPrivateIP
 		}
 	}

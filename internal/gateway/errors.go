@@ -38,3 +38,11 @@ var ErrDeniedPrivateIP = errors.New("gateway: host resolved to non-routable IP")
 var ErrIDNNotSupported = errors.New("gateway: non-ASCII host rejected (IDN not supported in M4-T5)")
 
 var ErrInvalidURL = errors.New("gateway: invalid URL")
+
+// ErrRateLimited is returned when the §21.5 per-host
+// rate-limit bucket is empty. The caller can surface
+// this to the operator as "the gateway's bucket for
+// host X is exhausted; back off and retry." The
+// `network` event with `event=rate_limited` is the
+// durable record.
+var ErrRateLimited = errors.New("gateway: per-host rate limit exceeded")

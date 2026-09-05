@@ -225,6 +225,33 @@ func run(configPath, addr, stateDir string) error {
 	// (Gate G1 keeps the dependency graph narrow).
 	externalAPI.SetManualExporter(exporter)
 
+	// M4-T5: §21.5 Internet Gated Reader. The gateway
+	// is the *only* door between the Core and the
+	// public internet (ADR-0017 §1). It is
+	// constructed at daemon boot and held ready for
+	// the M4-T7 tool envelope; no callers exist
+	// yet, but the construction is the structural
+	// proof that the config + Resolver + audit-log
+	// wiring is sound. Failures to construct the
+	// gateway are fatal: a daemon that boots
+	// without a gateway is, by construction, a
+	// daemon that cannot reach the internet safely
+	// (and the operator's first `network` event
+	// would be the absence of a `fetched` row).
+	gw, err := startGateway(stateDir, st, cfg.Network, slog.Default())
+	if err != nil {
+		return fmt.Errorf("starting gateway: %w", err)
+	}
+	// The gateway itself owns no goroutines; the
+	// "no-op at boot" pattern is that the variable
+	// is held so the wiring is exercised on every
+	// daemon start. T7 will thread it into the
+	// tool envelope; until then, a future
+	// contributor who refactors serve.go and
+	// drops the gateway construction trips a CI
+	// boot test (added in T5.3).
+	_ = gw
+
 	httpSrv := &http.Server{
 		Handler:           srv.Handler(),
 		ReadHeaderTimeout: 5 * time.Second,
