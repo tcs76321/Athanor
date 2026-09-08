@@ -250,6 +250,45 @@ func TestMinJudgeConfidence_OutOfRangeRejected(t *testing.T) {
 	}
 }
 
+// TestReaderModeDefault_UnsetAppliesTrue pins the M4-T6 contract:
+// a config that omits `network.reader_mode_default` gets the true
+// default filled by applyDefaults, and `Network.ReaderMode()`
+// resolves to true (the §21.5 Reader Mode is on by default).
+func TestReaderModeDefault_UnsetAppliesTrue(t *testing.T) {
+	cfg, err := Load(writeTemp(t, validMinimal))
+	if err != nil {
+		t.Fatalf("Load(valid) = %v, want nil", err)
+	}
+	if cfg.Network.ReaderModeDefault == nil {
+		t.Fatal("ReaderModeDefault is nil, want &true (default filled)")
+	}
+	if !*cfg.Network.ReaderModeDefault {
+		t.Error("ReaderModeDefault = false, want true")
+	}
+	if !cfg.Network.ReaderMode() {
+		t.Error("ReaderMode() = false, want true")
+	}
+}
+
+// TestReaderModeDefault_ExplicitFalseRespected pins the opt-out:
+// an explicit `reader_mode_default: false` is a distinct "disabled"
+// state, not the nil default, and ReaderMode() returns false so the
+// gateway refuses extraction (ADR-0018 §5).
+func TestReaderModeDefault_ExplicitFalseRespected(t *testing.T) {
+	cfg, err := Parse([]byte("version: 2\nnetwork:\n  reader_mode_default: false\n"))
+	if err != nil {
+		t.Fatalf("Parse(reader_mode_default=false) = %v, want nil", err)
+	}
+	if cfg.Network.ReaderModeDefault == nil {
+		t.Fatal("ReaderModeDefault is nil, want &false (explicit value preserved)")
+	}
+	if *cfg.Network.ReaderModeDefault {
+		t.Error("ReaderModeDefault = true, want explicit false")
+	}
+	if cfg.Network.ReaderMode() {
+		t.Error("ReaderMode() = true, want false (explicit opt-out)")
+	}
+}
 // TestMinJudgeConfidence_UnsetAppliesDefault: a
 // minimal config that omits the field entirely must
 // have the 0.7 default applied by `applyDefaults`,

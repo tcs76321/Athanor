@@ -4,29 +4,39 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/tcs76321/athanor/internal/airlock/scanner"
 	"github.com/tcs76321/athanor/internal/config"
 	"github.com/tcs76321/athanor/internal/gateway"
 	"github.com/tcs76321/athanor/internal/store"
 )
 
-// startGateway constructs the §21.5 Internet Gated
-// Reader (M4-T5, ADR-0017) and returns the resulting
-// Client. The function is the single wire-up point
-// between the daemon's config and the gateway
-// package: every config knob the gateway cares
-// about (default_policy, allow_list,
-// rate_limit_per_minute, max_response_bytes) is read
-// here, and the resulting types are passed to
-// `gateway.NewPolicy` and `gateway.NewClient`.
+// GatewayParts is the §21.5 wiring result: the outbound Client
+// (fetch) and the Reader (extraction). T7's fetch_url / search_web
+// tools consume both; until then the construction is the structural
+// proof that the daemon can reach the internet *through the gateway*
+// and extract *through the Reader*.
+type GatewayParts struct {
+	Client gateway.Client
+	Reader gateway.Reader
+}
+
+// startGateway constructs the §21.5 Internet Gated Reader (M4-T5,
+// ADR-0017; Reader Mode M4-T6, ADR-0018) and returns both the
+// outbound Client and the extraction Reader. The function is the
+// single wire-up point between the daemon's config and the gateway
+// package: every config knob the gateway cares about
+// (default_policy, allow_list, rate_limit_per_minute,
+// max_response_bytes, reader_mode_default) is read here, and the
+// resulting types are passed to `gateway.NewPolicy`,
+// `gateway.NewClient`, and `gateway.NewReader`.
 //
-// The function does *not* start any goroutines; the
-// gateway's runtime is a per-Fetch call, and T7
-// (gateway-backed tools) is the first caller. The
-// Client is returned so the caller holds a
-// reference; the variable is currently unused after
-// construction (T7 will use it) but the construction
-// is the structural proof that the wire-up works.
-func startGateway(stateDir string, st *store.Store, netCfg config.Network, logger *slog.Logger) (gateway.Client, error) {
+// The function does *not* start any goroutines; the gateway's
+// runtime is a per-Fetch call, and T7 (gateway-backed tools) is the
+// first caller. The Reader is constructed with the in-tree
+// prompt-injection heuristic (the same scanner the ingress pipeline
+// uses, `cmd/athanor/ingress.go`), always-on with MinLength=1, so
+// extraction is fail-closed from day one.
+func startGateway(stateDir string, st *store.Store, netCfg config.Network, logger *slog.Logger) (GatewayParts, error) {
 	// The §21.5 gateway is the only outbound HTTP
 	// door. Construction is the operator's
 	// structural proof that a daemon boot
@@ -36,7 +46,7 @@ func startGateway(stateDir string, st *store.Store, netCfg config.Network, logge
 	// first fetch.
 	policy, err := gateway.NewPolicy(netCfg.DefaultPolicy, netCfg.AllowList, nil)
 	if err != nil {
-		return nil, fmt.Errorf("gateway: building policy: %w", err)
+		return GatewayParts{}, fmt.Errorf("gateway: building policy: %w", err)
 	}
 	client, err := gateway.NewClient(gateway.Options{
 		Policy:           policy,
@@ -50,13 +60,23 @@ func startGateway(stateDir string, st *store.Store, netCfg config.Network, logge
 		// Clock: nil → time.Now.
 	})
 	if err != nil {
-		return nil, fmt.Errorf("gateway: building client: %w", err)
+		return GatewayParts{}, fmt.Errorf("gateway: building client: %w", err)
+	}
+	reader, err := gateway.NewReader(gateway.ReaderOptions{
+		Enabled:   netCfg.ReaderMode(),
+		Heuristic: scanner.NewPromptInjectionHeuristic(1),
+		Events:    st,
+		Logger:    logger,
+	})
+	if err != nil {
+		return GatewayParts{}, fmt.Errorf("gateway: building reader: %w", err)
 	}
 	logger.Info("gateway: constructed",
 		"default_policy", netCfg.DefaultPolicy,
 		"allow_list_size", len(netCfg.AllowList),
 		"rate_limit_per_minute", netCfg.RateLimitPerMinute,
 		"max_response_bytes", netCfg.MaxResponseBytes,
+		"reader_mode", netCfg.ReaderMode(),
 	)
-	return client, nil
+	return GatewayParts{Client: client, Reader: reader}, nil
 }

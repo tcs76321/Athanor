@@ -265,6 +265,20 @@ type Network struct {
 	ExternalAPIHostAllowlist []string `yaml:"external_api_host_allowlist"`
 }
 
+// ReaderMode returns the §21.5 reader-mode flag, applying the `true`
+// default when the operator left the field unset. An explicit `false`
+// disables Reader Mode extraction (ADR-0018 §5); the gateway then
+// refuses extraction with ErrReaderDisabled and callers fall back to
+// the raw fetched bytes. The resolver mirrors the `Execution.MinJudge()`
+// pointer-field pattern: consumers resolve through the method; reading
+// the raw `*bool` is reserved for the config layer.
+func (n *Network) ReaderMode() bool {
+	if n.ReaderModeDefault == nil {
+		return true
+	}
+	return *n.ReaderModeDefault
+}
+
 // Security toggles airlock scanning (§21.3–21.4).
 type Security struct {
 	ScanIngressFiles          *bool `yaml:"scan_ingress_files"`

@@ -249,7 +249,11 @@ func run(configPath, addr, stateDir string) error {
 	// tool envelope; until then, a future
 	// contributor who refactors serve.go and
 	// drops the gateway construction trips a CI
-	// boot test (added in T5.3).
+	// boot test (added in T5.3). The Reader half
+	// of the bundle is constructed (and its
+	// injection heuristic validated) here so a
+	// reader-mode misconfiguration fails at boot,
+	// not at first fetch.
 	_ = gw
 
 	httpSrv := &http.Server{
