@@ -12,6 +12,45 @@ New entries are appended at the top. Do not rewrite history.
 
 ### M4 — Airlock & Gateway (in progress)
 
+- **M4-T6 (this close-out).** §21.5 responsibility 6, Reader Mode
+  extraction, lands in three commits (`5928d45` deps + ADR-0018,
+  `1dc946a` extraction layer, `ea5a9a1` config activation + daemon
+  wiring). `internal/gateway/reader.go` is the closed pipeline
+  `Client.Fetch → content-type gate → readability.FromReader →
+  bluemonday UGCPolicy → renderMarkdown → prompt-injection scan`
+  ([ADR-0018](docs/adr/0018-reader-mode.md)). Decisions worth
+  remembering: we depend on the *maintained*
+  `codeberg.org/readeck/go-readability/v2` v2.1.2 because the
+  go-shiori module ARCHITECTURE §2 originally named is deprecated
+  upstream; `FromURL` is never called (the gateway stays the single
+  fetch point); the extraction *never* falls back to raw HTML; and the
+  final markdown passes through the in-tree
+  `scanner.PromptInjectionHeuristic` (MinLength=1, same as
+  `cmd/athanor/ingress.go`) — a non-clean verdict returns
+  `ErrPromptInjection` and no markdown leaves the reader. Fail-closed
+  paths: non-HTML/text Content-Type → `ErrNotReadable`; a JS-only page
+  (no main content) → `ErrNoReadableContent`; `reader_mode_default:
+  false` → `ErrReaderDisabled`. Two new `network` event names,
+  `reader_mode_applied` and `reader_mode_rejected`, join the open
+  event set (no migration). `renderMarkdown` (`markdown.go`) maps the
+  sanitized tree to a closed markdown subset (headings, paragraphs,
+  nested lists, http(s)-only links, fenced/inline code, blockquote,
+  hr, tables) and is table-tested. The dormant
+  `network.reader_mode_default` flag (ADR-0017 §6, `f309500` pattern)
+  is now effective: `config.Network.ReaderMode()` resolves it and
+  `cmd/athanor/gateway.go:startGateway` returns a `GatewayParts` bundle
+  (Client + Reader) constructed at boot. Test evidence: `make check`
+  green with the new deps and transitive `golang.org/x/net` v0.41.0 /
+  `golang.org/x/sys` v0.33.0 upgrades (Gate G1 re-proven — the M4-T1
+  `O_NOFOLLOW` wrappers compile and pass); ~25 new `Test*` functions
+  in `internal/gateway/{reader,markdown}_test.go` covering the hostile
+  script/iframe/object/form/onerror corpus, the occlusion corpus, the
+  text/plain path, the injection fail-closed, the disabled flag, and
+  the end-to-end httptest fetch→extract seam T7 will sit on;
+  `internal/config/config_test.go` pins `ReaderMode()` default-true /
+  explicit-false. ADR-0018 §5 and §6 record the flag + audit
+  contracts.
+
 - **M4-T5.4 (this commit).** Gate G1 rule 6 per
   ADR-0017 §2: an AST walk in
   `TestGateG1NoOutboundHTTPOutsideGateway`

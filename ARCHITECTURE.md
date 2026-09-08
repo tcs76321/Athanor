@@ -31,7 +31,12 @@ An *athanor* is an alchemical furnace designed to burn continuously without inte
 | Sandbox / execution isolation | **Rootless Podman** (Core Pod + ephemeral Job Pods) |
 | Persistent state | **SQLite** (WAL, FTS5, sqlite-vec) |
 | LLM inference | **Ollama** (default backend, REST API) |
-| Web extraction | **Go `net/http` + `go-readability` + `bluemonday`** (Reader Mode) |
+| Web extraction | **Go `net/http` + `codeberg.org/readeck/go-readability/v2` + `bluemonday`** (Reader Mode) |
+
+> **Note (Reader Mode dep):** ARCHITECTURE originally named
+> `github.com/go-shiori/go-readability`; that module is deprecated upstream
+> ("use codeberg.org/readeck/go-readability/v2 instead"). We depend on the
+> maintained continuation at v2.1.2 — see [ADR-0018](docs/adr/0018-reader-mode.md) §1.
 | Malware / threat scanning | **ClamAV**, **YARA** (optional but recommended) |
 | Filesystem events | **`fsnotify`** (Host Adapter) |
 | System metrics | **`gopsutil`** |

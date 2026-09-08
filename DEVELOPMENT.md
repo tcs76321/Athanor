@@ -16,6 +16,19 @@ make run          # run the daemon locally
 
 Don't run bare `go build` / `go test` — they silently drop CGO and fail on the sqlite3 driver. The Makefile sets the flag for you, and CI enforces the same targets.
 
+### Dependencies (M4-T6)
+
+The project stays deliberately lean — four in-tree dependencies:
+
+| Package | Why |
+|---|---|
+| `mattn/go-sqlite3` | persistent state (CGO, ADR-0003) |
+| `gopkg.in/yaml.v3` | config loading |
+| `codeberg.org/readeck/go-readability/v2` | §21.5 Reader Mode extraction (M4-T6). The maintained continuation of the deprecated go-shiori module; see [ADR-0018](docs/adr/0018-reader-mode.md) §1. Only `FromReader` is ever called — `FromURL` would open a second egress path past the gateway, and Gate G1 rule 6 makes that a build break. |
+| `github.com/microcosm-cc/bluemonday` | Reader Mode sanitization (UGCPolicy) before markdown rendering |
+
+Adding a dependency is a project decision (AGENTS.md), not an agent decision.
+
 ### Integration (behavioral) security probes
 
 The five behavioral probes in `internal/jobpod/security_test.go`
