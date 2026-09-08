@@ -37,10 +37,22 @@
 //
 // # What this package does NOT do
 //
-//   - §21.5 responsibility 6 (Reader Mode extraction) is M4-T6.
 //   - §21.5 responsibility 7 (cloud-inference credential
 //     injection) is M6.
 //   - §21.6 Browser Mode is M6.
 //   - Cross-pipeline correlation between network events and
 //     artifacts is a future M5/M6 task.
+//
+// # Reader Mode (M4-T6, ADR-0018)
+//
+// `Client.Fetch` returns a raw `Response`; the `Reader` layer
+// (`reader.go`) adds the §21.5 responsibility 6 pass on top:
+// readability extraction → bluemonday sanitization → markdown
+// rendering → prompt-injection scan. ADR-0018 records the pipeline
+// decisions: depend on the maintained go-readability fork, only ever
+// call `FromReader` (never `FromURL` — the gateway stays the single
+// fetch point), and fail closed on non-HTML, unextractable, or
+// injection-flagged content. The markdown renderer
+// (`markdown.go`) must stay in this package so the §21.5
+// containment story keeps a single egress surface.
 package gateway
