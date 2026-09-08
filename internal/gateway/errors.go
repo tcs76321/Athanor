@@ -46,3 +46,27 @@ var ErrInvalidURL = errors.New("gateway: invalid URL")
 // `network` event with `event=rate_limited` is the
 // durable record.
 var ErrRateLimited = errors.New("gateway: per-host rate limit exceeded")
+
+// Reader Mode sentinels (M4-T6, ADR-0018 §3). Each maps to exactly
+// one `reader_mode_rejected` audit reason, so the pairing {error,
+// audit reason} is one-to-one and greppable:
+//
+//   - ErrReaderDisabled:    reader_mode_default=false; the caller
+//                           receives ErrReaderDisabled and may use
+//                           the raw fetched Response instead.
+//   - ErrNotReadable:       the response's Content-Type is not
+//                           text/html / application/xhtml+xml /
+//                           text/plain.
+//   - ErrNoReadableContent: readability extraction produced no main
+//                           content (e.g. a JS-rendered page). The
+//                           raw HTML is never returned as a fallback.
+//   - ErrPromptInjection:   the extracted markdown tripped the
+//                           prompt-injection heuristic. No markdown
+//                           leaves the reader.
+var ErrReaderDisabled = errors.New("gateway: reader mode disabled by config")
+
+var ErrNotReadable = errors.New("gateway: response content-type is not readable HTML/text")
+
+var ErrNoReadableContent = errors.New("gateway: readability extraction found no main content")
+
+var ErrPromptInjection = errors.New("gateway: extracted markdown tripped prompt-injection heuristic")

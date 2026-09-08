@@ -28,12 +28,17 @@ import (
 type EventName string
 
 const (
-	EventFetched     EventName = "fetched"
-	EventTruncated   EventName = "truncated"
-	EventDenied      EventName = "denied"
-	EventPrivateIP   EventName = "private_ip"
-	EventRateLimited EventName = "rate_limited"
-	EventError       EventName = "error"
+	EventFetched       EventName = "fetched"
+	EventTruncated     EventName = "truncated"
+	EventDenied        EventName = "denied"
+	EventPrivateIP     EventName = "private_ip"
+	EventRateLimited   EventName = "rate_limited"
+	EventError         EventName = "error"
+	// Reader Mode events (M4-T6, ADR-0018 §6). The `network`
+	// category is closed; the event-name set is open (ADR-0017 §8
+	// forward references).
+	EventReaderApplied  EventName = "reader_mode_applied"
+	EventReaderRejected EventName = "reader_mode_rejected"
 )
 
 // EventLogger is the surface the audit helpers need.
@@ -62,9 +67,14 @@ type auditPayload struct {
 	Status           int      `json:"status,omitempty"`
 	BytesRead        int64    `json:"bytes_read,omitempty"`
 	Truncated        bool     `json:"truncated,omitempty"`
-	Reason           string   `json:"reason,omitempty"`
-	DurationMS       int64    `json:"duration_ms"`
-	RequestID        string   `json:"request_id"`
+	// Mode and MarkdownBytes only appear on Reader Mode events
+	// (M4-T6, ADR-0018 §6): the extraction path used and the size of
+	// the markdown handed to the caller.
+	Mode           string `json:"mode,omitempty"`
+	MarkdownBytes  int64  `json:"markdown_bytes,omitempty"`
+	Reason         string `json:"reason,omitempty"`
+	DurationMS     int64  `json:"duration_ms"`
+	RequestID      string `json:"request_id"`
 }
 
 // appendAudit writes one `network` event. Errors are

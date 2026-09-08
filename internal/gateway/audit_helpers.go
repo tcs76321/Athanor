@@ -102,6 +102,44 @@ func errorEvent(requestID, rawURL string, policy EvalResult, duration time.Durat
 	}
 }
 
+// readerAppliedEvent builds the audit row for a successful Reader
+// Mode extraction (M4-T6, ADR-0018 §6). The `mode` field records
+// which extraction path produced the markdown (`readability` or
+// `plain`); `markdownBytes` is the exact byte count handed to the
+// caller.
+func readerAppliedEvent(resp *Response, mode ReaderMode, markdownBytes int) auditPayload {
+	// `Response.Decision` is a value `EvalResult` (client.go); the
+	// default has empty Host/Reason, which is exactly the right audit
+	// value when a caller constructs a Response without a decision.
+	return auditPayload{
+		Event:          string(EventReaderApplied),
+		URL:            resp.URL,
+		Host:           resp.Decision.Host,
+		Decision:       resp.Decision.Reason,
+		Status:         resp.StatusCode,
+		BytesRead:      int64(len(resp.Body)),
+		Truncated:      resp.Truncated,
+		Mode:           string(mode),
+		MarkdownBytes:  int64(markdownBytes),
+		DurationMS:     0,
+		RequestID:      newRequestID(),
+	}
+}
+
+// readerRejectedEvent builds the audit row for a Reader Mode refusal.
+// The `reason` is one of the stable strings in `reader.go`'s error
+// mapping (not_readable, extraction_failed, no_readable_content,
+// render_failed, md_parse_failed, prompt_injection, scan_error).
+func readerRejectedEvent(resp *Response, reason string) auditPayload {
+	return auditPayload{
+		Event:      string(EventReaderRejected),
+		URL:        resp.URL,
+		Reason:     reason,
+		DurationMS: 0,
+		RequestID:  newRequestID(),
+	}
+}
+
 // auditDenied writes a `network` event for a policy
 // refusal. The EventName is mapped from the policy's
 // Decision so the operator can grep on
