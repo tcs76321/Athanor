@@ -237,3 +237,34 @@ mirroring `pod_wiring.go`'s sub-step pattern (ADR-0009/0014):
   ADR-0017 §4 promised.
 - **M5/M6** may replace the engine research sub-step with the agentic
   tool loop; the routes and envelope semantics do not change.
+
+## Amendment (M4-T7.5, 2026-09-15) — §7 call-site pivot
+
+**Reality over plan (ROADMAP §9.3).** §7 specified planner-emitted
+`sources` fetched during a research sub-step. Implementation found the
+M1 planner output is free text that `phasePlan` discards — there is no
+structured plan schema to hang a `sources` array on, and building one
+is M5-scale prompt-schema work.
+
+**Amended decision.** The research sources are **task-declared URLs**:
+the sub-step extracts absolute http(s) URLs from the task description
+and the project goal (deduped, trailing prose punctuation stripped,
+capped at 8), fetches exactly those through the envelope-gated
+`fetch_url` route, and injects the extracted markdown into every
+divergence candidate's prompt as attributed blocks (per-source
+prompt-side budget 8000 chars). Nothing is scraped from LLM prose;
+the human wrote the URLs. The per-task `fetch_url` envelope override
+remains the capability gate — a task without it soft-fails every
+fetch into a `research_fetch` audit row.
+
+**Second simplification.** §7 said "only transport-level errors on
+*every* source escalate." Amended to **soft-fail always**: research
+context is an enhancement, and a job must not die because a
+documentation site is down. Every attempt (fetched / denied /
+disallowed / empty / error) is audited; a source-less divergence
+proceeds exactly as before this task.
+
+Crash-recovery note: a crash mid-divergence re-runs the phase, so the
+fetches re-run too — idempotent downloads, gateway-audited and
+rate-limited. No artifacts are persisted by the sub-step (sources are
+inputs, not outputs).

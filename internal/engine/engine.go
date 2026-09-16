@@ -88,6 +88,12 @@ type ToolRunner interface {
 	// RunTests runs the test command in the job's pod. Same
 	// contract as RunCode.
 	RunTests(ctx context.Context, jobID string, req toolenvelope.ExecuteRequest) (toolenvelope.ExecuteResult, error)
+	// FetchURL fetches one task-declared source through the
+	// §21.5 gateway (M4-T7, ADR-0019 §7). The route is
+	// envelope-gated server-side; a 403 surfaces as
+	// toolenvelope.ErrToolDisallowed and the research sub-step
+	// soft-fails that source.
+	FetchURL(ctx context.Context, jobID string, req toolenvelope.FetchURLRequest) (toolenvelope.FetchURLResponse, error)
 }
 
 // ErrPaused reports that the job was paused instead of failed — the

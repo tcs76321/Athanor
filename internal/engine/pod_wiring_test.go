@@ -25,6 +25,10 @@ type fakeRunner struct {
 	duration time.Duration
 	withErr  error
 	disallow map[string]bool
+	// M4-T7 research sub-step knobs (FetchURL): canned markdown per
+	// URL, plus a global failure override.
+	fetches  map[string]string
+	fetchErr error
 }
 
 type fakeCall struct {
@@ -40,7 +44,24 @@ func newFakeRunner() *fakeRunner {
 		exitCode: 0,
 		duration: 10 * time.Millisecond,
 		disallow: map[string]bool{},
+		fetches:  map[string]string{},
 	}
+}
+
+// WithFetch seeds a canned markdown for a URL (FetchURL).
+func (f *fakeRunner) WithFetch(url, markdown string) *fakeRunner {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.fetches[url] = markdown
+	return f
+}
+
+// WithFetchErr makes every FetchURL fail with err.
+func (f *fakeRunner) WithFetchErr(err error) *fakeRunner {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.fetchErr = err
+	return f
 }
 
 func (f *fakeRunner) WithDisallow(tool toolenvelope.Tool) *fakeRunner {
@@ -84,6 +105,28 @@ func (f *fakeRunner) RunCode(ctx context.Context, jobID string, req toolenvelope
 
 func (f *fakeRunner) RunTests(ctx context.Context, jobID string, req toolenvelope.ExecuteRequest) (toolenvelope.ExecuteResult, error) {
 	return f.run(ctx, jobID, req, "RunTests")
+}
+
+// fetches holds the canned fetch outcomes (M4-T7 research sub-step).
+// The key is the requested URL; a missing key means "success with
+// the canned markdown". fetchErr / fetchDisallow override globally.
+func (f *fakeRunner) FetchURL(_ context.Context, jobID string, req toolenvelope.FetchURLRequest) (toolenvelope.FetchURLResponse, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.calls = append(f.calls, fakeCall{Tool: "FetchURL", JobID: jobID, Cmd: req.URL})
+	if f.fetchErr != nil {
+		return toolenvelope.FetchURLResponse{}, f.fetchErr
+	}
+	if f.disallow["FetchURL"] {
+		return toolenvelope.FetchURLResponse{}, toolenvelope.ErrToolDisallowed
+	}
+	md, ok := f.fetches[req.URL]
+	if !ok {
+		md = "fake source markdown for " + req.URL
+	}
+	return toolenvelope.FetchURLResponse{
+		StatusCode: 200, URL: req.URL, Markdown: md, Mode: "readability",
+	}, nil
 }
 
 func (f *fakeRunner) run(_ context.Context, jobID string, req toolenvelope.ExecuteRequest, kind string) (toolenvelope.ExecuteResult, error) {

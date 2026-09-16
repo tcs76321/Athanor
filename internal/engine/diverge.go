@@ -50,6 +50,16 @@ func (e *Engine) phaseDivergeN(ctx context.Context, j job.Job) error {
 		"archetype":  p.Archetype,
 	})
 
+	// M4-T7 research sub-step (ADR-0019 §7): fetch the task's
+	// declared source URLs through the gateway and inject the
+	// extracted markdown into every candidate's prompt. Soft-fails
+	// per source; an empty string means no sources (the sub-step is
+	// a silent no-op for tasks without URLs).
+	research, err := e.researchContext(ctx, j, p, t)
+	if err != nil {
+		return fmt.Errorf("research sub-step: %w", err)
+	}
+
 	// M3-T7-a: keep each candidate's text in memory so we can
 	// compute pairwise Jaccard distance after the loop. The
 	// set is bounded by `n` (default 3, hard-capped by
@@ -63,6 +73,9 @@ func (e *Engine) phaseDivergeN(ctx context.Context, j job.Job) error {
 		// nothing to anchor the variation; with the seed the
 		// evaluator can tell candidates apart by their index.
 		seed := fmt.Sprintf("CANDIDATE %d of %d. Produce a solution that differs from any other candidate you might generate for this task.", i+1, n)
+		if research != "" {
+			seed += "\n\n" + research
+		}
 		resp, err := e.call(ctx, j, p, t, llm.PhaseDiverging, llm.RoleMain, seed)
 		if err != nil {
 			return fmt.Errorf("divergence candidate %d/%d: %w", i+1, n, err)
