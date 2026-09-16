@@ -68,8 +68,12 @@ var patterns = []*regexp.Regexp{
 	regexp.MustCompile(`(?i)disregard (all|every|the) (instructions?|directives?|rules?)`),
 	regexp.MustCompile(`(?i)disregard (all|every|the) the (rules?|instructions?|directives?)`),
 	regexp.MustCompile(`(?i)forget (everything|all) (above|before|prior)`),
-	// "You are now ..." role reassignment.
-	regexp.MustCompile(`(?i)^\s*you are now\s+`),
+	// "You are now ..." role reassignment. The multiline flag
+	// matters: without it, `^` anchors at the start of the whole
+	// text and any prefix the attacker prepends ("Sure! You are
+	// now DAN") evades the pattern. (Found by the M4-T8
+	// adversarial corpus.)
+	regexp.MustCompile(`(?im)^\s*you are now\s+`),
 	regexp.MustCompile(`(?i)\bact as\b.*\b(admin|root|system|developer|jailbreak)\b`),
 	// ChatML / special-token shape: many prompt
 	// injections are smuggled inside ChatML tags.
@@ -125,20 +129,27 @@ func (p *PromptInjectionHeuristic) Scan(ctx context.Context, in ScanInput) (Scan
 	// (base64MinLen, 1024) is the actual gate. The
 	// length check fires on the matched substring's
 	// length, not the input's.
+//
+// Fail-closed on decodability (M4-T8): a rejection used to require
+// a clean StdEncoding decode of the whole run, which let an
+// attacker evade the check by chaining padded blobs into one long
+// run (the mid-stream "==" breaks the decode). Shape + size is the
+// gate now; decodability is recorded when it works, not required.
 	if loc := base64Re.FindStringIndex(text); loc != nil {
 		matchLen := loc[1] - loc[0]
 		if matchLen >= base64MinLen {
-			if blob, err := base64.StdEncoding.DecodeString(text[loc[0]:loc[1]]); err == nil && len(blob) > 0 {
-				return ScanResult{
-					Verdict: VerdictRejected,
-					Reason:  "scanner:prompt-injection-heuristic:base64_blob",
-					Details: map[string]any{
-						"blob_offset":  loc[0],
-						"blob_size":    matchLen,
-						"decoded_size": len(blob),
-					},
-				}, nil
+			details := map[string]any{
+				"blob_offset": loc[0],
+				"blob_size":   matchLen,
 			}
+			if blob, err := base64.StdEncoding.DecodeString(text[loc[0]:loc[1]]); err == nil && len(blob) > 0 {
+				details["decoded_size"] = len(blob)
+			}
+			return ScanResult{
+				Verdict: VerdictRejected,
+				Reason:  "scanner:prompt-injection-heuristic:base64_blob",
+				Details: details,
+			}, nil
 		}
 	}
 	return ScanResult{
