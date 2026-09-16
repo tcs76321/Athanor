@@ -42,3 +42,69 @@ type ExecuteResult struct {
 	Stderr     string `json:"stderr"`
 	DurationMS int64  `json:"duration_ms"`
 }
+
+// FetchURLRequest is the wire shape for the M4-T7 fetch_url tool
+// (ADR-0019 §1). The Core executes the fetch — Job Pods run with
+// --network=none, so the gateway lives server-side and the route is
+// envelope-gated: a job with fetch_url in its envelope holds the
+// "allowlisted internet" capability.
+type FetchURLRequest struct {
+	// Tool names the closed-set tool ("fetch_url"). Defense-in-depth
+	// double-check, same as ExecuteRequest.Tool.
+	Tool Tool `json:"tool"`
+	// URL is the absolute http(s) URL to fetch. The gateway Policy
+	// re-validates it (allowlist, deny-list, DNS-rebinding guard);
+	// this field's only server-side check is scheme/host sanity so
+	// obviously malformed input fails fast with a 400.
+	URL string `json:"url"`
+	// TimeoutSeconds caps the wall time of the fetch (including all
+	// redirect hops). Zero means "use the daemon default".
+	TimeoutSeconds int `json:"timeout_seconds,omitempty"`
+}
+
+// FetchURLResponse is the wire shape the fetch_url route returns. Mode
+// is "readability" or "plain" when Reader Mode produced the markdown,
+// "raw" when Reader Mode was disabled or the content was not
+// extractable (markdown is then empty — raw bytes are never returned
+// inline; a tool response is prompt material and must have passed the
+// injection scan, ADR-0019 §1).
+type FetchURLResponse struct {
+	StatusCode  int    `json:"status_code"`
+	URL         string `json:"url"`
+	Title       string `json:"title,omitempty"`
+	SiteName    string `json:"site_name,omitempty"`
+	Excerpt     string `json:"excerpt,omitempty"`
+	Markdown    string `json:"markdown"`
+	Mode        string `json:"mode"`
+	Truncated   bool   `json:"truncated"`
+	ContentType string `json:"content_type,omitempty"`
+}
+
+// SearchWebRequest is the wire shape for the M4-T7 search_web tool
+// (ADR-0019 §4). Inert until the operator sets
+// network.search_engine_url_template; the built engine URL goes
+// through the ordinary gateway allowlist.
+type SearchWebRequest struct {
+	Tool           Tool   `json:"tool"`
+	Query          string `json:"query"`
+	TimeoutSeconds int    `json:"timeout_seconds,omitempty"`
+}
+
+// SearchResult is one extracted result link from the engine's results
+// page. The URL is NOT automatically fetched; fetching it is a
+// subsequent envelope-gated fetch_url call.
+type SearchResult struct {
+	Title   string `json:"title"`
+	URL     string `json:"url"`
+	Snippet string `json:"snippet,omitempty"`
+}
+
+// SearchWebResponse is the wire shape the search_web route returns. An
+// empty Results array means the page was fetched and passed the
+// pipeline but no result links were extracted (the engine's markup
+// changed — surfaced, not hidden).
+type SearchWebResponse struct {
+	Query   string         `json:"query"`
+	Engine  string         `json:"engine,omitempty"`
+	Results []SearchResult `json:"results"`
+}

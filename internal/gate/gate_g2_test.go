@@ -186,7 +186,7 @@ func TestGateG2ToolEnvelopeBypassImpossible(t *testing.T) {
 	// We walk the package to find every .go file that contains a
 	// tool name from the closed set and assert that file
 	// references a.tools.EnvelopeFor.
-	toolNames := []string{"execute_code", "run_tests", "lint"}
+	toolNames := []string{"execute_code", "run_tests", "lint", "fetch_url", "search_web"}
 	for _, name := range toolNames {
 		path, content, ok := findFileContaining(internalapiDir, name)
 		if !ok {
@@ -195,6 +195,30 @@ func TestGateG2ToolEnvelopeBypassImpossible(t *testing.T) {
 		}
 		if !strings.Contains(content, "a.tools.EnvelopeFor") {
 			t.Errorf("%s handles %q but does not reference a.tools.EnvelopeFor; the per-job allowlist can be bypassed (Gate G2)", path, name)
+		}
+	}
+}
+
+// TestGateG2GatewayToolRoutesRegistered is the M4-T7 route-existence
+// assertion (ADR-0019 §5, the ADR-0009 pattern): the two gateway-backed
+// tools must have their internal API routes registered in handlers.go.
+// The envelope-bypass test above proves the handlers consult the
+// per-job allowlist; this test proves the routes exist for the
+// handlers to sit behind. A future rename that drops a route without
+// dropping the tool from the closed set fails here.
+func TestGateG2GatewayToolRoutesRegistered(t *testing.T) {
+	handlers := filepath.Join(internalapiDir, "handlers.go")
+	raw, err := os.ReadFile(handlers)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := string(raw)
+	for _, route := range []string{
+		`"POST /internal/v1/jobs/{id}/fetch_url"`,
+		`"POST /internal/v1/jobs/{id}/search_web"`,
+	} {
+		if !strings.Contains(body, route) {
+			t.Errorf("%s does not register %q; the closed-set tool has no route (Gate G2)", handlers, route)
 		}
 	}
 }

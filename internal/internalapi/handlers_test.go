@@ -46,7 +46,9 @@ func newHandlerTestEnv(t *testing.T) *handlerTestEnv {
 	// call env.tools.WithAllow(taskID, toolenvelope.Parse(...))
 	// explicitly. This mirrors the production default where
 	// config.job_pod.default_tools is an empty list.
-	api := New(tokens, repo, st, tools, toolenvelope.Envelope{})
+	// The gateway is nil by default; gateway_tools_test.go uses
+	// newHandlerTestEnvWithGateway for the dispatch tests.
+	api := New(tokens, repo, st, tools, toolenvelope.Envelope{}, nil)
 	mux := http.NewServeMux()
 	api.Register(mux)
 	return &handlerTestEnv{api: api, mux: mux, store: st, tokens: tokens, repo: repo, tools: tools}

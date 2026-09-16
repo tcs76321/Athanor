@@ -285,7 +285,7 @@ func TestAuthMiddleware_WrappedOnEveryRoute(t *testing.T) {
 	// the middleware were ever bypassed for a route, the nil
 	// dereference would surface as a 500 (panic recovery) — but
 	// the real test is the 401 we get first.
-	api := New(store, nil, nil, tools, toolenvelope.Envelope{})
+	api := New(store, nil, nil, tools, toolenvelope.Envelope{}, nil)
 	api.Register(mux)
 
 	routes := []struct {

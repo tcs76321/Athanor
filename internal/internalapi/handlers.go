@@ -44,6 +44,11 @@ type API struct {
 	projects *project.Repo
 	events  EventLogger
 	tools   ToolEnvLookup
+	// gateway is the M4-T7 ToolGateway dispatch surface for
+	// fetch_url / search_web (ADR-0019 §2). Nil is valid: the routes
+	// are registered but respond 503 "not configured" — the daemon
+	// wires the cmd/athanor adapter over GatewayParts in M4-T7.4.
+	gateway ToolGateway
 	// defaultEnvelope is the daemon-wide tool envelope from
 	// config.job_pod.default_tools. Stored on the API so the
 	// envelope check has a baseline when a task has no
@@ -55,18 +60,22 @@ type API struct {
 }
 
 // New returns an API bound to the given TokenStore, project
-// repository, event logger, and tool envelope lookup. The
-// constructor signature widened in M2-T4 commit 3; call sites
-// are updated in the same commit (cmd/athanor/serve.go) and in
-// the test fixtures (handlers_test.go).
+// repository, event logger, tool envelope lookup, and gateway-tool
+// dispatch surface. The constructor signature widened in M2-T4 commit
+// 3 and again in M4-T7.3; call sites are updated in the same commit
+// (cmd/athanor/serve.go) and in the test fixtures (handlers_test.go).
 //
 // defaultEnvelope is the daemon-wide fallback when a task
 // declares no override. The API does not validate it here;
 // the caller is expected to have already passed it through
 // config.JobPodEnvelope so a closed-set violation would have
 // failed at config-load time.
-func New(tokens TokenStore, projects *project.Repo, events EventLogger, tools ToolEnvLookup, defaultEnvelope toolenvelope.Envelope) *API {
-	return &API{tokens: tokens, projects: projects, events: events, tools: tools, defaultEnvelope: defaultEnvelope}
+//
+// gateway may be nil (the routes then respond 503 until an adapter
+// is wired); passing a non-nil ToolGateway activates fetch_url and
+// search_web for jobs whose envelope admits them.
+func New(tokens TokenStore, projects *project.Repo, events EventLogger, tools ToolEnvLookup, defaultEnvelope toolenvelope.Envelope, gateway ToolGateway) *API {
+	return &API{tokens: tokens, projects: projects, events: events, tools: tools, defaultEnvelope: defaultEnvelope, gateway: gateway}
 }
 
 // jobResponse is the body of GET /internal/v1/jobs/{id}. The pod
@@ -214,4 +223,8 @@ func (a *API) Register(mux *http.ServeMux) {
 		authMiddleware(a.tokens, http.HandlerFunc(a.handleRunTests)))
 	mux.Handle("POST /internal/v1/jobs/{id}/lint",
 		authMiddleware(a.tokens, http.HandlerFunc(a.handleLint)))
+	mux.Handle("POST /internal/v1/jobs/{id}/fetch_url",
+		authMiddleware(a.tokens, http.HandlerFunc(a.handleFetchURL)))
+	mux.Handle("POST /internal/v1/jobs/{id}/search_web",
+		authMiddleware(a.tokens, http.HandlerFunc(a.handleSearchWeb)))
 }

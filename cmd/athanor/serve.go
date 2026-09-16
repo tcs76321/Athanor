@@ -179,7 +179,10 @@ func run(configPath, addr, stateDir string) error {
 		return fmt.Errorf("resolving job_pod.default_tools: %w", err)
 	}
 	internalapi.New(tokenStoreAdapter{podMgr}, project.NewRepo(st), st,
-		project.NewRepo(st), defaultEnv).Register(srv.Mux())
+		project.NewRepo(st), defaultEnv, nil).Register(srv.Mux())
+	// The M4-T7.4 commit replaces the nil gateway with the
+	// cmd/athanor adapter over GatewayParts (ADR-0019 §2); until
+	// then the fetch_url / search_web routes respond 503.
 
 	// M4-T2: ingress pipeline. Watches <state>/workspace/inbox,
 	// routes new files through airlock/paths + airlock/scanner,

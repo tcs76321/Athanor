@@ -94,6 +94,70 @@ func (c *HTTPClient) RunTests(ctx context.Context, jobID string, req toolenvelop
 	return c.post(ctx, jobID, "/run_tests", req)
 }
 
+// FetchURL POSTs to /internal/v1/jobs/{id}/fetch_url (M4-T7,
+// ADR-0019 §1). The Core executes the fetch through the §21.5
+// gateway; the response is the extracted (or raw-disabled) content.
+func (c *HTTPClient) FetchURL(ctx context.Context, jobID string, req toolenvelope.FetchURLRequest) (toolenvelope.FetchURLResponse, error) {
+	req.Tool = toolenvelope.ToolFetchURL
+	return postTool[toolenvelope.FetchURLResponse](c, ctx, jobID, "/fetch_url", req)
+}
+
+// SearchWeb POSTs to /internal/v1/jobs/{id}/search_web (M4-T7,
+// ADR-0019 §4). The Core builds the engine URL from the configured
+// template and fetches it through the gateway; the response carries
+// the extracted result links.
+func (c *HTTPClient) SearchWeb(ctx context.Context, jobID string, req toolenvelope.SearchWebRequest) (toolenvelope.SearchWebResponse, error) {
+	req.Tool = toolenvelope.ToolSearchWeb
+	return postTool[toolenvelope.SearchWebResponse](c, ctx, jobID, "/search_web", req)
+}
+
+// postTool is the M4-T7 generic form of post: same token lookup,
+// same loopback URL, same bearer header, same 403 → ErrToolDisallowed
+// mapping, but a caller-chosen request/response pair (the gateway
+// tools return content shapes, not ExecuteResult). The existing
+// post stays as-is so the M2-T4 wire contract is untouched.
+func postTool[T any](c *HTTPClient, ctx context.Context, jobID, suffix string, req any) (T, error) {
+	var zero T
+	token, err := c.tokens.TokenFor(jobID)
+	if err != nil {
+		if errors.Is(err, jobpod.ErrNotFound) {
+			return zero, fmt.Errorf("runner: no active pod for job %s: %w", jobID, err)
+		}
+		return zero, fmt.Errorf("runner: token lookup: %w", err)
+	}
+	body, err := json.Marshal(req)
+	if err != nil {
+		return zero, fmt.Errorf("runner: marshal request: %w", err)
+	}
+	url := c.baseURL + "/internal/v1/jobs/" + jobID + suffix
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(body))
+	if err != nil {
+		return zero, fmt.Errorf("runner: build request: %w", err)
+	}
+	httpReq.Header.Set("Authorization", "Bearer "+token)
+	httpReq.Header.Set("Content-Type", "application/json")
+	resp, err := c.httpClient.Do(httpReq)
+	if err != nil {
+		return zero, fmt.Errorf("runner: post: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode == http.StatusForbidden {
+		// Disallowed tool. Surface as a typed error so the
+		// engine can distinguish "pod says no" from "pod is
+		// broken".
+		return zero, ErrToolDisallowed
+	}
+	if resp.StatusCode != http.StatusOK {
+		raw, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<16))
+		return zero, fmt.Errorf("runner: pod returned %d: %s", resp.StatusCode, string(raw))
+	}
+	var result T
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return zero, fmt.Errorf("runner: decode result: %w", err)
+	}
+	return result, nil
+}
+
 // post is the shared body of RunCode / RunTests. It serializes
 // req, looks up the per-job token, sends a single POST, and
 // decodes the result. The caller is responsible for
