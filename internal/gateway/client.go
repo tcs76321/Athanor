@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"time"
 )
 
@@ -185,15 +186,104 @@ func NewClient(opts Options) (Client, error) {
 	}, nil
 }
 
-// Fetch is the §21.5 single-request entry point. See
-// `Client.Fetch` for the full flow. The method appends
-// exactly one `network` event per call regardless of
-// outcome (success, refusal, truncation, transport
-// failure).
+// Fetch is the §21.5 entry point. See `Client.Fetch`
+// for the full flow. M4-T7 (ADR-0019 §3) adds the
+// bounded redirect hop loop: the method appends one
+// `network` event per hop (for a non-redirect response,
+// exactly one event per call, as before) and follows
+// 301/302/303 chains with per-hop policy re-evaluation,
+// per-hop rate limiting, and a per-hop pinned-IP dial.
 func (c *httpClient) Fetch(ctx context.Context, req *http.Request) (*Response, error) {
 	if req == nil || req.URL == nil {
 		return nil, errors.New("gateway: Fetch requires a non-nil request with a URL")
 	}
+	currentURL := req.URL.String()
+	var chain []string
+	for hop := 0; ; hop++ {
+		res, err := c.fetchOnce(ctx, req, hop, chain)
+		if err != nil {
+			return nil, err
+		}
+		next, follow := redirectTarget(req.URL, res)
+		if !follow {
+			return res, nil
+		}
+		if hop >= maxRedirectHops {
+			return nil, fmt.Errorf("gateway: redirect chain exceeded %d hops: %w", maxRedirectHops, ErrTooManyRedirects)
+		}
+		chain = append(chain, currentURL)
+		// A followed hop is a new GET to the target; the
+		// caller's method and body do not carry over
+		// (301/302/303 convert to GET per RFC 9110
+		// §15.4.3–4, and the gateway is a GET-for-reader
+		// surface). 307/308 are returned to the caller
+		// unfollowed — redirectTarget only reports
+		// 301/302/303.
+		req, err = NewRequest(ctx, http.MethodGet, next)
+		if err != nil {
+			return nil, fmt.Errorf("gateway: redirect target %q: %w", next, err)
+		}
+		currentURL = next
+	}
+}
+
+// maxRedirectHops bounds the redirect chain Client.Fetch
+// follows (ADR-0019 §3). Each hop re-runs Policy.Eval, the
+// per-host rate limiter, and the pinned-IP dial, so every
+// containment property (allowlist, rebinding guard, rate
+// limit, size cap, audit) holds per hop, not just the
+// first.
+const maxRedirectHops = 5
+
+// redirectStatuses are the redirect responses the hop
+// loop follows. 307/308 are deliberately absent: they
+// require method+body preservation, a capability no M4
+// consumer needs; the caller receives the redirect
+// response unfollowed.
+var redirectStatuses = map[int]bool{301: true, 302: true, 303: true}
+
+// NewRequest builds an outbound *http.Request for
+// Client.Fetch. It exists so callers outside this package
+// (the M4-T7 tool adapter) can construct fetch requests
+// without touching http.NewRequestWithContext — Gate G1
+// rule 6 keeps outbound-HTTP call sites inside
+// internal/gateway (ADR-0017 §2).
+func NewRequest(ctx context.Context, method, rawURL string) (*http.Request, error) {
+	return http.NewRequestWithContext(ctx, method, rawURL, nil)
+}
+
+// redirectTarget returns the next-hop URL when res is a
+// followed redirect (301/302/303 whose Location resolves
+// against base to an http(s) URL with a host). The bool is
+// "follow this". Relative Locations are resolved against
+// base; a Location that parses to a non-http(s) scheme is
+// not followed (the caller receives the redirect response
+// as-is, fail-closed).
+func redirectTarget(base *url.URL, res *Response) (string, bool) {
+	if !redirectStatuses[res.StatusCode] {
+		return "", false
+	}
+	loc := res.Header.Get("Location")
+	if loc == "" {
+		return "", false
+	}
+	ref, err := url.Parse(loc)
+	if err != nil {
+		return "", false
+	}
+	next := base.ResolveReference(ref)
+	if (next.Scheme != "http" && next.Scheme != "https") || next.Host == "" {
+		return "", false
+	}
+	return next.String(), true
+}
+
+// fetchOnce is one hop of the Fetch loop: policy eval →
+// rate limit → header sanitize → pinned-IP dial → size cap
+// → audit event. The per-hop `network` event carries the
+// hop index and, from hop 1 on, the accumulated redirect
+// chain (ADR-0019 §3).
+func (c *httpClient) fetchOnce(ctx context.Context, req *http.Request, hop int, chain []string) (*Response, error) {
 	start := c.clock()
 	requestID := newRequestID()
 
@@ -202,7 +292,7 @@ func (c *httpClient) Fetch(ctx context.Context, req *http.Request) (*Response, e
 	// row carries the decision.
 	policyRes, err := c.policy.Eval(ctx, req.URL.String(), c.resolver)
 	if err != nil {
-		c.auditDenied(ctx, requestID, req.URL.String(), policyRes, time.Since(start))
+		c.auditDenied(ctx, requestID, req.URL.String(), policyRes, time.Since(start), hop, chain)
 		return nil, err
 	}
 
@@ -218,7 +308,10 @@ func (c *httpClient) Fetch(ctx context.Context, req *http.Request) (*Response, e
 	}
 	if !c.rateLimiter.take(hostPort) {
 		policyRes.Reason = "rate_limited"
-		c.appendEvent(ctx, rateLimitedEvent(requestID, req.URL.String(), policyRes, hostPort, time.Since(start)))
+		ev := rateLimitedEvent(requestID, req.URL.String(), policyRes, hostPort, time.Since(start))
+		ev.Hop = hop
+		ev.RedirectChain = chain
+		c.appendEvent(ctx, ev)
 		return nil, fmt.Errorf("gateway: %w: host %q", ErrRateLimited, hostPort)
 	}
 
@@ -230,14 +323,23 @@ func (c *httpClient) Fetch(ctx context.Context, req *http.Request) (*Response, e
 
 	// Step 4: HTTP fetch with the resolved-IP
 	// pinned DialContext. The transport is
-	// per-request: a clone of the configured
+	// per-hop: a clone of the configured
 	// RoundTripper with a DialContext that
-	// dials the IPs Policy.Eval returned. The
-	// clone is local to this Fetch, so two
-	// concurrent Fetches do not race on shared
-	// transport state.
+	// dials the IPs Policy.Eval returned for
+	// this hop's URL. The clone is local to the
+	// hop, so two concurrent Fetches (and the
+	// hop loop itself) do not race on shared
+	// transport state. CheckRedirect returns
+	// ErrUseLastResponse: the standard library
+	// never follows a redirect on its own; the
+	// Fetch loop is the only follower
+	// (ADR-0019 §3).
 	transport := c.transportFor(policyRes.ResolvedIPs)
-	httpClient := &http.Client{Transport: transport, Timeout: c.timeout}
+	httpClient := &http.Client{
+		Transport:     transport,
+		Timeout:       c.timeout,
+		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+	}
 
 	if _, hasDeadline := ctx.Deadline(); !hasDeadline {
 		// The caller's context may not have a
@@ -253,7 +355,10 @@ func (c *httpClient) Fetch(ctx context.Context, req *http.Request) (*Response, e
 
 	httpResp, httpErr := httpClient.Do(req.WithContext(ctx))
 	if httpErr != nil {
-		c.appendEvent(ctx, errorEvent(requestID, req.URL.String(), policyRes, time.Since(start), httpErr))
+		ev := errorEvent(requestID, req.URL.String(), policyRes, time.Since(start), httpErr)
+		ev.Hop = hop
+		ev.RedirectChain = chain
+		c.appendEvent(ctx, ev)
 		return nil, fmt.Errorf("gateway: fetch %s: %w", req.URL.String(), httpErr)
 	}
 	defer func() { _ = httpResp.Body.Close() }()
@@ -267,21 +372,28 @@ func (c *httpClient) Fetch(ctx context.Context, req *http.Request) (*Response, e
 	// fail on size is not.
 	body, truncated, readErr := readWithCap(httpResp.Body, c.maxResponseBytes)
 	if readErr != nil {
-		c.appendEvent(ctx, errorEvent(requestID, req.URL.String(), policyRes, time.Since(start), readErr))
+		ev := errorEvent(requestID, req.URL.String(), policyRes, time.Since(start), readErr)
+		ev.Hop = hop
+		ev.RedirectChain = chain
+		c.appendEvent(ctx, ev)
 		return nil, fmt.Errorf("gateway: reading %s: %w", req.URL.String(), readErr)
 	}
 
 	// Step 6: audit. The `network` event covers
-	// the full outcome. The Truncated flag is
-	// the audit field of interest.
+	// the full outcome of this hop. The
+	// Truncated flag is the audit field of
+	// interest.
 	eventName := string(EventFetched)
 	if truncated {
 		eventName = string(EventTruncated)
 	}
-	c.appendEvent(ctx, storeEventFromPolicy(
+	ev := storeEventFromPolicy(
 		requestID, eventName, req.URL.String(), policyRes,
 		time.Since(start), httpResp.StatusCode, int64(len(body)), truncated,
-	))
+	)
+	ev.Hop = hop
+	ev.RedirectChain = chain
+	c.appendEvent(ctx, ev)
 
 	return &Response{
 		StatusCode: httpResp.StatusCode,

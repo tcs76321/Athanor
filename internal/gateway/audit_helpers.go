@@ -144,13 +144,18 @@ func readerRejectedEvent(resp *Response, reason string) auditPayload {
 // refusal. The EventName is mapped from the policy's
 // Decision so the operator can grep on
 // `event=private_ip` etc. without parsing the reason
-// string.
-func (c *httpClient) auditDenied(ctx context.Context, requestID, rawURL string, policy EvalResult, duration time.Duration) {
+// string. The hop index and redirect chain (M4-T7,
+// ADR-0019 §3) are stamped onto the payload so a denied
+// redirect hop is attributable to its request.
+func (c *httpClient) auditDenied(ctx context.Context, requestID, rawURL string, policy EvalResult, duration time.Duration, hop int, chain []string) {
 	eventName := string(EventDenied)
 	if policy.Decision == DecisionDeniedPrivateIP {
 		eventName = string(EventPrivateIP)
 	}
-	c.appendEvent(ctx, storeEventFromPolicy(requestID, eventName, rawURL, policy, duration, 0, 0, false))
+	p := storeEventFromPolicy(requestID, eventName, rawURL, policy, duration, 0, 0, false)
+	p.Hop = hop
+	p.RedirectChain = chain
+	c.appendEvent(ctx, p)
 }
 
 // appendEvent is the gateway's seam into the audit

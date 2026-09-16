@@ -75,6 +75,12 @@ type auditPayload struct {
 	Reason         string `json:"reason,omitempty"`
 	DurationMS     int64  `json:"duration_ms"`
 	RequestID      string `json:"request_id"`
+	// Hop and RedirectChain appear on multi-hop fetches only
+	// (M4-T7, ADR-0019 §3): the zero-based hop index of this
+	// event within its request, and — from hop 1 on — the
+	// chain of URLs followed so far.
+	Hop           int      `json:"hop,omitempty"`
+	RedirectChain []string `json:"redirect_chain,omitempty"`
 }
 
 // appendAudit writes one `network` event. Errors are

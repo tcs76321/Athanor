@@ -47,6 +47,14 @@ var ErrInvalidURL = errors.New("gateway: invalid URL")
 // durable record.
 var ErrRateLimited = errors.New("gateway: per-host rate limit exceeded")
 
+// ErrTooManyRedirects is returned when a redirect chain
+// exceeds maxRedirectHops (M4-T7, ADR-0019 §3). Every
+// followed hop was policy-vetted (allowlist, rebinding
+// guard, rate limit, pinned dial); the cap exists so a
+// redirect loop between two allowlisted hosts cannot spin
+// inside a single Fetch.
+var ErrTooManyRedirects = errors.New("gateway: too many redirects")
+
 // Reader Mode sentinels (M4-T6, ADR-0018 §3). Each maps to exactly
 // one `reader_mode_rejected` audit reason, so the pairing {error,
 // audit reason} is one-to-one and greppable:

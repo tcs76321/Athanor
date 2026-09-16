@@ -18,6 +18,12 @@ import (
 type GatewayParts struct {
 	Client gateway.Client
 	Reader gateway.Reader
+	// NewClientWithCap returns a Client sharing this bundle's
+	// Policy/Resolver/events but with the given response-size cap
+	// (M4-T7, ADR-0019 §6): the truncated-re-fetch seam. Nil is
+	// valid (the adapter then skips the re-fetch); startGateway
+	// always sets it.
+	NewClientWithCap func(capBytes int64) (gateway.Client, error)
 }
 
 // startGateway constructs the §21.5 Internet Gated Reader (M4-T5,
@@ -78,5 +84,22 @@ func startGateway(stateDir string, st *store.Store, netCfg config.Network, logge
 		"max_response_bytes", netCfg.MaxResponseBytes,
 		"reader_mode", netCfg.ReaderMode(),
 	)
-	return GatewayParts{Client: client, Reader: reader}, nil
+	return GatewayParts{
+		Client: client,
+		Reader: reader,
+		NewClientWithCap: func(capBytes int64) (gateway.Client, error) {
+			if capBytes <= 0 {
+				capBytes = 1 // fail-closed floor; a zero/negative cap is a caller bug
+			}
+			opts := gateway.Options{
+				Policy:           policy,
+				Resolver:         &gateway.NetworkResolver{},
+				Events:           st,
+				Logger:           logger,
+				RatePerMinute:    netCfg.RateLimitPerMinute,
+				MaxResponseBytes: capBytes,
+			}
+			return gateway.NewClient(opts)
+		},
+	}, nil
 }

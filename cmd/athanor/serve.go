@@ -178,11 +178,22 @@ func run(configPath, addr, stateDir string) error {
 	if err != nil {
 		return fmt.Errorf("resolving job_pod.default_tools: %w", err)
 	}
+	// M4-T7 (ADR-0019 §2): the gateway-backed tools dispatch through
+	// the adapter over GatewayParts — the §21.5 Client + Reader
+	// constructed below. Failures to construct the gateway are
+	// fatal: a daemon that boots without a gateway is, by
+	// construction, a daemon that cannot reach the internet safely.
+	// The Reader half of the bundle is constructed (and its
+	// injection heuristic validated) here so a reader-mode
+	// misconfiguration fails at boot, not at first fetch.
+	gw, err := startGateway(stateDir, st, cfg.Network, slog.Default())
+	if err != nil {
+		return fmt.Errorf("starting gateway: %w", err)
+	}
 	internalapi.New(tokenStoreAdapter{podMgr}, project.NewRepo(st), st,
-		project.NewRepo(st), defaultEnv, nil).Register(srv.Mux())
-	// The M4-T7.4 commit replaces the nil gateway with the
-	// cmd/athanor adapter over GatewayParts (ADR-0019 §2); until
-	// then the fetch_url / search_web routes respond 503.
+		project.NewRepo(st), defaultEnv,
+		newGatewayToolAdapter(gw, cfg.Network.SearchEngineURLTemplate),
+	).Register(srv.Mux())
 
 	// M4-T2: ingress pipeline. Watches <state>/workspace/inbox,
 	// routes new files through airlock/paths + airlock/scanner,
@@ -241,23 +252,11 @@ func run(configPath, addr, stateDir string) error {
 	// daemon that cannot reach the internet safely
 	// (and the operator's first `network` event
 	// would be the absence of a `fetched` row).
-	gw, err := startGateway(stateDir, st, cfg.Network, slog.Default())
-	if err != nil {
-		return fmt.Errorf("starting gateway: %w", err)
-	}
-	// The gateway itself owns no goroutines; the
-	// "no-op at boot" pattern is that the variable
-	// is held so the wiring is exercised on every
-	// daemon start. T7 will thread it into the
-	// tool envelope; until then, a future
-	// contributor who refactors serve.go and
-	// drops the gateway construction trips a CI
-	// boot test (added in T5.3). The Reader half
-	// of the bundle is constructed (and its
-	// injection heuristic validated) here so a
-	// reader-mode misconfiguration fails at boot,
-	// not at first fetch.
-	_ = gw
+	// M4-T7: the gateway bundle is constructed above (before the
+	// internal API registration) and threaded into the tool adapter
+	// (ADR-0019 §2); a future contributor who refactors serve.go and
+	// drops the gateway construction trips a CI boot test (added in
+	// T5.3).
 
 	httpSrv := &http.Server{
 		Handler:           srv.Handler(),
