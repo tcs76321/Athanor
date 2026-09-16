@@ -40,11 +40,19 @@ hardened pods and assert denial at runtime. They are gated by the
 ATHANOR_RUN_INTEGRATION=1 make test-integration
 ```
 
+The two gateway probes in `internal/gateway/integration_test.go`
+(M4-T8) use the same gate: default-deny against a real domain, and an
+allowlisted real domain fetched + extracted end-to-end. Reference
+runs: 2026-08-30 (pod probes, macOS 14 / podman 5.8.2 / applehv) and
+2026-09-15 (gateway probes) — see [`docs/demo-m2.md`](docs/demo-m2.md)
+and [`docs/demo-m4-t8.md`](docs/demo-m4-t8.md).
+
 Reason: the probes require a running `podman` daemon on AppleHV
-(macOS) or an equivalent Linux runtime. CI runs Ubuntu with no
+(macOS) or an equivalent Linux runtime, and the gateway probes
+require internet access. CI runs Ubuntu with no
 podman runtime, so the probes are no-ops there. The structural
-argv regression test (`TestGateG2JobPodArgvCannotEscape`) and the
-LLM-isolation tests *do* run in CI — they provide the structural
+tests (the M2 argv + envelope gates, and the M4-T8 SSRF / bypass /
+content corpora) *do* run in CI — they provide the structural
 guarantee; the integration probes provide the behavioral
 double-check on a developer's machine.
 

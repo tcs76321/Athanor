@@ -10,7 +10,34 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
-### M4 — Airlock & Gateway (in progress)
+### M4 — Airlock & Gateway (complete; Gate G4 closed)
+
+- **M4-T8 (this close-out).** The adversarial security suite lands in
+  four commits (`1ab9ba5` SSRF, `7939b0f` allowlist bypass,
+  `1fc3f22` content attacks + scanner hardening, this docs commit +
+  behavioral probes). [demo-m4-t8.md](docs/demo-m4-t8.md) is the
+  walkthrough and the Gate G4 evidence. The corpora run in CI with
+  zero skips: SSRF (every deny-listed CIDR at its boundaries, DNS
+  rebinding across the M4-T7 redirect hops, integer-host
+  obfuscation at two layers, the `insecureSkipPrivateIPGuard`
+  production-wire regression ADR-0017 §4 promised), allowlist
+  bypass (typosquat / userinfo / trailing-dot / scheme smuggling /
+  CRLF / IDN, with positive controls and per-denial audit
+  assertions), and content attacks (10-payload injection corpus
+  fail-closed, a ~10 MiB gzip bomb truncated at the streamed cap, a
+  redirect-loop bomb bounded by the hop cap). The corpus found and
+  fixed two real scanner weaknesses on its first run: the
+  role-reassignment pattern was start-of-text anchored (any earlier
+  attacker line evaded it — now multiline), and the base64 detector
+  required a clean whole-run decode (chained padded blobs evaded it —
+  now shape+size gated, fail-closed). Behavioral probes (gated
+  `ATHANOR_RUN_INTEGRATION`) pass against the real internet:
+  default-deny refuses a real domain; an allowlisted real domain
+  fetches + extracts end-to-end (reference run 2026-09-15).
+  **Gate G4 is closed**: adversarial suite green + research goal
+  end-to-end on allowlisted domains (`TestDiverge_InjectsResearchIntoCandidates`,
+  [demo-m4-t7.md](docs/demo-m4-t7.md) daemon walk). M4 (Airlock &
+  Gateway) is complete; the next milestone is M5 (Context Engine).
 
 - **M4-T7 (this close-out).** Gateway-backed tools `fetch_url` /
   `search_web` land in six commits (`f459ced` ADR-0019 + plan,
