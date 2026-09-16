@@ -263,6 +263,18 @@ type Network struct {
 	// the check (a documented escape hatch for
 	// tests; never the default in production).
 	ExternalAPIHostAllowlist []string `yaml:"external_api_host_allowlist"`
+	// SearchEngineURLTemplate is the M4-T7 `search_web`
+	// backend (ADR-0019 §4): a `text/template` URL with
+	// a single `{{.Query}}` action. Empty (the default)
+	// leaves the `search_web` tool inert — calls return
+	// the typed ErrSearchNotConfigured. The template is
+	// a convenience for constructing the query URL; the
+	// built URL is NOT exempt from the gateway allowlist.
+	// Validated at load: must parse, must render to an
+	// http(s) URL with a host, and must reference
+	// `.Query` (a template without it would always fetch
+	// the same page).
+	SearchEngineURLTemplate string `yaml:"search_engine_url_template"`
 }
 
 // ReaderMode returns the §21.5 reader-mode flag, applying the `true`

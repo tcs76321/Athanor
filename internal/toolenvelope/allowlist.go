@@ -24,13 +24,17 @@ import (
 // config-level default (config.job_pod.default_tools).
 type Tool string
 
-// The closed set as of M3-T5. M2-T4 shipped the first
+// The closed set as of M4-T7. M2-T4 shipped the first
 // two (`execute_code`, `run_tests`); M3-T2 commit 2.3
 // added `lint` for the per-task linter; M3-T5 adds
 // `git_operation` so the engine can record accepted
 // artifacts to a project-local git repo (the actual
 // engine call site is M3-T7 work; this commit just
-// widens the closed set and the matching API route).
+// widens the closed set and the matching API route);
+// M4-T7 (ADR-0019 §5) adds `fetch_url` and `search_web`
+// — Core-executed gateway tools. They are per-task
+// override only: `job_pod.default_tools` does not include
+// them, so network access is an explicit task decision.
 //
 // New entries require updating the test in
 // allowlist_test.go and a Gate G2 extension that
@@ -42,6 +46,8 @@ const (
 	ToolRunTests     Tool = "run_tests"
 	ToolLint         Tool = "lint"
 	ToolGitOperation Tool = "git_operation"
+	ToolFetchURL     Tool = "fetch_url"
+	ToolSearchWeb    Tool = "search_web"
 )
 
 // ErrUnknownTool is returned by Parse for any name outside the
@@ -127,7 +133,7 @@ func (e Envelope) IsEmpty() bool { return len(e.tools) == 0 }
 // envelope.
 func isKnown(t Tool) bool {
 	switch t {
-	case ToolExecuteCode, ToolRunTests, ToolLint, ToolGitOperation:
+	case ToolExecuteCode, ToolRunTests, ToolLint, ToolGitOperation, ToolFetchURL, ToolSearchWeb:
 		return true
 	default:
 		return false

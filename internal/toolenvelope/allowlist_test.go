@@ -21,7 +21,9 @@ func TestParse_KnownTools(t *testing.T) {
 		{"run_tests only", []string{"run_tests"}, []Tool{ToolRunTests}},
 		{"lint only", []string{"lint"}, []Tool{ToolLint}},
 		{"git_operation only", []string{"git_operation"}, []Tool{ToolGitOperation}},
-		{"all four, order-insensitive", []string{"run_tests", "lint", "execute_code", "git_operation"}, []Tool{ToolExecuteCode, ToolGitOperation, ToolLint, ToolRunTests}},
+		{"fetch_url only", []string{"fetch_url"}, []Tool{ToolFetchURL}},
+		{"search_web only", []string{"search_web"}, []Tool{ToolSearchWeb}},
+		{"all six, order-insensitive", []string{"run_tests", "lint", "execute_code", "git_operation", "search_web", "fetch_url"}, []Tool{ToolExecuteCode, ToolFetchURL, ToolGitOperation, ToolLint, ToolRunTests, ToolSearchWeb}},
 		{"both, order-insensitive", []string{"run_tests", "execute_code"}, []Tool{ToolExecuteCode, ToolRunTests}},
 		{"duplicates deduped", []string{"execute_code", "execute_code", "run_tests", "lint", "git_operation"}, []Tool{ToolExecuteCode, ToolGitOperation, ToolLint, ToolRunTests}},
 	}
@@ -48,7 +50,7 @@ func TestParse_KnownTools(t *testing.T) {
 				}
 			}
 			// Tools NOT in the envelope are rejected.
-			for _, missing := range []Tool{ToolExecuteCode, ToolRunTests, ToolLint, ToolGitOperation} {
+			for _, missing := range []Tool{ToolExecuteCode, ToolRunTests, ToolLint, ToolGitOperation, ToolFetchURL, ToolSearchWeb} {
 				isIn := false
 				for _, in := range tc.want {
 					if in == missing {
@@ -68,7 +70,7 @@ func TestParse_KnownTools(t *testing.T) {
 // typo or a future tool added by a caller (but not by the project)
 // is rejected with an error that names the offender.
 func TestParse_RejectsUnknown(t *testing.T) {
-	bad := []string{"execute", "Run_Tests", "", "EXECUTE_CODE", "fetch_url"}
+	bad := []string{"execute", "Run_Tests", "", "EXECUTE_CODE", "browse", "search"}
 	for _, name := range bad {
 		t.Run(name, func(t *testing.T) {
 			_, err := Parse([]string{name})
@@ -102,6 +104,12 @@ func TestEnvelope_ZeroValueIsEmpty(t *testing.T) {
 	if env.Allows(ToolGitOperation) {
 		t.Errorf("zero Envelope Allows(git_operation) = true, want false")
 	}
+	if env.Allows(ToolFetchURL) {
+		t.Errorf("zero Envelope Allows(fetch_url) = true, want false")
+	}
+	if env.Allows(ToolSearchWeb) {
+		t.Errorf("zero Envelope Allows(search_web) = true, want false")
+	}
 	got := env.Tools()
 	if len(got) != 0 {
 		t.Errorf("zero Envelope Tools() = %v, want empty", got)
@@ -111,12 +119,12 @@ func TestEnvelope_ZeroValueIsEmpty(t *testing.T) {
 // TestTools_SortedDeterministic proves Tools() returns a stable
 // ordering so EventLog events and audit dumps are diffable.
 func TestTools_SortedDeterministic(t *testing.T) {
-	env, err := Parse([]string{"run_tests", "execute_code", "lint"})
+	env, err := Parse([]string{"run_tests", "execute_code", "lint", "fetch_url", "search_web"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	got := env.Tools()
-	want := []Tool{ToolExecuteCode, ToolLint, ToolRunTests}
+	want := []Tool{ToolExecuteCode, ToolFetchURL, ToolLint, ToolRunTests, ToolSearchWeb}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("Tools() = %v, want %v (sorted by string value)", got, want)
 	}

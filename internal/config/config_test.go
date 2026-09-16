@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -425,6 +426,50 @@ func TestExampleConfigMatchesDefaults(t *testing.T) {
 		exJSON, _ := json.MarshalIndent(example, "", "  ")
 		defJSON, _ := json.MarshalIndent(def, "", "  ")
 		t.Errorf("config.example.yaml drifted from built-in defaults — update the example (or defaults) so they match\nexample:\n%s\ndefaults:\n%s", exJSON, defJSON)
+	}
+}
+
+// TestNetwork_SearchTemplateValid (M4-T7, ADR-0019 §4) proves the
+// search engine template validation accepts a well-formed template.
+func TestNetwork_SearchTemplateValid(t *testing.T) {
+	good := []byte("version: 2\nnetwork:\n  search_engine_url_template: \"https://html.duckduckgo.com/html/?q={{.Query}}\"\n")
+	cfg, err := Parse(good)
+	if err != nil {
+		t.Fatalf("Parse with valid template: %v", err)
+	}
+	if cfg.Network.SearchEngineURLTemplate == "" {
+		t.Fatal("SearchEngineURLTemplate is empty, want the configured template")
+	}
+}
+
+// TestNetwork_SearchTemplateInvalid (M4-T7, ADR-0019 §4) proves the
+// validation rejects broken templates with actionable errors that name
+// the failing field. Rows: unparsable template, missing `.Query`
+// (would always fetch the same page), unknown field (typo'd casing),
+// and non-http(s) rendering.
+func TestNetwork_SearchTemplateInvalid(t *testing.T) {
+	cases := []struct {
+		name     string
+		template string
+		wantErr  string
+	}{
+		{"unparsable", "https://example.com/?q={{.Query", "network.search_engine_url_template"},
+		{"missing query", "https://example.com/search", "must reference {{.Query}}"},
+		{"wrong field case", "https://example.com/?q={{.query}}", "network.search_engine_url_template"},
+		{"non-http scheme", "ftp://example.com/?q={{.Query}}", "must render to an http(s) URL"},
+		{"no host", "{{.Query}}", "must render to an http(s) URL"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			raw := "version: 2\nnetwork:\n  search_engine_url_template: " + strconv.Quote(tc.template) + "\n"
+			_, err := Parse([]byte(raw))
+			if err == nil {
+				t.Fatalf("Parse with template %q returned nil error; want %q", tc.template, tc.wantErr)
+			}
+			if !strings.Contains(err.Error(), tc.wantErr) {
+				t.Errorf("error %q does not contain %q", err.Error(), tc.wantErr)
+			}
+		})
 	}
 }
 

@@ -133,6 +133,16 @@ network:
     # do not silently think it is in effect. The
     # deferral mirrors the dormant-Execution-flags
     # pattern from f309500.
+  search_engine_url_template: ""
+    # M4-T7 `search_web` backend (ADR-0019 §4). A
+    # text/template URL with one {{.Query}} action,
+    # e.g. "https://html.duckduckgo.com/html/?q={{.Query}}".
+    # Empty (the default) leaves `search_web` inert:
+    # calls return ErrSearchNotConfigured. The built
+    # URL is NOT exempt from the allowlist — the
+    # engine's host must be in allow_list. Validated
+    # at load: must parse, must reference {{.Query}},
+    # and must render to an http(s) URL.
   # External API Host-header allowlist (ADR-0011,
   # §21.8 hardening). Requests whose Host header is
   # not in this set are rejected with 421 Misdirected

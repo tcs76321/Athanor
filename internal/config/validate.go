@@ -8,10 +8,13 @@
 package config
 
 import (
+	"bytes"
 	"fmt"
 	"net"
+	"net/url"
 	"strconv"
 	"strings"
+	"text/template"
 
 	"github.com/tcs76321/athanor/internal/toolenvelope"
 )
@@ -122,6 +125,31 @@ func validateRaw(c *Config) error {
 	// the same error a runtime would see.
 	if _, err := toolenvelope.Parse(c.JobPod.DefaultTools); err != nil {
 		return fmt.Errorf("job_pod.default_tools: %w", err)
+	}
+	// M4-T7 (ADR-0019 §4): the search_web engine template is validated
+	// at load so an operator typo fails at boot, not at first search.
+	// The template must parse as text/template, must reference `.Query`
+	// (a template without it would always fetch the same page), and
+	// must render to an http(s) URL with a host when executed with an
+	// escaped sample query. Unknown template fields fail the Execute
+	// below — a typo like `{{.query}}` is rejected with the template
+	// engine's own error, which names the offending field.
+	if t := c.Network.SearchEngineURLTemplate; t != "" {
+		tpl, err := template.New("search_engine_url_template").Parse(t)
+		if err != nil {
+			return fmt.Errorf("network.search_engine_url_template: %w", err)
+		}
+		if !strings.Contains(t, ".Query") {
+			return fmt.Errorf("network.search_engine_url_template must reference {{.Query}}; got %q", t)
+		}
+		var buf bytes.Buffer
+		if err := tpl.Execute(&buf, map[string]string{"Query": url.QueryEscape("athanor template validation")}); err != nil {
+			return fmt.Errorf("network.search_engine_url_template: %w", err)
+		}
+		u, err := url.Parse(buf.String())
+		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+			return fmt.Errorf("network.search_engine_url_template must render to an http(s) URL with a host; rendered %q", buf.String())
+		}
 	}
 	return nil
 }
