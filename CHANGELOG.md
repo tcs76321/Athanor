@@ -10,6 +10,20 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Security
+
+- **fix(deps): golang.org/x/net v0.41.0 → v0.55.0** — patches
+  [GHSA-5cv4-jp36-h3mw](https://github.com/tcs76321/Athanor/security/dependabot/1)
+  (CVE-2026-25680, moderate): `net/html` parsing of arbitrary HTML
+  can consume excessive CPU (denial of service). This is Athanor's
+  Reader Mode pipeline exactly — `internal/gateway/reader.go` and
+  `markdown.go` parse untrusted fetched HTML with `golang.org/x/net/html`.
+  The upgrade also pulls the companion `x/sys` v0.45.0 and `x/text`
+  v0.37.0 bumps. No new direct dependencies; `x/net` moves from
+  indirect to a direct require (it was already a direct *import* —
+  `go mod tidy` normalized the classification). `make check` green;
+  Gate G1 (including the rule-6 outbound-HTTP walk) re-proven.
+
 ### M4 — Airlock & Gateway (complete; Gate G4 closed)
 
 - **M4-T8 (this close-out).** The adversarial security suite lands in

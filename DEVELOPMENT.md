@@ -26,6 +26,7 @@ The project stays deliberately lean — four in-tree dependencies:
 | `gopkg.in/yaml.v3` | config loading |
 | `codeberg.org/readeck/go-readability/v2` | §21.5 Reader Mode extraction (M4-T6). The maintained continuation of the deprecated go-shiori module; see [ADR-0018](docs/adr/0018-reader-mode.md) §1. Only `FromReader` is ever called — `FromURL` would open a second egress path past the gateway, and Gate G1 rule 6 makes that a build break. |
 | `github.com/microcosm-cc/bluemonday` | Reader Mode sanitization (UGCPolicy) before markdown rendering |
+| `golang.org/x/net` | HTML parsing for Reader Mode (`net/html`) — direct import since M4-T6; kept at ≥ the patched release for CVE-2026-25680 |
 
 Adding a dependency is a project decision (AGENTS.md), not an agent decision.
 
