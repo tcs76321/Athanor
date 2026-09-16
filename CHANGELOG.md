@@ -12,6 +12,41 @@ New entries are appended at the top. Do not rewrite history.
 
 ### M4 — Airlock & Gateway (in progress)
 
+- **M4-T7 (this close-out).** Gateway-backed tools `fetch_url` /
+  `search_web` land in six commits (`f459ced` ADR-0019 + plan,
+  T7.2 envelope widening + `search_engine_url_template`,
+  `b712530` routes + runner + Gate G2, `b787982` redirect hop loop +
+  adapter, T7.5 engine research sub-step + §7 amendment, this docs
+  commit). [ADR-0019](docs/adr/0019-gateway-tools.md) records the
+  decisions; [demo-m4-t7.md](docs/demo-m4-t7.md) is the operator
+  walkthrough and the Gate G4 research-goal evidence. Decisions worth
+  remembering: the tools are internal API routes dispatched through a
+  `ToolGateway` inversion seam (the Core executes the fetch — Job
+  Pods have `--network=none`, so the envelope override on a task is
+  exactly the "allowlisted internet" capability); the closed set grows
+  to six tools but `job_pod.default_tools` stays empty (per-task
+  override only); redirects moved inside `Client.Fetch` as a bounded
+  hop loop (max 5) with per-hop `Policy.Eval` + rate-limit + pinned
+  dial — the first-hop-only policy evaluation was a latent SSRF
+  bypass (an allowlisted host could 302 the gateway anywhere), closed
+  and regression-tested by `TestFetch_DeniesOffListRedirect`;
+  `search_web` is inert until the operator sets a `text/template`
+  engine URL and the template host gets no allowlist exemption; tool
+  responses are prompt material, so raw bytes are never inlined
+  (reader refusals degrade to `mode=raw`; injection-flagged content
+  fails closed with 422); a truncated extraction re-fetches once at a
+  halved cap (the ADR-0018 deferred decision). The engine research
+  sub-step fetches the task's declared URLs before divergence and
+  injects attributed markdown into every candidate — soft-fail per
+  source. ADR-0019 §7 was amended during implementation: the planner
+  output is discarded free text, so sources are task-declared URLs
+  (nothing scraped from LLM prose), and transport failures on every
+  source no longer escalate. New event names: `research_start` /
+  `research_fetch` (`jobs` category, open set — no migration). Gate
+  G1 rule 6 re-proven (the adapter builds fetch requests with
+  `gateway.NewRequest`); Gate G2 extended with the route-existence
+  test and the two new tools in the envelope-bypass corpus.
+
 - **M4-T6 (this close-out).** §21.5 responsibility 6, Reader Mode
   extraction, lands in three commits (`5928d45` deps + ADR-0018,
   `1dc946a` extraction layer, `ea5a9a1` config activation + daemon
