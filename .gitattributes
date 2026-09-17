@@ -1,0 +1,3 @@
+# Preserve the CRLF edge-case fixture byte-exactly (M5-T1 spike):
+# text-attribute normalization would silently turn it into an LF file.
+spikes/m5-t1-division/testdata/edge/crlf.py -text
