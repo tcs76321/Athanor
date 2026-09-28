@@ -140,6 +140,9 @@ func run(configPath, addr, stateDir string) error {
 	// (the artifact store is the source of truth).
 	artifactStore := artifact.NewStore(st, filepath.Join(stateDir, "artifacts"))
 	projectRepo := project.NewRepo(st)
+	// One LLM client shared by the engine and the MCE summarizer, so both
+	// talk to the same Ollama endpoint through the same connection pool.
+	llmClient := llm.NewClient(cfg.Inference.OllamaURL, nil)
 	eng := engine.New(cfg, st,
 		job.NewRepository(st),
 		projectRepo,
@@ -149,7 +152,7 @@ func run(configPath, addr, stateDir string) error {
 		// the evaluating phase; the comparison phase reads
 		// them back.
 		evaluation.NewRepo(st),
-		llm.NewClient(cfg.Inference.OllamaURL, nil),
+		llmClient,
 		registry,
 		killSwitch,
 		powerMgr,
@@ -160,6 +163,20 @@ func run(configPath, addr, stateDir string) error {
 		// internal API (ADR-0009 D5).
 		runner.New("http://"+loopAddr, podMgr),
 	)
+	// M5-T2.7: MCE dormant chunk store + wide-persona summarizer. Built at
+	// boot over the daemon's single SQLite connection; the construction is
+	// the structural proof until M5-T3 (context_swap) and M5-T8 (repo
+	// indexing) add call sites. A database without migration 0009 fails
+	// here rather than at first ingest.
+	mceRT, err := startMCE(st, registry, llmClient, cfg.ContextEngine)
+	if err != nil {
+		return fmt.Errorf("starting mce: %w", err)
+	}
+	slog.Info("mce runtime ready",
+		"lossless_swapping", mceRT.LosslessSwapping,
+		"summarizer_persona", mceRT.SummarizerPersona,
+		"chunk_store", mceRT.Store != nil,
+		"summarizer", mceRT.Summarizer != nil)
 	srv := server.New(version)
 	srv.SetControl(killSwitch)
 	externalAPI := api.New(projectRepo, job.NewRepository(st),
