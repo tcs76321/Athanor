@@ -160,8 +160,10 @@ chunk per working scope, so a crash mid-swap resumes (§23.6).
 
 Size caps protect the single-connection DB: `division_max_source_bytes`
 (a source larger than the cap is skipped with a `context` audit row) and
-`division_max_chunk_bytes` (an oversized AST node is split into fixed
-blocks).
+`division_max_chunk_bytes` (a semantic segment larger than the cap is
+**byte-split**, so one oversized declaration cannot bloat a row; a byte
+split may cut mid-rune, which is acceptable because reassembly is still
+byte-exact).
 
 ### 7. Summarizer seam, prompt ownership, and temperature
 

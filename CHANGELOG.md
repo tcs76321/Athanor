@@ -10,6 +10,34 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### M5 — Context Engine (in progress)
+
+- **M5-T2 (this close-out).** The MCE's lossless half lands in seven
+  commits: `863bbf0` tree-sitter dependencies + `internal/mce/division`
+  (hybrid divider — tree-sitter for Go/Python/JavaScript, structural
+  headers for markdown/plain text, fixed-line fallback); `ddf2c8c` the
+  P1–P5 property suite (198 files / 5 languages, Go boundary agreement
+  **1.0000/0.8872**, reproducing the M5-T1 spike); `8805a2a` migration 0009
+  + the `internal/mce` chunk store (deterministic content-derived chunk
+  IDs, byte-exact SQLite reassembly, Dormant Index); `efbe3a3` ingestion
+  through §21.3 path containment + the three `context_engine.division_*`
+  bounds and the `enable_lossless_swapping` gate; `5b6b558` the
+  `Summarizer` seam + `wide` adapter at temperature 0.0; `80cb970` the
+  daemon boot wiring (a database without migration 0009 fails at boot).
+  Decisions: [ADR-0021](docs/adr/0021-mce-chunk-store.md);
+  [ADR-0020](docs/adr/0020-division-strategy.md) becomes **Accepted** —
+  the tree-sitter dependency is adopted. `internal/mce` does not import
+  `internal/llm`, so a future `context_swap` route keeps Gate G2 rule 1's
+  intent intact. Gate G5's byte-exact half is proven (division round-trip
+  and SQLite round-trip); the swap half is M5-T3.
+
+- **M5-T1 (division-strategy spike, `905de23`).** Three strategies —
+  tree-sitter, pure-Go scanners, header-regex — raced over a 196-file /
+  1.14 MB corpus. All three satisfied the byte-partition property
+  (P1–P5), so the differentiator was boundary quality and dependency
+  cost. Findings: [docs/probes/m5-t1-division.md](docs/probes/m5-t1-division.md);
+  decision: [ADR-0020](docs/adr/0020-division-strategy.md).
+
 ### Security
 
 - **fix(deps): golang.org/x/net v0.41.0 → v0.55.0** — patches
