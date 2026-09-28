@@ -80,6 +80,18 @@ func applyDefaults(c *Config) {
 	if c.ContextEngine.KVCacheCriticalThresh == 0 {
 		c.ContextEngine.KVCacheCriticalThresh = 0.95
 	}
+	// M5-T2 division bounds (§10.1). 1 MiB keeps the single-connection
+	// SQLite blob store bounded; 128 KiB byte-splits any single oversized
+	// declaration; 120 lines is the M5-T1 spike's fallback block size.
+	if c.ContextEngine.DivisionMaxSourceBytes == 0 {
+		c.ContextEngine.DivisionMaxSourceBytes = 1048576
+	}
+	if c.ContextEngine.DivisionMaxChunkBytes == 0 {
+		c.ContextEngine.DivisionMaxChunkBytes = 131072
+	}
+	if c.ContextEngine.DivisionFallbackLines == 0 {
+		c.ContextEngine.DivisionFallbackLines = 120
+	}
 
 	setInt(&c.Execution.DivergenceCandidates, 3)
 	setInt(&c.Execution.MaxHardTaskVariations, 10)

@@ -1508,6 +1508,11 @@ context_engine:
   enable_lossless_swapping: true
   kv_cache_warning_threshold: 0.85
   kv_cache_critical_threshold: 0.95
+  # M5-T2 division bounds (§10.1): a source larger than max_source_bytes is
+  # skipped with a `context` audit row; an oversized chunk is byte-split.
+  division_max_source_bytes: 1048576
+  division_max_chunk_bytes: 131072
+  division_fallback_lines: 120
 
 execution:
   divergence_candidates: 3

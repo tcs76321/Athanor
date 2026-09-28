@@ -290,6 +290,7 @@ func TestReaderModeDefault_ExplicitFalseRespected(t *testing.T) {
 		t.Error("ReaderMode() = true, want false (explicit opt-out)")
 	}
 }
+
 // TestMinJudgeConfidence_UnsetAppliesDefault: a
 // minimal config that omits the field entirely must
 // have the 0.7 default applied by `applyDefaults`,
@@ -623,5 +624,30 @@ func TestAirlock_RejectsNegativeRatio(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "airlock.max_uncompressed_ratio") {
 		t.Errorf("error %q does not mention the failing field", err.Error())
+	}
+}
+
+// TestContextEngine_RejectsNegativeDivisionBounds (M5-T2) proves the three
+// §10.1 division bounds reject explicitly negative values at load time, so a
+// typo surfaces with an actionable error instead of being silently replaced
+// by applyDefaults (which only fills zeros).
+func TestContextEngine_RejectsNegativeDivisionBounds(t *testing.T) {
+	cases := []struct {
+		field string
+		yaml  string
+	}{
+		{"context_engine.division_max_source_bytes", "context_engine:\n  division_max_source_bytes: -1\n"},
+		{"context_engine.division_max_chunk_bytes", "context_engine:\n  division_max_chunk_bytes: -1\n"},
+		{"context_engine.division_fallback_lines", "context_engine:\n  division_fallback_lines: -1\n"},
+	}
+	for _, c := range cases {
+		_, err := Parse([]byte(c.yaml))
+		if err == nil {
+			t.Errorf("%s: Parse returned nil; want a validation error", c.field)
+			continue
+		}
+		if !strings.Contains(err.Error(), c.field) {
+			t.Errorf("%s: error %q does not mention the failing field", c.field, err.Error())
+		}
 	}
 }

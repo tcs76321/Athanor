@@ -160,14 +160,30 @@ type ContextEngine struct {
 	EnableLosslessSwapping *bool   `yaml:"enable_lossless_swapping"`
 	KVCacheWarningThresh   float64 `yaml:"kv_cache_warning_threshold"`
 	KVCacheCriticalThresh  float64 `yaml:"kv_cache_critical_threshold"`
+	// M5-T2 division bounds (§10.1). A source larger than
+	// DivisionMaxSourceBytes is skipped with a `context` audit row rather
+	// than divided; a single chunk larger than DivisionMaxChunkBytes is
+	// byte-split so one oversized declaration cannot bloat a row.
+	// DivisionFallbackLines is the fixed block size of the universal
+	// fallback splitter.
+	DivisionMaxSourceBytes int64 `yaml:"division_max_source_bytes"`
+	DivisionMaxChunkBytes  int   `yaml:"division_max_chunk_bytes"`
+	DivisionFallbackLines  int   `yaml:"division_fallback_lines"`
+}
+
+// LosslessSwapping reports whether §10.1 division and swapping are enabled,
+// applying the documented default (true) when the operator left the field
+// unset. Explicit false disables ingestion and the M5-T3 swap.
+func (c *ContextEngine) LosslessSwapping() bool {
+	return Val(c.EnableLosslessSwapping, true)
 }
 
 // Execution configures the dialectical loop (§13, §19).
 type Execution struct {
-	DivergenceCandidates        int                 `yaml:"divergence_candidates"`
-	MaxHardTaskVariations       int                 `yaml:"max_hard_task_variations"`
-	MaxReflectionLoops          int                 `yaml:"max_reflection_loops"`
-	JudgePersona                string              `yaml:"judge_persona"`
+	DivergenceCandidates  int    `yaml:"divergence_candidates"`
+	MaxHardTaskVariations int    `yaml:"max_hard_task_variations"`
+	MaxReflectionLoops    int    `yaml:"max_reflection_loops"`
+	JudgePersona          string `yaml:"judge_persona"`
 	// The three flags below are M3-deferred: declared and
 	// defaulted to true so the shipped example config validates
 	// and parses, but the engine does not yet consult them.
@@ -178,9 +194,9 @@ type Execution struct {
 	// defaults package can distinguish "unset" (apply true)
 	// from "explicitly false" (still no behavior change in
 	// M3, but the field shape is ready for M6/M7 to read).
-	RequireTestsForCode         *bool               `yaml:"require_tests_for_code"`
-	RequireDocumentationForCode *bool               `yaml:"require_documentation_for_code"`
-	CompareBeforeAccept         *bool               `yaml:"compare_before_accept"`
+	RequireTestsForCode         *bool `yaml:"require_tests_for_code"`
+	RequireDocumentationForCode *bool `yaml:"require_documentation_for_code"`
+	CompareBeforeAccept         *bool `yaml:"compare_before_accept"`
 	// MinJudgeConfidence is the §19.3 deterministic guard
 	// threshold. The pointer type lets the operator explicitly
 	// disable the guard by setting the value to 0 (the
@@ -380,14 +396,14 @@ func (c *Config) JobPodResourceLimits() jobpod.Limits {
 // YARA adapter loads rules from. Empty string disables the rule set;
 // the adapter then reports `Available() == false` and degrades.
 type Airlock struct {
-	Enabled                                *bool    `yaml:"enabled"`
-	Scanners                               AirlockScanners `yaml:"scanners"`
-	MaxIngressBytes                        int64    `yaml:"max_ingress_bytes"`
-	MaxUncompressedRatio                   int      `yaml:"max_uncompressed_ratio"`
-	MaxZipEntries                          int      `yaml:"max_zip_entries"`
-	PromptInjectionLongUserPromptThresholdBytes int  `yaml:"prompt_injection_long_user_prompt_threshold_bytes"`
-	PromptInjectionScanLongUserPrompts     *bool    `yaml:"prompt_injection_scan_long_user_prompts"`
-	YaraRuleSet                            string   `yaml:"yara_rule_set"`
+	Enabled                                     *bool           `yaml:"enabled"`
+	Scanners                                    AirlockScanners `yaml:"scanners"`
+	MaxIngressBytes                             int64           `yaml:"max_ingress_bytes"`
+	MaxUncompressedRatio                        int             `yaml:"max_uncompressed_ratio"`
+	MaxZipEntries                               int             `yaml:"max_zip_entries"`
+	PromptInjectionLongUserPromptThresholdBytes int             `yaml:"prompt_injection_long_user_prompt_threshold_bytes"`
+	PromptInjectionScanLongUserPrompts          *bool           `yaml:"prompt_injection_scan_long_user_prompts"`
+	YaraRuleSet                                 string          `yaml:"yara_rule_set"`
 }
 
 // AirlockScanners is the per-pipeline scanner list. Each entry is a

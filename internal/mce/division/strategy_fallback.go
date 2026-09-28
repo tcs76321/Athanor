@@ -29,5 +29,5 @@ func fallbackOffsets(src []byte, lines int) []int {
 
 // fallbackChunks divides src into fixed line blocks (KindFallback).
 func (d *Divider) fallbackChunks(filePath, lang string, src []byte) []Chunk {
-	return buildChunks(filePath, lang, src, KindFallback, fallbackOffsets(src, d.fallbackLines))
+	return d.bounded(filePath, lang, src, KindFallback, fallbackOffsets(src, d.fallbackLines))
 }

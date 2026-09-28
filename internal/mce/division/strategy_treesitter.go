@@ -101,5 +101,5 @@ func (d *Divider) tsChunks(filePath, lang string, src []byte) ([]Chunk, bool) {
 	if len(bounds) == 0 {
 		return nil, false
 	}
-	return buildChunks(filePath, lang, src, KindAST, bounds), true
+	return d.bounded(filePath, lang, src, KindAST, bounds), true
 }

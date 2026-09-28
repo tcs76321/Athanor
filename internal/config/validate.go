@@ -68,6 +68,18 @@ func validateRaw(c *Config) error {
 			return fmt.Errorf("%s must be positive, got %d", name, v)
 		}
 	}
+	// M5-T2 division bounds (§10.1): reject explicitly negative values
+	// before defaults run, so a typo surfaces with an actionable error
+	// instead of silently becoming the default through applyDefaults.
+	if v := c.ContextEngine.DivisionMaxSourceBytes; v < 0 {
+		return fmt.Errorf("context_engine.division_max_source_bytes must be positive, got %d", v)
+	}
+	if v := c.ContextEngine.DivisionMaxChunkBytes; v < 0 {
+		return fmt.Errorf("context_engine.division_max_chunk_bytes must be positive, got %d", v)
+	}
+	if v := c.ContextEngine.DivisionFallbackLines; v < 0 {
+		return fmt.Errorf("context_engine.division_fallback_lines must be positive, got %d", v)
+	}
 	// Invariant §4.3: all compaction runs at Temp 0.0. Enforced here so no
 	// configuration can weaken it.
 	if t := c.ContextEngine.CompactionTemperature; t != 0 {

@@ -28,7 +28,7 @@ func (d *Divider) headerChunks(filePath, lang string, src []byte) []Chunk {
 	if len(bounds) == 0 {
 		return d.fallbackChunks(filePath, lang, src)
 	}
-	return buildChunks(filePath, lang, src, KindHeader, bounds)
+	return d.bounded(filePath, lang, src, KindHeader, bounds)
 }
 
 // textParagraphBounds returns the start offset of each paragraph: a

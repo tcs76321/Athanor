@@ -87,12 +87,19 @@ type Options struct {
 	// FallbackLines is the block size used when a source cannot be parsed
 	// by its language strategy (P5). Zero selects DefaultFallbackLines.
 	FallbackLines int
+	// MaxChunkBytes caps a single chunk's size. A semantic chunk larger
+	// than the cap is split at byte boundaries (twice the cap for a chunk
+	// that is exactly 2×cap). Zero or negative means unlimited. This
+	// bounds one oversized declaration from bloating a storage row; it
+	// never changes byte-exactness.
+	MaxChunkBytes int
 }
 
 // Divider is the §10.1 division engine. It is safe for concurrent use:
 // the grammar registry is built once and parsers are pooled.
 type Divider struct {
 	fallbackLines int
+	maxChunkBytes int
 }
 
 // New returns a Divider configured by opts.
@@ -101,7 +108,7 @@ func New(opts Options) *Divider {
 	if n <= 0 {
 		n = DefaultFallbackLines
 	}
-	return &Divider{fallbackLines: n}
+	return &Divider{fallbackLines: n, maxChunkBytes: opts.MaxChunkBytes}
 }
 
 // Divide splits src into dormant chunks.
@@ -233,4 +240,26 @@ func buildChunks(filePath, lang string, src []byte, kind Kind, bounds []int) []C
 		}}
 	}
 	return out
+}
+
+// bounded applies the MaxChunkBytes cap: any semantic segment larger than
+// the cap is split at byte boundaries so a single oversized declaration
+// cannot bloat a storage row. A byte split can cut mid-rune, which is
+// acceptable for an oversized chunk — reassembly remains byte-exact — and
+// never fires for normally-sized chunks (the §10.1 default cap is 128 KiB).
+func (d *Divider) bounded(filePath, lang string, src []byte, kind Kind, bounds []int) []Chunk {
+	if d.maxChunkBytes <= 0 || len(src) == 0 {
+		return buildChunks(filePath, lang, src, kind, bounds)
+	}
+	pts := cutPoints(bounds, len(src))
+	var extra []int
+	for i := 0; i+1 < len(pts); i++ {
+		for off := pts[i] + d.maxChunkBytes; off < pts[i+1]; off += d.maxChunkBytes {
+			extra = append(extra, off)
+		}
+	}
+	if len(extra) == 0 {
+		return buildChunks(filePath, lang, src, kind, bounds)
+	}
+	return buildChunks(filePath, lang, src, kind, append(append([]int{}, bounds...), extra...))
 }
