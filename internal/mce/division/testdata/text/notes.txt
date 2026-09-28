@@ -1,0 +1,10 @@
+Release notes for the synthetic engine.
+
+The first paragraph explains the intent. It is separated from the next
+paragraph by a blank line, which is the structural boundary the plain-text
+splitter uses.
+
+The second paragraph records a constraint: no third-party parser is
+allowed on the text path, because text has no grammar to parse.
+
+A third paragraph closes the note with a short summary sentence.
