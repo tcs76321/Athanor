@@ -210,10 +210,10 @@ func run(configPath, addr, stateDir string) error {
 	internalapi.New(tokenStoreAdapter{podMgr}, project.NewRepo(st), st,
 		project.NewRepo(st), defaultEnv,
 		newGatewayToolAdapter(gw, cfg.Network.SearchEngineURLTemplate),
-		// M5-T3: the context_swap adapter lands in the next commit; until
-		// then the route is registered and responds 503 "not configured"
-		// (the M4-T5 Gateway pattern). A nil swapper is a valid daemon.
-		nil,
+		// M5-T3.3: the context_swap adapter over the MCE chunk store built
+		// above. A daemon with lossless swapping disabled still constructs
+		// it; every swap then returns ErrSwapDisabled (501).
+		newContextSwapAdapter(mceRT.Store, mceRT.LosslessSwapping),
 	).Register(srv.Mux())
 
 	// M4-T2: ingress pipeline. Watches <state>/workspace/inbox,
