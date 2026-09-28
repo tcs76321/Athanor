@@ -63,15 +63,19 @@ const DefaultFallbackLines = 120
 // Content is the exact slice of the source bytes; callers must not mutate
 // it. Reassembly is byte-identical by construction (chunks tile the source).
 type Chunk struct {
-	ID        string
-	FilePath  string
-	Lang      string
-	Kind      Kind
-	ByteStart int
-	ByteEnd   int
-	LineStart int
-	LineEnd   int
-	Content   []byte
+	ID       string
+	FilePath string
+	Lang     string
+	Kind     Kind
+	// SourceHash is the SHA-256 of the whole source the chunk was divided
+	// from. It anchors the chunk's identity (ADR-0021 §5) and lets the MCE
+	// store group chunks back into a source without re-reading the file.
+	SourceHash string
+	ByteStart  int
+	ByteEnd    int
+	LineStart  int
+	LineEnd    int
+	Content    []byte
 }
 
 // Bytes returns the chunk's length in bytes.
@@ -204,7 +208,7 @@ func buildChunks(filePath, lang string, src []byte, kind Kind, bounds []int) []C
 	if n == 0 {
 		return []Chunk{{
 			ID: chunkID(hash, 0, 0), FilePath: filePath, Lang: lang, Kind: kind,
-			ByteStart: 0, ByteEnd: 0, LineStart: 1, LineEnd: 1, Content: []byte{},
+			SourceHash: hash, ByteStart: 0, ByteEnd: 0, LineStart: 1, LineEnd: 1, Content: []byte{},
 		}}
 	}
 	pts := cutPoints(bounds, n)
@@ -216,7 +220,8 @@ func buildChunks(filePath, lang string, src []byte, kind Kind, bounds []int) []C
 		}
 		out = append(out, Chunk{
 			ID: chunkID(hash, start, end), FilePath: filePath, Lang: lang, Kind: kind,
-			ByteStart: start, ByteEnd: end,
+			SourceHash: hash,
+			ByteStart:  start, ByteEnd: end,
 			LineStart: lineOf(src, start), LineEnd: lineOf(src, end-1),
 			Content: src[start:end],
 		})
@@ -224,7 +229,7 @@ func buildChunks(filePath, lang string, src []byte, kind Kind, bounds []int) []C
 	if len(out) == 0 { // defensive: a non-empty source always tiles
 		return []Chunk{{
 			ID: chunkID(hash, 0, n), FilePath: filePath, Lang: lang, Kind: kind,
-			ByteStart: 0, ByteEnd: n, LineStart: 1, LineEnd: lineOf(src, n-1), Content: src,
+			SourceHash: hash, ByteStart: 0, ByteEnd: n, LineStart: 1, LineEnd: lineOf(src, n-1), Content: src,
 		}}
 	}
 	return out
