@@ -1,6 +1,6 @@
 # ADR 0020 — Division strategy for the MCE (M5-T1)
 
-**Status:** Proposed · **Date:** 2026-09-16 · **Refs:** ARCHITECTURE §10.1; ROADMAP M5-T1, M5-T2, M5-T3; findings [docs/probes/m5-t1-division.md](../probes/m5-t1-division.md); spike `spikes/m5-t1-division/`
+**Status:** Accepted · **Date:** 2026-09-16 (accepted 2026-09-27) · **Refs:** ARCHITECTURE §10.1; ROADMAP M5-T1, M5-T2, M5-T3; findings [docs/probes/m5-t1-division.md](../probes/m5-t1-division.md); spike `spikes/m5-t1-division/`; implementation decisions [ADR-0021](0021-mce-chunk-store.md)
 
 ## Context
 
@@ -31,7 +31,7 @@ tree-sitter 1.00/0.89 (Go), pure-Go scanner 0.93/0.93 (JS) but 0.56/0.75
 is a non-factor at Athanor's scale: the slowest candidate still divides
 1.14 MB in 145 ms.
 
-## Decision (pending human sign-off — see "The dependency call" below)
+## Decision (accepted 2026-09-27 — see "The dependency call" below)
 
 M5-T2 implements the division engine as a **hybrid**:
 
@@ -69,10 +69,16 @@ Adopting strategy A adds the project's largest dependency surface to date:
 the build model does not change — but grammar version churn and compile
 weight are real recurring costs.
 
-**This ADR is a proposal until the human accepts the dependency.** If the
-call is "no tree-sitter", the fallback position is: `go/parser` for Go
-(precision 1.00 by construction) + header-regex elsewhere + universal
-fallback — accepting 0.59–0.87 boundary agreement on non-Go code.
+**Resolved 2026-09-27: the human accepted the dependency.** Strategy A
+(hybrid) is adopted; M5-T2 ships the tree-sitter runtime plus the Go,
+Python, and JavaScript grammars. The build model does not change (CGO is
+already mandatory, ADR-0003), but grammar version churn and compile
+weight are accepted recurring costs. The implementation details — pooled
+parsers, a once-built grammar registry, deterministic chunk IDs, and the
+LLM-free MCE package — are recorded in [ADR-0021](0021-mce-chunk-store.md).
+The no-tree-sitter fallback position (`go/parser` for Go + header-regex
+elsewhere + universal fallback, accepting 0.59–0.87 boundary agreement on
+non-Go code) is **not** taken.
 
 ## Caveats
 
