@@ -209,6 +209,14 @@ Core's context, so the Core performs the swap. `context_swap` joins the
 closed tool set (§25) and therefore needs the matching Gate G2 route
 assertion.
 
+**Implemented (M5-T3, `409ff34`–`8bbdb0e`):** migration 0010 +
+`internal/mce/active.go` (`Swap` — byte-exact load, intact flush,
+crash-resumable active pointer), `context_swap` in the closed set with the
+envelope-gated route and Gate G2 route/envelope coverage, and the
+`cmd/athanor` adapter that translates `mce.ErrNotFound` → 404 and a disabled
+swapping flag → 501. The daemon builds the adapter at boot, so the route is
+live.
+
 **Recorded deferral:** the engine does not *call* `context_swap` during a
 phase in M5-T3 — the trigger is M5-T4 (KV-cache 85%/95%) and the prompt
 integration is M5-T5 (§11.2 tier 3 / section 7). T3 delivers the

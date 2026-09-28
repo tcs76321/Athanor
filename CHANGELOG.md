@@ -12,6 +12,20 @@ New entries are appended at the top. Do not rewrite history.
 
 ### M5 — Context Engine (in progress)
 
+- **M5-T3 (this close-out).** The active/dormant swap lands in four commits:
+  `409ff34` migration 0010 + `internal/mce/active.go` (`Swap` loads the target
+  chunk byte-exact, returns the chunk it replaced **intact**, and persists the
+  active pointer so a restart resumes the same working set — §23.6);
+  `a51cc0e` `context_swap` joins the §25 closed tool set (6 → 7) with
+  `POST /internal/v1/jobs/{id}/context_swap`, envelope-gated and dispatched
+  through a `ContextSwapper` interface, with Gate G2 route + envelope-bypass
+  coverage; `8bbdb0e` the `cmd/athanor` adapter over the chunk store with
+  error translation (`mce.ErrNotFound` → 404, swapping disabled → 501) and the
+  boot wiring that makes the route live. **Gate G5's byte-exact-swap arm is
+  closed.** The engine does not call the tool automatically yet — the trigger
+  is M5-T4 (KV-cache 85%/95%) and the prompt integration is M5-T5, the same
+  deferral shape `git_operation` used in M3-T5.
+
 - **M5-T2 (this close-out).** The MCE's lossless half lands in seven
   commits: `863bbf0` tree-sitter dependencies + `internal/mce/division`
   (hybrid divider — tree-sitter for Go/Python/JavaScript, structural
