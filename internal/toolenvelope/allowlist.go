@@ -24,7 +24,7 @@ import (
 // config-level default (config.job_pod.default_tools).
 type Tool string
 
-// The closed set as of M4-T7. M2-T4 shipped the first
+// The closed set as of M5-T3. M2-T4 shipped the first
 // two (`execute_code`, `run_tests`); M3-T2 commit 2.3
 // added `lint` for the per-task linter; M3-T5 adds
 // `git_operation` so the engine can record accepted
@@ -35,6 +35,8 @@ type Tool string
 // — Core-executed gateway tools. They are per-task
 // override only: `job_pod.default_tools` does not include
 // them, so network access is an explicit task decision.
+// M5-T3 (ADR-0021 §10) adds `context_swap`, also
+// Core-executed and per-task override only.
 //
 // New entries require updating the test in
 // allowlist_test.go and a Gate G2 extension that
@@ -48,6 +50,11 @@ const (
 	ToolGitOperation Tool = "git_operation"
 	ToolFetchURL     Tool = "fetch_url"
 	ToolSearchWeb    Tool = "search_web"
+	// ToolContextSwap (M5-T3, ADR-0021 §10) is Core-executed: it rotates a
+	// job's active/dormant MCE working set, which no Job Pod can see. Like
+	// fetch_url it is per-task override only — `job_pod.default_tools` does
+	// not include it, so context manipulation is an explicit task decision.
+	ToolContextSwap Tool = "context_swap"
 )
 
 // ErrUnknownTool is returned by Parse for any name outside the
@@ -133,7 +140,7 @@ func (e Envelope) IsEmpty() bool { return len(e.tools) == 0 }
 // envelope.
 func isKnown(t Tool) bool {
 	switch t {
-	case ToolExecuteCode, ToolRunTests, ToolLint, ToolGitOperation, ToolFetchURL, ToolSearchWeb:
+	case ToolExecuteCode, ToolRunTests, ToolLint, ToolGitOperation, ToolFetchURL, ToolSearchWeb, ToolContextSwap:
 		return true
 	default:
 		return false

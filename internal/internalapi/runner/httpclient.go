@@ -111,6 +111,15 @@ func (c *HTTPClient) SearchWeb(ctx context.Context, jobID string, req toolenvelo
 	return postTool[toolenvelope.SearchWebResponse](c, ctx, jobID, "/search_web", req)
 }
 
+// SwapContext POSTs to /internal/v1/jobs/{id}/context_swap (M5-T3,
+// ADR-0021 §10). The Core rotates the job's active/dormant MCE working set;
+// the response carries the loaded chunk's bytes so the caller can place them
+// into the next prompt.
+func (c *HTTPClient) SwapContext(ctx context.Context, jobID string, req toolenvelope.ContextSwapRequest) (toolenvelope.ContextSwapResponse, error) {
+	req.Tool = toolenvelope.ToolContextSwap
+	return postTool[toolenvelope.ContextSwapResponse](c, ctx, jobID, "/context_swap", req)
+}
+
 // postTool is the M4-T7 generic form of post: same token lookup,
 // same loopback URL, same bearer header, same 403 → ErrToolDisallowed
 // mapping, but a caller-chosen request/response pair (the gateway

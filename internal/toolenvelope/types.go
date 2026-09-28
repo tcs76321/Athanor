@@ -108,3 +108,32 @@ type SearchWebResponse struct {
 	Engine  string         `json:"engine,omitempty"`
 	Results []SearchResult `json:"results"`
 }
+
+// ContextSwapRequest is the wire shape for the M5-T3 context_swap tool
+// (§10.1, §25; ADR-0021 §10). The Core performs the swap: the active/dormant
+// working set lives in the MCE and no Job Pod can see it, so the route is
+// envelope-gated and Core-executed exactly like fetch_url.
+type ContextSwapRequest struct {
+	// Tool names the closed-set tool ("context_swap"). Defense-in-depth
+	// double-check, same as ExecuteRequest.Tool.
+	Tool Tool `json:"tool"`
+	// Scope names the working set whose active chunk is being rotated. The
+	// engine passes the job ID; an empty Scope defaults to the
+	// authenticated job ID server-side.
+	Scope string `json:"scope"`
+	// TargetChunkID is the dormant chunk to activate. It is a deterministic
+	// chunk handle from the Dormant Index (ADR-0021 §5).
+	TargetChunkID string `json:"target_chunk_id"`
+}
+
+// ContextSwapResponse reports one swap and carries the loaded chunk's bytes,
+// so the caller can place them into the next prompt. FlushedChunkID is empty
+// when no chunk was active; NoOp is true when the target was already active.
+type ContextSwapResponse struct {
+	Scope          string `json:"scope"`
+	LoadedChunkID  string `json:"loaded_chunk_id"`
+	LoadedBytes    int    `json:"loaded_bytes"`
+	LoadedContent  string `json:"loaded_content"`
+	FlushedChunkID string `json:"flushed_chunk_id,omitempty"`
+	NoOp           bool   `json:"no_op,omitempty"`
+}

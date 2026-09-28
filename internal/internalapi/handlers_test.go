@@ -48,7 +48,7 @@ func newHandlerTestEnv(t *testing.T) *handlerTestEnv {
 	// config.job_pod.default_tools is an empty list.
 	// The gateway is nil by default; gateway_tools_test.go uses
 	// newHandlerTestEnvWithGateway for the dispatch tests.
-	api := New(tokens, repo, st, tools, toolenvelope.Envelope{}, nil)
+	api := New(tokens, repo, st, tools, toolenvelope.Envelope{}, nil, nil)
 	mux := http.NewServeMux()
 	api.Register(mux)
 	return &handlerTestEnv{api: api, mux: mux, store: st, tokens: tokens, repo: repo, tools: tools}

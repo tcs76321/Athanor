@@ -49,6 +49,10 @@ type API struct {
 	// are registered but respond 503 "not configured" — the daemon
 	// wires the cmd/athanor adapter over GatewayParts in M4-T7.4.
 	gateway ToolGateway
+	// swapper is the M5-T3 context_swap dispatch surface (ADR-0021 §10).
+	// Nil is valid: the route is registered but responds 503 until the
+	// daemon wires the cmd/athanor adapter over the MCE.
+	swapper ContextSwapper
 	// defaultEnvelope is the daemon-wide tool envelope from
 	// config.job_pod.default_tools. Stored on the API so the
 	// envelope check has a baseline when a task has no
@@ -74,8 +78,8 @@ type API struct {
 // gateway may be nil (the routes then respond 503 until an adapter
 // is wired); passing a non-nil ToolGateway activates fetch_url and
 // search_web for jobs whose envelope admits them.
-func New(tokens TokenStore, projects *project.Repo, events EventLogger, tools ToolEnvLookup, defaultEnvelope toolenvelope.Envelope, gateway ToolGateway) *API {
-	return &API{tokens: tokens, projects: projects, events: events, tools: tools, defaultEnvelope: defaultEnvelope, gateway: gateway}
+func New(tokens TokenStore, projects *project.Repo, events EventLogger, tools ToolEnvLookup, defaultEnvelope toolenvelope.Envelope, gateway ToolGateway, swapper ContextSwapper) *API {
+	return &API{tokens: tokens, projects: projects, events: events, tools: tools, defaultEnvelope: defaultEnvelope, gateway: gateway, swapper: swapper}
 }
 
 // jobResponse is the body of GET /internal/v1/jobs/{id}. The pod
@@ -227,4 +231,6 @@ func (a *API) Register(mux *http.ServeMux) {
 		authMiddleware(a.tokens, http.HandlerFunc(a.handleFetchURL)))
 	mux.Handle("POST /internal/v1/jobs/{id}/search_web",
 		authMiddleware(a.tokens, http.HandlerFunc(a.handleSearchWeb)))
+	mux.Handle("POST /internal/v1/jobs/{id}/context_swap",
+		authMiddleware(a.tokens, http.HandlerFunc(a.handleContextSwap)))
 }
