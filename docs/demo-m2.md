@@ -29,7 +29,7 @@ required).
 
 ## Prerequisites
 
-- Go 1.26+ with CGO (see [DEVELOPMENT.md](../DEVELOPMENT.md))
+- Go 1.27+ with CGO (see [DEVELOPMENT.md](../DEVELOPMENT.md))
 - A working rootless podman. macOS:
   [`podman-machine`](https://podman.io/docs/installation) on
   applehv. Linux: podman 4.x+ with cgroups v2.

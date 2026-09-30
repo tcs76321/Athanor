@@ -32,7 +32,7 @@ hardening fixes), T8.4 (this close-out + behavioral probes).
 
 ## Prerequisites
 
-- Go 1.26+ with CGO (see [DEVELOPMENT.md](../DEVELOPMENT.md))
+- Go 1.27+ with CGO (see [DEVELOPMENT.md](../DEVELOPMENT.md))
 - `make check` (lint + vet + race tests)
 - For the behavioral probes: internet access and
   `ATHANOR_RUN_INTEGRATION=1`

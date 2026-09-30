@@ -10,7 +10,7 @@ automated E2E test `TestEndToEndWalkingSkeleton`
 
 ## Prerequisites
 
-- Go 1.26+ with CGO (see [DEVELOPMENT.md](../DEVELOPMENT.md))
+- Go 1.27+ with CGO (see [DEVELOPMENT.md](../DEVELOPMENT.md))
 - [Ollama](https://ollama.com) running locally. The default `personas:`
   block assumes five models; if you only have one, copy
   [`config-probe.yaml`](../config-probe.yaml) and use that as your

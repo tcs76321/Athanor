@@ -41,7 +41,7 @@ real allowlisted domain is required).
 
 ## Prerequisites
 
-- Go 1.26+ with CGO (see [DEVELOPMENT.md](../DEVELOPMENT.md))
+- Go 1.27+ with CGO (see [DEVELOPMENT.md](../DEVELOPMENT.md))
 - A working `make` (the standard `make check` aggregate)
 - For the real-network opt-in: a reachable HTTP
   endpoint whose host is in your `network.allow_list`

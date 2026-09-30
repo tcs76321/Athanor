@@ -29,7 +29,7 @@ ADR amendment), T7.6 (this close-out).
 
 ## Prerequisites
 
-- Go 1.26+ with CGO (see [DEVELOPMENT.md](../DEVELOPMENT.md))
+- Go 1.27+ with CGO (see [DEVELOPMENT.md](../DEVELOPMENT.md))
 - `make check` (lint + vet + race tests)
 
 ## The structural proof (≈ 5 seconds)

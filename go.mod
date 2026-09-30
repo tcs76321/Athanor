@@ -1,6 +1,8 @@
 module github.com/tcs76321/athanor
 
-go 1.26
+go 1.27
+
+toolchain go1.27.1
 
 require gopkg.in/yaml.v3 v3.0.1
 
