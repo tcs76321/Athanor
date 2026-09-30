@@ -254,7 +254,7 @@ func newEnvWithCfg(t *testing.T, mutate func(*config.Config)) *testEnv {
 		t.Fatal(err)
 	}
 	runner := newFakeRunner()
-	eng := New(cfg, db, jobs, projects, artifacts, evaluation.NewRepo(db), llm.NewClient(cfg.Inference.OllamaURL, nil), registry, freezer, power.NewPowerManager(nil), runner, nil, nil)
+	eng := New(cfg, db, jobs, projects, artifacts, evaluation.NewRepo(db), llm.NewClient(cfg.Inference.OllamaURL, nil), registry, freezer, power.NewPowerManager(nil), runner, nil, nil, nil)
 	return &testEnv{cfg: cfg, db: db, jobs: jobs, projects: projects, artifacts: artifacts,
 		freezer: freezer, ollama: ollama, eng: eng, runner: runner}
 }
@@ -422,7 +422,7 @@ func TestEnqueueRespectsConcurrencyCap(t *testing.T) {
 	cap := fixedCap{n: 1}
 	eng := New(cfg, db, job.NewRepository(db), project.NewRepo(db), artifacts,
 		evaluation.NewRepo(db),
-		llm.NewClient(cfg.Inference.OllamaURL, nil), registry, freezer, cap, newFakeRunner(), nil, nil)
+		llm.NewClient(cfg.Inference.OllamaURL, nil), registry, freezer, cap, newFakeRunner(), nil, nil, nil)
 
 	// Submit two jobs. The first enters the LLM call (blocked on `hang`).
 	// The second must wait in Enqueue's poll loop.

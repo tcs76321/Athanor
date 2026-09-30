@@ -187,6 +187,11 @@ func run(configPath, addr, stateDir string) error {
 		// Dormant Index) behind the same lossless-swapping gate as
 		// ingestion and the context_swap route.
 		newContextProvider(mceRT.Store, mceRT.LosslessSwapping),
+		// M2-T4b.5: the ADR-0024 §2 Job Pod lifecycle seam. It starts a
+		// long-lived idle pod before the code-archetype sub-steps and
+		// stops it at terminal state, so the runner's per-job token
+		// (TokenFor) exists when the internal API execs into it.
+		newPodLifecycle(podMgr, cfg),
 	)
 	srv := server.New(version)
 	srv.SetControl(killSwitch)

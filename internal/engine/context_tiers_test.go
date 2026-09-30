@@ -43,7 +43,7 @@ func (e *testEnv) withSeams(t *testing.T, ev Evictor, provider ContextProvider) 
 	}
 	e.eng = New(e.cfg, e.db, e.jobs, e.projects, e.artifacts, evaluation.NewRepo(e.db),
 		llm.NewClient(e.cfg.Inference.OllamaURL, nil), registry, e.freezer,
-		power.NewPowerManager(nil), e.runner, ev, provider)
+		power.NewPowerManager(nil), e.runner, ev, provider, nil)
 }
 
 // TestPromptTiersFeedActiveChunkAndDormantIndex proves the M5-T5 read

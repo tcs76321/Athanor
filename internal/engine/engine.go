@@ -130,6 +130,10 @@ type Engine struct {
 	// Index. nil means "no MCE" — tiers 3 and 6 stay empty and prompts
 	// are the pre-T5 assembler exactly.
 	ctxProvider ContextProvider
+	// podLifecycle ensures/tears down the job's Job Pod (M2-T4b.5,
+	// ADR-0024 §2). nil means "no lifecycle seam": the engine never starts
+	// a pod, which is the pre-T4b behavior unit tests rely on.
+	podLifecycle PodLifecycle
 	// inFlight is the count of running job goroutines. The cap is
 	// read from cap.MaxConcurrentJobs() on every Enqueue; the atomic
 	// counter is the only source of truth for the running count.
@@ -164,10 +168,15 @@ type Engine struct {
 // ctxProvider is the engine's window onto the MCE working set (M5-T5,
 // ADR-0023 §7). A nil provider is valid: tiers 3 and 6 are empty and the
 // assembler behaves exactly as it did before M5-T5.
+//
+// podLifecycle ensures/tears down a job's Job Pod (M2-T4b.5, ADR-0024
+// §2). A nil seam is valid: the engine never starts a pod — the pre-T4b
+// behavior unit tests rely on. Production wires the cmd/athanor adapter
+// over jobpod.Manager.
 func New(cfg *config.Config, db *store.Store, jobs *job.Repository, projects *project.Repo,
 	artifacts *artifact.Store, eval *evaluation.Repo, client *llm.Client, registry *llm.Registry,
 	freezer Freezer, cap ConcurrencyCap, runner ToolRunner, evictor Evictor,
-	ctxProvider ContextProvider) *Engine {
+	ctxProvider ContextProvider, podLifecycle PodLifecycle) *Engine {
 	if cap == nil {
 		// No power source: fall back to a static cap derived from
 		// cfg.Limits so the engine remains usable in tests and
@@ -177,10 +186,11 @@ func New(cfg *config.Config, db *store.Store, jobs *job.Repository, projects *pr
 	return &Engine{
 		cfg: cfg, db: db, jobs: jobs, projects: projects, artifacts: artifacts,
 		eval: eval, client: client, registry: registry, freezer: freezer, cap: cap,
-		runner:      runner,
-		evictor:     evictor,
-		ctxProvider: ctxProvider,
-		running:     map[string]bool{},
+		runner:       runner,
+		evictor:      evictor,
+		ctxProvider:  ctxProvider,
+		podLifecycle: podLifecycle,
+		running:      map[string]bool{},
 	}
 }
 
@@ -303,6 +313,9 @@ func (e *Engine) Run(ctx context.Context, jobID string) {
 				// keeps `system_state` bounded while a paused job keeps
 				// its suppression for the resume.
 				e.clearSuppressedTiers(ctx, jobID)
+				// M2-T4b.5 (ADR-0024 §2): a terminal job's Job Pod has no
+				// further use; stop it (idempotent, nil-safe).
+				e.stopPod(ctx, jobID)
 			}
 			return
 		}

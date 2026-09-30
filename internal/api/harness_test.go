@@ -77,6 +77,7 @@ func newHarness(t *testing.T) *harness {
 		// neither the §10.4 triggers nor tiers 3/6 are
 		// exercised here (they have their own suites).
 		nil,
+		nil,
 		nil)
 
 	srv := server.New("test")

@@ -178,6 +178,12 @@ func (e *Engine) evaluateCandidate(ctx context.Context, j job.Job, p project.Pro
 	// `code_executed` audit event + `KindCode` artifact persistence
 	// move here from the former M2-T4 sub-step in `phaseSynthesize`.
 	if p.Archetype == project.ArchetypeCode && e.runner != nil {
+		// M2-T4b.5 (ADR-0024 §2): make the job's Job Pod exist before the
+		// pod sub-steps, so the per-job token the runner presents
+		// (TokenFor) is available. Best-effort: a nil seam is a no-op and
+		// a start failure is audited, leaving the sub-step to surface its
+		// own error if the pod is genuinely required.
+		e.ensurePod(ctx, j)
 		if err := e.runCodeInPod(ctx, j, p, t); err != nil {
 			return evaluation.Record{}, err
 		}
