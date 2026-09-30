@@ -143,6 +143,20 @@ func run(configPath, addr, stateDir string) error {
 	// One LLM client shared by the engine and the MCE summarizer, so both
 	// talk to the same Ollama endpoint through the same connection pool.
 	llmClient := llm.NewClient(cfg.Inference.OllamaURL, nil)
+	// M5-T2.7: MCE dormant chunk store + wide-persona summarizer. Built
+	// before the engine (M5-T5.6) because the engine's §10.5 assembling
+	// reads the MCE working set through the ContextProvider adapter.
+	// A database without migration 0009 fails here rather than at first
+	// ingest.
+	mceRT, err := startMCE(st, registry, llmClient, cfg.ContextEngine)
+	if err != nil {
+		return fmt.Errorf("starting mce: %w", err)
+	}
+	slog.Info("mce runtime ready",
+		"lossless_swapping", mceRT.LosslessSwapping,
+		"summarizer_persona", mceRT.SummarizerPersona,
+		"chunk_store", mceRT.Store != nil,
+		"summarizer", mceRT.Summarizer != nil)
 	eng := engine.New(cfg, st,
 		job.NewRepository(st),
 		projectRepo,
@@ -162,33 +176,16 @@ func run(configPath, addr, stateDir string) error {
 		// engine is just another client of the loopback
 		// internal API (ADR-0009 D5).
 		runner.New("http://"+loopAddr, podMgr),
-		// M5-T4: the §10.4 context-eviction seam (ADR-0022 §5).
-		// nil here and the MCE-backed §10.5 ladder
-		// (engine.NewLadderEvictor) plus the MCE ContextProvider
-		// are wired in M5-T5.6; with a nil seam, `critical`
-		// pressure pauses the job rather than sending a prompt
-		// Ollama would silently truncate.
-		nil,
-		// M5-T5: the MCE working-set provider (§10.1 active chunk +
-		// Dormant Index). nil until M5-T5.6 builds the adapter over
-		// the chunk store, so tiers 3 and 6 stay empty in the
-		// meantime and prompts remain the pre-T5 assembler.
-		nil,
+		// M5-T5.6: the §10.4 eviction seam is now the real §10.5
+		// ladder (ADR-0023 §6) — one step down the tier order per
+		// critical-pressure call, recorded in the job's suppression
+		// row. It stays stateless; the engine persists the result.
+		engine.NewLadderEvictor(),
+		// M5-T5.6: the MCE working set (§10.1 active chunk +
+		// Dormant Index) behind the same lossless-swapping gate as
+		// ingestion and the context_swap route.
+		newContextProvider(mceRT.Store, mceRT.LosslessSwapping),
 	)
-	// M5-T2.7: MCE dormant chunk store + wide-persona summarizer. Built at
-	// boot over the daemon's single SQLite connection; the construction is
-	// the structural proof until M5-T3 (context_swap) and M5-T8 (repo
-	// indexing) add call sites. A database without migration 0009 fails
-	// here rather than at first ingest.
-	mceRT, err := startMCE(st, registry, llmClient, cfg.ContextEngine)
-	if err != nil {
-		return fmt.Errorf("starting mce: %w", err)
-	}
-	slog.Info("mce runtime ready",
-		"lossless_swapping", mceRT.LosslessSwapping,
-		"summarizer_persona", mceRT.SummarizerPersona,
-		"chunk_store", mceRT.Store != nil,
-		"summarizer", mceRT.Summarizer != nil)
 	srv := server.New(version)
 	srv.SetControl(killSwitch)
 	externalAPI := api.New(projectRepo, job.NewRepository(st),
