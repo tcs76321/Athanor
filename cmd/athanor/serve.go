@@ -94,6 +94,14 @@ func run(configPath, addr, stateDir string) error {
 	}
 	defer func() { _ = st.Close() }()
 
+	// ADR-0026 §1: the MCE retrieval index (migration 0013) is an FTS5
+	// virtual table. FTS5 is a build-tag feature of mattn/go-sqlite3, so a
+	// tag-less binary would fail mid-migration with "no such module: fts5".
+	// Probe before migrating and fail with a named, actionable error.
+	if err := store.CheckFTS5(context.Background(), st.DB()); err != nil {
+		return err
+	}
+
 	if err := store.Migrate(st.DB(), migrations.FS, filepath.Join(stateDir, "backups")); err != nil {
 		return fmt.Errorf("migrating database: %w", err)
 	}

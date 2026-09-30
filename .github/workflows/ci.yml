@@ -48,7 +48,7 @@ jobs:
         uses: golangci/golangci-lint-action@v7
         with:
           version: v2.13
-          args: --timeout=5m
+          args: --timeout=5m --build-tags sqlite_fts5
 
   # Behavioral integration probes (M2 hardening, M2-T4b exec, M4 gateway).
   # These bring up real rootless Podman pods and, for the gateway probes,

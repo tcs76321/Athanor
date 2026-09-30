@@ -79,7 +79,11 @@ well as on a developer's machine. The `integration` job starts
 runner's rootless-Podman setup is proven; it is promoted to a required
 check once it has been observed green on `main`.
 
-When FTS5 support is needed, add the build tag: `go build -tags sqlite_fts5 .`
+FTS5 is compiled into the build via the `sqlite_fts5` build tag, which the
+Makefile exports as `GO_TAGS` for every build and test target and which CI
+passes to golangci-lint (`--build-tags sqlite_fts5`). Never build or test
+with a bare `go` command: a tag-less binary fails the `store.CheckFTS5`
+boot preflight with a named error before any migration runs (ADR-0026 §1).
 
 ## Per-phase budgets
 

@@ -8,19 +8,26 @@
 CGO_ENABLED = 1
 export CGO_ENABLED
 
+# sqlite_fts5 compiles FTS5 into the mattn/go-sqlite3 amalgamation
+# (docs/sqlite-setup.md; ADR-0026 §1). Every build and test invocation
+# carries it: the MCE retrieval index (migration 0013) is an FTS5 virtual
+# table, and store.CheckFTS5 fails loudly at boot without the tag, so a
+# tag-less binary can never silently run.
+GO_TAGS = -tags sqlite_fts5
+
 .PHONY: build test test-race test-integration integration-images vet lint check tidy run clean hooks bench
 
 build:
-	go build -o bin/athanor ./cmd/athanor
+	go build $(GO_TAGS) -o bin/athanor ./cmd/athanor
 
 run:
-	go run ./cmd/athanor
+	go run $(GO_TAGS) ./cmd/athanor
 
 test:
-	go test ./...
+	go test $(GO_TAGS) ./...
 
 test-race:
-	go test -race ./...
+	go test -race $(GO_TAGS) ./...
 
 # Integration tests are opt-in (gated by ATHANOR_RUN_INTEGRATION=1 inside
 # the test files). They shell out to a real `podman` binary and, for the
@@ -31,7 +38,7 @@ test-race:
 #   internal/jobpod   — the five M2 hardening probes + the M2-T4b exec probe
 #   internal/gateway  — the two M4-T8 gateway probes (default-deny + allowlisted)
 test-integration:
-	ATHANOR_RUN_INTEGRATION=1 go test -race -count=1 ./internal/jobpod/... ./internal/gateway/...
+	ATHANOR_RUN_INTEGRATION=1 go test -race $(GO_TAGS) -count=1 ./internal/jobpod/... ./internal/gateway/...
 
 # Pull the images the integration probes need. The security probes use
 # alpine:3.20; the M2-T4b exec probe uses python:3.12-alpine (ADR-0024 §6).
@@ -42,10 +49,10 @@ integration-images:
 	podman pull python:3.12-alpine
 
 vet:
-	go vet ./...
+	go vet $(GO_TAGS) ./...
 
 lint:
-	golangci-lint run --timeout=5m
+	golangci-lint run --timeout=5m --build-tags sqlite_fts5
 
 # Engine throughput baseline. Runs the M1 full-chain benchmark 10x
 # against a fake Ollama (no network). The result is the comparison
@@ -54,7 +61,7 @@ lint:
 # in the same order of magnitude. Numbers from the first run are
 # recorded in docs/benchmarks/engine-m1.txt.
 bench:
-	go test -bench=. -benchtime=10x -run=^$$ ./internal/engine/
+	go test $(GO_TAGS) -bench=. -benchtime=10x -run=^$$ ./internal/engine/
 
 # Aggregate gate; run before pushing. The pre-push hook also calls this.
 check: lint vet test-race
