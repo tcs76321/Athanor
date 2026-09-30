@@ -75,6 +75,14 @@ context_engine:
   division_max_source_bytes: 1048576
   division_max_chunk_bytes: 131072
   division_fallback_lines: 120
+  # M5-T7 memory retrieval (§10.2, §25; ADR-0026 §7). memory_embedding_model
+  # is an Ollama embedding model name; leave it empty to keep the vector half
+  # inert, in which case query_memory searches full-text only. The vector half
+  # also requires embeddings to exist in memory_embeddings (produced by the
+  # repository indexing pipeline, M5-T8). memory_search_top_k caps the hits a
+  # single query returns.
+  memory_embedding_model: ""
+  memory_search_top_k: 8
 
 execution:
   divergence_candidates: 3

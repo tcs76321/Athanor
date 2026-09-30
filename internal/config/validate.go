@@ -80,6 +80,11 @@ func validateRaw(c *Config) error {
 	if v := c.ContextEngine.DivisionFallbackLines; v < 0 {
 		return fmt.Errorf("context_engine.division_fallback_lines must be positive, got %d", v)
 	}
+	// M5-T7 retrieval: a negative top-k is a typo; 0 is indistinguishable
+	// from unset and is replaced by the default in applyDefaults.
+	if v := c.ContextEngine.MemorySearchTopK; v < 0 {
+		return fmt.Errorf("context_engine.memory_search_top_k must be positive, got %d", v)
+	}
 	// Invariant §4.3: all compaction runs at Temp 0.0. Enforced here so no
 	// configuration can weaken it.
 	if t := c.ContextEngine.CompactionTemperature; t != 0 {

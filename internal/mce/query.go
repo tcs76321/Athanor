@@ -103,7 +103,7 @@ func (r *Retriever) Query(ctx context.Context, opts QueryOptions) ([]MemoryHit, 
 	}
 
 	var memoVec, chunkVec []string
-	if r.vectorEnabled() {
+	if r.VectorEnabled() {
 		qv, err := r.embedOne(ctx, opts.Query)
 		if err != nil {
 			return nil, fmt.Errorf("mce: embedding the query: %w", err)
@@ -254,8 +254,10 @@ func scanIDs(rows *sql.Rows, what string) ([]string, error) {
 	return out, nil
 }
 
-// vectorEnabled reports whether the vector half is configured.
-func (r *Retriever) vectorEnabled() bool {
+// VectorEnabled reports whether the vector half is configured (ADR-0026 §3).
+// It is exported so the tool response can tell the caller whether the vector
+// signal actually ran, rather than leaving the caller to infer it.
+func (r *Retriever) VectorEnabled() bool {
 	return r.embed != nil && r.vectors != nil && r.embed.Model() != ""
 }
 

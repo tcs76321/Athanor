@@ -169,6 +169,13 @@ type ContextEngine struct {
 	DivisionMaxSourceBytes int64 `yaml:"division_max_source_bytes"`
 	DivisionMaxChunkBytes  int   `yaml:"division_max_chunk_bytes"`
 	DivisionFallbackLines  int   `yaml:"division_fallback_lines"`
+	// M5-T7 memory retrieval (§10.2, §25; ADR-0026 §7).
+	// MemoryEmbeddingModel names the Ollama embedding model used for the
+	// vector half of query_memory. Empty (the default) makes the vector
+	// half inert and retrieval full-text only. MemorySearchTopK caps the
+	// hits a single query returns; it must be positive.
+	MemoryEmbeddingModel string `yaml:"memory_embedding_model"`
+	MemorySearchTopK     int    `yaml:"memory_search_top_k"`
 }
 
 // LosslessSwapping reports whether §10.1 division and swapping are enabled,

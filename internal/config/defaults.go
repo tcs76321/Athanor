@@ -92,6 +92,13 @@ func applyDefaults(c *Config) {
 	if c.ContextEngine.DivisionFallbackLines == 0 {
 		c.ContextEngine.DivisionFallbackLines = 120
 	}
+	// M5-T7 retrieval (§10.2). Top-K defaults to 8. The embedding model has
+	// no default: an empty name is the documented "full-text only" posture
+	// (ADR-0026 §3), so the vector half stays inert until an operator opts
+	// in by naming a model.
+	if c.ContextEngine.MemorySearchTopK == 0 {
+		c.ContextEngine.MemorySearchTopK = 8
+	}
 
 	setInt(&c.Execution.DivergenceCandidates, 3)
 	setInt(&c.Execution.MaxHardTaskVariations, 10)
