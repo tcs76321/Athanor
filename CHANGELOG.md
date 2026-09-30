@@ -37,6 +37,31 @@ New entries are appended at the top. Do not rewrite history.
 
 ### M5 — Context Engine (in progress)
 
+- **M5-T6 (this close-out).** Temp 0.0 compaction lands in seven commits
+  (`893293e`–`594ae60`, this one): [ADR-0025](docs/adr/0025-compaction.md) +
+  [plan](docs/m5-t6-plan.md) lock content-addressed determinism, the §10.3
+  treatment matrix, the dedicated `CompactStore`, and the minimal daydream
+  driver; `internal/prompt/compact.go` adds the two versioned §11.1
+  Internal-Runtime prompts (`CompactDeterministicSystemV1`,
+  `CompactSemanticSystemV1`) and the pure `CompactMessages` builders;
+  `internal/mce/compact.go` adds `Profile`/`TreatmentFor` (Division is the
+  safe default, `code` never compacts), the `Compactor` seam, the §10.3
+  `security`/0.0 constants, and `CompactStore.CompactMemory` — the
+  content-address cache (`UNIQUE (kind, input_hash)`) makes "same input →
+  same output across runs" true even though Ollama at 0.0 is not
+  bit-reproducible; migration 0012 adds `compacted_memory`
+  (`CHECK (temperature = 0.0)`); `internal/mce/consolidate.go` adds the
+  `Consolidator`; `cmd/athanor/compaction_adapter.go` is the security-persona
+  adapter (refuses oversize input rather than letting Ollama truncate); and
+  `cmd/athanor/daydream.go` is the minimal §17.1 memory-consolidation driver
+  (gated by config, power profile, kill switch, and idle; deterministic +
+  semantic sources over the event log and accepted docs). The headline test is
+  `TestCompactionDeterminism` (an unstable fake compactor proves the cache is
+  what makes the output stable). **Gate G5 is closed** — all three arms green
+  (byte-exact swap, assembly priority, compaction determinism). The full
+  Daydream Engine and the OS AC/battery watcher remain M7-T1/T2; reading
+  compacted memos into tier 5 is M6.
+
 - **M5-T5 (this close-out).** The §10.5 context assembly priority queue and
   its eviction ladder land in seven commits (`0e85896`–`b947496`):
   `0e85896` [ADR-0023](docs/adr/0023-context-assembly-priority.md) + the

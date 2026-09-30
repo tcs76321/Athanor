@@ -54,8 +54,8 @@ tiers 1–3 never evicted (unit-tested)").
 | 1 Static System & Security | 1 Static System, 2 Security/Tools, 3 Runtime Policy | never |
 | 2 Current Task & Criteria | 4 Project, 5 Task, 6 Acceptance Criteria, 11 User Preferences | never |
 | 3 Primary working set | 7 Active Code Division Chunk, **12 Candidate Artifacts** | never |
-| 4 CorrectionRecords | 8 | last (M6 producer) |
-| 5 Episodic Context | 9 | yes (M6 producer) |
+| 4 CorrectionRecords | 8 | last (M6 producer; compaction mechanism landed in M5-T6) |
+| 5 Episodic Context | 9 | yes (M6 producer; fed by M5-T6 compaction at Temp 0.0) |
 | 6 Dormant Index | 10 | yes |
 | 7 Evaluation Instructions & Strategy Notes | 13 Evaluation Instructions, 14 Strategy Notes (15 Interruption Notes, M6) | first |
 
@@ -182,7 +182,9 @@ ladder math stays exact.
 
 ### 9. What T5 does not do
 
-- No tier 4/5 producers (CorrectionRecords, episodic context) — M6.
+- No tier 4/5 producers (CorrectionRecords, episodic context) — M6. The
+  compaction *mechanism* (M5-T6) now exists, so M6 only wires the producers into
+  `ContextProvider`.
 - No ingestion or repository indexing — M5-T8; tiers 3/6 are populated by
   `context_swap` and tests until then.
 - No compaction — M5-T6.

@@ -163,3 +163,15 @@ The adapter returns the model's full output. `source_bytes` and
 - `docs/m5-t6-plan.md` is the execution plan; this ADR is the decision record.
   If reality disagrees, the plan changes first and this ADR gains an
   "Implemented" note (the ADR-0021/0022/0023 pattern).
+
+**Implemented (M5-T6.2–T6.6):** `internal/prompt/compact.go` (the two versioned
+prompts + pure builders), `internal/mce/compact.go` (`TreatmentFor`, the
+`Compactor` seam, `CompactionPersona`/`CompactionTemperature`,
+`CompactStore.CompactMemory`), migration 0012, `internal/mce/consolidate.go`
+(the `Consolidator`), `cmd/athanor/compaction_adapter.go` (security persona,
+oversize input refused rather than truncated), and `cmd/athanor/daydream.go`
+(the gated loop + the event-log and accepted-doc sources). Gate G5 closed;
+`make check` green. One implementation refinement over this ADR's sketch: the
+template version is obtained from the `Compactor` seam
+(`TemplateVersion(kind)`) rather than passed separately, so the adapter — which
+owns the prompt template — is the single source of the content-address version.

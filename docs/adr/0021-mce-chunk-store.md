@@ -19,7 +19,9 @@ M5-T2 turns division into a persisted capability — the §10.1 "Division
 Engine" plus the **chunk store** and **Dormant Index**. M5-T3 adds the
 `context_swap(target_chunk_id)` tool and the active/dormant flush cycle.
 Together they are the bottom half of the MCE; T4 (KV monitoring), T5
-(assembly priority) and T6 (compaction) build on this store.
+(assembly priority) and T6 (compaction) build on this store. T6's
+`CompactStore` landed 2026-09-30 ([ADR-0025](0025-compaction.md)) as a sibling
+type over the same database, so this store stays focused on division/swap.
 
 This ADR locks the storage, identity, API, and containment decisions
 before code grows, so M5-T2's tests have a fixed target and M5-T3's route
