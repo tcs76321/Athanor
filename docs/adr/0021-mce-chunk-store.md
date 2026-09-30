@@ -223,6 +223,14 @@ integration is M5-T5 (§11.2 tier 3 / section 7). T3 delivers the
 mechanism and the tool surface, exactly as `git_operation` entered the
 envelope in M3-T5 with its call site deferred to M3-T7.
 
+**Satisfied (M5-T4, `79b494e`):** the trigger side now exists — the
+engine's `call()` assesses KV-cache pressure before every request and
+reaches the eviction seam at `critical` pressure (ADR-0022). The seam is
+nil in M5-T4 production wiring, so no phase calls `context_swap` yet;
+M5-T5 fills the seam with the MCE-backed adapter and puts the active
+chunk plus the Dormant Index into the prompt, which is when the tool's
+call site becomes real.
+
 ## Consequences
 
 **Positive**

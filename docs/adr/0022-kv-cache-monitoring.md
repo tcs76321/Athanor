@@ -116,6 +116,13 @@ redundant.
 - No MCE-backed `Evictor` (T5; the seam is nil in production wiring).
 - No Ollama `/api/show` probing — recorded actuals suffice.
 
+**Implemented (M5-T4, `f28fadf` + `79b494e`):** `internal/mce/pressure.go`
+holds the pure `Assess` with a 15-row simulated-pressure table
+(`pressure_test.go`); the engine gate lives in `internal/engine/phases.go`
+(`call()` + `pauseForPressure`), the seam in `internal/engine/engine.go`
+(`Evictor`, nil at the `cmd/athanor` call site), and the trigger paths are
+proven end-to-end in `internal/engine/kv_pressure_test.go`.
+
 ## Consequences
 
 **Positive**

@@ -12,6 +12,33 @@ New entries are appended at the top. Do not rewrite history.
 
 ### M5 — Context Engine (in progress)
 
+- **M5-T4 (this close-out).** The KV-cache monitor lands in four commits
+  (`e7b838c`–`79b494e`): `e7b838c` [ADR-0022](docs/adr/0022-kv-cache-monitoring.md)
+  + [plan](docs/m5-t4-plan.md) lock the decisions; `f28fadf` the pure
+  `mce.Assess(activeTokens, maxContext, config.ContextEngine)` — strictly-`>`
+  triggers at the configured 85%/95% thresholds, `>=` floor breach (a full
+  window has no room for even one completion token), fail-closed on a
+  nonsensical window — with a 15-row simulated-pressure table pinning the
+  exact boundaries (0.85 → none, 0.95 → warn, 1.0 → floor_breach);
+  `79b494e` the engine gate in `call()`: **every** call appends a
+  `kv_cache_pressure` row (category `inference`, §28.1), `warn` audits only
+  (the `context_swap` suggestion and the move of oldest non-pinned chunks to
+  Dormant are M5-T5's tier work), `critical` force-evicts through the new
+  nilable `Evictor` seam and pauses when nothing is evictable, and a floor
+  breach pauses with `context_floor_violation` + `trigger: kv_cache_monitor`
+  **before the request is built** — Ollama silently truncates at `num_ctx`,
+  so "Athanor never silently truncates context" is now enforced per call
+  rather than assumed. `max_context` is the persona's `ContextTarget` (the
+  `num_ctx` actually loaded, §12.3) so the decision is deterministic and
+  testable without a live Ollama; Ollama's `prompt_eval_count` is recorded
+  alongside for calibration. Five engine tests derive their windows from a
+  measured baseline prompt (the argmax persona's window is shrunk exactly),
+  so the pause/warn/critical/evict/eviction-error paths are deterministic
+  rather than guessed. The `Evictor` seam is the M5-T5 integration point —
+  production wires nil today, the ADR-0021 §10 "trigger is T4" deferral is
+  satisfied on the trigger side, and the prompt half remains T5. No new
+  dependency, migration, or route: Gate G1 re-proven, Gate G5 untouched.
+
 - **M5-T3 (this close-out).** The active/dormant swap lands in four commits:
   `409ff34` migration 0010 + `internal/mce/active.go` (`Swap` loads the target
   chunk byte-exact, returns the chunk it replaced **intact**, and persists the
