@@ -29,7 +29,11 @@ New entries are appended at the top. Do not rewrite history.
   recovery included). Corrected in passing: the `job_pod.image` "fails
   fast at boot" claim was false and would have broken the fresh-clone
   boot, so the daemon warns at boot and refuses dispatch (503) instead
-  (ADR-0024 §6). `make check` green.
+  (ADR-0024 §6). `make check` green. A real-pod end-to-end probe
+  (`internal/jobpod/exec_integration_test.go`,
+  `TestExec_Integration_RealPod`) proves the exec path against live
+  podman — verified 2026-09-30 (macOS / podman 6.0.2 / libkrun) and green
+  alongside the five M2 security probes via `make test-integration`.
 
 ### M5 — Context Engine (in progress)
 

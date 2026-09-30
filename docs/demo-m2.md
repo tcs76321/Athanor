@@ -35,6 +35,8 @@ required).
   applehv. Linux: podman 4.x+ with cgroups v2.
 - The `alpine:3.20` image (the spike's image; the suite pulls
   it on first run if it is not already present).
+- The `python:3.12-alpine` image for the M2-T4b exec probe
+  (`podman pull python:3.12-alpine`).
 
 ## The suite (≈30 seconds on a warm podman-machine)
 
@@ -202,8 +204,9 @@ Per ADR-0010 "Not in M2-T6":
   per-job pod around the `code`-archetype sub-steps. The route-level
   behavior is unit-tested (`internal/internalapi/exec_test.go`); the
   pod-in-the-loop behavior needs a real `podman`, so it is exercised
-  by the opt-in `ATHANOR_RUN_INTEGRATION=1` probes like the rest of
-  this document.
+  by `TestExec_Integration_RealPod`
+  (`internal/jobpod/exec_integration_test.go`, gated by
+  `ATHANOR_RUN_INTEGRATION=1`) like the rest of this document.
 
 ## Where things live
 

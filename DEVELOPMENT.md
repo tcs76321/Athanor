@@ -54,10 +54,17 @@ ATHANOR_RUN_INTEGRATION=1 make test-integration
 
 The two gateway probes in `internal/gateway/integration_test.go`
 (M4-T8) use the same gate: default-deny against a real domain, and an
-allowlisted real domain fetched + extracted end-to-end. Reference
-runs: 2026-08-30 (pod probes, macOS 14 / podman 5.8.2 / applehv) and
-2026-09-15 (gateway probes) — see [`docs/demo-m2.md`](docs/demo-m2.md)
-and [`docs/demo-m4-t8.md`](docs/demo-m4-t8.md).
+allowlisted real domain fetched + extracted end-to-end. The M2-T4b exec
+probe in `internal/jobpod/exec_integration_test.go`
+(`TestExec_Integration_RealPod`) starts a real idle Job Pod and drives
+`jobpod.Manager.Exec` — code on stdin, `sh -c` commands, a non-zero exit
+as a normal result — the pod-in-the-loop proof for the internal API's
+`PodExecutor`. It needs the `python:3.12-alpine` image present. Reference
+runs: 2026-08-30 (pod probes, macOS 14 / podman 5.8.2 / applehv),
+2026-09-15 (gateway probes), and 2026-09-30 (exec probe, macOS / podman
+6.0.2 / libkrun) — see [`docs/demo-m2.md`](docs/demo-m2.md),
+[`docs/demo-m4-t8.md`](docs/demo-m4-t8.md), and
+`internal/jobpod/exec_integration_test.go`.
 
 Reason: the probes require a running `podman` daemon on AppleHV
 (macOS) or an equivalent Linux runtime, and the gateway probes
