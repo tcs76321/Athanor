@@ -16,19 +16,30 @@ make run          # run the daemon locally
 
 Don't run bare `go build` / `go test` — they silently drop CGO and fail on the sqlite3 driver. The Makefile sets the flag for you, and CI enforces the same targets.
 
-### Dependencies (M4-T6)
+### Dependencies
 
-The project stays deliberately lean — four in-tree dependencies:
+The project stays deliberately lean. Every direct dependency is pinned
+by an executable allowlist in `internal/deps/deps_test.go`
+(`allowedDirectDeps`), so a dependency cannot be added or removed
+without a deliberate, reviewable edit to that list. Today there are
+ten direct deps:
 
 | Package | Why |
 |---|---|
 | `mattn/go-sqlite3` | persistent state (CGO, ADR-0003) |
 | `gopkg.in/yaml.v3` | config loading |
+| `github.com/fsnotify/fsnotify` | §21.3 ingress filesystem watcher (M4-T2) |
 | `codeberg.org/readeck/go-readability/v2` | §21.5 Reader Mode extraction (M4-T6). The maintained continuation of the deprecated go-shiori module; see [ADR-0018](docs/adr/0018-reader-mode.md) §1. Only `FromReader` is ever called — `FromURL` would open a second egress path past the gateway, and Gate G1 rule 6 makes that a build break. |
 | `github.com/microcosm-cc/bluemonday` | Reader Mode sanitization (UGCPolicy) before markdown rendering |
 | `golang.org/x/net` | HTML parsing for Reader Mode (`net/html`) — direct import since M4-T6; kept at ≥ the patched release for CVE-2026-25680 |
+| `github.com/tree-sitter/go-tree-sitter` | §10.1 lossless division runtime (M5-T2; ADR-0020/ADR-0021) |
+| `github.com/tree-sitter/tree-sitter-go` | Go grammar for the divider |
+| `github.com/tree-sitter/tree-sitter-python` | Python grammar for the divider |
+| `github.com/tree-sitter/tree-sitter-javascript` | JavaScript grammar for the divider |
 
-Adding a dependency is a project decision (AGENTS.md), not an agent decision.
+Adding a dependency is a project decision (AGENTS.md), not an agent
+decision — surface it in the plan. Ratification is adding the module
+path to `allowedDirectDeps` in the same commit.
 
 ### Integration (behavioral) security probes
 

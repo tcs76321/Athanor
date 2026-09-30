@@ -155,9 +155,17 @@ while waiting.
 
 ## Dependencies
 
-- The project is deliberately lean: two deps today (`mattn/go-sqlite3`,
-  `gopkg.in/yaml.v3`). Adding a dependency is a project decision, not
-  an agent decision. Surface the request in the plan, don't act on it.
+- The project stays deliberately lean. Every direct dependency is
+  pinned by an executable allowlist in `internal/deps/deps_test.go`;
+  ten today, spanning state (`mattn/go-sqlite3`), config
+  (`gopkg.in/yaml.v3`), Reader Mode
+  (`codeberg.org/readeck/go-readability/v2`,
+  `github.com/microcosm-cc/bluemonday`, `golang.org/x/net`), MCE
+  division (the four `github.com/tree-sitter/*` modules), and the
+  ingress watcher (`github.com/fsnotify/fsnotify`).
+- Adding a dependency is a project decision, not an agent decision.
+  Surface the request in the plan, don't act on it. Ratification is
+  adding its module path to `allowedDirectDeps` in the same commit.
 
 ## Containment
 
