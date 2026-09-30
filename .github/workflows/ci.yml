@@ -49,3 +49,33 @@ jobs:
         with:
           version: v2.13
           args: --timeout=5m
+
+  # Behavioral integration probes (M2 hardening, M2-T4b exec, M4 gateway).
+  # These bring up real rootless Podman pods and, for the gateway probes,
+  # reach the real internet, so they are deliberately NOT part of `make
+  # check`. They run here on every push and PR.
+  #
+  # The job starts NON-BLOCKING (continue-on-error) so the first landing
+  # cannot break main while the runner's rootless-podman setup is proven;
+  # it is flipped to required once it has been observed green on main.
+  integration:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.27.1'
+      - name: Install podman (if absent)
+        run: |
+          if ! command -v podman >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y podman
+          fi
+      - name: Verify podman
+        run: podman --version
+      - name: Pull probe images
+        run: make integration-images
+      - name: Run integration probes
+        run: make test-integration
