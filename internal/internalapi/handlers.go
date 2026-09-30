@@ -58,6 +58,10 @@ type API struct {
 	// registered but respond 503 until the daemon wires the cmd/athanor
 	// adapter over jobpod.Manager (M2-T4b.4).
 	exec PodExecutor
+	// querier is the M5-T7 query_memory dispatch surface (ADR-0026 §6).
+	// Nil is valid: the route is registered but responds 503 until the
+	// daemon wires the cmd/athanor adapter over the MCE retriever.
+	querier MemoryQuerier
 	// defaultEnvelope is the daemon-wide tool envelope from
 	// config.job_pod.default_tools. Stored on the API so the
 	// envelope check has a baseline when a task has no
@@ -71,7 +75,7 @@ type API struct {
 // New returns an API bound to the given TokenStore, project
 // repository, event logger, tool envelope lookup, and gateway-tool
 // dispatch surface. The constructor signature widened in M2-T4 commit
-// 3 and again in M4-T7.3; call sites are updated in the same commit
+// 3, M4-T7.3, and M5-T7.6; call sites are updated in the same commit
 // (cmd/athanor/serve.go) and in the test fixtures (handlers_test.go).
 //
 // defaultEnvelope is the daemon-wide fallback when a task
@@ -87,8 +91,8 @@ type API struct {
 // exec may likewise be nil (execute_code / run_tests / lint then
 // respond 503); a non-nil PodExecutor dispatches those three tools into
 // the job's Job Pod (M2-T4b, ADR-0024).
-func New(tokens TokenStore, projects *project.Repo, events EventLogger, tools ToolEnvLookup, defaultEnvelope toolenvelope.Envelope, gateway ToolGateway, swapper ContextSwapper, exec PodExecutor) *API {
-	return &API{tokens: tokens, projects: projects, events: events, tools: tools, defaultEnvelope: defaultEnvelope, gateway: gateway, swapper: swapper, exec: exec}
+func New(tokens TokenStore, projects *project.Repo, events EventLogger, tools ToolEnvLookup, defaultEnvelope toolenvelope.Envelope, gateway ToolGateway, swapper ContextSwapper, exec PodExecutor, querier MemoryQuerier) *API {
+	return &API{tokens: tokens, projects: projects, events: events, tools: tools, defaultEnvelope: defaultEnvelope, gateway: gateway, swapper: swapper, exec: exec, querier: querier}
 }
 
 // jobResponse is the body of GET /internal/v1/jobs/{id}. The pod
@@ -242,4 +246,6 @@ func (a *API) Register(mux *http.ServeMux) {
 		authMiddleware(a.tokens, http.HandlerFunc(a.handleSearchWeb)))
 	mux.Handle("POST /internal/v1/jobs/{id}/context_swap",
 		authMiddleware(a.tokens, http.HandlerFunc(a.handleContextSwap)))
+	mux.Handle("POST /internal/v1/jobs/{id}/query_memory",
+		authMiddleware(a.tokens, http.HandlerFunc(a.handleQueryMemory)))
 }

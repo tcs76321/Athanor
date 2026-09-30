@@ -55,6 +55,12 @@ const (
 	// fetch_url it is per-task override only — `job_pod.default_tools` does
 	// not include it, so context manipulation is an explicit task decision.
 	ToolContextSwap Tool = "context_swap"
+	// ToolQueryMemory (M5-T7, ADR-0026 §6) is Core-executed: hybrid FTS +
+	// vector retrieval over the MCE's compacted memos and dormant chunks.
+	// The memory lives in the Core's SQLite database, which no Job Pod can
+	// see, so the route is Core-executed like context_swap. Per-task
+	// override only.
+	ToolQueryMemory Tool = "query_memory"
 )
 
 // ErrUnknownTool is returned by Parse for any name outside the
@@ -140,7 +146,7 @@ func (e Envelope) IsEmpty() bool { return len(e.tools) == 0 }
 // envelope.
 func isKnown(t Tool) bool {
 	switch t {
-	case ToolExecuteCode, ToolRunTests, ToolLint, ToolGitOperation, ToolFetchURL, ToolSearchWeb, ToolContextSwap:
+	case ToolExecuteCode, ToolRunTests, ToolLint, ToolGitOperation, ToolFetchURL, ToolSearchWeb, ToolContextSwap, ToolQueryMemory:
 		return true
 	default:
 		return false

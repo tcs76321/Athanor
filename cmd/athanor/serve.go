@@ -250,6 +250,10 @@ func run(configPath, addr, stateDir string) error {
 		// boot warning above says so); the engine lifecycle seam (T4b.5)
 		// is what actually starts the pod this adapter execs into.
 		newPodExecutor(podMgr, cfg.JobPod.Image),
+		// M5-T7.6: the query_memory route is registered here; the MCE
+		// retriever adapter that answers it is wired in M5-T7.7, so the
+		// route answers 503 until then (the nil-seam contract).
+		nil,
 	).Register(srv.Mux())
 
 	// M4-T2: ingress pipeline. Watches <state>/workspace/inbox,

@@ -137,3 +137,53 @@ type ContextSwapResponse struct {
 	FlushedChunkID string `json:"flushed_chunk_id,omitempty"`
 	NoOp           bool   `json:"no_op,omitempty"`
 }
+
+// QueryMemoryRequest is the wire shape for the M5-T7 query_memory tool
+// (§10.2, §25; ADR-0026 §6). The Core executes the search: the MCE's memory
+// lives in the Core's SQLite database, which no Job Pod can see, so the
+// route is envelope-gated and Core-executed exactly like context_swap.
+type QueryMemoryRequest struct {
+	// Tool names the closed-set tool ("query_memory"). Defense-in-depth
+	// double-check, same as ExecuteRequest.Tool.
+	Tool Tool `json:"tool"`
+	// Query is the free-form search text. FTS5 operators in it are
+	// neutralised server-side (only word tokens survive).
+	Query string `json:"query"`
+	// Scope names the project and/or job whose memory is searched. Both
+	// empty is rejected server-side: an unscoped query would leak every
+	// project's memory into one prompt (ADR-0026 §5).
+	Scope string `json:"scope"`
+	// ProjectID restricts the search to one project. Optional when Scope
+	// is set (which defaults to the authenticated job).
+	ProjectID string `json:"project_id,omitempty"`
+	// TopK caps the returned hits; zero means the daemon default.
+	TopK int `json:"top_k,omitempty"`
+}
+
+// MemoryHitWire is one retrieved memory entry on the wire. Chunk hits carry
+// the Dormant Index metadata and a chunk id the caller may context_swap to;
+// memo hits carry the compacted text. Score is the fused BM25+vector
+// reciprocal-rank-fusion score; BM25Rank and CosineRank report which signal
+// found the hit (0 = that signal did not).
+type MemoryHitWire struct {
+	ID            string  `json:"id"`
+	Kind          string  `json:"kind"` // "memo" | "chunk"
+	Score         float64 `json:"score"`
+	BM25Rank      int     `json:"bm25_rank"`
+	CosineRank    int     `json:"cosine_rank"`
+	SourceRelPath string  `json:"source_relpath,omitempty"`
+	Summary       string  `json:"summary,omitempty"`
+	LineStart     int     `json:"line_start,omitempty"`
+	LineEnd       int     `json:"line_end,omitempty"`
+	Content       string  `json:"content,omitempty"`
+}
+
+// QueryMemoryResponse is the wire shape the query_memory route returns.
+// VectorEnabled reports whether the vector half ran (it is inert until
+// context_engine.memory_embedding_model is set).
+type QueryMemoryResponse struct {
+	Query         string          `json:"query"`
+	Scope         string          `json:"scope"`
+	VectorEnabled bool            `json:"vector_enabled"`
+	Hits          []MemoryHitWire `json:"hits"`
+}

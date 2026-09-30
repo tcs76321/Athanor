@@ -183,18 +183,39 @@ func TestGateG2InternalAPIRoutesGoThroughMiddleware(t *testing.T) {
 // file must extend this test deliberately.
 func TestGateG2ToolEnvelopeBypassImpossible(t *testing.T) {
 	// The handler logic lives in exec.go (M2-T4), not handlers.go.
-	// We walk the package to find every .go file that contains a
-	// tool name from the closed set and assert that file
-	// references a.tools.EnvelopeFor.
-	toolNames := []string{"execute_code", "run_tests", "lint", "fetch_url", "search_web", "context_swap"}
-	for _, name := range toolNames {
-		path, content, ok := findFileContaining(internalapiDir, name)
+	// We locate each closed-set tool's *handler function* and assert that
+	// its file references a.tools.EnvelopeFor.
+	//
+	// The mapping is explicit rather than derived from the tool name: the
+	// handler identifiers use initialisms (fetch_url -> handleFetchURL)
+	// that a naive camelCase transform gets wrong, and an explicit table
+	// makes the gate's expectation auditable. It is also why the search
+	// targets the handler declaration rather than the first file that
+	// mentions the tool name — handlers.go registers every route, so it
+	// would otherwise be found first for any tool whose handler file sorts
+	// after it alphabetically.
+	//
+	// git_operation is in the closed set but has no route or handler yet
+	// (its call site is deferred, M3-T5/M3-T7), so it is deliberately
+	// absent here.
+	toolHandlers := map[string]string{
+		"execute_code": "handleExecuteCode",
+		"run_tests":    "handleRunTests",
+		"lint":         "handleLint",
+		"fetch_url":    "handleFetchURL",
+		"search_web":   "handleSearchWeb",
+		"context_swap": "handleContextSwap",
+		"query_memory": "handleQueryMemory",
+	}
+	for tool, handler := range toolHandlers {
+		needle := "func (a *API) " + handler
+		path, content, ok := findFileContaining(internalapiDir, needle)
 		if !ok {
-			t.Errorf("could not find any .go file under %s containing %q; the handler must exist", internalapiDir, name)
+			t.Errorf("no internalapi file declares %s (the %q handler); the tool must have a handler", needle, tool)
 			continue
 		}
 		if !strings.Contains(content, "a.tools.EnvelopeFor") {
-			t.Errorf("%s handles %q but does not reference a.tools.EnvelopeFor; the per-job allowlist can be bypassed (Gate G2)", path, name)
+			t.Errorf("%s declares %s but does not reference a.tools.EnvelopeFor; the per-job allowlist can be bypassed (Gate G2)", path, handler)
 		}
 	}
 }
@@ -218,6 +239,7 @@ func TestGateG2GatewayToolRoutesRegistered(t *testing.T) {
 		`"POST /internal/v1/jobs/{id}/fetch_url"`,
 		`"POST /internal/v1/jobs/{id}/search_web"`,
 		`"POST /internal/v1/jobs/{id}/context_swap"`,
+		`"POST /internal/v1/jobs/{id}/query_memory"`,
 	} {
 		if !strings.Contains(body, route) {
 			t.Errorf("%s does not register %q; the closed-set tool has no route (Gate G2)", handlers, route)
