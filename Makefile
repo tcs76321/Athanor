@@ -8,7 +8,7 @@
 CGO_ENABLED = 1
 export CGO_ENABLED
 
-.PHONY: build test test-race test-integration vet lint check tidy run clean hooks bench
+.PHONY: build test test-race test-integration integration-images vet lint check tidy run clean hooks bench
 
 build:
 	go build -o bin/athanor ./cmd/athanor
@@ -23,11 +23,23 @@ test-race:
 	go test -race ./...
 
 # Integration tests are opt-in (gated by ATHANOR_RUN_INTEGRATION=1 inside
-# the test files). They shell out to a real `podman` binary, so they are
-# NOT run by `make check` and never block CI. Developers run them locally
-# to exercise the kill-9 orphan-reap path that unit tests can't simulate.
+# the test files). They shell out to a real `podman` binary and, for the
+# gateway probes, reach the real internet, so they are NOT run by
+# `make check` and never block the fast CI jobs.
+#
+# Two packages are covered:
+#   internal/jobpod   — the five M2 hardening probes + the M2-T4b exec probe
+#   internal/gateway  — the two M4-T8 gateway probes (default-deny + allowlisted)
 test-integration:
-	ATHANOR_RUN_INTEGRATION=1 go test -race -count=1 ./internal/jobpod/...
+	ATHANOR_RUN_INTEGRATION=1 go test -race -count=1 ./internal/jobpod/... ./internal/gateway/...
+
+# Pull the images the integration probes need. The security probes use
+# alpine:3.20; the M2-T4b exec probe uses python:3.12-alpine (ADR-0024 §6).
+# A probe that silently pulls a large image on every run is a slow
+# surprise, so the images are pulled once, explicitly, by this target.
+integration-images:
+	podman pull alpine:3.20
+	podman pull python:3.12-alpine
 
 vet:
 	go vet ./...
