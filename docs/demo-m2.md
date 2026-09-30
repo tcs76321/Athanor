@@ -195,12 +195,15 @@ Per ADR-0010 "Not in M2-T6":
   assumed patched (operator's responsibility per §21.1).
 - **The `pytest` clause in Gate G2** (ROADMAP §3, gate
   table: "a pytest suite runs inside a pod and returns
-  results") is a capability statement about the M2-T4
-  internal API surface, not a T6 deliverable. The route
-  exists and is unit-tested (`internal/internalapi/exec_test.go`).
-  The end-to-end pytest-in-a-pod is owned by M3-T2
-  (Dialectical Loop: "Evaluation phase: … test runs in Job
-  Pod"), which exercises the route with a real test runner.
+  results") was a deferred capability at M2-T6 time. It is now
+  end-to-end: M2-T4b ([ADR-0024](adr/0024-engine-pod-dispatch.md))
+  replaced the internal API's 501 stubs with a real `PodExecutor`
+  dispatch over `podman exec`, and the engine starts/stops a
+  per-job pod around the `code`-archetype sub-steps. The route-level
+  behavior is unit-tested (`internal/internalapi/exec_test.go`); the
+  pod-in-the-loop behavior needs a real `podman`, so it is exercised
+  by the opt-in `ATHANOR_RUN_INTEGRATION=1` probes like the rest of
+  this document.
 
 ## Where things live
 

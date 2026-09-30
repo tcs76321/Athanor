@@ -10,6 +10,27 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### M2 — Container Spine — M2-T4b: tool-execution dispatch
+
+- **M2-T4b (this close-out).** Completes M2-T4: the §25 tool-execution
+  loop now runs end-to-end. Six commits (`374854d`–`337aaab`):
+  [ADR-0024](docs/adr/0024-engine-pod-dispatch.md) +
+  [plan](docs/m2-t4b-plan.md) lock the design (one pod per job +
+  `podman exec`, code on stdin, a `PodExecutor` seam behind the existing
+  hop, the `job_pod.image` posture, a Gate G2 exec-argv arm);
+  `internal/jobpod` gains `Exec` + `args_exec.go` + a stdin-capable
+  `Client.RunStdin` (a non-zero command exit is a result, not an error);
+  the internal API's `execute_code` / `run_tests` / `lint` 501 stubs
+  become a real `PodExecutor` dispatch with typed error mapping (404
+  no-pod / 409 not-running / 503 not-configured); the `cmd/athanor`
+  adapters wire the executor and the engine lifecycle over
+  `jobpod.Manager`; and `internal/engine` ensures the pod before the
+  `code`-archetype sub-steps and stops it at terminal state (§23.6
+  recovery included). Corrected in passing: the `job_pod.image` "fails
+  fast at boot" claim was false and would have broken the fresh-clone
+  boot, so the daemon warns at boot and refuses dispatch (503) instead
+  (ADR-0024 §6). `make check` green.
+
 ### M5 — Context Engine (in progress)
 
 - **M5-T5 (this close-out).** The §10.5 context assembly priority queue and

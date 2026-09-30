@@ -78,6 +78,19 @@ The per-job token authenticates the engine's hop to the internal API, exactly as
 - The Job Pod base image build and packaging (M7-T7) and the `athanor doctor` image/model checks (M7-T5).
 - A per-task command override for `run_tests` / `lint`.
 
+## Implemented (M2-T4b.2–T4b.5)
+
+`internal/jobpod` gained `Exec` (one `podman exec` per tool call, argv in
+`args_exec.go`, code on stdin via `Client.RunStdin`; a non-zero command
+exit is an `ExecResult`, not an error). `internal/internalapi` replaced
+its three 501 stubs with a `PodExecutor` dispatch and typed errors
+(`ErrNoPod`→404, `ErrPodNotRunning`→409, `ErrExecNotConfigured`→503).
+`cmd/athanor` holds the two adapters (`podExecutorAdapter`,
+`podLifecycleAdapter`) over `jobpod.Manager`, and `internal/engine` gained
+the nilable `PodLifecycle` seam that ensures the pod before the `code`
+sub-steps and stops it at terminal state. Gate G2 gained the exec-argv arm
+`TestGateG2ExecArgvCannotEscape`.
+
 ## Implementation note
 
 `docs/m2-t4b-plan.md` is the execution plan; this ADR is the decision record. If implementation reality disagrees, the plan changes first and this ADR gains an "Implemented" note (the ADR-0021/0022/0023 pattern).
