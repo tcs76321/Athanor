@@ -53,6 +53,11 @@ type API struct {
 	// Nil is valid: the route is registered but responds 503 until the
 	// daemon wires the cmd/athanor adapter over the MCE.
 	swapper ContextSwapper
+	// exec is the M2-T4b dispatch surface for the pod-executed tools
+	// (execute_code, run_tests, lint). Nil is valid: the routes are
+	// registered but respond 503 until the daemon wires the cmd/athanor
+	// adapter over jobpod.Manager (M2-T4b.4).
+	exec PodExecutor
 	// defaultEnvelope is the daemon-wide tool envelope from
 	// config.job_pod.default_tools. Stored on the API so the
 	// envelope check has a baseline when a task has no
@@ -78,8 +83,12 @@ type API struct {
 // gateway may be nil (the routes then respond 503 until an adapter
 // is wired); passing a non-nil ToolGateway activates fetch_url and
 // search_web for jobs whose envelope admits them.
-func New(tokens TokenStore, projects *project.Repo, events EventLogger, tools ToolEnvLookup, defaultEnvelope toolenvelope.Envelope, gateway ToolGateway, swapper ContextSwapper) *API {
-	return &API{tokens: tokens, projects: projects, events: events, tools: tools, defaultEnvelope: defaultEnvelope, gateway: gateway, swapper: swapper}
+//
+// exec may likewise be nil (execute_code / run_tests / lint then
+// respond 503); a non-nil PodExecutor dispatches those three tools into
+// the job's Job Pod (M2-T4b, ADR-0024).
+func New(tokens TokenStore, projects *project.Repo, events EventLogger, tools ToolEnvLookup, defaultEnvelope toolenvelope.Envelope, gateway ToolGateway, swapper ContextSwapper, exec PodExecutor) *API {
+	return &API{tokens: tokens, projects: projects, events: events, tools: tools, defaultEnvelope: defaultEnvelope, gateway: gateway, swapper: swapper, exec: exec}
 }
 
 // jobResponse is the body of GET /internal/v1/jobs/{id}. The pod

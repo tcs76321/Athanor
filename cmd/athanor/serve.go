@@ -225,6 +225,10 @@ func run(configPath, addr, stateDir string) error {
 		// above. A daemon with lossless swapping disabled still constructs
 		// it; every swap then returns ErrSwapDisabled (501).
 		newContextSwapAdapter(mceRT.Store, mceRT.LosslessSwapping),
+		// M2-T4b.4 wires the PodExecutor adapter here; until then the
+		// pod-executed routes (execute_code / run_tests / lint) respond
+		// 503 "pod executor not configured".
+		nil,
 	).Register(srv.Mux())
 
 	// M4-T2: ingress pipeline. Watches <state>/workspace/inbox,

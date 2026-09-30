@@ -45,19 +45,48 @@ type lintRequest struct {
 // for the envelope.
 const allowedLintCommand = "ruff check ."
 
+// PodExecutor is the M2-T4b dispatch surface for the pod-executed tools
+// (execute_code, run_tests, lint). The Core runs the command inside the
+// job's Job Pod and returns its result (ADR-0024 §2/§4). The production
+// implementation lives in cmd/athanor over jobpod.Manager — the same
+// inversion ToolGateway (ADR-0019 §2), ContextSwapper (ADR-0021 §10),
+// TokenStore (ADR-0008), and ToolEnvLookup (M2-T4) use, so internalapi
+// imports neither internal/jobpod nor internal/llm. A nil PodExecutor is
+// valid: the routes are registered and respond 503 "not configured"
+// until the daemon wires an adapter.
+type PodExecutor interface {
+	RunCode(ctx context.Context, jobID string, req toolenvelope.ExecuteRequest) (toolenvelope.ExecuteResult, error)
+	RunTests(ctx context.Context, jobID string, req toolenvelope.ExecuteRequest) (toolenvelope.ExecuteResult, error)
+	Lint(ctx context.Context, jobID string, req toolenvelope.ExecuteRequest) (toolenvelope.ExecuteResult, error)
+}
+
+// Typed errors the PodExecutor adapter surfaces. The handler maps them to
+// statuses; the runner maps statuses back to errors callers can branch on
+// (the ContextSwapper / ToolGateway pattern).
+var (
+	// ErrNoPod: the job has no live Job Pod to exec into (jobpod.ErrNotFound
+	// upstream); the engine can start one and retry. → 404.
+	ErrNoPod = errors.New("internalapi: no job pod for this job")
+	// ErrPodNotRunning: the pod exists but cannot accept commands. → 409.
+	ErrPodNotRunning = errors.New("internalapi: job pod is not running")
+)
+
 // handleExecuteCode is the M2-T4 /execute_code route. Steps:
+//
 //  1. Parse body (400 on bad JSON or missing Code).
+//
 //  2. Validate Language against the closed set (400).
+//
 //  3. Look up the per-job envelope via a.tools.EnvelopeFor; 403
 //     if execute_code is not in the envelope. The structural
 //     proof that this check cannot be bypassed lives in Gate G2
 //     (TestGateG2ToolEnvelopeBypassImpossible).
+//
 //  4. Append an EventLog entry recording the call.
 //
-// In commit 4 the runner dispatch lands. The handler returns 501
-// in this commit because the runner package does not yet exist;
-// the body validation, the envelope check, and the audit log are
-// real and tested.
+//  5. Dispatch to the PodExecutor (M2-T4b, ADR-0024). A nil executor
+//     responds 503 "not configured"; a typed executor error maps via
+//     writeExecError. The old 501 placeholder is gone.
 func (a *API) handleExecuteCode(w http.ResponseWriter, r *http.Request) {
 	jobID := jobIDFromContext(r.Context())
 	if jobID == "" {
@@ -104,12 +133,26 @@ func (a *API) handleExecuteCode(w http.ResponseWriter, r *http.Request) {
 	}
 
 	a.auditAllow(r.Context(), jobID, toolenvelope.ToolExecuteCode, "code_len="+itoaLen(req.Code))
-	writeError(w, http.StatusNotImplemented, "execute_code dispatch lands in M2-T4 commit 4 (runner package)")
+	if a.exec == nil {
+		writeError(w, http.StatusServiceUnavailable, "pod executor not configured")
+		return
+	}
+	res, err := a.exec.RunCode(r.Context(), jobID, toolenvelope.ExecuteRequest{
+		Tool:           toolenvelope.ToolExecuteCode,
+		Language:       req.Language,
+		Code:           req.Code,
+		TimeoutSeconds: req.Timeout,
+	})
+	if err != nil {
+		a.writeExecError(w, r, jobID, toolenvelope.ToolExecuteCode, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, res)
 }
 
 // handleRunTests is the M2-T4 /run_tests route. Mirrors
 // handleExecuteCode with a different body shape and a different
-// envelope tool. As with execute_code, dispatch lands in commit 4.
+// envelope tool; dispatch goes to PodExecutor.RunTests (M2-T4b).
 func (a *API) handleRunTests(w http.ResponseWriter, r *http.Request) {
 	jobID := jobIDFromContext(r.Context())
 	if jobID == "" {
@@ -148,7 +191,20 @@ func (a *API) handleRunTests(w http.ResponseWriter, r *http.Request) {
 	}
 
 	a.auditAllow(r.Context(), jobID, toolenvelope.ToolRunTests, "command="+req.Command)
-	writeError(w, http.StatusNotImplemented, "run_tests dispatch lands in M2-T4 commit 4 (runner package)")
+	if a.exec == nil {
+		writeError(w, http.StatusServiceUnavailable, "pod executor not configured")
+		return
+	}
+	res, err := a.exec.RunTests(r.Context(), jobID, toolenvelope.ExecuteRequest{
+		Tool:           toolenvelope.ToolRunTests,
+		Command:        req.Command,
+		TimeoutSeconds: req.Timeout,
+	})
+	if err != nil {
+		a.writeExecError(w, r, jobID, toolenvelope.ToolRunTests, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, res)
 }
 
 // handleLint is the M3-T2 commit 2.3 /lint route. Mirrors
@@ -159,9 +215,8 @@ func (a *API) handleRunTests(w http.ResponseWriter, r *http.Request) {
 // over the closed set and will pick up `lint` once it's
 // added to the slice below.
 //
-// As with the M2-T4 handlers, the actual linter dispatch
-// (running `ruff` in a Job Pod) lands in a follow-up
-// commit; this commit ships the envelope + audit + 501.
+// The linter itself runs in the Job Pod via PodExecutor.Lint (M2-T4b,
+// ADR-0024).
 func (a *API) handleLint(w http.ResponseWriter, r *http.Request) {
 	jobID := jobIDFromContext(r.Context())
 	if jobID == "" {
@@ -199,7 +254,38 @@ func (a *API) handleLint(w http.ResponseWriter, r *http.Request) {
 	}
 
 	a.auditAllow(r.Context(), jobID, toolenvelope.ToolLint, "command="+req.Command)
-	writeError(w, http.StatusNotImplemented, "lint dispatch lands in a follow-up commit (M3-T2 commit 2.3 ships the envelope + audit)")
+	if a.exec == nil {
+		writeError(w, http.StatusServiceUnavailable, "pod executor not configured")
+		return
+	}
+	res, err := a.exec.Lint(r.Context(), jobID, toolenvelope.ExecuteRequest{
+		Tool:           toolenvelope.ToolLint,
+		Command:        req.Command,
+		TimeoutSeconds: req.Timeout,
+	})
+	if err != nil {
+		a.writeExecError(w, r, jobID, toolenvelope.ToolLint, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, res)
+}
+
+// writeExecError maps a PodExecutor error to the M2-T4b status contract
+// and records the outcome in the jobs audit log. The typed errors travel
+// from the cmd/ adapter (which translates jobpod.ErrNotFound /
+// jobpod.ErrNotRunning), so this file stays free of internal/jobpod.
+func (a *API) writeExecError(w http.ResponseWriter, r *http.Request, jobID string, tool toolenvelope.Tool, err error) {
+	switch {
+	case errors.Is(err, ErrNoPod):
+		a.auditReject(r.Context(), jobID, tool, "no job pod")
+		writeError(w, http.StatusNotFound, ErrNoPod.Error())
+	case errors.Is(err, ErrPodNotRunning):
+		a.auditReject(r.Context(), jobID, tool, "pod not running")
+		writeError(w, http.StatusConflict, ErrPodNotRunning.Error())
+	default:
+		a.auditReject(r.Context(), jobID, tool, "exec failed: "+err.Error())
+		writeError(w, http.StatusInternalServerError, "pod exec failed: "+err.Error())
+	}
 }
 
 // auditReject records a rejected tool call in the EventLog. The

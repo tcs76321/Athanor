@@ -4,8 +4,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 
 	"github.com/tcs76321/athanor/internal/store"
@@ -21,6 +24,48 @@ func mustParseTools(t *testing.T, names ...string) toolenvelope.Envelope {
 	if err != nil {
 		t.Fatalf("toolenvelope.Parse(%v): %v", names, err)
 	}
+	return env
+}
+
+// fakePodExecutor is a PodExecutor that records the requests it received
+// and returns a canned result or error. It is the test double for the
+// M2-T4b dispatch path.
+type fakePodExecutor struct {
+	mu       sync.Mutex
+	codeReqs []toolenvelope.ExecuteRequest
+	testReqs []toolenvelope.ExecuteRequest
+	lintReqs []toolenvelope.ExecuteRequest
+	result   toolenvelope.ExecuteResult
+	err      error
+}
+
+func (f *fakePodExecutor) RunCode(_ context.Context, _ string, req toolenvelope.ExecuteRequest) (toolenvelope.ExecuteResult, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.codeReqs = append(f.codeReqs, req)
+	return f.result, f.err
+}
+
+func (f *fakePodExecutor) RunTests(_ context.Context, _ string, req toolenvelope.ExecuteRequest) (toolenvelope.ExecuteResult, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.testReqs = append(f.testReqs, req)
+	return f.result, f.err
+}
+
+func (f *fakePodExecutor) Lint(_ context.Context, _ string, req toolenvelope.ExecuteRequest) (toolenvelope.ExecuteResult, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.lintReqs = append(f.lintReqs, req)
+	return f.result, f.err
+}
+
+// newHandlerTestEnvWithExecutor is newHandlerTestEnv with a PodExecutor
+// wired (the M2-T4b.4 production shape).
+func newHandlerTestEnvWithExecutor(t *testing.T, exec PodExecutor) *handlerTestEnv {
+	t.Helper()
+	env := newHandlerTestEnv(t)
+	env.api.exec = exec
 	return env
 }
 
@@ -85,13 +130,50 @@ func TestExecuteCode_RejectsWhenToolNotInEnvelope(t *testing.T) {
 	}
 }
 
-// TestExecuteCode_PassesEnvelopeCheck_Returns501 proves the
-// happy path's structural pieces: auth + envelope check both
-// pass, and the handler reaches its 501 "not yet implemented"
-// placeholder. Commit 4 replaces the 501 with the real runner
-// dispatch; the structural pieces (auth, envelope, audit
-// tool_call) stay.
-func TestExecuteCode_PassesEnvelopeCheck_Returns501(t *testing.T) {
+// TestExecuteCode_DispatchesToExecutor proves the happy path now
+// reaches the PodExecutor: auth + envelope + audit all pass, the executor
+// runs the code, and its result is returned as 200 JSON. The old 501
+// placeholder is gone (M2-T4b).
+func TestExecuteCode_DispatchesToExecutor(t *testing.T) {
+	fake := &fakePodExecutor{result: toolenvelope.ExecuteResult{ExitCode: 0, Stdout: "1\n", DurationMS: 7}}
+	env := newHandlerTestEnvWithExecutor(t, fake)
+	_, taskID := env.seedProject(t)
+	env.tokens.WithToken(taskID, goodToken)
+	env.tools.WithAllow(taskID, mustParseTools(t, "execute_code"))
+
+	body, _ := json.Marshal(executeCodeRequest{Language: "python", Code: "print(1)"})
+	req := httptest.NewRequest("POST", "/internal/v1/jobs/"+taskID+"/execute_code", bytes.NewReader(body))
+	req.Header.Set("Authorization", "Bearer "+goodToken)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	env.mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body = %s", w.Code, w.Body.String())
+	}
+	var res toolenvelope.ExecuteResult
+	if err := json.Unmarshal(w.Body.Bytes(), &res); err != nil {
+		t.Fatalf("decode result: %v", err)
+	}
+	if res.ExitCode != 0 || res.Stdout != "1\n" {
+		t.Errorf("result = %+v, want exit 0 stdout %q", res, "1\n")
+	}
+	if len(fake.codeReqs) != 1 {
+		t.Fatalf("RunCode calls = %d, want 1", len(fake.codeReqs))
+	}
+	if got := fake.codeReqs[0]; got.Tool != toolenvelope.ToolExecuteCode ||
+		got.Language != "python" || got.Code != "print(1)" {
+		t.Errorf("RunCode req = %+v, want tool=execute_code lang=python code=print(1)", got)
+	}
+	if got := countToolEvents(t, env, taskID, "tool_call", string(toolenvelope.ToolExecuteCode)); got != 1 {
+		t.Errorf("tool_call events = %d, want 1", got)
+	}
+}
+
+// TestExecuteCode_NotConfigured_Returns503 covers the nil-executor
+// configuration: the route is registered, auth + envelope pass, and the
+// handler reports "not configured" rather than dispatching.
+func TestExecuteCode_NotConfigured_Returns503(t *testing.T) {
 	env := newHandlerTestEnv(t)
 	_, taskID := env.seedProject(t)
 	env.tokens.WithToken(taskID, goodToken)
@@ -104,22 +186,40 @@ func TestExecuteCode_PassesEnvelopeCheck_Returns501(t *testing.T) {
 	w := httptest.NewRecorder()
 	env.mux.ServeHTTP(w, req)
 
-	if w.Code != http.StatusNotImplemented {
-		t.Fatalf("status = %d, want 501; body = %s", w.Code, w.Body.String())
+	if w.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want 503 (no executor); body = %s", w.Code, w.Body.String())
 	}
-	events, _ := env.store.QueryEvents(context.Background(), store.EventFilter{JobID: taskID})
-	calls := 0
-	for _, e := range events {
-		var d struct {
-			Event string `json:"event"`
-		}
-		_ = json.Unmarshal([]byte(e.DataJSON), &d)
-		if d.Event == "tool_call" {
-			calls++
-		}
+}
+
+// TestExecuteCode_ExecutorErrorMapping pins the typed-error → status
+// contract of writeExecError, including a wrapped ErrNoPod so the cmd/
+// adapter may add context with %w.
+func TestExecuteCode_ExecutorErrorMapping(t *testing.T) {
+	cases := []struct {
+		name string
+		err  error
+		want int
+	}{
+		{"no pod", ErrNoPod, http.StatusNotFound},
+		{"wrapped no pod", fmt.Errorf("adapter: %w", ErrNoPod), http.StatusNotFound},
+		{"not running", ErrPodNotRunning, http.StatusConflict},
+		{"unknown", errors.New("boom"), http.StatusInternalServerError},
 	}
-	if calls != 1 {
-		t.Errorf("tool_call events = %d, want 1", calls)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			env := newHandlerTestEnvWithExecutor(t, &fakePodExecutor{err: tc.err})
+			_, taskID := env.seedProject(t)
+			env.tokens.WithToken(taskID, goodToken)
+			env.tools.WithAllow(taskID, mustParseTools(t, "execute_code"))
+			body, _ := json.Marshal(executeCodeRequest{Language: "python", Code: "print(1)"})
+			req := httptest.NewRequest("POST", "/internal/v1/jobs/"+taskID+"/execute_code", bytes.NewReader(body))
+			req.Header.Set("Authorization", "Bearer "+goodToken)
+			w := httptest.NewRecorder()
+			env.mux.ServeHTTP(w, req)
+			if w.Code != tc.want {
+				t.Errorf("status = %d, want %d; body = %s", w.Code, tc.want, w.Body.String())
+			}
+		})
 	}
 }
 
@@ -184,10 +284,12 @@ func TestRunTests_RejectsWhenToolNotInEnvelope(t *testing.T) {
 	}
 }
 
-// TestRunTests_PassesEnvelopeCheck_Returns501 mirrors
-// TestExecuteCode_PassesEnvelopeCheck_Returns501 for run_tests.
-func TestRunTests_PassesEnvelopeCheck_Returns501(t *testing.T) {
-	env := newHandlerTestEnv(t)
+// TestRunTests_DispatchesToExecutor is the run_tests counterpart of
+// TestExecuteCode_DispatchesToExecutor: the command reaches
+// PodExecutor.RunTests and its result is returned as 200 JSON.
+func TestRunTests_DispatchesToExecutor(t *testing.T) {
+	fake := &fakePodExecutor{result: toolenvelope.ExecuteResult{ExitCode: 1, Stdout: "1 failed"}}
+	env := newHandlerTestEnvWithExecutor(t, fake)
 	_, taskID := env.seedProject(t)
 	env.tokens.WithToken(taskID, goodToken)
 	env.tools.WithAllow(taskID, mustParseTools(t, "run_tests"))
@@ -199,8 +301,14 @@ func TestRunTests_PassesEnvelopeCheck_Returns501(t *testing.T) {
 	w := httptest.NewRecorder()
 	env.mux.ServeHTTP(w, req)
 
-	if w.Code != http.StatusNotImplemented {
-		t.Fatalf("status = %d, want 501; body = %s", w.Code, w.Body.String())
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body = %s", w.Code, w.Body.String())
+	}
+	if len(fake.testReqs) != 1 {
+		t.Fatalf("RunTests calls = %d, want 1", len(fake.testReqs))
+	}
+	if got := fake.testReqs[0]; got.Tool != toolenvelope.ToolRunTests || got.Command != "pytest -q" {
+		t.Errorf("RunTests req = %+v, want tool=run_tests command=pytest -q", got)
 	}
 }
 
@@ -285,14 +393,11 @@ func TestLint_RejectsWhenToolNotInEnvelope(t *testing.T) {
 	}
 }
 
-// TestLint_PassesEnvelopeCheck_Returns501 mirrors the
-// execute_code / run_tests counterpart: the structural
-// pieces (auth + envelope + audit tool_call) all pass, the
-// handler reaches its 501 "not yet implemented" placeholder.
-// The actual linter dispatch (running `ruff` in a Job Pod)
-// lands in a follow-up commit.
-func TestLint_PassesEnvelopeCheck_Returns501(t *testing.T) {
-	env := newHandlerTestEnv(t)
+// TestLint_DispatchesToExecutor is the lint counterpart: the command
+// reaches PodExecutor.Lint and its result is returned as 200 JSON.
+func TestLint_DispatchesToExecutor(t *testing.T) {
+	fake := &fakePodExecutor{result: toolenvelope.ExecuteResult{ExitCode: 0}}
+	env := newHandlerTestEnvWithExecutor(t, fake)
 	_, taskID := env.seedProject(t)
 	env.tokens.WithToken(taskID, goodToken)
 	env.tools.WithAllow(taskID, mustParseTools(t, "lint"))
@@ -304,18 +409,20 @@ func TestLint_PassesEnvelopeCheck_Returns501(t *testing.T) {
 	w := httptest.NewRecorder()
 	env.mux.ServeHTTP(w, req)
 
-	if w.Code != http.StatusNotImplemented {
-		t.Fatalf("status = %d, want 501; body = %s", w.Code, w.Body.String())
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body = %s", w.Code, w.Body.String())
+	}
+	if len(fake.lintReqs) != 1 || fake.lintReqs[0].Tool != toolenvelope.ToolLint {
+		t.Errorf("Lint reqs = %+v, want one with tool=lint", fake.lintReqs)
 	}
 }
 
-// TestLint_DefaultCommand fills in `ruff check .` when the
-// request body omits `command`. The handler's contract is
-// "command is optional; the default is the closed-set
-// linter." The 501 still fires; the test asserts the audit
-// event recorded the default.
+// TestLint_DefaultCommand fills in `ruff check .` when the request body
+// omits `command`; the resolved default reaches the executor, and the
+// tool_call audit row is written.
 func TestLint_DefaultCommand(t *testing.T) {
-	env := newHandlerTestEnv(t)
+	fake := &fakePodExecutor{result: toolenvelope.ExecuteResult{ExitCode: 0}}
+	env := newHandlerTestEnvWithExecutor(t, fake)
 	_, taskID := env.seedProject(t)
 	env.tokens.WithToken(taskID, goodToken)
 	env.tools.WithAllow(taskID, mustParseTools(t, "lint"))
@@ -327,27 +434,13 @@ func TestLint_DefaultCommand(t *testing.T) {
 	w := httptest.NewRecorder()
 	env.mux.ServeHTTP(w, req)
 
-	if w.Code != http.StatusNotImplemented {
-		t.Fatalf("status = %d, want 501; body = %s", w.Code, w.Body.String())
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body = %s", w.Code, w.Body.String())
 	}
-	events, err := env.store.QueryEvents(context.Background(), store.EventFilter{JobID: taskID})
-	if err != nil {
-		t.Fatal(err)
+	if len(fake.lintReqs) != 1 || fake.lintReqs[0].Command != allowedLintCommand {
+		t.Fatalf("Lint reqs = %+v, want command=%q", fake.lintReqs, allowedLintCommand)
 	}
-	foundDefault := false
-	for _, e := range events {
-		var d struct {
-			Event  string `json:"event"`
-			Tool   string `json:"tool"`
-			Detail string `json:"detail"`
-		}
-		_ = json.Unmarshal([]byte(e.DataJSON), &d)
-		if d.Event == "tool_call" && d.Tool == string(toolenvelope.ToolLint) &&
-			d.Detail == "command=ruff check ." {
-			foundDefault = true
-		}
-	}
-	if !foundDefault {
-		t.Errorf("expected a tool_call event for lint with default command %q; got %d events", allowedLintCommand, len(events))
+	if got := countToolEvents(t, env, taskID, "tool_call", string(toolenvelope.ToolLint)); got != 1 {
+		t.Errorf("tool_call events = %d, want 1", got)
 	}
 }
