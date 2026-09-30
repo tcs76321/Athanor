@@ -10,6 +10,7 @@ import (
 	"github.com/tcs76321/athanor/internal/job"
 	"github.com/tcs76321/athanor/internal/llm"
 	"github.com/tcs76321/athanor/internal/project"
+	"github.com/tcs76321/athanor/internal/prompt"
 	"github.com/tcs76321/athanor/internal/toolenvelope"
 )
 
@@ -238,13 +239,16 @@ func (e *Engine) evaluateCandidate(ctx context.Context, j job.Job, p project.Pro
 	instructions := rubricBlock + fmt.Sprintf(
 		"EVALUATE CANDIDATE %d of %d (artifact_id=%s). "+
 			"Tests already ran in the Job Pod: passed=%v, failed_tests=%v. "+
-			"Apply the §19 acceptance-criteria check to the candidate content below. "+
+			"Apply the §19 acceptance-criteria check to the candidate content in the "+
+			"CANDIDATE ARTIFACT section above. "+
 			"Output JSON only: {passed, score, failed_tests, missing_criteria, "+
-			"security_issues, style_issues, better_than_previous, confidence, summary}. "+
-			"\n\nCANDIDATE CONTENT:\n%s",
-		idx, total, cand.ID, testsPassed, failedTests, string(content))
+			"security_issues, style_issues, better_than_previous, confidence, summary}.",
+		idx, total, cand.ID, testsPassed, failedTests)
 
-	resp, err := e.call(ctx, j, p, t, llm.PhaseEvaluating, llm.RoleSecurity, instructions)
+	// M5-T5: the candidate bytes are §11.2 §12 (tier 3, never evicted)
+	// rather than a concatenation inside the §13 instructions.
+	ctxCandidates := []prompt.CandidateArtifact{{Kind: "candidate", Content: string(content)}}
+	resp, err := e.call(ctx, j, p, t, llm.PhaseEvaluating, llm.RoleSecurity, instructions, ctxCandidates)
 	if err != nil {
 		return evaluation.Record{}, err
 	}

@@ -51,19 +51,6 @@ import (
 	"github.com/tcs76321/athanor/internal/toolenvelope"
 )
 
-// Evictor frees context pressure by flushing lowest-priority §10.5
-// context tiers to Dormant (ARCHITECTURE §10.4 critical arm; M5-T4,
-// ADR-0022 §5). It returns the number of tokens freed: zero means
-// nothing was evictable, which the engine treats as a floor breach
-// (there is no remedy, so the prompt must not be sent). The seam is
-// deliberately nilable (the ToolRunner precedent): production wires nil
-// until M5-T5 builds the MCE-backed adapter over the chunk store — at
-// `critical` pressure a nil seam pauses rather than sending a prompt
-// that Ollama would silently truncate at num_ctx.
-type Evictor interface {
-	Evict(ctx context.Context, jobID string, pressure float64) (int, error)
-}
-
 // Freezer is the kill-switch surface the engine consults (§22.1: frozen
 // means no work proceeds).
 type Freezer interface {
@@ -133,12 +120,16 @@ type Engine struct {
 	// pass a fake.
 	runner ToolRunner
 	// evictor frees context pressure by flushing lowest-priority
-	// §10.5 tiers to Dormant (M5-T4, ADR-0022 §5). nil is valid
-	// configuration — the ToolRunner precedent: at `critical` the
-	// engine treats a nil seam (or one that freed nothing) as a
-	// floor breach and pauses. Production wires nil until M5-T5
-	// builds the MCE-backed adapter over the chunk store.
+	// §10.5 tiers to Dormant (M5-T4, ADR-0022 §5; filled by the M5-T5
+	// ladder, ADR-0023 §6). nil is valid configuration — the ToolRunner
+	// precedent: at `critical` the engine treats a nil seam (or one that
+	// freed nothing) as a floor breach and pauses.
 	evictor Evictor
+	// ctxProvider is the engine's window onto the MCE working set
+	// (M5-T5, ADR-0023 §7): the §10.1 active chunk and the Dormant
+	// Index. nil means "no MCE" — tiers 3 and 6 stay empty and prompts
+	// are the pre-T5 assembler exactly.
+	ctxProvider ContextProvider
 	// inFlight is the count of running job goroutines. The cap is
 	// read from cap.MaxConcurrentJobs() on every Enqueue; the atomic
 	// counter is the only source of truth for the running count.
@@ -168,11 +159,15 @@ type Engine struct {
 // evictor is the §10.4 context-eviction seam (M5-T4, ADR-0022 §5). A
 // nil evictor is valid: `critical` pressure with nothing able to evict
 // pauses the job rather than sending a prompt that Ollama would
-// silently truncate. Production wires nil until M5-T5 builds the
-// MCE-backed adapter.
+// silently truncate. Production wires NewLadderEvictor() (M5-T5.6).
+//
+// ctxProvider is the engine's window onto the MCE working set (M5-T5,
+// ADR-0023 §7). A nil provider is valid: tiers 3 and 6 are empty and the
+// assembler behaves exactly as it did before M5-T5.
 func New(cfg *config.Config, db *store.Store, jobs *job.Repository, projects *project.Repo,
 	artifacts *artifact.Store, eval *evaluation.Repo, client *llm.Client, registry *llm.Registry,
-	freezer Freezer, cap ConcurrencyCap, runner ToolRunner, evictor Evictor) *Engine {
+	freezer Freezer, cap ConcurrencyCap, runner ToolRunner, evictor Evictor,
+	ctxProvider ContextProvider) *Engine {
 	if cap == nil {
 		// No power source: fall back to a static cap derived from
 		// cfg.Limits so the engine remains usable in tests and
@@ -182,9 +177,10 @@ func New(cfg *config.Config, db *store.Store, jobs *job.Repository, projects *pr
 	return &Engine{
 		cfg: cfg, db: db, jobs: jobs, projects: projects, artifacts: artifacts,
 		eval: eval, client: client, registry: registry, freezer: freezer, cap: cap,
-		runner:  runner,
-		evictor: evictor,
-		running: map[string]bool{},
+		runner:      runner,
+		evictor:     evictor,
+		ctxProvider: ctxProvider,
+		running:     map[string]bool{},
 	}
 }
 
@@ -301,6 +297,13 @@ func (e *Engine) Run(ctx context.Context, jobID string) {
 			return
 		}
 		if j.State.Terminal() || j.State == job.StatePaused {
+			if j.State.Terminal() {
+				// M5-T5 (ADR-0023 §5): a finished job's evictions are
+				// history, not state. Clearing here (and only here)
+				// keeps `system_state` bounded while a paused job keeps
+				// its suppression for the resume.
+				e.clearSuppressedTiers(ctx, jobID)
+			}
 			return
 		}
 

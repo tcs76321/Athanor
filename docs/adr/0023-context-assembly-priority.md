@@ -188,6 +188,21 @@ ladder math stays exact.
 - No compaction — M5-T6.
 - No new dependency, no route change, no migration beyond the index in 0011.
 
+**Implemented (M5-T5.2–T5.5):** `internal/prompt/{tiers,render}.go` carry the
+tier model, ladder, and rendering; `internal/prompt.Assemble` prices every
+populated section per tier and emits only the surviving tiers in §11.2
+order; `internal/engine/context_tiers.go` holds `ContextProvider`, the
+`system_state` suppression state, the ceiling, the honest tool manifest, and
+the `Evictor` ladder. One consequence is worth recording because it changed
+an M5-T4 test's premise: with the ceiling at the critical threshold, the
+assembler evicts *before* the gate can fire, so the §10.4 `critical` arm now
+means "the pinned tiers alone are that large" — the seam's empty result is
+the pause path, and T4's "force-evict and proceed" branch is unreachable
+from a normal job by construction (it remains the seam's contract and is
+unit-tested directly). A pressured end-to-end run exercises this: the
+evaluating phase evicts tier 7, the suppression persists to the following
+calls, and the gate reports `none` throughout.
+
 ## Consequences
 
 **Positive**

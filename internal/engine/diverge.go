@@ -76,7 +76,7 @@ func (e *Engine) phaseDivergeN(ctx context.Context, j job.Job) error {
 		if research != "" {
 			seed += "\n\n" + research
 		}
-		resp, err := e.call(ctx, j, p, t, llm.PhaseDiverging, llm.RoleMain, seed)
+		resp, err := e.call(ctx, j, p, t, llm.PhaseDiverging, llm.RoleMain, seed, nil)
 		if err != nil {
 			return fmt.Errorf("divergence candidate %d/%d: %w", i+1, n, err)
 		}

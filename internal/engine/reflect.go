@@ -150,7 +150,7 @@ func (e *Engine) phaseReflect(ctx context.Context, j job.Job) error {
 	}
 	instructions := buildReflectionInstructions(records)
 
-	resp, err := e.call(ctx, j, p, t, llm.PhaseReflecting, llm.RoleMain, instructions)
+	resp, err := e.call(ctx, j, p, t, llm.PhaseReflecting, llm.RoleMain, instructions, nil)
 	if err != nil {
 		return err
 	}

@@ -132,10 +132,11 @@ func Assemble(in Input) (Result, error) {
 	}
 
 	return Result{
-		Text:       b.String(),
-		Sections:   sections,
-		TotalToken: total,
-		Eviction:   report,
+		Text:        b.String(),
+		Sections:    sections,
+		TotalToken:  total,
+		Eviction:    report,
+		TierWeights: weights,
 		Messages: []llm.Message{
 			{Role: "system", Content: systemText.String()},
 			{Role: "user", Content: userText.String()},

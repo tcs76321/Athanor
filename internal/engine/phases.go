@@ -14,6 +14,25 @@ import (
 	"github.com/tcs76321/athanor/internal/prompt"
 )
 
+// tierNames renders tiers for audit rows, ascending, nil-safe.
+func tierNames(tiers []prompt.Tier) []string {
+	out := make([]string, 0, len(tiers))
+	for _, t := range tiers {
+		out = append(out, t.String())
+	}
+	return out
+}
+
+// tierWeights renders the per-tier price table for audit rows, keyed by
+// tier name so a post-mortem reads without decoding integers.
+func tierWeights(weights map[prompt.Tier]int) map[string]int {
+	out := make(map[string]int, len(weights))
+	for t, w := range weights {
+		out[t.String()] = w
+	}
+	return out
+}
+
 // pauseForPressure pauses a job whose assembled prompt cannot fit (or
 // cannot be relieved within) the persona's context window — §10.4's
 // floor-breach arm (M5-T4, ADR-0022 §6). The request is never sent:
@@ -91,12 +110,18 @@ func (e *Engine) contexts(ctx context.Context, j job.Job) (project.Project, proj
 }
 
 // call performs one phase's LLM request with every guard: context
-// feasibility (§12.6), deterministic prompt assembly (§11), phase
-// temperature resolution (§13.1), the phase wall-time budget (§8.2), and
-// token accounting to the EventLog (§28.2). An empty extraInstructions
-// string adds nothing to the prompt.
+// feasibility (§12.6), deterministic prompt assembly (§11), the §10.5 tier
+// budget and eviction ladder (M5-T5), phase temperature resolution
+// (§13.1), the phase wall-time budget (§8.2), and token accounting to the
+// EventLog (§28.2).
+//
+// extraInstructions is the phase-specific evaluation/strategy text
+// (§11.2 §13–14, tier 7). candidates are the artifacts the phase works on
+// (§11.2 §12, tier 3): they are never concatenated into instructions, so a
+// phase that must refine or judge a candidate cannot have it evicted out
+// from under it (ADR-0023 §2).
 func (e *Engine) call(ctx context.Context, j job.Job, p project.Project, t project.Task,
-	phase, role string, extraInstructions string) (llm.Response, error) {
+	phase, role, extraInstructions string, candidates []prompt.CandidateArtifact) (llm.Response, error) {
 
 	if e.cfg == nil {
 		return llm.Response{}, errors.New("engine: cfg is nil (call requires config)")
@@ -124,16 +149,46 @@ func (e *Engine) call(ctx context.Context, j job.Job, p project.Project, t proje
 		return llm.Response{}, ErrPaused
 	}
 
+	// M5-T5 (§10.5, ADR-0023): gather the tier payloads, the §25 tool
+	// envelope, the persisted suppression set, and the assembly ceiling
+	// before assembling. A nil ContextProvider leaves tiers 3 and 6
+	// empty, which is the pre-T5 assembler exactly.
+	tiers := e.promptTiersFor(ctx, j, t, candidates)
+	suppressed := e.loadSuppressedTiers(ctx, j.ID)
+	ceiling := ceilingFor(e.cfg.ContextEngine, persona.ContextTarget)
+
 	res, err := prompt.Assemble(prompt.Input{
 		Phase:                  phase,
 		Project:                prompt.Project{Name: p.Name, Archetype: p.Archetype, Goal: p.Goal},
 		Task:                   prompt.Task{Title: t.Title, Description: t.Description},
 		Criteria:               t.Criteria,
 		EvaluationInstructions: extraInstructions,
+		Tools:                  tiers.Tools,
+		ActiveChunk:            tiers.ActiveChunk,
+		Candidates:             tiers.Candidates,
+		DormantIndex:           tiers.DormantIndex,
+		Ceiling:                ceiling,
+		Suppressed:             suppressed,
 	})
 	if err != nil {
 		return llm.Response{}, err
 	}
+
+	// M5-T5: the assembly's own overflow evictions are state, not a
+	// one-off — persist the union so the next call starts from the
+	// reduced set (ADR-0023 §5, §23.6: a restart must not resurrect
+	// evicted tiers).
+	if len(res.Eviction.Evicted) > 0 {
+		e.saveSuppressedTiers(ctx, j.ID, append(append([]prompt.Tier{}, suppressed...), res.Eviction.Evicted...))
+	}
+	e.auditCat(ctx, j.ID, "inference", map[string]any{
+		"event": "kv_cache_assembled", "phase": phase, "persona": role,
+		"ceiling": ceiling, "assembled_tokens": res.TotalToken,
+		"fits": res.Eviction.Fits, "dropped_tokens": res.Eviction.DroppedTokens,
+		"evicted_tiers":    tierNames(res.Eviction.Evicted),
+		"suppressed_tiers": tierNames(res.Eviction.Suppressed),
+		"tier_weights":     tierWeights(res.TierWeights),
+	})
 
 	// M5-T4 (§10.4, ADR-0022): per-call KV-cache pressure gate. The
 	// assembled prompt's estimated size is checked against the
@@ -159,29 +214,32 @@ func (e *Engine) call(ctx context.Context, j job.Job, p project.Project, t proje
 		// oldest non-pinned chunks to Dormant arrive with M5-T5's
 		// tier integration alongside the Dormant Index section.
 	case mce.ActionCritical:
-		// §10.4 95% arm: force-evict the lowest-priority tier. The
-		// freed budget materializes in the next assembly (M5-T5);
-		// the current prompt still fits the window (pressure < 100%),
-		// so proceeding cannot truncate. A nil seam — or one that
-		// frees nothing — cannot relieve the pressure, so the call
-		// falls through to the floor-breach pause rather than
-		// sending a prompt that is over the warning line with no
-		// remedy applied.
-		freed := 0
+		// §10.4 95% arm: force-evict the lowest-priority tier through
+		// the seam. The released budget materializes in the next
+		// assembly (ADR-0023 §6); the current prompt still fits the
+		// window (pressure < 100%), so proceeding cannot truncate. A
+		// nil seam — or one with nothing left to evict — cannot
+		// relieve the pressure, so the call falls through to the
+		// floor-breach pause rather than sending a prompt that is over
+		// the warning line with no remedy applied.
+		eviction := Eviction{}
 		if e.evictor != nil {
 			var err error
-			freed, err = e.evictor.Evict(ctx, j.ID, assessment.Pressure)
+			eviction, err = e.evictor.Evict(ctx, j.ID, res.TierWeights, res.Eviction.Suppressed)
 			if err != nil {
 				return llm.Response{}, fmt.Errorf("kv-cache eviction: %w", err)
 			}
 		}
-		if freed <= 0 {
+		if len(eviction.Tiers) == 0 {
 			return llm.Response{}, e.pauseForPressure(ctx, j, phase, role,
 				res.TotalToken, persona.ContextTarget, assessment)
 		}
+		e.saveSuppressedTiers(ctx, j.ID, append(
+			append([]prompt.Tier{}, res.Eviction.Suppressed...), eviction.Tiers...))
 		e.auditCat(ctx, j.ID, "inference", map[string]any{
 			"event": "kv_cache_evicted", "phase": phase, "persona": role,
-			"tokens_freed": freed, "pressure": assessment.Pressure,
+			"tokens_freed": eviction.FreedTokens, "pressure": assessment.Pressure,
+			"evicted_tiers": tierNames(eviction.Tiers),
 		})
 	default: // mce.ActionFloorBreach
 		return llm.Response{}, e.pauseForPressure(ctx, j, phase, role,
@@ -278,8 +336,11 @@ func (e *Engine) phaseSynthesize(ctx context.Context, j job.Job) error {
 		return fmt.Errorf("reading divergence candidate: %w", err)
 	}
 
-	instructions := "CANDIDATE PROPOSAL (from the divergence phase — refine into the final artifact):\n" + string(candidateContent)
-	resp, err := e.call(ctx, j, p, t, llm.PhaseSynthesizing, llm.RoleMain, instructions)
+	// M5-T5: the proposal bytes ride §11.2 §12 (tier 3, never evicted)
+	// instead of being concatenated into the §13 instructions.
+	instructions := "Refine the divergence proposal below into the final artifact for this task."
+	resp, err := e.call(ctx, j, p, t, llm.PhaseSynthesizing, llm.RoleMain, instructions,
+		[]prompt.CandidateArtifact{{Kind: "proposal", Content: string(candidateContent)}})
 	if err != nil {
 		return err
 	}
@@ -310,7 +371,7 @@ func (e *Engine) phasePlan(ctx context.Context, j job.Job) error {
 	if err != nil {
 		return err
 	}
-	if _, err := e.call(ctx, j, p, t, llm.PhasePlanning, llm.RoleTall, ""); err != nil {
+	if _, err := e.call(ctx, j, p, t, llm.PhasePlanning, llm.RoleTall, "", nil); err != nil {
 		return err
 	}
 	_, err = e.jobs.Transition(ctx, j.ID, job.StateDiverging)

@@ -71,9 +71,12 @@ func newHarness(t *testing.T) *harness {
 		// call; text/document/data/media archetypes skip
 		// them entirely.
 		nil,
-		// M5-T4: nil eviction seam — the harness prompts are
-		// far below every persona's window, so no §10.4
-		// trigger fires.
+		// M5-T4: nil eviction seam, and M5-T5: nil context
+		// provider. The harness prompts are far below every
+		// persona's window and carry no MCE working set, so
+		// neither the §10.4 triggers nor tiers 3/6 are
+		// exercised here (they have their own suites).
+		nil,
 		nil)
 
 	srv := server.New("test")

@@ -163,6 +163,41 @@ func TestApplyLadderReportsSuppressedUnion(t *testing.T) {
 	}
 }
 
+// TestEvictNextIsOneLadderStep pins §10.4's force-eviction as a single
+// bottom-up step: tier 7 first, skipping absent and suppressed tiers, and
+// reporting false (→ pause) when only the pinned tiers remain.
+func TestEvictNextIsOneLadderStep(t *testing.T) {
+	w := weights7()
+	if tier, tok, ok := EvictNext(w, nil); !ok || tier != TierInstructions || tok != 50 {
+		t.Fatalf("EvictNext = (%v, %d, %v), want (instructions, 50, true)", tier, tok, ok)
+	}
+	if tier, tok, ok := EvictNext(w, []Tier{TierInstructions}); !ok || tier != TierDormantIndex || tok != 50 {
+		t.Fatalf("EvictNext after suppressing 7 = (%v, %d, %v), want (dormant_index, 50, true)", tier, tok, ok)
+	}
+	// Absent tiers are skipped rather than returned with weight 0.
+	sparse := map[Tier]int{TierStaticSystem: 100, TierInstructions: 0, TierCorrections: 20}
+	if tier, tok, ok := EvictNext(sparse, nil); !ok || tier != TierCorrections || tok != 20 {
+		t.Fatalf("EvictNext(sparse) = (%v, %d, %v), want (corrections, 20, true)", tier, tok, ok)
+	}
+	// Only pinned content left → nothing evictable, which is the pause path.
+	pinnedOnly := map[Tier]int{TierStaticSystem: 100, TierTaskCriteria: 100, TierWorkingSet: 100}
+	if tier, tok, ok := EvictNext(pinnedOnly, nil); ok {
+		t.Fatalf("EvictNext(pinned only) = (%v, %d, true), want ok=false", tier, tok)
+	}
+	// A corrupt weights map naming a pinned tier cannot produce one.
+	corrupt := map[Tier]int{TierStaticSystem: 100, TierInstructions: 7}
+	for i := 0; i < 4; i++ {
+		tier, _, ok := EvictNext(corrupt, nil)
+		if ok && tier.Pinned() {
+			t.Fatalf("EvictNext returned pinned tier %v", tier)
+		}
+		if !ok {
+			break
+		}
+		corrupt[tier] = 0
+	}
+}
+
 // TestTierClassification pins the tier metadata the ladder and audit rows
 // depend on (same posture as the engine's DecideWinner contract tests).
 func TestTierClassification(t *testing.T) {

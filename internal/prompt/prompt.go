@@ -153,7 +153,12 @@ type Result struct {
 	// Eviction reports the §10.5 ladder pass (M5-T5). With no ceiling it
 	// is the zero-value-with-Fits-true case: nothing suppressed.
 	Eviction EvictionReport
-	Messages []llm.Message
+	// TierWeights is each present tier's estimated token weight — the
+	// price the ladder used (M5-T5). Exposed so the engine can record
+	// per-tier accounting and hand the weights to the §10.4 eviction seam
+	// without re-deriving them.
+	TierWeights map[Tier]int
+	Messages    []llm.Message
 }
 
 // EstimateTokens is the M1 token accounting approximation: ~4 bytes per

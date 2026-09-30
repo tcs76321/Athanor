@@ -11,6 +11,7 @@ import (
 	"github.com/tcs76321/athanor/internal/evaluation"
 	"github.com/tcs76321/athanor/internal/job"
 	"github.com/tcs76321/athanor/internal/llm"
+	"github.com/tcs76321/athanor/internal/prompt"
 )
 
 // comparisonVerdict is the §13.1 Phase 6 JSON the security persona
@@ -124,7 +125,12 @@ func (e *Engine) phaseCompare(ctx context.Context, j job.Job) error {
 	}
 
 	instructions := buildComparisonInstructions(final, records, previousID, previousRecords, previousAvgScore, previousAvgConf)
-	resp, err := e.call(ctx, j, p, t, llm.PhaseComparing, llm.RoleSecurity, instructions)
+	// M5-T5: the candidate's bytes ride §11.2 §12 (tier 3, never evicted).
+	// ADR-0013's 4 KB comparison limit is applied here, before assembly,
+	// because the assembler renders tier 3 verbatim and never truncates.
+	candidateContent, _ := osReadFileLimited(final.StoragePath, comparisonContentLimit)
+	resp, err := e.call(ctx, j, p, t, llm.PhaseComparing, llm.RoleSecurity, instructions,
+		[]prompt.CandidateArtifact{{Kind: "candidate", Content: candidateContent}})
 	if err != nil {
 		return err
 	}
@@ -232,6 +238,13 @@ func (e *Engine) phaseCompare(ctx context.Context, j job.Job) error {
 // own evaluation history, so the judge can reason about how the
 // previous scored when it was a candidate (not just that it
 // exists).
+// comparisonContentLimit is ADR-0013's comparison content bound: the judge
+// sees the head of the candidate, and the truncation is disclosed in the
+// instructions rather than hidden (M5-T5 moved the bytes into §11.2 §12,
+// so the limit is applied here — before assembly — because the assembler
+// renders tier 3 verbatim).
+const comparisonContentLimit = 4096
+
 func buildComparisonInstructions(
 	final artifact.Artifact,
 	records []evaluation.Record,
@@ -240,7 +253,6 @@ func buildComparisonInstructions(
 	previousAvgScore float64,
 	previousAvgConf float64,
 ) string {
-	content, _ := osReadFileLimited(final.StoragePath, 4096)
 	var b strings.Builder
 	fmt.Fprintf(&b, "COMPARISON. Decide whether to accept the new artifact.\n"+
 		"new artifact_id: %s\nprevious artifact_id: %s\n", final.ID, previousID)
@@ -263,9 +275,9 @@ func buildComparisonInstructions(
 				i+1, r.ArtifactID, r.PassedTests, r.BetterThanPrevious, r.Confidence, r.Summary)
 		}
 	}
-	b.WriteString("\nNew artifact content (truncated to 4 KB):\n")
-	b.WriteString(content)
-	b.WriteString("\n\nOutput JSON only: {winner: \"new\"|\"previous\"|\"none\", confidence: 0.0-1.0, reasons: [...], missing_requirements: [...]}")
+	fmt.Fprintf(&b, "\nThe new artifact's content is the CANDIDATE ARTIFACT section above "+
+		"(truncated to %d bytes per §19 disclosure practice).\n", comparisonContentLimit)
+	b.WriteString("\nOutput JSON only: {winner: \"new\"|\"previous\"|\"none\", confidence: 0.0-1.0, reasons: [...], missing_requirements: [...]}")
 	return b.String()
 }
 

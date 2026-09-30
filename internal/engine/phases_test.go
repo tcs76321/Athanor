@@ -50,7 +50,7 @@ func TestPerPhaseBudget_DeadlineExceeded_Audited(t *testing.T) {
 		t.Fatalf("contextsForTest: %v", err)
 	}
 	if _, err := env.eng.call(context.Background(), mustJob(t, env, jobID),
-		p, t0, llm.PhasePlanning, llm.RoleTall, ""); err == nil {
+		p, t0, llm.PhasePlanning, llm.RoleTall, "", nil); err == nil {
 		t.Fatalf("call returned nil error; want a context-deadline error")
 	}
 
@@ -104,7 +104,7 @@ func TestPerPhaseBudget_DefaultHonored(t *testing.T) {
 		t.Fatalf("contextsForTest: %v", err)
 	}
 	if _, err := env.eng.call(context.Background(), mustJob(t, env, jobID),
-		p, t0, llm.PhasePlanning, llm.RoleTall, ""); err != nil {
+		p, t0, llm.PhasePlanning, llm.RoleTall, "", nil); err != nil {
 		t.Fatalf("call failed: %v (default 300s budget should be enough for a 250ms call)", err)
 	}
 }

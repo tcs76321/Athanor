@@ -14,24 +14,47 @@ import (
 	"github.com/tcs76321/athanor/internal/job"
 	"github.com/tcs76321/athanor/internal/llm"
 	"github.com/tcs76321/athanor/internal/power"
+	"github.com/tcs76321/athanor/internal/prompt"
 	"github.com/tcs76321/athanor/internal/store"
 )
 
-// fakeEvictor is the M5-T4 Evictor seam; M5-T5 replaces it with the
-// MCE-backed adapter. It records calls so tests can prove warn never
-// evicts and critical always tries.
+// fakeEvictor is the M5-T4 `Evictor` seam; M5-T5 filled it with the real
+// ladder (`NewLadderEvictor`). It records calls and returns a scripted
+// eviction, so tests can prove warn never evicts, critical always tries,
+// and "nothing evictable" pauses.
 type fakeEvictor struct {
 	mu    sync.Mutex
 	calls int
+	// freed is the token weight reported for the evicted tier; the tier
+	// itself is the lowest the caller's weights offer, so a scripted
+	// eviction stays consistent with the ladder.
 	freed int
-	err   error
+	// none makes the fake report "nothing evictable", which is the
+	// floor-breach path.
+	none bool
+	err  error
 }
 
-func (f *fakeEvictor) Evict(ctx context.Context, jobID string, pressure float64) (int, error) {
+func (f *fakeEvictor) Evict(_ context.Context, _ string,
+	weights map[prompt.Tier]int, suppressed []prompt.Tier) (Eviction, error) {
+
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.calls++
-	return f.freed, f.err
+	if f.err != nil {
+		return Eviction{}, f.err
+	}
+	if f.none {
+		return Eviction{}, nil
+	}
+	tier, tokens, ok := prompt.EvictNext(weights, suppressed)
+	if !ok {
+		return Eviction{}, nil
+	}
+	if f.freed > 0 {
+		tokens = f.freed
+	}
+	return Eviction{Tiers: []prompt.Tier{tier}, FreedTokens: tokens}, nil
 }
 
 func (f *fakeEvictor) callCount() int {
@@ -76,7 +99,7 @@ func (e *testEnv) withEvictor(t *testing.T, ev Evictor) {
 	}
 	e.eng = New(e.cfg, e.db, e.jobs, e.projects, e.artifacts, evaluation.NewRepo(e.db),
 		llm.NewClient(e.cfg.Inference.OllamaURL, nil), registry, e.freezer,
-		power.NewPowerManager(nil), e.runner, ev)
+		power.NewPowerManager(nil), e.runner, ev, nil)
 }
 
 // pressureRow is the decoded `kv_cache_pressure` audit row.
@@ -304,6 +327,49 @@ func measuredPrompt(t *testing.T, criteria []string) (tokens int, persona string
 	return tokens, persona
 }
 
+// measuredPhasePrompt runs a criteria-less job under the default (roomy)
+// windows and returns the estimated prompt size of one phase plus that
+// phase's persona. A criteria-less task matters: the planning call is then
+// pinned-only (tiers 1–2), which is the quantity the §10.4 critical arm
+// actually keys on once M5-T5's ceiling is in place (ADR-0023 §3).
+func measuredPhasePrompt(t *testing.T, phase string) (tokens int, persona string) {
+	t.Helper()
+	e := newEnv(t)
+	jobID := e.submitWithCriteria(t, "text",
+		"Write a short essay about local-first software.", nil)
+	e.eng.Run(context.Background(), jobID)
+
+	j, err := e.jobs.Get(context.Background(), jobID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if j.State != job.StateCompleted {
+		t.Fatalf("baseline run state = %s, want completed", j.State)
+	}
+	recs, err := e.db.QueryEvents(context.Background(), store.EventFilter{JobID: jobID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, r := range recs {
+		var d struct {
+			Event     string `json:"event"`
+			Phase     string `json:"phase"`
+			Persona   string `json:"persona"`
+			Estimated int    `json:"estimated_prompt_tokens"`
+		}
+		if err := json.Unmarshal([]byte(r.DataJSON), &d); err != nil {
+			continue
+		}
+		if d.Event == "llm_call" && d.Phase == phase {
+			tokens, persona = d.Estimated, d.Persona
+		}
+	}
+	if tokens == 0 || persona == "" {
+		t.Fatalf("baseline run produced no llm_call row for phase %q", phase)
+	}
+	return tokens, persona
+}
+
 // inferenceEvents returns every `inference`-category row for a job as
 // decoded maps (the raw shape, for events beyond kv_cache_pressure).
 func inferenceEvents(t *testing.T, e *testEnv, jobID string) []map[string]any {
@@ -324,21 +390,22 @@ func inferenceEvents(t *testing.T, e *testEnv, jobID string) []map[string]any {
 	return out
 }
 
-// TestKVCacheCriticalWithoutEvictorPauses proves the 95% arm with no
-// eviction seam wired (M5-T4 production wiring, ADR-0022 §5): nothing
-// can relieve the pressure, so the job pauses instead of sending a call
-// whose context is spent.
+// TestKVCacheCriticalWithoutEvictorPauses proves the narrowed §10.4
+// critical arm in the M5-T5 world: the assembler's own ladder evicts
+// evictable tiers first (ADR-0023 §3), so `critical` can only mean the
+// pinned tiers alone exceed the ceiling — where nothing is evictable and
+// the gate must pause rather than send a prompt Ollama would truncate.
 func TestKVCacheCriticalWithoutEvictorPauses(t *testing.T) {
-	criteria := oversizedCriteria(1000)
-	P, persona := measuredPrompt(t, criteria)
+	pinned, persona := measuredPhasePrompt(t, llm.PhasePlanning)
 
 	e := newEnvWithCfg(t, func(cfg *config.Config) {
 		cfg.ContextEngine.SimpleFloor = 512
-		// 5% headroom → pressure ≈ 0.952, just past critical.
-		shrinkWindow(cfg, persona, P+P/20)
+		// ~3% headroom over the pinned-only prompt → pressure just past
+		// critical, with no evictable tier to relieve it.
+		shrinkWindow(cfg, persona, pinned+pinned/40)
 	})
 	jobID := e.submitWithCriteria(t, "text",
-		"Write a short essay about local-first software.", criteria)
+		"Write a short essay about local-first software.", nil)
 	e.eng.Run(context.Background(), jobID)
 
 	j, err := e.jobs.Get(context.Background(), jobID)
@@ -346,22 +413,19 @@ func TestKVCacheCriticalWithoutEvictorPauses(t *testing.T) {
 		t.Fatal(err)
 	}
 	if j.State != job.StatePaused {
-		t.Fatalf("job state = %s, want paused (critical with no evictor)", j.State)
+		t.Fatalf("job state = %s, want paused (critical with nothing evictable)", j.State)
 	}
-
-	criticals, sendable := 0, 0
+	if got := e.ollama.callCount(); got != 0 {
+		t.Errorf("chat calls = %d, want 0 (an oversized prompt must never be sent)", got)
+	}
+	criticals := 0
 	for _, r := range pressureRows(t, e, jobID) {
 		if r.Action == "critical" {
 			criticals++
-		} else if r.Action != "floor_breach" {
-			sendable++
 		}
 	}
 	if criticals == 0 {
 		t.Fatal("no kv_cache_pressure row with action critical")
-	}
-	if sendable != e.ollama.calls {
-		t.Errorf("pressure rows implying a send = %d, chat calls = %d", sendable, e.ollama.calls)
 	}
 	v, ok := violationRow(t, e, jobID)
 	if !ok || v["trigger"] != "kv_cache_monitor" {
@@ -369,23 +433,44 @@ func TestKVCacheCriticalWithoutEvictorPauses(t *testing.T) {
 	}
 }
 
-// TestKVCacheCriticalEvictsAndProceeds proves the 95% arm with the seam
-// wired: the engine asks the evictor to flush the lowest-priority tier,
-// records the freed tokens, and proceeds — the freed budget lands in
-// the next assembly (M5-T5).
-func TestKVCacheCriticalEvictsAndProceeds(t *testing.T) {
-	criteria := oversizedCriteria(1000)
-	P, persona := measuredPrompt(t, criteria)
+// shrinkAllWindows sets every persona's context window to the same value
+// (the §10.5 ceiling is per-persona, so a pressure test must move them
+// together or it only constrains one phase).
+func shrinkAllWindows(cfg *config.Config, window int) {
+	cfg.Personas.Tall.ContextTarget = window
+	cfg.Personas.Main.ContextTarget = window
+	cfg.Personas.Security.ContextTarget = window
+	cfg.Personas.Alternative.ContextTarget = window
+	cfg.Personas.Wide.ContextTarget = window
+}
 
-	ev := &fakeEvictor{freed: 4096}
+// TestKVCacheAssemblyEvictsInsteadOfReachingCritical is the M5-T5
+// supersession of T4's "critical force-evicts and proceeds": pressure is
+// now relieved at assembly time by the §10.5 ladder, so a job under
+// pressure still completes, the eviction is recorded, the gate never had
+// to go critical, and no suppression outlives the terminal state.
+//
+// The window is sized between the pinned-only planning prompt and the
+// largest prompt any phase assembles: planning must fit (or the job
+// pauses for the right reason), and the largest phase must evict.
+func TestKVCacheAssemblyEvictsInsteadOfReachingCritical(t *testing.T) {
+	pinned, _ := measuredPhasePrompt(t, llm.PhasePlanning)
+	largest, _ := measuredPrompt(t, nil)
+	if largest <= pinned {
+		t.Skipf("baseline phases add no evictable content (pinned=%d, largest=%d)", pinned, largest)
+	}
+	// ceiling = 0.95·W lands strictly between the two:
+	//   pinned < (pinned+largest)/2 < largest
+	window := (pinned + largest) / 2 * 100 / 95
+
 	e := newEnvWithCfg(t, func(cfg *config.Config) {
-		cfg.ContextEngine.SimpleFloor = 512
-		shrinkWindow(cfg, persona, P+P/20)
+		// Keep the §12.6 floor below the shrunken window so only the
+		// §10.5 ladder and the §10.4 gate act in this test.
+		cfg.ContextEngine.SimpleFloor = 128
+		shrinkAllWindows(cfg, window)
 	})
-	e.withEvictor(t, ev)
-
 	jobID := e.submitWithCriteria(t, "text",
-		"Write a short essay about local-first software.", criteria)
+		"Write a short essay about local-first software.", nil)
 	e.eng.Run(context.Background(), jobID)
 
 	j, err := e.jobs.Get(context.Background(), jobID)
@@ -393,49 +478,65 @@ func TestKVCacheCriticalEvictsAndProceeds(t *testing.T) {
 		t.Fatal(err)
 	}
 	if j.State != job.StateCompleted {
-		t.Fatalf("job state = %s, want completed (eviction relieved the pressure)", j.State)
+		t.Fatalf("job state = %s, want completed (the ladder relieved the pressure)", j.State)
 	}
-	if ev.callCount() == 0 {
-		t.Fatal("evictor never invoked at critical pressure")
-	}
-	criticals, evicted := 0, 0
+
+	assembled, evictedAny, criticals := 0, 0, 0
 	for _, d := range inferenceEvents(t, e, jobID) {
+		t.Logf("row event=%v phase=%v action=%v evicted=%v suppressed=%v fits=%v",
+			d["event"], d["phase"], d["action"], d["evicted_tiers"], d["suppressed_tiers"], d["fits"])
 		switch d["event"] {
+		case "kv_cache_assembled":
+			assembled++
+			if names, _ := d["evicted_tiers"].([]any); len(names) > 0 {
+				evictedAny++
+			}
 		case "kv_cache_pressure":
 			if d["action"] == "critical" {
 				criticals++
 			}
-		case "kv_cache_evicted":
-			evicted++
-			if got, want := d["tokens_freed"], float64(4096); got != want {
-				t.Errorf("tokens_freed = %v, want %v", got, want)
-			}
 		}
 	}
-	if criticals == 0 {
-		t.Fatal("no critical pressure row on a run sized for critical")
+	if assembled == 0 {
+		t.Fatal("no kv_cache_assembled row")
 	}
-	if evicted != criticals {
-		t.Errorf("kv_cache_evicted rows = %d, want one per critical call (%d)", evicted, criticals)
+	if evictedAny == 0 {
+		t.Errorf("no assembly evicted a tier across %d assembled rows (window=%d)", assembled, window)
 	}
+	if criticals != 0 {
+		t.Errorf("gate went critical %d times; the ladder should relieve pressure first", criticals)
+	}
+	if got := suppressedRow(t, e, jobID); got != "" {
+		t.Errorf("suppression row survived terminal state: %q", got)
+	}
+}
+
+// suppressedRow reads the raw system_state suppression value for a job.
+func suppressedRow(t *testing.T, e *testEnv, jobID string) string {
+	t.Helper()
+	var raw string
+	if err := e.db.DB().QueryRow(
+		`SELECT value FROM system_state WHERE key = ?`, "context:evicted:"+jobID).Scan(&raw); err != nil {
+		return ""
+	}
+	return raw
 }
 
 // TestKVCacheEvictionErrorFailsJob proves eviction failures do not
 // silently proceed: an error from the seam fails the job's phase (the
 // engine's standard fail-loud path) rather than sending the prompt.
 func TestKVCacheEvictionErrorFailsJob(t *testing.T) {
-	criteria := oversizedCriteria(1000)
-	P, persona := measuredPrompt(t, criteria)
+	pinned, persona := measuredPhasePrompt(t, llm.PhasePlanning)
 
 	ev := &fakeEvictor{err: errors.New("dormant store unavailable")}
 	e := newEnvWithCfg(t, func(cfg *config.Config) {
 		cfg.ContextEngine.SimpleFloor = 512
-		shrinkWindow(cfg, persona, P+P/20)
+		shrinkWindow(cfg, persona, pinned+pinned/40)
 	})
 	e.withEvictor(t, ev)
 
 	jobID := e.submitWithCriteria(t, "text",
-		"Write a short essay about local-first software.", criteria)
+		"Write a short essay about local-first software.", nil)
 	e.eng.Run(context.Background(), jobID)
 
 	j, err := e.jobs.Get(context.Background(), jobID)

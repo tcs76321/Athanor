@@ -213,6 +213,31 @@ func applyLadder(weights map[Tier]int, ceiling int, suppressed []Tier) EvictionR
 	return rep
 }
 
+// EvictNext returns the lowest-priority tier that is present and not
+// already suppressed, with its estimated weight — §10.4's "force-evict
+// lowest-priority tier to Dormant" as a single §10.5 ladder step.
+//
+// The bool is false when nothing evictable remains (only tiers 1–3 are
+// left). That is exactly when the §10.4 gate must pause instead of sending,
+// so the caller's `false` branch is the floor-breach path, not an error.
+//
+// Pinned tiers are unreachable by construction: ladderOrder contains only
+// tiers 4–7, so a weights map naming a pinned tier cannot produce one.
+func EvictNext(weights map[Tier]int, suppressed []Tier) (Tier, int, bool) {
+	gone := make(map[Tier]bool, len(suppressed))
+	for _, t := range suppressed {
+		if t.Evictable() {
+			gone[t] = true
+		}
+	}
+	for _, t := range ladderOrder {
+		if w, ok := weights[t]; ok && w > 0 && !gone[t] {
+			return t, w, true
+		}
+	}
+	return 0, 0, false
+}
+
 // sortedSuppressed flattens the gone-set into ascending tier order so the
 // report is stable for byte-comparison and audit rows (map iteration is
 // not).

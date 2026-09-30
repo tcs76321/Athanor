@@ -38,11 +38,15 @@ import (
 // output) complete.
 type countingOllama struct {
 	*httptest.Server
-	mu             sync.Mutex
-	calls          int
-	callsByPhase   map[string]int
-	evalVerdicts   []string
+	mu                 sync.Mutex
+	calls              int
+	callsByPhase       map[string]int
+	evalVerdicts       []string
 	comparisonVerdicts []string
+	// lastPrompt is the concatenated message content of the most recent
+	// chat request (M5-T5: tests assert on the assembled prompt — the
+	// active chunk, the Dormant Index, the tool manifest).
+	lastPrompt string
 	// delay is the artificial latency the fake introduces per
 	// request. Tests for the per-phase wall-time budget
 	// (M3-T2 commit 2.4) set this to a value larger than the
@@ -91,6 +95,12 @@ func newCountingOllama(t *testing.T) *countingOllama {
 			}
 		}
 		o.callsByPhase[phase]++
+		var sb strings.Builder
+		for _, m := range req.Messages {
+			sb.WriteString(m.Content)
+			sb.WriteString("\n")
+		}
+		o.lastPrompt = sb.String()
 		_ = req
 
 		content := "A thoughtful result."
@@ -156,6 +166,21 @@ func newCountingOllama(t *testing.T) *countingOllama {
 // JSON. The phase detection above is the actual trigger.
 func isSecurityModel(model string) bool {
 	return strings.Contains(strings.ToLower(model), "security")
+}
+
+// lastPromptText returns the most recent request's concatenated message
+// content (mutex-guarded; the fake serves concurrent jobs).
+func (o *countingOllama) lastPromptText() string {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.lastPrompt
+}
+
+// callCount returns the number of chat requests served.
+func (o *countingOllama) callCount() int {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.calls
 }
 
 // WithDelay configures the fake to sleep `d` per request. Tests
@@ -229,7 +254,7 @@ func newEnvWithCfg(t *testing.T, mutate func(*config.Config)) *testEnv {
 		t.Fatal(err)
 	}
 	runner := newFakeRunner()
-	eng := New(cfg, db, jobs, projects, artifacts, evaluation.NewRepo(db), llm.NewClient(cfg.Inference.OllamaURL, nil), registry, freezer, power.NewPowerManager(nil), runner, nil)
+	eng := New(cfg, db, jobs, projects, artifacts, evaluation.NewRepo(db), llm.NewClient(cfg.Inference.OllamaURL, nil), registry, freezer, power.NewPowerManager(nil), runner, nil, nil)
 	return &testEnv{cfg: cfg, db: db, jobs: jobs, projects: projects, artifacts: artifacts,
 		freezer: freezer, ollama: ollama, eng: eng, runner: runner}
 }
@@ -397,7 +422,7 @@ func TestEnqueueRespectsConcurrencyCap(t *testing.T) {
 	cap := fixedCap{n: 1}
 	eng := New(cfg, db, job.NewRepository(db), project.NewRepo(db), artifacts,
 		evaluation.NewRepo(db),
-		llm.NewClient(cfg.Inference.OllamaURL, nil), registry, freezer, cap, newFakeRunner(), nil)
+		llm.NewClient(cfg.Inference.OllamaURL, nil), registry, freezer, cap, newFakeRunner(), nil, nil)
 
 	// Submit two jobs. The first enters the LLM call (blocked on `hang`).
 	// The second must wait in Enqueue's poll loop.
