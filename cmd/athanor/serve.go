@@ -339,6 +339,23 @@ func run(configPath, addr, stateDir string) error {
 	// to its own task rather than silently half-done here.
 	eng.Recover(context.Background())
 
+	// M5-T6: the minimal daydream memory-consolidation loop (ADR-0025 §6). It
+	// is off by default (the interactive power profile disallows daydreaming)
+	// and every pass is gated by config, power, the kill switch, and idle
+	// state. Stopped on daemon shutdown.
+	daydream := startDaydream(context.Background(), daydreamDeps{
+		cfg:         cfg,
+		jobs:        job.NewRepository(st),
+		events:      st,
+		artifacts:   artifactStore,
+		compactions: mceRT.CompactStore,
+		compactor:   mceRT.Compactor,
+		power:       powerMgr,
+		freezer:     killSwitch,
+		log:         slog.Default(),
+	})
+	defer daydream.Close()
+
 	fmt.Printf("athanor %s listening on http://%s\n", version, loopAddr)
 
 	stop := make(chan os.Signal, 1)

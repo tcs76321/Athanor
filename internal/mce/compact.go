@@ -130,6 +130,11 @@ var ErrNotCompactable = errors.New("mce: profile is full-fidelity; divide, do no
 // ErrCompactorNeeded reports a nil Compactor seam.
 var ErrCompactorNeeded = errors.New("mce: compaction requires a Compactor")
 
+// ErrSourceTooLarge reports that an item cannot fit the persona's context
+// window. It is a refusal, not a truncation (§10.3: Athanor never silently
+// truncates context), so the item is left unconsolidated rather than sent.
+var ErrSourceTooLarge = errors.New("mce: source exceeds the persona context window")
+
 // MemoryItem is one unit of compactable memory.
 type MemoryItem struct {
 	// Content is the raw bytes to compact.

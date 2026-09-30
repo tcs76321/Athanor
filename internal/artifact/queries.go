@@ -66,6 +66,32 @@ func (a *Store) ListByJob(ctx context.Context, jobID string) ([]Artifact, error)
 	return out, rows.Err()
 }
 
+// ListAccepted returns up to limit accepted artifacts, newest first. It is the
+// M5-T6 daydream semantic-compaction source's enumeration: an accepted
+// documentation artifact is archival memory (§10.2). limit <= 0 means no limit.
+func (a *Store) ListAccepted(ctx context.Context, limit int) ([]Artifact, error) {
+	q := artifactSelect + ` WHERE status = ? ORDER BY created_at DESC, id ASC`
+	args := []any{string(StatusAccepted)}
+	if limit > 0 {
+		q += ` LIMIT ?`
+		args = append(args, limit)
+	}
+	rows, err := a.db.DB().QueryContext(ctx, q, args...)
+	if err != nil {
+		return nil, fmt.Errorf("listing accepted artifacts: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	var out []Artifact
+	for rows.Next() {
+		art, err := scanArtifact(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, art)
+	}
+	return out, rows.Err()
+}
+
 // LatestAcceptedByProject returns the project's most recently accepted
 // artifact, or ErrNotFound when the project has no accepted artifact
 // yet. Used by §13.1 Phase 6 (Comparing) to find the "previous" side

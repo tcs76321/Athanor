@@ -43,6 +43,15 @@ func (c *mceCompactor) Compact(ctx context.Context, item mce.MemoryItem, kind mc
 	}
 	profileType := string(item.Profile.Type)
 	profileState := string(item.Profile.State)
+	// §10.3: never silently truncate. Ollama truncates an oversized prompt at
+	// num_ctx, so refuse an item that cannot fit the persona's configured
+	// window. An unset window (0) is left to the backend, as elsewhere.
+	if persona.ContextTarget > 0 {
+		if tokens := prompt.EstimateTokens(string(item.Content)); tokens >= persona.ContextTarget {
+			return "", fmt.Errorf("%w: %d estimated tokens >= persona %q window %d (profile %s)",
+				mce.ErrSourceTooLarge, tokens, llm.RoleSecurity, persona.ContextTarget, item.Profile)
+		}
+	}
 	var messages []llm.Message
 	switch kind {
 	case mce.CompactionDeterministic:

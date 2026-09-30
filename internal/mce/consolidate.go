@@ -34,6 +34,10 @@ type ConsolidationResult struct {
 	// Skipped is items the §10.3 matrix classified as full fidelity — they must
 	// be divided, not compacted, so the pass leaves them alone.
 	Skipped int
+	// TooLarge is items that cannot fit the persona's context window; they are
+	// refused rather than silently truncated (§10.3) and retried only if a
+	// larger-window persona is configured.
+	TooLarge int
 	// Failed is items whose compaction errored; they stay unconsolidated and
 	// are retried by a later pass.
 	Failed int
@@ -80,6 +84,9 @@ func (c *Consolidator) RunOnce(ctx context.Context, limit int) (ConsolidationRes
 		switch {
 		case errors.Is(err, ErrNotCompactable):
 			res.Skipped++
+			continue
+		case errors.Is(err, ErrSourceTooLarge):
+			res.TooLarge++
 			continue
 		case err != nil:
 			res.Failed++

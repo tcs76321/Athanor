@@ -90,3 +90,30 @@ func (r *Repository) Active(ctx context.Context) ([]Job, error) {
 	}
 	return out, rows.Err()
 }
+
+// Terminal returns up to limit terminal jobs (completed/failed/cancelled),
+// most recently updated first. It is the M5-T6 daydream memory-consolidation
+// source's enumeration: a terminal job's event log is episodic memory (§10.2).
+// limit <= 0 means no limit.
+func (r *Repository) Terminal(ctx context.Context, limit int) ([]Job, error) {
+	q := jobSelect + ` WHERE state IN ('completed','failed','cancelled') ORDER BY updated_at DESC, id ASC`
+	var args []any
+	if limit > 0 {
+		q += ` LIMIT ?`
+		args = append(args, limit)
+	}
+	rows, err := r.store.DB().QueryContext(ctx, q, args...)
+	if err != nil {
+		return nil, fmt.Errorf("listing terminal jobs: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	var out []Job
+	for rows.Next() {
+		j, err := scanJob(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, j)
+	}
+	return out, rows.Err()
+}
