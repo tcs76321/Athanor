@@ -7,6 +7,23 @@ purpose; details live in `ARCHITECTURE.md`, `ROADMAP.md`, and `DEVELOPMENT.md`.
 
 - One tool call per command. No multi-command strings, no compound shell
   expressions, no nested quoting. If two things need checking, make two calls.
+- **Never batch commands that depend on each other.** The tool runner runs
+  every command in a single `run_commands` call **concurrently**, so anything
+  that reads, stages, or builds a file can race a command in the same batch
+  that writes it. A write issued alongside a `git add` or a `go test` may land
+  *after* the read, silently producing a commit of the pre-write bytes and a
+  dirty tree. This happened in M5-T5.6: an `echo >> file` trailing-newline fix
+  and the `git add file` meant to capture it were sent together, the commit
+  recorded the old bytes, and the tidy had to be committed separately
+  (`fdd975e`).
+  - Rule: **at most one state-changing command per call.** A file write, an
+    `echo >>`, a `git add`, and a `git commit` are all state-changing.
+  - Sequence across separate calls: write → verify (`gofmt -l`, `git diff`) →
+    stage → `make check` → `git commit`.
+  - Independent *reads* (greps, `git status`, `sed -n`, file reads) may be
+    batched freely — that is what the parallelism is for.
+  - If two state changes must both happen, do them in two calls and confirm
+    the second one's result before relying on it.
 - Never run bare `go build` or `go test` — use the `make` targets so
   `CGO_ENABLED=1` is set. See `DEVELOPMENT.md`.
 - Keep command output short. Pipe through `head`, `tail`, or `grep` when
@@ -105,6 +122,10 @@ commit per logical change; do not batch unrelated work.
 
 **Sequence per commit (the agent follows this, no deviations):**
 
+0. The last file write must be in its own call and must have finished before
+   staging. Never send a write and the `git add` that stages it in the same
+   batch — the runner executes a batch concurrently and the commit can
+   capture the pre-write bytes (§Commands, M5-T5.6).
 1. Stage the files (`git add <path>`).
 2. Run `make check`. Report pass/fail.
 3. Show the staged diff (`git --no-pager diff --cached`).
