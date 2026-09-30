@@ -116,8 +116,10 @@ func run(configPath, addr, stateDir string) error {
 	powerMgr := power.NewPowerManager(nil)
 	// M2-T2: Job Pod manager. Owns the lifecycle of every Podman
 	// Job Pod. Sweep runs at boot to clean up after a crash or
-	// kill -9. Engine wiring is M2-T3/M2-T4 territory; this is
-	// the boot-time integration only.
+	// kill -9. Only Sweep and the runner's TokenFor lookups touch
+	// this today — nothing calls podMgr.Start, so no Job Pod is
+	// ever created in production. That open end is tracked in
+	// ROADMAP §7 ("Engine → Job Pod execution dispatch").
 	podMgr := jobpod.New(NewExecClient(), killSwitch, filepath.Join(stateDir, "tokens"))
 	if res, err := podMgr.Sweep(context.Background()); err != nil {
 		// Sweep is opportunistic: a missing podman or a not-yet-
@@ -308,10 +310,16 @@ func run(configPath, addr, stateDir string) error {
 	}
 
 	// §23.6: resume any job that was mid-flight when the daemon died.
-	// M2-T5 known limitation: a synthesizing job whose pod was running
-	// when the daemon died will fail to resume here, because the new
-	// daemon's jobpod.Manager is empty and TokenFor returns ErrNotFound.
-	// M3 wires the engine to call podMgr.Start for recovered jobs.
+	//
+	// Open gap (ROADMAP §7, "Engine → Job Pod execution dispatch"): no
+	// production code path calls podMgr.Start, and the internal API's
+	// execute_code / run_tests / lint routes are 501 stubs. A
+	// `code`-archetype job therefore fails at `evaluating` —
+	// evaluateCandidate's pod sub-step calls the runner, whose TokenFor
+	// finds no pod (the Manager is always empty). Recovered jobs hit the
+	// same wall. Closing this needs a real engine↔pod lifecycle seam
+	// (and an ADR), not a one-line wire-up, so it is deliberately left
+	// to its own task rather than silently half-done here.
 	eng.Recover(context.Background())
 
 	fmt.Printf("athanor %s listening on http://%s\n", version, loopAddr)
