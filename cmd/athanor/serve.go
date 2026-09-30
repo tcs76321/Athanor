@@ -158,7 +158,9 @@ func run(configPath, addr, stateDir string) error {
 		"lossless_swapping", mceRT.LosslessSwapping,
 		"summarizer_persona", mceRT.SummarizerPersona,
 		"chunk_store", mceRT.Store != nil,
-		"summarizer", mceRT.Summarizer != nil)
+		"summarizer", mceRT.Summarizer != nil,
+		"compaction_store", mceRT.CompactStore != nil,
+		"compactor", mceRT.Compactor != nil)
 	eng := engine.New(cfg, st,
 		job.NewRepository(st),
 		projectRepo,

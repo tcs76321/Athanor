@@ -62,6 +62,9 @@ func TestStartMCERequiresMigratedStore(t *testing.T) {
 	if rt.Store == nil || rt.Summarizer == nil {
 		t.Fatalf("incomplete mce runtime: %+v", rt)
 	}
+	if rt.CompactStore == nil || rt.Compactor == nil {
+		t.Fatalf("mce runtime missing compaction wiring: %+v", rt)
+	}
 	if !rt.LosslessSwapping {
 		t.Error("lossless swapping should default to enabled")
 	}

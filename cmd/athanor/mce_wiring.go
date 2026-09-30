@@ -21,7 +21,7 @@ import (
 	"github.com/tcs76321/athanor/internal/store"
 )
 
-// mceRuntime holds the M5-T2 MCE objects for the daemon's lifetime.
+// mceRuntime holds the MCE objects for the daemon's lifetime.
 type mceRuntime struct {
 	// Store is the dormant chunk store (migration 0009). M5-T3 and M5-T8 are
 	// its call sites.
@@ -33,21 +33,37 @@ type mceRuntime struct {
 	LosslessSwapping bool
 	// SummarizerPersona names the persona used for summaries.
 	SummarizerPersona string
+	// CompactStore stores derived Temp 0.0 compactions (migration 0012). The
+	// M5-T6 daydream driver is its caller (ADR-0025 §4).
+	CompactStore *mce.CompactStore
+	// Compactor produces compactions on the security persona at temp 0.0
+	// (ADR-0025 §5).
+	Compactor mce.Compactor
 }
 
-// startMCE constructs the MCE runtime and verifies migration 0009's tables
-// exist, so a daemon whose database predates the MCE fails loudly at boot
-// instead of at first ingestion.
+// startMCE constructs the MCE runtime and verifies the MCE tables exist, so a
+// daemon whose database predates the MCE fails loudly at boot instead of at
+// first use.
 func startMCE(st *store.Store, registry *llm.Registry, client *llm.Client, cfg config.ContextEngine) (*mceRuntime, error) {
 	var probe int
 	if err := st.DB().QueryRowContext(context.Background(),
 		`SELECT COUNT(*) FROM context_chunks`).Scan(&probe); err != nil {
 		return nil, fmt.Errorf("mce: context_chunks not present (migration 0009): %w", err)
 	}
+	if err := st.DB().QueryRowContext(context.Background(),
+		`SELECT COUNT(*) FROM compacted_memory`).Scan(&probe); err != nil {
+		return nil, fmt.Errorf("mce: compacted_memory not present (migration 0012): %w", err)
+	}
+	compactor, err := newMCECompactor(registry, client, cfg)
+	if err != nil {
+		return nil, err
+	}
 	return &mceRuntime{
 		Store:             mce.NewChunkStore(st),
 		Summarizer:        newMCESummarizer(registry, client),
 		LosslessSwapping:  cfg.LosslessSwapping(),
 		SummarizerPersona: llm.RoleWide,
+		CompactStore:      mce.NewCompactStore(st),
+		Compactor:         compactor,
 	}, nil
 }
