@@ -124,3 +124,30 @@ func TestNewMCECompactorRejectsNonZeroTemperature(t *testing.T) {
 		t.Fatal("non-zero compaction temperature was accepted")
 	}
 }
+
+// TestMCECompactorRefusesOversizeInput pins the §10.3 no-silent-truncation
+// guard: an item that cannot fit the persona window is refused, not sent.
+func TestMCECompactorRefusesOversizeInput(t *testing.T) {
+	reg, err := llm.NewRegistry(config.Personas{
+		Wide:        config.PersonaConfig{Model: "wide-model"},
+		Tall:        config.PersonaConfig{Model: "tall-model"},
+		Main:        config.PersonaConfig{Model: "main-model"},
+		Security:    config.PersonaConfig{Model: "security-model", ContextTarget: 8},
+		Alternative: config.PersonaConfig{Model: "alternative-model"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	comp, err := newMCECompactor(reg, llm.NewClient("http://127.0.0.1:1", nil), config.ContextEngine{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	item := mce.MemoryItem{
+		Content: []byte(strings.Repeat("this is a long log line\n", 20)),
+		Profile: mce.Profile{Type: mce.EpistemicLog, State: mce.TemporalEpisodic},
+	}
+	_, err = comp.Compact(context.Background(), item, mce.CompactionDeterministic)
+	if err == nil || !strings.Contains(err.Error(), "exceeds the persona context window") {
+		t.Fatalf("err = %v, want an ErrSourceTooLarge refusal", err)
+	}
+}
