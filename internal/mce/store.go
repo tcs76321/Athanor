@@ -299,6 +299,34 @@ func (c *ChunkStore) IndexForSource(ctx context.Context, sourceHash string) ([]I
 		return nil, fmt.Errorf("mce: list dormant index: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
+	return scanIndex(rows)
+}
+
+// IndexForJob returns the Dormant Index (§10.1) for one job's chunks: the
+// per-job table of contents the M5-T5 assembler publishes in §11.2 §10.
+// Chunks are attributed to a job at ingestion (SourceRef.JobID), so a job
+// that divided several sources sees them all, ordered by source path and
+// then byte offset. An unknown job yields an empty slice (not an error),
+// exactly like IndexForSource.
+//
+// An empty jobID returns nothing rather than every un-attributed row: rows
+// with no job belong to no job's context, and publishing them would leak
+// another scope's chunks into this prompt.
+func (c *ChunkStore) IndexForJob(ctx context.Context, jobID string) ([]IndexEntry, error) {
+	if jobID == "" {
+		return nil, nil
+	}
+	rows, err := c.db.DB().QueryContext(ctx,
+		indexSelect+` WHERE c.job_id = ? ORDER BY c.source_relpath, c.byte_start`, jobID)
+	if err != nil {
+		return nil, fmt.Errorf("mce: list dormant index for job: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	return scanIndex(rows)
+}
+
+// scanIndex materializes Dormant Index rows from an `indexSelect` query.
+func scanIndex(rows *sql.Rows) ([]IndexEntry, error) {
 	var out []IndexEntry
 	for rows.Next() {
 		var e IndexEntry

@@ -148,6 +148,90 @@ func TestIndexForSourceIsOrderedAndQueryable(t *testing.T) {
 	}
 }
 
+// TestIndexForJobIsScopedToTheJob is the M5-T5.4 contract: the Dormant
+// Index an assembler publishes for a job contains that job's chunks only —
+// not its project's other jobs, not un-attributed rows, not another job's.
+func TestIndexForJobIsScopedToTheJob(t *testing.T) {
+	cs, _ := newStore(t)
+	ctx := context.Background()
+
+	// Two files for job-1, one file for job-2 in the same project, plus an
+	// un-attributed file. Each file carries distinct bytes: chunk IDs are
+	// content-derived (ADR-0021 §5), so identical files would collapse
+	// into one chunk set and prove nothing about scoping.
+	job1a := divide(t, "a.go", "go", []byte("package demo\n\nfunc A() {}\n"))
+	job1b := divide(t, "b.go", "go", []byte("package demo\n\nfunc B() {}\n"))
+	job2 := divide(t, "c.go", "go", []byte("package demo\n\nfunc C() {}\n"))
+	orphan := divide(t, "d.go", "go", []byte("package demo\n\nfunc D() {}\n"))
+	for _, put := range []struct {
+		ref    SourceRef
+		chunks []division.Chunk
+	}{
+		{SourceRef{RelPath: "a.go", ProjectID: "p1", JobID: "job-1"}, job1a},
+		{SourceRef{RelPath: "b.go", ProjectID: "p1", JobID: "job-1"}, job1b},
+		{SourceRef{RelPath: "c.go", ProjectID: "p1", JobID: "job-2"}, job2},
+		{SourceRef{RelPath: "d.go", ProjectID: "p1"}, orphan},
+	} {
+		if _, err := cs.PutSource(ctx, put.ref, put.chunks); err != nil {
+			t.Fatalf("PutSource(%s): %v", put.ref.RelPath, err)
+		}
+	}
+
+	entries, err := cs.IndexForJob(ctx, "job-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := len(job1a) + len(job1b); len(entries) != want {
+		t.Fatalf("job-1 index rows = %d, want %d (both its sources, nothing else)", len(entries), want)
+	}
+	prevPath, prevStart := "", 0
+	for i, e := range entries {
+		if e.SourceRelPath != "a.go" && e.SourceRelPath != "b.go" {
+			t.Errorf("job-1 index leaked %s (belongs to another scope)", e.SourceRelPath)
+		}
+		if i > 0 && e.SourceRelPath == prevPath && e.ByteStart < prevStart {
+			t.Errorf("job-1 index not byte-ordered within %s", e.SourceRelPath)
+		}
+		prevPath, prevStart = e.SourceRelPath, e.ByteStart
+	}
+
+	// An unknown job and an empty scope both yield nothing, without error.
+	for _, jobID := range []string{"job-does-not-exist", ""} {
+		got, err := cs.IndexForJob(ctx, jobID)
+		if err != nil {
+			t.Errorf("IndexForJob(%q): %v", jobID, err)
+		}
+		if len(got) != 0 {
+			t.Errorf("IndexForJob(%q) = %d rows, want 0", jobID, len(got))
+		}
+	}
+}
+
+// TestMigration0011Applies pins that the job index migration is present
+// and idempotent (the forward-only runner re-applies nothing), and that
+// existing rows survive it — it is an index-only change.
+func TestMigration0011Applies(t *testing.T) {
+	cs, st := newStore(t)
+	if v := st.Version(); v < 11 {
+		t.Fatalf("schema version = %d, want >= 11 (migration 0011 must exist)", v)
+	}
+	chunks := divide(t, "demo.go", "go", []byte(goSource))
+	if _, err := cs.PutSource(context.Background(),
+		SourceRef{RelPath: "demo.go", JobID: "job-keep"}, chunks); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Migrate(st.DB(), migrations.FS, ""); err != nil {
+		t.Fatalf("re-running migrations: %v", err)
+	}
+	entries, err := cs.IndexForJob(context.Background(), "job-keep")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != len(chunks) {
+		t.Errorf("index rows after re-migrate = %d, want %d (rows must survive)", len(entries), len(chunks))
+	}
+}
+
 func TestGetAndReassembleUnknownAreNotFound(t *testing.T) {
 	cs, _ := newStore(t)
 	ctx := context.Background()
