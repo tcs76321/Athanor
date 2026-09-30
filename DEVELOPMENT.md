@@ -43,40 +43,41 @@ path to `allowedDirectDeps` in the same commit.
 
 ### Integration (behavioral) security probes
 
-The five behavioral probes in `internal/jobpod/security_test.go`
-(network, Ollama, podman.sock, host FS, credentials) bring up real
-hardened pods and assert denial at runtime. They are gated by the
-`ATHANOR_RUN_INTEGRATION=1` env var and **never run in CI**:
+The behavioral probes are opt-in: they are gated by the
+`ATHANOR_RUN_INTEGRATION=1` env var, bring up **real** rootless Podman
+pods, and (for the gateway probes) reach the **real** internet. They are
+deliberately outside `make check` (which must stay fast and hermetic) and
+run instead in a dedicated, **non-blocking** CI job — `integration` in
+`.github/workflows/ci.yml`.
+
+| Probe | File | Needs |
+|---|---|---|
+| Five pod-hardening probes (network, Ollama, podman.sock, host FS, credentials) | `internal/jobpod/security_test.go` | `podman` + `alpine:3.20` |
+| M2-T4b exec probe (`TestExec_Integration_RealPod`) | `internal/jobpod/exec_integration_test.go` | `podman` + `python:3.12-alpine` |
+| Two M4-T8 gateway probes (default-deny; allowlisted fetch + extract) | `internal/gateway/integration_test.go` | internet access (`example.com`) |
+
+Run them locally exactly as CI does:
 
 ```bash
-ATHANOR_RUN_INTEGRATION=1 make test-integration
+make integration-images               # pulls alpine:3.20 + python:3.12-alpine
+make test-integration                 # ATHANOR_RUN_INTEGRATION=1, both packages
 ```
 
-The two gateway probes in `internal/gateway/integration_test.go`
-(M4-T8) use the same gate: default-deny against a real domain, and an
-allowlisted real domain fetched + extracted end-to-end. The M2-T4b exec
-probe in `internal/jobpod/exec_integration_test.go`
-(`TestExec_Integration_RealPod`) starts a real idle Job Pod and drives
-`jobpod.Manager.Exec` — code on stdin, `sh -c` commands, a non-zero exit
-as a normal result — the pod-in-the-loop proof for the internal API's
-`PodExecutor`. It needs the `python:3.12-alpine` image present. Reference
-runs: 2026-08-30 (pod probes, macOS 14 / podman 5.8.2 / applehv),
-2026-09-15 (gateway probes), and 2026-09-30 (exec probe, macOS / podman
-6.0.2 / libkrun) — see [`docs/demo-m2.md`](docs/demo-m2.md),
-[`docs/demo-m4-t8.md`](docs/demo-m4-t8.md), and
-`internal/jobpod/exec_integration_test.go`.
+`make test-integration` covers **both** packages — `internal/jobpod/...`
+and `internal/gateway/...` — so the gateway probes are no longer
+orphaned. Reference runs: 2026-08-30 (pod probes, macOS 14 / podman 5.8.2
+/ applehv), 2026-09-15 (gateway probes), and 2026-09-30 (exec probe,
+macOS / podman 6.0.2 / libkrun) — see
+[`docs/demo-m2.md`](docs/demo-m2.md) and
+[`docs/demo-m4-t8.md`](docs/demo-m4-t8.md).
 
-Reason: the probes require a running `podman` daemon on AppleHV
-(macOS) or an equivalent Linux runtime, and the gateway probes
-require internet access. CI runs Ubuntu with no
-podman runtime, so the probes are no-ops there. The structural
-tests (the M2 argv + envelope gates, and the M4-T8 SSRF / bypass /
-content corpora) *do* run in CI — they provide the structural
-guarantee; the integration probes provide the behavioral
-double-check on a developer's machine.
-
-The reference run on 2026-08-30 (macOS 14 / podman 5.8.2 /
-applehv) passed all five probes. See [`docs/demo-m2.md`](docs/demo-m2.md).
+The structural tests (the M2 argv + envelope gates, and the M4-T8 SSRF /
+bypass / content corpora) still run in `make check`; the integration
+probes are the behavioral double-check, now executed on Ubuntu in CI as
+well as on a developer's machine. The `integration` job starts
+`continue-on-error` (non-blocking) so it cannot break `main` while the
+runner's rootless-Podman setup is proven; it is promoted to a required
+check once it has been observed green on `main`.
 
 When FTS5 support is needed, add the build tag: `go build -tags sqlite_fts5 .`
 

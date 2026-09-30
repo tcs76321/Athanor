@@ -13,10 +13,11 @@ import (
 
 // The M4-T8 behavioral probes (ROADMAP M4-T8). These run against the
 // real internet and are gated by ATHANOR_RUN_INTEGRATION=1 — the same
-// contract as the M2 Job Pod probes (internal/jobpod/security_test.go):
-// they never run in CI (no network); a developer with connectivity
-// runs `ATHANOR_RUN_INTEGRATION=1 make test-integration` and the
-// reference result is recorded in docs/demo-m4-t8.md.
+// contract as the M2 Job Pod probes (internal/jobpod/security_test.go).
+// They run in CI's non-blocking `integration` job (GitHub runners have
+// network access) and locally via
+// `ATHANOR_RUN_INTEGRATION=1 make test-integration`; the reference
+// result is recorded in docs/demo-m4-t8.md.
 //
 // The unit suites (ssrf_test.go, bypass_test.go,
 // hostile_content_test.go) provide the deterministic structural

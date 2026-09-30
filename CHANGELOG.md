@@ -10,6 +10,21 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### CI — behavioral probes now run in CI (F1)
+
+- **CI integration job.** `make test-integration` now covers both probe
+  packages (`./internal/jobpod/...` **and** `./internal/gateway/...`), so
+  the M4-T8 gateway probes are no longer orphaned, and a new
+  `integration-images` target pulls the probe images (`alpine:3.20`,
+  `python:3.12-alpine`) explicitly. A new `integration` job in
+  `.github/workflows/ci.yml` installs/verifies podman, pulls those
+  images, and runs `make test-integration` on Ubuntu on every push and
+  PR. The job starts **non-blocking** (`continue-on-error`) so the first
+  landing cannot break `main`; it is promoted to a required check once
+  observed green on `main`. The M2 pod-hardening probes, the M2-T4b exec
+  probe, and the M4 gateway probes are therefore verified continuously
+  instead of only in dated manual runs (`04a809d`, `60a9a63`).
+
 ### M2 — Container Spine — M2-T4b: tool-execution dispatch
 
 - **M2-T4b (this close-out).** Completes M2-T4: the §25 tool-execution

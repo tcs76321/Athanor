@@ -15,12 +15,16 @@ package jobpod
 // `podman` on PATH and an `alpine:3.20` image (the spike's
 // image). Developers run the suite with `make test-integration`.
 //
+// These probes run in CI's non-blocking `integration` job
+// (.github/workflows/ci.yml), which installs podman, pulls the
+// images via `make integration-images`, and runs
+// `make test-integration` on Ubuntu. They stay outside the fast
+// `make check` gate (lint + vet + test-race).
+//
 // The test file uses os/exec and the production store package.
 // Gate G1's allowlist explicitly excludes _test.go files from
 // the production-source walk (internal/gate/gate_test.go line
-// 118), so os/exec is permitted here. The test file is also
-// outside the `make check` default: CI never sees the tests
-// running, only the skip message.
+// 118), so os/exec is permitted here.
 
 import (
 	"context"

@@ -10,9 +10,10 @@ package jobpod
 // use the recording fake client).
 //
 // Gated by ATHANOR_RUN_INTEGRATION and a real podman with the probe image
-// present. Developers run it with `make test-integration`. Like
-// security_test.go, this file uses os/exec; Gate G1 excludes _test.go
-// files from the production-source walk.
+// present. Developers run it with `make test-integration` (after
+// `make integration-images`); CI runs it in the non-blocking `integration`
+// job. Like security_test.go, this file uses os/exec; Gate G1 excludes
+// _test.go files from the production-source walk.
 
 import (
 	"bytes"
