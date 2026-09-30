@@ -203,6 +203,15 @@ unit-tested directly). A pressured end-to-end run exercises this: the
 evaluating phase evicts tier 7, the suppression persists to the following
 calls, and the gate reports `none` throughout.
 
+**Wired (M5-T5.6, `b947496`):** `cmd/athanor/context_provider.go` adapts the
+MCE chunk store to `engine.ContextProvider` behind the same
+`enable_lossless_swapping` gate as ingestion and the `context_swap` route,
+and `serve.go` builds the MCE runtime *before* the engine so it can pass
+both it and `engine.NewLadderEvictor()` into `engine.New`. Tiers 3/6 and the
+ladder are live in the daemon; the remaining content gap is M5-T8's
+ingestion (nothing populates the chunk store in production yet, so the
+tiers are empty until then — the ladder itself is fully exercised by tests).
+
 ## Consequences
 
 **Positive**

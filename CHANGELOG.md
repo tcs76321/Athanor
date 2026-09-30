@@ -12,6 +12,43 @@ New entries are appended at the top. Do not rewrite history.
 
 ### M5 — Context Engine (in progress)
 
+- **M5-T5 (this close-out).** The §10.5 context assembly priority queue and
+  its eviction ladder land in seven commits (`0e85896`–`b947496`):
+  `0e85896` [ADR-0023](docs/adr/0023-context-assembly-priority.md) + the
+  [plan](docs/m5-t5-plan.md) lock the decisions (pure tier algebra in
+  `internal/prompt`, explicit tier↔§11.2 mapping, ceiling, persisted
+  suppression, the read path, the honest tool manifest, and the T5/T8
+  content boundary); `ebf08e9` the tier model and ladder — strictly
+  bottom-up 7→6→5→4, with tiers 1–3 structurally unreachable from
+  `ladderOrder` and a 12-row simulated-pressure table as the acceptance
+  criterion; `60540e4` rendering + two-phase `Assemble` — every populated
+  §11.2 section is priced per tier, the ladder decides presence, and the
+  emitted order stays §11.2 (the Dormant Index carries the §10.4
+  `context_swap` invitation, and §11.2 §2 became envelope-aware so the
+  prompt never claims "no tools" while a task's `allowed_tools` grant
+  some); `75661e0` `ChunkStore.IndexForJob` + migration 0011
+  (`idx_context_chunks_job`, index-only); `098d3b2` the engine wiring —
+  `ContextProvider` (active chunk → §11.2 §7, Dormant Index → §11.2 §10),
+  ceiling = `kv_cache_critical_threshold × persona num_ctx`, suppression
+  persisted in `system_state` (`context:evicted:<job-id>`, cleared at
+  terminal state, so a §23.6 restart does not resurrect evicted tiers),
+  the ladder as the §10.4 `Evictor` seam (signature evolved to take the
+  tier weights — ADR-0022 §5 anticipated it), candidate artifacts moved out
+  of `extraInstructions` into §11.2 §12 at tier 3 (ADR-0013's 4 KB
+  comparison bound now applied engine-side, before assembly), and a
+  `kv_cache_assembled` audit row per call; `b947496` the `cmd/athanor`
+  adapter + boot wiring, with the MCE runtime now built before the engine.
+  **Gate G5's assembly-priority arm is green** (Gate G5 still needs T6's
+  compaction determinism). One behavioural consequence is recorded rather
+  than hidden: because the ceiling *is* the critical threshold, a normal
+  job relieves pressure at assembly time, so §10.4's `critical` arm narrows
+  to "the pinned tiers alone no longer fit" — T4's force-evict-and-proceed
+  branch remains the seam's contract (unit-tested) but is unreachable from
+  a normal job, and T4's end-to-end test was replaced by one asserting the
+  stronger property (a pressured job completes, records the eviction, keeps
+  its suppression, and never goes critical). No new dependency, no route
+  change; migration 0011 is index-only.
+
 - **M5-T4 (this close-out).** The KV-cache monitor lands in four commits
   (`e7b838c`–`79b494e`): `e7b838c` [ADR-0022](docs/adr/0022-kv-cache-monitoring.md)
   + [plan](docs/m5-t4-plan.md) lock the decisions; `f28fadf` the pure

@@ -104,8 +104,21 @@ work that lands with T5's tier integration.
 **Filled (M5-T5, ADR-0023 §6):** the seam is the §10.5 eviction ladder, not
 a chunk-store write — suppression is what "move to Dormant" means once the
 bytes already live in the dormant store and the Dormant Index advertises
-them. The signature is unchanged, so T4's tests and pause contract stand
-verbatim; production wiring moves from `nil` to the ladder in M5-T5.
+them. Production wiring moves from `nil` to `engine.NewLadderEvictor()` at
+boot (M5-T5.6).
+
+**Signature evolution (M5-T5.5, as §5 above anticipated):** the seam now
+takes the tier weights and the job's suppression set —
+`Evict(ctx, jobID, weights map[prompt.Tier]int, suppressed []prompt.Tier)
+(Eviction, error)` — so the ladder can choose a tier without re-deriving
+prices, and it is stateless: the engine persists whatever it reports.
+`Eviction.Tiers` empty is the "nothing evictable" case, which is exactly
+the pause path T4 specified. The pause contract is unchanged; T4's tests
+were updated to the evolved call shape, and one of them changed premise
+because of ADR-0023 §3 — with the assembly ceiling at the critical
+threshold, a normal job now relieves pressure at assembly time, so the
+gate's `critical` arm narrows to "the pinned tiers alone are that large".
+That narrowing is recorded in ADR-0023's implemented note.
 
 ### 6. Division of labor with `llm.Check` (§12.6)
 
