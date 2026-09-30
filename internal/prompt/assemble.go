@@ -28,8 +28,59 @@ func runtimePolicy(phase string) (string, error) {
 	}
 }
 
-// Assemble builds the deterministic M1 prompt. It is a pure function:
+// sectionSpec is one rendered §11.2 section together with the §10.5 tier
+// it belongs to (ADR-0023 §2). Rendering happens for every populated
+// section; the ladder then decides which tiers survive.
+type sectionSpec struct {
+	name string
+	tier Tier
+	text string
+}
+
+// renderSections renders every populated §11.2 section, in construction
+// order. An empty section is omitted (the pre-T5 `add` contract), which
+// is also how a tier becomes "absent" for the ladder: nothing to drop.
+func renderSections(in Input) ([]sectionSpec, error) {
+	policy, err := runtimePolicy(in.Phase)
+	if err != nil {
+		return nil, err
+	}
+	all := []sectionSpec{
+		{SectionSystem, TierStaticSystem, staticSystem},
+		{SectionSecurityAndTools, TierStaticSystem, securityAndToolsFor(in.Tools)},
+		{SectionRuntimePolicy, TierStaticSystem, policy},
+		{SectionProjectContext, TierTaskCriteria, projectContext(in.Project)},
+		{SectionTaskContext, TierTaskCriteria, taskContext(in.Task)},
+		{SectionAcceptanceCriteria, TierTaskCriteria, criteria(in.Criteria)},
+		{SectionActiveChunk, TierWorkingSet, activeChunkOrEmpty(in.ActiveChunk)},
+		{SectionCorrections, TierCorrections, correctionsSection(in.Corrections)},
+		{SectionEpisodic, TierEpisodic, episodicSection(in.Episodic)},
+		{SectionDormantIndex, TierDormantIndex, dormantIndexSection(in.DormantIndex)},
+		{SectionUserPreferences, TierTaskCriteria, userPreferencesSection(in.UserPreferences)},
+		{SectionCandidateArtifacts, TierWorkingSet, candidateArtifactsSection(in.Candidates)},
+		{SectionEvaluationInstructions, TierInstructions, in.EvaluationInstructions},
+		{SectionStrategyNotes, TierInstructions, strategyNotesSection(in.StrategyNotes)},
+		{SectionInterruptionNotes, TierInstructions, interruptionNotesSection(in.InterruptionNotes)},
+	}
+	out := make([]sectionSpec, 0, len(all))
+	for _, s := range all {
+		if strings.TrimSpace(s.text) == "" {
+			continue
+		}
+		out = append(out, s)
+	}
+	return out, nil
+}
+
+// Assemble builds the deterministic prompt. It is a pure function:
 // identical inputs produce byte-identical output.
+//
+// M5-T5 (§10.5, ADR-0023): assembly is two-phase. Every populated section
+// is rendered first, priced per tier, and handed to the eviction ladder
+// with the caller's ceiling and the job's suppression set; then only the
+// surviving tiers are emitted — always in §11.2 construction order, which
+// the ladder never touches. With no ceiling (or nothing over it) the
+// output is byte-identical to the pre-T5 assembler.
 func Assemble(in Input) (Result, error) {
 	if in.Project.Name == "" {
 		return Result{}, fmt.Errorf("prompt: project name is required")
@@ -37,50 +88,46 @@ func Assemble(in Input) (Result, error) {
 	if in.Task.Title == "" {
 		return Result{}, fmt.Errorf("prompt: task title is required")
 	}
-	policy, err := runtimePolicy(in.Phase)
+	specs, err := renderSections(in)
 	if err != nil {
 		return Result{}, err
 	}
 
-	var sections []Section
-	add := func(name, text string) {
-		if strings.TrimSpace(text) == "" {
-			return
-		}
-		sections = append(sections, Section{Name: name, Text: text, Tokens: EstimateTokens(text)})
+	weights := make(map[Tier]int, len(ladderOrder)+3)
+	for _, s := range specs {
+		weights[s.tier] += EstimateTokens(s.text)
 	}
+	report := applyLadder(weights, in.Ceiling, in.Suppressed)
 
-	add(SectionSystem, staticSystem)
-	add(SectionSecurityAndTools, securityAndTools)
-	add(SectionRuntimePolicy, policy)
-	add(SectionProjectContext, projectContext(in.Project))
-	add(SectionTaskContext, taskContext(in.Task))
-	add(SectionAcceptanceCriteria, criteria(in.Criteria))
-	add(SectionEvaluationInstructions, in.EvaluationInstructions)
-
-	var b strings.Builder
+	var sections []Section
 	total := 0
+	var b strings.Builder
 	systemText := &strings.Builder{}
 	userText := &strings.Builder{}
-	for i, s := range sections {
-		if i > 0 {
+	for _, s := range specs {
+		if report.Suppresses(s.tier) {
+			continue
+		}
+		sec := Section{Name: s.name, Text: s.text, Tokens: EstimateTokens(s.text)}
+		sections = append(sections, sec)
+		if b.Len() > 0 {
 			b.WriteString("\n\n")
 		}
-		b.WriteString(s.Text)
-		total += s.Tokens
+		b.WriteString(sec.Text)
+		total += sec.Tokens
 		// §11.2 sections 1–3 form the system message; the rest the user
 		// message. The split point is fixed, so output is deterministic.
-		switch s.Name {
+		switch sec.Name {
 		case SectionSystem, SectionSecurityAndTools, SectionRuntimePolicy:
 			if systemText.Len() > 0 {
 				systemText.WriteString("\n\n")
 			}
-			systemText.WriteString(s.Text)
+			systemText.WriteString(sec.Text)
 		default:
 			if userText.Len() > 0 {
 				userText.WriteString("\n\n")
 			}
-			userText.WriteString(s.Text)
+			userText.WriteString(sec.Text)
 		}
 	}
 
@@ -88,6 +135,7 @@ func Assemble(in Input) (Result, error) {
 		Text:       b.String(),
 		Sections:   sections,
 		TotalToken: total,
+		Eviction:   report,
 		Messages: []llm.Message{
 			{Role: "system", Content: systemText.String()},
 			{Role: "user", Content: userText.String()},

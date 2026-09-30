@@ -143,13 +143,17 @@ type Section struct {
 }
 
 // Result is an assembled prompt: the full text, the section accounting,
-// and the chat messages derived from it (the system message carries §11.2
-// sections 1–3; the user message carries the rest).
+// the §10.5 eviction outcome, and the chat messages derived from it (the
+// system message carries §11.2 sections 1–3; the user message carries the
+// rest).
 type Result struct {
 	Text       string
 	Sections   []Section
 	TotalToken int
-	Messages   []llm.Message
+	// Eviction reports the §10.5 ladder pass (M5-T5). With no ceiling it
+	// is the zero-value-with-Fits-true case: nothing suppressed.
+	Eviction EvictionReport
+	Messages []llm.Message
 }
 
 // EstimateTokens is the M1 token accounting approximation: ~4 bytes per

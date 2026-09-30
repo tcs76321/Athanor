@@ -167,10 +167,18 @@ the same `toolenvelope.Parse` path the server uses, so the prompt can never
 promise a tool the route would 403) into the assembler:
 
 - empty envelope → the current text, **verbatim** (no byte drift);
-- non-empty envelope → the actual closed-set manifest, plus a
-  `context_swap` line when a chunk was suppressed, so §10.4's "issue a
-  `context_swap` suggestion to the LLM" has a tool the model can actually
-  call.
+- non-empty envelope → the actual closed-set manifest, so §10.4's
+  "issue a `context_swap` suggestion to the LLM" names a tool the model can
+  actually call.
+
+**Implemented refinement (M5-T5.3):** the `context_swap` *invitation* ("one
+chunk is active at a time; requesting a dormant chunk flushes the current
+one") is rendered with the Dormant Index in §11.2 §10, not in §2. §2 is
+tier 1 and is priced before the ladder runs, so an invitation that depends
+on whether the index survived would make the tier weights — and therefore
+the eviction decision — depend on their own outcome. With the index, the
+invitation is present exactly when there is something to point at, and the
+ladder math stays exact.
 
 ### 9. What T5 does not do
 

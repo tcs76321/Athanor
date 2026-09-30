@@ -138,6 +138,31 @@ func TestApplyLadderNeverEvictsPinned(t *testing.T) {
 	}
 }
 
+// TestApplyLadderReportsSuppressedUnion pins the report's Suppressed set:
+// the input's suppression plus this pass's evictions, ascending, so a
+// renderer never recomputes it (M5-T5.3).
+func TestApplyLadderReportsSuppressedUnion(t *testing.T) {
+	got := applyLadder(weights7(), 350, []Tier{TierCorrections})
+	// Pre-suppressed corrections (50) leave 450; the ladder drops
+	// instructions (400) then dormant_index (350, fits) — episodic is
+	// untouched.
+	want := []Tier{TierCorrections, TierDormantIndex, TierInstructions}
+	if !reflect.DeepEqual(got.Suppressed, want) {
+		t.Fatalf("Suppressed = %v, want %v", got.Suppressed, want)
+	}
+	if got.Suppresses(TierCorrections) != true || got.Suppresses(TierStaticSystem) != false {
+		t.Errorf("Suppresses: got %v/%v, want true/false",
+			got.Suppresses(TierCorrections), got.Suppresses(TierStaticSystem))
+	}
+	// Pinned tiers can never appear in the union, whatever the input says.
+	corrupt := applyLadder(weights7(), 1, []Tier{TierStaticSystem, TierTaskCriteria, TierWorkingSet})
+	for _, s := range corrupt.Suppressed {
+		if s.Pinned() {
+			t.Fatalf("corrupt suppression leaked pinned tier %v into the report", s)
+		}
+	}
+}
+
 // TestTierClassification pins the tier metadata the ladder and audit rows
 // depend on (same posture as the engine's DecideWinner contract tests).
 func TestTierClassification(t *testing.T) {

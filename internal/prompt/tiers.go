@@ -128,11 +128,28 @@ type EvictionReport struct {
 	// Evicted lists the tiers this pass moved to Dormant, in ladder
 	// order (tier 7 first).
 	Evicted []Tier
+	// Suppressed is the full set of evictable tiers absent from the
+	// prompt after this pass — the input's suppression plus Evicted, in
+	// ascending tier order. Renderers consult this set; it is the single
+	// source of truth for "what did the ladder remove", so a caller
+	// never recomputes it.
+	Suppressed []Tier
 	// DroppedTokens is the summed estimated weight of Evicted.
 	DroppedTokens int
 	// KeptTokens is the summed estimated weight of the tiers that
 	// remain, including any that were already suppressed.
 	KeptTokens int
+}
+
+// Suppresses reports whether the ladder pass removed tier t from the
+// prompt. Pinned tiers always return false.
+func (r EvictionReport) Suppresses(t Tier) bool {
+	for _, s := range r.Suppressed {
+		if s == t {
+			return true
+		}
+	}
+	return false
 }
 
 // applyLadder is §10.5's eviction rule as a pure function: given each
@@ -174,6 +191,7 @@ func applyLadder(weights map[Tier]int, ceiling int, suppressed []Tier) EvictionR
 	rep := EvictionReport{}
 	if ceiling <= 0 {
 		rep.Fits, rep.KeptTokens = true, total
+		rep.Suppressed = sortedSuppressed(gone)
 		return rep
 	}
 	for _, t := range ladderOrder {
@@ -185,10 +203,28 @@ func applyLadder(weights map[Tier]int, ceiling int, suppressed []Tier) EvictionR
 			continue
 		}
 		total -= w
+		gone[t] = true
 		rep.Evicted = append(rep.Evicted, t)
 		rep.DroppedTokens += w
 	}
 	rep.KeptTokens = total
 	rep.Fits = total <= ceiling
+	rep.Suppressed = sortedSuppressed(gone)
 	return rep
+}
+
+// sortedSuppressed flattens the gone-set into ascending tier order so the
+// report is stable for byte-comparison and audit rows (map iteration is
+// not).
+func sortedSuppressed(gone map[Tier]bool) []Tier {
+	if len(gone) == 0 {
+		return nil
+	}
+	out := make([]Tier, 0, len(gone))
+	for t := TierCorrections; t <= TierInstructions; t++ {
+		if gone[t] {
+			out = append(out, t)
+		}
+	}
+	return out
 }
