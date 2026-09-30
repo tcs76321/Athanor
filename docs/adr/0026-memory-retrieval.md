@@ -185,3 +185,20 @@ Two new `context_engine` fields:
   record. If reality disagrees, the plan changes first and this ADR gains
   an "Implemented" note (the ADR-0021/0022/0023/0025 pattern).
 
+**Implemented (M5-T7.2–T7.7):** the `sqlite_fts5` build tag is threaded
+through every Makefile target and CI's lint step, with `store.CheckFTS5`
+gating boot; migration 0013 adds `compacted_memory_fts`, `dormant_index_fts`
+(external content + insert/update/delete sync triggers) and
+`memory_embeddings`; `internal/mce/embed.go` and `query.go` hold the
+`VectorIndex` seam, the in-Go cosine, and the RRF fusion; `llm.Client.Embed`
+speaks Ollama `/api/embed`; `query_memory` is in the closed set with the
+Core-executed route; and `cmd/athanor/memory_query_adapter.go` wires the
+retriever at boot. One refinement over §4: an external-content FTS5 table
+indexes exactly one source table, so `dormant_index_fts` covers `summary` and
+the source path is returned with each hit by joining `context_chunks` (rather
+than being indexed alongside the summary). One refinement over §6: Gate G2's
+envelope-bypass check now targets *handler declarations* instead of the first
+file mentioning a tool name, because the latter is
+alphabetical-order-dependent and `handlers.go` (which registers every route)
+sorts before `query_memory.go`.
+

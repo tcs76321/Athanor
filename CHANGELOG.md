@@ -10,6 +10,35 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### M5 — Context Engine — M5-T7: `query_memory` (hybrid retrieval)
+
+- **M5-T7.** §25's `query_memory` and §10.2's Semantic Relevance axis land in
+  eight commits (`a6bc52a`–`60dec1a`):
+  [ADR-0026](docs/adr/0026-memory-retrieval.md) + [plan](docs/m5-t7-plan.md)
+  lock the decisions — FTS5 adopted project-wide via the `sqlite_fts5` build
+  tag (with a `store.CheckFTS5` boot preflight that fails loudly, naming the
+  tag, before any migration runs), and the vector half as a `VectorIndex` seam
+  with an **in-Go cosine** implementation over BLOB embeddings. The native
+  sqlite-vec `vec0` accelerator is deferred to T7b/M7 packaging — a recorded
+  deviation from the task's wording: the task-000 connection-affinity
+  constraint is honored by the single seam that owns it, not by loading the
+  extension. Migration **0013** adds two external-content FTS5 tables (over
+  `compacted_memory.content` and `dormant_index.summary`) with
+  insert/update/delete sync triggers, plus `memory_embeddings`.
+  `internal/mce/query.go` is the retrieval engine: FTS5 `bm25()` and cosine
+  fused with **reciprocal rank fusion** (k=60), each hit carrying per-signal
+  ranks and provenance, scope isolation mandatory (an empty scope returns
+  nothing rather than every project's memory). `llm.Client.Embed` speaks
+  Ollama `/api/embed`. `query_memory` joins the §25 closed set (**7 → 8**),
+  Core-executed behind the auth middleware and the per-job envelope, with Gate
+  G2's envelope-bypass check now targeting *handler declarations* rather than
+  the first file mentioning a tool name (the old search was
+  alphabetical-order-dependent). The `cmd/athanor` adapter and boot wiring make
+  the route live; the vector half stays inert until
+  `context_engine.memory_embedding_model` is set (the `search_web`-inert
+  pattern). Demo: [docs/demo-m5-t7.md](docs/demo-m5-t7.md). `make check` green
+  throughout.
+
 ### CI — behavioral probes now run in CI (F1)
 
 - **CI integration job.** `make test-integration` now covers both probe
