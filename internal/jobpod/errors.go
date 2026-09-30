@@ -17,3 +17,7 @@ var ErrNotFound = errors.New("jobpod: pod not found")
 // ErrAlreadyExists reports a Start call with an ID that is already
 // running or pending.
 var ErrAlreadyExists = errors.New("jobpod: pod with that ID already exists")
+
+// ErrNotRunning reports an Exec against a pod that cannot accept
+// commands (stopped or failed).
+var ErrNotRunning = errors.New("jobpod: pod is not running")

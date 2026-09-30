@@ -47,3 +47,31 @@ func (c *execClient) Run(ctx context.Context, args ...string) ([]byte, []byte, e
 	}
 	return stdout.Bytes(), stderr.Bytes(), nil
 }
+
+// RunStdin implements jobpod.Client. It is Run with the command's
+// standard input wired to stdin, used by `podman exec -i` so
+// execute_code can pipe source without exposing it in argv (ADR-0024
+// §3). A nil/empty stdin behaves exactly like Run.
+func (c *execClient) RunStdin(ctx context.Context, stdin []byte, args ...string) ([]byte, []byte, error) {
+	cmd := exec.CommandContext(ctx, "podman", args...)
+	if len(stdin) > 0 {
+		cmd.Stdin = bytes.NewReader(stdin)
+	}
+
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	err := cmd.Run()
+	if err != nil {
+		if ctx.Err() != nil {
+			return stdout.Bytes(), stderr.Bytes(), fmt.Errorf("podman canceled: %w", ctx.Err())
+		}
+		verb := ""
+		if len(args) > 0 {
+			verb = args[0]
+		}
+		return stdout.Bytes(), stderr.Bytes(), fmt.Errorf("podman %s: %w", verb, err)
+	}
+	return stdout.Bytes(), stderr.Bytes(), nil
+}

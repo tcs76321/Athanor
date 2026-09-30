@@ -2,6 +2,7 @@ package jobpod
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -155,6 +156,55 @@ func (m *manager) Start(ctx context.Context, spec Spec) (*Pod, error) {
 	go m.supervise(ctx, spec.ID, entry)
 	return pod, nil
 }
+
+// Exec runs one command inside a live pod (ADR-0024 §2).
+//
+// The pod is looked up first: an unknown job is ErrNotFound, and a pod
+// that is neither pending nor running is ErrNotRunning. The argv is
+// built by buildExecArgs (Gate G2's exec-argv arm guards it). A non-zero
+// command exit is a normal result, not an error — the error return is
+// reserved for a podman-level failure (missing binary, canceled
+// context), so the engine can tell "the code failed" from "the pod
+// broke".
+func (m *manager) Exec(ctx context.Context, jobID string, spec ExecSpec) (ExecResult, error) {
+	if len(spec.Command) == 0 {
+		return ExecResult{}, fmt.Errorf("%w: command is required", ErrInvalidSpec)
+	}
+	m.mu.RLock()
+	entry, ok := m.pods[jobID]
+	m.mu.RUnlock()
+	if !ok {
+		return ExecResult{}, ErrNotFound
+	}
+	if entry.pod.State != StatePending && entry.pod.State != StateRunning {
+		return ExecResult{}, fmt.Errorf("%w: pod %s is %s", ErrNotRunning, jobID, entry.pod.State)
+	}
+
+	args := buildExecArgs(jobID, len(spec.Stdin) > 0, spec.Command)
+	start := time.Now()
+	stdout, stderr, err := m.client.RunStdin(ctx, spec.Stdin, args...)
+	res := ExecResult{
+		Stdout:     string(stdout),
+		Stderr:     string(stderr),
+		DurationMS: time.Since(start).Milliseconds(),
+	}
+	if err != nil {
+		var ec exitCoder
+		if errors.As(err, &ec) {
+			// The command ran and returned non-zero. Normal result.
+			res.ExitCode = ec.ExitCode()
+			return res, nil
+		}
+		return ExecResult{}, fmt.Errorf("podman exec: %w", err)
+	}
+	return res, nil
+}
+
+// exitCoder is satisfied by *exec.ExitError. It is declared structurally
+// so internal/jobpod never imports os/exec (Gate G1 rule 1): execClient
+// in cmd/athanor wraps the real *exec.ExitError with %w, so errors.As
+// reaches it without an import.
+type exitCoder interface{ ExitCode() int }
 
 // supervise polls `podman inspect` until the container reports
 // `exited` or `stopped`, then updates the in-memory Pod. Polling

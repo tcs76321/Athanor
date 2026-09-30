@@ -46,6 +46,30 @@ type Limits struct {
 	CPUs      float64
 }
 
+// ExecSpec is the input to Exec: one command to run inside a live pod
+// (ADR-0024 §2/§3). The caller supplies a closed-set command; the pod
+// adds no privileges, mounts, or network options.
+type ExecSpec struct {
+	// Command is the argv to run inside the container. Required.
+	Command []string
+	// Stdin, when non-empty, is wired to the command's standard input.
+	// execute_code pipes source this way so it never appears in argv or
+	// the host process table (ADR-0024 §3).
+	Stdin []byte
+}
+
+// ExecResult is the outcome of one Exec. ExitCode is the command's exit
+// status — a non-zero code is a normal result (the command ran and
+// failed), not an error; the error return is reserved for a podman-level
+// failure (missing binary, unknown pod, canceled context). DurationMS is
+// wall-clock milliseconds around the exec call.
+type ExecResult struct {
+	ExitCode   int
+	Stdout     string
+	Stderr     string
+	DurationMS int64
+}
+
 // State is a pod's lifecycle state, as tracked by the Manager.
 type State string
 
@@ -79,6 +103,11 @@ type Client interface {
 	// the exit error. Cancellation via ctx is honored; a canceled
 	// call returns ctx.Err().
 	Run(ctx context.Context, args ...string) (stdout, stderr []byte, err error)
+	// RunStdin is Run with standard input wired to stdin (nil = no
+	// input). It exists for `podman exec -i`, where execute_code pipes
+	// source to the interpreter so it never appears in argv (ADR-0024
+	// §3). A nil stdin behaves exactly like Run.
+	RunStdin(ctx context.Context, stdin []byte, args ...string) (stdout, stderr []byte, err error)
 }
 
 // SweepResult reports what Sweep did at startup. Counts are exposed
@@ -97,6 +126,12 @@ type Manager interface {
 	// it. Returns ErrInvalidSpec, ErrFrozen, or ErrAlreadyExists
 	// before any client call in the error cases.
 	Start(ctx context.Context, spec Spec) (*Pod, error)
+	// Exec runs a command inside a live pod and returns its result
+	// (ADR-0024 §2). ExitCode is the command's status; a non-zero code
+	// is a normal result, not an error. Returns ErrNotFound when no pod
+	// exists for the job and ErrNotRunning when the pod cannot accept
+	// an exec.
+	Exec(ctx context.Context, jobID string, spec ExecSpec) (ExecResult, error)
 	// Stop force-removes a pod. Idempotent: stopping a stopped pod
 	// is a no-op. Returns ErrNotFound if no such pod.
 	Stop(ctx context.Context, id string) error

@@ -343,3 +343,69 @@ func TestGateG2JobPodArgvCannotEscape(t *testing.T) {
 	}
 }
 
+// execArgvFilePrefix identifies the source file(s) that build the
+// `podman exec` argv (ADR-0024 §7). The exec surface has its own escape
+// classes: a container is hardened at creation, but an exec can re-open
+// containment by adding a capability, a mount, a namespace, or a
+// security override. This arm fails the build if any of those ever
+// appear in the exec-argv source — including in a comment, matching the
+// "never even discussed" property of the run-argv arm above.
+const execArgvFilePrefix = "args_exec"
+
+// TestGateG2ExecArgvCannotEscape is the M2-T4b structural backstop for
+// the exec surface (ADR-0024 §7). It scans the exec-argv source for the
+// exec-time escape flags. It fails closed: if no exec-argv source file
+// is found at all, the arm reports a failure rather than silently
+// passing, because a no-op gate is worse than none.
+//
+// The forbidden set is deliberately different from the run-argv arm's:
+// the run arm guards container creation (slirp4netns, socket mounts,
+// host paths), while this arm guards what an exec can add on top of an
+// already-hardened container.
+func TestGateG2ExecArgvCannotEscape(t *testing.T) {
+	entries, err := os.ReadDir(jobpodArgsDir)
+	if err != nil {
+		t.Fatalf("read %s: %v", jobpodArgsDir, err)
+	}
+	forbidden := []string{
+		"--privileged",
+		"--cap-add",
+		"--network",
+		"--publish",
+		"--mount",
+		"--volume",
+		"--device",
+		"--userns",
+		"--security-opt",
+		"--pid",
+		"--ipc",
+		"--uts",
+		"--env",
+	}
+	scanned := 0
+	for _, e := range entries {
+		name := e.Name()
+		if !strings.HasPrefix(name, execArgvFilePrefix) ||
+			!strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+		scanned++
+		path := filepath.Join(jobpodArgsDir, name)
+		raw, rerr := os.ReadFile(path)
+		if rerr != nil {
+			t.Fatalf("read %s: %v", path, rerr)
+		}
+		body := string(raw)
+		for _, bad := range forbidden {
+			if strings.Contains(body, bad) {
+				t.Errorf("%s contains forbidden substring %q; the exec argv "+
+					"must add no privilege, mount, namespace, or security "+
+					"option (Gate G2)", path, bad)
+			}
+		}
+	}
+	if scanned == 0 {
+		t.Fatalf("no exec-argv source found (prefix %q) in %s; the arm would "+
+			"silently no-op", execArgvFilePrefix, jobpodArgsDir)
+	}
+}

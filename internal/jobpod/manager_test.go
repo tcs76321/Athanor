@@ -17,20 +17,43 @@ import (
 type fakeClient struct {
 	mu        sync.Mutex
 	calls     [][]string
+	stdin     [][]byte
 	responder func(args []string) (stdout, stderr []byte, err error)
 }
 
 func (f *fakeClient) Run(ctx context.Context, args ...string) ([]byte, []byte, error) {
+	return f.record(args, nil)
+}
+
+func (f *fakeClient) RunStdin(ctx context.Context, stdin []byte, args ...string) ([]byte, []byte, error) {
+	return f.record(args, stdin)
+}
+
+// record appends the invocation (with its stdin, if any) and dispatches
+// to the responder. Shared by Run and RunStdin so both are observable.
+func (f *fakeClient) record(args []string, stdin []byte) ([]byte, []byte, error) {
 	f.mu.Lock()
 	cp := make([]string, len(args))
 	copy(cp, args)
 	f.calls = append(f.calls, cp)
+	f.stdin = append(f.stdin, append([]byte(nil), stdin...))
 	responder := f.responder
 	f.mu.Unlock()
 	if responder == nil {
 		return nil, nil, nil
 	}
 	return responder(cp)
+}
+
+// Stdins returns the stdin bytes passed to each invocation, in order.
+func (f *fakeClient) Stdins() [][]byte {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	out := make([][]byte, len(f.stdin))
+	for i, s := range f.stdin {
+		out[i] = append([]byte(nil), s...)
+	}
+	return out
 }
 
 func (f *fakeClient) Calls() [][]string {
