@@ -199,12 +199,11 @@ job_pod:
   # still runs the LLM-only phases but no code or tests run
   # in a pod until the operator opts in.
   default_tools: []
-  # Image is required in production: the daemon refuses to
-  # start if this is empty (cmd/athanor/serve.go fails fast).
-  # The default here is intentionally empty so a fresh clone
-  # that copies this file to config.yaml surfaces the missing
-  # value with an actionable error, not a silent wrong-image
-  # selection.
+  # Image is the Job Pod base image. The default is intentionally
+  # empty: the daemon still boots (LLM-only jobs work) but logs a
+  # warning at boot and refuses to dispatch any Job Pod tool call
+  # (503) until an operator sets it, so a daemon cannot silently
+  # select the wrong base image (ADR-0024 §6).
   image: ""
   # Resource limits override the §21.2 defaults. Zero values
   # mean "use jobpod's defaults" (pids=64, memory=512m, cpus=1.0).

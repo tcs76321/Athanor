@@ -218,6 +218,11 @@ func run(configPath, addr, stateDir string) error {
 	if err != nil {
 		return fmt.Errorf("starting gateway: %w", err)
 	}
+	if cfg.JobPod.Image == "" {
+		fmt.Fprintln(os.Stderr, "athanor: warning: job_pod.image is empty — Job Pod tool execution "+
+			"(execute_code / run_tests / lint) will refuse until an image is configured "+
+			"(see config.example.yaml; ADR-0024 §6)")
+	}
 	internalapi.New(tokenStoreAdapter{podMgr}, project.NewRepo(st), st,
 		project.NewRepo(st), defaultEnv,
 		newGatewayToolAdapter(gw, cfg.Network.SearchEngineURLTemplate),
@@ -225,10 +230,11 @@ func run(configPath, addr, stateDir string) error {
 		// above. A daemon with lossless swapping disabled still constructs
 		// it; every swap then returns ErrSwapDisabled (501).
 		newContextSwapAdapter(mceRT.Store, mceRT.LosslessSwapping),
-		// M2-T4b.4 wires the PodExecutor adapter here; until then the
-		// pod-executed routes (execute_code / run_tests / lint) respond
-		// 503 "pod executor not configured".
-		nil,
+		// M2-T4b.4: the PodExecutor over the Job Pod manager. An empty
+		// job_pod.image makes every pod-executed route answer 503 (the
+		// boot warning above says so); the engine lifecycle seam (T4b.5)
+		// is what actually starts the pod this adapter execs into.
+		newPodExecutor(podMgr, cfg.JobPod.Image),
 	).Register(srv.Mux())
 
 	// M4-T2: ingress pipeline. Watches <state>/workspace/inbox,

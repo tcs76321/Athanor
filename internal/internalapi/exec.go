@@ -69,6 +69,12 @@ var (
 	ErrNoPod = errors.New("internalapi: no job pod for this job")
 	// ErrPodNotRunning: the pod exists but cannot accept commands. → 409.
 	ErrPodNotRunning = errors.New("internalapi: job pod is not running")
+	// ErrExecNotConfigured: the daemon has no job_pod.image, so it cannot
+	// start a Job Pod to exec into. A configuration gap, not a job
+	// failure. → 503. The daemon logs a warning at boot rather than
+	// refusing to start, because a daemon that runs only LLM phases is
+	// still useful (M2-T4b.4).
+	ErrExecNotConfigured = errors.New("internalapi: pod executor not configured (job_pod.image is empty)")
 )
 
 // handleExecuteCode is the M2-T4 /execute_code route. Steps:
@@ -282,6 +288,9 @@ func (a *API) writeExecError(w http.ResponseWriter, r *http.Request, jobID strin
 	case errors.Is(err, ErrPodNotRunning):
 		a.auditReject(r.Context(), jobID, tool, "pod not running")
 		writeError(w, http.StatusConflict, ErrPodNotRunning.Error())
+	case errors.Is(err, ErrExecNotConfigured):
+		a.auditReject(r.Context(), jobID, tool, "exec not configured")
+		writeError(w, http.StatusServiceUnavailable, ErrExecNotConfigured.Error())
 	default:
 		a.auditReject(r.Context(), jobID, tool, "exec failed: "+err.Error())
 		writeError(w, http.StatusInternalServerError, "pod exec failed: "+err.Error())

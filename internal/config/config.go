@@ -337,8 +337,11 @@ type Logging struct {
 // means "no tools" — the engine still runs the LLM-only phases.
 //
 // Image is the resolved image reference used for ephemeral Job Pods.
-// Required in production: cmd/athanor/serve.go fails fast if Image is
-// empty. Empty in unit tests that use a fake engine.ToolRunner.
+// Production sets it explicitly. When empty the daemon still boots
+// (LLM-only jobs are useful) but logs a warning at boot and refuses to
+// dispatch any Job Pod tool call with a 503
+// (internalapi.ErrExecNotConfigured; ADR-0024 §6). Empty in unit tests
+// that use a fake engine.ToolRunner.
 //
 // ResourceLimits override the §21.2 defaults. A zero value in any
 // field means "use the jobpod default" (see jobpod.Limits).

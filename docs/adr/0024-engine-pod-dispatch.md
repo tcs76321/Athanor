@@ -49,6 +49,8 @@ The per-job token authenticates the engine's hop to the internal API, exactly as
 
 `internal/config/config.go` and `config.example.yaml` both state that `serve.go` fails fast when `job_pod.image` is empty; it does not. M2-T4b.4 adds the check — a daemon that cannot name a Job Pod image cannot dispatch. The base image must provide a POSIX shell, `sleep`, and the language toolchain the envelope admits; building/packaging that image is M7-T7, and the plan records it as an operator precondition.
 
+**Implemented (M2-T4b.4), with one correction.** A literal boot-time fail-fast would break the shipped M1-T7 acceptance ("fresh clone → running daemon"): the built-in defaults leave `job_pod.image` empty, and `TestExampleConfigMatchesDefaults` pins the example to those defaults, so an unconditional refusal would make a config-less daemon unbootable. The delivered behavior is therefore a boot **warning** plus a dispatch-time refusal (`internalapi.ErrExecNotConfigured` → 503): a daemon that only runs LLM phases still boots, and a tool call with no image fails loudly with an actionable message. The `config.go` and `config.example.yaml` comments were corrected to match.
+
 ### 7. Gate coverage (D7)
 
 - **Gate G1** — unchanged: the only `os/exec` remains `cmd/athanor/jobpod_client.go`; `podman exec` rides the existing `jobpod.Client`.
