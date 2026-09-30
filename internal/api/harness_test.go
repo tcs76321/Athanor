@@ -70,6 +70,10 @@ func newHarness(t *testing.T) *harness {
 		// sub-steps short-circuit to "skipped" with no HTTP
 		// call; text/document/data/media archetypes skip
 		// them entirely.
+		nil,
+		// M5-T4: nil eviction seam — the harness prompts are
+		// far below every persona's window, so no §10.4
+		// trigger fires.
 		nil)
 
 	srv := server.New("test")

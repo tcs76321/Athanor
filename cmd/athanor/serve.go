@@ -162,6 +162,12 @@ func run(configPath, addr, stateDir string) error {
 		// engine is just another client of the loopback
 		// internal API (ADR-0009 D5).
 		runner.New("http://"+loopAddr, podMgr),
+		// M5-T4: the §10.4 context-eviction seam (ADR-0022 §5). nil
+		// until M5-T5 builds the MCE-backed adapter over the chunk
+		// store; with a nil seam, `critical` pressure pauses the job
+		// rather than sending a prompt Ollama would silently
+		// truncate.
+		nil,
 	)
 	// M5-T2.7: MCE dormant chunk store + wide-persona summarizer. Built at
 	// boot over the daemon's single SQLite connection; the construction is

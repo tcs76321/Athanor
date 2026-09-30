@@ -9,9 +9,35 @@ import (
 	"github.com/tcs76321/athanor/internal/artifact"
 	"github.com/tcs76321/athanor/internal/job"
 	"github.com/tcs76321/athanor/internal/llm"
+	"github.com/tcs76321/athanor/internal/mce"
 	"github.com/tcs76321/athanor/internal/project"
 	"github.com/tcs76321/athanor/internal/prompt"
 )
+
+// pauseForPressure pauses a job whose assembled prompt cannot fit (or
+// cannot be relieved within) the persona's context window — §10.4's
+// floor-breach arm (M5-T4, ADR-0022 §6). The request is never sent:
+// Ollama silently truncates an oversized prompt at num_ctx, so sending
+// would violate "Athanor never silently truncates context".
+//
+// The event reuses the `context_floor_violation` name (category
+// `context`) so a post-mortem queries one event name for both the
+// §12.6 pre-assembly gate and this per-call gate; the `trigger` field
+// tells them apart.
+func (e *Engine) pauseForPressure(ctx context.Context, j job.Job, phase, role string,
+	activeTokens, maxContext int, a mce.Assessment) error {
+
+	if _, err := e.jobs.Transition(ctx, j.ID, job.StatePaused); err != nil {
+		return err
+	}
+	e.auditCat(ctx, j.ID, "context", map[string]any{
+		"event": "context_floor_violation", "trigger": "kv_cache_monitor",
+		"phase": phase, "persona": role,
+		"active_tokens": activeTokens, "max_context": maxContext, "pressure": a.Pressure,
+		"action": string(a.Action), "recommendation": a.Recommendation,
+	})
+	return ErrPaused
+}
 
 // step performs the single phase named by j.State and transitions to
 // the next state. M3-T1: every §8.1 state is handled explicitly
@@ -82,12 +108,15 @@ func (e *Engine) call(ctx context.Context, j job.Job, p project.Project, t proje
 	}
 
 	// M1-T2: feasibility before every call — never silently reduce.
+	// M5-T4: this is the §12.6 pre-assembly gate (what the *window*
+	// must be); the per-call §10.4 pressure gate below is its
+	// complement (what goes *in* the window).
 	verdict := llm.Check(persona, phase, p.Archetype, persona.ContextTarget, e.cfg.ContextEngine)
 	if !verdict.Feasible {
 		if _, err := e.jobs.Transition(ctx, j.ID, job.StatePaused); err != nil {
 			return llm.Response{}, err
 		}
-		e.audit(ctx, j.ID, map[string]any{
+		e.auditCat(ctx, j.ID, "context", map[string]any{
 			"event": "context_floor_violation", "phase": phase, "persona": role,
 			"required": verdict.Required, "available": verdict.Available,
 			"recommendation": verdict.Recommendation,
@@ -105,6 +134,60 @@ func (e *Engine) call(ctx context.Context, j job.Job, p project.Project, t proje
 	if err != nil {
 		return llm.Response{}, err
 	}
+
+	// M5-T4 (§10.4, ADR-0022): per-call KV-cache pressure gate. The
+	// assembled prompt's estimated size is checked against the
+	// persona's window before the request is built, because Ollama
+	// silently truncates an oversized prompt at num_ctx — and Athanor
+	// never silently truncates context. Every call produces a
+	// `kv_cache_pressure` row (`inference`, §28.1) so pressure is
+	// observable even when no trigger fires; the row pairs with the
+	// `llm_call` row that follows for estimate-vs-actual calibration
+	// (ADR-0022 §3).
+	assessment := mce.Assess(res.TotalToken, persona.ContextTarget, e.cfg.ContextEngine)
+	e.auditCat(ctx, j.ID, "inference", map[string]any{
+		"event": "kv_cache_pressure", "phase": phase, "persona": role,
+		"active_tokens": res.TotalToken, "max_context": persona.ContextTarget,
+		"pressure": assessment.Pressure, "action": string(assessment.Action),
+	})
+	switch assessment.Action {
+	case mce.ActionNone:
+		// Below the warning threshold: nothing to do.
+	case mce.ActionWarn:
+		// §10.4 85% arm. The audit row above is the M5-T4 action; the
+		// context_swap suggestion in the prompt and the move of
+		// oldest non-pinned chunks to Dormant arrive with M5-T5's
+		// tier integration alongside the Dormant Index section.
+	case mce.ActionCritical:
+		// §10.4 95% arm: force-evict the lowest-priority tier. The
+		// freed budget materializes in the next assembly (M5-T5);
+		// the current prompt still fits the window (pressure < 100%),
+		// so proceeding cannot truncate. A nil seam — or one that
+		// frees nothing — cannot relieve the pressure, so the call
+		// falls through to the floor-breach pause rather than
+		// sending a prompt that is over the warning line with no
+		// remedy applied.
+		freed := 0
+		if e.evictor != nil {
+			var err error
+			freed, err = e.evictor.Evict(ctx, j.ID, assessment.Pressure)
+			if err != nil {
+				return llm.Response{}, fmt.Errorf("kv-cache eviction: %w", err)
+			}
+		}
+		if freed <= 0 {
+			return llm.Response{}, e.pauseForPressure(ctx, j, phase, role,
+				res.TotalToken, persona.ContextTarget, assessment)
+		}
+		e.auditCat(ctx, j.ID, "inference", map[string]any{
+			"event": "kv_cache_evicted", "phase": phase, "persona": role,
+			"tokens_freed": freed, "pressure": assessment.Pressure,
+		})
+	default: // mce.ActionFloorBreach
+		return llm.Response{}, e.pauseForPressure(ctx, j, phase, role,
+			res.TotalToken, persona.ContextTarget, assessment)
+	}
+
 	temperature := llm.ResolveTemperature(phase, persona.Temperature, nil)
 
 	// Per-phase wall-time budget (§8.2); falls back to the default budget.

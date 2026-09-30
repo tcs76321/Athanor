@@ -51,6 +51,19 @@ import (
 	"github.com/tcs76321/athanor/internal/toolenvelope"
 )
 
+// Evictor frees context pressure by flushing lowest-priority §10.5
+// context tiers to Dormant (ARCHITECTURE §10.4 critical arm; M5-T4,
+// ADR-0022 §5). It returns the number of tokens freed: zero means
+// nothing was evictable, which the engine treats as a floor breach
+// (there is no remedy, so the prompt must not be sent). The seam is
+// deliberately nilable (the ToolRunner precedent): production wires nil
+// until M5-T5 builds the MCE-backed adapter over the chunk store — at
+// `critical` pressure a nil seam pauses rather than sending a prompt
+// that Ollama would silently truncate at num_ctx.
+type Evictor interface {
+	Evict(ctx context.Context, jobID string, pressure float64) (int, error)
+}
+
 // Freezer is the kill-switch surface the engine consults (§22.1: frozen
 // means no work proceeds).
 type Freezer interface {
@@ -119,6 +132,13 @@ type Engine struct {
 	// Production wires *internalapi/runner.HTTPClient; tests
 	// pass a fake.
 	runner ToolRunner
+	// evictor frees context pressure by flushing lowest-priority
+	// §10.5 tiers to Dormant (M5-T4, ADR-0022 §5). nil is valid
+	// configuration — the ToolRunner precedent: at `critical` the
+	// engine treats a nil seam (or one that freed nothing) as a
+	// floor breach and pauses. Production wires nil until M5-T5
+	// builds the MCE-backed adapter over the chunk store.
+	evictor Evictor
 	// inFlight is the count of running job goroutines. The cap is
 	// read from cap.MaxConcurrentJobs() on every Enqueue; the atomic
 	// counter is the only source of truth for the running count.
@@ -144,9 +164,15 @@ type Engine struct {
 // engine's evaluate/compare phases will return a clear error if
 // reached, which is the right fail-loud behavior (no silent loss of
 // audit data).
+//
+// evictor is the §10.4 context-eviction seam (M5-T4, ADR-0022 §5). A
+// nil evictor is valid: `critical` pressure with nothing able to evict
+// pauses the job rather than sending a prompt that Ollama would
+// silently truncate. Production wires nil until M5-T5 builds the
+// MCE-backed adapter.
 func New(cfg *config.Config, db *store.Store, jobs *job.Repository, projects *project.Repo,
 	artifacts *artifact.Store, eval *evaluation.Repo, client *llm.Client, registry *llm.Registry,
-	freezer Freezer, cap ConcurrencyCap, runner ToolRunner) *Engine {
+	freezer Freezer, cap ConcurrencyCap, runner ToolRunner, evictor Evictor) *Engine {
 	if cap == nil {
 		// No power source: fall back to a static cap derived from
 		// cfg.Limits so the engine remains usable in tests and
@@ -157,6 +183,7 @@ func New(cfg *config.Config, db *store.Store, jobs *job.Repository, projects *pr
 		cfg: cfg, db: db, jobs: jobs, projects: projects, artifacts: artifacts,
 		eval: eval, client: client, registry: registry, freezer: freezer, cap: cap,
 		runner:  runner,
+		evictor: evictor,
 		running: map[string]bool{},
 	}
 }
@@ -234,10 +261,20 @@ func (e *Engine) Recover(ctx context.Context) {
 	}
 }
 
-// audit appends an engine event to the append-only log.
+// audit appends an engine event to the append-only log under the `jobs`
+// category (§28.1).
 func (e *Engine) audit(ctx context.Context, jobID string, data map[string]any) {
-	if _, err := e.db.AppendEvent(ctx, store.Event{Category: "jobs", JobID: jobID, Data: data}); err != nil {
-		slog.Error("engine: appending event", "job", jobID, "err", err)
+	e.auditCat(ctx, jobID, "jobs", data)
+}
+
+// auditCat appends an engine event under an explicit §28.1 category.
+// The category-aware variant exists for M5-T4's `inference` rows
+// (context calculations, KV-cache pressure — §28.1) and is the seam
+// future non-`jobs` engine events use; the plain audit above keeps
+// every pre-M5-T4 call site unchanged.
+func (e *Engine) auditCat(ctx context.Context, jobID, category string, data map[string]any) {
+	if _, err := e.db.AppendEvent(ctx, store.Event{Category: category, JobID: jobID, Data: data}); err != nil {
+		slog.Error("engine: appending event", "job", jobID, "category", category, "err", err)
 	}
 }
 
