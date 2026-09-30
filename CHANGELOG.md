@@ -10,6 +10,23 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Foundations — F2: SQLite single-connection discipline
+
+- **F2.** [ADR-0027](docs/adr/0027-sqlite-single-connection.md) turns the
+  ADR-0003 single-connection contract (`SetMaxOpenConns(1)`) into an enforced
+  property rather than a comment a contributor has to have read. An audit found
+  the invariant already holds — nine transactions, all DB-only, and no
+  `db.Conn()` anywhere — so the work is enforcement, not repair: a new
+  structural gate (`internal/gate/gate_tx_test.go`) fails the build when
+  `BeginTx`/`Begin(` appears in `internal/engine` or `cmd/`, or when `Conn(` is
+  taken outside `internal/store`; and a runtime guard
+  (`internal/store/concurrency_guard_test.go`) pins the pool cap and proves a
+  concurrent mixed workload returns the one connection (a leak deadlocks the
+  pool and the test hangs instead of passing quietly). The gate is
+  package-shaped, so a new transaction in a storage package is a non-event
+  while one in the orchestration layer is a build break. Both were proven to
+  fail on a deliberate violation, then reverted.
+
 ### M5 — Context Engine — M5-T7: `query_memory` (hybrid retrieval)
 
 - **M5-T7.** §25's `query_memory` and §10.2's Semantic Relevance axis land in
