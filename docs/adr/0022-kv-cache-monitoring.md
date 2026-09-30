@@ -101,6 +101,12 @@ the MCE-backed adapter over `ChunkStore`/`ActiveSet`. At `warn`, T4 only
 audits: the §10.4 "issue `context_swap` suggestion to the LLM" is prompt
 work that lands with T5's tier integration.
 
+**Filled (M5-T5, ADR-0023 §6):** the seam is the §10.5 eviction ladder, not
+a chunk-store write — suppression is what "move to Dormant" means once the
+bytes already live in the dormant store and the Dormant Index advertises
+them. The signature is unchanged, so T4's tests and pause contract stand
+verbatim; production wiring moves from `nil` to the ladder in M5-T5.
+
 ### 6. Division of labor with `llm.Check` (§12.6)
 
 `llm.Check` remains the pre-assembly feasibility gate (persona target vs
