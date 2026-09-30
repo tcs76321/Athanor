@@ -40,10 +40,10 @@ type ToolEnvLookup interface {
 // API wires the internal API to its dependencies. All routes are
 // mounted behind the auth middleware at registration time.
 type API struct {
-	tokens  TokenStore
+	tokens   TokenStore
 	projects *project.Repo
-	events  EventLogger
-	tools   ToolEnvLookup
+	events   EventLogger
+	tools    ToolEnvLookup
 	// gateway is the M4-T7 ToolGateway dispatch surface for
 	// fetch_url / search_web (ADR-0019 §2). Nil is valid: the routes
 	// are registered but respond 503 "not configured" — the daemon
@@ -85,12 +85,12 @@ func New(tokens TokenStore, projects *project.Repo, events EventLogger, tools To
 // jobResponse is the body of GET /internal/v1/jobs/{id}. The pod
 // uses this to discover what it is supposed to do.
 type jobResponse struct {
-	ID          string   `json:"id"`
-	State       string   `json:"state"`
-	ProjectID   string   `json:"project_id"`
-	TaskTitle   string   `json:"task_title"`
-	TaskDescription string `json:"task_description"`
-	Criteria    []string `json:"acceptance_criteria"`
+	ID              string   `json:"id"`
+	State           string   `json:"state"`
+	ProjectID       string   `json:"project_id"`
+	TaskTitle       string   `json:"task_title"`
+	TaskDescription string   `json:"task_description"`
+	Criteria        []string `json:"acceptance_criteria"`
 }
 
 // handleJobGet returns the authenticated job's task context. The

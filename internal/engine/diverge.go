@@ -101,10 +101,10 @@ func (e *Engine) phaseDivergeN(ctx context.Context, j job.Job) error {
 	// the re-roll policy (ROADMAP §7, M3-T7-a).
 	avgJaccard := averagePairwiseJaccard(candidateTexts)
 	e.audit(ctx, j.ID, map[string]any{
-		"event":        "divergence_jaccard",
-		"candidates":   n,
-		"avg_jaccard":  avgJaccard,
-		"archetype":    p.Archetype,
+		"event":       "divergence_jaccard",
+		"candidates":  n,
+		"avg_jaccard": avgJaccard,
+		"archetype":   p.Archetype,
 	})
 
 	_, err = e.jobs.Transition(ctx, j.ID, job.StateEvaluating)

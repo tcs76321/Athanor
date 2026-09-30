@@ -108,8 +108,8 @@ func (f *fixedScanner) Scan(ctx context.Context, in scanner.ScanInput) (scanner.
 // workspace with the given scanner list (one entry per
 // pipeline list; see Option for details).
 type watcherOption struct {
-	clean    bool      // include the "clean" scanner in the ingress list
-	rejected bool      // include the "rejected" scanner in the ingress list
+	clean    bool // include the "clean" scanner in the ingress list
+	rejected bool // include the "rejected" scanner in the ingress list
 }
 
 // newTestWatcher builds a Watcher in a fresh temp

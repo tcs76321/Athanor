@@ -45,10 +45,10 @@ func (s *Size) Scan(ctx context.Context, in ScanInput) (ScanResult, error) {
 	if in.Size > s.MaxBytes {
 		return ScanResult{
 			Verdict: VerdictRejected,
-			Reason: fmt.Sprintf("scanner:size:exceeds_max:%d>%d", in.Size, s.MaxBytes),
+			Reason:  fmt.Sprintf("scanner:size:exceeds_max:%d>%d", in.Size, s.MaxBytes),
 			Details: map[string]any{
-				"size":     in.Size,
-				"max":      s.MaxBytes,
+				"size": in.Size,
+				"max":  s.MaxBytes,
 			},
 		}, nil
 	}

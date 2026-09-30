@@ -21,8 +21,8 @@ import (
 // It consumes the raw `*Response` a Client.Fetch returns and produces
 // markdown via the closed pipeline:
 //
-//   fetch (T5) → content-type gate → readability extraction →
-//   bluemonday sanitization → markdown rendering → prompt-injection scan
+//	fetch (T5) → content-type gate → readability extraction →
+//	bluemonday sanitization → markdown rendering → prompt-injection scan
 //
 // Consumers (T7's fetch_url tool, M6's cloud mediation) take the
 // interface, not the concrete type, so tests inject a fake exactly

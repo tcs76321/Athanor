@@ -66,8 +66,8 @@ func TestStatusFlow(t *testing.T) {
 		{StatusAccepted, StatusDraft},
 		{StatusRejected, StatusCandidate},
 		{StatusQuarantine, StatusDraft},
-		{StatusCandidate, StatusDraft},  // no backwards edges
-		{StatusDraft, StatusSuperseded}, // draft is not yet a candidate; promote first
+		{StatusCandidate, StatusDraft},     // no backwards edges
+		{StatusDraft, StatusSuperseded},    // draft is not yet a candidate; promote first
 		{StatusSuperseded, StatusAccepted}, // superseded is terminal
 		{StatusRejected, StatusAccepted},
 	}

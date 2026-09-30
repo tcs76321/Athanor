@@ -102,9 +102,9 @@ func (e *Engine) researchContext(ctx context.Context, j job.Job, p project.Proje
 	})
 	if e.runner == nil {
 		e.audit(ctx, j.ID, map[string]any{
-			"event":  "research_fetch",
+			"event":   "research_fetch",
 			"skipped": true,
-			"reason": "no ToolRunner wired (dev mode)",
+			"reason":  "no ToolRunner wired (dev mode)",
 		})
 		return "", nil
 	}

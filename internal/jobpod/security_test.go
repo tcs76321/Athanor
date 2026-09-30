@@ -280,13 +280,13 @@ func TestSecurity_PodCannotReachPodmanSocket(t *testing.T) {
 
 // TestSecurity_PodCannotReadHostFS asserts the pod's root
 // filesystem is its own (not the host's). Two checks:
-//   1. Read-only rootfs: a write under /usr must fail with
-//      "Read-only file system".
-//   2. The pod's root is an overlay or rootfs mount, not the
-//      host's /. The check is "the source of the / mount is
-//      not /dev/... on the host's main device" — practical
-//      assertion: `mount | grep ' on / '` output contains
-//      "overlay" or "rootfs", not "/dev/disk" or "/dev/sd".
+//  1. Read-only rootfs: a write under /usr must fail with
+//     "Read-only file system".
+//  2. The pod's root is an overlay or rootfs mount, not the
+//     host's /. The check is "the source of the / mount is
+//     not /dev/... on the host's main device" — practical
+//     assertion: `mount | grep ' on / '` output contains
+//     "overlay" or "rootfs", not "/dev/disk" or "/dev/sd".
 //
 // The acceptance criterion "pod→host FS denied" is satisfied
 // by the combination of (1) write-deny at the rootfs level

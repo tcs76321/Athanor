@@ -103,8 +103,8 @@ func TestBuildComparisonInstructions_IncludesPreviousSection(t *testing.T) {
 // whitespace is honored after TrimSpace.
 func TestParseComparisonVerdict_TrimsWhitespace(t *testing.T) {
 	cases := []struct {
-		name      string
-		input     string
+		name       string
+		input      string
 		wantWinner string
 	}{
 		{"trailing newline", `{"winner":"new\n","confidence":0.9,"reasons":[],"missing_requirements":[]}`, "new"},

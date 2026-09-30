@@ -404,4 +404,3 @@ func (c *httpClient) fetchOnce(ctx context.Context, req *http.Request, hop int, 
 		Decision:   policyRes,
 	}, nil
 }
-

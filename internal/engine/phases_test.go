@@ -4,10 +4,10 @@
 // in e.call) already exists; what this commit adds is the
 // observability hook (the `context_deadline_exceeded` audit row)
 // and the proof that:
-//   1. a tight budget + slow Ollama surfaces a deadline error AND
-//      writes the audit row (so post-mortem readers can see *why*).
-//   2. the default 300s budget on `planning` does not fire for a
-//      fast (250ms) call — i.e., the defaults are not silently zero.
+//  1. a tight budget + slow Ollama surfaces a deadline error AND
+//     writes the audit row (so post-mortem readers can see *why*).
+//  2. the default 300s budget on `planning` does not fire for a
+//     fast (250ms) call — i.e., the defaults are not silently zero.
 package engine
 
 import (

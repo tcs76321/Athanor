@@ -109,9 +109,9 @@ func runCommand(ctx context.Context, name string, bin string, args []string, in 
 		Verdict: scanner.VerdictRejected,
 		Reason:  fmt.Sprintf("scanner:%s:rejected", name),
 		Details: map[string]any{
-			"stdout":  stdout.String(),
-			"stderr":  stderr.String(),
-			"exit":    exitCode(err),
+			"stdout": stdout.String(),
+			"stderr": stderr.String(),
+			"exit":   exitCode(err),
 		},
 	}, nil
 }

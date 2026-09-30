@@ -9,7 +9,7 @@ type EventName string
 const (
 	EventAccepted         EventName = "accepted"
 	EventQuarantined      EventName = "quarantined"
-	EventRejected         EventName = "rejected"         // path-layer rejection; file remains in inbox
+	EventRejected         EventName = "rejected"          // path-layer rejection; file remains in inbox
 	EventDuplicateIgnored EventName = "duplicate_ignored" // content already processed
 )
 
@@ -19,13 +19,13 @@ const (
 // (the morning digest, the security view) read these directly
 // from the events table.
 type EventData struct {
-	Event       EventName      `json:"event"`
-	SHA256      string         `json:"sha256,omitempty"`
-	RelPath     string         `json:"relpath"`
-	Reason      string         `json:"reason,omitempty"`
-	StoredPath  string         `json:"stored_path,omitempty"`
-	SourceSize  int64          `json:"source_size,omitempty"`
-	Pipeline    string         `json:"pipeline,omitempty"`
-	Scanners    map[string]any `json:"scanners,omitempty"`
-	OriginalVerdict string     `json:"original_verdict,omitempty"`
+	Event           EventName      `json:"event"`
+	SHA256          string         `json:"sha256,omitempty"`
+	RelPath         string         `json:"relpath"`
+	Reason          string         `json:"reason,omitempty"`
+	StoredPath      string         `json:"stored_path,omitempty"`
+	SourceSize      int64          `json:"source_size,omitempty"`
+	Pipeline        string         `json:"pipeline,omitempty"`
+	Scanners        map[string]any `json:"scanners,omitempty"`
+	OriginalVerdict string         `json:"original_verdict,omitempty"`
 }

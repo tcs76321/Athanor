@@ -418,7 +418,7 @@ var forbiddenOutboundHTTPIdents = map[string]bool{
 // files, which are exempt from rule 6 (the test
 // exemption is the same one rules 1–5 use).
 var allowedOutboundHTTPLocations = map[string]bool{
-	"cmd/athanor/cli.go":          true, // apiCall helper + http.DefaultClient.Do
+	"cmd/athanor/cli.go":         true, // apiCall helper + http.DefaultClient.Do
 	"cmd/athanor/cli_control.go": true, // uses apiCall
 	"cmd/athanor/cli_export.go":  true, // http.DefaultClient.Do directly
 	"cmd/athanor/cli_project.go": true, // uses apiCall

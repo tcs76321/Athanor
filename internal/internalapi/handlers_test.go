@@ -130,6 +130,7 @@ func TestHandleJobGet_RejectsCrossJobToken(t *testing.T) {
 		t.Errorf("status = %d, want 401", w.Code)
 	}
 }
+
 // --- POST /internal/v1/jobs/{id}/heartbeat ----------------------------
 
 func TestHandleHeartbeat_WritesEvent(t *testing.T) {
@@ -294,4 +295,3 @@ func TestHandleLog_RejectsMalformedBody(t *testing.T) {
 		t.Errorf("status = %d, want 400", w.Code)
 	}
 }
-

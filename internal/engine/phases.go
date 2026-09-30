@@ -377,4 +377,3 @@ func (e *Engine) phasePlan(ctx context.Context, j job.Job) error {
 	_, err = e.jobs.Transition(ctx, j.ID, job.StateDiverging)
 	return err
 }
-

@@ -30,7 +30,7 @@ func TestLegalTransitions(t *testing.T) {
 		{StateEvaluating, StatePaused},
 		{StateEvaluating, StateFailed},
 		{StateEvaluating, StateCancelled},
-		{StateReflecting, StateDiverging},   // §13.1 budgeted retry loop
+		{StateReflecting, StateDiverging}, // §13.1 budgeted retry loop
 		{StateReflecting, StateSynthesizing},
 		{StateReflecting, StatePaused},
 		{StateReflecting, StateFailed},
@@ -75,9 +75,9 @@ func TestIllegalTransitions(t *testing.T) {
 		{StateContextBuilding, StateDiverging}, // skip planning
 		{StatePlanning, StateSynthesizing},     // skip diverging
 		{StatePlanning, StateComparing},
-		{StatePlanning, StateEvaluating}, // skip diverging
-		{StateDiverging, StateComparing},    // skip evaluating + synthesizing
-		{StateDiverging, StateSynthesizing}, // skip evaluating
+		{StatePlanning, StateEvaluating},     // skip diverging
+		{StateDiverging, StateComparing},     // skip evaluating + synthesizing
+		{StateDiverging, StateSynthesizing},  // skip evaluating
 		{StateDiverging, StateReflecting},    // reflection is post-evaluating
 		{StateEvaluating, StateDiverging},    // no backwards edges
 		{StateEvaluating, StateComparing},    // skip synthesizing
@@ -86,7 +86,7 @@ func TestIllegalTransitions(t *testing.T) {
 		{StateSynthesizing, StateEvaluating}, // no backwards edges
 		{StateComparing, StateSynthesizing},  // no backwards edges
 		{StateComparing, StateReflecting},    // reflection is pre-comparing
-		{StateCompleted, StateQueued},         // terminal states are final
+		{StateCompleted, StateQueued},        // terminal states are final
 		{StateFailed, StateQueued},
 		{StateFailed, StateComparing},
 		{StateCancelled, StateQueued},

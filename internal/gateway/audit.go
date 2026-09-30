@@ -28,12 +28,12 @@ import (
 type EventName string
 
 const (
-	EventFetched       EventName = "fetched"
-	EventTruncated     EventName = "truncated"
-	EventDenied        EventName = "denied"
-	EventPrivateIP     EventName = "private_ip"
-	EventRateLimited   EventName = "rate_limited"
-	EventError         EventName = "error"
+	EventFetched     EventName = "fetched"
+	EventTruncated   EventName = "truncated"
+	EventDenied      EventName = "denied"
+	EventPrivateIP   EventName = "private_ip"
+	EventRateLimited EventName = "rate_limited"
+	EventError       EventName = "error"
 	// Reader Mode events (M4-T6, ADR-0018 §6). The `network`
 	// category is closed; the event-name set is open (ADR-0017 §8
 	// forward references).
@@ -70,11 +70,11 @@ type auditPayload struct {
 	// Mode and MarkdownBytes only appear on Reader Mode events
 	// (M4-T6, ADR-0018 §6): the extraction path used and the size of
 	// the markdown handed to the caller.
-	Mode           string `json:"mode,omitempty"`
-	MarkdownBytes  int64  `json:"markdown_bytes,omitempty"`
-	Reason         string `json:"reason,omitempty"`
-	DurationMS     int64  `json:"duration_ms"`
-	RequestID      string `json:"request_id"`
+	Mode          string `json:"mode,omitempty"`
+	MarkdownBytes int64  `json:"markdown_bytes,omitempty"`
+	Reason        string `json:"reason,omitempty"`
+	DurationMS    int64  `json:"duration_ms"`
+	RequestID     string `json:"request_id"`
 	// Hop and RedirectChain appear on multi-hop fetches only
 	// (M4-T7, ADR-0019 §3): the zero-based hop index of this
 	// event within its request, and — from hop 1 on — the

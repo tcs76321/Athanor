@@ -7,7 +7,7 @@
 //
 //   - ingress: prompt-injection-heuristic, size, zipbomb,
 //     clamav, yara (the heuristic + the file-format checks
-//     + the external malware scanners).
+//   - the external malware scanners).
 //   - egress:  size, zipbomb, clamav, yara (no prompt-
 //     injection scanner; LLM-generated data).
 //   - user_prompt: prompt-injection-heuristic (long prompts
@@ -26,11 +26,11 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/tcs76321/athanor/cmd/athanor/scanners"
 	"github.com/tcs76321/athanor/internal/airlock/ingress"
 	"github.com/tcs76321/athanor/internal/airlock/scanner"
 	"github.com/tcs76321/athanor/internal/control"
 	"github.com/tcs76321/athanor/internal/store"
-	"github.com/tcs76321/athanor/cmd/athanor/scanners"
 )
 
 // resolveYARARuleSet returns the path to a YARA rule
@@ -89,9 +89,9 @@ func startIngress(
 	cfg.YaraRuleSet = yaraRuleSet
 	// In-tree scanners (no subprocess, no external dep).
 	inTree := map[string]scanner.Scanner{
-		"size":                        scanner.NewSize(cfg.MaxIngressBytes),
-		"zipbomb":                     scanner.NewZipBomb(cfg.MaxUncompressedRatio, cfg.MaxZipEntries, 50),
-		"prompt-injection-heuristic":  scanner.NewPromptInjectionHeuristic(1),
+		"size":                       scanner.NewSize(cfg.MaxIngressBytes),
+		"zipbomb":                    scanner.NewZipBomb(cfg.MaxUncompressedRatio, cfg.MaxZipEntries, 50),
+		"prompt-injection-heuristic": scanner.NewPromptInjectionHeuristic(1),
 	}
 	// External-binary adapters. Absent binaries degrade
 	// to VerdictUncertain (fail-closed); the airlock

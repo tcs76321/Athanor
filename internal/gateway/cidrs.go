@@ -40,12 +40,12 @@ var nonRoutableCIDRs = mustParseCIDRs([]string{
 	// internet; legitimate public services will never
 	// resolve to them. Including them closes the
 	// "documentation" SSRF vector.
-	"192.0.2.0/24",     // TEST-NET-1
-	"198.51.100.0/24",  // TEST-NET-2
-	"203.0.113.0/24",   // TEST-NET-3
-	"198.18.0.0/15",    // benchmarking
-	"192.88.99.0/24",   // 6to4 anycast (deprecated)
-	"233.252.0.0/24",   // MCAST-TEST-NET
+	"192.0.2.0/24",    // TEST-NET-1
+	"198.51.100.0/24", // TEST-NET-2
+	"203.0.113.0/24",  // TEST-NET-3
+	"198.18.0.0/15",   // benchmarking
+	"192.88.99.0/24",  // 6to4 anycast (deprecated)
+	"233.252.0.0/24",  // MCAST-TEST-NET
 	// Unspecified
 	"0.0.0.0/8",
 	"::/128",

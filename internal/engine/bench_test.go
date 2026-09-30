@@ -57,10 +57,9 @@ func BenchmarkRunFullChain(b *testing.B) {
 	// the OS reclaims it when the process exits.
 	noop := &testing.T{}
 	e := newEnv(noop)
-	
+
 	for b.Loop() {
 		jobID := e.submitForBench(b)
 		e.eng.Run(context.Background(), jobID)
 	}
 }
-

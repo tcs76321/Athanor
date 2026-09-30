@@ -107,7 +107,7 @@ func (e *Engine) runCodeInPod(ctx context.Context, j job.Job, p project.Project,
 // ExecuteResult shape gains a field, this function must be
 // updated.
 func jsonMarshalExecuteResult(r toolenvelope.ExecuteResult) []byte {
-	return fmt.Appendf(nil, 
+	return fmt.Appendf(nil,
 		`{"exit_code":%d,"stdout":%s,"stderr":%s,"duration_ms":%d}`,
 		r.ExitCode, jsonString(r.Stdout), jsonString(r.Stderr), r.DurationMS)
 }
@@ -147,4 +147,3 @@ func jsonString(s string) string {
 	b = append(b, '"')
 	return string(b)
 }
-

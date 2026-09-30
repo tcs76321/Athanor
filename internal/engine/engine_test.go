@@ -8,9 +8,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
-	"sync/atomic"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 

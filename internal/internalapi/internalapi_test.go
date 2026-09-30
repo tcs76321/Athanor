@@ -358,4 +358,3 @@ func TestAuthMiddleware_ErrorBodyIsJSON(t *testing.T) {
 		t.Errorf("body = %q, want it to contain 'invalid token'", w.Body.String())
 	}
 }
-

@@ -52,6 +52,7 @@ import (
 	"strings"
 	"testing"
 )
+
 // internalapiDir is the package whose surface Gate G2
 // constrains. Relative to the test file (internal/gate/).
 const internalapiDir = "../../internal/internalapi"
@@ -113,7 +114,6 @@ func TestGateG2ConstantTimeComparePresent(t *testing.T) {
 		t.Errorf("%s does not reference ConstantTimeCompare; the bearer-token compare must be constant-time (Gate G2)", middleware)
 	}
 }
-
 
 // TestGateG2InternalAPIRoutesGoThroughMiddleware asserts every
 // route registered under /internal/v1/ in handlers.go is reached

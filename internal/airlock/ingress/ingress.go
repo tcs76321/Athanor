@@ -429,10 +429,10 @@ func scannerResultDetailsJSON(result scanner.PipelineResult) []byte {
 		Reason  string `json:"reason,omitempty"`
 	}
 	out := struct {
-		Verdict  string                 `json:"verdict"`
-		Reason   string                 `json:"reason,omitempty"`
-		PerScn   map[string]perScanner  `json:"per_scanner"`
-		Duration string                 `json:"duration"`
+		Verdict  string                `json:"verdict"`
+		Reason   string                `json:"reason,omitempty"`
+		PerScn   map[string]perScanner `json:"per_scanner"`
+		Duration string                `json:"duration"`
 	}{
 		Verdict:  result.Verdict.String(),
 		Reason:   result.Reason,

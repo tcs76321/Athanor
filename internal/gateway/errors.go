@@ -60,17 +60,17 @@ var ErrTooManyRedirects = errors.New("gateway: too many redirects")
 // audit reason} is one-to-one and greppable:
 //
 //   - ErrReaderDisabled:    reader_mode_default=false; the caller
-//                           receives ErrReaderDisabled and may use
-//                           the raw fetched Response instead.
+//     receives ErrReaderDisabled and may use
+//     the raw fetched Response instead.
 //   - ErrNotReadable:       the response's Content-Type is not
-//                           text/html / application/xhtml+xml /
-//                           text/plain.
+//     text/html / application/xhtml+xml /
+//     text/plain.
 //   - ErrNoReadableContent: readability extraction produced no main
-//                           content (e.g. a JS-rendered page). The
-//                           raw HTML is never returned as a fallback.
+//     content (e.g. a JS-rendered page). The
+//     raw HTML is never returned as a fallback.
 //   - ErrPromptInjection:   the extracted markdown tripped the
-//                           prompt-injection heuristic. No markdown
-//                           leaves the reader.
+//     prompt-injection heuristic. No markdown
+//     leaves the reader.
 var ErrReaderDisabled = errors.New("gateway: reader mode disabled by config")
 
 var ErrNotReadable = errors.New("gateway: response content-type is not readable HTML/text")

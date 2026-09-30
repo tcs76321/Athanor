@@ -98,8 +98,8 @@ func (z *ZipBomb) Scan(ctx context.Context, in ScanInput) (ScanResult, error) {
 	if err != nil {
 		// Not a zip: not a zip-bomb threat. Pass.
 		return ScanResult{
-			Verdict:  VerdictClean,
-			Details:  map[string]any{"zip_error": err.Error()},
+			Verdict: VerdictClean,
+			Details: map[string]any{"zip_error": err.Error()},
 		}, nil
 	}
 	if len(zr.File) > z.MaxEntries {

@@ -124,11 +124,11 @@ func renderElement(b *bytes.Buffer, n *html.Node, depth int) bool {
 	case "img":
 		renderImage(b, n)
 	case "div", "section", "article", "header", "footer", "main", "nav",
-		 "aside", "figure", "figcaption":
+		"aside", "figure", "figcaption":
 		renderChildrenInline(b, n)
 		writeMarkdown(b, "\n")
 	case "span", "em", "strong", "i", "b", "u", "s", "sub", "sup", "small",
-		 "mark", "abbr", "cite", "time", "q":
+		"mark", "abbr", "cite", "time", "q":
 		// Inline elements render their content with no block
 		// separator — the surrounding text context supplies any
 		// spacing.

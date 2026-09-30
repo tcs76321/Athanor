@@ -115,9 +115,9 @@ func (e *Engine) phaseCompare(ctx context.Context, j job.Job) error {
 			// previous-record history. The §19.3 guard
 			// does not depend on the previous's records.
 			e.audit(ctx, j.ID, map[string]any{
-				"event":             "previous_records_load_failed",
-				"previous_id":       prev.ID,
-				"error":             perr.Error(),
+				"event":       "previous_records_load_failed",
+				"previous_id": prev.ID,
+				"error":       perr.Error(),
 			})
 		}
 	} else if !errors.Is(err, artifact.ErrNotFound) {
@@ -145,9 +145,9 @@ func (e *Engine) phaseCompare(ctx context.Context, j job.Job) error {
 		// hard-failures.
 		if isUnknownWinnerErr(err) {
 			e.audit(ctx, j.ID, map[string]any{
-				"event":          "comparison_unknown_winner_downgraded",
-				"raw_winner":     verdict.Winner,
-				"downgraded_to":  "none",
+				"event":           "comparison_unknown_winner_downgraded",
+				"raw_winner":      verdict.Winner,
+				"downgraded_to":   "none",
 				"new_artifact_id": final.ID,
 			})
 			verdict.Winner = "none"
@@ -191,9 +191,9 @@ func (e *Engine) phaseCompare(ctx context.Context, j job.Job) error {
 		// post-mortem readers can see how the previous
 		// scored when it was a candidate. Used by the
 		// M3-T7 quality probe for calibration analysis.
-		"previous_records_count":   len(previousRecords),
-		"previous_avg_score":       previousAvgScore,
-		"previous_avg_confidence":  previousAvgConf,
+		"previous_records_count":  len(previousRecords),
+		"previous_avg_score":      previousAvgScore,
+		"previous_avg_confidence": previousAvgConf,
 	})
 
 	// §9.3 status transitions.

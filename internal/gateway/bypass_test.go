@@ -159,7 +159,7 @@ func TestBypass_DenyListWinsOnRedirectHop(t *testing.T) {
 	p := bypassPolicy(t)
 	port := urlPort(t, srv.URL)
 	resolver := &fixedResolver{ips: map[string][]net.IP{
-		"wikipedia.org":          {net.ParseIP("93.184.216.34")},
+		"wikipedia.org":         {net.ParseIP("93.184.216.34")},
 		"blocked.wikipedia.org": {net.ParseIP("93.184.216.35")},
 	}}
 	events := &recordingEvents{}

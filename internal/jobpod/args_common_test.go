@@ -17,9 +17,9 @@ var uuidV4Regex = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89a
 // override one field at a time to assert specific behavior.
 func sampleSpec() Spec {
 	return Spec{
-		ID:    "3b241101-e2bb-4255-8caf-4136c566a962",
-		Image: "alpine:3.20",
-		Command: []string{"sh", "-c", "echo hello"},
+		ID:       "3b241101-e2bb-4255-8caf-4136c566a962",
+		Image:    "alpine:3.20",
+		Command:  []string{"sh", "-c", "echo hello"},
 		Token:    "c2245b8ce60da78b3fca76a48aa2b2cb",
 		TokenDir: "/tmp/athanor-token-xxx",
 		ResourceLimits: Limits{
@@ -166,10 +166,10 @@ func TestUUIDV4Regex(t *testing.T) {
 	}
 	bad := []string{
 		"",
-		"3b241101-e2bb-0255-8caf-4136c566a962",   // wrong version nibble
-		"3b241101-e2bb-4255-1caf-4136c566a962",   // wrong variant nibble
-		"3b241101e2bb42558caf4136c566a962",      // no dashes
-		"3b241101-e2bb-4255-8caf-4136c566a96Z",  // non-hex
+		"3b241101-e2bb-0255-8caf-4136c566a962", // wrong version nibble
+		"3b241101-e2bb-4255-1caf-4136c566a962", // wrong variant nibble
+		"3b241101e2bb42558caf4136c566a962",     // no dashes
+		"3b241101-e2bb-4255-8caf-4136c566a96Z", // non-hex
 	}
 	for _, b := range bad {
 		if uuidV4Regex.MatchString(b) {

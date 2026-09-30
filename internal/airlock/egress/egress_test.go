@@ -25,9 +25,9 @@ import (
 	"github.com/tcs76321/athanor/internal/airlock/scanner"
 	"github.com/tcs76321/athanor/internal/artifact"
 	"github.com/tcs76321/athanor/internal/job"
-	"github.com/tcs76321/athanor/migrations"
 	"github.com/tcs76321/athanor/internal/project"
 	"github.com/tcs76321/athanor/internal/store"
+	"github.com/tcs76321/athanor/migrations"
 )
 
 const (
@@ -42,13 +42,13 @@ const (
 // registry, a real artifact store, a real project, and
 // a real event log.
 type helper struct {
-	t          *testing.T
-	store      *store.Store
-	artStore   *artifact.Store
-	projRepo   *project.Repo
-	registry   *scanner.Registry
-	exporter   *Exporter
-	workspace  string
+	t         *testing.T
+	store     *store.Store
+	artStore  *artifact.Store
+	projRepo  *project.Repo
+	registry  *scanner.Registry
+	exporter  *Exporter
+	workspace string
 }
 
 func newHelper(t *testing.T) *helper {

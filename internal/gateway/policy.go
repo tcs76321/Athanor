@@ -135,9 +135,9 @@ func NewPolicyWithOptions(o PolicyOptions) (*Policy, error) {
 		return nil, err
 	}
 	return &Policy{
-		defaultPolicy:             o.DefaultPolicy,
-		allowList:                 al,
-		denyList:                  dl,
+		defaultPolicy:              o.DefaultPolicy,
+		allowList:                  al,
+		denyList:                   dl,
 		insecureSkipPrivateIPGuard: o.InsecureSkipPrivateIPGuard,
 	}, nil
 }

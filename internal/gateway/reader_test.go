@@ -234,6 +234,7 @@ func TestReader_MissingContentTypeIsNotReadable(t *testing.T) {
 		t.Fatalf("missing ctype err = %v, want ErrNotReadable", err)
 	}
 }
+
 // TestReader_EndToEndThroughClient drives the exact T7 call path:
 // a real Client.Fetch (through httptest on 127.0.0.1) followed by
 // Reader.Extract, asserting the `reader_mode_applied` audit event is

@@ -57,7 +57,7 @@ func startGateway(stateDir string, st *store.Store, netCfg config.Network, logge
 	client, err := gateway.NewClient(gateway.Options{
 		Policy:           policy,
 		Resolver:         &gateway.NetworkResolver{}, // production: net.DefaultResolver
-		Events:           st,                        // *store.Store satisfies gateway.EventLogger
+		Events:           st,                         // *store.Store satisfies gateway.EventLogger
 		Logger:           logger,
 		RatePerMinute:    netCfg.RateLimitPerMinute,
 		MaxResponseBytes: netCfg.MaxResponseBytes,

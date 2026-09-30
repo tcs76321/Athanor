@@ -123,10 +123,10 @@ func TestQuarantineRepo_ListFilters(t *testing.T) {
 	ctx := context.Background()
 	for i, p := range []string{"ingress", "egress", "ingress", "user-prompt"} {
 		_, err := qr.Put(ctx, Quarantine{
-			SHA256:    string(rune('a' + i)),
-			RelPath:   "x",
-			Reason:    "x",
-			Pipeline:  p,
+			SHA256:     string(rune('a' + i)),
+			RelPath:    "x",
+			Reason:     "x",
+			Pipeline:   p,
 			IngestedAt: time.Now().Add(time.Duration(i) * time.Second),
 		})
 		if err != nil {

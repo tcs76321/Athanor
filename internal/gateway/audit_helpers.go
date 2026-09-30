@@ -112,17 +112,17 @@ func readerAppliedEvent(resp *Response, mode ReaderMode, markdownBytes int) audi
 	// default has empty Host/Reason, which is exactly the right audit
 	// value when a caller constructs a Response without a decision.
 	return auditPayload{
-		Event:          string(EventReaderApplied),
-		URL:            resp.URL,
-		Host:           resp.Decision.Host,
-		Decision:       resp.Decision.Reason,
-		Status:         resp.StatusCode,
-		BytesRead:      int64(len(resp.Body)),
-		Truncated:      resp.Truncated,
-		Mode:           string(mode),
-		MarkdownBytes:  int64(markdownBytes),
-		DurationMS:     0,
-		RequestID:      newRequestID(),
+		Event:         string(EventReaderApplied),
+		URL:           resp.URL,
+		Host:          resp.Decision.Host,
+		Decision:      resp.Decision.Reason,
+		Status:        resp.StatusCode,
+		BytesRead:     int64(len(resp.Body)),
+		Truncated:     resp.Truncated,
+		Mode:          string(mode),
+		MarkdownBytes: int64(markdownBytes),
+		DurationMS:    0,
+		RequestID:     newRequestID(),
 	}
 }
 

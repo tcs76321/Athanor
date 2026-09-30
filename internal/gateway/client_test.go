@@ -196,9 +196,9 @@ func resolverOpt(srvURL string) func(*Options) {
 func newTestPolicy(t *testing.T) *Policy {
 	t.Helper()
 	p, err := NewPolicyWithOptions(PolicyOptions{
-		DefaultPolicy:             "allow",
-		AllowList:                 nil,
-		DenyList:                  nil,
+		DefaultPolicy:              "allow",
+		AllowList:                  nil,
+		DenyList:                   nil,
 		InsecureSkipPrivateIPGuard: true,
 	})
 	if err != nil {
@@ -641,5 +641,3 @@ func TestNewClient_Validation(t *testing.T) {
 		})
 	}
 }
-
-

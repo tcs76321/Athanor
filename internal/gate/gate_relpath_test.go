@@ -122,12 +122,12 @@ func TestRule6AllowedLocationsPinned(t *testing.T) {
 // `isUnderGatewayPackage` helper. The test covers
 // the four cases the rule's walk relies on:
 //
-//   1. The gateway package's own files (allowed).
-//   2. A subdirectory of the gateway (allowed).
-//   3. A sibling package under `internal/` (denied).
-//   4. A `cmd/` file (denied, even though the
-//      package is at the same Go-path level as
-//      `internal/gateway`).
+//  1. The gateway package's own files (allowed).
+//  2. A subdirectory of the gateway (allowed).
+//  3. A sibling package under `internal/` (denied).
+//  4. A `cmd/` file (denied, even though the
+//     package is at the same Go-path level as
+//     `internal/gateway`).
 //
 // The repo-relative path form is the one
 // `relPath` produces; the test exercises the

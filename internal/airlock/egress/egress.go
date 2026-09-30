@@ -45,13 +45,13 @@ import (
 // daemon; bound to the daemon's lifetime via the
 // caller's context.
 type Exporter struct {
-	workspaceRoot  string                // <state-dir>/workspace
-	registry       *scanner.Registry
-	artifactStore  *artifact.Store
-	projectRepo    *project.Repo
-	store          *store.Store
-	pollInterval   time.Duration
-	logger         *slog.Logger
+	workspaceRoot string // <state-dir>/workspace
+	registry      *scanner.Registry
+	artifactStore *artifact.Store
+	projectRepo   *project.Repo
+	store         *store.Store
+	pollInterval  time.Duration
+	logger        *slog.Logger
 
 	// lastSeenID is the highest events.id the exporter
 	// has processed. Persisted across restarts in
@@ -442,4 +442,3 @@ func computeSHA256Hex(data []byte) string {
 	sum := sha256.Sum256(data)
 	return hex.EncodeToString(sum[:])
 }
-

@@ -129,12 +129,12 @@ func (p *PromptInjectionHeuristic) Scan(ctx context.Context, in ScanInput) (Scan
 	// (base64MinLen, 1024) is the actual gate. The
 	// length check fires on the matched substring's
 	// length, not the input's.
-//
-// Fail-closed on decodability (M4-T8): a rejection used to require
-// a clean StdEncoding decode of the whole run, which let an
-// attacker evade the check by chaining padded blobs into one long
-// run (the mid-stream "==" breaks the decode). Shape + size is the
-// gate now; decodability is recorded when it works, not required.
+	//
+	// Fail-closed on decodability (M4-T8): a rejection used to require
+	// a clean StdEncoding decode of the whole run, which let an
+	// attacker evade the check by chaining padded blobs into one long
+	// run (the mid-stream "==" breaks the decode). Shape + size is the
+	// gate now; decodability is recorded when it works, not required.
 	if loc := base64Re.FindStringIndex(text); loc != nil {
 		matchLen := loc[1] - loc[0]
 		if matchLen >= base64MinLen {

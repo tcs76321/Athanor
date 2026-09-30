@@ -380,5 +380,3 @@ func TestEval_DefaultDenyDoesNotConsultResolver(t *testing.T) {
 		t.Errorf("err = %v, want ErrDeniedOffList", err)
 	}
 }
-
-

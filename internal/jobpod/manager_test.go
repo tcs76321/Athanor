@@ -602,8 +602,8 @@ func TestStart_RemovesTokenDirOnClientFailure(t *testing.T) {
 // contents.
 func TestStart_RejectsPartialToken(t *testing.T) {
 	cases := []struct {
-		name        string
-		token, dir  string
+		name       string
+		token, dir string
 	}{
 		{"token only", "deadbeef", ""},
 		{"dir only", "", "/tmp/whatever"},
