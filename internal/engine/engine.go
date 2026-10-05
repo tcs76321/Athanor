@@ -45,6 +45,7 @@ import (
 	"github.com/tcs76321/athanor/internal/config"
 	"github.com/tcs76321/athanor/internal/corrections"
 	"github.com/tcs76321/athanor/internal/evaluation"
+	"github.com/tcs76321/athanor/internal/interruptions"
 	"github.com/tcs76321/athanor/internal/job"
 	"github.com/tcs76321/athanor/internal/llm"
 	"github.com/tcs76321/athanor/internal/project"
@@ -122,6 +123,21 @@ type CorrectionSource interface {
 	MarkApplied(ctx context.Context, id string) error
 }
 
+// TokenSink receives incremental model output for the live watch view
+// (M6-T8c, §20.3). The production implementation is the UI hub; nil makes
+// every call non-streaming (the pre-T8 path).
+type TokenSink interface {
+	Publish(jobID, text string)
+}
+
+// InterruptionStore is the §20.4 queue seam (M6-T8c): pending user notes are
+// injected at the next safe point and marked injected. Satisfied by
+// *interruptions.Repo; nil disables injection.
+type InterruptionStore interface {
+	Pending(ctx context.Context, jobID string) ([]interruptions.Note, error)
+	MarkInjected(ctx context.Context, ids []string) error
+}
+
 // ErrPaused reports that the job was paused instead of failed — the
 // context floor was violated (recommend-or-escalate, §12.3) or the kill
 // switch froze the daemon mid-run.
@@ -171,6 +187,11 @@ type Engine struct {
 	// corrections are ranked and rendered into §11.2 position 8. nil leaves
 	// tier 4 empty (byte-identical to pre-M6-T7).
 	correctionSource CorrectionSource
+	// tokenSink receives incremental model output for the watch view
+	// (M6-T8c). nil selects the non-streaming call path.
+	tokenSink TokenSink
+	// interruptions is the §20.4 queue seam (M6-T8c). nil disables injection.
+	interruptions InterruptionStore
 	// inFlight is the count of running job goroutines. The cap is
 	// read from cap.MaxConcurrentJobs() on every Enqueue; the atomic
 	// counter is the only source of truth for the running count.
@@ -255,6 +276,14 @@ func (e *Engine) SetCorrectionSink(s CorrectionSink) { e.corrections = s }
 // SetCorrectionSource wires the §18.3 injection seam (M6-T7). A nil source
 // leaves the corrections tier empty.
 func (e *Engine) SetCorrectionSource(s CorrectionSource) { e.correctionSource = s }
+
+// SetTokenSink wires the live token stream (M6-T8c). A nil sink makes every
+// model call non-streaming.
+func (e *Engine) SetTokenSink(s TokenSink) { e.tokenSink = s }
+
+// SetInterruptionStore wires the §20.4 queue (M6-T8c). A nil store disables
+// interruption injection.
+func (e *Engine) SetInterruptionStore(s InterruptionStore) { e.interruptions = s }
 
 // recordFailureCorrection captures a phase failure as a runtime_error
 // CorrectionRecord (§18.1). Best-effort: a capture failure is logged, never

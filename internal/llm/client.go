@@ -136,6 +136,71 @@ func (c *Client) Chat(ctx context.Context, req Request) (Response, error) {
 	}, nil
 }
 
+// Stream performs one streaming chat completion (Ollama's
+// newline-delimited JSON), invoking onToken for each incremental content
+// chunk. The returned Response aggregates the full content and the final
+// chunk's token counts. A nil onToken is equivalent in result to Chat.
+func (c *Client) Stream(ctx context.Context, req Request, onToken func(string)) (Response, error) {
+	if req.Model == "" {
+		return Response{}, fmt.Errorf("llm: request has no model")
+	}
+	body, err := json.Marshal(chatRequest{
+		Model:    req.Model,
+		Messages: req.Messages,
+		Stream:   true,
+		Options:  chatOpts{Temperature: req.Temperature, NumCtx: req.ContextTarget},
+	})
+	if err != nil {
+		return Response{}, fmt.Errorf("llm: marshalling request: %w", err)
+	}
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/api/chat", bytes.NewReader(body))
+	if err != nil {
+		return Response{}, fmt.Errorf("llm: building request: %w", err)
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.http.Do(httpReq)
+	if err != nil {
+		if ctx.Err() != nil {
+			return Response{}, fmt.Errorf("llm: chat call canceled: %w", ctx.Err())
+		}
+		return Response{}, fmt.Errorf("%w: %s: %v", ErrUnreachable, c.baseURL, err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		raw, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+		return Response{}, fmt.Errorf("llm: ollama returned %s: %s", resp.Status, snippet(raw))
+	}
+
+	var content strings.Builder
+	var last chatResponse
+	dec := json.NewDecoder(resp.Body)
+	for {
+		var cr chatResponse
+		if err := dec.Decode(&cr); err != nil {
+			if errors.Is(err, io.EOF) {
+				break
+			}
+			return Response{}, fmt.Errorf("llm: decoding stream: %w", err)
+		}
+		if cr.Message.Content != "" {
+			content.WriteString(cr.Message.Content)
+			if onToken != nil {
+				onToken(cr.Message.Content)
+			}
+		}
+		last = cr
+		if cr.Done {
+			break
+		}
+	}
+	return Response{
+		Content:          content.String(),
+		PromptTokens:     last.PromptEvalCount,
+		CompletionTokens: last.EvalCount,
+	}, nil
+}
+
 // snippet extracts a short failure payload for error messages.
 func snippet(b []byte) string {
 	s := strings.TrimSpace(string(b))

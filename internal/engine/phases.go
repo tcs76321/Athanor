@@ -157,6 +157,9 @@ func (e *Engine) call(ctx context.Context, j job.Job, p project.Project, t proje
 	tiers := e.promptTiersFor(ctx, j, t, candidates)
 	suppressed := e.loadSuppressedTiers(ctx, j.ID)
 	ceiling := ceilingFor(e.cfg.ContextEngine, persona.ContextTarget)
+	// M6-T8c (§20.4): a queued interruption note is injected at this safe
+	// point (context assembly) and marked injected after the call.
+	notes, noteIDs := e.pendingInterruptions(ctx, j.ID)
 
 	res, err := prompt.Assemble(prompt.Input{
 		Phase:                  phase,
@@ -169,6 +172,7 @@ func (e *Engine) call(ctx context.Context, j job.Job, p project.Project, t proje
 		Corrections:            tiers.Corrections,
 		Candidates:             tiers.Candidates,
 		DormantIndex:           tiers.DormantIndex,
+		InterruptionNotes:      notes,
 		Ceiling:                ceiling,
 		Suppressed:             suppressed,
 	})
@@ -258,12 +262,20 @@ func (e *Engine) call(ctx context.Context, j job.Job, p project.Project, t proje
 	callCtx, cancel := context.WithTimeout(ctx, budget)
 	defer cancel()
 
-	resp, err := e.client.Chat(callCtx, llm.Request{
+	req := llm.Request{
 		Model:         persona.Model,
 		Messages:      res.Messages,
 		Temperature:   temperature,
 		ContextTarget: persona.ContextTarget,
-	})
+	}
+	var resp llm.Response
+	if e.tokenSink != nil {
+		// M6-T8c: stream for the live watch view; the aggregate is the same
+		// as the non-streaming response.
+		resp, err = e.client.Stream(callCtx, req, func(tok string) { e.tokenSink.Publish(j.ID, tok) })
+	} else {
+		resp, err = e.client.Chat(callCtx, req)
+	}
 	if err != nil {
 		// M3-T2 commit 2.4: when the per-phase wall-time budget
 		// fires, the call's ctx is `context.DeadlineExceeded`.
@@ -314,7 +326,37 @@ func (e *Engine) call(ctx context.Context, j job.Job, p project.Project, t proje
 			}
 		}
 	}
+
+	// M6-T8c (§20.4): the note rode the prompt; mark it injected and audit.
+	if len(noteIDs) > 0 && e.interruptions != nil {
+		if err := e.interruptions.MarkInjected(ctx, noteIDs); err != nil {
+			slog.Error("engine: marking interruptions injected", "job", j.ID, "err", err)
+		}
+		e.audit(ctx, j.ID, map[string]any{
+			"event": "interruption_injected", "phase": phase, "count": len(noteIDs), "note_ids": noteIDs,
+		})
+	}
 	return resp, nil
+}
+
+// pendingInterruptions returns a job's queued notes as (texts, ids). A store
+// error degrades to no notes with a warning rather than failing the call.
+func (e *Engine) pendingInterruptions(ctx context.Context, jobID string) ([]string, []string) {
+	if e.interruptions == nil {
+		return nil, nil
+	}
+	notes, err := e.interruptions.Pending(ctx, jobID)
+	if err != nil {
+		slog.Warn("engine: reading interruption notes", "job", jobID, "err", err)
+		return nil, nil
+	}
+	texts := make([]string, 0, len(notes))
+	ids := make([]string, 0, len(notes))
+	for _, n := range notes {
+		texts = append(texts, n.Text)
+		ids = append(ids, n.ID)
+	}
+	return texts, ids
 }
 
 // finalKindFor maps a project archetype to the artifact kind its final

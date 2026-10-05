@@ -19,6 +19,7 @@ import (
 	"github.com/tcs76321/athanor/internal/control"
 	"github.com/tcs76321/athanor/internal/corrections"
 	"github.com/tcs76321/athanor/internal/evaluation"
+	"github.com/tcs76321/athanor/internal/interruptions"
 	"github.com/tcs76321/athanor/internal/job"
 	"github.com/tcs76321/athanor/internal/llm"
 	"github.com/tcs76321/athanor/internal/power"
@@ -428,6 +429,47 @@ func TestCorrectionsInjectedAndAudited(t *testing.T) {
 	}
 	if !found {
 		t.Fatalf("no corrections_injected audit row: %v", events)
+	}
+}
+
+type fakeInterruptionStore struct {
+	notes    []interruptions.Note
+	injected []string
+}
+
+func (f *fakeInterruptionStore) Pending(_ context.Context, _ string) ([]interruptions.Note, error) {
+	return f.notes, nil
+}
+
+func (f *fakeInterruptionStore) MarkInjected(_ context.Context, ids []string) error {
+	f.injected = append(f.injected, ids...)
+	return nil
+}
+
+// TestInterruptionInjectedAndMarked proves the M6-T8c §20.4 seam: a queued
+// note is injected at a safe point and marked injected with an audit row.
+func TestInterruptionInjectedAndMarked(t *testing.T) {
+	e := newEnv(t)
+	sink := &fakeInterruptionStore{notes: []interruptions.Note{{ID: "n1", Text: "be brief"}}}
+	e.eng.SetInterruptionStore(sink)
+	jobID := e.submit(t)
+	e.eng.Run(context.Background(), jobID)
+
+	if len(sink.injected) == 0 {
+		t.Fatal("interruption note was never marked injected")
+	}
+	events, err := e.db.QueryEvents(context.Background(), store.EventFilter{JobID: jobID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, ev := range events {
+		if strings.Contains(ev.DataJSON, "interruption_injected") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("no interruption_injected audit row: %v", events)
 	}
 }
 
