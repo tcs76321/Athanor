@@ -17,6 +17,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // judgeResult is one judge's score for one artifact.
@@ -69,12 +70,14 @@ func callJudge(baseURL, model, packet string, seed int64) (judgeResponse, error)
 		Messages: []map[string]string{{"role": "user", "content": packet}},
 		Stream:   false,
 		Format:   "json",
-		Options:  map[string]any{"temperature": 0.0, "seed": seed},
+		Options:  map[string]any{"temperature": 0.0, "seed": seed, "num_predict": 1024},
 	})
 	if err != nil {
 		return judgeResponse{}, err
 	}
-	resp, err := http.Post(baseURL+"/api/chat", "application/json", bytes.NewReader(body))
+	// Bound the judge call so a degenerate response cannot hang the pass.
+	client := &http.Client{Timeout: 3 * time.Minute}
+	resp, err := client.Post(baseURL+"/api/chat", "application/json", bytes.NewReader(body))
 	if err != nil {
 		return judgeResponse{}, err
 	}
