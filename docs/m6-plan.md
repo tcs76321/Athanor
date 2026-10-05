@@ -179,6 +179,9 @@ edit). Vector-similarity ranking is deferred to the `Relevant` seam.
 
 ## M6-T9 — Feedback-loop E2E
 
+**Status: ✅ complete (2026-10-05).** `TestFeedbackLoopE2E` in
+`internal/engine/feedback_e2e_test.go`; no production change.
+
 - E2E: reject an artifact with a structured reason → CorrectionRecord →
   injected into the next job's prompt → the mistake is avoided (§31.4).
 

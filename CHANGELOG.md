@@ -12,6 +12,14 @@ New entries are appended at the top. Do not rewrite history.
 
 ### M6 — Autonomy & Feedback
 
+- **M6-T9.** Feedback-loop E2E. `internal/engine/feedback_e2e_test.go`
+  (`TestFeedbackLoopE2E`) runs a job to a document artifact, records the
+  §18.4 structured rejection through `corrections.Capture`, then runs a
+  second job for the same project and asserts the derived rule and the
+  `RELEVANT CORRECTIONS` section appear in its prompt, with a
+  `corrections_injected` audit row naming the record. It also proves the
+  correction did **not** leak into the first job's prompt.
+
 - **M6-T8.** Local web UI ([ADR-0039](docs/adr/0039-local-web-ui.md)).
   `internal/ui` (stdlib `html/template` + SSE, mounted at `/ui` on the
   loopback listener) serves Dashboard (active/terminal jobs, pending HITL
