@@ -120,6 +120,7 @@ athanor hitl list                      # M6-T4: pending HITL requests
 athanor hitl approve -id <id> [-note "..."]   # resume the parked job
 athanor hitl reject -id <id> [-note "..."]    # fail it
 athanor hitl defer -id <id> -for 1h           # extend the pending window
+athanor push -project <id> [-remote origin]   # M6-T5: file a HITL request to push the agent branch
 athanor freeze                         # §22 kill switch; frozen state survives restarts
 athanor unfreeze -reason "..."         # requires a reason; recorded in the event log
 ```

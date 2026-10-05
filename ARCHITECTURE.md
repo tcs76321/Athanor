@@ -1385,11 +1385,13 @@ Tools are constrained, audited, and available only to Job Pods and the Core orch
 > `query_memory`. **Git-as-undo is live Core-side** (F3-T5,
 > [ADR-0030](docs/adr/0030-git-as-undo.md)): accepting an artifact commits it
 > to `.athanor/artifacts/<kind>/<id>` on an `athanor/<project>` branch and
-> records the SHA on the artifact; push stays HITL-gated. `git_operation` is
+> records the SHA on the artifact; push is HITL-gated and built (M6-T5,
+> [ADR-0036](docs/adr/0036-hitl-git-push.md)): `athanor push` files a request
+> and only an approved request runs `git push`. `git_operation` is
 > in the closed set but has no route or handler — the Core commits directly
 > rather than exposing git to a pod (M6 may revisit). Planned: `read_file`,
 > `write_file`, `list_files`, `search_files`, `create_artifact`,
-> `request_approval`, `add_correction`, `install_package`, `git_push`,
+> `request_approval`, `add_correction`, `install_package`,
 > `browser_mode`.
 
 ---

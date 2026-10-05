@@ -63,3 +63,13 @@ later both resumes and requests a push.
   cannot reach a remote even indirectly.
 - The first *job-linked* push can adopt `Service.Await` later without changing
   this design.
+
+## Implemented (M6-T5.2–T5.3)
+
+`hitl.Service` gained a per-type `Approver` seam invoked only on approval,
+and `internal/hitl` added `TypeGitPush`. `cmd/athanor/git_client.go` gained
+`Push` (with an injectable runner); `cmd/athanor/git_push.go` provides
+`gitPusher` (creates the request) and `gitPushApprover` (runs the push and
+audits `git_pushed` / `git_push_failed`). `POST /projects/{id}/push` and
+`athanor push` create the request, and serve wires the approver. A rejected
+or expired request never invokes the approver, so the remote is untouched.

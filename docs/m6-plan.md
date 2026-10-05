@@ -132,6 +132,9 @@ job-linked caller is **M6-T5**'s HITL-gated `git_push`.
 
 ## M6-T5 — `git_push` behind HITL
 
+**Status: ✅ complete (2026-10-04).** Commits `27de9a4` (ADR), `ddf9e10`
+(approver seam), `ae0834c` (push path + API/CLI/wiring).
+
 - Core-side push adapter (Gate G1 `os/exec` allowlist) that first creates a
   HITL request; a denied push leaves the remote untouched. Small.
 - Acceptance: push attempt creates an approval request; deny is a no-op.

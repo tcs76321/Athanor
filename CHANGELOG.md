@@ -12,6 +12,16 @@ New entries are appended at the top. Do not rewrite history.
 
 ### M6 — Autonomy & Feedback
 
+- **M6-T5.** HITL-gated `git_push` ([ADR-0036](docs/adr/0036-hitl-git-push.md)).
+  A push attempt — `POST /projects/{id}/push` or `athanor push -project <id>`
+  — only creates a `git_push` HITL request; nothing touches the remote until
+  an operator approves it. `hitl.Service` gained a per-type `Approver` seam
+  invoked only on approve, and the daemon registers one that runs
+  `gitClient.Push` (the Gate-G1-allowlisted Git adapter, now with an
+  injectable runner) and audits `git_pushed` / `git_push_failed`. A rejected
+  or expired request never invokes it, so the remote is untouched. `git_push`
+  stays out of the pod tool envelope: it is a Core action, not a pod tool.
+
 - **M6-T4.** HITL request queue ([ADR-0035](docs/adr/0035-hitl-queue.md),
   [plan](docs/m6-plan.md)). Migration 0018 adds `jobs.awaiting_from`, so the
   §8.1 `awaiting_approval` state is now reachable and resumes to exactly the
