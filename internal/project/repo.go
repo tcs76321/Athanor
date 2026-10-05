@@ -107,22 +107,61 @@ func (r *Repo) SubmitGoal(ctx context.Context, projectID, goalText string, crite
 // Get loads one project by ID.
 func (r *Repo) Get(ctx context.Context, id string) (Project, error) {
 	var p Project
-	var createdAt string
+	var execJSON, createdAt string
 	err := r.store.DB().QueryRowContext(ctx,
-		`SELECT id, name, archetype, goal, status, COALESCE(repository_path, ''), created_at
+		`SELECT id, name, archetype, goal, status, COALESCE(repository_path, ''), execution_json, created_at
 		 FROM projects WHERE id = ?`, id,
-	).Scan(&p.ID, &p.Name, &p.Archetype, &p.Goal, &p.Status, &p.RepositoryPath, &createdAt)
+	).Scan(&p.ID, &p.Name, &p.Archetype, &p.Goal, &p.Status, &p.RepositoryPath, &execJSON, &createdAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Project{}, fmt.Errorf("%w: %s", ErrNotFound, id)
 	}
 	if err != nil {
 		return Project{}, fmt.Errorf("loading project: %w", err)
 	}
+	if err := decodeExecution(id, execJSON, &p.Execution); err != nil {
+		return Project{}, err
+	}
 	var perr error
 	if p.CreatedAt, perr = time.Parse(time.RFC3339, createdAt); perr != nil {
 		return Project{}, fmt.Errorf("parsing project timestamp %q: %w", createdAt, perr)
 	}
 	return p, nil
+}
+
+// decodeExecution unmarshals projects.execution_json into ex. The column is
+// NOT NULL DEFAULT '{}' (migration 0016), so an empty value is defensively
+// ignored rather than treated as an error.
+func decodeExecution(projectID, raw string, ex *Execution) error {
+	if raw == "" {
+		return nil
+	}
+	if err := json.Unmarshal([]byte(raw), ex); err != nil {
+		return fmt.Errorf("decoding execution config for project %s: %w", projectID, err)
+	}
+	return nil
+}
+
+// SetExecution records the per-project §6.2 execution override (F3-T4,
+// ADR-0031). The zero value clears the override (back to archetype
+// defaults). A missing project is ErrNotFound.
+func (r *Repo) SetExecution(ctx context.Context, id string, ex Execution) error {
+	raw, err := json.Marshal(ex)
+	if err != nil {
+		return fmt.Errorf("marshalling execution config: %w", err)
+	}
+	res, err := r.store.DB().ExecContext(ctx,
+		`UPDATE projects SET execution_json = ? WHERE id = ?`, string(raw), id)
+	if err != nil {
+		return fmt.Errorf("setting execution config: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("setting execution config: %w", err)
+	}
+	if n == 0 {
+		return fmt.Errorf("%w: %s", ErrNotFound, id)
+	}
+	return nil
 }
 
 // SetRepositoryPath records the repository root the M5-T8 indexer walks
@@ -147,7 +186,7 @@ func (r *Repo) SetRepositoryPath(ctx context.Context, id, path string) error {
 // creation. limit ≤ 0 means no limit. It is the M5-T8 idle indexer's work
 // list (ADR-0028 §6).
 func (r *Repo) WithRepository(ctx context.Context, limit int) ([]Project, error) {
-	q := `SELECT id, name, archetype, goal, status, COALESCE(repository_path, ''), created_at
+	q := `SELECT id, name, archetype, goal, status, COALESCE(repository_path, ''), execution_json, created_at
 	      FROM projects
 	      WHERE repository_path IS NOT NULL AND repository_path <> ''
 	      ORDER BY created_at`
@@ -164,9 +203,12 @@ func (r *Repo) WithRepository(ctx context.Context, limit int) ([]Project, error)
 	var out []Project
 	for rows.Next() {
 		var p Project
-		var createdAt string
-		if err := rows.Scan(&p.ID, &p.Name, &p.Archetype, &p.Goal, &p.Status, &p.RepositoryPath, &createdAt); err != nil {
+		var execJSON, createdAt string
+		if err := rows.Scan(&p.ID, &p.Name, &p.Archetype, &p.Goal, &p.Status, &p.RepositoryPath, &execJSON, &createdAt); err != nil {
 			return nil, fmt.Errorf("scanning project: %w", err)
+		}
+		if err := decodeExecution(p.ID, execJSON, &p.Execution); err != nil {
+			return nil, err
 		}
 		var perr error
 		if p.CreatedAt, perr = time.Parse(time.RFC3339, createdAt); perr != nil {

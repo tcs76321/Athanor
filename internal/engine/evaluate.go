@@ -173,6 +173,10 @@ func (e *Engine) evaluateCandidate(ctx context.Context, j job.Job, p project.Pro
 		failedTests  []string
 		testExitCode int
 	)
+	// F3-T4 (§6.2, ADR-0031): the test command is the project's, not a
+	// hard-coded `pytest -q`. A code project with no override resolves to
+	// the built-in default.
+	testCommand := p.TestCommand()
 	// M3-T2 (ADR-0014): for `code` archetype, execute the candidate's
 	// code in the Job Pod before the security-persona verdict. The
 	// `code_executed` audit event + `KindCode` artifact persistence
@@ -198,13 +202,16 @@ func (e *Engine) evaluateCandidate(ctx context.Context, j job.Job, p project.Pro
 			"substate":  "running_tests",
 			"candidate": idx,
 		})
-		req := toolenvelope.ExecuteRequest{Command: "pytest -q"}
+		req := toolenvelope.ExecuteRequest{Command: testCommand}
 		res, runErr := e.runner.RunTests(ctx, j.ID, req)
 		if runErr == nil {
 			testsPassed = res.ExitCode == 0
 			testExitCode = res.ExitCode
 			if !testsPassed {
-				failedTests = []string{"pytest"} // TODO M3-T2: surface per-test names
+				// The runner reports an exit code, not per-test names;
+				// record the command that failed so the record is
+				// actionable (the per-test-name surface is future work).
+				failedTests = []string{testCommand}
 			}
 		} else if !errors.Is(runErr, toolenvelope.ErrToolDisallowed) {
 			e.audit(ctx, j.ID, map[string]any{

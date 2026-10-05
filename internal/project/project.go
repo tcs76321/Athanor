@@ -53,7 +53,39 @@ type Project struct {
 	// (ADR-0028). Empty means no repository is configured; indexing is then
 	// a no-op until an operator sets one.
 	RepositoryPath string
-	CreatedAt      time.Time
+	// Execution is the per-project §6.2 execution override (F3-T4,
+	// ADR-0031). The zero value means "use the built-in archetype
+	// defaults"; see TestCommand.
+	Execution Execution
+	CreatedAt time.Time
+}
+
+// Execution holds the per-project §6.2 execution commands. It is persisted
+// as JSON in projects.execution_json (migration 0016). The zero value means
+// "use the built-in defaults for the archetype".
+type Execution struct {
+	TestCommand  string   `json:"test_command,omitempty"`
+	BuildCommand string   `json:"build_command,omitempty"`
+	Linters      []string `json:"linters,omitempty"`
+}
+
+// DefaultCodeTestCommand is the built-in test command for a `code` project
+// with no override (§6.2). It is a constant so the engine, the docs, and the
+// tests agree; changing it is a behavior change for every code project.
+const DefaultCodeTestCommand = "pytest -q"
+
+// TestCommand resolves the command the evaluation phase runs in a Job Pod
+// for this project (F3-T4). An explicit execution.test_command wins; a
+// `code` project with no override gets DefaultCodeTestCommand; other
+// archetypes get "" (no test command).
+func (p Project) TestCommand() string {
+	if p.Execution.TestCommand != "" {
+		return p.Execution.TestCommand
+	}
+	if p.Archetype == ArchetypeCode {
+		return DefaultCodeTestCommand
+	}
+	return ""
 }
 
 // Task is one persisted task row (§7.3, M1 subset).

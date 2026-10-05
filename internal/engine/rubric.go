@@ -70,7 +70,7 @@ func textDocumentRubric() string {
 func codeRubric() string {
 	return strings.Join([]string{
 		"IMPORTS COMPILE: do all top-level imports resolve to a known module? (Audit by reading; the Job Pod's execute_code is the runtime check.)",
-		"TESTS PASS: did the test command (pytest -q) exit 0 in the Job Pod? If `tests_pass` is unknown because the runner was not wired, the verdict's `summary` should mention `runner_not_wired`.",
+		"TESTS PASS: did the project's configured test command exit 0 in the Job Pod? If `tests_pass` is unknown because the runner was not wired, the verdict's `summary` should mention `runner_not_wired`.",
 		"DOCSTRINGS: does every public function have a docstring? (Use the §11 prompt's `pure stdlib; docstrings on every public function; a usage example` for code-archetype goals as the spec.)",
 		"NO PLACEHOLDERS: are there any TODO, FIXME, or `pass`-as-implementation?",
 		"LINTER CLEAN: did `ruff check .` (or the configured linter) exit 0 in the Job Pod? (A job whose envelope does not grant `lint` skips this item.)",

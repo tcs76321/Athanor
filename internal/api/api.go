@@ -133,6 +133,16 @@ type projectRequest struct {
 	// RepositoryPath is the §6.1 repository root the M5-T8 indexer walks
 	// (ADR-0028). Optional; empty means no repository is configured.
 	RepositoryPath string `json:"repository_path"`
+	// Execution is the optional §6.2 execution override (F3-T4,
+	// ADR-0031). Absent means "use the built-in archetype defaults".
+	Execution *projectExecution `json:"execution"`
+}
+
+// projectExecution is the wire shape for the per-project execution override.
+type projectExecution struct {
+	TestCommand  string   `json:"test_command"`
+	BuildCommand string   `json:"build_command"`
+	Linters      []string `json:"linters"`
 }
 
 type projectResponse struct {
@@ -153,6 +163,21 @@ func (a *API) handleProjectCreate(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
+	}
+	// F3-T4: apply the optional §6.2 execution override after the create
+	// transaction. Setting it is a separate write so the common path
+	// (no override) stays one transaction.
+	if req.Execution != nil {
+		ex := project.Execution{
+			TestCommand:  req.Execution.TestCommand,
+			BuildCommand: req.Execution.BuildCommand,
+			Linters:      req.Execution.Linters,
+		}
+		if err := a.projects.SetExecution(r.Context(), p.ID, ex); err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		p.Execution = ex
 	}
 	writeJSON(w, http.StatusCreated, projectResponse{
 		ID: p.ID, Name: p.Name, Archetype: p.Archetype, Goal: p.Goal,
