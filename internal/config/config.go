@@ -243,6 +243,10 @@ type Execution struct {
 	DAGMaxTasks     int `yaml:"dag_max_tasks"`
 	DAGMaxDepth     int `yaml:"dag_max_depth"`
 	DAGMaxTotalJobs int `yaml:"dag_max_total_jobs"`
+	// DAGDecomposition enables the M6-T2 decompose-then-schedule path on
+	// goal submission (ADR-0033 §5). Default false preserves the M1
+	// single-task walking skeleton; set true for autonomous DAG execution.
+	DAGDecomposition bool `yaml:"dag_decomposition"`
 }
 
 // MinJudge returns the §19.3 guard threshold, applying the

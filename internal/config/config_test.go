@@ -68,6 +68,9 @@ func TestLoadValidMinimalAppliesDefaults(t *testing.T) {
 		t.Errorf("DAG bound defaults = %d/%d/%d, want 25/6/100",
 			cfg.Execution.DAGMaxTasks, cfg.Execution.DAGMaxDepth, cfg.Execution.DAGMaxTotalJobs)
 	}
+	if cfg.Execution.DAGDecomposition {
+		t.Error("DAGDecomposition default = true, want false (M1 walking skeleton)")
+	}
 	if d, _ := cfg.Execution.PhaseBudget("evaluating"); d != 600*time.Second {
 		t.Errorf("evaluating budget default = %v", d)
 	}

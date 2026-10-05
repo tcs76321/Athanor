@@ -119,6 +119,10 @@ execution:
   dag_max_tasks: 25
   dag_max_depth: 6
   dag_max_total_jobs: 100
+  # M6-T2 (ADR-0033): when true, goal submission decomposes the goal and
+  # schedules its ready tasks instead of creating a single task. Default
+  # false preserves the M1 single-task walking skeleton.
+  dag_decomposition: false
 
 strategy_analysis:
   enabled: true

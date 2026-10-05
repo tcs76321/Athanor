@@ -227,6 +227,10 @@ func run(configPath, addr, stateDir string) error {
 	// engine; it produces and validates a task graph but does not enqueue
 	// jobs (the M6-T2 scheduler will).
 	externalAPI.SetDecomposer(newDecomposer(cfg, llmClient, registry, projectRepo, st))
+	// M6-T2: the scheduler, plus the execution.dag_decomposition gate that
+	// switches goal submission to decompose-then-schedule (ADR-0033 §5).
+	externalAPI.SetScheduler(sched)
+	externalAPI.SetDAGScheduling(cfg.Execution.DAGDecomposition)
 	externalAPI.Register(srv.Mux())
 	// M2-T3 + M2-T4: internal API for Job Pods. Same loopback HTTP
 	// server, different path prefix (/internal/v1/), every route

@@ -17,8 +17,13 @@ type goalRequest struct {
 }
 
 type goalResponse struct {
-	TaskID string `json:"task_id"`
-	JobID  string `json:"job_id"`
+	TaskID string `json:"task_id,omitempty"`
+	JobID  string `json:"job_id,omitempty"`
+	// M6-T2 (ADR-0033): present only on the decompose-then-schedule path.
+	GoalID  string   `json:"goal_id,omitempty"`
+	Persona string   `json:"persona,omitempty"`
+	TaskIDs []string `json:"task_ids,omitempty"`
+	JobIDs  []string `json:"job_ids,omitempty"`
 }
 
 // handleGoalSubmit submits a goal to a project: it creates the goal, its
@@ -32,6 +37,13 @@ func (a *API) handleGoalSubmit(w http.ResponseWriter, r *http.Request) {
 	}
 	var req goalRequest
 	if !decodeBody(w, r, &req) {
+		return
+	}
+	// M6-T2 (ADR-0033 §5): with dag_decomposition enabled, submission
+	// decomposes the goal and schedules its ready tasks instead of
+	// creating the M1 single task.
+	if a.dagScheduling && a.decomposer != nil && a.scheduler != nil {
+		a.submitDecomposedGoal(w, r, req)
 		return
 	}
 	task, err := a.projects.SubmitGoal(r.Context(), r.PathValue("id"), req.Goal, req.Criteria)
@@ -50,6 +62,33 @@ func (a *API) handleGoalSubmit(w http.ResponseWriter, r *http.Request) {
 	}
 	a.engine.Enqueue(j.ID)
 	writeJSON(w, http.StatusCreated, goalResponse{TaskID: task.ID, JobID: j.ID})
+}
+
+// submitDecomposedGoal is the M6-T2 gated submit path: decompose, then
+// schedule the ready leaves. A decomposition rejection persists nothing
+// (CreateDAG is atomic); a scheduler failure surfaces as 500.
+func (a *API) submitDecomposedGoal(w http.ResponseWriter, r *http.Request, req goalRequest) {
+	res, err := a.decomposer.Decompose(r.Context(), r.PathValue("id"), req.Goal, req.Criteria)
+	if err != nil {
+		writeError(w, decomposeStatus(err), err.Error())
+		return
+	}
+	jobs, err := a.scheduler.Start(r.Context(), res.GoalID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	resp := goalResponse{GoalID: res.GoalID, Persona: res.Persona, JobIDs: jobs}
+	for _, t := range res.Tasks {
+		resp.TaskIDs = append(resp.TaskIDs, t.ID)
+	}
+	if len(res.Tasks) > 0 {
+		resp.TaskID = res.Tasks[0].ID
+	}
+	if len(jobs) > 0 {
+		resp.JobID = jobs[0]
+	}
+	writeJSON(w, http.StatusCreated, resp)
 }
 
 // decompositionTask is the wire shape of one task in a decomposition

@@ -56,8 +56,12 @@ func runProject(args []string) error {
 }
 
 type goalSubmitResult struct {
-	TaskID string `json:"task_id"`
-	JobID  string `json:"job_id"`
+	TaskID  string   `json:"task_id"`
+	JobID   string   `json:"job_id"`
+	GoalID  string   `json:"goal_id"`
+	Persona string   `json:"persona"`
+	TaskIDs []string `json:"task_ids"`
+	JobIDs  []string `json:"job_ids"`
 }
 
 func runGoal(args []string) error {
@@ -84,6 +88,14 @@ func runGoal(args []string) error {
 		"goal": *goal, "acceptance_criteria": criteria,
 	}, &out); err != nil {
 		return err
+	}
+	if len(out.JobIDs) > 0 {
+		fmt.Printf("goal %s decomposed into %d task(s) with the %s persona; scheduled %d job(s):\n",
+			out.GoalID, len(out.TaskIDs), out.Persona, len(out.JobIDs))
+		for _, id := range out.JobIDs {
+			fmt.Printf("  %s\n", id)
+		}
+		return nil
 	}
 	fmt.Printf("goal submitted: job %s (task %s)\nWatch with:\n  athanor job watch -job %s\n", out.JobID, out.TaskID, out.JobID)
 	return nil

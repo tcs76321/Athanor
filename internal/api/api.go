@@ -51,6 +51,14 @@ type Decomposer interface {
 	Decompose(ctx context.Context, projectID, goal string, criteria []string) (decompose.Result, error)
 }
 
+// Scheduler is the surface the gated `POST /projects/{id}/goals` path uses
+// when dag_decomposition is enabled: it starts a decomposed goal's ready
+// tasks (M6-T2, ADR-0033). The concrete implementation is
+// *scheduler.Scheduler.
+type Scheduler interface {
+	Start(ctx context.Context, goalID string) ([]string, error)
+}
+
 // IndexSummary is an indexing pass's counters, also the route's JSON body.
 type IndexSummary struct {
 	Discovered int `json:"discovered"`
@@ -74,6 +82,10 @@ type API struct {
 	exporter   ManualExporter
 	indexer    IndexRunner
 	decomposer Decomposer
+	scheduler  Scheduler
+	// dagScheduling mirrors execution.dag_decomposition: when true, goal
+	// submission decomposes and schedules instead of creating one task.
+	dagScheduling bool
 }
 
 // New builds the API.
@@ -104,6 +116,19 @@ func (a *API) SetIndexRunner(r IndexRunner) {
 // answers 503.
 func (a *API) SetDecomposer(d Decomposer) {
 	a.decomposer = d
+}
+
+// SetScheduler wires the M6-T2 dependency scheduler used by the gated
+// decompose-then-schedule path (ADR-0033). A daemon that does not wire one
+// keeps the single-task submit path even when dag_decomposition is set.
+func (a *API) SetScheduler(s Scheduler) {
+	a.scheduler = s
+}
+
+// SetDAGScheduling enables decompose-then-schedule on goal submission. It
+// mirrors execution.dag_decomposition; the default false preserves M1.
+func (a *API) SetDAGScheduling(enabled bool) {
+	a.dagScheduling = enabled
 }
 
 // Register attaches all routes to mux.

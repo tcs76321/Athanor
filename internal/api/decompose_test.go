@@ -159,3 +159,84 @@ func TestProjectTasksRoute(t *testing.T) {
 		t.Fatalf("unknown project status = %d, want 404", resp2.StatusCode)
 	}
 }
+
+type fakeScheduler struct {
+	started []string
+	err     error
+	calls   int
+}
+
+func (f *fakeScheduler) Start(_ context.Context, _ string) ([]string, error) {
+	f.calls++
+	return f.started, f.err
+}
+
+func TestGoalSubmitDecomposesAndSchedules(t *testing.T) {
+	h := newHarness(t)
+	p := createTestProject(t, h)
+	dec := &fakeDecomposer{res: decompose.Result{
+		GoalID: "g1", Persona: "tall",
+		Tasks: []project.Task{{ID: "t1", Title: "A"}, {ID: "t2", Title: "B"}},
+	}}
+	sched := &fakeScheduler{started: []string{"j1"}}
+	h.api.SetDecomposer(dec)
+	h.api.SetScheduler(sched)
+	h.api.SetDAGScheduling(true)
+
+	resp, err := http.Post(h.ts.URL+"/projects/"+p.ID+"/goals", "application/json",
+		strings.NewReader(`{"goal":"Build a small REST endpoint with tests."}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("status = %d, want 201", resp.StatusCode)
+	}
+	var body goalResponse
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	if body.GoalID != "g1" || len(body.JobIDs) != 1 || body.JobIDs[0] != "j1" || len(body.TaskIDs) != 2 {
+		t.Fatalf("body = %+v", body)
+	}
+	if sched.calls != 1 {
+		t.Errorf("scheduler calls = %d, want 1", sched.calls)
+	}
+}
+
+func TestGoalSubmitDAGSchedulingDisabled(t *testing.T) {
+	h := newHarness(t)
+	p, _, err := h.projects.Create(context.Background(), "demo-text", project.ArchetypeText,
+		"Write a short essay about local-first software.", "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dec := &fakeDecomposer{}
+	sched := &fakeScheduler{}
+	h.api.SetDecomposer(dec)
+	h.api.SetScheduler(sched)
+	// dag_decomposition defaults off: the M1 single-task path runs.
+
+	resp, err := http.Post(h.ts.URL+"/projects/"+p.ID+"/goals", "application/json",
+		strings.NewReader(`{"goal":"Write a short essay about local-first software."}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("status = %d, want 201", resp.StatusCode)
+	}
+	var body goalResponse
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	if body.GoalID != "" || body.JobID == "" {
+		t.Fatalf("body = %+v, want the single-task shape", body)
+	}
+	if dec.calls != 0 || sched.calls != 0 {
+		t.Errorf("decomposer/scheduler ran with dag_decomposition disabled (%d/%d)", dec.calls, sched.calls)
+	}
+	if j := h.waitTerminal(t, body.JobID); j.State != "completed" {
+		t.Errorf("job = %s, want completed", j.State)
+	}
+}
