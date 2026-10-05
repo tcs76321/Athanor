@@ -332,6 +332,16 @@ func (e *Engine) call(ctx context.Context, j job.Job, p project.Project, t proje
 	callCtx, cancel := context.WithTimeout(ctx, budget)
 	defer cancel()
 
+	// F4-T8: `think` is a per-phase decision. Judgment phases (evaluating,
+	// comparing) must not spend the token budget on hidden reasoning — a
+	// thinking-capable model can burn num_predict on reasoning and emit
+	// nothing usable (the M3-T7 runaway). Generation follows config.
+	think := e.cfg.Inference.Think
+	if isJudgmentPhase(phase) {
+		off := false
+		think = &off
+	}
+
 	req := llm.Request{
 		Model:         persona.Model,
 		Messages:      res.Messages,
@@ -340,7 +350,7 @@ func (e *Engine) call(ctx context.Context, j job.Job, p project.Project, t proje
 		Seed:          resolvedSeed,
 		Format:        resolvedFormat,
 		MaxTokens:     e.cfg.Inference.MaxOutputTokens,
-		Think:         e.cfg.Inference.Think,
+		Think:         think,
 	}
 	var resp llm.Response
 	if e.tokenSink != nil {
@@ -385,6 +395,10 @@ func (e *Engine) call(ctx context.Context, j job.Job, p project.Project, t proje
 		// random seed); `format` names the constrained format
 		// ("json-schema" for the judgment phases).
 		"format": formatName, "seed": resolvedSeed,
+		// F4-T8: the explicit bounds every call runs under.
+		"max_output_tokens": req.MaxTokens,
+		"think":             thinkFlag(think),
+		"budget_sec":        int64(budget / time.Second),
 	})
 
 	// M6-T7 (§18.3, ADR-0038): audit which corrections were injected, at

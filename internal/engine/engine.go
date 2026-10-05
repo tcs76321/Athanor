@@ -338,6 +338,20 @@ func (e *Engine) auditComputePlan(ctx context.Context, jobID string, plan policy
 	})
 }
 
+// isJudgmentPhase reports whether a phase adjudicates outputs and so must not
+// spend its token budget on hidden reasoning (F4-T8).
+func isJudgmentPhase(phase string) bool {
+	return phase == llm.PhaseEvaluating || phase == llm.PhaseComparing
+}
+
+// thinkFlag renders a *bool Think for the audit log (nil when unset).
+func thinkFlag(t *bool) any {
+	if t == nil {
+		return nil
+	}
+	return *t
+}
+
 // recordFailureCorrection captures a phase failure as a runtime_error
 // CorrectionRecord (§18.1). Best-effort: a capture failure is logged, never
 // fatal — the job has already failed.
