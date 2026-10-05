@@ -150,6 +150,13 @@ func (r *runnerConfig) run() error {
 	if _, err := os.Stat(r.binary); err != nil {
 		return fmt.Errorf("athanor binary %q not found (run `make build`): %w", r.binary, err)
 	}
+	// Bind mounts (the per-job token dir) require an absolute host path:
+	// Podman resolves a relative mount source inside the VM and fails with
+	// "statfs ...: no such file or directory". Make the output dir absolute
+	// so the daemon's -state-dir (and every token dir under it) is too.
+	if abs, err := filepath.Abs(r.outDir); err == nil {
+		r.outDir = abs
+	}
 	if err := os.MkdirAll(r.outDir, 0o755); err != nil {
 		return err
 	}
