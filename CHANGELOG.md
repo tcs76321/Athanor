@@ -12,6 +12,24 @@ New entries are appended at the top. Do not rewrite history.
 
 ### Foundations — F3: documentation, correctness & hardening sweep
 
+- **F3-T3.** [ADR-0029](docs/adr/0029-file-io-containment-scope.md) records
+  the containment scope (externally-influenced paths route through
+  `airlock/paths`; internal/operator-controlled paths are exempt), and the
+  ingress watcher now opens inbox files through `OpenNoFollow` instead of
+  validating and re-opening by path — closing the Lstat→open TOCTOU window
+  on the one path class that is genuinely attacker-named.
+
+- **F3-T7.** CI and test rigor: the `integration` job is now **required**
+  (behavioral probes gate merges, pinned by `internal/ci/ci_test.go`); new
+  fuzz targets cover `airlock/paths.Resolve` and the verdict brace scanner
+  (`make fuzz`); a new `internal/docs` test fails the build on any broken
+  relative Markdown link (it caught one on first run, in `docs/demo-m1.md`);
+  and `make cover` reports a 69.2% statement baseline.
+
+- **F3-T9.** Repository security posture: `SECURITY.md` (private
+  disclosure), `.github/dependabot.yml` (gomod + actions), and a PR
+  checklist template.
+
 - **F3-T8 (partial).** The documentation contradiction sweep: `README.md`
   now lists the full 8-tool closed set (was 7, missing `query_memory`) and
   scopes the §21.3 containment claim to externally-influenced paths;
