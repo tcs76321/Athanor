@@ -246,6 +246,15 @@ func run(configPath, addr, stateDir string) error {
 	hitlSvc.SetApprover(hitl.TypeStrategyInsight, insightActivator{repo: strategyRepo}.Approve)
 	srv := server.New(version)
 	srv.SetControl(killSwitch)
+	// ADR-0011: apply the configured external-API Host-header allowlist.
+	// The config defaults fill the §D1 loopback set, so this is a no-op
+	// unless the operator overrides network.external_api_host_allowlist —
+	// but without this wiring the field was dead and the daemon was pinned
+	// to the built-in list (so a non-default -addr was unreachable). A bad
+	// entry is fatal rather than silently falling back to the default.
+	if err := srv.SetHostAllowlist(cfg.Network.ExternalAPIHostAllowlist); err != nil {
+		return fmt.Errorf("configuring external API host allowlist: %w", err)
+	}
 	externalAPI := api.New(projectRepo, job.NewRepository(st),
 		artifactStore,
 		eng, killSwitch, st)
