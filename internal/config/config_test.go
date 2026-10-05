@@ -58,8 +58,8 @@ func TestLoadValidMinimalAppliesDefaults(t *testing.T) {
 	if cfg.Execution.DivergenceCandidates != 3 {
 		t.Errorf("DivergenceCandidates default = %d", cfg.Execution.DivergenceCandidates)
 	}
-	if cfg.Execution.MaxReflectionLoops != 2 {
-		t.Errorf("MaxReflectionLoops default = %d, want 2", cfg.Execution.MaxReflectionLoops)
+	if got := cfg.Execution.MaxReflectionLoopsValue(); got != 2 {
+		t.Errorf("MaxReflectionLoops default = %d, want 2", got)
 	}
 	if cfg.Execution.JudgePersona != "security" {
 		t.Errorf("JudgePersona default = %q", cfg.Execution.JudgePersona)
@@ -521,6 +521,22 @@ func TestInference_Think(t *testing.T) {
 	}
 	if cfg.Inference.Think == nil || !*cfg.Inference.Think {
 		t.Errorf("think = %v, want true", cfg.Inference.Think)
+	}
+}
+
+// TestExecution_MaxReflectionLoopsZero pins the M3-T7.8 change: an
+// explicit 0 disables reflection (distinct from unset, which defaults to
+// 2); a negative value is rejected.
+func TestExecution_MaxReflectionLoopsZero(t *testing.T) {
+	cfg, err := Parse([]byte("version: 2\nexecution:\n  max_reflection_loops: 0\n"))
+	if err != nil {
+		t.Fatalf("Parse(0): %v", err)
+	}
+	if got := cfg.Execution.MaxReflectionLoopsValue(); got != 0 {
+		t.Errorf("explicit 0 resolved to %d, want 0", got)
+	}
+	if _, err := Parse([]byte("version: 2\nexecution:\n  max_reflection_loops: -1\n")); err == nil {
+		t.Error("Parse(-1) = nil error, want rejection")
 	}
 }
 

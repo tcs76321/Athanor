@@ -31,6 +31,7 @@ type runnerConfig struct {
 	onlyCSV    string
 	modelsCSV  string
 	timeout    time.Duration
+	noReflect  bool
 
 	// Run guards (M3-T7 soak hardening).
 	maxWall        time.Duration
@@ -58,6 +59,7 @@ func runMatrix(args []string) {
 	fs.IntVar(&r.minFreeGB, "min-free-gb", 5, "abort if free disk drops below this many GB (0 = no check)")
 	fs.IntVar(&r.maxConsecFails, "max-consecutive-errors", 5, "abort after this many consecutive job errors (0 = no limit)")
 	fs.DurationVar(&r.soakInterval, "soak-interval", 30*time.Second, "RSS/DB/disk soak sampling interval")
+	fs.BoolVar(&r.noReflect, "no-reflect", false, "disable reflection loops (pure single-shot baseline)")
 	_ = fs.Parse(args)
 
 	if err := r.run(); err != nil {
@@ -178,7 +180,7 @@ func (r *runnerConfig) runArm(m probeModel, a arm) error {
 		return err
 	}
 	cfgPath := filepath.Join(runDir, "config.yaml")
-	if err := os.WriteFile(cfgPath, []byte(probeConfigYAML(m, a, r.seedPolicy, r.addr)), 0o644); err != nil {
+	if err := os.WriteFile(cfgPath, []byte(probeConfigYAML(m, a, r.seedPolicy, r.addr, r.noReflect)), 0o644); err != nil {
 		return err
 	}
 	fmt.Printf("== %s / %s (candidates=%d runs=%d)\n", m.Label, a.Name, a.Candidates, a.Runs)
@@ -508,6 +510,7 @@ func printConfig(args []string) {
 	armName := fs.String("arm", arms[0].Name, "arm name (dialectical|single)")
 	seed := fs.String("seed", "off", "judgment_seed policy: off|derived")
 	addr := fs.String("addr", strings.TrimPrefix(daemonURL(), "http://"), "daemon listen address (must match the Host-header allowlist)")
+	noReflect := fs.Bool("no-reflect", false, "disable reflection loops")
 	_ = fs.Parse(args)
 
 	m, ok := modelByLabel(*modelLabel)
@@ -520,5 +523,5 @@ func printConfig(args []string) {
 		fmt.Fprintf(os.Stderr, "unknown arm %q\n", *armName)
 		os.Exit(2)
 	}
-	fmt.Print(probeConfigYAML(m, a, *seed, *addr))
+	fmt.Print(probeConfigYAML(m, a, *seed, *addr, *noReflect))
 }

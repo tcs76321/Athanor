@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/tcs76321/athanor/internal/config"
@@ -15,7 +16,7 @@ func TestProbeConfigYAML(t *testing.T) {
 	roles := []string{"wide", "tall", "main", "security", "alternative"}
 	for _, m := range probeModels {
 		for _, a := range arms {
-			raw := probeConfigYAML(m, a, "off", "127.0.0.1:7420")
+			raw := probeConfigYAML(m, a, "off", "127.0.0.1:7420", false)
 			var cfg map[string]any
 			if err := yaml.Unmarshal([]byte(raw), &cfg); err != nil {
 				t.Fatalf("config for %s/%s is not valid YAML: %v\n%s", m.Label, a.Name, err, raw)
@@ -85,7 +86,7 @@ func TestProbeConfigYAML(t *testing.T) {
 // TestProbeConfigSeedPolicy pins the seed knob passed through to the
 // generated config.
 func TestProbeConfigSeedPolicy(t *testing.T) {
-	raw := probeConfigYAML(probeModels[0], arms[0], "derived", "127.0.0.1:7420")
+	raw := probeConfigYAML(probeModels[0], arms[0], "derived", "127.0.0.1:7420", false)
 	var cfg map[string]any
 	if err := yaml.Unmarshal([]byte(raw), &cfg); err != nil {
 		t.Fatalf("invalid YAML: %v", err)
@@ -96,5 +97,17 @@ func TestProbeConfigSeedPolicy(t *testing.T) {
 	}
 	if inference["json_format"] != true {
 		t.Errorf("json_format = %v, want true", inference["json_format"])
+	}
+}
+
+// TestProbeConfigNoReflect pins the -no-reflect knob and proves the
+// generated config still validates.
+func TestProbeConfigNoReflect(t *testing.T) {
+	raw := probeConfigYAML(probeModels[0], arms[0], "off", "127.0.0.1:7420", true)
+	if !strings.Contains(raw, "max_reflection_loops: 0") {
+		t.Errorf("no-reflect config missing max_reflection_loops: 0\n%s", raw)
+	}
+	if _, err := config.Parse([]byte(raw)); err != nil {
+		t.Fatalf("no-reflect config rejected by internal/config: %v", err)
 	}
 }

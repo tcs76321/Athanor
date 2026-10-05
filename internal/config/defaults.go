@@ -137,7 +137,10 @@ func applyDefaults(c *Config) {
 	// `cfg.Execution.MaxReflectionLoops` with a 2 default
 	// to keep the M3-T1 behavior bit-identical when no
 	// config is supplied.
-	setInt(&c.Execution.MaxReflectionLoops, 2)
+	if c.Execution.MaxReflectionLoops == nil {
+		n := 2
+		c.Execution.MaxReflectionLoops = &n
+	}
 	setStr(&c.Execution.JudgePersona, "security")
 	setTrue(&c.Execution.RequireTestsForCode)
 	setTrue(&c.Execution.RequireDocumentationForCode)

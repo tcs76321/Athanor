@@ -28,16 +28,15 @@ import (
 // continue to compile; it is not the source of truth.
 const maxReflectionIterations = 2
 
-// resolveMaxReflectionLoops reads the budget from
-// config, falling back to 2 when the field is zero. A
-// zero config value is treated as "not set" because the
-// config default function in `defaults.go` should have
-// filled it; this fallback is defensive.
+// resolveMaxReflectionLoops reads the budget from config. An explicit 0
+// disables reflection (used by a pure single-shot baseline and by
+// F4-T2's policy); a nil field falls back to the default 2. The fallback
+// is defensive — defaults.go fills the pointer.
 func (e *Engine) resolveMaxReflectionLoops() int {
-	if e.cfg == nil || e.cfg.Execution.MaxReflectionLoops <= 0 {
+	if e.cfg == nil {
 		return maxReflectionIterations
 	}
-	return e.cfg.Execution.MaxReflectionLoops
+	return e.cfg.Execution.MaxReflectionLoopsValue()
 }
 
 // reflectCounterPrefix is the `system_state` key prefix

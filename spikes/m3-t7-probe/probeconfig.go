@@ -18,7 +18,11 @@ import (
 // planning. job_pod.default_tools grants the code-archetype tools the
 // engine's evaluation sub-steps require — without it, code jobs
 // soft-fail without ever running tests.
-func probeConfigYAML(m probeModel, a arm, seedPolicy, addr string) string {
+func probeConfigYAML(m probeModel, a arm, seedPolicy, addr string, noReflect bool) string {
+	reflectLine := ""
+	if noReflect {
+		reflectLine = "  max_reflection_loops: 0\n"
+	}
 	var b strings.Builder
 	fmt.Fprintf(&b, `version: 2
 
@@ -58,7 +62,7 @@ personas:
 
 execution:
   divergence_candidates: %d
-  phase_wall_time_budgets:
+%s  phase_wall_time_budgets:
     planning: "900s"
     diverging: "900s"
     evaluating: "900s"
@@ -82,7 +86,7 @@ job_pod:
 		m.Model, m.ContextTarget,
 		m.Model, m.ContextTarget,
 		m.Model, m.ContextTarget,
-		a.Candidates,
+		a.Candidates, reflectLine,
 	)
 	return b.String()
 }

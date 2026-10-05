@@ -257,10 +257,15 @@ func (c *ContextEngine) LosslessSwapping() bool {
 
 // Execution configures the dialectical loop (§13, §19).
 type Execution struct {
-	DivergenceCandidates  int    `yaml:"divergence_candidates"`
-	MaxHardTaskVariations int    `yaml:"max_hard_task_variations"`
-	MaxReflectionLoops    int    `yaml:"max_reflection_loops"`
-	JudgePersona          string `yaml:"judge_persona"`
+	DivergenceCandidates  int `yaml:"divergence_candidates"`
+	MaxHardTaskVariations int `yaml:"max_hard_task_variations"`
+	// MaxReflectionLoops bounds the reflect→re-diverge loop. The pointer
+	// distinguishes "unset" (default 2) from an explicit 0 (reflection
+	// disabled) — the M3-T7 probe uses 0 for a pure single-shot baseline,
+	// and F4-T2 makes it a policy decision. Resolve via
+	// MaxReflectionLoopsValue.
+	MaxReflectionLoops *int   `yaml:"max_reflection_loops"`
+	JudgePersona       string `yaml:"judge_persona"`
 	// The three flags below are M3-deferred: declared and
 	// defaulted to true so the shipped example config validates
 	// and parses, but the engine does not yet consult them.
@@ -314,6 +319,16 @@ func (e *Execution) MaxTaskRetriesValue() int {
 		return 2
 	}
 	return *e.MaxTaskRetries
+}
+
+// MaxReflectionLoopsValue resolves execution.max_reflection_loops,
+// applying the documented 2 default when unset. An explicit 0 is honored
+// (reflection disabled).
+func (e *Execution) MaxReflectionLoopsValue() int {
+	if e.MaxReflectionLoops == nil {
+		return 2
+	}
+	return *e.MaxReflectionLoops
 }
 
 // MinJudge returns the §19.3 guard threshold, applying the

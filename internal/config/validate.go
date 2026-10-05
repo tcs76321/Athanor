@@ -214,8 +214,8 @@ func validateCross(c *Config) error {
 	if c.Execution.MaxHardTaskVariations < 1 {
 		return fmt.Errorf("execution.max_hard_task_variations must be ≥ 1, got %d", c.Execution.MaxHardTaskVariations)
 	}
-	if c.Execution.MaxReflectionLoops < 1 {
-		return fmt.Errorf("execution.max_reflection_loops must be ≥ 1, got %d", c.Execution.MaxReflectionLoops)
+	if v := c.Execution.MaxReflectionLoops; v != nil && *v < 0 {
+		return fmt.Errorf("execution.max_reflection_loops must be >= 0, got %d", *v)
 	}
 	// M6-T1 (ADR-0032): the DAG bounds must be positive after defaults.
 	// A zero here until now meant "no bound" in the pure validator, but in
