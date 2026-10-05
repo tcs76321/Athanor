@@ -15,7 +15,7 @@ export CGO_ENABLED
 # tag-less binary can never silently run.
 GO_TAGS = -tags sqlite_fts5
 
-.PHONY: build test test-race test-integration integration-images vet lint check vuln tidy tidy-check fuzz run clean hooks bench
+.PHONY: build test test-race test-integration integration-images vet lint check vuln tidy tidy-check fuzz cover run clean hooks bench
 
 build:
 	go build $(GO_TAGS) -o bin/athanor ./cmd/athanor
@@ -78,6 +78,13 @@ bench:
 fuzz:
 	go test $(GO_TAGS) -run=^$$ -fuzz=FuzzResolve -fuzztime=10s ./internal/airlock/paths/
 	go test $(GO_TAGS) -run=^$$ -fuzz=FuzzParseVerdictJSON -fuzztime=10s ./internal/engine/
+
+# Coverage report (F3-T7). Deliberately no hard floor yet: the value is
+# the report while the security-critical packages stabilize. Inspect with
+# `go tool cover -html=cover.out`.
+cover:
+	go test $(GO_TAGS) -coverprofile=cover.out ./...
+	go tool cover -func=cover.out | tail -1
 
 # Aggregate gate; run before pushing. The pre-push hook also calls this.
 check: lint vet test-race

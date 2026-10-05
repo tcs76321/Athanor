@@ -10,6 +10,9 @@
 # Compiled daemon
 /bin/
 
+# Coverage output (make cover)
+/cover.out
+
 # Athanor runtime state (never committed)
 /state/
 /state-*/
