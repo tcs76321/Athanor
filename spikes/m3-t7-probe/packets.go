@@ -40,7 +40,11 @@ func renderJudgePacket(p judgePacket) string {
 		b.WriteString("\n")
 	}
 	b.WriteString("---\n\n")
-	b.WriteString("Score the artifact against the acceptance criteria on a 0.0-1.0 scale.\n")
+	b.WriteString("Evaluate the artifact against EACH acceptance criterion. First list the\n")
+	b.WriteString("criteria that are fully met and those that are missing or only partially met.\n")
+	b.WriteString("Then assign a score from 0.0 to 1.0: use 1.0 only when every criterion is\n")
+	b.WriteString("fully met with no material defect; subtract for any missing or partial\n")
+	b.WriteString("criterion. Do not default to 1.0.\n")
 	b.WriteString("Output JSON only, matching this schema exactly:\n")
 	b.WriteString(`{"score": 0.0, "criteria_met": [], "criteria_missing": [], "notes": ""}`)
 	b.WriteString("\n")

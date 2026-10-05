@@ -61,17 +61,36 @@ type ollamaChatResponse struct {
 }
 
 // callJudge sends one blind judge packet to one model and parses the JSON
-// score. Temperature is pinned to 0 and the seed is derived from
-// (packet, judge) for reproducibility (Ollama ignores the seed under
-// greedy decoding but records the intent).
+// score, retrying on failure. Some models return an *empty* body under JSON
+// mode (observed with granite4.2:3b in the M3-T7 run: 19/37 empty), so
+// alternate attempts drop the format hint; a judge that cannot answer in
+// three tries is an error, never a silent zero.
 func callJudge(baseURL, model, packet string, seed int64) (judgeResponse, error) {
-	body, err := json.Marshal(ollamaChatRequest{
+	var lastErr error
+	for attempt := 0; attempt < 3; attempt++ {
+		jr, err := callJudgeOnce(baseURL, model, packet, seed, attempt%2 == 0)
+		if err == nil {
+			return jr, nil
+		}
+		lastErr = err
+	}
+	return judgeResponse{}, lastErr
+}
+
+// callJudgeOnce is one attempt. Temperature is pinned to 0 and the seed is
+// derived from (packet, judge) for reproducibility (Ollama ignores the seed
+// under greedy decoding but records the intent).
+func callJudgeOnce(baseURL, model, packet string, seed int64, useFormat bool) (judgeResponse, error) {
+	req := ollamaChatRequest{
 		Model:    model,
 		Messages: []map[string]string{{"role": "user", "content": packet}},
 		Stream:   false,
-		Format:   "json",
-		Options:  map[string]any{"temperature": 0.0, "seed": seed, "num_predict": 1024},
-	})
+		Options:  map[string]any{"temperature": 0.0, "seed": seed, "num_predict": 2048},
+	}
+	if useFormat {
+		req.Format = "json"
+	}
+	body, err := json.Marshal(req)
 	if err != nil {
 		return judgeResponse{}, err
 	}
@@ -108,8 +127,14 @@ func parseJudgeContent(content string) (judgeResponse, error) {
 	if err := json.Unmarshal([]byte(obj), &raw); err != nil {
 		return judgeResponse{}, err
 	}
+	// A missing score is an error, not a zero: coercing an absent key to 0
+	// would silently conflate "the judge failed" with "the judge scored 0".
+	scoreRaw, hasScore := raw["score"]
+	if !hasScore {
+		return judgeResponse{}, fmt.Errorf("judge response has no score field: %q", truncate(content, 120))
+	}
 	out := judgeResponse{
-		Score:           coerceFloat(raw["score"]),
+		Score:           coerceFloat(scoreRaw),
 		CriteriaMet:     coerceStrings(raw["criteria_met"]),
 		CriteriaMissing: coerceStrings(raw["criteria_missing"]),
 	}
@@ -214,6 +239,7 @@ func runJudge(args []string) {
 	outDir := fs.String("out", filepath.Join("spikes", "m3-t7-probe", "results"), "results directory")
 	ollamaURL := fs.String("ollama", "http://localhost:11434", "Ollama base URL")
 	judgesCSV := fs.String("judges", strings.Join(judgeModels, ","), "comma-separated judge models")
+	minSuccess := fs.Float64("min-success", 0.8, "fail if any judge's success rate is below this fraction")
 	_ = fs.Parse(args)
 
 	judges := splitCSV(*judgesCSV)
@@ -277,12 +303,37 @@ func runJudge(args []string) {
 		fmt.Fprintf(os.Stderr, "m3-t7 judge: no packets found under %s\n", *outDir)
 		os.Exit(1)
 	}
+	// Reliability gate: a judge whose calls mostly error is not a
+	// measurement. Report per-judge success and fail loudly below the floor,
+	// after writing the raw results so a failure is still inspectable.
+	ok, total := map[string]int{}, map[string]int{}
+	for _, r := range results {
+		total[r.Judge]++
+		if r.Error == "" {
+			ok[r.Judge]++
+		}
+	}
+	unreliable := false
+	for _, j := range judges {
+		rate := 0.0
+		if total[j] > 0 {
+			rate = float64(ok[j]) / float64(total[j])
+		}
+		fmt.Printf("judge %s: %d/%d ok (%.0f%%)\n", j, ok[j], total[j], rate*100)
+		if total[j] > 0 && rate < *minSuccess {
+			unreliable = true
+		}
+	}
 	if err := writeJSON(filepath.Join(*outDir, "judges.json"), results); err != nil {
 		fmt.Fprintln(os.Stderr, "m3-t7 judge:", err)
 		os.Exit(1)
 	}
 	fmt.Printf("judged %d packets with %d judges (%d rows) → %s\n",
 		packets, len(judges), len(results), filepath.Join(*outDir, "judges.json"))
+	if unreliable {
+		fmt.Fprintf(os.Stderr, "m3-t7 judge: a judge's success rate is below %.0f%% — the judgment layer is not trustworthy\n", *minSuccess*100)
+		os.Exit(1)
+	}
 }
 
 func splitCSV(s string) []string {
