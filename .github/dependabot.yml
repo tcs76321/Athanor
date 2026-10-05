@@ -1,0 +1,21 @@
+version: 2
+# Dependency updates are welcome for already-ratified direct dependencies.
+# A PR that introduces a *new* direct dependency will fail the executable
+# allowlist in internal/deps/deps_test.go by design: adding a dependency is
+# a project decision (AGENTS.md), so it must also edit allowedDirectDeps in
+# the same commit.
+updates:
+  - package-ecosystem: gomod
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "ci(deps)"
