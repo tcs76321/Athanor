@@ -208,6 +208,9 @@ func run(configPath, addr, stateDir string) error {
 	externalAPI := api.New(projectRepo, job.NewRepository(st),
 		artifactStore,
 		eng, killSwitch, st)
+	// M5-T8: the repository indexer behind POST /projects/{id}/index
+	// (ADR-0028 §6). It shares the MCE runtime's chunk store and summarizer.
+	externalAPI.SetIndexRunner(newMCEIndexer(mceRT, st, llmClient, cfg.ContextEngine))
 	externalAPI.Register(srv.Mux())
 	// M2-T3 + M2-T4: internal API for Job Pods. Same loopback HTTP
 	// server, different path prefix (/internal/v1/), every route

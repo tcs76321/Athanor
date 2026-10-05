@@ -72,6 +72,8 @@ func main() {
 		err = runArtifacts(args[1:])
 	case "export":
 		err = runExport(args[1:])
+	case "index":
+		err = runIndex(args[1:])
 	case "freeze":
 		err = runFreeze(args[1:])
 	case "unfreeze":
@@ -101,6 +103,7 @@ commands:
   goal submit        -project -goal [-criteria] [-addr]
   job watch          -job [-timeout] [-addr]   (streams progress, prints artifact)
   artifacts          -project [-addr]          (lists a project's artifacts)
+  index              -project [-path] [-addr]  (index a project's repository)
   freeze             [-addr]                   (§22 kill switch)
   unfreeze           -reason "..." [-addr]     (requires a reason, logged)
   version            print version

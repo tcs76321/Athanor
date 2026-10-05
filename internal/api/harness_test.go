@@ -30,6 +30,7 @@ type harness struct {
 	projects  *project.Repo
 	freezer   *control.KillSwitch
 	eng       *engine.Engine
+	api       *API
 }
 
 func newHarness(t *testing.T) *harness {
@@ -82,7 +83,8 @@ func newHarness(t *testing.T) *harness {
 
 	srv := server.New("test")
 	srv.SetControl(freezer)
-	New(projects, jobs, artifacts, eng, freezer, st).Register(srv.Mux())
+	apiServer := New(projects, jobs, artifacts, eng, freezer, st)
+	apiServer.Register(srv.Mux())
 	// Disable the ADR-0011 Host-header allowlist for
 	// tests that are not about the middleware. The
 	// httptest server binds a random port, which is
@@ -94,7 +96,7 @@ func newHarness(t *testing.T) *harness {
 	t.Cleanup(ts.Close)
 
 	return &harness{ts: ts, st: st, jobs: jobs, artifacts: artifacts,
-		projects: projects, freezer: freezer, eng: eng}
+		projects: projects, freezer: freezer, eng: eng, api: apiServer}
 }
 
 // waitTerminal polls a job until it leaves the active states.

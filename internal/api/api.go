@@ -35,6 +35,25 @@ type ManualExporter interface {
 	ExportOne(ctx context.Context, artifactID string) (path string, exported bool, err error)
 }
 
+// IndexRunner is the surface the M5-T8 `POST /projects/{id}/index` route
+// uses to index a repository (ADR-0028 §6). The MCE adapter lives in cmd/,
+// so the API does not import internal/mce.
+type IndexRunner interface {
+	IndexProject(ctx context.Context, projectID, path string) (IndexSummary, error)
+}
+
+// IndexSummary is an indexing pass's counters, also the route's JSON body.
+type IndexSummary struct {
+	Discovered int `json:"discovered"`
+	Indexed    int `json:"indexed"`
+	Skipped    int `json:"skipped"`
+	Pruned     int `json:"pruned"`
+	Chunks     int `json:"chunks"`
+	Summarized int `json:"summarized"`
+	Embedded   int `json:"embedded"`
+	Failed     int `json:"failed"`
+}
+
 // API wires the HTTP handlers to the persistence and engine layers.
 type API struct {
 	projects  *project.Repo
@@ -44,6 +63,7 @@ type API struct {
 	freezer   *control.KillSwitch
 	db        *store.Store
 	exporter  ManualExporter
+	indexer   IndexRunner
 }
 
 // New builds the API.
@@ -63,6 +83,12 @@ func (a *API) SetManualExporter(e ManualExporter) {
 	a.exporter = e
 }
 
+// SetIndexRunner wires the M5-T8 repository indexer for `POST
+// /projects/{id}/index`. A daemon that does not wire one answers 503.
+func (a *API) SetIndexRunner(r IndexRunner) {
+	a.indexer = r
+}
+
 // Register attaches all routes to mux.
 func (a *API) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /projects", a.handleProjectCreate)
@@ -73,6 +99,8 @@ func (a *API) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /jobs/{id}/events", a.handleJobEvents)
 	// M4-T4: synchronous export on operator request.
 	mux.HandleFunc("POST /exports/{id}", a.handleExport)
+	// M5-T8: synchronous repository indexing on operator request.
+	mux.HandleFunc("POST /projects/{id}/index", a.handleProjectIndex)
 }
 
 // writeJSON is the single response writer: always JSON, always UTF-8.
@@ -142,6 +170,46 @@ func (a *API) handleProjectGet(w http.ResponseWriter, r *http.Request) {
 		ID: p.ID, Name: p.Name, Archetype: p.Archetype, Goal: p.Goal,
 		RepositoryPath: p.RepositoryPath,
 	})
+}
+
+type indexRequest struct {
+	Path string `json:"path"`
+}
+
+// handleProjectIndex runs the M5-T8 repository indexer to completion for a
+// project (ADR-0028 §6). The repository root is the request's path, falling
+// back to the project's repository_path; neither present is a 409.
+func (a *API) handleProjectIndex(w http.ResponseWriter, r *http.Request) {
+	if a.indexer == nil {
+		writeError(w, http.StatusServiceUnavailable, "repository indexing is not configured")
+		return
+	}
+	id := r.PathValue("id")
+	p, err := a.projects.Get(r.Context(), id)
+	if err != nil {
+		writeError(w, http.StatusNotFound, err.Error())
+		return
+	}
+	var req indexRequest
+	if r.ContentLength > 0 {
+		if !decodeBody(w, r, &req) {
+			return
+		}
+	}
+	path := req.Path
+	if path == "" {
+		path = p.RepositoryPath
+	}
+	if path == "" {
+		writeError(w, http.StatusConflict, "project has no repository_path; set one or pass a path")
+		return
+	}
+	sum, err := a.indexer.IndexProject(r.Context(), id, path)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, sum)
 }
 
 // finalKind maps archetype → §9.1 kind, mirroring engine.finalKindFor.
