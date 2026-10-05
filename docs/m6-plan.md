@@ -154,6 +154,10 @@ sink), `8798602` (API/CLI/wiring). Injection is M6-T7.
 
 ## M6-T7 — Feedback injection
 
+**Status: ✅ complete (2026-10-04).** Commits `8207cb9` (ADR), `2b03fb5`
+(`Relevant`/`Update`), `010f23b` (engine injection + audit), `b7fb330` (API
+edit). Vector-similarity ranking is deferred to the `Relevant` seam.
+
 - Corrections become §11.2 position 8 in the engine's tier assembly, with
   severity/scope ordering, vector/full-text retrieval over the MCE, and
   token accounting; mute/edit/promote API. ADR-0037.

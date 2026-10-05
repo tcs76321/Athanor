@@ -1018,7 +1018,10 @@ When a user rejects an artifact, the UI requires: category, severity, reason, de
 > maps all nine §18.1 sources and enforces the §18.4 form; the engine reports
 > a phase failure as a `runtime_error` record; and `athanor reject` /
 > `athanor corrections` (with `POST`/`GET /projects/{id}/corrections`) expose
-> it. **Injection into prompt assembly is M6-T7**; the automatic
+> it. **Injection into prompt assembly is live (M6-T7,
+> [ADR-0038](docs/adr/0038-feedback-injection.md))**: active corrections are
+> ranked severity → scope → recency and rendered at §11.2 position 8 / tier 4,
+> with a `corrections_injected` audit row and applied counts. The automatic
 > test-failure/evaluator-failure/security-scan capture and the
 > loop/hallucination alarms are follow-up (the §22.3 alarms land in M7-T3).
 

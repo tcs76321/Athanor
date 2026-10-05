@@ -12,6 +12,17 @@ New entries are appended at the top. Do not rewrite history.
 
 ### M6 — Autonomy & Feedback
 
+- **M6-T7.** Feedback injection ([ADR-0038](docs/adr/0038-feedback-injection.md)).
+  `corrections.Relevant` returns the active records that apply to a project
+  (project-scoped plus global), ordered severity → scope → recency and capped;
+  the engine's nil-safe `CorrectionSource` seam renders them into §11.2
+  position 8 / §10.5 tier 4, so a high-severity project correction outranks
+  everything lower and the ladder may still evict the tier last. Every call
+  appends a `feedback` `corrections_injected` audit row (ids, count, tier
+  tokens, suppressed flag) and increments `applied_count` for records that
+  survived into the prompt. `PATCH /corrections/{id}` gained §18.3 edit
+  fields. Vector-similarity ranking is deferred to the `Relevant` seam.
+
 - **M6-T6.** CorrectionRecords ([ADR-0037](docs/adr/0037-correction-records.md)).
   Migration 0019 completes the §18.2 shape (`artifact_id`, `scope`,
   `user_feedback`). `internal/corrections` maps all nine §18.1 sources to a
