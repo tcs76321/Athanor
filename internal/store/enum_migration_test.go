@@ -40,7 +40,7 @@ func TestCanonicalEnumMigration(t *testing.T) {
 	db := s.DB()
 
 	// Build v2 state and prove the old constraints reject canonical values.
-	if err := Migrate(db, migrationsExcept(t, "0003", "0004", "0005", "0006", "0007", "0008", "0009", "0010", "0011", "0012", "0013", "0014", "0015", "0016"), ""); err != nil {
+	if err := Migrate(db, migrationsExcept(t, "0003", "0004", "0005", "0006", "0007", "0008", "0009", "0010", "0011", "0012", "0013", "0014", "0015", "0016", "0017"), ""); err != nil {
 		t.Fatalf("migrating to v2: %v", err)
 	}
 	if got := VersionOf(t, db); got != 2 {
@@ -63,8 +63,8 @@ func TestCanonicalEnumMigration(t *testing.T) {
 	if err := Migrate(db, migrations.FS, t.TempDir()); err != nil {
 		t.Fatalf("applying 0003: %v", err)
 	}
-	if got := VersionOf(t, db); got != 16 {
-		t.Fatalf("version = %d after full migrate, want 16", got)
+	if got := VersionOf(t, db); got != 17 {
+		t.Fatalf("version = %d after full migrate, want 17", got)
 	}
 
 	// Severity remapping is correct.
