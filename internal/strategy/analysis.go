@@ -335,6 +335,13 @@ func (r *Repo) ActiveStatements(ctx context.Context) ([]string, error) {
 	return out, nil
 }
 
+// ActiveInsights returns the *active* insights themselves (F4-T7a), so the
+// engine can bias the persona plan from their patterns. Proposed, muted, and
+// retired insights are excluded.
+func (r *Repo) ActiveInsights(ctx context.Context) ([]Insight, error) {
+	return r.ListInsights(ctx, InsightActive)
+}
+
 func scanInsight(row interface{ Scan(...any) error }) (Insight, error) {
 	var ins Insight
 	var patternJSON, evidenceJSON, createdAt, updatedAt string

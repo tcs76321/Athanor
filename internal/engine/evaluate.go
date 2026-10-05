@@ -113,6 +113,7 @@ func (e *Engine) phaseEvaluate(ctx context.Context, j job.Job) error {
 	}
 
 	passCount := 0
+	securityFailures := 0
 	for i, cand := range candidates {
 		rec, err := e.evaluateCandidate(ctx, j, p, t, cand, previousID, i+1, len(candidates))
 		if err != nil {
@@ -121,6 +122,9 @@ func (e *Engine) phaseEvaluate(ctx context.Context, j job.Job) error {
 		if rec.PassedTests && len(rec.MissingCriteria) == 0 && len(rec.SecurityIssues) == 0 {
 			passCount++
 		}
+		if len(rec.SecurityIssues) > 0 {
+			securityFailures++
+		}
 	}
 
 	e.audit(ctx, j.ID, map[string]any{
@@ -128,6 +132,17 @@ func (e *Engine) phaseEvaluate(ctx context.Context, j job.Job) error {
 		"candidates": len(candidates),
 		"passed":     passCount,
 	})
+
+	// F4-T7b reflection gating: a cycle in which every candidate failed on a
+	// security finding is not a content problem reflection can fix. Fail
+	// fast instead of burning another divergence/reflection cycle.
+	if passCount == 0 && len(candidates) > 0 && securityFailures == len(candidates) {
+		e.audit(ctx, j.ID, map[string]any{
+			"event": "reflection_skipped_security", "candidates": len(candidates),
+		})
+		_, err = e.jobs.Transition(ctx, j.ID, job.StateFailed)
+		return err
+	}
 
 	if passCount > 0 {
 		_, err = e.jobs.Transition(ctx, j.ID, job.StateSynthesizing)

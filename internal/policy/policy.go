@@ -50,6 +50,10 @@ type Features struct {
 	// this task class (0 samples = no history). Adaptive's second signal.
 	RecentSamples    int
 	RecentAcceptRate float64
+	// PreferredDivergencePersona is the F4-T7a feedback→policy bias: when an
+	// active StrategyInsight names a winning divergence persona for this
+	// task class, it leads DivergenceRoles. Empty means no bias.
+	PreferredDivergencePersona string
 }
 
 // Limits are the operator-configured ceilings (ADR-0044 rule 4). A policy may
@@ -79,6 +83,9 @@ type Plan struct {
 	// through (F4-T5 heterogeneous diversity). Empty means "one role for all
 	// candidates": the PhaseDiverging route, or main.
 	DivergenceRoles []string
+	// InsightBias names the F4-T7a active-insight persona that led
+	// DivergenceRoles ("" when no insight applied).
+	InsightBias string
 }
 
 // Policy decides a job's plan. Implementations must be pure and total: no I/O,

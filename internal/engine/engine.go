@@ -392,6 +392,15 @@ func (e *Engine) planInputs(ctx context.Context, j job.Job, p project.Project, t
 			in.Features.RecentAcceptRate = rate
 		}
 	}
+	// F4-T7a: an active insight can bias the divergence persona. Proposed
+	// insights are excluded by the lister, so they never reach here.
+	if e.insights != nil {
+		if lister, ok := e.insights.(StrategyInsightLister); ok {
+			if pref := e.preferredDivergencePersona(ctx, lister, p.Archetype); pref != "" {
+				in.Features.PreferredDivergencePersona = pref
+			}
+		}
+	}
 	return in
 }
 
@@ -435,6 +444,16 @@ func (e *Engine) decidePlan(in policy.Inputs) policy.Plan {
 				plan.DivergenceRoles = []string{gen, llm.RoleAlternative}
 			}
 		}
+	}
+	// F4-T7a: an active insight's preferred persona leads divergence. Applied
+	// after the heterogeneity default so the insight always wins position 0.
+	if pref := in.Features.PreferredDivergencePersona; pref != "" {
+		alt := llm.RoleAlternative
+		if pref == alt {
+			alt = llm.RoleMain
+		}
+		plan.DivergenceRoles = []string{pref, alt}
+		plan.InsightBias = pref
 	}
 	return plan
 }
@@ -488,7 +507,15 @@ func (e *Engine) auditComputePlan(ctx context.Context, jobID, stage string, plan
 		"judge_mode":           string(plan.JudgeMode),
 		"judge_count":          plan.JudgeCount,
 		"model_routing":        plan.ModelRouting,
+		"divergence_roles":     plan.DivergenceRoles,
 	})
+	// F4-T7a: record the feedback→policy bias once, at the divergence stage
+	// (the profile-stage plan runs before insights are relevant to the run).
+	if stage == "divergence" && plan.InsightBias != "" {
+		e.audit(ctx, jobID, map[string]any{
+			"event": "policy_biased_from_insight", "persona": plan.InsightBias,
+		})
+	}
 }
 
 // isJudgmentPhase reports whether a phase adjudicates outputs and so must not

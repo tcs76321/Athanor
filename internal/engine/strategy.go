@@ -28,6 +28,39 @@ type StrategyInsightSource interface {
 	ActiveStatements(ctx context.Context) ([]string, error)
 }
 
+// StrategyInsightLister is the F4-T7a feedback→policy seam: the full *active*
+// insights so the engine can bias the persona plan. It is optional and
+// type-asserted, so a statement-only source keeps working.
+type StrategyInsightLister interface {
+	ActiveInsights(ctx context.Context) ([]strategy.Insight, error)
+}
+
+// preferredDivergencePersona returns the divergence persona an active winning
+// insight names for this archetype ("" when none applies). Only active
+// insights count — a proposed insight stays inert, which is the §13.4
+// contract.
+func (e *Engine) preferredDivergencePersona(ctx context.Context, lister StrategyInsightLister, archetype string) string {
+	insights, err := lister.ActiveInsights(ctx)
+	if err != nil {
+		slog.Warn("engine: reading active insights for policy bias", "err", err)
+		return ""
+	}
+	pref := ""
+	for _, ins := range insights {
+		if ins.Polarity != strategy.PolarityWinning || ins.Pattern.Feature != "diverging.persona" {
+			continue
+		}
+		if ins.Pattern.Context != "" && ins.Pattern.Context != "archetype="+archetype {
+			continue
+		}
+		switch ins.Pattern.Value {
+		case llm.RoleMain, llm.RoleAlternative, llm.RoleTall:
+			pref = ins.Pattern.Value
+		}
+	}
+	return pref
+}
+
 // phaseStrategies is the engine's fixed phase → persona mapping (the persona
 // plan §13.1). Capture derives the profile from it with zero inference.
 var phaseStrategies = []struct{ phase, role string }{
