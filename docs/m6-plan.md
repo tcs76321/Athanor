@@ -141,6 +141,10 @@ job-linked caller is **M6-T5**'s HITL-gated `git_push`.
 
 ## M6-T6 — CorrectionRecords
 
+**Status: ✅ complete (2026-10-04).** Commits `4ad0cc9` (ADR), `004c2da`
+(migration 0019), `6126583` (`internal/corrections`), `f1b7f61` (engine
+sink), `8798602` (API/CLI/wiring). Injection is M6-T7.
+
 - `internal/corrections` repo over the existing `corrections` table.
 - Capture for every §18.1 source; the §18.4 rejection form is mandatory
   (category, severity, reason, desired behavior, scope). Migration adds

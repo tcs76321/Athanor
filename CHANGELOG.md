@@ -12,6 +12,19 @@ New entries are appended at the top. Do not rewrite history.
 
 ### M6 — Autonomy & Feedback
 
+- **M6-T6.** CorrectionRecords ([ADR-0037](docs/adr/0037-correction-records.md)).
+  Migration 0019 completes the §18.2 shape (`artifact_id`, `scope`,
+  `user_feedback`). `internal/corrections` maps all nine §18.1 sources to a
+  default category/severity/derived rule and enforces the §18.4 mandatory
+  rejection form (category, severity, reason, desired behavior, scope) for
+  user-driven sources; `Active` returns severity-ordered records for
+  injection, and `ListByProject`/`SetStatus`/`MarkApplied` back the UI. The
+  engine reports a phase failure as a `runtime_error` record through a
+  nil-safe `CorrectionSink`, and every capture writes a `feedback` event.
+  `POST`/`GET /projects/{id}/corrections`, `PATCH /corrections/{id}`, and
+  `athanor reject` / `athanor corrections` expose it. All nine sources are
+  covered by tests.
+
 - **M6-T5.** HITL-gated `git_push` ([ADR-0036](docs/adr/0036-hitl-git-push.md)).
   A push attempt — `POST /projects/{id}/push` or `athanor push -project <id>`
   — only creates a `git_push` HITL request; nothing touches the remote until

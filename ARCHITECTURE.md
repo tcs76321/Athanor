@@ -1012,6 +1012,16 @@ Feedback and strategy analysis (§13.4) are the twin mechanisms for self-improve
 
 When a user rejects an artifact, the UI requires: category, severity, reason, desired behavior, and scope (project or global). This is fast but structured, ensuring every rejection produces a usable `CorrectionRecord`.
 
+> **Implementation status (M6-T6).** The capture layer is live
+> ([ADR-0037](docs/adr/0037-correction-records.md)): migration 0019 adds the
+> §18.2 `artifact_id`/`scope`/`user_feedback` fields; `internal/corrections`
+> maps all nine §18.1 sources and enforces the §18.4 form; the engine reports
+> a phase failure as a `runtime_error` record; and `athanor reject` /
+> `athanor corrections` (with `POST`/`GET /projects/{id}/corrections`) expose
+> it. **Injection into prompt assembly is M6-T7**; the automatic
+> test-failure/evaluator-failure/security-scan capture and the
+> loop/hallucination alarms are follow-up (the §22.3 alarms land in M7-T3).
+
 ---
 
 ## 19. Evaluation System
