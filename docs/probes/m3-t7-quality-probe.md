@@ -16,6 +16,135 @@ code change in `internal/engine/diverge.go` that
 emits the `divergence_jaccard` event. See the
 `spikes/m3-t7-probe/` scaffold for the runner.
 
+## Headline experiment: dialectical vs single-shot
+
+The primary M3-T7 question is **does N-candidate divergence + deterministic
+evaluation/comparison beat a single candidate?** This experiment is the
+reason the probe exists; the T-a/b/c sub-measurements below are supporting
+diagnostics.
+
+- **Factor:** `execution.divergence_candidates` ∈ {1 = single-shot, 3 =
+  dialectical}, everything else held constant.
+- **Single-shot arm (N=1):** the full engine, same prompt assembly, same
+  evaluation/comparison — one candidate. This isolates the value of the
+  *multiple candidates + comparison* from the rest of the pipeline. (The
+  engine still runs `phaseEvaluate`/`phaseCompare`; with one candidate the
+  comparison degrades to `winner=new`.)
+- **Dialectical arm (N=3):** the default.
+- **Metrics:** final-artifact quality (five channels, below), comparison
+  `winner`/`confidence`, token cost, wall time, call count, retries/
+  reflection loops, and — for N=3 — average pairwise Jaccard diversity.
+- **Cost-normalized comparison is mandatory:** the N=3 arm costs ~2–3× the
+  calls, so quality-per-token and quality-per-minute are reported alongside
+  raw quality.
+
+## Locked design (2026-10-05)
+
+These decisions are fixed for the run; changing them re-opens the protocol.
+
+### Sample set — 10 goals (2 text / 6 code / 2 document)
+
+One project per goal. Goals 1–5 are the M1-T8 set (continuity with
+`docs/probes/m1-quality-probe.md`); goals 6–10 are the M3-T2 rubric-covering
+code set (`spikes/m3-t2-probe/`). Goal 9 is deliberately failure-sensitive.
+
+| # | Src | Archetype | Goal | Criteria |
+|---|---|---|---|---|
+| 1 | M1-T8 | text | "Write a short essay about why local-first software matters." | at least three arguments; a conclusion |
+| 2 | M1-T8 | text | "Draft a friendly onboarding email for a new community member of a local software club." | under 200 words; one clear call to action |
+| 3 | M1-T8 | code | "Write a Python module that manages a personal book collection with add, list, and search functions." | pure stdlib; docstrings on every public function; a usage example |
+| 4 | M1-T8 | document | "Create a README for a small CLI tool that converts Markdown files to HTML." | installation section; usage examples; license section |
+| 5 | M1-T8 | document | "Write a one-page design brief for a weekend project that builds a sunrise alarm clock from a Raspberry Pi." | parts list; build steps; at least two risks named |
+| 6 | M3-T2 | code | "Write a Python function that returns the n-th Fibonacci number using recursion." | pure stdlib; docstrings on every public function; a usage example |
+| 7 | M3-T2 | code | "Write a Python module with three utility functions for trimming, padding, and reversing strings." | pure stdlib; docstrings on every public function |
+| 8 | M3-T2 | code | "Write a Python cache class with get, set, and evict methods." | pure stdlib; no TODO or FIXME placeholders |
+| 9 | M3-T2 | code | "Write a Python function that returns its input reversed. The function must always succeed." | pure stdlib; tests pass |
+| 10 | M3-T2 | code | "Write a Python class for managing a todo list, with add, complete, list_pending, and clear methods." | pure stdlib; docstrings on every public function; no TODO or FIXME placeholders |
+
+### Models and runs
+
+| Run | Personas | Arms |
+|---|---|---|
+| A | all → `qwen3.8:27b-mlx` | N=3 (×3 runs) + N=1 (×1 run) |
+| B | all → `ornith-1.5:9b` | N=3 (×3 runs) + N=1 (×1 run) |
+| C (optional) | `tall/main/wide/security` → qwen, `alternative` → ornith | N=3 |
+
+Models must already be pulled locally (`ollama list`). Run C tests the
+ROADMAP tagline ("27 B tall + 9 B ornith for alternative") and whether a
+different-family alternative improves diversity/quality; it is attempted
+only if the memory rule below passes.
+
+### Repetition
+
+- Dialectical arm (N=3): each goal run **3×**. The headline uses all three
+  (median); T-c stability reads the three `winner` values directly.
+- Single arm (N=1): each goal run **1×**.
+- Per model: 10 × (3+1) = **40 jobs**; Runs A+B ≈ 80 jobs.
+
+### Memory / residency rule
+
+qwen3.8:27b (~22 GB resident) + ornith-1.5:9b (~6.6 GB) ≈ 28.6 GB on a
+32 GiB host — feasible but tight. Before any run:
+
+1. Read `ollama ps`, `vm_stat`, `memory_pressure`.
+2. Load the model; require `ollama ps` to report **`100% GPU`** and swap
+   I/O to stay **0**. A partial-CPU reading invalidates the run.
+3. For Runs A/B (timing-critical) set `OLLAMA_MAX_LOADED_MODELS=1` and
+   `OLLAMA_NUM_PARALLEL=1` so co-residency cannot happen by accident.
+4. Attempt co-residency (Run C, or a judge loaded alongside a generator)
+   only with **both** models at `100% GPU` and ≥ ~2 GB headroom; otherwise
+   fall back to single-model-per-run.
+5. Judging runs offline with the daemon stopped, so the judge gets the
+   whole machine.
+
+### Scoring — five channels
+
+1. **Deterministic** criteria checks (stdlib-only, docstrings present, no
+   TODO/FIXME, tests exit 0) — machine-checkable per artifact.
+2. **Cross-model judge:** qwen judges ornith artifacts and vice versa,
+   blind (goal + criteria + artifact only; no arm/model label).
+3. **Neutral third judge:** `gemma4:12b-mlx` (different family from both).
+4. **Human rating:** the operator scores every artifact against the
+   criteria. *Relief valve:* rating/pasting may be limited to 2 artifacts
+   per goal/model (the single run + the first dialectical run); the
+   remaining two dialectical runs feed T-c and the automated/cross-model
+   judges only.
+5. **Online agent (optional):** the probe emits a paste-ready full-artifact
+   judge packet per artifact (goal, criteria, artifact, strict output
+   schema); the operator transcribes the returned score. **Privacy:** this
+   sends artifact text off-machine — opt in per packet.
+
+### Determinism and seeding
+
+Ollama supports `options.seed`, but does not echo it back, and
+`temperature: 0` is greedy yet **not bit-reproducible** (batched eval,
+`prompt_eval_cached_count` prefix-cache reuse, quantization, GPU backend
+noise). The design:
+
+- **No global seed.** Divergence stays **unseeded** — a shared seed would
+  collapse the N candidates and destroy T-a/diversity.
+- **Temp-0 judgment calls** (evaluating, comparing) may carry a seed
+  derived from `f(jobID, phase, candidateArtifactID)`, controlled by
+  `inference.judgment_seed` (`off` default). The resolved seed is recorded
+  in the `llm_call` audit row.
+- **Structured judgment** is grammar-constrained with `format: "json"`
+  (ADR-0012), removing parse-level variance.
+- **Offline judges** are called directly against Ollama at `temperature: 0`
+  with a fixed seed per (goal, judge).
+- **T-c runs twice:** *unseeded* (natural total nondeterminism,
+  production-faithful) **and** *seeded* (irreducible backend/numeric
+  residual). The delta is the sampling contribution.
+- Record model **digests** (not just tags) and the Ollama version per run.
+- If T-c shows residual instability, the recommended fix is **quorum**
+  (2-of-3 agreement before accepting `winner: new`), not more seeding.
+
+### Orchestration
+
+The probe runner manages the daemon lifecycle itself: it writes each arm's
+config, starts/stops the daemon with the matching config + state dir,
+creates projects, submits goals, polls to terminal, and tears down. One
+command per arm; maximally reproducible.
+
 ## T-b: Judge-confidence calibration
 
 **Question:** Does the LLM's reported confidence
@@ -186,11 +315,13 @@ that were not measured.
 
 ## Status
 
-M3-T7-a: code landed (`a11ab63`).
-M3-T7-b: protocol + runbook captured (this document);
-**measurement pending a live model run** — tracked in ROADMAP §7.
-M3-T7-c: protocol + runbook captured (this document);
-**measurement pending a live model run** — tracked in ROADMAP §7.
+M3-T7-a (diversity): code landed (`a11ab63`); probe aggregation pending.
+M3-T7-b (calibration): protocol + runbook captured (this document); **measurement pending a live model run** — tracked in ROADMAP §7.
+M3-T7-c (stability at T=0): protocol + runbook captured (this document); **measurement pending a live model run** — tracked in ROADMAP §7.
+Headline (dialectical vs single-shot): design locked 2026-10-05 (above); harness + production precursor in progress.
+
+The scaffold's T-a/b/c labels were rotated relative to ROADMAP §7 and this
+document; corrected in M3-T7.0.
 
 No findings are recorded because none have been measured. When the
 measurement lands, either the existing `min_judge_confidence` default is

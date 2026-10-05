@@ -6,9 +6,14 @@ baseline on three axes:
 
 | Sub-measurement | Question | Tool |
 |---|---|---|
-| **T-a** Calibration | Does the LLM's reported confidence match observed accuracy? | Reliability diagram (confidence-binned accuracy) |
-| **T-b** Stability at T=0 | Is the loop's quality reproducible across re-runs? | Variance of the rubric-graded score across N runs |
-| **T-c** Diversity | Are the N divergence candidates actually different? | Average pairwise Jaccard distance over candidate text |
+| **T-a** Diversity | Are the N divergence candidates actually different? | Average pairwise Jaccard distance over candidate text (`divergence_jaccard` event) |
+| **T-b** Calibration | Does the LLM's reported confidence match observed accuracy? | Reliability diagram (confidence-binned observed score) |
+| **T-c** Stability at T=0 | Is the verdict reproducible across re-runs? | Winner/score distribution across N runs (unseeded vs seeded) |
+
+The headline experiment (dialectical N=3 vs single-shot N=1) and the
+full protocol — locked sample set, models, seed policy, judge channels,
+and the memory rule — live in
+[`docs/probes/m3-t7-quality-probe.md`](../../docs/probes/m3-t7-quality-probe.md).
 
 ## Status: scaffold only
 

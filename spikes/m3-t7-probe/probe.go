@@ -1,11 +1,25 @@
 // Package main is the M3-T7 dialectical-vs-single-shot
 // quality probe.
 //
-// M3-T7 (ROADMAP §7, M3-T7-a/b/c) measures the
+// M3-T7 (ROADMAP §6 M3, §7 M3-T7-a/b/c) measures the
 // dialectical loop against a single-shot baseline on
-// three axes:
+// three axes. The label mapping below is the
+// authoritative one — it matches ROADMAP §7 and the
+// runbook docs/probes/m3-t7-quality-probe.md. (An
+// earlier scaffold had the mapping rotated; that was a
+// stale copy, corrected in M3-T7.0.)
 //
-//  1. Calibration (T-a). For each sample, compare
+//  1. Diversity (T-a). Across the N candidate
+//     artifacts produced in one dialectical run,
+//     measure the average pairwise Jaccard distance.
+//     A diverse candidate set is the value-add of
+//     divergence; a low-diversity set means the
+//     engine is just retrying the same output. The
+//     metric already lands in internal/engine/diverge.go
+//     as the `divergence_jaccard` event (commit
+//     a11ab63); this probe aggregates it.
+//
+//  2. Calibration (T-b). For each sample, compare
 //     the LLM's reported confidence in the winning
 //     verdict against the actual outcome (the
 //     rubric-graded EvaluationRecord's score). A
@@ -13,28 +27,27 @@
 //     matches observed accuracy; a miscalibrated one
 //     over- or under-claims.
 //
-//  2. Stability at T=0 (T-b). Re-run the same sample
-//     N times with a fixed seed and check that the
-//     winning artifact's score has a low variance. A
-//     stable loop produces comparable quality across
-//     runs; an unstable one is brittle to sampling
-//     noise.
+//  3. Stability at T=0 (T-c). Re-run the same sample
+//     N times and check that the winning verdict (and
+//     its score) is reproducible. A stable loop
+//     produces the same winner across runs; an
+//     unstable one is brittle to sampling and
+//     backend/numeric noise (Ollama is not bit-exact
+//     at T=0; see the runbook's determinism section).
 //
-//  3. Diversity (T-c). Across the N candidate
-//     artifacts produced in one dialectical run,
-//     measure the average pairwise Jaccard distance.
-//     A diverse candidate set is the value-add of
-//     divergence; a low-diversity set means the
-//     engine is just retrying the same output.
+// The headline experiment — does N-candidate
+// divergence + deterministic evaluation/comparison
+// beat a single-candidate (N=1) baseline? — is the
+// reason this probe exists; T-a/b/c are the supporting
+// diagnostics.
 //
 // This probe is the planning + scaffolding commit. The
-// three sub-measurements land as separate spike
-// commands in follow-up work (the experiments need a
-// running daemon, a model, and time — none of which a
-// CI run can supply). The scaffold lays out the
-// result-type contract and the per-sample runner so
-// the follow-up work is a series of small `main` edits,
-// not a redesign.
+// measurements land as separate spike commands in
+// follow-up work (they need a running daemon, a model,
+// and time — none of which a CI run can supply). The
+// scaffold lays out the result-type contract and the
+// per-sample runner so the follow-up work is a series
+// of small `main` edits, not a redesign.
 //
 // The probe reuses the M1-T8 / M3-T2 helper pattern:
 // talk to the daemon over loopback HTTP, never import
@@ -143,7 +156,7 @@ func main() {
 		os.Exit(1)
 	}
 	fmt.Printf("M3-T7 probe (scaffold). Daemon OK at %s; results dir %s\n", daemonURL(), resultsDir)
-	fmt.Println("Sub-measurements (T-a calibration, T-b stability at T=0, T-c diversity Jaccard)")
+	fmt.Println("Sub-measurements (T-a diversity Jaccard, T-b calibration, T-c stability at T=0)")
 	fmt.Println("land in follow-up commits; this scaffold defines the result type contract only.")
-	fmt.Println("See docs/probes/m3-t7-probe.md (also a follow-up commit).")
+	fmt.Println("See docs/probes/m3-t7-quality-probe.md for the protocol.")
 }
