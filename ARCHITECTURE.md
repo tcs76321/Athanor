@@ -1588,6 +1588,9 @@ inference:
   # M3-T7.5b (ADR-0042): opt in to JSON-schema-constrained judgment
   # (stronger typing, but can run away on weak models); default off.
   json_schema: false
+  # M3-T7.6b: cap output tokens per call (Ollama num_predict), a runaway
+  # guard; 0 is replaced by this default.
+  max_output_tokens: 4096
   # M3-T7.1: sampler-seed policy on Temperature-0 judgment calls:
   # "off" (default, random) or "derived" (deterministic + audited).
   judgment_seed: "off"

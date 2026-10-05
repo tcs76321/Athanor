@@ -67,6 +67,8 @@ func applyDefaults(c *Config) {
 	// faithful) unless the operator opts into derived seeds.
 	setTrue(&c.Inference.JSONFormat)
 	setStr(&c.Inference.JudgmentSeed, JudgmentSeedOff)
+	// Runaway guard (M3-T7.6b): cap output tokens per call.
+	setInt(&c.Inference.MaxOutputTokens, 4096)
 
 	defaultPersona(&c.Personas.Wide, "qwen2.5:7b", 65536, 0.7)
 	defaultPersona(&c.Personas.Tall, "qwen2.5-coder:32b", 16384, 0.2)

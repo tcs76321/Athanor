@@ -52,6 +52,12 @@ New entries are appended at the top. Do not rewrite history.
   exists, which real models set inconsistently. The M3-T7 smoke failed half its
   fresh-project jobs at 0.90–0.95 quality because of it. With no previous, a
   passing, confident record now backs `"new"`.
+- **fix(llm): cap output tokens per call**
+  (`inference.max_output_tokens`, default 4096) — the runaway guard. A
+  degenerate generation (an unbounded string in the verdict JSON) could
+  otherwise stream for the full HTTP client timeout; the M3-T7 smoke saw
+  evaluating calls hang for ~10 minutes. Bounding generation turns a hang into
+  a fast truncation the parser rejects.
 
 ### M6 — Autonomy & Feedback
 

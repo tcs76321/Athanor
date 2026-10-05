@@ -491,6 +491,20 @@ func TestInference_JSONSchema(t *testing.T) {
 	}
 }
 
+// TestInference_MaxOutputTokens pins the M3-T7.6b runaway-guard default.
+func TestInference_MaxOutputTokens(t *testing.T) {
+	def, err := Default()
+	if err != nil {
+		t.Fatalf("Default(): %v", err)
+	}
+	if def.Inference.MaxOutputTokens != 4096 {
+		t.Errorf("max_output_tokens default = %d, want 4096", def.Inference.MaxOutputTokens)
+	}
+	if _, err := Parse([]byte("version: 2\ninference:\n  max_output_tokens: -1\n")); err == nil {
+		t.Error("Parse(max_output_tokens: -1) = nil error, want rejection")
+	}
+}
+
 // TestInference_JudgmentSeed pins the seed-policy values: default off,
 // derived accepted, anything else rejected before defaults run.
 func TestInference_JudgmentSeed(t *testing.T) {

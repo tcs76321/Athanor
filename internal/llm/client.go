@@ -48,6 +48,13 @@ type Request struct {
 	// structured judgment phases (evaluating, comparing); nil leaves it
 	// unset.
 	Format any
+	// MaxTokens caps the tokens generated in one call (Ollama's
+	// num_predict); 0 leaves it unset. It is a runaway guard: the M3-T7
+	// smoke saw an evaluating call generate for over ten minutes (hitting
+	// the HTTP client timeout) because the verdict JSON had an unbounded
+	// string field. Bounding generation turns a hang into a truncation the
+	// parser rejects quickly.
+	MaxTokens int
 }
 
 // Response carries the model reply plus token accounting (§28.2).
@@ -86,6 +93,7 @@ type chatOpts struct {
 	Temperature float64 `json:"temperature"`
 	NumCtx      int     `json:"num_ctx"`
 	Seed        *int64  `json:"seed,omitempty"`
+	NumPredict  int     `json:"num_predict,omitempty"`
 }
 
 type chatResponse struct {
@@ -106,7 +114,7 @@ func (c *Client) Chat(ctx context.Context, req Request) (Response, error) {
 		Messages: req.Messages,
 		Stream:   false,
 		Format:   req.Format,
-		Options:  chatOpts{Temperature: req.Temperature, NumCtx: req.ContextTarget, Seed: req.Seed},
+		Options:  chatOpts{Temperature: req.Temperature, NumCtx: req.ContextTarget, Seed: req.Seed, NumPredict: req.MaxTokens},
 	})
 	if err != nil {
 		return Response{}, fmt.Errorf("llm: marshalling request: %w", err)
@@ -164,7 +172,7 @@ func (c *Client) Stream(ctx context.Context, req Request, onToken func(string)) 
 		Messages: req.Messages,
 		Stream:   true,
 		Format:   req.Format,
-		Options:  chatOpts{Temperature: req.Temperature, NumCtx: req.ContextTarget, Seed: req.Seed},
+		Options:  chatOpts{Temperature: req.Temperature, NumCtx: req.ContextTarget, Seed: req.Seed, NumPredict: req.MaxTokens},
 	})
 	if err != nil {
 		return Response{}, fmt.Errorf("llm: marshalling request: %w", err)

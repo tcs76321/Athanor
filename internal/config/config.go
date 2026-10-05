@@ -117,6 +117,11 @@ type Inference struct {
 	// parser (M3-T7.5a) handles the type drift the schema was meant to
 	// prevent, so the schema is an opt-in experiment, not the default.
 	JSONSchema bool `yaml:"json_schema"`
+	// MaxOutputTokens caps tokens generated per LLM call (Ollama's
+	// num_predict) — the runaway guard that keeps one degenerate
+	// generation from eating the per-call timeout (M3-T7.6b). 0 is
+	// replaced by the 4096 default; negative is rejected.
+	MaxOutputTokens int `yaml:"max_output_tokens"`
 	// JudgmentSeed controls sampler-seed pinning on Temperature-0
 	// judgment calls (M3-T7.1). JudgmentSeedOff (default) leaves the
 	// seed unset so Ollama draws a random one per request;

@@ -97,7 +97,7 @@ func TestChatForwardsSeedAndFormat(t *testing.T) {
 	c := NewClient(ts.URL, nil)
 	if _, err := c.Chat(context.Background(), Request{
 		Model: "qwen3.8:27b-mlx", Messages: []Message{{Role: "user", Content: "judge"}},
-		Temperature: 0, ContextTarget: 8192, Seed: &seed, Format: "json",
+		Temperature: 0, ContextTarget: 8192, Seed: &seed, Format: "json", MaxTokens: 4096,
 	}); err != nil {
 		t.Fatalf("Chat() err = %v", err)
 	}
@@ -106,6 +106,9 @@ func TestChatForwardsSeedAndFormat(t *testing.T) {
 	}
 	if captured.Options.Seed == nil || *captured.Options.Seed != seed {
 		t.Errorf("request seed = %v, want %d", captured.Options.Seed, seed)
+	}
+	if captured.Options.NumPredict != 4096 {
+		t.Errorf("request num_predict = %d, want 4096", captured.Options.NumPredict)
 	}
 
 	// Unset: a fresh server so the assertion is not masked by the values

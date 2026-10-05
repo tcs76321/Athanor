@@ -41,6 +41,9 @@ func validateRaw(c *Config) error {
 		return fmt.Errorf("inference.judgment_seed must be %q or %q, got %q",
 			JudgmentSeedOff, JudgmentSeedDerived, s)
 	}
+	if c.Inference.MaxOutputTokens < 0 {
+		return fmt.Errorf("inference.max_output_tokens must be >= 0, got %d", c.Inference.MaxOutputTokens)
+	}
 	for _, p := range []struct {
 		name string
 		cfg  PersonaConfig

@@ -339,6 +339,7 @@ func (e *Engine) call(ctx context.Context, j job.Job, p project.Project, t proje
 		ContextTarget: persona.ContextTarget,
 		Seed:          resolvedSeed,
 		Format:        resolvedFormat,
+		MaxTokens:     e.cfg.Inference.MaxOutputTokens,
 	}
 	var resp llm.Response
 	if e.tokenSink != nil {

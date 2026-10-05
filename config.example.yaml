@@ -43,6 +43,10 @@ inference:
   # away on weaker models, and the tolerant verdict parser handles type
   # drift without it.
   json_schema: false
+  # max_output_tokens caps tokens per LLM call (Ollama num_predict): a
+  # runaway guard so one degenerate generation cannot eat the call
+  # timeout. 0 is replaced by this default.
+  max_output_tokens: 4096
   # judgment_seed controls sampler-seed pinning on Temperature-0
   # judgment calls: "off" (default, random seed per request) or
   # "derived" (a deterministic seed derived from the job, phase, and
