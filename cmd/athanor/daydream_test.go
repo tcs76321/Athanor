@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/tcs76321/athanor/internal/job"
 	"github.com/tcs76321/athanor/internal/mce"
 	"github.com/tcs76321/athanor/internal/power"
+	"github.com/tcs76321/athanor/internal/project"
 	"github.com/tcs76321/athanor/internal/store"
 	"github.com/tcs76321/athanor/migrations"
 )
@@ -196,4 +198,75 @@ func TestDaydreamRunnerStopsOnClose(t *testing.T) {
 		freezer:     fakeFreezer{},
 	})
 	r.Close()
+}
+
+// fakeDaydreamIndexer records each IndexOnce call.
+type fakeDaydreamIndexer struct {
+	calls   int
+	gotPath []string
+	res     mce.IndexResult
+	err     error
+}
+
+func (f *fakeDaydreamIndexer) IndexOnce(_ context.Context, projectID, path string) (mce.IndexResult, error) {
+	f.calls++
+	f.gotPath = append(f.gotPath, projectID+":"+path)
+	return f.res, f.err
+}
+
+// TestDaydreamExploresRepositories is the M5-T8 driver acceptance: on an idle
+// daemon, a pass runs one bounded indexing pass for each project with a
+// repository and audits a repository_exploration event.
+func TestDaydreamExploresRepositories(t *testing.T) {
+	st := migratedStore(t)
+	if _, err := st.DB().ExecContext(context.Background(),
+		`INSERT INTO projects (id, name, archetype, goal, repository_path)
+		 VALUES ('p1','proj','code','build things that last','/tmp/repo')`); err != nil {
+		t.Fatal(err)
+	}
+	idx := &fakeDaydreamIndexer{res: mce.IndexResult{Indexed: 2, Chunks: 5, Embedded: 5}}
+	r := newDaydreamRunner(t, st, &fakeDaydreamCompactor{}, true, false)
+	r.deps.projects = project.NewRepo(st)
+	r.deps.indexer = idx
+
+	if err := r.pass(context.Background()); err != nil {
+		t.Fatalf("pass: %v", err)
+	}
+	if idx.calls != 1 {
+		t.Fatalf("IndexOnce calls = %d, want 1", idx.calls)
+	}
+	if len(idx.gotPath) != 1 || idx.gotPath[0] != "p1:/tmp/repo" {
+		t.Fatalf("IndexOnce args = %v, want [p1:/tmp/repo]", idx.gotPath)
+	}
+	evs, err := st.QueryEvents(context.Background(), store.EventFilter{Category: "daydream"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var exploration int
+	for _, e := range evs {
+		if strings.Contains(e.DataJSON, "repository_exploration") {
+			exploration++
+		}
+	}
+	if exploration != 1 {
+		t.Fatalf("repository_exploration events = %d, want 1", exploration)
+	}
+}
+
+// TestDaydreamSkipsExplorationWithoutIndexer pins the nil-safe default: the
+// M5-T6 runner (no indexer wired) does not panic and audits nothing extra.
+func TestDaydreamSkipsExplorationWithoutIndexer(t *testing.T) {
+	st := migratedStore(t)
+	if _, err := st.DB().ExecContext(context.Background(),
+		`INSERT INTO projects (id, name, archetype, goal, repository_path)
+		 VALUES ('p1','proj','code','build things that last','/tmp/repo')`); err != nil {
+		t.Fatal(err)
+	}
+	r := newDaydreamRunner(t, st, &fakeDaydreamCompactor{}, true, false)
+	if err := r.pass(context.Background()); err != nil {
+		t.Fatalf("pass: %v", err)
+	}
+	if got := countCategory(t, st, "daydream"); got != 0 {
+		t.Fatalf("daydream events = %d, want 0", got)
+	}
 }

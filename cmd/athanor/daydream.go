@@ -14,6 +14,7 @@ import (
 	"github.com/tcs76321/athanor/internal/job"
 	"github.com/tcs76321/athanor/internal/mce"
 	"github.com/tcs76321/athanor/internal/power"
+	"github.com/tcs76321/athanor/internal/project"
 	"github.com/tcs76321/athanor/internal/store"
 )
 
@@ -47,6 +48,13 @@ type daydreamPower interface{ GetLimits() power.Limits }
 // daydreamFreezer is the §22 kill-switch surface (the engine's Freezer shape).
 type daydreamFreezer interface{ Frozen() bool }
 
+// daydreamIndexer is the M5-T8 repository-indexing slice the loop consults
+// (ADR-0028 §6). One bounded pass per project per tick, so exploration yields
+// to real work like every other daydream action.
+type daydreamIndexer interface {
+	IndexOnce(ctx context.Context, projectID, path string) (mce.IndexResult, error)
+}
+
 // daydreamDeps is everything the loop consults, so serve.go reads at the call
 // site rather than through a long positional constructor.
 type daydreamDeps struct {
@@ -58,7 +66,12 @@ type daydreamDeps struct {
 	compactor   mce.Compactor
 	power       daydreamPower
 	freezer     daydreamFreezer
-	log         *slog.Logger
+	// projects + indexer drive the §17.1 Repository Exploration action
+	// (M5-T8). Both nil disables it; the M5-T6 consolidation tests construct
+	// a runner without them.
+	projects *project.Repo
+	indexer  daydreamIndexer
+	log      *slog.Logger
 }
 
 // daydreamRunner owns the loop's lifecycle.
@@ -113,7 +126,8 @@ func (r *daydreamRunner) loop(ctx context.Context) {
 	}
 }
 
-// pass runs at most one consolidation pass when every gate allows it.
+// pass runs at most one pass of each daydream action when every gate allows
+// it: configuration, the power profile, the kill switch, and idle state.
 func (r *daydreamRunner) pass(ctx context.Context) error {
 	if !config.Val(r.deps.cfg.Power.DaydreamOnIdle, true) {
 		return nil
@@ -131,11 +145,8 @@ func (r *daydreamRunner) pass(ctx context.Context) error {
 	if len(active) > 0 {
 		return nil // real work is queued; §17.2 "yield immediately"
 	}
-	return r.consolidate(ctx)
-}
 
-// consolidate runs one bounded pass over both §10.3 sources and audits it.
-func (r *daydreamRunner) consolidate(ctx context.Context) error {
+	// Both actions share one §17.2 wall-time budget.
 	timeout := time.Duration(r.deps.cfg.Power.DaydreamMaxWallTimeMinutes) * time.Minute
 	if timeout <= 0 {
 		timeout = defaultDaydreamWallTime
@@ -143,6 +154,14 @@ func (r *daydreamRunner) consolidate(ctx context.Context) error {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
+	if err := r.consolidate(ctx); err != nil {
+		return err
+	}
+	return r.exploreRepositories(ctx)
+}
+
+// consolidate runs one bounded pass over both §10.3 sources and audits it.
+func (r *daydreamRunner) consolidate(ctx context.Context) error {
 	sources := []struct {
 		name   string
 		source mce.MemorySource
@@ -169,24 +188,62 @@ func (r *daydreamRunner) consolidate(ctx context.Context) error {
 	if total.Processed == 0 {
 		return nil // caught up; no audit noise
 	}
-	return r.audit(ctx, total)
+	return r.audit(ctx, "memory_consolidation", map[string]any{
+		"processed":    total.Processed,
+		"compacted":    total.Compacted,
+		"cached":       total.Cached,
+		"skipped":      total.Skipped,
+		"too_large":    total.TooLarge,
+		"failed":       total.Failed,
+		"bytes_before": total.BytesBefore,
+		"bytes_after":  total.BytesAfter,
+	})
 }
 
-// audit appends the per-pass `daydream` event with the §17.3 counters.
-func (r *daydreamRunner) audit(ctx context.Context, res mce.ConsolidationResult) error {
+// exploreRepositories is the §17.1 Repository Exploration action (M5-T8;
+// ADR-0028 §6): one bounded indexing pass per project with a repository, so
+// the single-connection database and the model are touched for at most one
+// batch before the loop yields.
+func (r *daydreamRunner) exploreRepositories(ctx context.Context) error {
+	if r.deps.indexer == nil || r.deps.projects == nil {
+		return nil
+	}
+	projects, err := r.deps.projects.WithRepository(ctx, 0)
+	if err != nil {
+		return fmt.Errorf("daydream: listing repositories: %w", err)
+	}
+	var indexed, pruned, failed int
+	for _, p := range projects {
+		res, err := r.deps.indexer.IndexOnce(ctx, p.ID, p.RepositoryPath)
+		if err != nil {
+			log := r.deps.log
+			if log == nil {
+				log = slog.Default()
+			}
+			log.Warn("daydream: repository exploration failed", "project", p.ID, "err", err)
+			continue
+		}
+		indexed += res.Indexed
+		pruned += res.Pruned
+		failed += res.Failed
+	}
+	if indexed == 0 && pruned == 0 && failed == 0 {
+		return nil // caught up; no audit noise
+	}
+	return r.audit(ctx, "repository_exploration", map[string]any{
+		"projects": len(projects),
+		"indexed":  indexed,
+		"pruned":   pruned,
+		"failed":   failed,
+	})
+}
+
+// audit appends a per-pass `daydream` event.
+func (r *daydreamRunner) audit(ctx context.Context, event string, data map[string]any) error {
+	data["event"] = event
 	if _, err := r.deps.events.AppendEvent(ctx, store.Event{
 		Category: "daydream",
-		Data: map[string]any{
-			"event":        "memory_consolidation",
-			"processed":    res.Processed,
-			"compacted":    res.Compacted,
-			"cached":       res.Cached,
-			"skipped":      res.Skipped,
-			"too_large":    res.TooLarge,
-			"failed":       res.Failed,
-			"bytes_before": res.BytesBefore,
-			"bytes_after":  res.BytesAfter,
-		},
+		Data:     data,
 	}); err != nil {
 		return fmt.Errorf("daydream: audit: %w", err)
 	}

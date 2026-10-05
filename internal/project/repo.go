@@ -143,6 +143,43 @@ func (r *Repo) SetRepositoryPath(ctx context.Context, id, path string) error {
 	return nil
 }
 
+// WithRepository returns every project that has a repository_path, ordered by
+// creation. limit ≤ 0 means no limit. It is the M5-T8 idle indexer's work
+// list (ADR-0028 §6).
+func (r *Repo) WithRepository(ctx context.Context, limit int) ([]Project, error) {
+	q := `SELECT id, name, archetype, goal, status, COALESCE(repository_path, ''), created_at
+	      FROM projects
+	      WHERE repository_path IS NOT NULL AND repository_path <> ''
+	      ORDER BY created_at`
+	var args []any
+	if limit > 0 {
+		q += ` LIMIT ?`
+		args = append(args, limit)
+	}
+	rows, err := r.store.DB().QueryContext(ctx, q, args...)
+	if err != nil {
+		return nil, fmt.Errorf("listing projects with repositories: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	var out []Project
+	for rows.Next() {
+		var p Project
+		var createdAt string
+		if err := rows.Scan(&p.ID, &p.Name, &p.Archetype, &p.Goal, &p.Status, &p.RepositoryPath, &createdAt); err != nil {
+			return nil, fmt.Errorf("scanning project: %w", err)
+		}
+		var perr error
+		if p.CreatedAt, perr = time.Parse(time.RFC3339, createdAt); perr != nil {
+			return nil, fmt.Errorf("parsing project timestamp %q: %w", createdAt, perr)
+		}
+		out = append(out, p)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterating projects: %w", err)
+	}
+	return out, nil
+}
+
 // EnvelopeFor is the structural seam between the per-task tool
 // override and the daemon-wide default (config.job_pod.default_tools).
 // The merge rule is "task override wins if non-empty; otherwise the

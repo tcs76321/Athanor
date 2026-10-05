@@ -57,6 +57,12 @@ func (m *mceIndexer) IndexProject(ctx context.Context, projectID, path string) (
 	}, nil
 }
 
+// IndexOnce runs one bounded pass. It is the idle daydream driver's entry
+// point: a pass yields to real work rather than looping to completion.
+func (m *mceIndexer) IndexOnce(ctx context.Context, projectID, path string) (mce.IndexResult, error) {
+	return m.indexer.RunOnce(ctx, m.opts(projectID, path))
+}
+
 // opts maps the context_engine configuration onto one pass's bounds.
 func (m *mceIndexer) opts(projectID, root string) mce.IndexOptions {
 	ce := m.cfg
