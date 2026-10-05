@@ -49,7 +49,11 @@ type Project struct {
 	Archetype string
 	Goal      string
 	Status    string
-	CreatedAt time.Time
+	// RepositoryPath is the §6.1 repository root the M5-T8 indexer walks
+	// (ADR-0028). Empty means no repository is configured; indexing is then
+	// a no-op until an operator sets one.
+	RepositoryPath string
+	CreatedAt      time.Time
 }
 
 // Task is one persisted task row (§7.3, M1 subset).
@@ -85,6 +89,14 @@ func validateGoalText(goal string) error {
 		return fmt.Errorf("goal text must be %d–%d characters, got %d", goalMinLen, goalMaxLen, len(goal))
 	}
 	return nil
+}
+
+// nullIfEmpty maps an empty string to SQL NULL for optional columns.
+func nullIfEmpty(s string) any {
+	if s == "" {
+		return nil
+	}
+	return s
 }
 
 func marshalCriteria(criteria []string) (string, error) {

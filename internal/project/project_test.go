@@ -30,12 +30,15 @@ func TestCreatePersistsProjectGoalTask(t *testing.T) {
 	r, s := openRepo(t)
 	ctx := context.Background()
 
-	p, task, err := r.Create(ctx, "demo", ArchetypeText, validGoal, []string{"three arguments"})
+	p, task, err := r.Create(ctx, "demo", ArchetypeText, validGoal, "/tmp/demo-repo", []string{"three arguments"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if p.Name != "demo" || p.Archetype != ArchetypeText || p.Status != "active" {
 		t.Errorf("project = %+v", p)
+	}
+	if p.RepositoryPath != "/tmp/demo-repo" {
+		t.Errorf("repository path = %q, want /tmp/demo-repo", p.RepositoryPath)
 	}
 	if task.ProjectID != p.ID || task.GoalID == "" || task.Title != validGoal {
 		t.Errorf("task = %+v", task)
@@ -72,24 +75,46 @@ func TestCreateValidation(t *testing.T) {
 		{"empty goal", "x", "text", "", "20"},
 	}
 	for _, tc := range cases {
-		if _, _, err := r.Create(ctx, tc.n, tc.a, tc.g, nil); err == nil || !strings.Contains(err.Error(), tc.errSubstr) {
+		if _, _, err := r.Create(ctx, tc.n, tc.a, tc.g, "", nil); err == nil || !strings.Contains(err.Error(), tc.errSubstr) {
 			t.Errorf("%s: err = %v, want containing %q", tc.name, err, tc.errSubstr)
 		}
 	}
 
 	// Duplicate names are rejected by the schema (UNIQUE).
-	if _, _, err := r.Create(ctx, "demo", ArchetypeText, validGoal, nil); err != nil {
+	if _, _, err := r.Create(ctx, "demo", ArchetypeText, validGoal, "", nil); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := r.Create(ctx, "demo", ArchetypeCode, validGoal, nil); err == nil {
+	if _, _, err := r.Create(ctx, "demo", ArchetypeCode, validGoal, "", nil); err == nil {
 		t.Error("duplicate project name accepted, want UNIQUE rejection")
+	}
+}
+
+func TestSetRepositoryPath(t *testing.T) {
+	r, _ := openRepo(t)
+	ctx := context.Background()
+	p, _, err := r.Create(ctx, "demo", ArchetypeText, validGoal, "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := r.SetRepositoryPath(ctx, p.ID, "/tmp/repo"); err != nil {
+		t.Fatalf("SetRepositoryPath: %v", err)
+	}
+	got, err := r.Get(ctx, p.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.RepositoryPath != "/tmp/repo" {
+		t.Errorf("repository path = %q, want /tmp/repo", got.RepositoryPath)
+	}
+	if err := r.SetRepositoryPath(ctx, "ghost", "/tmp/repo"); !errors.Is(err, ErrNotFound) {
+		t.Errorf("SetRepositoryPath(missing) = %v, want ErrNotFound", err)
 	}
 }
 
 func TestSubmitGoal(t *testing.T) {
 	r, _ := openRepo(t)
 	ctx := context.Background()
-	p, _, err := r.Create(ctx, "demo", ArchetypeText, validGoal, nil)
+	p, _, err := r.Create(ctx, "demo", ArchetypeText, validGoal, "", nil)
 	if err != nil {
 		t.Fatal(err)
 	}

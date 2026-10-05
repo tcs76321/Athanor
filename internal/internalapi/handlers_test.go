@@ -60,7 +60,7 @@ func (e *handlerTestEnv) seedProject(t *testing.T) (string, string) {
 	t.Helper()
 	_, task, err := e.repo.Create(context.Background(),
 		"handler-test", "text",
-		"Write a short essay about local-first software.",
+		"Write a short essay about local-first software.", "",
 		[]string{"at least three arguments", "a conclusion"},
 	)
 	if err != nil {

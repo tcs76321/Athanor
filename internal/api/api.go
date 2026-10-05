@@ -102,14 +102,18 @@ type projectRequest struct {
 	Archetype string   `json:"archetype"`
 	Goal      string   `json:"goal"`
 	Criteria  []string `json:"acceptance_criteria"`
+	// RepositoryPath is the §6.1 repository root the M5-T8 indexer walks
+	// (ADR-0028). Optional; empty means no repository is configured.
+	RepositoryPath string `json:"repository_path"`
 }
 
 type projectResponse struct {
-	ID        string `json:"id"`
-	Name      string `json:"name"`
-	Archetype string `json:"archetype"`
-	Goal      string `json:"goal"`
-	TaskID    string `json:"task_id,omitempty"`
+	ID             string `json:"id"`
+	Name           string `json:"name"`
+	Archetype      string `json:"archetype"`
+	Goal           string `json:"goal"`
+	RepositoryPath string `json:"repository_path,omitempty"`
+	TaskID         string `json:"task_id,omitempty"`
 }
 
 func (a *API) handleProjectCreate(w http.ResponseWriter, r *http.Request) {
@@ -117,13 +121,14 @@ func (a *API) handleProjectCreate(w http.ResponseWriter, r *http.Request) {
 	if !decodeBody(w, r, &req) {
 		return
 	}
-	p, task, err := a.projects.Create(r.Context(), req.Name, req.Archetype, req.Goal, req.Criteria)
+	p, task, err := a.projects.Create(r.Context(), req.Name, req.Archetype, req.Goal, req.RepositoryPath, req.Criteria)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	writeJSON(w, http.StatusCreated, projectResponse{
-		ID: p.ID, Name: p.Name, Archetype: p.Archetype, Goal: p.Goal, TaskID: task.ID,
+		ID: p.ID, Name: p.Name, Archetype: p.Archetype, Goal: p.Goal,
+		RepositoryPath: p.RepositoryPath, TaskID: task.ID,
 	})
 }
 
@@ -133,7 +138,10 @@ func (a *API) handleProjectGet(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, projectResponse{ID: p.ID, Name: p.Name, Archetype: p.Archetype, Goal: p.Goal})
+	writeJSON(w, http.StatusOK, projectResponse{
+		ID: p.ID, Name: p.Name, Archetype: p.Archetype, Goal: p.Goal,
+		RepositoryPath: p.RepositoryPath,
+	})
 }
 
 // finalKind maps archetype → §9.1 kind, mirroring engine.finalKindFor.

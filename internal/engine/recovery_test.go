@@ -53,7 +53,7 @@ func TestRecoverResumesMidFlightJob(t *testing.T) {
 	registry, _ := llm.NewRegistry(cfg.Personas)
 
 	_, task, err := projects.Create(context.Background(), "demo", "text",
-		"Write a short essay about local-first software.", nil)
+		"Write a short essay about local-first software.", "", nil)
 	if err != nil {
 		t.Fatal(err)
 	}

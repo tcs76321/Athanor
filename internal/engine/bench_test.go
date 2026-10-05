@@ -18,7 +18,7 @@ func (e *testEnv) submitForBench(b *testing.B) string {
 	benchSeq++
 	_, task, err := e.projects.Create(context.Background(),
 		fmt.Sprintf("bench-%d", benchSeq), "text",
-		"Write a short essay about local-first software.", nil)
+		"Write a short essay about local-first software.", "", nil)
 	if err != nil {
 		b.Fatalf("creating project: %v", err)
 	}

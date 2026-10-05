@@ -71,7 +71,7 @@ func (e *testEnv) submitWithCriteria(t *testing.T, archetype, goal string, crite
 	t.Helper()
 	submitSeq++
 	_, task, err := e.projects.Create(context.Background(),
-		fmt.Sprintf("pressure-%s-%d", archetype, submitSeq), archetype, goal, criteria)
+		fmt.Sprintf("pressure-%s-%d", archetype, submitSeq), archetype, goal, "", criteria)
 	if err != nil {
 		t.Fatal(err)
 	}

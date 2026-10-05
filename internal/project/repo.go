@@ -13,7 +13,9 @@ import (
 )
 
 // Create makes a project with its first goal and task, atomically.
-func (r *Repo) Create(ctx context.Context, name, archetype, goal string, criteria []string) (Project, Task, error) {
+// repositoryPath is the §6.1 repository root the M5-T8 indexer walks
+// (ADR-0028); empty means no repository is configured.
+func (r *Repo) Create(ctx context.Context, name, archetype, goal, repositoryPath string, criteria []string) (Project, Task, error) {
 	if !ValidArchetype(archetype) {
 		return Project{}, Task{}, fmt.Errorf("invalid archetype %q (§6.2: text|code|document|data|media)", archetype)
 	}
@@ -36,8 +38,8 @@ func (r *Repo) Create(ctx context.Context, name, archetype, goal string, criteri
 	defer func() { _ = tx.Rollback() }()
 
 	if _, err := tx.ExecContext(ctx,
-		`INSERT INTO projects (id, name, archetype, goal) VALUES (?, ?, ?, ?)`,
-		projectID, name, archetype, goal,
+		`INSERT INTO projects (id, name, archetype, goal, repository_path) VALUES (?, ?, ?, ?, ?)`,
+		projectID, name, archetype, goal, nullIfEmpty(repositoryPath),
 	); err != nil {
 		return Project{}, Task{}, fmt.Errorf("inserting project: %w", err)
 	}
@@ -107,8 +109,9 @@ func (r *Repo) Get(ctx context.Context, id string) (Project, error) {
 	var p Project
 	var createdAt string
 	err := r.store.DB().QueryRowContext(ctx,
-		`SELECT id, name, archetype, goal, status, created_at FROM projects WHERE id = ?`, id,
-	).Scan(&p.ID, &p.Name, &p.Archetype, &p.Goal, &p.Status, &createdAt)
+		`SELECT id, name, archetype, goal, status, COALESCE(repository_path, ''), created_at
+		 FROM projects WHERE id = ?`, id,
+	).Scan(&p.ID, &p.Name, &p.Archetype, &p.Goal, &p.Status, &p.RepositoryPath, &createdAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Project{}, fmt.Errorf("%w: %s", ErrNotFound, id)
 	}
@@ -120,6 +123,24 @@ func (r *Repo) Get(ctx context.Context, id string) (Project, error) {
 		return Project{}, fmt.Errorf("parsing project timestamp %q: %w", createdAt, perr)
 	}
 	return p, nil
+}
+
+// SetRepositoryPath records the repository root the M5-T8 indexer walks
+// (ADR-0028 §1). An empty path clears it. A missing project is ErrNotFound.
+func (r *Repo) SetRepositoryPath(ctx context.Context, id, path string) error {
+	res, err := r.store.DB().ExecContext(ctx,
+		`UPDATE projects SET repository_path = ? WHERE id = ?`, nullIfEmpty(path), id)
+	if err != nil {
+		return fmt.Errorf("setting repository path: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("setting repository path: %w", err)
+	}
+	if n == 0 {
+		return fmt.Errorf("%w: %s", ErrNotFound, id)
+	}
+	return nil
 }
 
 // EnvelopeFor is the structural seam between the per-task tool

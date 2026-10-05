@@ -294,7 +294,7 @@ func (e *testEnv) createProjectTask(t *testing.T, archetype, goal string) (proje
 	t.Helper()
 	submitSeq++
 	p, task, err := e.projects.Create(context.Background(),
-		fmt.Sprintf("demo-%s-%d", archetype, submitSeq), archetype, goal, nil)
+		fmt.Sprintf("demo-%s-%d", archetype, submitSeq), archetype, goal, "", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -428,7 +428,7 @@ func TestEnqueueRespectsConcurrencyCap(t *testing.T) {
 	// The second must wait in Enqueue's poll loop.
 	projects := project.NewRepo(db)
 	_, task1, err := projects.Create(context.Background(), "cap-1", "text",
-		"Write a short essay about local-first software.", nil)
+		"Write a short essay about local-first software.", "", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -437,7 +437,7 @@ func TestEnqueueRespectsConcurrencyCap(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, task2, err := projects.Create(context.Background(), "cap-2", "text",
-		"Write a short essay about local-first software.", nil)
+		"Write a short essay about local-first software.", "", nil)
 	if err != nil {
 		t.Fatal(err)
 	}

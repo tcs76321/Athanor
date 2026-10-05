@@ -109,7 +109,7 @@ func newHelper(t *testing.T) *helper {
 func (h *helper) seedProject(name string) (project.Project, project.Task) {
 	h.t.Helper()
 	p, t, err := h.projRepo.Create(context.Background(), name, project.ArchetypeText,
-		"a goal that satisfies the minimum length requirement", nil)
+		"a goal that satisfies the minimum length requirement", "", nil)
 	if err != nil {
 		h.t.Fatal(err)
 	}

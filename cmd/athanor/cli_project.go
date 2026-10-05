@@ -21,6 +21,7 @@ func runProject(args []string) error {
 	name := fs.String("name", "", "project name (required)")
 	archetype := fs.String("archetype", "text", "project archetype: text|code|document|data|media")
 	goal := fs.String("goal", "", "project goal, 20-500 characters (required)")
+	repo := fs.String("repo", "", "repository root the indexer walks (optional)")
 	var criteria criteriaFlag
 	fs.Var(&criteria, "criteria", "acceptance criteria, separated by ';'")
 	addr := fs.String("addr", defaultAddr, "daemon address")
@@ -32,7 +33,8 @@ func runProject(args []string) error {
 	}
 	var out projectCreateResult
 	if err := apiCall(http.MethodPost, *addr+"/projects", map[string]any{
-		"name": *name, "archetype": *archetype, "goal": *goal, "acceptance_criteria": criteria,
+		"name": *name, "archetype": *archetype, "goal": *goal,
+		"acceptance_criteria": criteria, "repository_path": *repo,
 	}, &out); err != nil {
 		return err
 	}
