@@ -7,7 +7,7 @@ toolchain go1.27.1
 require (
 	codeberg.org/readeck/go-readability/v2 v2.1.2
 	github.com/fsnotify/fsnotify v1.10.1
-	github.com/mattn/go-sqlite3 v1.14.0
+	github.com/mattn/go-sqlite3 v1.14.52
 	github.com/microcosm-cc/bluemonday v1.0.27
 	github.com/tree-sitter/go-tree-sitter v0.25.0
 	github.com/tree-sitter/tree-sitter-go v0.25.0
