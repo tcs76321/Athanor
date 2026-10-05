@@ -158,7 +158,7 @@ M4 (Airlock & Gateway) is done — T1 through T8: path containment, ingress pipe
 
 ### What's deferred
 
-M4-T8 (adversarial security suite — done; see above), the dormant `browser_mode_requires_approval` flag (see above), M6 Autonomy & Feedback (HITL queue, CorrectionRecord loop, Strategy mining, real OS watcher, cloud-credential broker for §21.7, Browser Mode runtime for §21.6), M7 Endurance & Release (24h soak, fresh-install demo, first installable release). Items specifically deferred from M3 are listed in `ROADMAP.md` §7 (the M3-T7-b/c quality-probe measurement backlog and the M3-T5 git-tool call site). See [ROADMAP.md](ROADMAP.md) for the full plan and exit gates.
+M4-T8 (adversarial security suite — done; see above), the dormant `browser_mode_requires_approval` flag (see above), M6 Autonomy & Feedback (HITL queue, CorrectionRecord loop, Strategy mining, real OS watcher, cloud-credential broker for §21.7, Browser Mode runtime for §21.6), M7 Endurance & Release (24h soak, fresh-install demo, first installable release). Items specifically deferred from M3 are listed in `ROADMAP.md` §7 (the M3-T7-b/c quality-probe measurement backlog). The M3-T5 Git-as-undo call site landed in F3-T5 ([ADR-0030](docs/adr/0030-git-as-undo.md)). See [ROADMAP.md](ROADMAP.md) for the full plan and exit gates.
 
 ## Documentation
 

@@ -12,6 +12,13 @@ New entries are appended at the top. Do not rewrite history.
 
 ### Foundations — F3: documentation, correctness & hardening sweep
 
+- **F3-T5.** Git-as-undo lands ([ADR-0030](docs/adr/0030-git-as-undo.md)):
+  migration 0015 adds `artifacts.git_commit`; accepting an artifact commits
+  it to `.athanor/artifacts/<kind>/<id>` on an `athanor/<project>` branch via
+  the Core-side `cmd/athanor/git_client.go` (the second Gate-G1-allowlisted
+  `os/exec` file) and records the SHA. Best-effort: no repository, a dirty
+  worktree, or a git failure is audited and non-fatal. Never pushes.
+
 - **F3-T3.** [ADR-0029](docs/adr/0029-file-io-containment-scope.md) records
   the containment scope (externally-influenced paths route through
   `airlock/paths`; internal/operator-controlled paths are exempt), and the

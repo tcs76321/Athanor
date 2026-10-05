@@ -195,9 +195,9 @@ func TestGateG2ToolEnvelopeBypassImpossible(t *testing.T) {
 	// would otherwise be found first for any tool whose handler file sorts
 	// after it alphabetically.
 	//
-	// git_operation is in the closed set but has no route or handler yet
-	// (its call site is deferred, M3-T5/M3-T7), so it is deliberately
-	// absent here.
+	// git_operation is in the closed set but has no route or handler:
+	// Git-as-undo landed Core-side in F3-T5 (ADR-0030), so no pod-facing
+	// git route exists. It is deliberately absent here.
 	toolHandlers := map[string]string{
 		"execute_code": "handleExecuteCode",
 		"run_tests":    "handleRunTests",

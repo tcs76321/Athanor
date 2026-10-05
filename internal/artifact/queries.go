@@ -98,8 +98,10 @@ func (a *Store) ListAccepted(ctx context.Context, limit int) ([]Artifact, error)
 // of the §19.3 comparison rule; the comparison phase picks the
 // project's current best, not just any non-rejected artifact.
 //
-// M3-T1 owns this; M3-T5 (git tool) reuses it to pick the base commit
-// for a new accepted artifact. There can be at most one accepted
+// M3-T1 owns this. Git-as-undo (F3-T5, ADR-0030) does not use it — the
+// commit goes into a managed namespace, not on top of the previous head —
+// but the phaseCompare path still uses it to find the previous side.
+// There can be at most one accepted
 // artifact per project at a time (§9.3: accepting a new one
 // supersedes the old), but the query orders by version DESC then
 // created_at DESC to stay correct if that invariant ever relaxes.

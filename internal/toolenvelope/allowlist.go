@@ -27,22 +27,24 @@ type Tool string
 // The closed set as of M5-T3. M2-T4 shipped the first
 // two (`execute_code`, `run_tests`); M3-T2 commit 2.3
 // added `lint` for the per-task linter; M3-T5 adds
-// `git_operation` so the engine can record accepted
-// artifacts to a project-local git repo (the actual
-// engine call site is M3-T7 work; this commit just
-// widens the closed set and the matching API route);
-// M4-T7 (ADR-0019 §5) adds `fetch_url` and `search_web`
-// — Core-executed gateway tools. They are per-task
-// override only: `job_pod.default_tools` does not include
-// them, so network access is an explicit task decision.
-// M5-T3 (ADR-0021 §10) adds `context_swap`, also
-// Core-executed and per-task override only.
+// `git_operation`; M4-T7 (ADR-0019 §5) adds `fetch_url`
+// and `search_web` — Core-executed gateway tools. They
+// are per-task override only: `job_pod.default_tools`
+// does not include them, so network access is an
+// explicit task decision. M5-T3 (ADR-0021 §10) adds
+// `context_swap`, also Core-executed and per-task
+// override only.
+//
+// `git_operation` remains declared but unrouted: the
+// Git-as-undo call site landed Core-side in F3-T5
+// (ADR-0030), so the Core commits directly rather than
+// exposing git to a Job Pod. Its Gate G2 coverage is
+// therefore intentionally absent.
 //
 // New entries require updating the test in
 // allowlist_test.go and a Gate G2 extension that
 // asserts the matching internal API route is
-// registered. The `git_operation` tool's Gate G2
-// coverage is tracked separately.
+// registered.
 const (
 	ToolExecuteCode  Tool = "execute_code"
 	ToolRunTests     Tool = "run_tests"

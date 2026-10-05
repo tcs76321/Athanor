@@ -1340,14 +1340,19 @@ Tools are constrained, audited, and available only to Job Pods and the Core orch
 | `add_correction(category, reason)` | Create `CorrectionRecord` | No |
 | `install_package(name)` | Install system or language package | Yes |
 
-> **Implementation status (M5-T8).** Built: `execute_code`, `run_tests`,
+> **Implementation status (F3-T5).** Built: `execute_code`, `run_tests`,
 > `lint`, `fetch_url`, `search_web`, `context_swap`, `query_memory` — the
 > closed §25 set, each Core-executed behind the per-job envelope. The agent
 > reads repositories today through the M5-T8 indexing pipeline and
-> `query_memory`. `git_operation` is in the closed set but has no route or
-> handler yet (M6). Planned: `read_file`, `write_file`, `list_files`,
-> `search_files`, `create_artifact`, `request_approval`, `add_correction`,
-> `install_package`, `git_push`, `browser_mode`.
+> `query_memory`. **Git-as-undo is live Core-side** (F3-T5,
+> [ADR-0030](docs/adr/0030-git-as-undo.md)): accepting an artifact commits it
+> to `.athanor/artifacts/<kind>/<id>` on an `athanor/<project>` branch and
+> records the SHA on the artifact; push stays HITL-gated. `git_operation` is
+> in the closed set but has no route or handler — the Core commits directly
+> rather than exposing git to a pod (M6 may revisit). Planned: `read_file`,
+> `write_file`, `list_files`, `search_files`, `create_artifact`,
+> `request_approval`, `add_correction`, `install_package`, `git_push`,
+> `browser_mode`.
 
 ---
 
