@@ -259,23 +259,32 @@ func (r *Repo) EnvelopeFor(ctx context.Context, jobID string, defaultEnv toolenv
 	return toolenvelope.Parse(task.AllowedTools)
 }
 
-// Task loads one task by ID.
-func (r *Repo) Task(ctx context.Context, id string) (Task, error) {
+// taskColumns is the shared column list for task reads, so the schema and
+// the Go field mapping cannot drift.
+const taskColumns = `id, project_id, COALESCE(goal_id, ''), COALESCE(parent_task_id, ''),
+	title, COALESCE(description, ''), status, depends_on_json,
+	acceptance_criteria_json, budget_json, priority, allowed_tools_json`
+
+// scanTask reads one row produced by taskColumns.
+func scanTask(row interface{ Scan(...any) error }) (Task, error) {
 	var t Task
-	var criteriaJSON, allowedToolsJSON string
-	err := r.store.DB().QueryRowContext(ctx,
-		`SELECT id, project_id, COALESCE(goal_id, ''), title, COALESCE(description, ''), status,
-		        acceptance_criteria_json, allowed_tools_json
-		 FROM tasks WHERE id = ?`, id,
-	).Scan(&t.ID, &t.ProjectID, &t.GoalID, &t.Title, &t.Description, &t.Status, &criteriaJSON, &allowedToolsJSON)
-	if errors.Is(err, sql.ErrNoRows) {
-		return Task{}, fmt.Errorf("%w (task): %s", ErrNotFound, id)
+	var depsJSON, criteriaJSON, budgetJSON, allowedToolsJSON string
+	if err := row.Scan(&t.ID, &t.ProjectID, &t.GoalID, &t.ParentID, &t.Title, &t.Description,
+		&t.Status, &depsJSON, &criteriaJSON, &budgetJSON, &t.Priority, &allowedToolsJSON); err != nil {
+		return Task{}, err
 	}
-	if err != nil {
-		return Task{}, fmt.Errorf("loading task: %w", err)
+	if depsJSON != "" && depsJSON != "[]" {
+		if err := json.Unmarshal([]byte(depsJSON), &t.DependsOn); err != nil {
+			return Task{}, fmt.Errorf("decoding depends_on for task %s: %w", t.ID, err)
+		}
 	}
 	if err := json.Unmarshal([]byte(criteriaJSON), &t.Criteria); err != nil {
-		return Task{}, fmt.Errorf("decoding criteria for task %s: %w", id, err)
+		return Task{}, fmt.Errorf("decoding criteria for task %s: %w", t.ID, err)
+	}
+	if budgetJSON != "" && budgetJSON != "{}" {
+		if err := json.Unmarshal([]byte(budgetJSON), &t.Budget); err != nil {
+			return Task{}, fmt.Errorf("decoding budget for task %s: %w", t.ID, err)
+		}
 	}
 	// allowed_tools_json is a JSON array; an empty '[]' decodes to a
 	// non-nil empty slice, which is the "use config default" signal
@@ -283,8 +292,21 @@ func (r *Repo) Task(ctx context.Context, id string) (Task, error) {
 	// as "no override".
 	if allowedToolsJSON != "" && allowedToolsJSON != "[]" {
 		if err := json.Unmarshal([]byte(allowedToolsJSON), &t.AllowedTools); err != nil {
-			return Task{}, fmt.Errorf("decoding allowed_tools for task %s: %w", id, err)
+			return Task{}, fmt.Errorf("decoding allowed_tools for task %s: %w", t.ID, err)
 		}
+	}
+	return t, nil
+}
+
+// Task loads one task by ID.
+func (r *Repo) Task(ctx context.Context, id string) (Task, error) {
+	row := r.store.DB().QueryRowContext(ctx, `SELECT `+taskColumns+` FROM tasks WHERE id = ?`, id)
+	t, err := scanTask(row)
+	if errors.Is(err, sql.ErrNoRows) {
+		return Task{}, fmt.Errorf("%w (task): %s", ErrNotFound, id)
+	}
+	if err != nil {
+		return Task{}, fmt.Errorf("loading task: %w", err)
 	}
 	return t, nil
 }

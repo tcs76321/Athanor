@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/tcs76321/athanor/internal/dag"
 	"github.com/tcs76321/athanor/internal/store"
 )
 
@@ -88,15 +89,23 @@ func (p Project) TestCommand() string {
 	return ""
 }
 
-// Task is one persisted task row (§7.3, M1 subset).
+// Task is one persisted task row (§7.3, M1 subset plus the M6 DAG fields).
 type Task struct {
 	ID          string
 	ProjectID   string
 	GoalID      string
+	ParentID    string
 	Title       string
 	Description string
 	Status      string
 	Criteria    []string
+	// DependsOn lists the IDs of tasks that must finish before this one
+	// (the §7.3 dependency edges). Empty for a root task.
+	DependsOn []string
+	// Budget is the §7.3 per-task budget, persisted as budget_json.
+	Budget dag.Budget
+	// Priority orders sibling tasks when several are ready at once.
+	Priority int
 	// AllowedTools is the optional per-task tool allowlist override
 	// (ROADMAP M2-T4, ARCHITECTURE §25). When non-empty it replaces
 	// config.job_pod.default_tools for this task's jobs. When empty
@@ -104,6 +113,21 @@ type Task struct {
 	// as a JSON array string in tasks.allowed_tools_json
 	// (migration 0005).
 	AllowedTools []string
+}
+
+// TaskSpec is one task the caller asks the repository to persist as part
+// of a decomposed graph. Key is a caller-local identifier used only to
+// express ParentKey and DependsOn; the repository replaces it with a
+// generated task ID.
+type TaskSpec struct {
+	Key         string
+	ParentKey   string
+	Title       string
+	Description string
+	DependsOn   []string
+	Criteria    []string
+	Budget      dag.Budget
+	Priority    int
 }
 
 // Repo persists projects, goals, and tasks.
