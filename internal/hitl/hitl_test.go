@@ -228,3 +228,46 @@ func TestServiceExpiryDeniesByDefault(t *testing.T) {
 		t.Errorf("job state = %s, want failed (expiry denies)", j.State)
 	}
 }
+
+func TestServiceApproverRunsOnlyOnApprove(t *testing.T) {
+	svc, _, _, _ := serviceFixture(t)
+	ctx := context.Background()
+	calls := 0
+	svc.SetApprover(TypeGitPush, func(_ context.Context, _ Request) error {
+		calls++
+		return nil
+	})
+
+	rejected, err := svc.repo.Create(ctx, Request{Type: TypeGitPush, Severity: SeverityHigh})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.Decide(ctx, rejected.ID, ActionReject, "no", 0); err != nil {
+		t.Fatal(err)
+	}
+	if calls != 0 {
+		t.Errorf("approver ran on rejection")
+	}
+
+	approved, err := svc.repo.Create(ctx, Request{Type: TypeGitPush, Severity: SeverityHigh})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.Decide(ctx, approved.ID, ActionApprove, "ok", 0); err != nil {
+		t.Fatal(err)
+	}
+	if calls != 1 {
+		t.Fatalf("approver calls = %d, want 1", calls)
+	}
+
+	other, err := svc.repo.Create(ctx, Request{Type: TypeTaskEscalation})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.Decide(ctx, other.ID, ActionApprove, "ok", 0); err != nil {
+		t.Fatal(err)
+	}
+	if calls != 1 {
+		t.Errorf("git_push approver ran for an unregistered type")
+	}
+}
