@@ -183,6 +183,12 @@ func New(cfg *config.Config, db *store.Store, jobs *job.Repository, projects *pr
 		// minimal configs.
 		cap = staticCap{max: cfg.Limits.MaxConcurrentJobs}
 	}
+	if freezer == nil {
+		// No kill switch wired: never frozen. Production always wires
+		// control.KillSwitch; the fallback keeps this seam uniformly
+		// nil-safe like cap above, instead of panicking in Run.
+		freezer = openFreezer{}
+	}
 	return &Engine{
 		cfg: cfg, db: db, jobs: jobs, projects: projects, artifacts: artifacts,
 		eval: eval, client: client, registry: registry, freezer: freezer, cap: cap,
@@ -204,6 +210,12 @@ func (s staticCap) MaxConcurrentJobs() int {
 	}
 	return s.max
 }
+
+// openFreezer is the fallback Freezer when none is wired: the engine is
+// never frozen. Production always wires *control.KillSwitch (see New).
+type openFreezer struct{}
+
+func (openFreezer) Frozen() bool { return false }
 
 // Enqueue starts asynchronous execution of a job. Returns immediately;
 // callers watch progress through the job state and event log. The
