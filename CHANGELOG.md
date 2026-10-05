@@ -452,6 +452,12 @@ New entries are appended at the top. Do not rewrite history.
 
 ### Security
 
+- **fix(jobpod): noexec on the Job Pod /tmp tmpfs** —
+  `args_common.go` mounted `/tmp` `rw,nosuid,nodev`, but §21.2 documented
+  `noexec`; the two had drifted. `/tmp` now carries
+  `rw,noexec,nosuid,nodev,size=8m`, so a pod cannot stage and execute a
+  dropped binary from its scratch space.
+
 - **fix(jobpod): valid Podman seccomp profile path** —
   `args_linux.go` passed `--security-opt seccomp=runtime/default`, but that
   is Docker/containerd spelling: Podman treats any value other than

@@ -38,7 +38,7 @@ The invocation:
 podman run --rm --name <job-id> \
   --network=none \
   --read-only \
-  --tmpfs /tmp:rw,nosuid,nodev,size=8m \
+  --tmpfs /tmp:rw,noexec,nosuid,nodev,size=8m \
   --security-opt no-new-privileges \
   --cap-drop=ALL \
   --pids-limit=64 \

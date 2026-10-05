@@ -1165,7 +1165,7 @@ All Athanor containers run rootless. No privileged containers by default.
 --cap-drop=all
 --security-opt=no-new-privileges
 --security-opt=seccomp=<profile>
---tmpfs /tmp:rw,noexec,nosuid,nodev
+--tmpfs /tmp:rw,noexec,nosuid,nodev,size=8m
 --memory=<limit>
 --cpus=<limit>
 --pids-limit=<limit>

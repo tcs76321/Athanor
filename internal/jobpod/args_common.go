@@ -20,7 +20,7 @@ func buildArgs(spec Spec) []string {
 		"--memory", itoa(limits.MemoryMB) + "m",
 		"--cpus", ftoa(limits.CPUs),
 		"--network", "none",
-		"--tmpfs", "/tmp:rw,nosuid,nodev,size=8m",
+		"--tmpfs", "/tmp:rw,noexec,nosuid,nodev,size=8m",
 	}
 	args = append(args, platformHardening()...)
 	args = append(args, mountFlags(spec.TokenDir)...)
