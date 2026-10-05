@@ -152,6 +152,8 @@ func main() {
 		runMatrix(os.Args[2:])
 	case "report":
 		runReport(os.Args[2:])
+	case "config":
+		printConfig(os.Args[2:])
 	default:
 		usage()
 		os.Exit(2)
@@ -164,6 +166,7 @@ func usage() {
 commands:
   run       run the measurement matrix (manages the daemon lifecycle)
   report    aggregate collected results into report.md
+  config    print the generated daemon config for one model/arm
 
 Run each command with -h for its flags. Protocol:
 docs/probes/m3-t7-quality-probe.md

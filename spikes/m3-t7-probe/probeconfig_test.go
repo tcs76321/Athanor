@@ -3,6 +3,7 @@ package main
 import (
 	"testing"
 
+	"github.com/tcs76321/athanor/internal/config"
 	"gopkg.in/yaml.v3"
 )
 
@@ -18,6 +19,11 @@ func TestProbeConfigYAML(t *testing.T) {
 			var cfg map[string]any
 			if err := yaml.Unmarshal([]byte(raw), &cfg); err != nil {
 				t.Fatalf("config for %s/%s is not valid YAML: %v\n%s", m.Label, a.Name, err, raw)
+			}
+			// Strongest check: the real loader (unknown-key rejection +
+			// semantic validation) must accept the generated config.
+			if _, err := config.Parse([]byte(raw)); err != nil {
+				t.Fatalf("generated config for %s/%s is rejected by internal/config: %v\n%s", m.Label, a.Name, err, raw)
 			}
 
 			exec, ok := cfg["execution"].(map[string]any)

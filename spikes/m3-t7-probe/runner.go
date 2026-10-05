@@ -415,3 +415,28 @@ func loadAllMetrics(dir string) ([]jobMetrics, error) {
 	})
 	return all, err
 }
+
+// printConfig is the `config` subcommand: it prints the generated config
+// for one (model, arm) so an operator can inspect it or boot the daemon
+// by hand for a pre-flight. It is also the pre-flight validity check —
+// the generated YAML must be accepted by internal/config (see
+// probeconfig_test.go).
+func printConfig(args []string) {
+	fs := flag.NewFlagSet("config", flag.ExitOnError)
+	modelLabel := fs.String("model", probeModels[0].Label, "model label")
+	armName := fs.String("arm", arms[0].Name, "arm name (dialectical|single)")
+	seed := fs.String("seed", "off", "judgment_seed policy: off|derived")
+	_ = fs.Parse(args)
+
+	m, ok := modelByLabel(*modelLabel)
+	if !ok {
+		fmt.Fprintf(os.Stderr, "unknown model label %q\n", *modelLabel)
+		os.Exit(2)
+	}
+	a, ok := armByName(*armName)
+	if !ok {
+		fmt.Fprintf(os.Stderr, "unknown arm %q\n", *armName)
+		os.Exit(2)
+	}
+	fmt.Print(probeConfigYAML(m, a, *seed))
+}

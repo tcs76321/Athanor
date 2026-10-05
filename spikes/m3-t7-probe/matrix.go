@@ -103,3 +103,23 @@ func crossJudge(generatorLabel string) string {
 		return neutralJudge
 	}
 }
+
+// modelByLabel resolves a matrix model by its filesystem label.
+func modelByLabel(label string) (probeModel, bool) {
+	for _, m := range probeModels {
+		if m.Label == label {
+			return m, true
+		}
+	}
+	return probeModel{}, false
+}
+
+// armByName resolves a matrix arm by name.
+func armByName(name string) (arm, bool) {
+	for _, a := range arms {
+		if a.Name == name {
+			return a, true
+		}
+	}
+	return arm{}, false
+}
