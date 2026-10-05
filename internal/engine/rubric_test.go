@@ -74,12 +74,10 @@ func TestRubricFor_Code(t *testing.T) {
 			t.Errorf("code rubric missing %q\nrubric:\n%s", item, r)
 		}
 	}
-	// Advisory item: linter clean is mentioned but the
-	// test does not require it to be present (M3-T2
-	// commit 2.3 will make it mandatory once the lint
-	// route exists).
+	// Advisory item: the lint route exists (M3-T2); the rubric names it but
+	// does not make its presence a hard test assertion.
 	if !strings.Contains(r, "LINTER CLEAN") {
-		t.Logf("code rubric mentions LINTER CLEAN as advisory: ok (M3-T2 commit 2.3 not yet landed)")
+		t.Logf("code rubric mentions LINTER CLEAN as advisory: ok")
 	}
 }
 

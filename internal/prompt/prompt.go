@@ -161,10 +161,10 @@ type Result struct {
 	Messages    []llm.Message
 }
 
-// EstimateTokens is the M1 token accounting approximation: ~4 bytes per
-// token, deterministic and dependency-free. Exact tokenizer fidelity
-// arrives with the MCE (M5); §28.2 only requires per-section accounting
-// to be logged consistently.
+// EstimateTokens is the token accounting approximation: ~4 bytes per
+// token, deterministic and dependency-free. §28.2 requires per-section
+// accounting to be logged consistently; exact tokenizer fidelity is not a
+// goal (the §10.4 KV-cache monitor uses the same count).
 func EstimateTokens(s string) int {
 	return (len(s) + 3) / 4
 }

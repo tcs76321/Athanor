@@ -219,8 +219,8 @@ func TestRun_TextArchetypeDoesNotCallRunner(t *testing.T) {
 
 // TestRun_ToolDisallowedSoftFails asserts the soft-fail
 // behavior: when the runner returns toolenvelope.ErrToolDisallowed,
-// the engine continues to comparing and the job completes.
-// M3-T2 will turn this into a HITL escalation.
+// the engine continues to comparing and the job completes. Turning a
+// disallowed tool into a HITL escalation is M6 work.
 func TestRun_ToolDisallowedSoftFails(t *testing.T) {
 	env := newEnv(t)
 	jobID := env.submitCode(t)

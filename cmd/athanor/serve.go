@@ -124,10 +124,10 @@ func run(configPath, addr, stateDir string) error {
 	powerMgr := power.NewPowerManager(nil)
 	// M2-T2: Job Pod manager. Owns the lifecycle of every Podman
 	// Job Pod. Sweep runs at boot to clean up after a crash or
-	// kill -9. Only Sweep and the runner's TokenFor lookups touch
-	// this today — nothing calls podMgr.Start, so no Job Pod is
-	// ever created in production. That open end is tracked in
-	// ROADMAP §7 ("Engine → Job Pod execution dispatch").
+	// kill -9. M2-T4b wired the engine↔pod lifecycle (ADR-0024): the
+	// engine's pod-lifecycle seam starts a per-job pod and stops it at
+	// terminal state, and the internal API execs into it; the runner's
+	// TokenFor resolves the per-job token from this manager.
 	podMgr := jobpod.New(NewExecClient(), killSwitch, filepath.Join(stateDir, "tokens"))
 	if res, err := podMgr.Sweep(context.Background()); err != nil {
 		// Sweep is opportunistic: a missing podman or a not-yet-
@@ -343,16 +343,11 @@ func run(configPath, addr, stateDir string) error {
 	}
 
 	// §23.6: resume any job that was mid-flight when the daemon died.
-	//
-	// Open gap (ROADMAP §7, "Engine → Job Pod execution dispatch"): no
-	// production code path calls podMgr.Start, and the internal API's
-	// execute_code / run_tests / lint routes are 501 stubs. A
-	// `code`-archetype job therefore fails at `evaluating` —
-	// evaluateCandidate's pod sub-step calls the runner, whose TokenFor
-	// finds no pod (the Manager is always empty). Recovered jobs hit the
-	// same wall. Closing this needs a real engine↔pod lifecycle seam
-	// (and an ADR), not a one-line wire-up, so it is deliberately left
-	// to its own task rather than silently half-done here.
+	// M2-T4b (ADR-0024) closed the former gap here: the engine↔pod
+	// lifecycle seam starts a pod for `code`-archetype jobs and the
+	// internal API dispatches execute_code / run_tests / lint into it
+	// (503 until job_pod.image is set). A recovered job resumes with the
+	// same dispatch.
 	eng.Recover(context.Background())
 
 	// M5-T6: the minimal daydream memory-consolidation loop (ADR-0025 §6). It

@@ -73,7 +73,7 @@ func codeRubric() string {
 		"TESTS PASS: did the test command (pytest -q) exit 0 in the Job Pod? If `tests_pass` is unknown because the runner was not wired, the verdict's `summary` should mention `runner_not_wired`.",
 		"DOCSTRINGS: does every public function have a docstring? (Use the §11 prompt's `pure stdlib; docstrings on every public function; a usage example` for code-archetype goals as the spec.)",
 		"NO PLACEHOLDERS: are there any TODO, FIXME, or `pass`-as-implementation?",
-		"LINTER CLEAN: did `ruff check .` (or the configured linter) exit 0 in the Job Pod? If no linter is wired (M3-T2 commit 2.3 not yet landed), this item is advisory and may be skipped.",
+		"LINTER CLEAN: did `ruff check .` (or the configured linter) exit 0 in the Job Pod? (A job whose envelope does not grant `lint` skips this item.)",
 		"ACCEPTANCE COVERAGE: does every acceptance criterion appear in the artifact, in a way a reader can identify?",
 	}, "\n")
 }

@@ -12,9 +12,9 @@ import (
 
 // phaseDivergeN (§13.1 Phase 2): generates N candidate artifacts, each
 // persisted as a draft `proposal` artifact (§9.1). The number of
-// candidates is `cfg.Execution.DivergenceCandidates`, defaulting to 3
-// per the M3-T1 simplification that "difficulty_hint" from the planner
-// is not yet consumed; M3-T2 may feed it in.
+// candidates is `cfg.Execution.DivergenceCandidates`, defaulting to 3.
+// The planner's "difficulty_hint" is not yet consumed; wiring it to the
+// candidate count is M6 work.
 //
 // All candidates use the `main` persona at the phase's high temperature
 // (0.7–1.1) so they actually differ; the LLM is told to "explore

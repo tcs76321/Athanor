@@ -1,7 +1,7 @@
-// Package project persists projects, goals, and their M1 tasks
-// (ARCHITECTURE §5–§7). M1 maps one goal to one task (no DAG yet —
-// decomposition arrives with M3); each submitted goal becomes a runnable
-// task whose job the engine executes.
+// Package project persists projects, goals, and their tasks
+// (ARCHITECTURE §5–§7). One goal maps to one task today — the autonomous
+// DAG decomposition is M6 — and each submitted goal becomes a runnable task
+// whose job the engine executes.
 package project
 
 import (

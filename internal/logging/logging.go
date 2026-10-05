@@ -2,8 +2,8 @@
 // state/logs/ with size-based rotation (ARCHITECTURE §28).
 //
 // Every event carries a "category" attribute from the closed set in
-// config.Categories (§28.1). The SQLite event log arrives with M0-T6;
-// file logging is the substrate it will share.
+// config.Categories (§28.1). The SQLite event log (M0-T6) is the
+// append-only audit trail; file logging is a separate substrate.
 package logging
 
 import (
