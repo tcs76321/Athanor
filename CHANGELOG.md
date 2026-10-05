@@ -10,6 +10,34 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### M3-T7 — quality probe (in progress)
+
+- **M3-T7.1.** Structured-judgment determinism precursor
+  ([ADR-0012](docs/adr/0012-llm-format-json.md) §Implementation status).
+  `format: "json"` is now sent on the `evaluating`/`comparing` phases (the
+  ADR-0012 D1 wire change was previously unimplemented), and an optional
+  `inference.judgment_seed: derived` pins a seed derived from the
+  job/phase/candidate bytes on Temperature-0 calls. The resolved format
+  and seed are recorded in every `llm_call` audit row; `llm.Request`
+  gains `Seed`/`Format`; divergence is never seeded. Tests:
+  `internal/llm/TestChatForwardsSeedAndFormat`,
+  `internal/engine/TestJudgmentSeed`, `internal/config/TestInference_*`.
+- **M3-T7.0/.2/.3/.4.** Protocol + scaffold reconciliation; pure analytics
+  (Jaccard diversity, calibration bins, stability classes); the
+  self-managed probe runner (generated arm configs, blind judge packets,
+  read-only outcome capture, `report.md`); real-loader validation of the
+  generated configs and a boot pre-flight. Findings pending the live run
+  ([protocol](docs/probes/m3-t7-quality-probe.md)).
+
+### Fixes
+
+- **fix(server): apply `network.external_api_host_allowlist` at boot** —
+  ADR-0011's configurable Host-header allowlist was validated by the
+  config layer but never wired into the server, so the daemon was pinned
+  to the built-in default list and any non-default `-addr` answered 421.
+  Found during the M3-T7 pre-flight. Defaults flow through unchanged;
+  configured overrides now take effect.
+
 ### M6 — Autonomy & Feedback
 
 - **M6-T11.** Strategy analysis ([ADR-0041](docs/adr/0041-strategy-analysis.md)).
