@@ -231,6 +231,7 @@ func run(configPath, addr, stateDir string) error {
 	// through the sink; the API serves the §18.4 rejection form and lists.
 	correctionsRepo := corrections.NewRepo(st)
 	eng.SetCorrectionSink(correctionsRepo)
+	eng.SetCorrectionSource(correctionsRepo)
 	srv := server.New(version)
 	srv.SetControl(killSwitch)
 	externalAPI := api.New(projectRepo, job.NewRepository(st),

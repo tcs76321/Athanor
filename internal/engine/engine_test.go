@@ -387,6 +387,50 @@ func TestPhaseFailureRecordsCorrection(t *testing.T) {
 	}
 }
 
+type fakeCorrectionSource struct {
+	recs    []corrections.Record
+	applied []string
+}
+
+func (f *fakeCorrectionSource) Relevant(_ context.Context, _ string, _ int) ([]corrections.Record, error) {
+	return f.recs, nil
+}
+
+func (f *fakeCorrectionSource) MarkApplied(_ context.Context, id string) error {
+	f.applied = append(f.applied, id)
+	return nil
+}
+
+// TestCorrectionsInjectedAndAudited proves the M6-T7 seam: active
+// corrections reach the prompt, are audited with token accounting, and
+// increment their applied count.
+func TestCorrectionsInjectedAndAudited(t *testing.T) {
+	e := newEnv(t)
+	src := &fakeCorrectionSource{recs: []corrections.Record{
+		{ID: "c1", Category: "style", Severity: "high", Scope: "project", DerivedRule: "prefer dependency injection"},
+	}}
+	e.eng.SetCorrectionSource(src)
+	jobID := e.submit(t)
+	e.eng.Run(context.Background(), jobID)
+
+	if len(src.applied) == 0 {
+		t.Fatal("injected correction was never marked applied")
+	}
+	events, err := e.db.QueryEvents(context.Background(), store.EventFilter{JobID: jobID, Category: "feedback"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, ev := range events {
+		if strings.Contains(ev.DataJSON, "corrections_injected") && strings.Contains(ev.DataJSON, "c1") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("no corrections_injected audit row: %v", events)
+	}
+}
+
 // fixedCap is a ConcurrencyCap that returns a fixed value, used by
 // M1-T8.4 tests to drive the engine's concurrency behavior.
 type fixedCap struct{ n int }

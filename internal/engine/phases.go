@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/tcs76321/athanor/internal/artifact"
@@ -165,6 +166,7 @@ func (e *Engine) call(ctx context.Context, j job.Job, p project.Project, t proje
 		EvaluationInstructions: extraInstructions,
 		Tools:                  tiers.Tools,
 		ActiveChunk:            tiers.ActiveChunk,
+		Corrections:            tiers.Corrections,
 		Candidates:             tiers.Candidates,
 		DormantIndex:           tiers.DormantIndex,
 		Ceiling:                ceiling,
@@ -293,6 +295,25 @@ func (e *Engine) call(ctx context.Context, j job.Job, p project.Project, t proje
 		"completion_tokens": resp.CompletionTokens, "estimated_prompt_tokens": res.TotalToken,
 		"sections": sections,
 	})
+
+	// M6-T7 (§18.3, ADR-0038): audit which corrections were injected, at
+	// what token price, and whether the ladder dropped the tier. Only a
+	// correction that actually survived into the prompt counts as applied.
+	if len(tiers.CorrectionIDs) > 0 {
+		suppressed := res.Eviction.Suppresses(prompt.TierCorrections)
+		e.auditCat(ctx, j.ID, "feedback", map[string]any{
+			"event": "corrections_injected", "phase": phase,
+			"count": len(tiers.CorrectionIDs), "correction_ids": tiers.CorrectionIDs,
+			"tokens": res.TierWeights[prompt.TierCorrections], "suppressed": suppressed,
+		})
+		if !suppressed && e.correctionSource != nil {
+			for _, id := range tiers.CorrectionIDs {
+				if err := e.correctionSource.MarkApplied(ctx, id); err != nil {
+					slog.Error("engine: marking correction applied", "correction", id, "err", err)
+				}
+			}
+		}
+	}
 	return resp, nil
 }
 

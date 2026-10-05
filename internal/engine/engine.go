@@ -114,6 +114,14 @@ type CorrectionSink interface {
 	Capture(ctx context.Context, in corrections.CaptureInput) (corrections.Record, error)
 }
 
+// CorrectionSource is the §18.3 retrieval seam (M6-T7): the active
+// corrections relevant to a project, severity-ordered, plus the applied-count
+// increment. Satisfied by *corrections.Repo; nil leaves tier 4 empty.
+type CorrectionSource interface {
+	Relevant(ctx context.Context, projectID string, limit int) ([]corrections.Record, error)
+	MarkApplied(ctx context.Context, id string) error
+}
+
 // ErrPaused reports that the job was paused instead of failed — the
 // context floor was violated (recommend-or-escalate, §12.3) or the kill
 // switch froze the daemon mid-run.
@@ -159,6 +167,10 @@ type Engine struct {
 	// corrections is the §18 feedback seam (M6-T6, ADR-0037): a phase
 	// failure is reported as a runtime_error CorrectionRecord. nil is valid.
 	corrections CorrectionSink
+	// correctionSource is the §18.3 injection seam (M6-T7, ADR-0038): active
+	// corrections are ranked and rendered into §11.2 position 8. nil leaves
+	// tier 4 empty (byte-identical to pre-M6-T7).
+	correctionSource CorrectionSource
 	// inFlight is the count of running job goroutines. The cap is
 	// read from cap.MaxConcurrentJobs() on every Enqueue; the atomic
 	// counter is the only source of truth for the running count.
@@ -239,6 +251,10 @@ func (e *Engine) SetGitCommitter(g GitCommitter) { e.git = g }
 // existing New call sites are unchanged; production wires the corrections
 // repo in cmd/athanor/serve.go. A nil sink is a no-op.
 func (e *Engine) SetCorrectionSink(s CorrectionSink) { e.corrections = s }
+
+// SetCorrectionSource wires the §18.3 injection seam (M6-T7). A nil source
+// leaves the corrections tier empty.
+func (e *Engine) SetCorrectionSource(s CorrectionSource) { e.correctionSource = s }
 
 // recordFailureCorrection captures a phase failure as a runtime_error
 // CorrectionRecord (§18.1). Best-effort: a capture failure is logged, never

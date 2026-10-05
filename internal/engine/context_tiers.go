@@ -5,10 +5,12 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"sort"
 
 	"github.com/tcs76321/athanor/internal/config"
+	"github.com/tcs76321/athanor/internal/corrections"
 	"github.com/tcs76321/athanor/internal/job"
 	"github.com/tcs76321/athanor/internal/project"
 	"github.com/tcs76321/athanor/internal/prompt"
@@ -206,10 +208,24 @@ func (e *Engine) toolManifest(t project.Task) []string {
 
 // promptTiers is the §10.5 tier payload set for one call.
 type promptTiers struct {
-	Tools        []string
-	ActiveChunk  *prompt.ChunkText
-	Candidates   []prompt.CandidateArtifact
-	DormantIndex []prompt.IndexLine
+	Tools         []string
+	ActiveChunk   *prompt.ChunkText
+	Candidates    []prompt.CandidateArtifact
+	DormantIndex  []prompt.IndexLine
+	Corrections   []string
+	CorrectionIDs []string
+}
+
+// maxInjectedCorrections caps how many corrections retrieval feeds the
+// assembler. Token pressure is the §10.5 ladder's job; this cap only stops a
+// flood of tiny corrections from crowding the section.
+const maxInjectedCorrections = 8
+
+// renderCorrection renders one §18.2 record as a single §11.2 §8 line: the
+// actionable derived rule, tagged with the category/severity/scope that
+// ranked it.
+func renderCorrection(r corrections.Record) string {
+	return fmt.Sprintf("[%s/%s %s] %s", r.Category, r.Severity, r.Scope, r.DerivedRule)
 }
 
 // promptTiersFor gathers the tier payloads for one call. Provider failures
@@ -220,6 +236,20 @@ func (e *Engine) promptTiersFor(ctx context.Context, j job.Job, t project.Task,
 	candidates []prompt.CandidateArtifact) promptTiers {
 
 	pt := promptTiers{Tools: e.toolManifest(t), Candidates: candidates}
+	// M6-T7 (§18.3, ADR-0038): retrieval is deterministic — severity, then
+	// scope, then recency — so a high-severity project correction outranks
+	// everything lower.
+	if e.correctionSource != nil {
+		recs, err := e.correctionSource.Relevant(ctx, t.ProjectID, maxInjectedCorrections)
+		if err != nil {
+			slog.Warn("engine: reading corrections", "task", t.ID, "err", err)
+		} else {
+			for _, rec := range recs {
+				pt.Corrections = append(pt.Corrections, renderCorrection(rec))
+				pt.CorrectionIDs = append(pt.CorrectionIDs, rec.ID)
+			}
+		}
+	}
 	if e.ctxProvider == nil {
 		return pt
 	}
