@@ -343,16 +343,12 @@ func relPath(p string) string {
 // directory and have it pass: the prefix check is exact
 // (no globs).
 func isUnderAllowedExecDir(walkerPath string) bool {
-	cleaned := filepath.ToSlash(filepath.Clean(walkerPath))
+	rel := relPath(walkerPath)
 	for _, dir := range allowedOsExecDirs {
-		// Normalize: relPath returns "cmd/..." or
-		// "internal/..." — strip the leading "cmd/"
-		// the same way relPath does (relPath keeps
-		// "cmd" in the returned path). The dirs
-		// list stores paths starting with "cmd/".
-		rel := relPath(walkerPath)
+		// relPath normalizes "../../cmd/athanor/scanners/x.go" to
+		// "cmd/athanor/scanners/x.go"; allowedOsExecDirs stores the
+		// "cmd/..." form, so the comparison is exact (no globs).
 		if rel == dir || strings.HasPrefix(rel, dir+"/") {
-			_ = cleaned
 			return true
 		}
 	}
@@ -548,9 +544,6 @@ func TestGateG1NoOutboundHTTPOutsideGateway(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-	}
-	if violations > 0 {
-		t.Fatalf("%d Gate G1 rule 6 violations: outbound HTTP used outside the §21.5 gateway", violations)
 	}
 	if violations > 0 {
 		t.Fatalf("%d Gate G1 rule 6 violations: outbound HTTP used outside the §21.5 gateway", violations)
