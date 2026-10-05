@@ -132,6 +132,13 @@ func applyDefaults(c *Config) {
 	setInt(&c.Execution.DAGMaxTasks, 25)
 	setInt(&c.Execution.DAGMaxDepth, 6)
 	setInt(&c.Execution.DAGMaxTotalJobs, 100)
+	// M6-T3 (ADR-0034): retries a failed task gets before it blocks and
+	// escalates. Two retries (three attempts) is the documented default;
+	// an explicit 0 is preserved (retries disabled).
+	if c.Execution.MaxTaskRetries == nil {
+		n := 2
+		c.Execution.MaxTaskRetries = &n
+	}
 	if c.Execution.MinJudgeConfidence == nil {
 		def := 0.7
 		c.Execution.MinJudgeConfidence = &def

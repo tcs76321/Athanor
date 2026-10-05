@@ -247,6 +247,23 @@ type Execution struct {
 	// goal submission (ADR-0033 §5). Default false preserves the M1
 	// single-task walking skeleton; set true for autonomous DAG execution.
 	DAGDecomposition bool `yaml:"dag_decomposition"`
+	// MaxTaskRetries bounds how many times a failed task is retried before
+	// the §7.2 policy blocks it and attempts re-decomposition or HITL
+	// escalation (M6-T3, ADR-0034). The pointer distinguishes "unset"
+	// (default 2) from an explicit 0 (retries disabled); a task's own
+	// budget.max_jobs, when set, is a tighter bound.
+	MaxTaskRetries *int `yaml:"max_task_retries"`
+}
+
+// MaxTaskRetriesValue resolves execution.max_task_retries, applying the
+// documented 2 default when the operator left the field unset. An explicit 0
+// is returned as 0 (retries disabled). This is the only call site consumers
+// should use; reading the raw pointer is reserved for the config layer.
+func (e *Execution) MaxTaskRetriesValue() int {
+	if e.MaxTaskRetries == nil {
+		return 2
+	}
+	return *e.MaxTaskRetries
 }
 
 // MinJudge returns the §19.3 guard threshold, applying the

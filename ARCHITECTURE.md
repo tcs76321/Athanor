@@ -1596,6 +1596,9 @@ execution:
   # M6-T2 (ADR-0033): when true, goal submission decomposes the goal and
   # schedules its ready tasks instead of creating a single task.
   dag_decomposition: false
+  # M6-T3 (ADR-0034): retries a failed task gets before it blocks and
+  # escalates; 0 disables retries.
+  max_task_retries: 2
 
 strategy_analysis:
   enabled: true

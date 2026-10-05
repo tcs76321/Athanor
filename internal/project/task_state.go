@@ -23,7 +23,7 @@ const (
 var taskTransitions = map[string][]string{
 	TaskPending:   {TaskRunning, TaskBlocked},
 	TaskReady:     {TaskRunning, TaskBlocked, TaskPending},
-	TaskRunning:   {TaskCompleted, TaskFailed},
+	TaskRunning:   {TaskCompleted, TaskFailed, TaskPending, TaskBlocked},
 	TaskPaused:    {TaskRunning},
 	TaskBlocked:   {TaskPending},
 	TaskCompleted: {},

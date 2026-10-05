@@ -12,6 +12,8 @@ func TestTaskStatusTransitions(t *testing.T) {
 		{TaskPending, TaskBlocked},
 		{TaskRunning, TaskCompleted},
 		{TaskRunning, TaskFailed},
+		{TaskRunning, TaskPending},
+		{TaskRunning, TaskBlocked},
 		{TaskBlocked, TaskPending},
 	}
 	for _, e := range legal {

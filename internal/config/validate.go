@@ -220,6 +220,11 @@ func validateCross(c *Config) error {
 	if c.Execution.DAGMaxTotalJobs < 1 {
 		return fmt.Errorf("execution.dag_max_total_jobs must be ≥ 1, got %d", c.Execution.DAGMaxTotalJobs)
 	}
+	// M6-T3 (ADR-0034): retries are a non-negative count; an explicit 0 is
+	// valid (retries disabled).
+	if v := c.Execution.MaxTaskRetries; v != nil && *v < 0 {
+		return fmt.Errorf("execution.max_task_retries must be ≥ 0, got %d", *v)
+	}
 	// M4-T2/T3/T4 (ADR-0015): the airlock thresholds are
 	// post-default values (validateCross runs after applyDefaults).
 	// MaxIngressBytes must be positive; the ratios and

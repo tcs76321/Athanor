@@ -123,6 +123,9 @@ execution:
   # schedules its ready tasks instead of creating a single task. Default
   # false preserves the M1 single-task walking skeleton.
   dag_decomposition: false
+  # M6-T3 (ADR-0034): retries a failed task gets before it blocks and
+  # escalates. 0 disables retries.
+  max_task_retries: 2
 
 strategy_analysis:
   enabled: true

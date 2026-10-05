@@ -71,6 +71,9 @@ func TestLoadValidMinimalAppliesDefaults(t *testing.T) {
 	if cfg.Execution.DAGDecomposition {
 		t.Error("DAGDecomposition default = true, want false (M1 walking skeleton)")
 	}
+	if got := cfg.Execution.MaxTaskRetriesValue(); got != 2 {
+		t.Errorf("MaxTaskRetries default = %d, want 2", got)
+	}
 	if d, _ := cfg.Execution.PhaseBudget("evaluating"); d != 600*time.Second {
 		t.Errorf("evaluating budget default = %v", d)
 	}
