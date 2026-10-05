@@ -139,22 +139,31 @@ func readArtifact(stateDir, id string) (string, error) {
 // it from all proposal artifacts would mix reflection cycles (the single
 // arm can produce several one-candidate cycles, each with diversity 0).
 func loadDivergenceJaccard(db *sql.DB, jobID string) (avg float64, candidates int, ok bool) {
-	var data string
-	err := db.QueryRow(
-		`SELECT data_json FROM events
-		  WHERE job_id = ? AND json_extract(data_json, '$.event') = 'divergence_jaccard'
-		  ORDER BY id DESC LIMIT 1`, jobID).Scan(&data)
+	// The probe's SQLite build has no JSON1 (`json_extract` errors), so scan
+	// the job's events and filter in Go rather than in SQL. Ordering by id
+	// DESC makes the first match the most recent cycle.
+	rows, err := db.Query(
+		`SELECT data_json FROM events WHERE job_id = ? ORDER BY id DESC`, jobID)
 	if err != nil {
 		return 0, 0, false
 	}
-	var m struct {
-		AvgJaccard float64 `json:"avg_jaccard"`
-		Candidates int     `json:"candidates"`
+	defer func() { _ = rows.Close() }()
+	for rows.Next() {
+		var d string
+		if err := rows.Scan(&d); err != nil {
+			return 0, 0, false
+		}
+		var m struct {
+			Event      string  `json:"event"`
+			AvgJaccard float64 `json:"avg_jaccard"`
+			Candidates int     `json:"candidates"`
+		}
+		if json.Unmarshal([]byte(d), &m) != nil || m.Event != "divergence_jaccard" {
+			continue
+		}
+		return m.AvgJaccard, m.Candidates, true
 	}
-	if err := json.Unmarshal([]byte(data), &m); err != nil {
-		return 0, 0, false
-	}
-	return m.AvgJaccard, m.Candidates, true
+	return 0, 0, false
 }
 
 // fillCandidateMetrics records the job's candidate count and diversity
