@@ -12,6 +12,19 @@ New entries are appended at the top. Do not rewrite history.
 
 ### M6 — Autonomy & Feedback
 
+- **M6-T2.** Dependency scheduler ([ADR-0033](docs/adr/0033-dependency-scheduler.md),
+  [plan](docs/m6-plan.md)). Migration 0017 rebuilds `tasks` to the canonical
+  §7.3 lifecycle and adds `task_type` (M1 `in_progress`/`done` rows are
+  remapped; inbound FKs, the self-reference, and the index/trigger survive).
+  `internal/scheduler` provides the pure `Leaves`/`Ready`/`Blocked` graph
+  functions and a mutex-serialized orchestrator (`Start`, `OnJobTerminal`,
+  `Reconcile`) that executes ready leaves in dependency order and, when a task
+  fails, marks its descendants `blocked`. The engine gained a nil-safe
+  `SetOnJobTerminal` seam (fired on the normal terminal branch and the
+  phase-error path) and the daemon reconciles non-terminal goals at boot.
+  `execution.dag_decomposition` (default **false**) gates decompose-then-
+  schedule on `goal submit`, so the M1 single-task path is the default.
+
 - **M6-T1.** DAG decomposition ([ADR-0032](docs/adr/0032-dag-decomposition.md),
   [plan](docs/m6-plan.md)). A new pure `internal/dag` package parses the
   model's structured output and validates it deterministically (unique keys,

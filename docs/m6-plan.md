@@ -82,6 +82,12 @@ has ≥1 acceptance criterion · Σ leaf `max_jobs` ≤ `dag_max_total_jobs`.
 
 ## M6-T2 — Dependency scheduler
 
+**Status: ✅ complete (2026-10-04).** Commits `b83d5e5` (ADR), `73688e9`
+(migration 0017), `f5a96f5` (task lifecycle + `job.ByTask`), `6719ea0` (pure
+graph functions), `a5a09e8` (orchestrator + engine seam + boot reconcile),
+`dec291b` (gated submit). `goal submit` stays single-task unless
+`execution.dag_decomposition` is true.
+
 - `internal/scheduler`: pure `Ready`/`Topological` + `Blocked`
   propagation; a `Scheduler` that creates and enqueues jobs for ready leaf
   tasks, marks tasks `ready`/`running`/`completed`, and blocks descendants
@@ -89,7 +95,7 @@ has ≥1 acceptance criterion · Σ leaf `max_jobs` ≤ `dag_max_total_jobs`.
 - Transition hook: a nil-safe `OnJobTerminal` seam on the engine (plus a
   boot reconcile pass) so the scheduler learns of completion; ADR-0033.
 - Migration **0017**: rebuild `tasks` with the §7.3 status set
-  (`pending,ready,running,paused,blocked,completed,failed,cancelled`) and
+  (`pending,ready,running,paused,blocked,completed,failed`) and
   `task_type`. This is the reconciliation ADR-0032 §5 defers.
 - Wire `goal submit` to decompose + schedule once this lands.
 - Acceptance: diamond dependencies execute in order; blocked propagation;

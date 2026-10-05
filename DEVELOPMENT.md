@@ -120,6 +120,8 @@ athanor freeze                         # §22 kill switch; frozen state survives
 athanor unfreeze -reason "..."         # requires a reason; recorded in the event log
 ```
 
+`execution.dag_decomposition: true` switches `goal submit` from the M1 single-task path to decompose-then-schedule over the M6-T2 dependency scheduler ([ADR-0033](docs/adr/0033-dependency-scheduler.md)); the default is off.
+
 The full M1 walkthrough is [`docs/demo-m1.md`](docs/demo-m1.md) — it doubles as the Gate G1 demo script.
 
 ## Repository layout

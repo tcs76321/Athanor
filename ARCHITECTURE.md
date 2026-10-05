@@ -264,9 +264,12 @@ When a `Goal` is submitted, Athanor uses the `tall` persona to autonomously deco
 > ([ADR-0032](docs/adr/0032-dag-decomposition.md), [plan](docs/m6-plan.md)).
 > It is exposed as `athanor goal decompose` and
 > `POST /projects/{id}/decompose`. The dependency scheduler that executes a
-> DAG is **M6-T2**; until it lands, `goal submit` still creates a single task,
-> and the §7.3 `status` names are reconciled with the shipped `tasks` enum by
-> the M6-T2 migration.
+> DAG landed in **M6-T2** ([ADR-0033](docs/adr/0033-dependency-scheduler.md)):
+> migration 0017 installs the canonical §7.3 task lifecycle, `internal/scheduler`
+> starts ready leaves and propagates `blocked` to descendants, and
+> `goal submit` decomposes-and-schedules only when
+> `execution.dag_decomposition` is enabled (default off, preserving the M1
+> single-task path).
 
 ### 7.2 DAG Failure & Recovery Policy
 
@@ -1590,6 +1593,9 @@ execution:
   dag_max_tasks: 25
   dag_max_depth: 6
   dag_max_total_jobs: 100
+  # M6-T2 (ADR-0033): when true, goal submission decomposes the goal and
+  # schedules its ready tasks instead of creating a single task.
+  dag_decomposition: false
 
 strategy_analysis:
   enabled: true

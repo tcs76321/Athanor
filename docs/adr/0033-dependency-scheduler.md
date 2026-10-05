@@ -99,3 +99,16 @@ making it the default before M6-T3's failure policies land.
   path is opt-in until M6-T3 hardens failure handling.
 - The scheduler does no LLM work and executes no tools, so Gate G1 is
   unaffected; it only creates jobs and moves task rows.
+
+## Implemented (M6-T2.2–T2.6)
+
+Migration 0017 rebuilt `tasks` to the §7.3 lifecycle plus `task_type`;
+`internal/scheduler` landed with the pure `Leaves`/`Ready`/`Blocked` core and
+the mutex-serialized `Scheduler` (`Start`, `OnJobTerminal`, `Reconcile`); the
+engine gained the nil-safe `SetOnJobTerminal` seam (fired on both the normal
+terminal branch and the phase-error path); the daemon wires the scheduler and
+reconciles non-terminal goals at boot; and `execution.dag_decomposition`
+(default false) gates the decompose-then-schedule submit path. Diamond
+ordering, the transitive blocked closure, idempotent callbacks, and
+reconcile-after-crash are covered by tests; `goal submit` is unchanged by
+default.
