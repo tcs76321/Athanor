@@ -12,6 +12,19 @@ New entries are appended at the top. Do not rewrite history.
 
 ### M6 — Autonomy & Feedback
 
+- **M6-T4.** HITL request queue ([ADR-0035](docs/adr/0035-hitl-queue.md),
+  [plan](docs/m6-plan.md)). Migration 0018 adds `jobs.awaiting_from`, so the
+  §8.1 `awaiting_approval` state is now reachable and resumes to exactly the
+  state it left (repository-enforced); the engine parks there instead of
+  erroring. `internal/hitl` provides a repo (`Create`/`Get`/`Pending`/`List`/
+  `Decide`/`ExpireOverdue`) and a service (`Await`/`Decide`/`Expire`): approve
+  resumes and re-enqueues the job, reject and expiry fail it, defer keeps it
+  pending with a later window. `GET /hitl`, `POST /hitl/{id}/decision`, and
+  `athanor hitl list|approve|reject|defer` expose the queue; the scheduler's
+  M6-T3 `Escalator` seam now creates `task_escalation` requests; and a daemon
+  goroutine denies overdue requests on `hitl.expiry_interval`. The first
+  job-linked caller is M6-T5's HITL-gated `git_push`.
+
 - **M6-T3.** Task failure policy ([ADR-0034](docs/adr/0034-task-failure-policy.md),
   [plan](docs/m6-plan.md)). A failed task is retried up to
   `execution.max_task_retries` (default 2, explicit 0 disables; a task's own

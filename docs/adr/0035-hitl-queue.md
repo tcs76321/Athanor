@@ -80,3 +80,17 @@ on that interval and stops on shutdown; tests call `Expire` directly.
 - M6-T5 (`git_push`) and later external-action work get one approval path;
   they call `Service.Await` rather than inventing their own.
 - The queue is local and has no new direct dependency; Gate G1 is unaffected.
+
+## Implemented (M6-T4.2–T4.5)
+
+Migration 0018 adds `jobs.awaiting_from`; the job state machine gains the
+`awaiting_approval` edges with a repository-enforced resume origin, and the
+engine waits there instead of erroring. `internal/hitl` lands the repo
+(`Create`/`Get`/`Pending`/`List`/`Decide`/`ExpireOverdue`) and service
+(`Await`/`Decide`/`Expire`) with `jobs` audit events; `GET /hitl` and
+`POST /hitl/{id}/decision`, plus `athanor hitl list|approve|reject|defer`,
+expose it; the scheduler's `Escalator` seam now creates a `task_escalation`
+request; and the daemon runs the expiry sweep on `hitl.expiry_interval`.
+Approval resumes the job to its `awaiting_from`, rejection and expiry fail
+it, and defer extends the pending window. The first job-linked caller is
+M6-T5's HITL-gated `git_push`.

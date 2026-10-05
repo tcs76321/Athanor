@@ -117,6 +117,11 @@ HITL writer is **M6-T4**; both seams are nil-safe today.
 
 ## M6-T4 — HITL request queue
 
+**Status: ✅ complete (2026-10-04).** Commits `3d9fe12` (ADR), `b3b6e49`
+(migration 0018 + resumable `awaiting_approval`), `e667577` (`internal/hitl`
+repo + service), `711edfc` (config), `533c898` (API/CLI/wiring). The first
+job-linked caller is **M6-T5**'s HITL-gated `git_push`.
+
 - `internal/hitl` repo over the existing `hitl_requests` table: types,
   severity, expiry, approve/reject/modify/defer; pausing and resuming jobs.
 - Add `awaiting_approval` edges to `internal/job/state.go`, with a

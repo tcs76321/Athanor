@@ -1108,6 +1108,17 @@ Users should not interrupt generation mid-token (this corrupts the context). Ins
 
 The `EventLog` records every injection.
 
+> **Implementation status (M6-T4).** The §20 queue is live
+> ([ADR-0035](docs/adr/0035-hitl-queue.md)): `internal/hitl` persists
+> requests, `awaiting_approval` is a resumable state, and
+> `GET /hitl` / `POST /hitl/{id}/decision` plus
+> `athanor hitl list|approve|reject|defer` drive decisions. Approve resumes a
+> job to the state it left; reject and expiry fail it (expiry denies by
+> default). The scheduler's `Escalator` files a `task_escalation` request for
+> an exhausted task. The **Interruption Queue** (§20.4) and the Web UI
+> (§27) that will surface the queue are M6-T8; the first job-linked caller is
+> M6-T5's `git_push`.
+
 ---
 
 ## 21. Security Architecture

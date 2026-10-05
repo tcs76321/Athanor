@@ -116,6 +116,10 @@ athanor goal decompose -project <id> -goal "..." [-criteria "a;b"]  # M6-T1: val
 athanor job watch -job <id>            # prints each phase transition, then the artifact
 athanor artifacts -project <id>
 athanor index -project <id> [-path <dir>]  # index the project's repository (M5-T8, ADR-0028)
+athanor hitl list                      # M6-T4: pending HITL requests
+athanor hitl approve -id <id> [-note "..."]   # resume the parked job
+athanor hitl reject -id <id> [-note "..."]    # fail it
+athanor hitl defer -id <id> -for 1h           # extend the pending window
 athanor freeze                         # §22 kill switch; frozen state survives restarts
 athanor unfreeze -reason "..."         # requires a reason; recorded in the event log
 ```
