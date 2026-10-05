@@ -1660,6 +1660,14 @@ logging:
     - daydream
     - power
     - backup
+
+hitl:
+  # M6-T4 (ADR-0035): the §20 human-in-the-loop queue. default_ttl bounds
+  # how long a pending request waits before it expires and denies by
+  # default; expiry_interval is how often the daemon sweeps overdue
+  # requests.
+  default_ttl: "24h"
+  expiry_interval: "1m"
 ```
 
 ---

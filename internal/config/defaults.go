@@ -205,6 +205,10 @@ func applyDefaults(c *Config) {
 	setInt(&c.Backup.MaxLocalBackups, 10)
 	setTrue(&c.Backup.IncludeWorkspaceMetadata)
 
+	// M6-T4 (ADR-0035): HITL request lifetime and expiry sweep cadence.
+	setDur(&c.HITL.DefaultTTL, Duration(24*time.Hour))
+	setDur(&c.HITL.ExpiryInterval, Duration(minute))
+
 	setStr(&c.Logging.Level, "info")
 	if len(c.Logging.Categories) == 0 {
 		c.Logging.Categories = append([]string(nil), Categories...)

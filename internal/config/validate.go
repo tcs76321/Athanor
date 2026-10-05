@@ -225,6 +225,13 @@ func validateCross(c *Config) error {
 	if v := c.Execution.MaxTaskRetries; v != nil && *v < 0 {
 		return fmt.Errorf("execution.max_task_retries must be ≥ 0, got %d", *v)
 	}
+	// M6-T4 (ADR-0035): HITL windows must be positive after defaults.
+	if c.HITL.DefaultTTL <= 0 {
+		return fmt.Errorf("hitl.default_ttl must be positive, got %s", c.HITL.DefaultTTL)
+	}
+	if c.HITL.ExpiryInterval <= 0 {
+		return fmt.Errorf("hitl.expiry_interval must be positive, got %s", c.HITL.ExpiryInterval)
+	}
 	// M4-T2/T3/T4 (ADR-0015): the airlock thresholds are
 	// post-default values (validateCross runs after applyDefaults).
 	// MaxIngressBytes must be positive; the ratios and

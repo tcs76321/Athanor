@@ -74,6 +74,12 @@ func TestLoadValidMinimalAppliesDefaults(t *testing.T) {
 	if got := cfg.Execution.MaxTaskRetriesValue(); got != 2 {
 		t.Errorf("MaxTaskRetries default = %d, want 2", got)
 	}
+	if got := cfg.HITL.DefaultTTL.D(); got != 24*time.Hour {
+		t.Errorf("HITL DefaultTTL default = %v, want 24h", got)
+	}
+	if got := cfg.HITL.ExpiryInterval.D(); got != time.Minute {
+		t.Errorf("HITL ExpiryInterval default = %v, want 1m", got)
+	}
 	if d, _ := cfg.Execution.PhaseBudget("evaluating"); d != 600*time.Second {
 		t.Errorf("evaluating budget default = %v", d)
 	}

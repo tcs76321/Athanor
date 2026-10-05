@@ -71,6 +71,7 @@ type Config struct {
 	Logging          Logging          `yaml:"logging"`
 	JobPod           JobPod           `yaml:"job_pod"`
 	Airlock          Airlock          `yaml:"airlock"`
+	HITL             HITL             `yaml:"hitl"`
 
 	// SourcePath is set by Load and records where the config came from.
 	SourcePath string `yaml:"-"`
@@ -474,4 +475,13 @@ type AirlockScanners struct {
 	Ingress    []string `yaml:"ingress"`
 	Egress     []string `yaml:"egress"`
 	UserPrompt []string `yaml:"user_prompt"`
+}
+
+// HITL configures the §20 human-in-the-loop queue (M6-T4; ADR-0035).
+// DefaultTTL bounds how long a pending request waits before it expires and
+// denies by default; ExpiryInterval is how often the daemon sweeps overdue
+// requests.
+type HITL struct {
+	DefaultTTL     Duration `yaml:"default_ttl"`
+	ExpiryInterval Duration `yaml:"expiry_interval"`
 }
