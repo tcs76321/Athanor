@@ -8,6 +8,7 @@ package main
 import (
 	"encoding/csv"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"net/http"
@@ -29,6 +30,13 @@ type runnerConfig struct {
 	goalLimit  int
 	modelsCSV  string
 	timeout    time.Duration
+
+	// Run guards (M3-T7 soak hardening).
+	maxWall        time.Duration
+	minFreeGB      int
+	maxConsecFails int
+	soakInterval   time.Duration
+	start          time.Time
 }
 
 // runMatrix is the `run` subcommand: it executes the locked matrix,
@@ -44,6 +52,10 @@ func runMatrix(args []string) {
 	fs.IntVar(&r.goalLimit, "goals", 0, "limit to the first N sample goals (0 = all)")
 	fs.StringVar(&r.modelsCSV, "models", "", "comma-separated model labels to run (empty = all)")
 	fs.DurationVar(&r.timeout, "timeout", 45*time.Minute, "per-job wall-clock timeout")
+	fs.DurationVar(&r.maxWall, "max-wall", 12*time.Hour, "abort the whole run after this wall time (0 = no limit)")
+	fs.IntVar(&r.minFreeGB, "min-free-gb", 5, "abort if free disk drops below this many GB (0 = no check)")
+	fs.IntVar(&r.maxConsecFails, "max-consecutive-errors", 5, "abort after this many consecutive job errors (0 = no limit)")
+	fs.DurationVar(&r.soakInterval, "soak-interval", 30*time.Second, "RSS/DB/disk soak sampling interval")
 	_ = fs.Parse(args)
 
 	if err := r.run(); err != nil {
@@ -53,6 +65,33 @@ func runMatrix(args []string) {
 }
 
 func (r *runnerConfig) baseURL() string { return "http://" + r.addr }
+
+// errAbort signals that a run guard tripped; run() stops gracefully
+// rather than returning a hard error.
+var errAbort = errors.New("m3-t7: run guard tripped")
+
+// guard checks the wall-clock, free-disk, and consecutive-error budgets
+// before each job. A trip freezes the daemon and stops the run.
+func (r *runnerConfig) guard(consecutiveErrors int, stateDir string) error {
+	if r.maxWall > 0 && time.Since(r.start) > r.maxWall {
+		return fmt.Errorf("%w: wall time exceeded %s", errAbort, r.maxWall)
+	}
+	if r.minFreeGB > 0 {
+		if free, err := freeBytes(stateDir); err == nil && free < uint64(r.minFreeGB)<<30 {
+			return fmt.Errorf("%w: free disk below %d GB", errAbort, r.minFreeGB)
+		}
+	}
+	if r.maxConsecFails > 0 && consecutiveErrors >= r.maxConsecFails {
+		return fmt.Errorf("%w: %d consecutive job errors", errAbort, consecutiveErrors)
+	}
+	return nil
+}
+
+// freezeDaemon asks the running daemon to stop accepting new work. Best
+// effort, used on abort so the daemon halts cleanly.
+func freezeDaemon(baseURL string) {
+	_ = apiCall("POST", baseURL+"/freeze", nil, nil)
+}
 
 // models resolves the -models filter against the matrix.
 func (r *runnerConfig) models() []probeModel {
@@ -91,9 +130,18 @@ func (r *runnerConfig) run() error {
 	if err := os.MkdirAll(r.outDir, 0o755); err != nil {
 		return err
 	}
+	if free, err := freeBytes(r.outDir); err == nil {
+		fmt.Printf("results dir %s (%d GB free)\n", r.outDir, free>>30)
+	}
+	r.start = time.Now()
 	for _, m := range r.models() {
 		for _, a := range arms {
-			if err := r.runArm(m, a); err != nil {
+			err := r.runArm(m, a)
+			if errors.Is(err, errAbort) {
+				fmt.Fprintf(os.Stderr, "m3-t7: aborting run: %v\n", err)
+				return nil
+			}
+			if err != nil {
 				return err
 			}
 		}
@@ -122,19 +170,31 @@ func (r *runnerConfig) runArm(m probeModel, a arm) error {
 	if err := waitHealthy(r.baseURL(), 90*time.Second); err != nil {
 		return fmt.Errorf("daemon not healthy (see %s): %w", logPath, err)
 	}
+	sampler := startSoak(runDir, r.soakInterval, proc.Process.Pid, stateDir)
+	defer sampler.stopAndWait()
 
+	consecutiveErrors := 0
 	metrics := make([]jobMetrics, 0, len(r.goals())*a.Runs)
 	for _, g := range r.goals() {
 		for run := 1; run <= a.Runs; run++ {
+			if gerr := r.guard(consecutiveErrors, stateDir); gerr != nil {
+				freezeDaemon(r.baseURL())
+				return gerr
+			}
 			mx := r.runOne(g, m, a, run, stateDir)
 			metrics = append(metrics, mx)
 			if mx.Error != "" {
+				consecutiveErrors++
 				fmt.Printf("  %-18s run %d: ERROR %s\n", g.Name, run, mx.Error)
 			} else {
+				consecutiveErrors = 0
 				fmt.Printf("  %-18s run %d: state=%-9s winner=%-8s score=%.2f diversity=%.2f\n",
 					g.Name, run, mx.State, mx.Winner, mx.Score, mx.Diversity)
 			}
 		}
+	}
+	if names, err := orphanPods(); err == nil {
+		fmt.Printf("  orphan athanor-job pods after arm: %d %v\n", len(names), names)
 	}
 
 	if err := writeJSON(filepath.Join(runDir, "results.json"), metrics); err != nil {

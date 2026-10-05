@@ -57,6 +57,22 @@ The judge packets are blind to the arm and model by design; the operator
 pastes each `packets/PKT-NNNN.md` into a browser agent and transcribes
 the returned score against the packet ID in `packets/index.json`.
 
+## Run guards and soak sampling
+
+`run` is hardened for unattended use:
+
+- `-max-wall` (default `12h`) aborts the whole run after the budget.
+- `-min-free-gb` (default `5`) aborts if free disk drops below the threshold.
+- `-max-consecutive-errors` (default `5`) aborts after repeated job errors.
+- On abort the runner freezes the daemon (`POST /freeze`) before stopping.
+- Each arm writes `soak.csv` (daemon RSS, SQLite bytes, free GB, sampled
+  every `-soak-interval`) and logs any surviving `athanor-job-*` pods after
+  the arm — the informal M7-T9 preview.
+
+For a run that fits a single session, select a faster model subset, e.g.
+`-models ornith9b` (drops the 27 B model; the full 10-goal matrix then
+finishes in a few hours).
+
 ## Layout
 
 | File | Role |
