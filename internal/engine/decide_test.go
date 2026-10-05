@@ -92,6 +92,34 @@ func TestDecideWinner(t *testing.T) {
 			wantWinner:         "new",
 			wantReasonContains: "",
 		},
+		// 3c. ADR-0043: LLM says "new", no previous, a PASSING
+		//     record above threshold → "new" even though
+		//     better_than_previous is false (meaningless against
+		//     nothing). This is the M3-T7 smoke's exact case.
+		{
+			name:    "new_passing_record_no_previous",
+			verdict: verdictFor("new"),
+			records: []evaluation.Record{
+				{PassedTests: true, BetterThanPrevious: false, Confidence: 0.9},
+			},
+			threshold:          0.7,
+			hasPrevious:        false,
+			wantWinner:         "new",
+			wantReasonContains: "",
+		},
+		// 3d. ADR-0043: no previous, a record that neither passed
+		//     nor was marked better → still downgraded to "none".
+		{
+			name:    "new_failing_record_no_previous",
+			verdict: verdictFor("new"),
+			records: []evaluation.Record{
+				{PassedTests: false, BetterThanPrevious: false, Confidence: 0.9},
+			},
+			threshold:          0.7,
+			hasPrevious:        false,
+			wantWinner:         "none",
+			wantReasonContains: "no prior accepted artifact",
+		},
 		// 4. LLM says "previous", no record meets threshold →
 		//    guard does NOT flip; verdict stays "previous".
 		{

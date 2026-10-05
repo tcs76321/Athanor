@@ -10,9 +10,16 @@
 //
 // §19.3 (paraphrased): the LLM may say "winner: new", but the
 // engine only honors that verdict when at least one
-// EvaluationRecord in the current job's set has
+// EvaluationRecord in the current job's set backs it. When a
+// prior accepted artifact exists, "backed" means
 // `better_than_previous == true` AND `confidence >
-// min_judge_confidence`. Otherwise the verdict is downgraded:
+// min_judge_confidence`. When there is NO prior accepted
+// artifact, "better or equal" is trivially satisfied, so
+// "backed" means the record PASSED evaluation (or was marked
+// better_than_previous) AND `confidence > min_judge_confidence`
+// (ADR-0043: the flag is meaningless against nothing and real
+// models set it inconsistently). Otherwise the verdict is
+// downgraded:
 //   - no prior accepted artifact   → "new" → "none"
 //   - prior accepted artifact exists → "new" → "previous"
 //
@@ -78,9 +85,21 @@ func DecideWinner(verdict comparisonVerdict, records []evaluation.Record, thresh
 	}
 	// §19.3: new wins ⟺ ∃ EvaluationRecord with
 	// better_than_previous AND confidence > threshold.
+	//
+	// When there is no prior accepted artifact, "better or equal" is
+	// trivially satisfied — there is nothing to be worse than — so a
+	// record that PASSED evaluation with sufficient confidence backs
+	// "new" even though better_than_previous is false. Real models set
+	// that flag inconsistently against nothing (the M3-T7 smoke found
+	// passing, high-confidence records with better_than_previous=false
+	// that failed every fresh-project job). See ADR-0043.
 	strongNew := false
 	for _, r := range records {
-		if r.BetterThanPrevious && r.Confidence > threshold {
+		backed := r.BetterThanPrevious
+		if !hasPrevious {
+			backed = r.BetterThanPrevious || r.PassedTests
+		}
+		if backed && r.Confidence > threshold {
 			strongNew = true
 			break
 		}
@@ -106,7 +125,7 @@ func DecideWinner(verdict comparisonVerdict, records []evaluation.Record, thresh
 	} else {
 		out.Winner = "none"
 		out.Reasons = append(out.Reasons,
-			fmt.Sprintf("downgraded from 'new' to 'none': no prior accepted artifact and no EvaluationRecord met confidence > %.2f", threshold))
+			fmt.Sprintf("downgraded from 'new' to 'none': no prior accepted artifact and no passing EvaluationRecord met confidence > %.2f", threshold))
 	}
 	return out
 }

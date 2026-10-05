@@ -44,6 +44,14 @@ New entries are appended at the top. Do not rewrite history.
   to the built-in default list and any non-default `-addr` answered 421.
   Found during the M3-T7 pre-flight. Defaults flow through unchanged;
   configured overrides now take effect.
+- **fix(engine): first-artifact acceptance no longer requires
+  `better_than_previous`**
+  ([ADR-0043](docs/adr/0043-first-artifact-acceptance.md)). The §19.3 guard
+  downgraded a fresh project's first artifact to `none` unless the judge set
+  `better_than_previous=true` — a flag with no referent when no prior artifact
+  exists, which real models set inconsistently. The M3-T7 smoke failed half its
+  fresh-project jobs at 0.90–0.95 quality because of it. With no previous, a
+  passing, confident record now backs `"new"`.
 
 ### M6 — Autonomy & Feedback
 
