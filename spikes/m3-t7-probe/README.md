@@ -15,38 +15,58 @@ full protocol — locked sample set, models, seed policy, judge channels,
 and the memory rule — live in
 [`docs/probes/m3-t7-quality-probe.md`](../../docs/probes/m3-t7-quality-probe.md).
 
-## Status: scaffold only
+## Status: runner implemented
 
-This commit is the planning + scaffolding commit. The
-three sub-measurements land as separate spike
-commands in follow-up work; they need a running
-daemon, a model, and time, none of which a CI run can
-supply. The scaffold:
+`run` manages the daemon lifecycle and executes the locked matrix;
+`report` aggregates the collected rows. The pure analytics (Jaccard
+diversity, calibration bins, stability classes), the config/packet
+renderers, and the report are unit-tested; the HTTP/DB plumbing is
+exercised when the probe actually runs.
 
-- Defines the `dialecticalResult` contract (the per-sample
-  data shape all three sub-measurements consume).
-- Sets up the loopback HTTP client to the daemon.
-- Adds tests for the JSON round-trip and env-override
-  semantics.
+`main`'s subcommands:
 
-## Why not land the experiments now
-
-Each of the three sub-measurements is a separate
-end-to-end experiment (sample 5–10 goals, run the
-dialectical loop and a single-shot baseline on each,
-collect rubric scores + confidence + candidate text,
-post-process). The work is real but the *setup* is
-what the scaffold pins; the actual measurement scripts
-are follow-up commits that build on this scaffold
-without redesigning it.
+- `run` — writes each arm's config, starts/stops the daemon with that
+  config and a per-arm state dir, submits every (goal × arm × run) job,
+  and collects outcomes from the daemon's API and its SQLite database.
+- `report` — merges every `results.json` under the output tree and
+  renders `report.md`.
 
 ## How to run
 
 ```sh
-# The daemon must be running on ATHANOR_ADDR (default loopback).
-go run ./spikes/m3-t7-probe
+# 1. build the daemon binary the runner will start
+make build
+
+# 2. smoke test: one goal, one model, both arms
+go run -tags sqlite_fts5 ./spikes/m3-t7-probe run -goals 1 -models qwen27b
+
+# 3. the full locked matrix (hours; see the protocol)
+go run -tags sqlite_fts5 ./spikes/m3-t7-probe run
+
+# 4. aggregate every results.json into report.md
+go run -tags sqlite_fts5 ./spikes/m3-t7-probe report
 ```
 
-The current scaffold prints a banner and exits 0; the
-follow-up work replaces `main` with the real
-per-sample runner.
+CGO is required: the runner reads the daemon's SQLite database read-only
+(`strategy_outcomes` and the proposal artifacts) for captured outcomes.
+Per (model, arm) the runner writes `config.yaml`, `daemon.log`,
+`results.json`, `results.csv`, `packets/` (blind judge packets plus
+`index.json`), and `report.md` under `spikes/m3-t7-probe/results/`.
+
+The judge packets are blind to the arm and model by design; the operator
+pastes each `packets/PKT-NNNN.md` into a browser agent and transcribes
+the returned score against the packet ID in `packets/index.json`.
+
+## Layout
+
+| File | Role |
+|---|---|
+| `probe.go` | package doc, HTTP client, subcommand dispatch |
+| `matrix.go` | the locked 10-goal set, arms, models, judge selection |
+| `probeconfig.go` | renders each arm's daemon config |
+| `packets.go` | renders blind judge packets |
+| `analysis.go` | pure analytics (Jaccard, calibration bins, stability) |
+| `collect.go` | read-only DB + artifact collection |
+| `report.go` | pure report aggregation/rendering |
+| `runner.go` | daemon lifecycle + matrix execution + output writing |
+| `*_test.go` | unit tests for every pure piece |

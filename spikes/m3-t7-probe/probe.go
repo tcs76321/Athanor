@@ -100,10 +100,6 @@ type candidate struct {
 	Length     int
 }
 
-type healthResponse struct {
-	OK bool `json:"ok"`
-}
-
 func daemonURL() string {
 	if v := os.Getenv("ATHANOR_ADDR"); v != "" {
 		return v
@@ -142,21 +138,34 @@ func apiCall(method, url string, body, out any) error {
 	return nil
 }
 
+// main dispatches the probe subcommands. Both require a built daemon
+// binary (`make build`): `run` manages the daemon lifecycle itself, and
+// `report` aggregates whatever results have been collected. The probe
+// never starts work without a binary and a clean results tree.
 func main() {
-	resultsDir := os.Getenv("PROBE_RESULTS_DIR")
-	if resultsDir == "" {
-		resultsDir = "m3-t7-probe-results"
+	if len(os.Args) < 2 {
+		usage()
+		os.Exit(2)
 	}
-	if err := os.MkdirAll(resultsDir, 0o755); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+	switch os.Args[1] {
+	case "run":
+		runMatrix(os.Args[2:])
+	case "report":
+		runReport(os.Args[2:])
+	default:
+		usage()
+		os.Exit(2)
 	}
-	if err := apiCall("GET", daemonURL()+"/healthz", nil, &healthResponse{}); err != nil {
-		fmt.Fprintf(os.Stderr, "daemon not reachable at %s/healthz: %v\n", daemonURL(), err)
-		os.Exit(1)
-	}
-	fmt.Printf("M3-T7 probe (scaffold). Daemon OK at %s; results dir %s\n", daemonURL(), resultsDir)
-	fmt.Println("Sub-measurements (T-a diversity Jaccard, T-b calibration, T-c stability at T=0)")
-	fmt.Println("land in follow-up commits; this scaffold defines the result type contract only.")
-	fmt.Println("See docs/probes/m3-t7-quality-probe.md for the protocol.")
+}
+
+func usage() {
+	fmt.Print(`usage: m3-t7-probe <command> [flags]
+
+commands:
+  run       run the measurement matrix (manages the daemon lifecycle)
+  report    aggregate collected results into report.md
+
+Run each command with -h for its flags. Protocol:
+docs/probes/m3-t7-quality-probe.md
+`)
 }
