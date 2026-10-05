@@ -202,3 +202,12 @@ file mentioning a tool name, because the latter is
 alphabetical-order-dependent and `handlers.go` (which registers every route)
 sorts before `query_memory.go`.
 
+**Updated (M5-T8):** the missing producer now exists. The repository indexing
+pipeline ([ADR-0028](0028-repository-indexing.md)) walks a project's
+`repository_path`, divides and stores each file, refreshes the Dormant Index
+summaries, and embeds a bounded digest per summarized chunk — so the vector
+half is populated in production once `context_engine.memory_embedding_model`
+is set, and the FTS half is populated even without it. The "engine's
+`query_memory` call site" deferral stands (the LLM decides when to query), and
+native sqlite-vec `vec0` remains deferred to M7 packaging.
+

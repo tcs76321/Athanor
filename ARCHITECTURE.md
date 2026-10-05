@@ -901,6 +901,15 @@ When the job queue is empty, the system is idle, and AC power is present, Athano
 | **Feedback Review** | `security` (temp 0.0) | Analyze patterns in rejections and failures. Propose new global `CorrectionRecord`s derived from repeated project-level corrections. |
 | **Strategy Mining** | `security` (temp 0.0) | Run deterministic aggregation over `StrategyOutcome`s (§13.4). Detect winning/losing patterns; create proposed `StrategyInsight`s. Read-only over history; produces proposals only. |
 
+> **Implementation status (M5-T8).** Two of the six actions have minimal
+> in-tree drivers: **Memory Consolidation** (`cmd/athanor/daydream.go`,
+> ADR-0025 §6) and **Repository Exploration** (the M5-T8 indexing pipeline,
+> ADR-0028 §6 — `athanor index` / `POST /projects/{id}/index` and the idle
+> action). The native `sqlite-vec` accelerator the row names remains deferred
+> (ADR-0026 §2); embeddings are BLOBs behind the `VectorIndex` seam. The
+> other four actions, the §17.3 `DaydreamLog`, and the OS AC/battery watcher
+> are **M7-T2**.
+
 ### 17.2 Daydreaming Constraints
 
 - Daydreaming jobs run at lowest priority. Yield immediately if user becomes active or a real job is queued.
@@ -1325,6 +1334,15 @@ Tools are constrained, audited, and available only to Job Pods and the Core orch
 | `request_approval(type, details)` | Create HITL request | N/A |
 | `add_correction(category, reason)` | Create `CorrectionRecord` | No |
 | `install_package(name)` | Install system or language package | Yes |
+
+> **Implementation status (M5-T8).** Built: `execute_code`, `run_tests`,
+> `lint`, `fetch_url`, `search_web`, `context_swap`, `query_memory` — the
+> closed §25 set, each Core-executed behind the per-job envelope. The agent
+> reads repositories today through the M5-T8 indexing pipeline and
+> `query_memory`. `git_operation` is in the closed set but has no route or
+> handler yet (M6). Planned: `read_file`, `write_file`, `list_files`,
+> `search_files`, `create_artifact`, `request_approval`, `add_correction`,
+> `install_package`, `git_push`, `browser_mode`.
 
 ---
 

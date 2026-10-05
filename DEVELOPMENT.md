@@ -114,6 +114,7 @@ athanor project create -name demo -archetype text -goal "..." [-criteria "a;b"]
 athanor goal submit -project <id> -goal "..."
 athanor job watch -job <id>            # prints each phase transition, then the artifact
 athanor artifacts -project <id>
+athanor index -project <id> [-path <dir>]  # index the project's repository (M5-T8, ADR-0028)
 athanor freeze                         # §22 kill switch; frozen state survives restarts
 athanor unfreeze -reason "..."         # requires a reason; recorded in the event log
 ```
