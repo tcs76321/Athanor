@@ -452,6 +452,12 @@ New entries are appended at the top. Do not rewrite history.
 
 ### Security
 
+- **fix(deps): golang.org/x/text v0.37.0 → v0.39.0** — patches
+  [GO-2026-5970](https://pkg.go.dev/vuln/GO-2026-5970) (infinite loop on
+  invalid input). Reachable from the Reader Mode path: `reader.extractHTML`
+  calls `bluemonday.Policy.Sanitize`, which eventually calls
+  `norm.Form.Transform`. Still an indirect dependency; `make vuln` is clean.
+
 - **fix(jobpod): noexec on the Job Pod /tmp tmpfs** —
   `args_common.go` mounted `/tmp` `rw,nosuid,nodev`, but §21.2 documented
   `noexec`; the two had drifted. `/tmp` now carries
