@@ -135,10 +135,12 @@ func (m *manager) Start(ctx context.Context, spec Spec) (*Pod, error) {
 	}
 
 	args := buildArgs(spec)
-	if _, _, err := m.client.Run(ctx, args...); err != nil {
+	if _, stderr, err := m.client.Run(ctx, args...); err != nil {
 		// Pod didn't come up; remove any token dir we created.
 		_ = RemoveTokenDir(tokenDir)
-		return nil, fmt.Errorf("podman run: %w", err)
+		// Surface podman's stderr: the raw exit code (often 125) is
+		// useless for diagnosis without it.
+		return nil, fmt.Errorf("podman run: %w: %s", err, strings.TrimSpace(string(stderr)))
 	}
 
 	pod := &Pod{ID: spec.ID, State: StatePending}
