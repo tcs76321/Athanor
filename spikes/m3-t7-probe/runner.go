@@ -183,6 +183,12 @@ func (r *runnerConfig) run() error {
 func (r *runnerConfig) runArm(m probeModel, a arm) error {
 	runDir := filepath.Join(r.outDir, m.Label, a.Name)
 	stateDir := filepath.Join(runDir, "state")
+	// A reused state dir makes the daemon recover the previous run's
+	// non-terminal jobs, contaminating the measurement. Refuse rather than
+	// silently mix runs.
+	if _, err := os.Stat(filepath.Join(stateDir, "athanor.db")); err == nil {
+		return fmt.Errorf("state dir %s already holds a database — use a fresh -out for a clean run", stateDir)
+	}
 	if err := os.MkdirAll(stateDir, 0o755); err != nil {
 		return err
 	}
