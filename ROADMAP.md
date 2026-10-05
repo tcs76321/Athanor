@@ -21,6 +21,7 @@
 | CI: behavioral probes | ✅ Done — `make test-integration` now covers `internal/gateway/...` (not just `internal/jobpod/...`); a new non-blocking `integration` CI job runs the M2 hardening + M2-T4b exec + M4 gateway probes on Ubuntu (podman + `make integration-images`). Promote to required once green on `main`. See [DEVELOPMENT.md](DEVELOPMENT.md) |
 | Foundations: SQLite single-connection discipline (F2) | ✅ Done — [ADR-0027](docs/adr/0027-sqlite-single-connection.md): the ADR-0003 one-connection contract is now enforced structurally (`BeginTx`/`Begin(` forbidden in `internal/engine`/`cmd/`; `Conn(` reserved to `internal/store`) and at runtime (pool-cap pin + concurrent pool-drain guard). The audit found the invariant already held (nine DB-only transactions, no `db.Conn()`). |
 | Foundations: docs, correctness & hardening sweep (F3) | ✅ Done — T1 (CI toolchain enforcement: `gofmt`/`goimports`, `govulncheck`, `go mod tidy`), T2 (sentinel-error mapping, nil-safe seams, gate-test cleanup), T3 (ingress `O_NOFOLLOW` + [ADR-0029](docs/adr/0029-file-io-containment-scope.md) containment scope), T4 (per-project execution config: migration 0016, [ADR-0031](docs/adr/0031-project-execution-config.md), no more hard-coded pytest), T5 (Git-as-undo: Core-side commit on acceptance, migration 0015, [ADR-0030](docs/adr/0030-git-as-undo.md)), T7 (required integration CI, fuzz targets, Markdown link checker, `make cover`), T8 (documentation contradiction sweep), and T9 (SECURITY.md, Dependabot, PR template) landed. T6 is scoped to the M3-T7-b/c **runbook** ([probe doc](docs/probes/m3-t7-quality-probe.md)); the measurement run itself stays a §7 backlog item pending a live model. |
+| Foundations: adaptive judgment & verification (F4) | 🔜 Planned — [plan](docs/f4-plan.md). Seeded by the M3-T7 probe. Scope: policy/mechanism split (adaptive compute), verification-first selection, judge calibration/quorum, heterogeneous diversity, cost-aware acceptance, bounded inference, and finishing the feedback→policy channels. Gate G-F4. |
 
 Update this table as milestones progress. It is the honest heartbeat of the project.
 
@@ -76,6 +77,7 @@ Each milestone ends with a gate. The next milestone does not begin until the gat
 | G4 | M4 | No byte enters or leaves the workspace without airlock scanning; no egress except via the Gateway allowlist |
 | G5 | M5 | No compaction runs above Temp 0.0; dormant chunk swaps are byte-for-byte exact — **closed** (M5-T6; the M5-T8 producer is proven end-to-end) |
 | G6 | M6 | No external or irreversible action without HITL approval; every rejection yields a CorrectionRecord |
+| G-F4 | F4 | Judgment is bounded and cost-aware: compute scales with task difficulty, deterministic verifiers decide the majority of code accepts, candidate diversity is enforced, and no model call can stall a job |
 | G7 | M7 | System survives sleep, power loss, and 24h soak with no state loss |
 
 **Standing rule:** the kill switch must exist and work from M1 onward, before any capability that could need stopping.
@@ -107,6 +109,11 @@ M0 ──► M1 ──► M2 ──► M3 ──► M4 ──► M5 ──► M6
        │      └── M2 spike may run in parallel with late M1
        └── docs/adr/ seeded (ADR-0001/0002 written pre-M0 during doc review)
 ```
+
+**F4 (adaptive judgment & verification)** sits between M6 and M7: a
+cross-cutting foundations track seeded by the M3-T7 probe, hardening the
+compute/selection loop without adding a capability. It is not a new
+integer milestone and does not renumber M7.
 
 Sequential by default; parallelize only where the graph allows. Sizes: **S** ≤ 2h, **M** 2–4h, **L** 4–8h. If a task overruns its size significantly, stop and split it or spike it.
 

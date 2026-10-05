@@ -145,6 +145,27 @@ config, starts/stops the daemon with the matching config + state dir,
 creates projects, submits goals, polls to terminal, and tears down. One
 command per arm; maximally reproducible.
 
+## Smoke findings (2026-10-05)
+
+The harness was validated with a bounded smoke (goal #1, `ornith-1.5:9b`,
+both arms) before the full run. It did its job: it surfaced **five real-model
+defects** — all fixed — and then completed **4/4 jobs** (all `completed`,
+`winner=new`, score 0.97; zero orphan pods).
+
+| # | Defect | Fix |
+|---|---|---|
+| 1 | `format:"json"` guarantees parseable, not *typed*, JSON: a string `confidence` / `style_issues` hard-failed the job | tolerant, audited verdict parser (`verdict_coerced`) — [ADR-0042](../adr/0042-judgment-json-robustness.md) |
+| 2 | Schema-constrained decoding made `ornith` run away (>7 min) on an unbounded string field | schema mode made opt-in, default off — ADR-0042 |
+| 3 | A fresh project's first artifact was downgraded to `none` unless the judge set `better_than_previous=true` — meaningless with no previous, so ~half of fresh-project jobs failed | `DecideWinner` accepts a passing, confident record with no previous — [ADR-0043](../adr/0043-first-artifact-acceptance.md) |
+| 4 | A degenerate generation streamed until the 10-minute HTTP client timeout | `inference.max_output_tokens` (default 4096) — runaway guard |
+| 5 | A thinking-capable model spent the whole token budget on its reasoning phase, leaving visible content empty | `inference.think` (default false) — thinking disabled by default |
+
+The smoke confirmed defect #3 is decisive: without the fix, roughly half of
+fresh-project jobs fail regardless of artifact quality, which would have
+swamped the measurement. The full run (all 10 goals, including the code goals
+that create Job Pods) remains pending; its findings seed the F4 track
+([`docs/f4-plan.md`](../f4-plan.md)).
+
 ## T-b: Judge-confidence calibration
 
 **Question:** Does the LLM's reported confidence
@@ -315,14 +336,19 @@ that were not measured.
 
 ## Status
 
-M3-T7-a (diversity): code landed (`a11ab63`); probe aggregation pending.
-M3-T7-b (calibration): protocol + runbook captured (this document); **measurement pending a live model run** — tracked in ROADMAP §7.
-M3-T7-c (stability at T=0): protocol + runbook captured (this document); **measurement pending a live model run** — tracked in ROADMAP §7.
-Headline (dialectical vs single-shot): design locked 2026-10-05 (above); harness + production precursor in progress.
+M3-T7-a (diversity): code landed (`a11ab63`); the probe now reads the
+engine's per-cycle `divergence_jaccard` event.
+M3-T7-b (calibration): protocol + runbook captured (this document);
+**full-run measurement pending** (the smoke is confirmed — see above).
+M3-T7-c (stability at T=0): protocol + runbook captured (this document);
+**full-run measurement pending**.
+Headline (dialectical vs single-shot): design locked 2026-10-05; harness
+validated by the smoke (4/4 jobs), full run pending.
 
 The scaffold's T-a/b/c labels were rotated relative to ROADMAP §7 and this
 document; corrected in M3-T7.0.
 
-No findings are recorded because none have been measured. When the
+The smoke's five defects are fixed and recorded above. When the full
 measurement lands, either the existing `min_judge_confidence` default is
-justified in the results section or an ADR changes it.
+justified in a results section or an ADR changes it; the findings seed the
+F4 track ([plan](../f4-plan.md)).
