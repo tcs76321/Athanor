@@ -63,6 +63,15 @@ New entries are appended at the top. Do not rewrite history.
   budget on its reasoning phase, leaving the visible content empty
   (`no JSON object in verdict: ""`) and failing the comparing phase.
   `think: false` makes the model answer directly; `true` re-enables reasoning.
+- **M3-T7.6–.8.** Probe harness completed: self-managed runner, generated arm
+  configs, blind judge packets, offline third-party judging (`gemma4:12b-mlx` +
+  `granite4.2:3b`), run guards + soak sampling, `-only` micro selection, and a
+  reflection-off baseline (`execution.max_reflection_loops: 0`, now explicitly
+  disableable). [ADR-0044](docs/adr/0044-compute-policy-seam.md) records the
+  F4-T1 compute-policy design. The bounded smoke validated the harness (4/4
+  jobs) and surfaced the defects above; the full run's findings seed F4
+  ([plan](docs/f4-plan.md), results skeleton
+  [`docs/probes/m3-t7-quality-probe-results.md`](docs/probes/m3-t7-quality-probe-results.md)).
 
 ### M6 — Autonomy & Feedback
 
