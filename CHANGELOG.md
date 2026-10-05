@@ -10,6 +10,32 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### F4 — adaptive judgment & verification (code complete)
+
+- **F4-T1.** `internal/policy` — a pure compute/model-selection seam
+  (`Plan{Candidates, MaxReflectionLoops, JudgeMode, JudgeCount, ModelRouting,
+  DivergenceRoles}`); the engine routes every phase through it and audits
+  `compute_planned`. Default reproduces pre-F4 behavior.
+  [ADR-0044](docs/adr/0044-compute-policy-seam.md).
+- **F4-T2.** The planner emits a `DIFFICULTY:` hint; `strategy.RecentStats`
+  supplies per-archetype outcome history; `execution.policy.compute_policy`
+  selects `default`/`adaptive`.
+- **F4-T3.** `internal/verify` deterministic verifiers (tests/lint/structure);
+  `phaseCompare` is verification-first (a decisive verifier decides; the LLM
+  judge only on ties, and only cross-family); per-persona `family` config.
+  Per-candidate pod tests. [ADR-0045](docs/adr/0045-verification-first-selection.md).
+- **F4-T4.** Judge quorum, the reward-hacking guard (a decisive verifier
+  failure overrides an LLM `new`), and `internal/judge` Spearman anchor
+  calibration. [ADR-0046](docs/adr/0046-judge-protocol.md).
+- **F4-T5/T6.** Heterogeneous divergence personas with a bounded Jaccard
+  re-roll; cost-aware tie acceptance with cost on the comparison audit.
+  [ADR-0047](docs/adr/0047-diversity-and-cost.md).
+- **F4-T7.** Active-insight persona-plan bias (`policy_biased_from_insight`),
+  reflection gating on security failures, and the MCE working-set scope
+  decision. [ADR-0048](docs/adr/0048-reduce-and-complete.md).
+- **F4-T8.** Per-phase `think` (off for judgment), `max_output_tokens`, and
+  per-call bounds audited on every `llm_call`.
+
 ### M3-T7 — quality probe (in progress)
 
 - **M3-T7.1.** Structured-judgment determinism precursor

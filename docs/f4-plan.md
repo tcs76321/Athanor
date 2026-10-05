@@ -4,8 +4,23 @@
 spine, not a new user-facing capability. Sits between M6 and M7; does not
 renumber M7.
 
-**Status:** planned · **Gate:** G-F4 · **Seeded by:** the M3-T7 quality probe
+**Status:** code complete; Gate G-F4 measurement (anchor calibration + probe
+re-run) in progress · **Gate:** G-F4 · **Seeded by:** the M3-T7 quality probe
 (`docs/probes/m3-t7-quality-probe.md`) and its [results](probes/m3-t7-quality-probe-results.md).
+
+**Landed:** T0 (`/tmp/solution.py` real tests; judge retry/reliability gate;
+`eval/anchor`), T1 (`internal/policy`; [ADR-0044](../docs/adr/0044-compute-policy-seam.md)),
+T2 (difficulty hint + `RecentStats` history + `compute_policy` selector),
+T8 (per-phase `think`/`max_output_tokens` bounds),
+T3 (`internal/verify` + verification-first selection + cross-family judge;
+[ADR-0045](../docs/adr/0045-verification-first-selection.md)),
+T4 (quorum + reward-hacking guard + `internal/judge` anchor math;
+[ADR-0046](../docs/adr/0046-judge-protocol.md)),
+T5/T6 (heterogeneous roles + Jaccard re-roll; cost-aware ties;
+[ADR-0047](../docs/adr/0047-diversity-and-cost.md)),
+T7 (insight→plan bias, reflection gating, MCE scope;
+[ADR-0048](../docs/adr/0048-reduce-and-complete.md)). The gate is not claimed
+until the anchor agreement and probe re-run are recorded.
 
 ## Why
 

@@ -195,16 +195,32 @@ func (c constraint) checkMinItems(content string) (bool, string) {
 	return false, "fewer than " + strconv.Itoa(c.min) + " " + c.noun + " items"
 }
 
-// countParagraphs counts non-empty blocks separated by blank lines.
+// countParagraphs counts non-empty blocks separated by blank lines. A
+// heading-only block (a title, a markdown `#` line, a bold `**Section**`
+// line, or a code fence) is not a paragraph, so a titled document is not
+// penalized for its title.
 func countParagraphs(content string) int {
 	blocks := regexp.MustCompile(`\n[ \t]*\n`).Split(content, -1)
 	n := 0
 	for _, b := range blocks {
-		if strings.TrimSpace(b) != "" {
+		if blockHasProse(b) {
 			n++
 		}
 	}
 	return n
+}
+
+// blockHasProse reports whether a blank-line block contains a real prose
+// line rather than only headings or fence markers.
+func blockHasProse(block string) bool {
+	for _, ln := range strings.Split(block, "\n") {
+		t := strings.TrimSpace(ln)
+		if t == "" || strings.HasPrefix(t, "#") || strings.HasPrefix(t, "```") || boldHeadingRE.MatchString(t) {
+			continue
+		}
+		return true
+	}
+	return false
 }
 
 // countBullets counts markdown list items.

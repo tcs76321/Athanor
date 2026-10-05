@@ -252,13 +252,14 @@ func (e *Engine) evaluateCandidate(ctx context.Context, j job.Job, p project.Pro
 		})
 	}
 
-	// F4-T3: deterministic evidence is authoritative. When a verifier
-	// applied, its pass/fail and reasons override the LLM's prose; the
-	// model may still add missing_criteria/security_issues the parser
-	// cannot see.
-	if ver.Decisive() {
-		verdict.Passed = ver.Passed && len(verdict.MissingCriteria) == 0 && len(verdict.SecurityIssues) == 0
-		if ver.Passed {
+	// F4-T3: objective deterministic evidence is authoritative. When a hard
+	// verifier applied (code tests/lint), its pass/fail overrides the LLM's
+	// prose; the model may still add missing_criteria/security_issues the
+	// parser cannot see. A heuristic verifier (text structure) advises via
+	// the prompt but does not override.
+	if ver.HardDecisive() {
+		verdict.Passed = ver.HardPassed && len(verdict.MissingCriteria) == 0 && len(verdict.SecurityIssues) == 0
+		if ver.HardPassed {
 			verdict.FailedTests = nil
 		} else {
 			verdict.FailedTests = nil

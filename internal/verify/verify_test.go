@@ -98,3 +98,33 @@ func TestFindPlaceholder(t *testing.T) {
 		t.Fatal("missed TODO")
 	}
 }
+
+// TestHardVsAdvisory pins the F4-T4 correction from the micro run: objective
+// code verifiers are hard (may decide), while the free-text structural
+// parser is advisory (informs but never overrides the LLM judge).
+func TestHardVsAdvisory(t *testing.T) {
+	r := Default()
+	code := r.Run(Input{Archetype: project.ArchetypeCode, TestRan: true, TestsPassed: false})
+	if !code.HardDecisive() || code.HardPassed {
+		t.Fatalf("failing code tests should be hard-decisive: %+v", code)
+	}
+	text := r.Run(Input{Archetype: project.ArchetypeText,
+		Criteria: []string{"exactly three paragraphs"}, Content: "a\n\nb"})
+	if text.HardDecisive() {
+		t.Fatalf("structure should be advisory, got %+v", text)
+	}
+	if !text.Decisive() {
+		t.Fatalf("structure should still be decisive (advisory): %+v", text)
+	}
+}
+
+// TestCountParagraphsIgnoresHeadings proves a document title is not counted
+// as a paragraph (the micro run's false-negative source).
+func TestCountParagraphsIgnoresHeadings(t *testing.T) {
+	if n := countParagraphs("# Title\n\nOne.\n\nTwo.\n\nThree."); n != 3 {
+		t.Errorf("countParagraphs = %d, want 3 (title is not a paragraph)", n)
+	}
+	if n := countParagraphs("**Title**\n\nOne.\n\nTwo."); n != 2 {
+		t.Errorf("countParagraphs = %d, want 2 (bold heading is not a paragraph)", n)
+	}
+}

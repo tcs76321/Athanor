@@ -9,8 +9,8 @@ import (
 // TestResolveRewardHack pins the F4-T4 reward-hacking guard: a decisive
 // verifier failure overrides an LLM "new", and nothing else is touched.
 func TestResolveRewardHack(t *testing.T) {
-	failed := verify.Result{Applied: 1, Passed: false, Verifiers: []string{"tests"}}
-	passed := verify.Result{Applied: 1, Passed: true, Verifiers: []string{"tests"}}
+	failed := verify.Result{Applied: 1, HardApplied: 1, HardPassed: false, Verifiers: []string{"tests"}}
+	passed := verify.Result{Applied: 1, HardApplied: 1, HardPassed: true, Verifiers: []string{"tests"}}
 	none := verify.Result{Applied: 0}
 
 	got, overridden := resolveRewardHack(comparisonVerdict{Winner: "new"}, failed, true)

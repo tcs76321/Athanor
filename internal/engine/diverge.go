@@ -8,7 +8,15 @@ import (
 	"github.com/tcs76321/athanor/internal/artifact"
 	"github.com/tcs76321/athanor/internal/job"
 	"github.com/tcs76321/athanor/internal/llm"
+	"github.com/tcs76321/athanor/internal/project"
 )
+
+// codeOnlyInstruction is the F4-T0a follow-through: the code-archetype
+// artifact must be the raw module, because the Job Pod materializes it as
+// `/tmp/solution.py` and imports it. The first post-F4 micro run showed the
+// generator emitting prose-and-fences, which imports as invalid Python and
+// fails the real test for a packaging reason rather than a logic one.
+const codeOnlyInstruction = "Output ONLY the raw source file contents (Python). No markdown code fences, no prose, no commentary, no explanation."
 
 // phaseDivergeN (§13.1 Phase 2): generates N candidate artifacts, each
 // persisted as a draft `proposal` artifact (§9.1). The number of
@@ -83,6 +91,9 @@ func (e *Engine) phaseDivergeN(ctx context.Context, j job.Job) error {
 			// produce different outputs at the same temperature.
 			candRole := roles[i%len(roles)]
 			seed := fmt.Sprintf("CANDIDATE %d of %d. Produce a solution that differs from any other candidate you might generate for this task.", i+1, n)
+			if p.Archetype == project.ArchetypeCode {
+				seed += "\n" + codeOnlyInstruction
+			}
 			if research != "" {
 				seed += "\n\n" + research
 			}

@@ -146,10 +146,10 @@ func (e *Engine) phaseCompare(ctx context.Context, j job.Job) error {
 		judgeCalled bool
 		decided     bool
 	)
-	if plan.JudgeMode == policy.JudgeVerifier && ver.Decisive() {
+	if plan.JudgeMode == policy.JudgeVerifier && ver.HardDecisive() {
 		switch {
-		case !ver.Passed:
-			// A failed deterministic verifier cannot be overridden.
+		case !ver.HardPassed:
+			// A failed objective verifier cannot be overridden.
 			verdict = comparisonVerdict{Winner: loserWinner(previousID != ""), Confidence: 1,
 				Reasons: append([]string{"deterministic verifier reject"}, ver.Reasons...)}
 			decided = true
@@ -298,12 +298,12 @@ func loserWinner(hasPrevious bool) string {
 	return "none"
 }
 
-// resolveRewardHack applies the F4-T4 reward-hacking guard: when a
-// deterministic verifier decisively failed but the verdict would accept the
-// new artifact, the verifier wins. It returns the (possibly rewritten)
-// verdict and whether an override occurred.
+// resolveRewardHack applies the F4-T4 reward-hacking guard: when an
+// objective verifier decisively failed but the verdict would accept the new
+// artifact, the verifier wins. It returns the (possibly rewritten) verdict
+// and whether an override occurred.
 func resolveRewardHack(verdict comparisonVerdict, ver verify.Result, hasPrevious bool) (comparisonVerdict, bool) {
-	if !ver.Decisive() || ver.Passed || verdict.Winner != "new" {
+	if !ver.HardDecisive() || ver.HardPassed || verdict.Winner != "new" {
 		return verdict, false
 	}
 	verdict.Winner = loserWinner(hasPrevious)

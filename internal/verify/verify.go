@@ -33,9 +33,13 @@ type Input struct {
 
 // Verdict is one verifier's decision. Applied reports whether the verifier
 // could evaluate this input at all; an unapplied verdict carries no signal.
+// Hard marks a verifier whose result is objective enough to decide acceptance
+// outright (code tests/lint). A non-hard verifier (a heuristic parse of free
+// text) advises but never overrides the LLM judge.
 type Verdict struct {
 	Verifier string
 	Applied  bool
+	Hard     bool
 	Pass     bool
 	Score    float64
 	Reasons  []string
@@ -96,11 +100,20 @@ type Result struct {
 	Score     float64
 	Verifiers []string
 	Reasons   []string
+	// HardApplied/HardPassed track the objective subset (code tests/lint),
+	// which may decide acceptance on its own.
+	HardApplied int
+	HardPassed  bool
 }
 
 // Decisive reports whether at least one verifier could decide. A
 // non-decisive result must fall through to the LLM judge.
 func (r Result) Decisive() bool { return r.Applied > 0 }
+
+// HardDecisive reports whether an objective verifier applied, so the result
+// may decide acceptance (not merely advise). HardPassed is meaningful only
+// when HardDecisive is true.
+func (r Result) HardDecisive() bool { return r.HardApplied > 0 }
 
 // For returns the verifiers registered for an archetype.
 func (r *Registry) For(archetype string) []Verifier {
@@ -115,6 +128,7 @@ func (r *Registry) For(archetype string) []Verifier {
 // constraint is silence, not a pass.
 func (r *Registry) Run(in Input) Result {
 	var out Result
+	out.HardPassed = true
 	var sum float64
 	passed := true
 	for _, v := range r.For(in.Archetype) {
@@ -128,6 +142,12 @@ func (r *Registry) Run(in Input) Result {
 		sum += vd.Score
 		if !vd.Pass {
 			passed = false
+		}
+		if vd.Hard {
+			out.HardApplied++
+			if !vd.Pass {
+				out.HardPassed = false
+			}
 		}
 	}
 	out.Passed = passed
@@ -149,13 +169,13 @@ func (testsVerifier) Archetypes() []string {
 func (testsVerifier) Name() string { return "tests" }
 func (testsVerifier) Verify(in Input) Verdict {
 	if !in.TestRan {
-		return Verdict{Verifier: "tests", Applied: false}
+		return Verdict{Verifier: "tests", Applied: false, Hard: true}
 	}
 	if in.TestsPassed {
-		return Verdict{Verifier: "tests", Applied: true, Pass: true, Score: 1,
+		return Verdict{Verifier: "tests", Applied: true, Hard: true, Pass: true, Score: 1,
 			Reasons: []string{"test command exited 0"}}
 	}
-	return Verdict{Verifier: "tests", Applied: true, Pass: false, Score: 0,
+	return Verdict{Verifier: "tests", Applied: true, Hard: true, Pass: false, Score: 0,
 		Reasons: []string{"test command failed: " + in.TestCommand}}
 }
 
@@ -169,12 +189,12 @@ func (lintVerifier) Archetypes() []string {
 func (lintVerifier) Name() string { return "lint" }
 func (lintVerifier) Verify(in Input) Verdict {
 	if !in.LintRan {
-		return Verdict{Verifier: "lint", Applied: false}
+		return Verdict{Verifier: "lint", Applied: false, Hard: true}
 	}
 	if in.LintPassed {
-		return Verdict{Verifier: "lint", Applied: true, Pass: true, Score: 1,
+		return Verdict{Verifier: "lint", Applied: true, Hard: true, Pass: true, Score: 1,
 			Reasons: []string{"linter exited 0"}}
 	}
-	return Verdict{Verifier: "lint", Applied: true, Pass: false, Score: 0,
+	return Verdict{Verifier: "lint", Applied: true, Hard: true, Pass: false, Score: 0,
 		Reasons: []string{"linter reported findings"}}
 }

@@ -505,6 +505,9 @@ func (e *Engine) phaseSynthesize(ctx context.Context, j job.Job) error {
 	plan := e.planFor(ctx, j, p, t)
 	role := e.roleFor(plan, llm.PhaseSynthesizing, llm.RoleMain)
 	instructions := "Refine the divergence proposal below into the final artifact for this task."
+	if p.Archetype == project.ArchetypeCode {
+		instructions += " " + codeOnlyInstruction
+	}
 	resp, err := e.call(ctx, j, p, t, llm.PhaseSynthesizing, role, instructions,
 		[]prompt.CandidateArtifact{{Kind: "proposal", Content: string(candidateContent)}})
 	if err != nil {

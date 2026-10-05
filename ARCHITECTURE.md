@@ -838,8 +838,21 @@ updated_at: timestamp
 > accept-rate delta, and confidence-consistency thresholds; proposed insights
 > are inert (`ActiveStatements` returns active only, in the prompt at §11.2
 > §14), and promotion is HITL-gated (`auto_promote` default off). Persona-plan
-> bias, template ranking, and ExplorationPath proposals remain future
-> channels.
+> bias is live (F4-T7, below); template ranking and ExplorationPath proposals
+> remain future channels.
+>
+> **Implementation status (F4).** Adaptive judgment and verification are live
+> ([ADR-0044](docs/adr/0044-compute-policy-seam.md)–[ADR-0048](docs/adr/0048-reduce-and-complete.md)).
+> A pure `internal/policy` seam resolves each job's compute and model routing;
+> `internal/verify` decides acceptance deterministically where a parser can
+> (code tests/lint; text/document structure) with the LLM judge as a
+> cross-family tiebreaker, quorum, and a reward-hacking guard that resolves a
+> judge/verifier contradiction to the verifier (ADR-0045/0046). Divergence
+> cycles across personas with a bounded Jaccard re-roll, and a quality tie can
+> break toward the cheaper artifact (ADR-0047). Active winning insights bias
+> the divergence persona (`policy_biased_from_insight`), security-failure
+> cycles fail fast, and the MCE automatic working set stays scoped to the tool
+> path (ADR-0048).
 
 ---
 
@@ -1083,6 +1096,18 @@ AND evaluator_confidence > threshold
 ```
 
 Where `threshold` is `execution.min_judge_confidence` in the configuration reference (§29).
+
+> **Implementation status (F4).** Evaluation is verification-first
+> ([ADR-0045](docs/adr/0045-verification-first-selection.md)): per-archetype
+> deterministic verifiers run first, the LLM judge is a tiebreaker, and the
+> deciding judge must come from a different model **family** than the
+> generator. `execution.policy.judge_mode` selects the path. The judge is
+> additionally bounded by quorum (`judge_count`) and a reward-hacking guard
+> that resolves a judge/verifier contradiction to the verifier
+> ([ADR-0046](docs/adr/0046-judge-protocol.md)). Because the M3-T7 probe found
+> the confidence signal degenerate (≈0.99 constant), `min_judge_confidence`
+> is documented as non-discriminative; deterministic verification is the
+> load-bearing acceptance safety.
 
 ---
 

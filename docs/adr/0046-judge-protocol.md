@@ -57,6 +57,13 @@ degenerate confidence cannot be blamed for missing." Raising or replacing it
 waits for the anchor-calibrated run (the probe step), so the change is made
 against data rather than a guess.
 
+> **Anchor result (2026-10-05).** The calibrated run landed and confirmed the
+> correction: both judges saturated at the top of the 1–5 scale on
+> `eval/anchor` (Spearman 0.00; gemma 8/8 reliable, granite 62%).
+> `min_judge_confidence` is therefore explicitly non-discriminative, and the
+> deterministic verifiers are the acceptance safety. Full numbers and
+> follow-ups: [`docs/probes/f4-anchor-calibration.md`](../probes/f4-anchor-calibration.md).
+
 ## Consequences
 
 - A miscalibrated judge's borderline verdicts cannot override a deterministic

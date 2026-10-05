@@ -95,6 +95,25 @@ your `config.yaml` (e.g. `planning: "600s"`) or use
 [`config-probe.yaml`](config-probe.yaml), which already does this for a
 single-model setup. Findings: [`docs/probes/m1-quality-probe.md`](docs/probes/m1-quality-probe.md).
 
+## F4 policy knobs
+
+`execution.policy` parameterizes adaptive judgment and verification
+([ADR-0044](docs/adr/0044-compute-policy-seam.md)–[ADR-0048](docs/adr/0048-reduce-and-complete.md)):
+
+| Key | Default | Effect |
+|---|---|---|
+| `compute_policy` | `default` | `adaptive` lowers N/reflection on easy or familiar tasks |
+| `judge_mode` | `llm` | `verifier` runs deterministic verifiers first; LLM only on ties |
+| `judge_count` | `1` | `>1` requires a majority (quorum) before accepting |
+| `require_cross_family` | `true` | refuse a judge sharing the generator's model family |
+| `heterogeneous_diversity` | `true` | cycle divergence candidates across personas |
+| `max_diversity_rerolls` | `0` | opt-in: re-roll a below-`jaccard_floor` batch |
+| `cost_aware` | `true` | a quality tie breaks toward the cheaper artifact |
+
+`personas.<role>.family` declares the model lineage (e.g. `gemma4`, `qwen`);
+the cross-family rule compares it exactly. It defaults to the model name with
+its tag stripped, but declare it when two tags share a lineage.
+
 ## Running the daemon
 
 ```bash
@@ -145,6 +164,7 @@ Run `make build` first (the runner starts the daemon itself), then:
 make probe-micro     # fast: 3 goals (text/document/code), both arms
 make probe           # full: 10 goals, both arms (~3-5 h on a 9B model)
 make probe-judge     # score the collected packets with gemma + granite
+make probe-anchor    # F4-T4: score eval/anchor, report judge reliability + agreement
 make probe-report    # aggregate into results/report.md
 ```
 
