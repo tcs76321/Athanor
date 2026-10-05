@@ -96,6 +96,16 @@ type ToolRunner interface {
 	FetchURL(ctx context.Context, jobID string, req toolenvelope.FetchURLRequest) (toolenvelope.FetchURLResponse, error)
 }
 
+// GitCommitter is the §14 Git-as-undo seam: it records an accepted
+// artifact's content to the project repository on an agent-created branch
+// and returns the commit SHA. The production adapter
+// (cmd/athanor/git_client.go) is the only os/exec git call site; Gate G1
+// allowlists it. A nil seam is valid: the engine audits "no git" rather
+// than committing.
+type GitCommitter interface {
+	Commit(ctx context.Context, repoPath, branch, relPath string, content []byte, message string) (string, error)
+}
+
 // ErrPaused reports that the job was paused instead of failed — the
 // context floor was violated (recommend-or-escalate, §12.3) or the kill
 // switch froze the daemon mid-run.
@@ -134,6 +144,10 @@ type Engine struct {
 	// ADR-0024 §2). nil means "no lifecycle seam": the engine never starts
 	// a pod, which is the pre-T4b behavior unit tests rely on.
 	podLifecycle PodLifecycle
+	// git is the §14 Git-as-undo seam (F3-T5, ADR-0030): it records an
+	// accepted artifact to the project repository on an agent branch. nil
+	// means "no git"; the engine audits the skip and continues.
+	git GitCommitter
 	// inFlight is the count of running job goroutines. The cap is
 	// read from cap.MaxConcurrentJobs() on every Enqueue; the atomic
 	// counter is the only source of truth for the running count.
@@ -199,6 +213,11 @@ func New(cfg *config.Config, db *store.Store, jobs *job.Repository, projects *pr
 		running:      map[string]bool{},
 	}
 }
+
+// SetGitCommitter wires the §14 Git-as-undo seam (F3-T5). It is a setter
+// rather than a New() parameter so existing New call sites are unchanged;
+// production wires it in cmd/athanor/serve.go.
+func (e *Engine) SetGitCommitter(g GitCommitter) { e.git = g }
 
 // staticCap is the fallback ConcurrencyCap when no PowerManager is
 // wired. It returns a fixed value derived from cfg.Limits at construction.

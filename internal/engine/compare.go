@@ -213,6 +213,11 @@ func (e *Engine) phaseCompare(ctx context.Context, j job.Job) error {
 				return fmt.Errorf("accepting new: %w", err)
 			}
 		}
+		// F3-T5 (§14, ADR-0030): record the accepted artifact to the
+		// project repository on an agent branch. Best-effort; the
+		// acceptance above is already committed, so a git failure is
+		// audited rather than fatal.
+		e.recordGitCommit(ctx, p, final)
 		_, err = e.jobs.Transition(ctx, j.ID, job.StateCompleted)
 		return err
 	case "previous":

@@ -203,6 +203,10 @@ func run(configPath, addr, stateDir string) error {
 		// (TokenFor) exists when the internal API execs into it.
 		newPodLifecycle(podMgr, cfg),
 	)
+	// F3-T5 (§14, ADR-0030): Git-as-undo. When an artifact is accepted
+	// and the project has a repository_path that is a clean git worktree,
+	// record it on an agent branch. Best-effort; never pushes.
+	eng.SetGitCommitter(gitClient{})
 	srv := server.New(version)
 	srv.SetControl(killSwitch)
 	externalAPI := api.New(projectRepo, job.NewRepository(st),
