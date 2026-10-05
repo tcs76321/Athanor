@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/tcs76321/athanor/internal/artifact"
@@ -42,7 +43,7 @@ func (e *Engine) runCodeInPod(ctx context.Context, j job.Job, p project.Project,
 
 	req := toolenvelope.ExecuteRequest{
 		Language: "python",
-		Code:     code,
+		Code:     normalizeCode(code),
 	}
 	start := time.Now()
 	res, err := e.runner.RunCode(ctx, j.ID, req)
@@ -87,6 +88,31 @@ func (e *Engine) runCodeInPod(ctx context.Context, j job.Job, p project.Project,
 // Phase 3 sequence is now: per-candidate code-exec + test-run
 // + LLM verdict, all in `evaluating`.
 //
+// normalizeCode unwraps a single markdown code fence if the model wrapped the
+// source in one. The Job Pod materializes the text as `/tmp/solution.py` and
+// imports it, so a leading ```python fence is a syntax error. This is a
+// belt-and-suspenders fix: the code-archetype prompt asks for raw source, but
+// the first post-F4 micro run showed a 9B model ignoring the instruction.
+func normalizeCode(s string) string {
+	trimmed := strings.TrimSpace(s)
+	if !strings.HasPrefix(trimmed, "```") {
+		return s
+	}
+	lines := strings.Split(trimmed, "\n")
+	if len(lines) < 2 {
+		return s
+	}
+	lines = lines[1:] // drop the opening fence (and any language tag)
+	end := len(lines)
+	for i := len(lines) - 1; i >= 0; i-- {
+		if strings.TrimSpace(lines[i]) == "```" {
+			end = i
+			break
+		}
+	}
+	return strings.Join(lines[:end], "\n")
+}
+
 // jsonMarshalExecuteResult serializes an ExecuteResult to JSON
 // bytes by hand. The struct is four primitive fields; pulling
 // in encoding/json for this one callsite would inflate the

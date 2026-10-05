@@ -98,3 +98,23 @@ makes "the verifiers decide" mean anything for N>1.
 - Judge calibration against the human anchor and quorum (F4-T4).
 - A learned/distilled verifier (future; the interface is the seam).
 - Wiring `documentation_required`/`run_command` (F3 deferred flags).
+
+## Post-run addendum (2026-10-05)
+
+The first post-F4 micro run corrected two assumptions:
+
+1. **Only objective verifiers decide.** The free-text structural parser is a
+   heuristic and was demonstrably over-strict (it counted a document title as
+   a paragraph, and rejected a criteria-valid essay). `Verdict.Hard` now marks
+   objective verifiers (code tests/lint): only a hard verifier may decide
+   acceptance or trigger the reward-hacking guard; `structure` reports
+   (`Result.Decisive()`) and informs the LLM prompt, but never overrides the
+   judge. This still satisfies the code-centric Gate G-F4 criterion.
+2. **Headings are not paragraphs.** `countParagraphs` ignores heading-only
+   blocks. The code-archetype prompt now also requires the raw module
+   (`codeOnlyInstruction`), because the run showed the generator wrapping code
+   in prose and fences, which the pod imports as invalid Python — a packaging
+   failure, not a logic one.
+
+Results and root causes:
+[`docs/probes/f4-micro-run.md`](../probes/f4-micro-run.md).

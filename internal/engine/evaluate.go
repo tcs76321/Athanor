@@ -215,10 +215,15 @@ func (e *Engine) evaluateCandidate(ctx context.Context, j job.Job, p project.Pro
 	}
 
 	deterministic := "Deterministic checks: not applicable (no parser could decide)."
-	if ver.Decisive() {
+	switch {
+	case ver.HardDecisive():
 		deterministic = fmt.Sprintf(
-			"Deterministic checks: passed=%v score=%.2f verifiers=%v reasons=%v. These are authoritative; do not contradict them.",
-			ver.Passed, ver.Score, ver.Verifiers, ver.Reasons)
+			"Deterministic checks (authoritative; do not contradict): passed=%v score=%.2f verifiers=%v reasons=%v.",
+			ver.HardPassed, ver.Score, ver.Verifiers, ver.Reasons)
+	case ver.Decisive():
+		deterministic = fmt.Sprintf(
+			"Advisory heuristic checks (may be imprecise; weigh them, do not treat them as final): passed=%v verifiers=%v reasons=%v.",
+			ver.Passed, ver.Verifiers, ver.Reasons)
 	}
 	instructions := rubricBlock + fmt.Sprintf(
 		"EVALUATE CANDIDATE %d of %d (artifact_id=%s). %s "+
