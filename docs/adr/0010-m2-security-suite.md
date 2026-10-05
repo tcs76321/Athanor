@@ -182,9 +182,9 @@ because it adds none.
   rootless macOS/podman-machine has no kernel seccomp; the
   integration suite runs on whatever the developer has. The
   structural argv test asserts the `--security-opt
-  seccomp=runtime/default` flag is present on Linux (a future
-  addition to `args_linux.go`); the macOS argv test asserts it
-  is absent (matching `args_darwin.go`'s documented no-op).
+  seccomp=/usr/share/containers/seccomp.json` flag is present on
+  Linux; the macOS argv test asserts it is absent (matching
+  `args_darwin.go`'s documented no-op).
 - Host-kernel escape probing. The pod is rootless and has no
   privilege to attempt kernel CVEs; the assumption is that the
   host kernel is patched (operator responsibility per §21.1).

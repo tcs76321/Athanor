@@ -452,6 +452,15 @@ New entries are appended at the top. Do not rewrite history.
 
 ### Security
 
+- **fix(jobpod): valid Podman seccomp profile path** —
+  `args_linux.go` passed `--security-opt seccomp=runtime/default`, but that
+  is Docker/containerd spelling: Podman treats any value other than
+  `unconfined` as a file path, so every Linux Job Pod failed to start with
+  `opening seccomp profile failed: open runtime/default: no such file or
+  directory` (all five M2-T6 probes and the M2-T4b exec probe). The flag now
+  points at the containers-common default profile
+  (`/usr/share/containers/seccomp.json`), which fails closed if absent.
+
 - **fix(deps): golang.org/x/net v0.41.0 → v0.55.0** — patches
   [GHSA-5cv4-jp36-h3mw](https://github.com/tcs76321/Athanor/security/dependabot/1)
   (CVE-2026-25680, moderate): `net/html` parsing of arbitrary HTML

@@ -88,9 +88,10 @@ The numbers above are from the 2026-08-30 reference run on
 macOS 14 / podman 5.8.2 / podman-machine applehv. Linux
 behavior is expected to be similar; the seccomp caveat
 (ADR-0007) means the macOS run does not exercise kernel
-seccomp, and the `--security-opt seccomp=runtime/default` flag
-on Linux is the one place the suite's evidence is platform-
-asymmetric. This is documented in ADR-0007 and ADR-0010
+seccomp, and the
+`--security-opt seccomp=/usr/share/containers/seccomp.json`
+flag on Linux is the one place the suite's evidence is
+platform-asymmetric. This is documented in ADR-0007 and ADR-0010
 ("Not in M2-T6").
 
 ## What each probe proves
@@ -188,10 +189,11 @@ Per ADR-0010 "Not in M2-T6":
 - **Linux seccomp enforcement.** ADR-0007 documents that
   rootless macOS/podman-machine has no kernel seccomp
   available; the macOS run does not exercise the
-  `--security-opt seccomp=runtime/default` flag. The
-  structural argv test (`TestGateG2JobPodArgvCannotEscape`)
-  asserts the flag is present on Linux; the behavioral
-  end-to-end check is platform-asymmetric and documented.
+  `--security-opt seccomp=/usr/share/containers/seccomp.json`
+  flag. The structural argv test
+  (`TestBuildArgs_LinuxSeccompPresent`) asserts the flag is
+  present on Linux; the behavioral end-to-end check is
+  platform-asymmetric and documented.
 - **Host-kernel escape.** The pod is rootless and has no
   privilege to attempt kernel CVEs. The host kernel is
   assumed patched (operator's responsibility per §21.1).

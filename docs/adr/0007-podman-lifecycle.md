@@ -58,11 +58,13 @@ job ID it was issued for, on every call.
 
 - **`--security-opt seccomp=...` is a no-op on rootless
   macOS/podman-machine.** Podman accepts the flag, but no kernel
-  seccomp is available in the applehv VM. On a real Linux host
-  the spike would set a default seccomp profile
-  (`--security-opt seccomp=runtime/default` or a custom profile);
-  the spike's findings on macOS are explicitly weaker for this
-  one flag. M2-T6's security suite is where Linux seccomp
+  seccomp is available in the applehv VM. On a real Linux host the
+  spike would set a default seccomp profile via the containers-common
+  path (`--security-opt seccomp=/usr/share/containers/seccomp.json`):
+  "runtime/default" is Docker/containerd syntax and Podman treats an
+  unknown value as a file path, so it aborts with "no such file or
+  directory". The spike's findings on macOS are explicitly weaker for
+  this one flag. M2-T6's security suite is where Linux seccomp
   enforcement is verified.
 - **Linux behavior was not exercised.** The spike was run on
   macOS 14 / podman-machine 5.8.2. The same `podman` CLI
