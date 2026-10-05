@@ -15,7 +15,7 @@ automated E2E test `TestEndToEndWalkingSkeleton`
   block assumes five models; if you only have one, copy
   [`config-probe.yaml`](../config-probe.yaml) and use that as your
   `-config` instead — it maps every role to a single model. See
-  [`docs/probes/m1-quality-probe.md`](../probes/m1-quality-probe.md) for
+  [`docs/probes/m1-quality-probe.md`](probes/m1-quality-probe.md) for
   the per-model findings behind the recommendation.
 - A config pointing `inference.ollama_url` at your Ollama: the default
   URL assumes the Core runs inside a container (M2), so on a dev host
