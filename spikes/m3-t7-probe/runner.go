@@ -237,6 +237,12 @@ func (r *runnerConfig) runArm(m probeModel, a arm) error {
 		fmt.Printf("  orphan athanor-job pods after arm: %d %v\n", len(names), names)
 	}
 
+	// Backstop for the code-goal outcome lag: after the whole arm has run,
+	// every job is long finished, so anything the live collector missed can
+	// be read straight from the state DB before the results are written.
+	if n, err := reconcileMetrics(stateDir, metrics); err == nil && n > 0 {
+		fmt.Printf("  reconciled %d outcome(s) the live collector missed\n", n)
+	}
 	if err := writeJSON(filepath.Join(runDir, "results.json"), metrics); err != nil {
 		return err
 	}
@@ -342,10 +348,13 @@ func (r *runnerConfig) runOne(g sampleGoal, m probeModel, a arm, run int, stateD
 	}
 	defer func() { _ = db.Close() }()
 	// The engine writes the strategy outcome just after the terminal
-	// transition; a fast poll can observe `completed` before the row lands,
-	// and the daemon is stopped at arm end — so retry briefly or the last
-	// job of an arm loses its score/winner.
-	for attempt := 0; attempt < 8; attempt++ {
+	// transition; a fast poll can observe `completed` before the row lands.
+	// For a *code* goal the lag is much larger (~10s): `finished_at` is set
+	// at the transition, but the outcome is written only after the Job Pod
+	// finishes tearing down. Poll long enough to cover that teardown, and
+	// reconcile at arm end as a backstop (reconcileMetrics).
+	deadline := time.Now().Add(30 * time.Second)
+	for time.Now().Before(deadline) {
 		o, ok, err := loadOutcome(db, gr.JobID)
 		if err == nil && ok {
 			mx.Winner = winnerFromResult(o.Result)

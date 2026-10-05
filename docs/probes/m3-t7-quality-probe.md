@@ -72,6 +72,18 @@ plus the LLM rubric. Absolute code scores are inflated by this; the N=3-vs-N=1
 comparison is unaffected because both arms share it. A production fix (persist
 the candidate to a file, then run the real test command) is out of scope here.
 
+**Code-goal outcome capture (probe limitation, fixed).** The engine sets a job's
+`finished_at` at the terminal transition but writes its `strategy_outcomes` row
+only after the Job Pod tears down — about 10s later for a code goal, versus the
+same millisecond for a text/document goal. An early collector waited only 4s and
+so recorded `score=0.00, winner=` for every code goal even though the DB held the
+correct `accepted_new` rows (the earlier full run's `book-collection`/`fibonacci`
+rows). The collector now polls up to 30s and reconciles at arm end
+(`reconcileMetrics`). `make probe-reconcile` repairs an already-written
+`results.json` from its state DB; run it before `make probe-report`. The cleaner
+production fix — capture the outcome before `stopPod` in `engine.Run` so it lands
+atomically with the terminal state — is deferred (F4).
+
 ### Models and runs
 
 | Role | Model | Notes |
