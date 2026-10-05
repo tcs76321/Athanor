@@ -103,6 +103,11 @@ graph functions), `a5a09e8` (orchestrator + engine seam + boot reconcile),
 
 ## M6-T3 — Failure policies
 
+**Status: ✅ complete (2026-10-04).** Commits `7277bcd` (ADR), `c0cfb9a`
+(task edges + `max_task_retries`), `7d3cba8` (scheduler policy + tests). The
+concrete alternative-persona re-decomposition adapter is **T3b** and the real
+HITL writer is **M6-T4**; both seams are nil-safe today.
+
 - §7.2 rows: max-retry → `blocked` → `alternative` re-decomposition →
   HITL; dependency failure → descendants `blocked`; budget exhausted →
   pause remaining and escalate; decomposition failure → `main` (already

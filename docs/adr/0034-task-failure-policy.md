@@ -80,3 +80,16 @@ behavior; M6-T3 adds no code there and cites the M6-T1 tests.
 - The task lifecycle gains `running → pending` (retry) and
   `running → blocked` (exhaustion) edges; `failed` is reserved for
   cancellation.
+
+## Implemented (M6-T3.2–T3.3)
+
+The task lifecycle gained `running → pending` (retry) and `running → blocked`
+(exhaustion) edges; `execution.max_task_retries` (pointer field, default 2,
+explicit 0 disables) landed with defaults, validation, and example sync; and
+the scheduler now retries a failed task while attempts remain, then blocks
+and attempts re-decomposition, then escalates, reporting the cause
+(`retries_exhausted` vs `budget_exhausted`) in the audit row. The
+`ReDecomposer`/`Escalator` seams are nil-safe: the shipped default blocks and
+audits. §7.2 rows 1–3 each have an automated scenario; row 4 is M6-T1's
+`tall → main` retry. The concrete alternative-persona re-decomposition
+adapter remains **T3b**, and the real `hitl_requests` writer is **M6-T4**.

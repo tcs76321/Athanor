@@ -269,7 +269,10 @@ When a `Goal` is submitted, Athanor uses the `tall` persona to autonomously deco
 > starts ready leaves and propagates `blocked` to descendants, and
 > `goal submit` decomposes-and-schedules only when
 > `execution.dag_decomposition` is enabled (default off, preserving the M1
-> single-task path).
+> single-task path). **M6-T3** adds the §7.2 failure policy
+> ([ADR-0034](docs/adr/0034-task-failure-policy.md)): bounded per-task
+> retries, then `blocked` (propagated to descendants) with re-decomposition
+> and HITL escalation behind nil-safe seams.
 
 ### 7.2 DAG Failure & Recovery Policy
 

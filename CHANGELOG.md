@@ -12,6 +12,18 @@ New entries are appended at the top. Do not rewrite history.
 
 ### M6 — Autonomy & Feedback
 
+- **M6-T3.** Task failure policy ([ADR-0034](docs/adr/0034-task-failure-policy.md),
+  [plan](docs/m6-plan.md)). A failed task is retried up to
+  `execution.max_task_retries` (default 2, explicit 0 disables; a task's own
+  `budget.max_jobs` is a tighter bound), then moves to `blocked` — which the
+  M6-T2 closure propagates to its descendants — and the policy attempts
+  re-decomposition before escalating. The scheduler reports the cause
+  (`retries_exhausted` vs `budget_exhausted`) in a `task_retry` /
+  `task_redecomposed` / `task_escalated` audit row, and a cancelled job is
+  terminal (no retry). The `ReDecomposer` and `Escalator` seams are nil-safe;
+  the concrete alternative-persona adapter is T3b and the real HITL writer is
+  M6-T4. §7.2 rows 1–3 each have an automated scenario.
+
 - **M6-T2.** Dependency scheduler ([ADR-0033](docs/adr/0033-dependency-scheduler.md),
   [plan](docs/m6-plan.md)). Migration 0017 rebuilds `tasks` to the canonical
   §7.3 lifecycle and adds `task_type` (M1 `in_progress`/`done` rows are
