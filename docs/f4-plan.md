@@ -45,6 +45,20 @@ Gate G0–G6, or the containment guarantees.
 
 Effort target ≤4h per task (S/M); `L` is the hard ceiling and may split.
 
+### Known gap driving F4-T7 (M3-T7 finding A)
+
+Repository indexing attributes chunks to the **project**
+(`internal/mce/index.go`), but the engine's context provider queries the
+Dormant Index by **job** (`ContextProvider.DormantIndex` → `ChunkStore.IndexForJob`).
+No production path ingests repository chunks with a job ID, so the automatic
+working set (tiers 3 and 6) is **empty for normal jobs**: repository context is
+reachable only through the `query_memory` tool plus `context_swap`, not through
+the prompt's Dormant Index. F4-T7 must either wire project-scoped chunks into
+the job's working set under a relevance/limit policy — dumping an entire repo
+index would bloat the prompt worse than the status quo — or consciously scope
+the MCE to the tool path and simplify. The probe's token data informs the
+choice.
+
 ## Gate G-F4
 
 After F4, the following are enforceable and tested:
