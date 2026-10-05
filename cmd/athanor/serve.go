@@ -24,6 +24,7 @@ import (
 	"github.com/tcs76321/athanor/internal/hitl"
 	"github.com/tcs76321/athanor/internal/internalapi"
 	"github.com/tcs76321/athanor/internal/internalapi/runner"
+	"github.com/tcs76321/athanor/internal/interruptions"
 	"github.com/tcs76321/athanor/internal/job"
 	"github.com/tcs76321/athanor/internal/jobpod"
 	"github.com/tcs76321/athanor/internal/llm"
@@ -33,6 +34,7 @@ import (
 	"github.com/tcs76321/athanor/internal/scheduler"
 	"github.com/tcs76321/athanor/internal/server"
 	"github.com/tcs76321/athanor/internal/store"
+	"github.com/tcs76321/athanor/internal/ui"
 	"github.com/tcs76321/athanor/migrations"
 )
 
@@ -232,6 +234,9 @@ func run(configPath, addr, stateDir string) error {
 	correctionsRepo := corrections.NewRepo(st)
 	eng.SetCorrectionSink(correctionsRepo)
 	eng.SetCorrectionSource(correctionsRepo)
+	// M6-T8c (ADR-0039): the §20.4 interruption queue.
+	interruptionsRepo := interruptions.NewRepo(st)
+	eng.SetInterruptionStore(interruptionsRepo)
 	srv := server.New(version)
 	srv.SetControl(killSwitch)
 	externalAPI := api.New(projectRepo, job.NewRepository(st),
@@ -253,6 +258,15 @@ func run(configPath, addr, stateDir string) error {
 	externalAPI.SetHITL(hitlSvc)
 	externalAPI.SetPusher(gitPusher{projects: projectRepo, hitl: hitlRepo})
 	externalAPI.SetCorrections(correctionsRepo)
+	// M6-T8 (ADR-0039): the local web UI. Its hub is the engine's token sink.
+	webUI := ui.New(ui.Deps{
+		Store: st, Projects: projectRepo, Jobs: job.NewRepository(st),
+		Artifacts: artifactStore, Corrections: correctionsRepo, HITL: hitlSvc,
+		Interruptions: interruptionsRepo, Freezer: killSwitch, Engine: eng,
+		DefaultTTL: cfg.HITL.DefaultTTL.D(),
+	})
+	eng.SetTokenSink(webUI.Hub())
+	webUI.Register(srv.Mux())
 	externalAPI.Register(srv.Mux())
 	// M2-T3 + M2-T4: internal API for Job Pods. Same loopback HTTP
 	// server, different path prefix (/internal/v1/), every route
