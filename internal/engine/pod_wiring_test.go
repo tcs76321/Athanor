@@ -107,6 +107,11 @@ func (f *fakeRunner) RunTests(ctx context.Context, jobID string, req toolenvelop
 	return f.run(ctx, jobID, req, "RunTests")
 }
 
+// RunLint mirrors RunTests for the F4-T3 lint verifier.
+func (f *fakeRunner) RunLint(ctx context.Context, jobID string, req toolenvelope.ExecuteRequest) (toolenvelope.ExecuteResult, error) {
+	return f.run(ctx, jobID, req, "RunLint")
+}
+
 // fetches holds the canned fetch outcomes (M4-T7 research sub-step).
 // The key is the requested URL; a missing key means "success with
 // the canned markdown". fetchErr / fetchDisallow override globally.

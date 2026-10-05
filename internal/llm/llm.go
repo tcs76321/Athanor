@@ -33,8 +33,11 @@ const (
 
 // Persona is one resolved model assignment.
 type Persona struct {
-	Role          string
-	Model         string
+	Role  string
+	Model string
+	// Family is the model lineage (F4-T3): the judge must differ from the
+	// generator so their errors are decorrelated.
+	Family        string
 	ContextTarget int
 	Temperature   float64
 }
@@ -63,6 +66,7 @@ func NewRegistry(cfg config.Personas) (*Registry, error) {
 		r.personas[role] = Persona{
 			Role:          role,
 			Model:         pc.Model,
+			Family:        pc.Family,
 			ContextTarget: pc.ContextTarget,
 			Temperature:   pc.Temp(),
 		}

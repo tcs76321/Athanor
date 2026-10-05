@@ -52,6 +52,7 @@ import (
 	"github.com/tcs76321/athanor/internal/project"
 	"github.com/tcs76321/athanor/internal/store"
 	"github.com/tcs76321/athanor/internal/toolenvelope"
+	"github.com/tcs76321/athanor/internal/verify"
 )
 
 // Freezer is the kill-switch surface the engine consults (§22.1: frozen
@@ -91,6 +92,10 @@ type ToolRunner interface {
 	// RunTests runs the test command in the job's pod. Same
 	// contract as RunCode.
 	RunTests(ctx context.Context, jobID string, req toolenvelope.ExecuteRequest) (toolenvelope.ExecuteResult, error)
+	// RunLint runs the linter in the job's pod (F4-T3). An empty
+	// Command asks the internal API for its closed-set default. Same
+	// contract as RunCode.
+	RunLint(ctx context.Context, jobID string, req toolenvelope.ExecuteRequest) (toolenvelope.ExecuteResult, error)
 	// FetchURL fetches one task-declared source through the
 	// §21.5 gateway (M4-T7, ADR-0019 §7). The route is
 	// envelope-gated server-side; a 403 surfaces as
@@ -204,6 +209,9 @@ type Engine struct {
 	// outcome statistics feed the policy's familiarity signal. nil leaves
 	// the signal absent (the criteria heuristic still applies).
 	history StrategyHistory
+	// verifiers is the F4-T3 deterministic verification registry. nil uses
+	// verify.Default(), so the engine always has a verifier set.
+	verifiers *verify.Registry
 	// inFlight is the count of running job goroutines. The cap is
 	// read from cap.MaxConcurrentJobs() on every Enqueue; the atomic
 	// counter is the only source of truth for the running count.
@@ -320,6 +328,35 @@ type StrategyHistory interface {
 // disables the familiarity signal (difficulty and criteria still apply).
 func (e *Engine) SetStrategyHistory(h StrategyHistory) { e.history = h }
 
+// SetVerifiers wires the F4-T3 deterministic verifier registry. A nil
+// registry uses verify.Default().
+func (e *Engine) SetVerifiers(r *verify.Registry) { e.verifiers = r }
+
+// verifierRegistry resolves the verifier set, defaulting to the in-tree one.
+func (e *Engine) verifierRegistry() *verify.Registry {
+	if e.verifiers == nil {
+		return verify.Default()
+	}
+	return e.verifiers
+}
+
+// crossFamily reports whether the judge persona's model family differs from
+// the generator's. It returns both families (for the audit) and ok=false
+// when either is unknown or they match. Consulted only on the F4-T3
+// verification-first path, so a single-model config in the default llm mode
+// is unaffected.
+func (e *Engine) crossFamily(generatorRole, judgeRole string) (gen, judge string, ok bool) {
+	if e.registry == nil {
+		return "", "", false
+	}
+	gp, gok := e.registry.Persona(generatorRole)
+	jp, jok := e.registry.Persona(judgeRole)
+	if !gok || !jok || gp.Family == "" || jp.Family == "" {
+		return gp.Family, jp.Family, false
+	}
+	return gp.Family, jp.Family, gp.Family != jp.Family
+}
+
 // difficultyStateKey is the system_state key holding a job's
 // planning-derived difficulty hint ("easy" | "hard").
 func difficultyStateKey(jobID string) string { return "plan:difficulty:" + jobID }
@@ -369,6 +406,11 @@ func (e *Engine) decidePlan(in policy.Inputs) policy.Plan {
 		plan = e.policy.Decide(in)
 	}
 	if e.cfg != nil {
+		// The operator-selected judge mode is a bound on the plan (F4-T3).
+		if e.cfg.Execution.JudgeModeSelection() == config.JudgeModeVerifier {
+			plan.JudgeMode = policy.JudgeVerifier
+			plan.JudgeCount = e.cfg.Execution.JudgeCountValue()
+		}
 		if jp := e.cfg.Execution.JudgePersona; jp != "" {
 			if plan.ModelRouting == nil {
 				plan.ModelRouting = map[string]string{}

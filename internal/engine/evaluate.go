@@ -11,7 +11,6 @@ import (
 	"github.com/tcs76321/athanor/internal/llm"
 	"github.com/tcs76321/athanor/internal/project"
 	"github.com/tcs76321/athanor/internal/prompt"
-	"github.com/tcs76321/athanor/internal/toolenvelope"
 )
 
 // evalVerdict is the §13.1 Phase 6 JSON the security persona produces.
@@ -168,75 +167,26 @@ func (e *Engine) listCandidateArtifacts(ctx context.Context, j job.Job) ([]artif
 func (e *Engine) evaluateCandidate(ctx context.Context, j job.Job, p project.Project, t project.Task,
 	cand artifact.Artifact, previousID string, idx, total int) (evaluation.Record, error) {
 
-	var (
-		testsPassed  bool
-		failedTests  []string
-		testExitCode int
-	)
-	// F3-T4 (§6.2, ADR-0031): the test command is the project's, not a
-	// hard-coded `pytest -q`. A code project with no override resolves to
-	// the built-in default.
-	testCommand := p.TestCommand()
-	// M3-T2 (ADR-0014): for `code` archetype, execute the candidate's
-	// code in the Job Pod before the security-persona verdict. The
-	// `code_executed` audit event + `KindCode` artifact persistence
-	// move here from the former M2-T4 sub-step in `phaseSynthesize`.
-	if p.Archetype == project.ArchetypeCode && e.runner != nil {
-		// M2-T4b.5 (ADR-0024 §2): make the job's Job Pod exist before the
-		// pod sub-steps, so the per-job token the runner presents
-		// (TokenFor) is available. Best-effort: a nil seam is a no-op and
-		// a start failure is audited, leaving the sub-step to surface its
-		// own error if the pod is genuinely required.
-		e.ensurePod(ctx, j)
-		if err := e.runCodeInPod(ctx, j, p, t); err != nil {
-			return evaluation.Record{}, err
-		}
-	}
-	if p.Archetype == project.ArchetypeCode && e.runner != nil {
-		// §8.1 "tracked sub-state": running_tests is an event, not a
-		// column. We enter and exit the substate around the
-		// `runner.RunTests` call so the audit log shows the duration.
-		e.audit(ctx, j.ID, map[string]any{
-			"event":     "substate_entered",
-			"phase":     string(llm.PhaseEvaluating),
-			"substate":  "running_tests",
-			"candidate": idx,
-		})
-		req := toolenvelope.ExecuteRequest{Command: testCommand}
-		res, runErr := e.runner.RunTests(ctx, j.ID, req)
-		if runErr == nil {
-			testsPassed = res.ExitCode == 0
-			testExitCode = res.ExitCode
-			if !testsPassed {
-				// The runner reports an exit code, not per-test names;
-				// record the command that failed so the record is
-				// actionable (the per-test-name surface is future work).
-				failedTests = []string{testCommand}
-			}
-		} else if !errors.Is(runErr, toolenvelope.ErrToolDisallowed) {
-			e.audit(ctx, j.ID, map[string]any{
-				"event":     "tests_run_failed",
-				"candidate": idx,
-				"error":     runErr.Error(),
-			})
-		}
-		e.audit(ctx, j.ID, map[string]any{
-			"event":     "substate_exited",
-			"phase":     string(llm.PhaseEvaluating),
-			"substate":  "running_tests",
-			"candidate": idx,
-			"exit_code": testExitCode,
-		})
-	} else if p.Archetype == project.ArchetypeCode {
-		// No runner wired (unit test mode): leave testsPassed = false
-		// and let the LLM persona make the call via MissingCriteria.
-		testsPassed = false
-	}
-
 	content, err := e.artifacts.ReadContent(ctx, cand.ID)
 	if err != nil {
 		return evaluation.Record{}, fmt.Errorf("reading candidate content: %w", err)
 	}
+
+	// F4-T3: deterministic verification first. For code this runs the real
+	// test command on *this* candidate; for text/document it applies the
+	// structural checks parsed from the criteria. A non-decisive result
+	// falls through to the LLM judge below.
+	ver, vin, err := e.verifyCandidate(ctx, j, p, t, string(content), idx)
+	if err != nil {
+		return evaluation.Record{}, err
+	}
+	if vin.TestRan {
+		e.audit(ctx, j.ID, map[string]any{
+			"event": "tests_ran", "candidate": idx,
+			"passed": vin.TestsPassed, "command": vin.TestCommand,
+		})
+	}
+	e.auditVerification(ctx, j.ID, "candidate", ver)
 
 	// M3-T2 (commit 2.2): the per-archetype rubric goes to the
 	// persona first so the verdict's `missing_criteria` /
@@ -249,14 +199,19 @@ func (e *Engine) evaluateCandidate(ctx context.Context, j job.Job, p project.Pro
 		rubricBlock = "## RUBRIC (apply every item; echo unmet items into missing_criteria or security_issues or style_issues)\n" + rubric + "\n\n"
 	}
 
+	deterministic := "Deterministic checks: not applicable (no parser could decide)."
+	if ver.Decisive() {
+		deterministic = fmt.Sprintf(
+			"Deterministic checks: passed=%v score=%.2f verifiers=%v reasons=%v. These are authoritative; do not contradict them.",
+			ver.Passed, ver.Score, ver.Verifiers, ver.Reasons)
+	}
 	instructions := rubricBlock + fmt.Sprintf(
-		"EVALUATE CANDIDATE %d of %d (artifact_id=%s). "+
-			"Tests already ran in the Job Pod: passed=%v, failed_tests=%v. "+
+		"EVALUATE CANDIDATE %d of %d (artifact_id=%s). %s "+
 			"Apply the §19 acceptance-criteria check to the candidate content in the "+
 			"CANDIDATE ARTIFACT section above. "+
 			"Output JSON only: {passed, score (0.0-1.0), failed_tests, missing_criteria, "+
 			"security_issues, style_issues, better_than_previous, confidence (0.0-1.0), summary}.",
-		idx, total, cand.ID, testsPassed, failedTests)
+		idx, total, cand.ID, deterministic)
 
 	// M5-T5: the candidate bytes are §11.2 §12 (tier 3, never evicted)
 	// rather than a concatenation inside the §13 instructions.
@@ -282,16 +237,17 @@ func (e *Engine) evaluateCandidate(ctx context.Context, j job.Job, p project.Pro
 		})
 	}
 
-	// Reconcile the LLM verdict with the deterministic test result:
-	// the LLM's `passed` field is overridden by the pod's verdict
-	// when the test command actually ran.
-	if p.Archetype == project.ArchetypeCode && e.runner != nil {
-		verdict.Passed = testsPassed && len(verdict.MissingCriteria) == 0 && len(verdict.SecurityIssues) == 0
-		if testsPassed {
-			// Clear test-only failures if the run was actually green.
+	// F4-T3: deterministic evidence is authoritative. When a verifier
+	// applied, its pass/fail and reasons override the LLM's prose; the
+	// model may still add missing_criteria/security_issues the parser
+	// cannot see.
+	if ver.Decisive() {
+		verdict.Passed = ver.Passed && len(verdict.MissingCriteria) == 0 && len(verdict.SecurityIssues) == 0
+		if ver.Passed {
 			verdict.FailedTests = nil
 		} else {
-			verdict.FailedTests = failedTests
+			verdict.FailedTests = nil
+			verdict.MissingCriteria = append(verdict.MissingCriteria, ver.Reasons...)
 		}
 	}
 

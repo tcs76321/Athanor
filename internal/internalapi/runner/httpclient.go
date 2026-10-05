@@ -94,6 +94,14 @@ func (c *HTTPClient) RunTests(ctx context.Context, jobID string, req toolenvelop
 	return c.post(ctx, jobID, "/run_tests", req)
 }
 
+// RunLint POSTs to /internal/v1/jobs/{id}/lint (F4-T3). The engine may
+// leave Command empty; the internal API resolves the closed-set default
+// (`ruff check .`). The response is the pod's ExecuteResult-shaped JSON.
+func (c *HTTPClient) RunLint(ctx context.Context, jobID string, req toolenvelope.ExecuteRequest) (toolenvelope.ExecuteResult, error) {
+	req.Tool = toolenvelope.ToolLint
+	return c.post(ctx, jobID, "/lint", req)
+}
+
 // FetchURL POSTs to /internal/v1/jobs/{id}/fetch_url (M4-T7,
 // ADR-0019 §1). The Core executes the fetch through the §21.5
 // gateway; the response is the extracted (or raw-disabled) content.

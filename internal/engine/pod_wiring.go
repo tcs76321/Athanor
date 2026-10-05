@@ -20,20 +20,16 @@ import (
 // data, and media skip them and the M1 walking skeleton takes
 // over (compare → complete).
 //
-// runCodeInPod dispatches the LLM-generated code to the Job
-// Pod's execute_code route. Steps:
-//  1. Load the latest divergence proposal (the code the LLM
-//     wrote). This is what gets executed.
-//  2. Call e.runner.RunCode with language=python and the
-//     proposal content. A nil runner short-circuits to a
-//     recorded-but-skipped sub-step (M1 dev mode, unit tests).
-//  3. Persist the result as a new code artifact (the §9.1
-//     artifact kind table already includes `code`). The
-//     artifact is the audit log of "what the pod did" — exit
-//     code, stdout, stderr, duration.
-//  4. Append an EventLog entry `code_executed` with the
-//     duration and exit code.
-func (e *Engine) runCodeInPod(ctx context.Context, j job.Job, p project.Project, t project.Task) error {
+// runCodeInPod dispatches one candidate's code to the Job Pod's
+// execute_code route. Steps:
+//  1. The caller supplies the candidate content (F4-T3: verification must
+//     test *this* candidate, not whichever proposal happens to be latest).
+//  2. Call e.runner.RunCode with language=python and the content. A nil
+//     runner short-circuits to a recorded-but-skipped sub-step.
+//  3. Persist the result as a new code artifact (the audit log of "what the
+//     pod did" — exit code, stdout, stderr, duration).
+//  4. Append an EventLog entry `code_executed`.
+func (e *Engine) runCodeInPod(ctx context.Context, j job.Job, p project.Project, t project.Task, code string) error {
 	if e.runner == nil {
 		e.audit(ctx, j.ID, map[string]any{
 			"event":     "code_executed",
@@ -44,18 +40,9 @@ func (e *Engine) runCodeInPod(ctx context.Context, j job.Job, p project.Project,
 		return nil
 	}
 
-	proposal, err := e.artifacts.LatestForJob(ctx, j.ID, artifact.KindProposal)
-	if err != nil {
-		return fmt.Errorf("loading divergence proposal for execution: %w", err)
-	}
-	code, err := e.artifacts.ReadContent(ctx, proposal.ID)
-	if err != nil {
-		return fmt.Errorf("reading proposal content: %w", err)
-	}
-
 	req := toolenvelope.ExecuteRequest{
 		Language: "python",
-		Code:     string(code),
+		Code:     code,
 	}
 	start := time.Now()
 	res, err := e.runner.RunCode(ctx, j.ID, req)

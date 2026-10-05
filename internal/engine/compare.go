@@ -11,7 +11,9 @@ import (
 	"github.com/tcs76321/athanor/internal/evaluation"
 	"github.com/tcs76321/athanor/internal/job"
 	"github.com/tcs76321/athanor/internal/llm"
+	"github.com/tcs76321/athanor/internal/policy"
 	"github.com/tcs76321/athanor/internal/prompt"
+	"github.com/tcs76321/athanor/internal/verify"
 )
 
 // comparisonVerdict is the §13.1 Phase 6 JSON the security persona
@@ -24,18 +26,19 @@ type comparisonVerdict struct {
 	MissingRequirements []string `json:"missing_requirements"`
 }
 
-// phaseCompare (§13.1 Phase 6, M3-T1): deterministically pick the
-// winner of the comparison (§19.3). The LLM produces a structured
-// JSON verdict, but the engine enforces the rule:
+// phaseCompare (§13.1 Phase 6, M3-T1; F4-T3): pick the winner of the
+// comparison. Two paths share one §19.3 guard:
 //
-//	new wins ⟺ exists EvaluationRecord with
-//	  better_than_previous == true AND confidence > min_judge_confidence
+//   - JudgeMode "llm" (default, pre-F4): the security persona produces a
+//     structured JSON verdict and DecideWinner enforces the §19.3 rule.
+//   - JudgeMode "verifier" (F4-T3): deterministic per-archetype verifiers
+//     run first. A decisive result decides acceptance and the LLM is
+//     skipped; a clean pass with no previous artifact accepts; otherwise
+//     the LLM is the tiebreaker, and only if its family differs from the
+//     generator's.
 //
-// The §19.3 guard is a safety belt: the LLM cannot flip a losing
-// candidate into a winner by saying "winner: new" without backing
-// it up. When the LLM's verdict conflicts with the guard, the
-// engine downgrades (new → previous, or new → none if no previous
-// exists) and audits the downgrade.
+// The §19.3 guard remains a safety belt in both paths: the LLM cannot flip
+// a losing candidate into a winner without record-backed confidence.
 //
 // Artifact status flow per §9.3:
 //   - winner "new"      → candidate → accepted; previous → superseded
@@ -77,28 +80,17 @@ func (e *Engine) phaseCompare(ctx context.Context, j job.Job) error {
 		return errors.New("phaseCompare: no evaluation records persisted for this job")
 	}
 
-	// Previous-side context: the project's last accepted artifact,
-	// plus its evaluation history. M3-T3 commit 3.1 adds the
-	// "Previous-record summary" section to the comparison prompt
-	// so the LLM judge can reason about how the previous scored
-	// when it was a candidate, not just that it exists.
+	// Previous-side context: the project's last accepted artifact, plus its
+	// evaluation history (the "Previous-record summary" the judge uses to
+	// calibrate "better than previous").
 	var (
 		previousID       string
-		previousMeta     string
 		previousRecords  []evaluation.Record
 		previousAvgScore float64
 		previousAvgConf  float64
 	)
 	if prev, err := e.artifacts.LatestAcceptedByProject(ctx, p.ID); err == nil {
 		previousID = prev.ID
-		previousMeta = prev.ID
-		// Load the previous's own evaluation history (the
-		// records that *describe* the previous when it was a
-		// candidate). A previous with no records is fine —
-		// the prompt just omits the "Previous-record summary"
-		// section. The DB error is non-fatal: a corrupt or
-		// partially-migrated DB should not fail the
-		// comparison phase.
 		if prs, perr := e.eval.ListByArtifact(ctx, prev.ID); perr == nil {
 			previousRecords = prs
 			if n := len(prs); n > 0 {
@@ -111,9 +103,8 @@ func (e *Engine) phaseCompare(ctx context.Context, j job.Job) error {
 				previousAvgConf = sumConf / float64(n)
 			}
 		} else {
-			// Best-effort: log and proceed with empty
-			// previous-record history. The §19.3 guard
-			// does not depend on the previous's records.
+			// Best-effort: a corrupt or partially-migrated DB should
+			// not fail the comparison phase.
 			e.audit(ctx, j.ID, map[string]any{
 				"event":       "previous_records_load_failed",
 				"previous_id": prev.ID,
@@ -124,81 +115,119 @@ func (e *Engine) phaseCompare(ctx context.Context, j job.Job) error {
 		return fmt.Errorf("loading previous accepted artifact: %w", err)
 	}
 
-	instructions := buildComparisonInstructions(final, records, previousID, previousRecords, previousAvgScore, previousAvgConf)
 	// M5-T5: the candidate's bytes ride §11.2 §12 (tier 3, never evicted).
-	// ADR-0013's 4 KB comparison limit is applied here, before assembly,
-	// because the assembler renders tier 3 verbatim and never truncates.
+	// ADR-0013's 4 KB comparison limit is applied before assembly because
+	// the assembler renders tier 3 verbatim and never truncates.
 	candidateContent, _ := osReadFileLimited(final.StoragePath, comparisonContentLimit)
 	plan := e.planFor(ctx, j, p, t)
 	judgeRole := e.roleFor(plan, llm.PhaseComparing, llm.RoleSecurity)
-	resp, err := e.call(ctx, j, p, t, llm.PhaseComparing, judgeRole, instructions,
-		[]prompt.CandidateArtifact{{Kind: "candidate", Content: candidateContent}})
-	if err != nil {
-		return err
-	}
 
-	verdict, coercions, err := parseComparisonVerdict(resp.Content)
-	if err != nil {
-		// M3-T3 commit 3.3: the unknown-winner case is
-		// now a typed error, not a silent downgrade. The
-		// caller (here) audits the downgrade and proceeds
-		// with the verdict's Winner set to "none" (the
-		// safe default). All other parse errors are
-		// hard-failures.
-		if isUnknownWinnerErr(err) {
-			e.audit(ctx, j.ID, map[string]any{
-				"event":           "comparison_unknown_winner_downgraded",
-				"raw_winner":      verdict.Winner,
-				"downgraded_to":   "none",
-				"new_artifact_id": final.ID,
-			})
-			verdict.Winner = "none"
-		} else {
-			return fmt.Errorf("parsing comparison verdict: %w", err)
+	// F4-T3: deterministic verification first. A non-decisive result falls
+	// through to the LLM judge.
+	var ver verify.Result
+	if plan.JudgeMode == policy.JudgeVerifier {
+		var verr error
+		ver, _, verr = e.verifyCandidate(ctx, j, p, t, candidateContent, 0)
+		if verr != nil {
+			return verr
+		}
+		e.auditVerification(ctx, j.ID, "final", ver)
+	}
+	genRole := e.roleFor(plan, policy.PhaseDiverging, llm.RoleMain)
+	genFamily, judgeFamily, crossOK := e.crossFamily(genRole, judgeRole)
+
+	var (
+		verdict     comparisonVerdict
+		judgeCalled bool
+		decided     bool
+	)
+	if plan.JudgeMode == policy.JudgeVerifier && ver.Decisive() {
+		switch {
+		case !ver.Passed:
+			// A failed deterministic verifier cannot be overridden.
+			verdict = comparisonVerdict{Winner: loserWinner(previousID != ""), Confidence: 1,
+				Reasons: append([]string{"deterministic verifier reject"}, ver.Reasons...)}
+			decided = true
+		case previousID == "":
+			// Clean pass with nothing to compare against: accept.
+			verdict = comparisonVerdict{Winner: "new", Confidence: 1,
+				Reasons: []string{"deterministic verifier pass (no previous artifact)"}}
+			decided = true
 		}
 	}
-	if len(coercions) > 0 {
-		// M3-T7.5: valid JSON with drifted types, recovered by coercion.
+	if !decided && plan.JudgeMode == policy.JudgeVerifier &&
+		!crossOK && e.cfg.Execution.RequireCrossFamilyValue() {
+		// The judge shares the generator's family; a correlated judge adds
+		// no signal, so do not consult it. Without decisive deterministic
+		// evidence, decline the new artifact (conservative).
 		e.audit(ctx, j.ID, map[string]any{
-			"event": "verdict_coerced", "phase": string(llm.PhaseComparing), "fields": coercions,
+			"event": "judge_family_mismatch", "generator_family": genFamily,
+			"judge_family": judgeFamily, "judge_role": judgeRole, "generator_role": genRole,
 		})
+		verdict = comparisonVerdict{Winner: loserWinner(previousID != ""), Confidence: 0,
+			Reasons: []string{"no cross-family judge available; deterministic evidence not decisive"}}
+		decided = true
+	}
+	if !decided {
+		instructions := buildComparisonInstructions(final, records, previousID, previousRecords, previousAvgScore, previousAvgConf)
+		resp, err := e.call(ctx, j, p, t, llm.PhaseComparing, judgeRole, instructions,
+			[]prompt.CandidateArtifact{{Kind: "candidate", Content: candidateContent}})
+		if err != nil {
+			return err
+		}
+		var coercions []string
+		verdict, coercions, err = parseComparisonVerdict(resp.Content)
+		if err != nil {
+			// M3-T3 commit 3.3: the unknown-winner case is a typed error.
+			// The caller audits the downgrade and proceeds with Winner
+			// "none" (the safe default). Other parse errors hard-fail.
+			if isUnknownWinnerErr(err) {
+				e.audit(ctx, j.ID, map[string]any{
+					"event":           "comparison_unknown_winner_downgraded",
+					"raw_winner":      verdict.Winner,
+					"downgraded_to":   "none",
+					"new_artifact_id": final.ID,
+				})
+				verdict.Winner = "none"
+			} else {
+				return fmt.Errorf("parsing comparison verdict: %w", err)
+			}
+		}
+		if len(coercions) > 0 {
+			e.audit(ctx, j.ID, map[string]any{
+				"event": "verdict_coerced", "phase": string(llm.PhaseComparing), "fields": coercions,
+			})
+		}
+		judgeCalled = true
 	}
 
-	// M3-T2 commit 2.5: the §19.3 deterministic guard is now
-	// a pure function in decide.go. The caller resolves the
-	// threshold (config default 0.7 when zero) and
-	// `hasPrevious` (whether the project has a prior
-	// accepted artifact) before the call.
-	// §19.3 deterministic guard, parameterized by
-	// `cfg.Execution.MinJudgeConfidence`. The default value
-	// (0.7) is filled in once by `internal/config/defaults.go`
-	// at load time. Setting the field explicitly to 0
-	// disables the guard end-to-end — the LLM's verdict
-	// stands even with no back-up record — matching
-	// `DecideWinner`'s documented `threshold <= 0` disabled
-	// sentinel. There is intentionally no rescue to 0.7 here:
-	// the defaults package is the single source of the
-	// default, and an operator who sets 0 expects the guard
-	// to be off. `Execution.MinJudge()` resolves the
-	// `*float64` (which is nil for "unset" and 0.0 for
-	// "explicitly disabled") to a plain float64 with the
-	// 0.7 default applied only when nil.
+	// §19.3 deterministic guard (unchanged contract): applies to the LLM
+	// verdict and to the deterministic ones alike. A "new" verdict with no
+	// record backing is downgraded.
 	threshold := e.cfg.Execution.MinJudge()
 	verdict = DecideWinner(verdict, records, threshold, previousID != "")
 
 	e.audit(ctx, j.ID, map[string]any{
-		"event":                "comparison",
-		"winner":               verdict.Winner,
-		"confidence":           verdict.Confidence,
-		"reasons":              verdict.Reasons,
-		"missing_requirements": verdict.MissingRequirements,
-		"new_artifact_id":      final.ID,
-		"previous_id":          previousMeta,
-		"records":              len(records),
-		// M3-T3 commit 3.1: previous-record context so
-		// post-mortem readers can see how the previous
-		// scored when it was a candidate. Used by the
-		// M3-T7 quality probe for calibration analysis.
+		"event":            "verification_decision",
+		"judge_mode":       string(plan.JudgeMode),
+		"judge_called":     judgeCalled,
+		"verifier_applied": ver.Applied,
+		"verifier_passed":  ver.Passed,
+		"verifiers":        ver.Verifiers,
+		"generator_family": genFamily,
+		"judge_family":     judgeFamily,
+		"cross_family_ok":  crossOK,
+	})
+	e.audit(ctx, j.ID, map[string]any{
+		"event":                   "comparison",
+		"winner":                  verdict.Winner,
+		"confidence":              verdict.Confidence,
+		"reasons":                 verdict.Reasons,
+		"missing_requirements":    verdict.MissingRequirements,
+		"new_artifact_id":         final.ID,
+		"previous_id":             previousID,
+		"records":                 len(records),
+		"judge_called":            judgeCalled,
 		"previous_records_count":  len(previousRecords),
 		"previous_avg_score":      previousAvgScore,
 		"previous_avg_confidence": previousAvgConf,
@@ -208,11 +237,9 @@ func (e *Engine) phaseCompare(ctx context.Context, j job.Job) error {
 	switch verdict.Winner {
 	case "new":
 		if previousID != "" {
-			// M3-T3 commit 3.2: the supersede + accept
-			// pair is now one atomic operation. A crash
-			// between the two can no longer leave the
-			// project with zero accepted artifacts; the
-			// transaction commits both updates or neither.
+			// M3-T3 commit 3.2: the supersede + accept pair is one atomic
+			// operation; a crash between them cannot leave the project
+			// with zero accepted artifacts.
 			if err := e.artifacts.SupersedeAndAccept(ctx, previousID, final.ID); err != nil {
 				return fmt.Errorf("supersede+accept: %w", err)
 			}
@@ -222,9 +249,7 @@ func (e *Engine) phaseCompare(ctx context.Context, j job.Job) error {
 			}
 		}
 		// F3-T5 (§14, ADR-0030): record the accepted artifact to the
-		// project repository on an agent branch. Best-effort; the
-		// acceptance above is already committed, so a git failure is
-		// audited rather than fatal.
+		// project repository on an agent branch. Best-effort.
 		e.recordGitCommit(ctx, p, final)
 		_, err = e.jobs.Transition(ctx, j.ID, job.StateCompleted)
 		return err
@@ -241,6 +266,15 @@ func (e *Engine) phaseCompare(ctx context.Context, j job.Job) error {
 		_, err = e.jobs.Transition(ctx, j.ID, job.StateFailed)
 		return err
 	}
+}
+
+// loserWinner is the winner to record when the new artifact cannot be
+// accepted: the previous artifact if one exists, otherwise none.
+func loserWinner(hasPrevious bool) string {
+	if hasPrevious {
+		return "previous"
+	}
+	return "none"
 }
 
 // buildComparisonInstructions is the prompt for the security persona.
@@ -339,8 +373,8 @@ func isUnknownWinnerErr(err error) bool {
 // parseComparisonVerdict is the comparison-phase twin of
 // parseEvalVerdict. Same lenient-wrapping tolerance.
 //
-// M3-T3 commit 3.3 added two refinements on top of the M3-T1
-// version: (a) the parsed Winner field is TrimSpace'd
+// M3-T3 commit 3.3 added two refinements on top of the
+// M3-T1 version: (a) the parsed Winner field is TrimSpace'd
 // before the closed-set check, so a model that emits
 // `  "new"\n` (whitespace around the string) is honored; (b)
 // an unknown winner is reported via errUnknownWinner
