@@ -388,6 +388,9 @@ func TestDefaultYAMLRoundTrip(t *testing.T) {
 		if len(c.Logging.Categories) == 0 {
 			c.Logging.Categories = nil
 		}
+		if len(c.ContextEngine.IndexIgnoreDirs) == 0 {
+			c.ContextEngine.IndexIgnoreDirs = nil
+		}
 	}
 	if !reflect.DeepEqual(def, parsed) {
 		t.Errorf("marshaled default does not round-trip to the same config:\ndef:  %+v\nwant: %+v", parsed, def)
@@ -421,6 +424,9 @@ func TestExampleConfigMatchesDefaults(t *testing.T) {
 		}
 		if len(c.JobPod.DefaultTools) == 0 {
 			c.JobPod.DefaultTools = nil
+		}
+		if len(c.ContextEngine.IndexIgnoreDirs) == 0 {
+			c.ContextEngine.IndexIgnoreDirs = nil
 		}
 	}
 	if !reflect.DeepEqual(example, def) {
@@ -648,6 +654,42 @@ func TestContextEngine_RejectsNegativeDivisionBounds(t *testing.T) {
 		}
 		if !strings.Contains(err.Error(), c.field) {
 			t.Errorf("%s: error %q does not mention the failing field", c.field, err.Error())
+		}
+	}
+}
+
+// TestIndexConfig (M5-T8; ADR-0028 §8) pins the repository-indexing defaults,
+// the explicit-zero embedding-digest contract, and negative-value rejection.
+func TestIndexConfig(t *testing.T) {
+	def, err := Default()
+	if err != nil {
+		t.Fatalf("Default(): %v", err)
+	}
+	ce := def.ContextEngine
+	if ce.IndexBatchFiles != 50 || ce.IndexBatchChunks != 200 {
+		t.Errorf("index batch defaults = %d/%d, want 50/200", ce.IndexBatchFiles, ce.IndexBatchChunks)
+	}
+	if got := ce.IndexEmbedBytesValue(); got != 2048 {
+		t.Errorf("IndexEmbedBytesValue() default = %d, want 2048", got)
+	}
+	zero := 0
+	ce.IndexEmbedBytes = &zero
+	if got := ce.IndexEmbedBytesValue(); got != 0 {
+		t.Errorf("IndexEmbedBytesValue() explicit zero = %d, want 0", got)
+	}
+
+	for _, field := range []struct{ name, yaml string }{
+		{"context_engine.index_batch_files", "context_engine:\n  index_batch_files: -1\n"},
+		{"context_engine.index_batch_chunks", "context_engine:\n  index_batch_chunks: -1\n"},
+		{"context_engine.index_embed_bytes", "context_engine:\n  index_embed_bytes: -1\n"},
+	} {
+		_, err := Parse([]byte(field.yaml))
+		if err == nil {
+			t.Errorf("%s: Parse returned nil; want a validation error", field.name)
+			continue
+		}
+		if !strings.Contains(err.Error(), field.name) {
+			t.Errorf("%s: error %q does not mention the failing field", field.name, err.Error())
 		}
 	}
 }

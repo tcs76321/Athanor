@@ -83,6 +83,17 @@ context_engine:
   # single query returns.
   memory_embedding_model: ""
   memory_search_top_k: 8
+  # M5-T8 repository indexing (ADR-0028 §8). index_batch_files caps the
+  # files one pass processes; index_batch_chunks caps summary + embedding
+  # model calls per pass; index_embed_bytes is the content prefix in an
+  # embedding digest (0 = path + summary only); index_ignore_dirs are extra
+  # directory names skipped in addition to the built-in VCS/dependency/build
+  # set. Indexing runs through `athanor index`, the POST
+  # /projects/{id}/index route, and the idle Repository Exploration action.
+  index_batch_files: 50
+  index_batch_chunks: 200
+  index_embed_bytes: 2048
+  index_ignore_dirs: []
 
 execution:
   divergence_candidates: 3

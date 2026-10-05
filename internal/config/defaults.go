@@ -99,6 +99,19 @@ func applyDefaults(c *Config) {
 	if c.ContextEngine.MemorySearchTopK == 0 {
 		c.ContextEngine.MemorySearchTopK = 8
 	}
+	// M5-T8 repository indexing (ADR-0028 §8): a pass is bounded by files
+	// and model calls; the embedding digest defaults to a 2 KiB content
+	// prefix, with an explicit 0 meaning path + summary only.
+	if c.ContextEngine.IndexBatchFiles == 0 {
+		c.ContextEngine.IndexBatchFiles = 50
+	}
+	if c.ContextEngine.IndexBatchChunks == 0 {
+		c.ContextEngine.IndexBatchChunks = 200
+	}
+	if c.ContextEngine.IndexEmbedBytes == nil {
+		v := 2048
+		c.ContextEngine.IndexEmbedBytes = &v
+	}
 
 	setInt(&c.Execution.DivergenceCandidates, 3)
 	setInt(&c.Execution.MaxHardTaskVariations, 10)

@@ -176,6 +176,26 @@ type ContextEngine struct {
 	// hits a single query returns; it must be positive.
 	MemoryEmbeddingModel string `yaml:"memory_embedding_model"`
 	MemorySearchTopK     int    `yaml:"memory_search_top_k"`
+	// M5-T8 repository indexing (ADR-0028 §8). IndexBatchFiles bounds the
+	// files a single pass processes; IndexBatchChunks bounds the summary +
+	// embedding model calls per pass; IndexEmbedBytes is the content prefix
+	// in an embedding digest (explicit 0 = path + summary only); and
+	// IndexIgnoreDirs are extra directory names skipped in addition to the
+	// built-in VCS/dependency/build set.
+	IndexBatchFiles  int      `yaml:"index_batch_files"`
+	IndexBatchChunks int      `yaml:"index_batch_chunks"`
+	IndexEmbedBytes  *int     `yaml:"index_embed_bytes"`
+	IndexIgnoreDirs  []string `yaml:"index_ignore_dirs"`
+}
+
+// IndexEmbedBytesValue resolves index_embed_bytes, applying the documented
+// 2048 default only when the key was absent. An explicit 0 is honored and
+// means "path + summary only" (ADR-0028 §4).
+func (c *ContextEngine) IndexEmbedBytesValue() int {
+	if c.IndexEmbedBytes == nil {
+		return 2048
+	}
+	return *c.IndexEmbedBytes
 }
 
 // LosslessSwapping reports whether §10.1 division and swapping are enabled,

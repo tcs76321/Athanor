@@ -85,6 +85,17 @@ func validateRaw(c *Config) error {
 	if v := c.ContextEngine.MemorySearchTopK; v < 0 {
 		return fmt.Errorf("context_engine.memory_search_top_k must be positive, got %d", v)
 	}
+	// M5-T8 repository indexing: a negative batch or digest size is a typo.
+	// An explicit index_embed_bytes of 0 is valid (path + summary only).
+	if v := c.ContextEngine.IndexBatchFiles; v < 0 {
+		return fmt.Errorf("context_engine.index_batch_files must be positive, got %d", v)
+	}
+	if v := c.ContextEngine.IndexBatchChunks; v < 0 {
+		return fmt.Errorf("context_engine.index_batch_chunks must be positive, got %d", v)
+	}
+	if v := c.ContextEngine.IndexEmbedBytes; v != nil && *v < 0 {
+		return fmt.Errorf("context_engine.index_embed_bytes must be >= 0, got %d", *v)
+	}
 	// Invariant §4.3: all compaction runs at Temp 0.0. Enforced here so no
 	// configuration can weaken it.
 	if t := c.ContextEngine.CompactionTemperature; t != 0 {
