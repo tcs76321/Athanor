@@ -3,11 +3,13 @@ package main
 import (
 	"encoding/csv"
 	"fmt"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 )
@@ -49,6 +51,7 @@ func rssKB(pid int) (int64, error) {
 type soakSampler struct {
 	stop chan struct{}
 	done chan struct{}
+	once sync.Once
 }
 
 // startSoak samples every interval until stopAndWait is called.
@@ -95,8 +98,57 @@ func (s *soakSampler) stopAndWait() {
 	if s == nil {
 		return
 	}
-	close(s.stop)
+	s.once.Do(func() { close(s.stop) })
 	<-s.done
+}
+
+// soakSummary reads a soak.csv and returns a one-line arm-end summary
+// (sample count, peak daemon RSS, max SQLite size, min free disk). Empty
+// when the file is missing or unreadable.
+func soakSummary(path string) string {
+	f, err := os.Open(path)
+	if err != nil {
+		return ""
+	}
+	defer func() { _ = f.Close() }()
+	rows, err := csv.NewReader(f).ReadAll()
+	if err != nil || len(rows) < 2 {
+		return ""
+	}
+	idx := map[string]int{}
+	for i, h := range rows[0] {
+		idx[h] = i
+	}
+	col := func(row []string, name string) string {
+		i, ok := idx[name]
+		if !ok || i >= len(row) {
+			return ""
+		}
+		return row[i]
+	}
+	var maxRSS, maxDB int64
+	minFree := math.MaxFloat64
+	n := 0
+	for _, row := range rows[1:] {
+		rss, _ := strconv.ParseInt(col(row, "rss_kb"), 10, 64)
+		db, _ := strconv.ParseInt(col(row, "db_bytes"), 10, 64)
+		free, _ := strconv.ParseFloat(col(row, "free_gb"), 64)
+		if rss > maxRSS {
+			maxRSS = rss
+		}
+		if db > maxDB {
+			maxDB = db
+		}
+		if free > 0 && free < minFree {
+			minFree = free
+		}
+		n++
+	}
+	if n == 0 {
+		return ""
+	}
+	return fmt.Sprintf("samples=%d peak_rss=%.0fMB max_db=%.1fMB min_free=%.1fGB",
+		n, float64(maxRSS)/1024, float64(maxDB)/(1<<20), minFree)
 }
 
 // orphanPods returns the names of any surviving athanor Job Pods. The
