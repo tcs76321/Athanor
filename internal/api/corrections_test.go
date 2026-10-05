@@ -16,6 +16,7 @@ type fakeCorrections struct {
 	err     error
 	in      corrections.CaptureInput
 	status  string
+	edit    corrections.EditInput
 }
 
 func (f *fakeCorrections) Capture(_ context.Context, in corrections.CaptureInput) (corrections.Record, error) {
@@ -30,6 +31,11 @@ func (f *fakeCorrections) ListByProject(_ context.Context, _ string) ([]correcti
 func (f *fakeCorrections) SetStatus(_ context.Context, _, status string) error {
 	f.status = status
 	return f.err
+}
+
+func (f *fakeCorrections) Update(_ context.Context, _ string, in corrections.EditInput) (corrections.Record, error) {
+	f.edit = in
+	return f.created, f.err
 }
 
 func (f *fakeCorrections) Get(_ context.Context, _ string) (corrections.Record, error) {
@@ -86,7 +92,7 @@ func TestCorrectionRoutes(t *testing.T) {
 
 	// Mute.
 	req, err := http.NewRequest(http.MethodPatch, h.ts.URL+"/corrections/c1",
-		strings.NewReader(`{"status":"muted"}`))
+		strings.NewReader(`{"status":"muted","derived_rule":"do X"}`))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,6 +107,9 @@ func TestCorrectionRoutes(t *testing.T) {
 	}
 	if fake.status != corrections.StatusMuted {
 		t.Errorf("status = %q, want muted", fake.status)
+	}
+	if fake.edit.DerivedRule != "do X" {
+		t.Errorf("edit = %+v, want derived_rule", fake.edit)
 	}
 }
 

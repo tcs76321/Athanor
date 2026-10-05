@@ -505,9 +505,15 @@ func (a *API) handleCorrectionList(w http.ResponseWriter, r *http.Request) {
 
 type correctionStatusRequest struct {
 	Status string `json:"status"`
+	// Optional edit fields (§18.3). Non-empty values are applied.
+	Category     string `json:"category"`
+	Severity     string `json:"severity"`
+	Scope        string `json:"scope"`
+	UserFeedback string `json:"user_feedback"`
+	DerivedRule  string `json:"derived_rule"`
 }
 
-// handleCorrectionStatus mutes/promotes a correction (§18.3).
+// handleCorrectionStatus mutes/promotes and/or edits a correction (§18.3).
 func (a *API) handleCorrectionStatus(w http.ResponseWriter, r *http.Request) {
 	if a.corrections == nil {
 		writeError(w, http.StatusServiceUnavailable, "corrections are not configured")
@@ -518,9 +524,20 @@ func (a *API) handleCorrectionStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := r.PathValue("id")
-	if err := a.corrections.SetStatus(r.Context(), id, req.Status); err != nil {
-		writeError(w, correctionStatus(err), err.Error())
-		return
+	if req.Status != "" {
+		if err := a.corrections.SetStatus(r.Context(), id, req.Status); err != nil {
+			writeError(w, correctionStatus(err), err.Error())
+			return
+		}
+	}
+	if req.Category != "" || req.Severity != "" || req.Scope != "" || req.UserFeedback != "" || req.DerivedRule != "" {
+		if _, err := a.corrections.Update(r.Context(), id, corrections.EditInput{
+			Category: req.Category, Severity: req.Severity, Scope: req.Scope,
+			UserFeedback: req.UserFeedback, DerivedRule: req.DerivedRule,
+		}); err != nil {
+			writeError(w, correctionStatus(err), err.Error())
+			return
+		}
 	}
 	rec, err := a.corrections.Get(r.Context(), id)
 	if err != nil {

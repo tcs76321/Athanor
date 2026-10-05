@@ -82,6 +82,7 @@ type Corrections interface {
 	Capture(ctx context.Context, in corrections.CaptureInput) (corrections.Record, error)
 	ListByProject(ctx context.Context, projectID string) ([]corrections.Record, error)
 	SetStatus(ctx context.Context, id, status string) error
+	Update(ctx context.Context, id string, in corrections.EditInput) (corrections.Record, error)
 	Get(ctx context.Context, id string) (corrections.Record, error)
 }
 
