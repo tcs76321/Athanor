@@ -212,11 +212,13 @@ logging:
 
 job_pod:
   # Per-job tool envelope applied to every job that does not
-  # declare its own allowed_tools_json override. M2-T4 ships a
-  # closed set of two tools: execute_code, run_tests. Empty
-  # list = "no tools", which is the safe default — the engine
-  # still runs the LLM-only phases but no code or tests run
-  # in a pod until the operator opts in.
+  # declare its own allowed_tools_json override. The §25 closed
+  # set is execute_code, run_tests, lint, git_operation,
+  # fetch_url, search_web, context_swap, query_memory — though
+  # git_operation has no route yet (M6). Empty list = "no
+  # tools", which is the safe default: the engine still runs
+  # the LLM-only phases but no code, tests, network, or memory
+  # tool runs until the operator opts in.
   default_tools: []
   # Image is the Job Pod base image. The default is intentionally
   # empty: the daemon still boots (LLM-only jobs work) but logs a

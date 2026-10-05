@@ -29,7 +29,7 @@ An *athanor* is an alchemical furnace designed to burn continuously without inte
 |---|---|
 | Core Pod services (state, MCE, DAG, dialectical engine, gateway, scanner, UI) | **Go** |
 | Sandbox / execution isolation | **Rootless Podman** (Core Pod + ephemeral Job Pods) |
-| Persistent state | **SQLite** (WAL, FTS5, sqlite-vec) |
+| Persistent state | **SQLite** (WAL, FTS5) |
 | LLM inference | **Ollama** (default backend, REST API) |
 | Web extraction | **Go `net/http` + `codeberg.org/readeck/go-readability/v2` + `bluemonday`** (Reader Mode) |
 
@@ -38,9 +38,7 @@ An *athanor* is an alchemical furnace designed to burn continuously without inte
 > ("use codeberg.org/readeck/go-readability/v2 instead"). We depend on the
 > maintained continuation at v2.1.2 — see [ADR-0018](docs/adr/0018-reader-mode.md) §1.
 | Malware / threat scanning | **ClamAV**, **YARA** (optional but recommended) |
-| Filesystem events | **`fsnotify`** (Host Adapter) |
-| System metrics | **`gopsutil`** |
-| Web UI | **HTML/CSS/JS** (vanilla, no framework) |
+| Filesystem events | **`fsnotify`** (airlock ingress watcher) |
 
 > **Note (macOS):** Rootless Podman runs inside a VM (`podman machine`) on macOS. The Host Adapter accounts for this VM's overhead in memory budgeting, and sleep/wake coordination includes the podman machine lifecycle. See §12.3 and §30.
 

@@ -10,6 +10,33 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Foundations — F3: documentation, correctness & hardening sweep
+
+- **F3-T8 (partial).** The documentation contradiction sweep: `README.md`
+  now lists the full 8-tool closed set (was 7, missing `query_memory`) and
+  scopes the §21.3 containment claim to externally-influenced paths;
+  `ARCHITECTURE.md` §2 drops unadopted stack entries (`gopsutil`, the Web UI)
+  and the unimplemented `sqlite-vec`, and corrects the `fsnotify` attribution
+  (airlock ingress, not the Host Adapter); `config.example.yaml` and the
+  `internal/toolenvelope` package doc drop the "two tools" era; and a stale
+  `phaseCompare` doc comment is removed from `internal/engine/phases.go`.
+  Intentional present-tense descriptions are unchanged.
+
+- **F3-T2.** Error and seam hygiene: the external API's manual-export route
+  maps a missing artifact/project to 404 via `errors.Is` on the store
+  sentinels (the old string compare used `"artifact: not found"`, which never
+  matched the real `"artifact not found"`, so it returned 500); `Engine.New`
+  installs an `openFreezer` fallback so the kill-switch seam is nil-safe like
+  `staticCap`; and `internal/gate/gate_test.go` loses a duplicated `violations`
+  block and an unused local.
+
+- **F3-T1.** Toolchain enforcement: `.golangci.yml` makes the linter set
+  explicit and turns on the `gofmt`/`goimports` formatter checks the v2
+  default set omits (three drift sites, including `internal/mce/index.go`,
+  were fixed); CI gains `vuln` (`govulncheck`) and `tidy` (`go mod tidy` +
+  `git diff --exit-code`) jobs with matching `make vuln` / `make tidy-check`
+  targets; `go.mod` is normalized. `internal/ci/ci_test.go` pins the jobs.
+
 ### M5 — Context Engine — M5-T8: repository indexing pipeline
 
 - **M5-T8.** The MCE gains its producer. Ten commits (`M5-T8.1`–`M5-T8.10`)

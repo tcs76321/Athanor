@@ -20,6 +20,7 @@
 | M7 Endurance & Release | ⬜ Not started |
 | CI: behavioral probes | ✅ Done — `make test-integration` now covers `internal/gateway/...` (not just `internal/jobpod/...`); a new non-blocking `integration` CI job runs the M2 hardening + M2-T4b exec + M4 gateway probes on Ubuntu (podman + `make integration-images`). Promote to required once green on `main`. See [DEVELOPMENT.md](DEVELOPMENT.md) |
 | Foundations: SQLite single-connection discipline (F2) | ✅ Done — [ADR-0027](docs/adr/0027-sqlite-single-connection.md): the ADR-0003 one-connection contract is now enforced structurally (`BeginTx`/`Begin(` forbidden in `internal/engine`/`cmd/`; `Conn(` reserved to `internal/store`) and at runtime (pool-cap pin + concurrent pool-drain guard). The audit found the invariant already held (nine DB-only transactions, no `db.Conn()`). |
+| Foundations: docs, correctness & hardening sweep (F3) | 🔄 In progress — T1 (enforce `gofmt`/`goimports` + `govulncheck` + `go mod tidy` in CI), T2 (sentinel-error mapping, nil-safe seams, gate-test cleanup), and T8 (documentation contradiction sweep) landed; T3 (file-IO containment scope), T4 (per-archetype execution config), T5 (Git-as-undo), T6 (M3-T7-b/c), T7 (CI hardening + fuzz/coverage/link-check), T9 (repo security posture) pending. |
 
 Update this table as milestones progress. It is the honest heartbeat of the project.
 

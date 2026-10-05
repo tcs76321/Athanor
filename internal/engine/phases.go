@@ -360,10 +360,6 @@ func (e *Engine) phaseSynthesize(ctx context.Context, j job.Job) error {
 	return err
 }
 
-// phaseCompare (§13.1 Phase 6, M1 form): with a single draft, no previous
-// accepted artifact, and no evaluation machinery (M3), the comparison is
-// deterministic: the draft wins by default. The decision and its rationale
-// are audited; the artifact stays a draft until real evaluation exists.
 // phasePlan (§13.1 Phase 1): tall persona, low temperature. The plan
 // guides divergence; in M1 it is advisory context, not persisted.
 func (e *Engine) phasePlan(ctx context.Context, j job.Job) error {

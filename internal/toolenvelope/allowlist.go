@@ -1,16 +1,16 @@
 // Package toolenvelope defines the per-job tool allowlist for Job Pod
-// tool calls (ARCHITECTURE §25, ROADMAP M2-T4). The set of tools a
-// Job Pod may invoke is fixed at job creation time and enforced
-// server-side by the internal API before any code runs.
+// tool calls (ARCHITECTURE §25). The set of tools a Job Pod may invoke
+// is fixed at job creation time and enforced server-side by the
+// internal API before any code runs.
 //
-// M2-T4 ships a closed set of two tools — execute_code and run_tests —
-// because those are the only ones the engine calls today. Additional
-// tools from the §25 table (read_file, write_file, git_operation,
-// fetch_url, etc.) arrive in M3+ when their consumers land. Adding a
-// new tool to the closed set is a project decision, not an agent
-// decision: it widens the §25 surface and must be paired with the
-// matching internal API route, Gate G2 coverage, and a per-archetype
-// policy review.
+// The closed set is the tools declared below (M5-T7). Some are
+// Core-executed rather than dispatched into a pod — fetch_url,
+// search_web, context_swap, query_memory — because a Job Pod has no
+// network and cannot see the Core's SQLite; git_operation is declared
+// but has no route or handler yet (M6). Adding a new tool to the closed
+// set is a project decision, not an agent decision: it widens the §25
+// surface and must be paired with the matching internal API route,
+// Gate G2 coverage, and a per-archetype policy review.
 package toolenvelope
 
 import (
