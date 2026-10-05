@@ -60,8 +60,8 @@ purpose; details live in `ARCHITECTURE.md`, `ROADMAP.md`, and `DEVELOPMENT.md`.
 - One commit per logical change. Match the project's existing style:
   `M#-T#: <title>` for roadmap tasks, `chore:`, `docs:`, `ci:`,
   `fix:` for everything else. Lowercase, terse, no trailing period.
-- Commit bodies are short — one or two lines, only if they add
-  information not in the title. No multi-paragraph essays.
+- Commit bodies are optional — one short clause on the same line, only
+  if it adds information not in the title. No multi-paragraph essays.
 - Update `ROADMAP.md` status table when a milestone-level task lands.
 
 ## Work incrementally
@@ -76,16 +76,18 @@ purpose; details live in `ARCHITECTURE.md`, `ROADMAP.md`, and `DEVELOPMENT.md`.
 
 ## Commits — agent ↔ human handoff
 
-The human signs every commit (GPG). The agent stages the files,
-runs `make check`, shows the staged diff, and stops. The human
-runs `git commit` (or the agent runs it once on the human's
-signal) and types the GPG passphrase in their own terminal. One
+The agent owns commits in this environment: it stages the files, runs
+`make check`, shows the staged diff, and commits with a single `-m`.
+GPG signing is optional and human-only. This tool runner cannot drive an
+interactive GPG pinentry, so agent commits use `--no-gpg-sign`; a human
+who wants a signed commit signs it themselves. The agent never blocks on
+a passphrase prompt and never waits for a human "commit" signal. One
 commit per logical change; do not batch unrelated work.
 
 **Commit message format — strict:**
 
 - **Exactly one `-m`.** The agent MUST use a single
-  `git commit -m '<full message>'` invocation. The second `-m`
+  `git commit --no-gpg-sign -m '<full message>'` invocation. The second `-m`
   flag, heredoc bodies, `printf | git commit -F -`, and any
   other multiline input are **forbidden** for the same reason
   heredocs are forbidden in §Commands: long or multi-arg
@@ -97,7 +99,7 @@ commit per logical change; do not batch unrelated work.
   goes inside the same single-quoted string, separated from the
   title by ` — ` (em-dash, two spaces) or by a single space;
   no embedded newlines.
-  - Good: `git commit -m 'M4-T1: path containment library + adversarial-corpus tests — paths under internal/airlock/paths, O_NOFOLLOW via gated syscall files (Gate G1 rule 5).'`
+  - Good: `git commit --no-gpg-sign -m 'M4-T1: path containment library + adversarial-corpus tests — paths under internal/airlock/paths, O_NOFOLLOW via gated syscall files (Gate G1 rule 5).'`
   - Bad: `git commit -m 'title' -m 'body line 1\nline 2'` (two `-m`s, multiline).
   - Bad: `git commit -F -` followed by a heredoc.
 - **Bodies are short.** One line, ≤120 characters total. If the
@@ -106,21 +108,21 @@ commit per logical change; do not batch unrelated work.
 - **No trailing period.** Lowercase, terse, matches existing
   style (`M#-T#:`, `chore:`, `docs:`, `ci:`, `fix:`).
 
-**GPG signing — strict:**
+**Signing — optional and human-only:**
 
-- The agent must never use `--no-gpg-sign`, `git -c
-  commit.gpgsign=false`, `GIT_GPG_PROGRAM=true`, or any other
-  mechanism that bypasses the human's GPG signing. The
-  signature is the audit trail.
-- The agent runs `git commit` at most **once per staged
-  change.** If the invocation times out, errors, or appears
-  hung (no output, no prompt, no return), the agent does **not**
-  retry, loop, or `q`/Ctrl-C/EOF the shell. The agent stops,
-  reports the state, and waits for the human. The human can
-  recover by running `git commit` themselves, or by inspecting
-  the shell that the tool runner left open.
+- Agent commits use `git commit --no-gpg-sign -m '...'` (the repo sets
+  `commit.gpgsign=true`, so the flag is required to avoid an interactive
+  pinentry this environment cannot provide). GPG signing is not required
+  for agent commits; a human who wants a signature signs the commit
+  themselves.
+- Do not add `--no-verify` (the pre-push hook stays) and do not edit
+  global git config.
+- The agent runs `git commit` at most **once per staged change.** If the
+  invocation times out, errors, or appears hung, the agent does **not**
+  retry, loop, or `q`/Ctrl-C/EOF the shell. It stops, reports the state,
+  and waits for the human.
 
-**Sequence per commit (the agent follows this, no deviations):**
+**Sequence per commit:**
 
 0. The last file write must be in its own call and must have finished before
    staging. Never send a write and the `git add` that stages it in the same
@@ -129,22 +131,18 @@ commit per logical change; do not batch unrelated work.
 1. Stage the files (`git add <path>`).
 2. Run `make check`. Report pass/fail.
 3. Show the staged diff (`git --no-pager diff --cached`).
-4. Print the proposed one-line `git commit -m '...'` command
-   verbatim, do not run it yet.
-5. Wait for the human to say "commit" (or equivalent).
-6. Run **exactly one** `git commit -m '<one-line message>'`.
-7. Stop. Do not push, do not stage the next commit, do not run
-   any further git commands. The human confirms the signature
-   in their own terminal before the next turn.
+4. Run **exactly one** `git commit --no-gpg-sign -m '<one-line message>'`.
+5. Continue with the next logical change. Do not batch unrelated work and
+   do not push.
 
 **If a commit is malformed** (wrong message, missing file,
 wrong files staged): reset with `git reset --soft HEAD~1` and
-re-stage. Do not force-amend a signed commit.
+re-stage. Do not amend a commit that has already been pushed.
 
-**For multi-commit work** (e.g. a roadmap task broken into 5
-commits per the plan), do one commit at a time per the
-sequence above. Do not pre-stage the next commit's changes
-while waiting.
+**For multi-commit work** (e.g. a roadmap task broken into several
+commits per the plan), do one commit at a time. A human who wants a
+signature can sign afterwards (`git commit --amend -S`, or their own
+signing flow); signatures are not required for the agent's commits.
 
 ## Plan mode
 
