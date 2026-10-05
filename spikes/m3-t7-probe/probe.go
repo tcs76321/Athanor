@@ -156,6 +156,8 @@ func main() {
 		printConfig(os.Args[2:])
 	case "judge":
 		runJudge(os.Args[2:])
+	case "bundle":
+		runBundle(os.Args[2:])
 	default:
 		usage()
 		os.Exit(2)
@@ -170,6 +172,7 @@ commands:
   report    aggregate collected results into report.md
   config    print the generated daemon config for one model/arm
   judge     score the collected packets with the third-party judge models
+  bundle    write a labeled, human-readable artifact bundle (artifacts.md)
 
 Run each command with -h for its flags. Protocol:
 docs/probes/m3-t7-quality-probe.md
