@@ -226,6 +226,44 @@ func (r *Repo) ListOutcomes(ctx context.Context, limit int) ([]Outcome, error) {
 	return out, rows.Err()
 }
 
+// RecentStats returns the number of recent outcomes for an archetype and the
+// fraction that were accepted-new. It is the F4-T2 familiarity signal: a
+// class with enough samples at a high accept rate can be treated as easy.
+// limit <= 0 defaults to 20.
+func (r *Repo) RecentStats(ctx context.Context, archetype string, limit int) (int, float64, error) {
+	if limit <= 0 {
+		limit = 20
+	}
+	rows, err := r.store.DB().QueryContext(ctx,
+		`SELECT o.result FROM strategy_outcomes o
+		 JOIN strategy_profiles p ON p.id = o.strategy_profile_id
+		 WHERE p.archetype = ?
+		 ORDER BY o.created_at DESC, o.id DESC LIMIT ?`,
+		archetype, limit)
+	if err != nil {
+		return 0, 0, fmt.Errorf("recent stats: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	samples, accepted := 0, 0
+	for rows.Next() {
+		var result string
+		if err := rows.Scan(&result); err != nil {
+			return 0, 0, err
+		}
+		samples++
+		if result == ResultAcceptedNew {
+			accepted++
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return 0, 0, err
+	}
+	if samples == 0 {
+		return 0, 0, nil
+	}
+	return samples, float64(accepted) / float64(samples), nil
+}
+
 // Backfill creates a default profile and a derived outcome for terminal jobs
 // that predate capture (§13.3). It returns how many outcomes it created.
 //

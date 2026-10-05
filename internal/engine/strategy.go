@@ -8,6 +8,7 @@ import (
 
 	"github.com/tcs76321/athanor/internal/job"
 	"github.com/tcs76321/athanor/internal/llm"
+	"github.com/tcs76321/athanor/internal/policy"
 	"github.com/tcs76321/athanor/internal/store"
 	"github.com/tcs76321/athanor/internal/strategy"
 )
@@ -39,21 +40,23 @@ var phaseStrategies = []struct{ phase, role string }{
 }
 
 // strategySignature builds the §13.3 signature: one entry per executed phase
-// with its resolved persona and temperature.
-func (e *Engine) strategySignature(archetype string) []strategy.SignatureEntry {
+// with its resolved persona and temperature. The persona is resolved through
+// the plan's ModelRouting (F4-T1c), so a routed judge is recorded.
+func (e *Engine) strategySignature(archetype string, plan policy.Plan) []strategy.SignatureEntry {
 	out := make([]strategy.SignatureEntry, 0, len(phaseStrategies))
 	for _, s := range phaseStrategies {
-		persona, ok := e.registry.Persona(s.role)
+		role := e.roleFor(plan, s.phase, s.role)
+		persona, ok := e.registry.Persona(role)
 		if !ok {
 			continue
 		}
 		entry := strategy.SignatureEntry{
 			Phase:       s.phase,
-			Persona:     s.role,
+			Persona:     role,
 			Temperature: llm.ResolveTemperature(s.phase, persona.Temperature, nil),
 		}
 		if s.phase == llm.PhaseDiverging {
-			entry.Candidates = e.planFor(archetype).Candidates
+			entry.Candidates = plan.Candidates
 		}
 		out = append(out, entry)
 	}
@@ -65,16 +68,16 @@ func (e *Engine) captureProfile(ctx context.Context, j job.Job) {
 	if e.strategy == nil {
 		return
 	}
-	p, _, err := e.contexts(ctx, j)
+	p, t, err := e.contexts(ctx, j)
 	if err != nil {
 		slog.Error("engine: loading project for strategy profile", "job", j.ID, "err", err)
 		return
 	}
-	plan := e.planFor(p.Archetype)
-	e.auditComputePlan(ctx, j.ID, plan)
+	plan := e.planFor(ctx, j, p, t)
+	e.auditComputePlan(ctx, j.ID, "profile", plan)
 	if _, err := e.strategy.CreateProfile(ctx, strategy.Profile{
 		JobID: j.ID, ProjectID: p.ID, Archetype: p.Archetype,
-		Signature: e.strategySignature(p.Archetype),
+		Signature: e.strategySignature(p.Archetype, plan),
 	}); err != nil {
 		slog.Error("engine: capturing strategy profile", "job", j.ID, "err", err)
 	}

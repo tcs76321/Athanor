@@ -129,7 +129,9 @@ func (e *Engine) phaseCompare(ctx context.Context, j job.Job) error {
 	// ADR-0013's 4 KB comparison limit is applied here, before assembly,
 	// because the assembler renders tier 3 verbatim and never truncates.
 	candidateContent, _ := osReadFileLimited(final.StoragePath, comparisonContentLimit)
-	resp, err := e.call(ctx, j, p, t, llm.PhaseComparing, llm.RoleSecurity, instructions,
+	plan := e.planFor(ctx, j, p, t)
+	judgeRole := e.roleFor(plan, llm.PhaseComparing, llm.RoleSecurity)
+	resp, err := e.call(ctx, j, p, t, llm.PhaseComparing, judgeRole, instructions,
 		[]prompt.CandidateArtifact{{Kind: "candidate", Content: candidateContent}})
 	if err != nil {
 		return err

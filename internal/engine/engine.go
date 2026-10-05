@@ -200,6 +200,10 @@ type Engine struct {
 	// policy is the F4-T1 compute/model-selection seam (ADR-0044). nil uses
 	// policy.Default, which reproduces pre-F4 behavior exactly.
 	policy policy.Policy
+	// history is the F4-T2 outcome-history seam: recent per-archetype
+	// outcome statistics feed the policy's familiarity signal. nil leaves
+	// the signal absent (the criteria heuristic still applies).
+	history StrategyHistory
 	// inFlight is the count of running job goroutines. The cap is
 	// read from cap.MaxConcurrentJobs() on every Enqueue; the atomic
 	// counter is the only source of truth for the running count.
@@ -305,12 +309,37 @@ func (e *Engine) SetStrategyInsightSource(s StrategyInsightSource) { e.insights 
 // policy uses policy.Default, so behavior is unchanged until one is set.
 func (e *Engine) SetPolicy(p policy.Policy) { e.policy = p }
 
-// planFor resolves a job's compute plan through the policy seam. Given the
-// engine's config it is pure, so re-resolving after a crash-resume yields the
-// same plan. A nil policy uses policy.Default.
-func (e *Engine) planFor(archetype string) policy.Plan {
+// StrategyHistory is the F4-T2 history seam: recent per-archetype outcome
+// statistics so the policy can treat a familiar task class as easy. A nil
+// seam leaves the familiarity signal absent.
+type StrategyHistory interface {
+	RecentStats(ctx context.Context, archetype string, limit int) (samples int, acceptRate float64, err error)
+}
+
+// SetStrategyHistory wires the F4-T2 outcome-history seam. A nil seam
+// disables the familiarity signal (difficulty and criteria still apply).
+func (e *Engine) SetStrategyHistory(h StrategyHistory) { e.history = h }
+
+// difficultyStateKey is the system_state key holding a job's
+// planning-derived difficulty hint ("easy" | "hard").
+func difficultyStateKey(jobID string) string { return "plan:difficulty:" + jobID }
+
+// planFor resolves a job's compute plan through the policy seam. It gathers
+// the task features (archetype, criteria count, the planner's difficulty
+// hint, recent outcome history) and the operator ceilings, then asks the
+// policy. A nil policy uses policy.Default, which reproduces pre-F4 behavior.
+func (e *Engine) planFor(ctx context.Context, j job.Job, p project.Project, t project.Task) policy.Plan {
+	return e.decidePlan(e.planInputs(ctx, j, p, t))
+}
+
+// planInputs assembles the pure policy input from persisted state.
+func (e *Engine) planInputs(ctx context.Context, j job.Job, p project.Project, t project.Task) policy.Inputs {
 	in := policy.Inputs{
-		Features: policy.Features{Archetype: archetype},
+		Features: policy.Features{
+			Archetype:     p.Archetype,
+			CriteriaCount: len(t.Criteria),
+			Difficulty:    e.difficultyHint(ctx, j.ID),
+		},
 		Limits: policy.Limits{
 			CandidatesCeiling: 1,
 			ReflectionCeiling: policy.DefaultReflectionLoops,
@@ -320,21 +349,86 @@ func (e *Engine) planFor(archetype string) policy.Plan {
 		in.Limits.CandidatesCeiling = e.cfg.Execution.DivergenceCandidates
 		in.Limits.ReflectionCeiling = e.cfg.Execution.MaxReflectionLoopsValue()
 	}
-	if e.policy == nil {
-		return policy.Default{}.Decide(in)
+	if e.history != nil {
+		if samples, rate, err := e.history.RecentStats(ctx, p.Archetype, 20); err == nil {
+			in.Features.RecentSamples = samples
+			in.Features.RecentAcceptRate = rate
+		}
 	}
-	return e.policy.Decide(in)
+	return in
+}
+
+// decidePlan runs the configured policy and applies the operator-selected
+// judge persona as a bound on the judgment phases. The default
+// (execution.judge_persona: security) is a no-op.
+func (e *Engine) decidePlan(in policy.Inputs) policy.Plan {
+	var plan policy.Plan
+	if e.policy == nil {
+		plan = policy.Default{}.Decide(in)
+	} else {
+		plan = e.policy.Decide(in)
+	}
+	if e.cfg != nil {
+		if jp := e.cfg.Execution.JudgePersona; jp != "" {
+			if plan.ModelRouting == nil {
+				plan.ModelRouting = map[string]string{}
+			}
+			plan.ModelRouting[policy.PhaseEvaluating] = jp
+			plan.ModelRouting[policy.PhaseComparing] = jp
+		}
+	}
+	return plan
+}
+
+// roleFor resolves the persona serving a phase through the plan's
+// ModelRouting, falling back to the engine's historical role.
+func (e *Engine) roleFor(plan policy.Plan, phase, fallback string) string {
+	if r, ok := plan.ModelRouting[phase]; ok && r != "" {
+		return r
+	}
+	return fallback
+}
+
+// difficultyHint reads the planner's easy/hard hint for a job ("" when the
+// job has not planned yet).
+func (e *Engine) difficultyHint(ctx context.Context, jobID string) string {
+	if e.db == nil {
+		return ""
+	}
+	var v string
+	if err := e.db.DB().QueryRowContext(ctx,
+		`SELECT value FROM system_state WHERE key = ?`, difficultyStateKey(jobID)).Scan(&v); err != nil {
+		return ""
+	}
+	return v
+}
+
+// setDifficultyHint persists the planner's hint for a job.
+func (e *Engine) setDifficultyHint(ctx context.Context, jobID, hint string) {
+	if e.db == nil || hint == "" {
+		return
+	}
+	if _, err := e.db.DB().ExecContext(ctx,
+		`INSERT INTO system_state (key, value) VALUES (?, ?)
+		 ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+		difficultyStateKey(jobID), hint); err != nil {
+		slog.Warn("engine: persisting difficulty hint", "job", jobID, "err", err)
+	}
 }
 
 // auditComputePlan records the resolved plan (ADR-0044: the decision is
-// audited so outcomes can be attributed to it).
-func (e *Engine) auditComputePlan(ctx context.Context, jobID string, plan policy.Plan) {
+// audited so outcomes can be attributed to it). `stage` distinguishes the
+// pre-planning profile resolution from the post-planning divergence
+// resolution (which can see the difficulty hint).
+func (e *Engine) auditComputePlan(ctx context.Context, jobID, stage string, plan policy.Plan) {
 	e.audit(ctx, jobID, map[string]any{
 		"event":                "compute_planned",
+		"stage":                stage,
 		"candidates":           plan.Candidates,
 		"max_reflection_loops": plan.MaxReflectionLoops,
 		"judge_mode":           string(plan.JudgeMode),
 		"judge_count":          plan.JudgeCount,
+		"model_routing":        plan.ModelRouting,
 	})
 }
 

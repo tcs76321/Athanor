@@ -124,6 +124,36 @@ func validateRaw(c *Config) error {
 	if v := c.Execution.MinJudgeConfidence; v != nil && (*v < 0 || *v > 1) {
 		return fmt.Errorf("execution.min_judge_confidence must be within [0, 1], got %v", *v)
 	}
+	// F4 policy block (ADR-0044..0046): enum and range checks run before
+	// defaults so a typo is rejected with an actionable error.
+	switch p := c.Execution.Policy.ComputePolicy; p {
+	case "", ComputePolicyDefault, ComputePolicyAdaptive:
+	default:
+		return fmt.Errorf("execution.policy.compute_policy must be %q or %q, got %q",
+			ComputePolicyDefault, ComputePolicyAdaptive, p)
+	}
+	switch m := c.Execution.Policy.JudgeMode; m {
+	case "", JudgeModeLLM, JudgeModeVerifier:
+	default:
+		return fmt.Errorf("execution.policy.judge_mode must be %q or %q, got %q",
+			JudgeModeLLM, JudgeModeVerifier, m)
+	}
+	for name, v := range map[string]*float64{
+		"execution.policy.verifier_min_fraction": c.Execution.Policy.VerifierMinFraction,
+		"execution.policy.min_anchor_agreement":  c.Execution.Policy.MinAnchorAgreement,
+		"execution.policy.jaccard_floor":         c.Execution.Policy.JaccardFloor,
+		"execution.policy.quality_tie_margin":    c.Execution.Policy.QualityTieMargin,
+	} {
+		if v != nil && (*v < 0 || *v > 1) {
+			return fmt.Errorf("%s must be within [0, 1], got %v", name, *v)
+		}
+	}
+	if c.Execution.Policy.JudgeCount < 0 {
+		return fmt.Errorf("execution.policy.judge_count must be >= 0, got %d", c.Execution.Policy.JudgeCount)
+	}
+	if v := c.Execution.Policy.MaxDiversityRerolls; v != nil && *v < 0 {
+		return fmt.Errorf("execution.policy.max_diversity_rerolls must be >= 0, got %d", *v)
+	}
 	switch p := c.Network.DefaultPolicy; p {
 	case "", "deny", "allow":
 	default:

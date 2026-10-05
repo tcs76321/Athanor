@@ -158,8 +158,18 @@ func (i Inference) JSONFormatEnabled() bool {
 // Temperature is a pointer so an explicitly configured value survives
 // defaults resolution (0.0 is meaningful for the security persona);
 // Temp() resolves it after Load/Parse.
+//
+// Family is the model's lineage — who made it and which generation
+// (e.g. "qwen", "gemma4", "llama3.1", "granite4.2"). F4-T3 requires the
+// deciding judge to come from a different family than the generator so
+// their errors are decorrelated. It is operator-declared: two tags from
+// the same lineage (gemma4:4b judging gemma4:12b) share a family and add
+// no independent signal, so a match is a mismatch we must not paper over
+// with a name guess. Empty falls back to the model name with its tag
+// stripped (defaults.go).
 type PersonaConfig struct {
 	Model         string   `yaml:"model"`
+	Family        string   `yaml:"family"`
 	ContextTarget int      `yaml:"context_target"`
 	Temperature   *float64 `yaml:"temperature"`
 }
@@ -308,6 +318,144 @@ type Execution struct {
 	// (default 2) from an explicit 0 (retries disabled); a task's own
 	// budget.max_jobs, when set, is a tighter bound.
 	MaxTaskRetries *int `yaml:"max_task_retries"`
+	// Policy is the F4 compute/selection river (ADR-0044/0045/0046). It
+	// parameterizes the policy seam, verification-first selection, judge
+	// quorum/calibration, diversity enforcement, and cost-aware
+	// acceptance. Every field has a documented default; the defaults
+	// reproduce pre-F4 behavior except where noted (corrections are
+	// recommendations only).
+	Policy PolicyConfig `yaml:"policy"`
+}
+
+// PolicyConfig parameterizes F4's adaptive judgment and verification
+// (ADR-0044..0046). It is a river: it allocates compute and selects
+// models, and never touches security constraints, containment, the
+// pinned judge temperature, or HITL rules.
+type PolicyConfig struct {
+	// ComputePolicy selects the pure policy implementation: "default"
+	// reproduces today's fixed N/reflection; "adaptive" lowers compute on
+	// easy or familiar tasks (F4-T2). It can only lower spend, never
+	// exceed execution.divergence_candidates / max_reflection_loops.
+	ComputePolicy string `yaml:"compute_policy"`
+	// JudgeMode selects how accept/reject is decided: "llm" is today's
+	// security-persona judge; "verifier" runs deterministic per-archetype
+	// verifiers first and consults the LLM judge only on ties or when no
+	// verifier exists (F4-T3).
+	JudgeMode string `yaml:"judge_mode"`
+	// JudgeCount is the number of independent judge calls for a
+	// high-stakes accept; >1 means quorum (F4-T4). 1 is a single call.
+	JudgeCount int `yaml:"judge_count"`
+	// VerifierMinFraction is the fraction of code accepts that must be
+	// decided by deterministic verifiers when JudgeMode=verifier
+	// (F4-T3 acceptance).
+	VerifierMinFraction *float64 `yaml:"verifier_min_fraction"`
+	// MinAnchorAgreement is the ranking agreement a judge must reach on
+	// the eval/anchor set before it may decide (F4-T4).
+	MinAnchorAgreement *float64 `yaml:"min_anchor_agreement"`
+	// JaccardFloor is the minimum mean pairwise Jaccard distance a
+	// divergence set must reach before it is accepted; a below-floor set
+	// is re-rolled at most MaxDiversityRerolls times (F4-T5).
+	JaccardFloor *float64 `yaml:"jaccard_floor"`
+	// MaxDiversityRerolls bounds the below-floor re-roll loop (F4-T5).
+	// The pointer distinguishes "unset" (default 1) from an explicit 0
+	// (never re-roll).
+	MaxDiversityRerolls *int `yaml:"max_diversity_rerolls"`
+	// CostAware lets a quality tie break toward the lower-cost artifact
+	// (F4-T6). When false, comparison ignores cost.
+	CostAware *bool `yaml:"cost_aware"`
+	// QualityTieMargin is the score delta within which two artifacts are
+	// considered tied for cost-aware acceptance (F4-T6).
+	QualityTieMargin *float64 `yaml:"quality_tie_margin"`
+	// RequireCrossFamily refuses the verifier/judge path when the judge
+	// and generator personas share a family (F4-T3). When false, the
+	// mismatch is audited but not blocked.
+	RequireCrossFamily *bool `yaml:"require_cross_family"`
+}
+
+// Policy-mode enum values.
+const (
+	ComputePolicyDefault  = "default"
+	ComputePolicyAdaptive = "adaptive"
+
+	JudgeModeLLM      = "llm"
+	JudgeModeVerifier = "verifier"
+)
+
+// ComputePolicySelection resolves execution.policy.compute_policy with the
+// documented "default" fallback.
+func (e *Execution) ComputePolicySelection() string {
+	if e.Policy.ComputePolicy == "" {
+		return ComputePolicyDefault
+	}
+	return e.Policy.ComputePolicy
+}
+
+// JudgeModeSelection resolves execution.policy.judge_mode with the
+// documented "llm" fallback (backward compatible).
+func (e *Execution) JudgeModeSelection() string {
+	if e.Policy.JudgeMode == "" {
+		return JudgeModeLLM
+	}
+	return e.Policy.JudgeMode
+}
+
+// JudgeCountValue resolves execution.policy.judge_count with a 1 fallback.
+func (e *Execution) JudgeCountValue() int {
+	if e.Policy.JudgeCount < 1 {
+		return 1
+	}
+	return e.Policy.JudgeCount
+}
+
+// VerifierMinFractionValue resolves verifier_min_fraction (default 0.5).
+func (e *Execution) VerifierMinFractionValue() float64 {
+	if e.Policy.VerifierMinFraction == nil {
+		return 0.5
+	}
+	return *e.Policy.VerifierMinFraction
+}
+
+// MinAnchorAgreementValue resolves min_anchor_agreement (default 0.6).
+func (e *Execution) MinAnchorAgreementValue() float64 {
+	if e.Policy.MinAnchorAgreement == nil {
+		return 0.6
+	}
+	return *e.Policy.MinAnchorAgreement
+}
+
+// JaccardFloorValue resolves jaccard_floor (default 0.30 — the M3-T7-a
+// low-divergence trigger).
+func (e *Execution) JaccardFloorValue() float64 {
+	if e.Policy.JaccardFloor == nil {
+		return 0.30
+	}
+	return *e.Policy.JaccardFloor
+}
+
+// MaxDiversityRerollsValue resolves max_diversity_rerolls (default 1).
+func (e *Execution) MaxDiversityRerollsValue() int {
+	if e.Policy.MaxDiversityRerolls == nil {
+		return 1
+	}
+	return *e.Policy.MaxDiversityRerolls
+}
+
+// CostAwareEnabled resolves cost_aware (default true).
+func (e *Execution) CostAwareEnabled() bool {
+	return Val(e.Policy.CostAware, true)
+}
+
+// QualityTieMarginValue resolves quality_tie_margin (default 0.02).
+func (e *Execution) QualityTieMarginValue() float64 {
+	if e.Policy.QualityTieMargin == nil {
+		return 0.02
+	}
+	return *e.Policy.QualityTieMargin
+}
+
+// RequireCrossFamilyValue resolves require_cross_family (default true).
+func (e *Execution) RequireCrossFamilyValue() bool {
+	return Val(e.Policy.RequireCrossFamily, true)
 }
 
 // MaxTaskRetriesValue resolves execution.max_task_retries, applying the

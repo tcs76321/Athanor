@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"hash/fnv"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/tcs76321/athanor/internal/artifact"
@@ -501,8 +502,10 @@ func (e *Engine) phaseSynthesize(ctx context.Context, j job.Job) error {
 
 	// M5-T5: the proposal bytes ride §11.2 §12 (tier 3, never evicted)
 	// instead of being concatenated into the §13 instructions.
+	plan := e.planFor(ctx, j, p, t)
+	role := e.roleFor(plan, llm.PhaseSynthesizing, llm.RoleMain)
 	instructions := "Refine the divergence proposal below into the final artifact for this task."
-	resp, err := e.call(ctx, j, p, t, llm.PhaseSynthesizing, llm.RoleMain, instructions,
+	resp, err := e.call(ctx, j, p, t, llm.PhaseSynthesizing, role, instructions,
 		[]prompt.CandidateArtifact{{Kind: "proposal", Content: string(candidateContent)}})
 	if err != nil {
 		return err
@@ -524,15 +527,60 @@ func (e *Engine) phaseSynthesize(ctx context.Context, j job.Job) error {
 }
 
 // phasePlan (§13.1 Phase 1): tall persona, low temperature. The plan
-// guides divergence; in M1 it is advisory context, not persisted.
+// guides divergence; in M1 it is advisory context, not persisted. F4-T2
+// adds one thing: the planner is asked to end with a `DIFFICULTY:` hint,
+// which is parsed and persisted so the compute policy can scale to the
+// task (an unparseable or absent hint leaves the policy on its other
+// signals).
+//
+// The request rides the task description (a pinned, tier-2 §11.2 section)
+// rather than the phase's tier-7 instructions, so the planning call stays
+// pinned-only — the property the §10.4 critical-pressure tests key on.
 func (e *Engine) phasePlan(ctx context.Context, j job.Job) error {
 	p, t, err := e.contexts(ctx, j)
 	if err != nil {
 		return err
 	}
-	if _, err := e.call(ctx, j, p, t, llm.PhasePlanning, llm.RoleTall, "", nil); err != nil {
+	plan := e.planFor(ctx, j, p, t)
+	role := e.roleFor(plan, llm.PhasePlanning, llm.RoleTall)
+	planTask := t
+	planTask.Description = strings.TrimRight(t.Description, "\n") + "\n\n" + difficultyRequest
+	resp, err := e.call(ctx, j, p, planTask, llm.PhasePlanning, role, "", nil)
+	if err != nil {
 		return err
+	}
+	if d := parseDifficultyHint(resp.Content); d != "" {
+		e.setDifficultyHint(ctx, j.ID, d)
+		e.audit(ctx, j.ID, map[string]any{"event": "difficulty_hint", "difficulty": d})
 	}
 	_, err = e.jobs.Transition(ctx, j.ID, job.StateDiverging)
 	return err
+}
+
+// difficultyRequest is the F4-T2 planning instruction. It is a constant so
+// the parser and the prompt cannot drift.
+const difficultyRequest = "End your plan with a final line exactly of the form `DIFFICULTY: easy` or `DIFFICULTY: hard`, judging whether this task is routine or genuinely hard. Keep it to one line."
+
+// parseDifficultyHint extracts the F4-T2 `DIFFICULTY: easy|hard` marker from
+// the planning output. It scans lines case-insensitively and returns the
+// last valid marker (a model that revises its estimate should win). An
+// absent or unrecognized marker returns "" — the policy then falls back to
+// history and criteria rather than guessing.
+func parseDifficultyHint(content string) string {
+	hint := ""
+	for _, line := range strings.Split(content, "\n") {
+		l := strings.ToUpper(strings.TrimSpace(line))
+		const prefix = "DIFFICULTY:"
+		if !strings.HasPrefix(l, prefix) {
+			continue
+		}
+		v := strings.TrimSpace(l[len(prefix):])
+		switch {
+		case strings.HasPrefix(v, "EASY"):
+			hint = "easy"
+		case strings.HasPrefix(v, "HARD"):
+			hint = "hard"
+		}
+	}
+	return hint
 }

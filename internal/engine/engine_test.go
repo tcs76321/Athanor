@@ -55,6 +55,10 @@ type countingOllama struct {
 	// (M3-T2 commit 2.4) set this to a value larger than the
 	// budget to exercise the deadline path. Default 0.
 	delay time.Duration
+	// planningContent, when non-empty, is the response the fake returns
+	// for the planning phase. F4-T2 tests use it to emit a
+	// `DIFFICULTY: easy|hard` hint the engine parses.
+	planningContent string
 }
 
 func newCountingOllama(t *testing.T) *countingOllama {
@@ -107,6 +111,9 @@ func newCountingOllama(t *testing.T) *countingOllama {
 		_ = req
 
 		content := "A thoughtful result."
+		if phase == "PLANNING" && o.planningContent != "" {
+			content = o.planningContent
+		}
 		// M3-T2 commit 2.4: sleep for the configured delay
 		// after reading the request body, but only if the
 		// request's context is still alive. (The client's
@@ -194,6 +201,14 @@ func (o *countingOllama) WithDelay(d time.Duration) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	o.delay = d
+}
+
+// setPlanning configures the fake's planning-phase response (F4-T2 tests
+// use it to emit a `DIFFICULTY:` hint).
+func (o *countingOllama) setPlanning(content string) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.planningContent = content
 }
 
 type testEnv struct {

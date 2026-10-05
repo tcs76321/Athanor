@@ -1,7 +1,10 @@
 // Defaults for omitted optional configuration fields (§29 reference config).
 package config
 
-import "time"
+import (
+	"strings"
+	"time"
+)
 
 const (
 	minute = time.Minute
@@ -157,6 +160,35 @@ func applyDefaults(c *Config) {
 		n := 2
 		c.Execution.MaxTaskRetries = &n
 	}
+	// F4 (ADR-0044..0046): the compute/selection policy. The defaults
+	// reproduce pre-F4 behavior (fixed compute, LLM judge, no reroll),
+	// except cost-aware acceptance, which only changes near-ties.
+	setStr(&c.Execution.Policy.ComputePolicy, ComputePolicyDefault)
+	setStr(&c.Execution.Policy.JudgeMode, JudgeModeLLM)
+	setInt(&c.Execution.Policy.JudgeCount, 1)
+	if c.Execution.Policy.VerifierMinFraction == nil {
+		v := 0.5
+		c.Execution.Policy.VerifierMinFraction = &v
+	}
+	if c.Execution.Policy.MinAnchorAgreement == nil {
+		v := 0.6
+		c.Execution.Policy.MinAnchorAgreement = &v
+	}
+	if c.Execution.Policy.JaccardFloor == nil {
+		v := 0.30
+		c.Execution.Policy.JaccardFloor = &v
+	}
+	if c.Execution.Policy.QualityTieMargin == nil {
+		v := 0.02
+		c.Execution.Policy.QualityTieMargin = &v
+	}
+	if c.Execution.Policy.MaxDiversityRerolls == nil {
+		n := 1
+		c.Execution.Policy.MaxDiversityRerolls = &n
+	}
+	setTrue(&c.Execution.Policy.CostAware)
+	setTrue(&c.Execution.Policy.RequireCrossFamily)
+
 	if c.Execution.MinJudgeConfidence == nil {
 		def := 0.7
 		c.Execution.MinJudgeConfidence = &def
@@ -310,4 +342,20 @@ func defaultPersona(p *PersonaConfig, model string, ctx int, temp float64) {
 		t := temp
 		p.Temperature = &t
 	}
+	if p.Family == "" {
+		// Fallback lineage: the model name with its tag stripped. An
+		// operator who needs two tags in the same lineage (qwen2.5 and
+		// qwen2.5-coder) to compare equal should declare `family`
+		// explicitly; the derived value is a convenience, not a claim.
+		p.Family = familyForModel(p.Model)
+	}
+}
+
+// familyForModel strips a model tag ("qwen2.5:7b" → "qwen2.5",
+// "gemma4@latest" → "gemma4") so the derived family is stable across tags.
+func familyForModel(model string) string {
+	if i := strings.IndexAny(model, ":@"); i >= 0 {
+		return model[:i]
+	}
+	return model
 }

@@ -36,7 +36,13 @@ func (e *Engine) phaseDivergeN(ctx context.Context, j job.Job) error {
 	if e.cfg == nil {
 		return errors.New("engine: cfg is nil (diverge phase requires config)")
 	}
-	n := e.planFor(p.Archetype).Candidates
+	// F4-T1c/T2: resolve the plan once here (after planning, so the
+	// difficulty hint is visible), audit it, then use its candidate count
+	// and routed personas. A nil policy/decfg reproduces pre-F4 behavior.
+	plan := e.planFor(ctx, j, p, t)
+	e.auditComputePlan(ctx, j.ID, "divergence", plan)
+	role := e.roleFor(plan, llm.PhaseDiverging, llm.RoleMain)
+	n := plan.Candidates
 	if max := e.cfg.Execution.MaxHardTaskVariations; max > 0 && n > max {
 		n = max
 	}
@@ -73,7 +79,7 @@ func (e *Engine) phaseDivergeN(ctx context.Context, j job.Job) error {
 		if research != "" {
 			seed += "\n\n" + research
 		}
-		resp, err := e.call(ctx, j, p, t, llm.PhaseDiverging, llm.RoleMain, seed, nil)
+		resp, err := e.call(ctx, j, p, t, llm.PhaseDiverging, role, seed, nil)
 		if err != nil {
 			return fmt.Errorf("divergence candidate %d/%d: %w", i+1, n, err)
 		}

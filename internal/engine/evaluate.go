@@ -261,7 +261,9 @@ func (e *Engine) evaluateCandidate(ctx context.Context, j job.Job, p project.Pro
 	// M5-T5: the candidate bytes are §11.2 §12 (tier 3, never evicted)
 	// rather than a concatenation inside the §13 instructions.
 	ctxCandidates := []prompt.CandidateArtifact{{Kind: "candidate", Content: string(content)}}
-	resp, err := e.call(ctx, j, p, t, llm.PhaseEvaluating, llm.RoleSecurity, instructions, ctxCandidates)
+	plan := e.planFor(ctx, j, p, t)
+	judgeRole := e.roleFor(plan, llm.PhaseEvaluating, llm.RoleSecurity)
+	resp, err := e.call(ctx, j, p, t, llm.PhaseEvaluating, judgeRole, instructions, ctxCandidates)
 	if err != nil {
 		return evaluation.Record{}, err
 	}

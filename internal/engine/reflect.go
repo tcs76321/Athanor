@@ -14,23 +14,6 @@ import (
 	"github.com/tcs76321/athanor/internal/llm"
 )
 
-// M3-T1 deliberate simplification: the reflection-loop budget is
-// hard-coded to 2 iterations. M3-T4 commit 4.2 moved this to
-// a config field (`execution.max_reflection_loops`); the
-// default lives in `internal/config/defaults.go` and is
-// applied via `applyDefaults`. The engine reads it via
-// `e.cfg.Execution.MaxReflectionLoops`, falling back to
-// 2 when the field is zero (defensive — defaults.go
-// should always set it).
-//
-// resolveMaxReflectionLoops resolves the reflection budget through the policy
-// seam (F4-T1): the configured ceiling, or policy.DefaultReflectionLoops when
-// config is absent. An explicit 0 disables reflection — the pure single-shot
-// baseline and F4-T2's policy.
-func (e *Engine) resolveMaxReflectionLoops() int {
-	return e.planFor("").MaxReflectionLoops
-}
-
 // reflectCounterPrefix is the `system_state` key prefix
 // for the typed reflection counter that M3-T4 commit 4.1
 // introduces. The full key is
@@ -118,9 +101,10 @@ func (e *Engine) phaseReflect(ctx context.Context, j job.Job) error {
 	// M3-T4 commit 4.1: the reflection counter now lives in
 	// `system_state` (`reflect:counter:<job-id>`), no longer
 	// co-opted from `jobs.recovery_flag`. M3-T4 commit 4.2:
-	// the budget is read from `cfg.Execution.MaxReflectionLoops`
-	// with a 2 default.
-	max := e.resolveMaxReflectionLoops()
+	// the budget is read from config with a 2 default; F4-T1c
+	// resolves it through the compute policy.
+	plan := e.planFor(ctx, j, p, t)
+	max := plan.MaxReflectionLoops
 	iter := e.getReflectCounter(ctx, j.ID)
 	if iter >= max {
 		e.audit(ctx, j.ID, map[string]any{
@@ -141,7 +125,8 @@ func (e *Engine) phaseReflect(ctx context.Context, j job.Job) error {
 	}
 	instructions := buildReflectionInstructions(records)
 
-	resp, err := e.call(ctx, j, p, t, llm.PhaseReflecting, llm.RoleMain, instructions, nil)
+	role := e.roleFor(plan, llm.PhaseReflecting, llm.RoleMain)
+	resp, err := e.call(ctx, j, p, t, llm.PhaseReflecting, role, instructions, nil)
 	if err != nil {
 		return err
 	}

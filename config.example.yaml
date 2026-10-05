@@ -62,22 +62,31 @@ inference:
 personas:
   wide:
     model: "qwen2.5:7b"
+    # family is the model lineage (F4-T3): the deciding judge must come
+    # from a different family than the generator so their errors are
+    # decorrelated. Declare it explicitly; an omitted family derives from
+    # the model name with its tag stripped.
+    family: "qwen2.5"
     context_target: 65536
     temperature: 0.7
   tall:
     model: "qwen2.5-coder:32b"
+    family: "qwen2.5-coder"
     context_target: 16384
     temperature: 0.2
   main:
     model: "mistral-nemo:12b"
+    family: "mistral-nemo"
     context_target: 32768
     temperature: 0.4
   security:
     model: "phi3:3.8b"
+    family: "phi3"
     context_target: 8192
     temperature: 0.0
   alternative:
     model: "llama3.1:8b"
+    family: "llama3.1"
     context_target: 32768
     temperature: 0.8
 
@@ -148,6 +157,25 @@ execution:
   # M6-T3 (ADR-0034): retries a failed task gets before it blocks and
   # escalates. 0 disables retries.
   max_task_retries: 2
+
+  # F4 policy block (ADR-0044..0046). compute_policy: "default" keeps the
+  # fixed N/reflection; "adaptive" lowers compute on easy/familiar tasks.
+  # judge_mode: "llm" is the security-persona judge; "verifier" runs
+  # deterministic per-archetype verifiers first and the LLM only on ties.
+  # judge_count > 1 is quorum for high-stakes accepts. require_cross_family
+  # refuses a judge that shares the generator's family. cost_aware lets a
+  # quality tie break toward the cheaper artifact.
+  policy:
+    compute_policy: "default"
+    judge_mode: "llm"
+    judge_count: 1
+    verifier_min_fraction: 0.5
+    min_anchor_agreement: 0.6
+    jaccard_floor: 0.30
+    max_diversity_rerolls: 1
+    cost_aware: true
+    quality_tie_margin: 0.02
+    require_cross_family: true
 
 strategy_analysis:
   enabled: true

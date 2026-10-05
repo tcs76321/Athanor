@@ -29,6 +29,7 @@ import (
 	"github.com/tcs76321/athanor/internal/jobpod"
 	"github.com/tcs76321/athanor/internal/llm"
 	"github.com/tcs76321/athanor/internal/logging"
+	"github.com/tcs76321/athanor/internal/policy"
 	"github.com/tcs76321/athanor/internal/power"
 	"github.com/tcs76321/athanor/internal/project"
 	"github.com/tcs76321/athanor/internal/scheduler"
@@ -242,6 +243,17 @@ func run(configPath, addr, stateDir string) error {
 	strategyRepo := strategy.NewRepo(st)
 	eng.SetStrategySink(strategyRepo)
 	eng.SetStrategyInsightSource(strategyRepo)
+	// F4 (ADR-0044): the compute/model-selection policy. "adaptive" lowers
+	// compute on easy or familiar tasks within the configured ceilings;
+	// "default" reproduces pre-F4 behavior. The strategy repo also supplies
+	// the F4-T2 outcome-history signal.
+	switch cfg.Execution.ComputePolicySelection() {
+	case config.ComputePolicyAdaptive:
+		eng.SetPolicy(policy.Adaptive{})
+	default:
+		eng.SetPolicy(policy.Default{})
+	}
+	eng.SetStrategyHistory(strategyRepo)
 	// M6-T11 (§13.4): promoting a strategy insight is HITL-gated.
 	hitlSvc.SetApprover(hitl.TypeStrategyInsight, insightActivator{repo: strategyRepo}.Approve)
 	srv := server.New(version)
