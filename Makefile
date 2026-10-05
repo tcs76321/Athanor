@@ -15,7 +15,7 @@ export CGO_ENABLED
 # tag-less binary can never silently run.
 GO_TAGS = -tags sqlite_fts5
 
-.PHONY: build test test-race test-integration integration-images vet lint check vuln tidy tidy-check fuzz cover run clean hooks bench
+.PHONY: build test test-race test-integration integration-images vet lint check vuln tidy tidy-check fuzz cover run clean hooks bench probe-micro probe probe-judge probe-report
 
 build:
 	go build $(GO_TAGS) -o bin/athanor ./cmd/athanor
@@ -69,6 +69,26 @@ vuln:
 # recorded in docs/benchmarks/engine-m1.txt.
 bench:
 	go test $(GO_TAGS) -bench=. -benchtime=10x -run=^$$ ./internal/engine/
+
+# M3-T7 quality probe (docs/probes/m3-t7-quality-probe.md). The runner
+# manages the daemon lifecycle itself, so it needs the daemon binary
+# (make build) and a running Ollama. Override the results dir with
+# PROBE_OUT=/path. `probe-micro` is the fast 3-goal (text/document/code)
+# set; `probe` is the full 10-goal matrix; `probe-judge` scores the
+# collected packets with the third-party judges; `probe-report` aggregates.
+PROBE_OUT ?= spikes/m3-t7-probe/results
+
+probe-micro:
+	go run $(GO_TAGS) ./spikes/m3-t7-probe run -only local-first-essay,md2html-readme,todo-list -out $(PROBE_OUT)
+
+probe:
+	go run $(GO_TAGS) ./spikes/m3-t7-probe run -out $(PROBE_OUT)
+
+probe-judge:
+	go run $(GO_TAGS) ./spikes/m3-t7-probe judge -out $(PROBE_OUT)
+
+probe-report:
+	go run $(GO_TAGS) ./spikes/m3-t7-probe report -out $(PROBE_OUT)
 
 # Short fuzz pass (F3-T7) over the security-sensitive parsers. The seed
 # corpora also run as ordinary tests under `make test` (Go executes each

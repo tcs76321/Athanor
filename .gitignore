@@ -7,6 +7,9 @@
 /spikes/**/main
 /spikes/**/main_modernc
 
+# M3-T7 probe run output (generated configs, daemon logs, packets, results)
+/spikes/m3-t7-probe/results/
+
 # Compiled daemon
 /bin/
 

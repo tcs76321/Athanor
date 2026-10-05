@@ -131,6 +131,29 @@ athanor unfreeze -reason "..."         # requires a reason; recorded in the even
 
 The full M1 walkthrough is [`docs/demo-m1.md`](docs/demo-m1.md) — it doubles as the Gate G1 demo script.
 
+## M3-T7 quality probe
+
+Measures the dialectical loop (N candidates + deterministic judgment) against a
+single-shot baseline on local models. Code lives in `spikes/m3-t7-probe/`; the
+protocol is [`docs/probes/m3-t7-quality-probe.md`](docs/probes/m3-t7-quality-probe.md)
+and the results skeleton is
+[`docs/probes/m3-t7-quality-probe-results.md`](docs/probes/m3-t7-quality-probe-results.md).
+
+Run `make build` first (the runner starts the daemon itself), then:
+
+```bash
+make probe-micro     # fast: 3 goals (text/document/code), both arms
+make probe           # full: 10 goals, both arms (~3-5 h on a 9B model)
+make probe-judge     # score the collected packets with gemma + granite
+make probe-report    # aggregate into results/report.md
+```
+
+Output lands under `spikes/m3-t7-probe/results/` (gitignored); override with
+`PROBE_OUT=/path`. The runner manages the daemon lifecycle, samples RSS/DB/disk
+to `soak.csv`, bounds each job, and aborts on a wall-time / disk / consecutive-
+error budget. Set `OLLAMA_MAX_LOADED_MODELS=1` and `OLLAMA_NUM_PARALLEL=1`, and
+keep the machine awake on AC (no in-tree power guard until M7).
+
 ## Repository layout
 
 | Path | Role |
