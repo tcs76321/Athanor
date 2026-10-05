@@ -114,6 +114,11 @@ execution:
     planning: "300s"
     evaluating: "600s"        # must accommodate Job Pod boot + test suite
     default: "300s"
+  # M6-T1 (ADR-0032): bounds the decomposer validator enforces on a task
+  # graph before it is persisted.
+  dag_max_tasks: 25
+  dag_max_depth: 6
+  dag_max_total_jobs: 100
 
 strategy_analysis:
   enabled: true

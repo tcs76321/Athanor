@@ -236,6 +236,13 @@ type Execution struct {
 	// the 0.7 default when the field is nil.
 	MinJudgeConfidence   *float64            `yaml:"min_judge_confidence"`
 	PhaseWallTimeBudgets map[string]Duration `yaml:"phase_wall_time_budgets"`
+	// M6-T1 DAG decomposition bounds (ADR-0032). The pure validator in
+	// internal/dag rejects a graph that exceeds any of these. Zero is
+	// replaced by a default in defaults.go; a non-positive value after
+	// defaults is a config error.
+	DAGMaxTasks     int `yaml:"dag_max_tasks"`
+	DAGMaxDepth     int `yaml:"dag_max_depth"`
+	DAGMaxTotalJobs int `yaml:"dag_max_total_jobs"`
 }
 
 // MinJudge returns the §19.3 guard threshold, applying the

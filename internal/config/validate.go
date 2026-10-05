@@ -208,6 +208,18 @@ func validateCross(c *Config) error {
 	if c.Execution.MaxReflectionLoops < 1 {
 		return fmt.Errorf("execution.max_reflection_loops must be ≥ 1, got %d", c.Execution.MaxReflectionLoops)
 	}
+	// M6-T1 (ADR-0032): the DAG bounds must be positive after defaults.
+	// A zero here until now meant "no bound" in the pure validator, but in
+	// configuration it is a typo the operator should hear about.
+	if c.Execution.DAGMaxTasks < 1 {
+		return fmt.Errorf("execution.dag_max_tasks must be ≥ 1, got %d", c.Execution.DAGMaxTasks)
+	}
+	if c.Execution.DAGMaxDepth < 1 {
+		return fmt.Errorf("execution.dag_max_depth must be ≥ 1, got %d", c.Execution.DAGMaxDepth)
+	}
+	if c.Execution.DAGMaxTotalJobs < 1 {
+		return fmt.Errorf("execution.dag_max_total_jobs must be ≥ 1, got %d", c.Execution.DAGMaxTotalJobs)
+	}
 	// M4-T2/T3/T4 (ADR-0015): the airlock thresholds are
 	// post-default values (validateCross runs after applyDefaults).
 	// MaxIngressBytes must be positive; the ratios and

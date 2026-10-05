@@ -64,6 +64,10 @@ func TestLoadValidMinimalAppliesDefaults(t *testing.T) {
 	if cfg.Execution.JudgePersona != "security" {
 		t.Errorf("JudgePersona default = %q", cfg.Execution.JudgePersona)
 	}
+	if cfg.Execution.DAGMaxTasks != 25 || cfg.Execution.DAGMaxDepth != 6 || cfg.Execution.DAGMaxTotalJobs != 100 {
+		t.Errorf("DAG bound defaults = %d/%d/%d, want 25/6/100",
+			cfg.Execution.DAGMaxTasks, cfg.Execution.DAGMaxDepth, cfg.Execution.DAGMaxTotalJobs)
+	}
 	if d, _ := cfg.Execution.PhaseBudget("evaluating"); d != 600*time.Second {
 		t.Errorf("evaluating budget default = %v", d)
 	}
