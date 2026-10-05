@@ -227,6 +227,14 @@ linters:
 documentation_required: true
 ```
 
+> **Implementation status (F3-T4).** A subset is modeled as
+> `projects.execution_json` ([ADR-0031](docs/adr/0031-project-execution-config.md)):
+> `test_command` (default `pytest -q` for `code`), `build_command`, and
+> `linters`, settable via `athanor project create` and `POST /projects`.
+> The engine runs the resolved test command in the Job Pod. `language` is
+> still closed at `python` in the internal API; `run_command` and
+> `documentation_required` are not yet consulted. See ROADMAP F3.
+
 ---
 
 ## 7. Autonomous DAG Decomposition

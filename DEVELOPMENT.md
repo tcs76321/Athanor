@@ -110,7 +110,7 @@ Daemon flags: `-config config.yaml` · `-addr 127.0.0.1:7420` · `-state-dir sta
 Client commands talk to a running daemon (default `http://127.0.0.1:7420`, override with `-addr`):
 
 ```bash
-athanor project create -name demo -archetype text -goal "..." [-criteria "a;b"]
+athanor project create -name demo -archetype code -goal "..." [-criteria "a;b"] [-repo <dir>] [-test-command "go test ./..."] [-build-command "go build ./..."]
 athanor goal submit -project <id> -goal "..."
 athanor job watch -job <id>            # prints each phase transition, then the artifact
 athanor artifacts -project <id>

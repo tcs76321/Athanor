@@ -12,6 +12,15 @@ New entries are appended at the top. Do not rewrite history.
 
 ### Foundations — F3: documentation, correctness & hardening sweep
 
+- **F3-T4.** Per-project execution config ([ADR-0031](docs/adr/0031-project-execution-config.md)):
+  migration 0016 adds `projects.execution_json`; `project.Execution`
+  (`test_command`, `build_command`, `linters`) is settable via
+  `athanor project create -test-command/-build-command` and the `execution`
+  object on `POST /projects`; `phaseEvaluate` runs the project's resolved
+  command instead of a hard-coded `pytest -q` (code projects default to
+  `pytest -q`, so existing behavior is unchanged). The execute_code language
+  set stays `python` — multi-language is a separate task.
+
 - **F3-T5.** Git-as-undo lands ([ADR-0030](docs/adr/0030-git-as-undo.md)):
   migration 0015 adds `artifacts.git_commit`; accepting an artifact commits
   it to `.athanor/artifacts/<kind>/<id>` on an `athanor/<project>` branch via
