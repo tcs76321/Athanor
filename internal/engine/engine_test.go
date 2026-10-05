@@ -25,6 +25,7 @@ import (
 	"github.com/tcs76321/athanor/internal/power"
 	"github.com/tcs76321/athanor/internal/project"
 	"github.com/tcs76321/athanor/internal/store"
+	"github.com/tcs76321/athanor/internal/strategy"
 	"github.com/tcs76321/athanor/migrations"
 )
 
@@ -470,6 +471,54 @@ func TestInterruptionInjectedAndMarked(t *testing.T) {
 	}
 	if !found {
 		t.Fatalf("no interruption_injected audit row: %v", events)
+	}
+}
+
+// TestStrategyProfileAndOutcomeCaptured proves the M6-T10 §13.3 seam: a
+// completed job has both a profile (built from the persona plan) and an
+// outcome linked to it.
+func TestStrategyProfileAndOutcomeCaptured(t *testing.T) {
+	e := newEnv(t)
+	sink := strategy.NewRepo(e.db)
+	e.eng.SetStrategySink(sink)
+	jobID := e.submit(t)
+	e.eng.Run(context.Background(), jobID)
+
+	profile, err := sink.GetProfileByJob(context.Background(), jobID)
+	if err != nil {
+		t.Fatalf("profile: %v", err)
+	}
+	if len(profile.Signature) != 6 {
+		t.Errorf("signature entries = %d, want 6", len(profile.Signature))
+	}
+	outcome, err := sink.GetOutcomeByJob(context.Background(), jobID)
+	if err != nil {
+		t.Fatalf("outcome: %v", err)
+	}
+	if !strategy.ValidResult(outcome.Result) {
+		t.Errorf("result = %q", outcome.Result)
+	}
+	if outcome.StrategyProfileID != profile.ID {
+		t.Errorf("outcome profile = %q, want %q", outcome.StrategyProfileID, profile.ID)
+	}
+}
+
+// TestStrategyOutcomeOnFailure proves a failed job still produces an outcome.
+func TestStrategyOutcomeOnFailure(t *testing.T) {
+	e := newEnvWithCfg(t, func(c *config.Config) {
+		c.Inference.OllamaURL = "http://127.0.0.1:1"
+	})
+	sink := strategy.NewRepo(e.db)
+	e.eng.SetStrategySink(sink)
+	jobID := e.submit(t)
+	e.eng.Run(context.Background(), jobID)
+
+	outcome, err := sink.GetOutcomeByJob(context.Background(), jobID)
+	if err != nil {
+		t.Fatalf("outcome: %v", err)
+	}
+	if outcome.Result != strategy.ResultFailed {
+		t.Errorf("result = %q, want failed", outcome.Result)
 	}
 }
 

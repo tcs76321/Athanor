@@ -192,6 +192,8 @@ type Engine struct {
 	tokenSink TokenSink
 	// interruptions is the §20.4 queue seam (M6-T8c). nil disables injection.
 	interruptions InterruptionStore
+	// strategy is the §13.3 capture seam (M6-T10). nil disables capture.
+	strategy StrategySink
 	// inFlight is the count of running job goroutines. The cap is
 	// read from cap.MaxConcurrentJobs() on every Enqueue; the atomic
 	// counter is the only source of truth for the running count.
@@ -284,6 +286,10 @@ func (e *Engine) SetTokenSink(s TokenSink) { e.tokenSink = s }
 // SetInterruptionStore wires the §20.4 queue (M6-T8c). A nil store disables
 // interruption injection.
 func (e *Engine) SetInterruptionStore(s InterruptionStore) { e.interruptions = s }
+
+// SetStrategySink wires §13.3 strategy capture (M6-T10). A nil sink disables
+// capture.
+func (e *Engine) SetStrategySink(s StrategySink) { e.strategy = s }
 
 // recordFailureCorrection captures a phase failure as a runtime_error
 // CorrectionRecord (§18.1). Best-effort: a capture failure is logged, never
@@ -446,6 +452,8 @@ func (e *Engine) Run(ctx context.Context, jobID string) {
 				e.stopPod(ctx, jobID)
 				// M6-T2 (ADR-0033): let the scheduler advance the graph.
 				e.signalTerminal(ctx, jobID, j.State)
+				// M6-T10 (§13.3): capture the immutable outcome.
+				e.captureOutcome(ctx, jobID)
 			}
 			return
 		}
@@ -462,6 +470,11 @@ func (e *Engine) Run(ctx context.Context, jobID string) {
 			return
 		}
 
+		// M6-T10 (§13.3): capture the strategy profile once, at start.
+		if j.State == job.StateQueued {
+			e.captureProfile(ctx, j)
+		}
+
 		if err := e.step(ctx, j); err != nil {
 			if errors.Is(err, ErrPaused) {
 				return
@@ -475,6 +488,7 @@ func (e *Engine) Run(ctx context.Context, jobID string) {
 				// records the failure as a CorrectionRecord (§18.1).
 				e.signalTerminal(ctx, jobID, job.StateFailed)
 				e.recordFailureCorrection(ctx, jobID, j.ProjectID, j.State, err)
+				e.captureOutcome(ctx, jobID)
 			}
 			e.audit(ctx, jobID, map[string]any{
 				"event": "job_failed", "state": string(j.State), "error": err.Error(),

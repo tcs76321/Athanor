@@ -34,6 +34,7 @@ import (
 	"github.com/tcs76321/athanor/internal/scheduler"
 	"github.com/tcs76321/athanor/internal/server"
 	"github.com/tcs76321/athanor/internal/store"
+	"github.com/tcs76321/athanor/internal/strategy"
 	"github.com/tcs76321/athanor/internal/ui"
 	"github.com/tcs76321/athanor/migrations"
 )
@@ -237,6 +238,9 @@ func run(configPath, addr, stateDir string) error {
 	// M6-T8c (ADR-0039): the §20.4 interruption queue.
 	interruptionsRepo := interruptions.NewRepo(st)
 	eng.SetInterruptionStore(interruptionsRepo)
+	// M6-T10 (§13.3): strategy capture. Profiles at start, outcomes at end.
+	strategyRepo := strategy.NewRepo(st)
+	eng.SetStrategySink(strategyRepo)
 	srv := server.New(version)
 	srv.SetControl(killSwitch)
 	externalAPI := api.New(projectRepo, job.NewRepository(st),
@@ -411,6 +415,14 @@ func run(configPath, addr, stateDir string) error {
 	startHITLExpiry(hitlCtx, hitlSvc, cfg.HITL.ExpiryInterval.D(), slog.Default())
 
 	eng.Recover(context.Background())
+
+	// M6-T10 (§13.3): backfill a profile + outcome for terminal jobs that
+	// predate capture. Idempotent and bounded to jobs missing a profile.
+	if n, err := strategyRepo.Backfill(context.Background()); err != nil {
+		slog.Error("strategy: backfill", "err", err)
+	} else if n > 0 {
+		slog.Info("strategy: backfilled legacy jobs", "count", n)
+	}
 
 	// M6-T2 (ADR-0033 §4): reconcile decomposed graphs after a restart.
 	// Recover restarts in-flight jobs; this pass applies any terminal job
