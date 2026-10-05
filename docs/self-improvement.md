@@ -27,13 +27,17 @@ the data plumbing (dedup, provenance, replay) is half-built.
 
 ## 2. Techniques, and which actually fit
 
-**Adapter fine-tuning (LoRA / QLoRA).** QLoRA (4-bit base + bf16 adapters) now
-fits 7–8B models in ~8–12 GB and even a 27B in <22 GB. On Apple Silicon
-(unified memory) it *works* but is memory-bandwidth-bound and slow versus a
-CUDA GPU. Implication for Athanor: **fine-tuning is feasible on the target
-hardware but is a slow, background, idle-time job** — a Daydreaming action
-(§17), not an interactive one, and realistically the smallest personas first
-(`wide`, `security`) rather than the 27B.
+**Adapter fine-tuning (LoRA / QLoRA).** QLoRA (a 4-bit base with low-rank
+adapters) brings fine-tuning of small-to-mid models into consumer memory, so the
+practical ceiling is set by the *training host*, not by a fixed model size;
+sequence length and batch size are the levers, not the parameter count. It works
+on unified-memory Apple Silicon but is memory-bandwidth-bound and slower than a
+discrete CUDA GPU. Implication for Athanor: **fine-tuning is feasible on
+commodity local hardware, but is a slow, background, idle-time job** — a
+Daydreaming action (§17), not an interactive one — and realistically the
+smallest personas first (`wide`, `security`) rather than a large model. The
+reference path is **MLX**; the corpus exporter stays trainer-agnostic so another
+runner can be added without changing `internal/`.
 
 **Preference optimization (DPO family).** DPO trains on (prompt, chosen,
 rejected) pairs. Two important variants for Athanor:

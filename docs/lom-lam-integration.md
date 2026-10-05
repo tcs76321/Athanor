@@ -212,16 +212,13 @@ deterministic validators. This is the first and safest ML step.
    tool-space is a function-calling problem, and open-weight function-calling
    bases exist (xLAM-1B/7B Apache-2.0, Granite 3.x, Qwen, Hermes-3). The goal is
    to **fine-tune** one on our own trajectories, not to invent an agent model.
-5. **A training pipeline is in scope and first-class**, and *inference and
-   training are different budgets*. The M2 Max (32 GB) already *runs* a 27B model
-   at long context; it is also the **primary training host** — QLoRA at short
-   sequence lengths (a few thousand tokens, which is all our corpus needs)
-   comfortably covers 1–14B and can reach ~27B at reduced context. The M1 Pro
-   (16 GB) is for inference/eval and ≤1–3B training. The Linux box (Ryzen 7
-   3700X, 32 GB, GTX 1080 Ti, 11 GB, **no bf16**) is a ≤3B CUDA fallback, *not*
-   the size gate. So: 1–14B specialists trained on the M2 Max via MLX, a shared
-   SQLite→JSONL exporter, and a portable training entry point rather than a
-   single-vendor notebook.
+5. **A training pipeline is in scope and first-class**, and it stays
+   **hardware-agnostic**. Inference and training are different budgets —
+   sequence length, not a fixed model size, is the real ceiling — so the
+   reference path is **MLX** on Apple Silicon for small specialists, with a
+   **trainer-agnostic SQLite→JSONL exporter** so other runners (e.g. a CUDA
+   host) can be added without touching `internal/`. We do not size the system to
+   one machine.
 6. **Ontology governance: still open.** Migrations-as-source-of-truth vs a
    user-editable ontology file. Proposed default: the schema stays code-owned;
    the ontology is a *generated, versioned view* of it, pinned by a link-checker
@@ -262,6 +259,14 @@ weights.** Ordered path:
    the Agent-Lightning pattern is the plumbing).
 3. **Keep the frozen judge as an advisor, never as the RL reward** — otherwise
    the policy learns to please the judge, i.e. reward hacking.
+
+**Feasibility.** GRPO needs no value model, and with LoRA the optimizer state is
+tiny, so a single-digit-billion policy is trainable on commodity local hardware
+(MLX on Apple Silicon is the reference path). The binding constraint is not
+memory but **rollout throughput** — each group is N real Job Pod runs, so wall
+time, not VRAM, sets the scale. Reward sparsity is the other limiter: if nearly
+every goal passes, the group advantage is flat, so the mix needs hard cases and
+deliberate negatives.
 
 ## 10. Sources
 
