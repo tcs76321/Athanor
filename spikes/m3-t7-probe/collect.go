@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -131,9 +132,41 @@ func readArtifact(stateDir, id string) (string, error) {
 	return string(b), nil
 }
 
-// fillCandidateMetrics loads the divergence candidates and computes the
-// average pairwise Jaccard diversity (T-a) for a job.
+// loadDivergenceJaccard returns the most recent `divergence_jaccard`
+// event's (avg_jaccard, candidates) for a job. The engine records one
+// event per divergence cycle; the last cycle is the one whose candidates
+// reached comparison. This is the correct per-cycle T-a metric — deriving
+// it from all proposal artifacts would mix reflection cycles (the single
+// arm can produce several one-candidate cycles, each with diversity 0).
+func loadDivergenceJaccard(db *sql.DB, jobID string) (avg float64, candidates int, ok bool) {
+	var data string
+	err := db.QueryRow(
+		`SELECT data_json FROM events
+		  WHERE job_id = ? AND json_extract(data_json, '$.event') = 'divergence_jaccard'
+		  ORDER BY id DESC LIMIT 1`, jobID).Scan(&data)
+	if err != nil {
+		return 0, 0, false
+	}
+	var m struct {
+		AvgJaccard float64 `json:"avg_jaccard"`
+		Candidates int     `json:"candidates"`
+	}
+	if err := json.Unmarshal([]byte(data), &m); err != nil {
+		return 0, 0, false
+	}
+	return m.AvgJaccard, m.Candidates, true
+}
+
+// fillCandidateMetrics records the job's candidate count and diversity
+// (T-a). It prefers the engine's per-cycle `divergence_jaccard` event and
+// falls back to computing from the proposal artifacts when the event is
+// absent (older jobs).
 func (m *jobMetrics) fillCandidateMetrics(db *sql.DB, stateDir string) error {
+	if avg, n, ok := loadDivergenceJaccard(db, m.JobID); ok {
+		m.Diversity = avg
+		m.Candidates = n
+		return nil
+	}
 	ids, err := loadCandidateIDs(db, m.JobID)
 	if err != nil {
 		return err
