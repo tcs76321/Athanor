@@ -67,8 +67,8 @@ func TestPodLifecycle_EnsureBeforeExecThenStopOnTerminal(t *testing.T) {
 	if len(stopped) != 1 || stopped[0] != jobID {
 		t.Errorf("stopped = %v, want [%s]", stopped, jobID)
 	}
-	if got := env.runner.CallCount(); got != 6 {
-		t.Errorf("runner calls = %d, want 6 (the lifecycle seam must not change exec behavior)", got)
+	if got := env.runner.CallCount(); got != 8 {
+		t.Errorf("runner calls = %d, want 8 (6 per-candidate + 2 final F4-T3 verification)", got)
 	}
 }
 
@@ -99,8 +99,8 @@ func TestPodLifecycle_EnsureErrorSoftFailsAndAudits(t *testing.T) {
 	jobID := env.submitCode(t)
 	env.eng.Run(context.Background(), jobID)
 
-	if got := env.runner.CallCount(); got != 6 {
-		t.Errorf("runner calls = %d, want 6 (an Ensure failure must not block the sub-steps)", got)
+	if got := env.runner.CallCount(); got != 8 {
+		t.Errorf("runner calls = %d, want 8 (an Ensure failure must not block the sub-steps)", got)
 	}
 	events, err := env.db.QueryEvents(context.Background(), store.EventFilter{JobID: jobID})
 	if err != nil {
@@ -127,7 +127,7 @@ func TestPodLifecycle_NilSeamIsNoOp(t *testing.T) {
 	env := newEnv(t) // podLifecycle is nil
 	jobID := env.submitCode(t)
 	env.eng.Run(context.Background(), jobID)
-	if got := env.runner.CallCount(); got != 6 {
-		t.Errorf("runner calls = %d, want 6 with a nil lifecycle seam", got)
+	if got := env.runner.CallCount(); got != 8 {
+		t.Errorf("runner calls = %d, want 8 with a nil lifecycle seam", got)
 	}
 }

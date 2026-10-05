@@ -12,6 +12,7 @@ import (
 	"github.com/tcs76321/athanor/internal/job"
 	"github.com/tcs76321/athanor/internal/llm"
 	"github.com/tcs76321/athanor/internal/policy"
+	"github.com/tcs76321/athanor/internal/project"
 	"github.com/tcs76321/athanor/internal/prompt"
 	"github.com/tcs76321/athanor/internal/verify"
 )
@@ -122,10 +123,11 @@ func (e *Engine) phaseCompare(ctx context.Context, j job.Job) error {
 	plan := e.planFor(ctx, j, p, t)
 	judgeRole := e.roleFor(plan, llm.PhaseComparing, llm.RoleSecurity)
 
-	// F4-T3: deterministic verification first. A non-decisive result falls
-	// through to the LLM judge.
+	// F4-T3/T4: run the deterministic verifiers on the final artifact in
+	// every mode. In verifier mode they decide; in llm mode they are the
+	// reward-hacking guard (a failed verifier overrides an LLM "new").
 	var ver verify.Result
-	if plan.JudgeMode == policy.JudgeVerifier {
+	{
 		var verr error
 		ver, _, verr = e.verifyCandidate(ctx, j, p, t, candidateContent, 0)
 		if verr != nil {
@@ -170,34 +172,11 @@ func (e *Engine) phaseCompare(ctx context.Context, j job.Job) error {
 	}
 	if !decided {
 		instructions := buildComparisonInstructions(final, records, previousID, previousRecords, previousAvgScore, previousAvgConf)
-		resp, err := e.call(ctx, j, p, t, llm.PhaseComparing, judgeRole, instructions,
-			[]prompt.CandidateArtifact{{Kind: "candidate", Content: candidateContent}})
+		v, err := e.runComparisonJudge(ctx, j, p, t, judgeRole, instructions, candidateContent, plan.JudgeCount)
 		if err != nil {
 			return err
 		}
-		var coercions []string
-		verdict, coercions, err = parseComparisonVerdict(resp.Content)
-		if err != nil {
-			// M3-T3 commit 3.3: the unknown-winner case is a typed error.
-			// The caller audits the downgrade and proceeds with Winner
-			// "none" (the safe default). Other parse errors hard-fail.
-			if isUnknownWinnerErr(err) {
-				e.audit(ctx, j.ID, map[string]any{
-					"event":           "comparison_unknown_winner_downgraded",
-					"raw_winner":      verdict.Winner,
-					"downgraded_to":   "none",
-					"new_artifact_id": final.ID,
-				})
-				verdict.Winner = "none"
-			} else {
-				return fmt.Errorf("parsing comparison verdict: %w", err)
-			}
-		}
-		if len(coercions) > 0 {
-			e.audit(ctx, j.ID, map[string]any{
-				"event": "verdict_coerced", "phase": string(llm.PhaseComparing), "fields": coercions,
-			})
-		}
+		verdict = v
 		judgeCalled = true
 	}
 
@@ -206,6 +185,17 @@ func (e *Engine) phaseCompare(ctx context.Context, j job.Job) error {
 	// record backing is downgraded.
 	threshold := e.cfg.Execution.MinJudge()
 	verdict = DecideWinner(verdict, records, threshold, previousID != "")
+
+	// F4-T4 reward-hacking guard: a decisive verifier failure overrides an
+	// LLM "new". A judge that accepts a candidate the parser rejected is
+	// either mistaken or gaming the rubric; the verifier wins.
+	if resolved, overridden := resolveRewardHack(verdict, ver, previousID != ""); overridden {
+		verdict = resolved
+		e.audit(ctx, j.ID, map[string]any{
+			"event": "judge_verifier_contradiction", "resolved_to": verdict.Winner,
+			"verifiers": ver.Verifiers, "reasons": ver.Reasons,
+		})
+	}
 
 	e.audit(ctx, j.ID, map[string]any{
 		"event":            "verification_decision",
@@ -275,6 +265,110 @@ func loserWinner(hasPrevious bool) string {
 		return "previous"
 	}
 	return "none"
+}
+
+// resolveRewardHack applies the F4-T4 reward-hacking guard: when a
+// deterministic verifier decisively failed but the verdict would accept the
+// new artifact, the verifier wins. It returns the (possibly rewritten)
+// verdict and whether an override occurred.
+func resolveRewardHack(verdict comparisonVerdict, ver verify.Result, hasPrevious bool) (comparisonVerdict, bool) {
+	if !ver.Decisive() || ver.Passed || verdict.Winner != "new" {
+		return verdict, false
+	}
+	verdict.Winner = loserWinner(hasPrevious)
+	verdict.Confidence = 1
+	verdict.Reasons = append(verdict.Reasons,
+		"reward-hacking guard: deterministic verifier failed; LLM 'new' overridden")
+	return verdict, true
+}
+
+// runComparisonJudge calls the LLM comparison judge. When count > 1 it
+// requires a majority (quorum, F4-T4) and audits the vote; a call that fails
+// to parse abstains rather than failing the job. When every call fails it
+// returns an error (fail loud — a judge that cannot answer is not a
+// verdict).
+func (e *Engine) runComparisonJudge(ctx context.Context, j job.Job, p project.Project, t project.Task,
+	judgeRole, instructions, content string, count int) (comparisonVerdict, error) {
+
+	if count <= 1 {
+		return e.comparisonCall(ctx, j, p, t, judgeRole, instructions, content)
+	}
+	var (
+		best    comparisonVerdict
+		gotBest bool
+		votes   []string
+	)
+	for i := 0; i < count; i++ {
+		v, err := e.comparisonCall(ctx, j, p, t, judgeRole, instructions, content)
+		if err != nil {
+			continue // abstention
+		}
+		votes = append(votes, v.Winner)
+		if !gotBest {
+			best, gotBest = v, true
+		}
+	}
+	if !gotBest {
+		return comparisonVerdict{}, fmt.Errorf("judge quorum: all %d comparison calls failed", count)
+	}
+	majority := majorityWinner(votes)
+	e.audit(ctx, j.ID, map[string]any{
+		"event": "judge_quorum", "count": count, "votes": votes, "majority": majority,
+	})
+	if majority != "" {
+		best.Winner = majority
+	}
+	return best, nil
+}
+
+// comparisonCall is one LLM comparison invocation plus its parse and
+// coercion audit.
+func (e *Engine) comparisonCall(ctx context.Context, j job.Job, p project.Project, t project.Task,
+	judgeRole, instructions, content string) (comparisonVerdict, error) {
+
+	resp, err := e.call(ctx, j, p, t, llm.PhaseComparing, judgeRole, instructions,
+		[]prompt.CandidateArtifact{{Kind: "candidate", Content: content}})
+	if err != nil {
+		return comparisonVerdict{}, err
+	}
+	v, coercions, err := parseComparisonVerdict(resp.Content)
+	if err != nil {
+		// M3-T3 commit 3.3: the unknown-winner case is a typed error. Audit
+		// the downgrade and proceed with Winner "none" (the safe default).
+		if isUnknownWinnerErr(err) {
+			e.audit(ctx, j.ID, map[string]any{
+				"event": "comparison_unknown_winner_downgraded", "raw_winner": v.Winner,
+				"downgraded_to": "none",
+			})
+			v.Winner = "none"
+		} else {
+			return comparisonVerdict{}, fmt.Errorf("parsing comparison verdict: %w", err)
+		}
+	}
+	if len(coercions) > 0 {
+		e.audit(ctx, j.ID, map[string]any{
+			"event": "verdict_coerced", "phase": string(llm.PhaseComparing), "fields": coercions,
+		})
+	}
+	return v, nil
+}
+
+// majorityWinner returns the winner with a strict majority of votes, or ""
+// when there is no majority.
+func majorityWinner(votes []string) string {
+	if len(votes) == 0 {
+		return ""
+	}
+	counts := map[string]int{}
+	for _, v := range votes {
+		counts[v]++
+	}
+	for _, w := range []string{"new", "previous", "none"} {
+		if counts[w]*2 > len(votes) {
+			return w
+		}
+	}
+	return ""
 }
 
 // buildComparisonInstructions is the prompt for the security persona.

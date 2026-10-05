@@ -406,10 +406,12 @@ func (e *Engine) decidePlan(in policy.Inputs) policy.Plan {
 		plan = e.policy.Decide(in)
 	}
 	if e.cfg != nil {
+		// F4-T4 quorum applies to the LLM judge in either mode; the
+		// operator sets execution.policy.judge_count.
+		plan.JudgeCount = e.cfg.Execution.JudgeCountValue()
 		// The operator-selected judge mode is a bound on the plan (F4-T3).
 		if e.cfg.Execution.JudgeModeSelection() == config.JudgeModeVerifier {
 			plan.JudgeMode = policy.JudgeVerifier
-			plan.JudgeCount = e.cfg.Execution.JudgeCountValue()
 		}
 		if jp := e.cfg.Execution.JudgePersona; jp != "" {
 			if plan.ModelRouting == nil {

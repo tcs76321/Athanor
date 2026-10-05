@@ -175,14 +175,14 @@ func TestRun_CodeArchetypeCallsRunner(t *testing.T) {
 	env.eng.Run(context.Background(), codeJobID)
 
 	// M3-T2 (ADR-0014): 3 candidates × (RunCode + RunTests) in
-	// `evaluating` = 6 runner calls. `synthesizing` makes zero
-	// runner calls.
-	if got := env.runner.CallCount(); got != 6 {
-		t.Errorf("runner calls = %d, want 6 (M3-T2: 3*evaluating RunCode + 3*evaluating RunTests)", got)
+	// `evaluating` = 6 runner calls, plus F4-T3's final-artifact
+	// verification in `comparing` = 8 total.
+	if got := env.runner.CallCount(); got != 8 {
+		t.Errorf("runner calls = %d, want 8 (3*evaluating RunCode + 3*evaluating RunTests + 1 final RunCode + 1 final RunTests)", got)
 	}
 	calls := env.runner.Calls()
-	if len(calls) != 6 {
-		t.Fatalf("calls = %d, want 6", len(calls))
+	if len(calls) != 8 {
+		t.Fatalf("calls = %d, want 8", len(calls))
 	}
 	codeCount, testCount := 0, 0
 	var codeCall, testCall fakeCall
@@ -196,14 +196,14 @@ func TestRun_CodeArchetypeCallsRunner(t *testing.T) {
 			testCall = c
 		}
 	}
-	if codeCount != 3 {
-		t.Errorf("RunCode calls = %d, want 3 (one per candidate, all in evaluating)", codeCount)
+	if codeCount != 4 {
+		t.Errorf("RunCode calls = %d, want 4 (3 candidates + 1 final artifact)", codeCount)
 	}
 	if codeCall.Lang != "python" {
 		t.Errorf("RunCode language = %q, want python", codeCall.Lang)
 	}
-	if testCount != 3 {
-		t.Errorf("RunTests calls = %d, want 3 (one per candidate, all in evaluating)", testCount)
+	if testCount != 4 {
+		t.Errorf("RunTests calls = %d, want 4 (3 candidates + 1 final artifact)", testCount)
 	}
 	if testCall.Cmd != "pytest -q" {
 		t.Errorf("RunTests command = %q, want pytest -q", testCall.Cmd)
