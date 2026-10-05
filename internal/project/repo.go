@@ -262,7 +262,7 @@ func (r *Repo) EnvelopeFor(ctx context.Context, jobID string, defaultEnv toolenv
 // taskColumns is the shared column list for task reads, so the schema and
 // the Go field mapping cannot drift.
 const taskColumns = `id, project_id, COALESCE(goal_id, ''), COALESCE(parent_task_id, ''),
-	title, COALESCE(description, ''), status, depends_on_json,
+	title, COALESCE(description, ''), status, task_type, depends_on_json,
 	acceptance_criteria_json, budget_json, priority, allowed_tools_json`
 
 // scanTask reads one row produced by taskColumns.
@@ -270,7 +270,7 @@ func scanTask(row interface{ Scan(...any) error }) (Task, error) {
 	var t Task
 	var depsJSON, criteriaJSON, budgetJSON, allowedToolsJSON string
 	if err := row.Scan(&t.ID, &t.ProjectID, &t.GoalID, &t.ParentID, &t.Title, &t.Description,
-		&t.Status, &depsJSON, &criteriaJSON, &budgetJSON, &t.Priority, &allowedToolsJSON); err != nil {
+		&t.Status, &t.TaskType, &depsJSON, &criteriaJSON, &budgetJSON, &t.Priority, &allowedToolsJSON); err != nil {
 		return Task{}, err
 	}
 	if depsJSON != "" && depsJSON != "[]" {

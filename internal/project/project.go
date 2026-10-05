@@ -98,7 +98,11 @@ type Task struct {
 	Title       string
 	Description string
 	Status      string
-	Criteria    []string
+	// TaskType is the §7.3 task kind (one_time | recurring | triggered).
+	// Recurring/triggered execution is backlog; every decomposed task is
+	// one_time today (migration 0017).
+	TaskType string
+	Criteria []string
 	// DependsOn lists the IDs of tasks that must finish before this one
 	// (the §7.3 dependency edges). Empty for a root task.
 	DependsOn []string

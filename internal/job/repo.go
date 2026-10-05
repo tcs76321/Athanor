@@ -91,6 +91,26 @@ func (r *Repository) Active(ctx context.Context) ([]Job, error) {
 	return out, rows.Err()
 }
 
+// ByTask returns a task's jobs, oldest first. The scheduler reads it to
+// decide whether a task already has an active or terminal job (M6-T2).
+func (r *Repository) ByTask(ctx context.Context, taskID string) ([]Job, error) {
+	rows, err := r.store.DB().QueryContext(ctx,
+		jobSelect+` WHERE task_id = ? ORDER BY rowid ASC`, taskID)
+	if err != nil {
+		return nil, fmt.Errorf("listing jobs for task: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	var out []Job
+	for rows.Next() {
+		j, err := scanJob(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, j)
+	}
+	return out, rows.Err()
+}
+
 // Terminal returns up to limit terminal jobs (completed/failed/cancelled),
 // most recently updated first. It is the M5-T6 daydream memory-consolidation
 // source's enumeration: a terminal job's event log is episodic memory (§10.2).
