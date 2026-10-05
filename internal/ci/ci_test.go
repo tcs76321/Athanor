@@ -79,6 +79,56 @@ func TestIntegrationJobRunsTheProbes(t *testing.T) {
 	}
 }
 
+// TestToolchainJobsRunTheChecks asserts ci.yml carries the F3-T1
+// toolchain jobs (`vuln`, `tidy`) wired to the matching Makefile
+// targets. Without the CI jobs the checks only exist as documented
+// intentions; without the Makefile targets the jobs have nothing to
+// call. This pins both halves, in the same spirit as the integration
+// test above.
+func TestToolchainJobsRunTheChecks(t *testing.T) {
+	root, err := findModuleRoot()
+	if err != nil {
+		t.Fatalf("finding module root: %v", err)
+	}
+	raw, err := os.ReadFile(filepath.Join(root, ".github", "workflows", "ci.yml"))
+	if err != nil {
+		t.Fatalf("reading ci.yml: %v", err)
+	}
+	var wf workflow
+	if err := yaml.Unmarshal(raw, &wf); err != nil {
+		t.Fatalf("parsing ci.yml: %v", err)
+	}
+	for job, want := range map[string]string{
+		"vuln": "make vuln",
+		"tidy": "make tidy-check",
+	} {
+		j, ok := wf.Jobs[job]
+		if !ok {
+			t.Errorf("ci.yml has no %q job; the F3-T1 toolchain check would "+
+				"no longer run. Jobs present: %v", job, jobNames(wf))
+			continue
+		}
+		var runs []string
+		for _, s := range j.Steps {
+			runs = append(runs, s.Run)
+		}
+		if !anyContains(runs, want) {
+			t.Errorf("the %q job does not run %q; steps run: %q", job, want, runs)
+		}
+	}
+
+	mk, err := os.ReadFile(filepath.Join(root, "Makefile"))
+	if err != nil {
+		t.Fatalf("reading Makefile: %v", err)
+	}
+	if _, ok := targetRecipe(string(mk), "vuln"); !ok {
+		t.Errorf("Makefile has no `vuln` target; the CI vuln job has nothing to run")
+	}
+	if _, ok := targetRecipe(string(mk), "tidy-check"); !ok {
+		t.Errorf("Makefile has no `tidy-check` target; the CI tidy job has nothing to run")
+	}
+}
+
 // TestMakefileIntegrationTargetCoversBothPackages asserts that the
 // `test-integration` recipe runs BOTH probe packages. A regression to
 // `./internal/jobpod/...` alone would silently drop the M4 gateway probes.

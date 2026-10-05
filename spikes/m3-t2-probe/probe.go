@@ -189,16 +189,16 @@ func waitTerminal(jobID string, timeout time.Duration) (*jobGetResp, error) {
 // evaluation.Repo.Create. The probe reads the array fields
 // directly so it can report rubric coverage.
 type evaluationRecordAudit struct {
-	Event            string   `json:"event"`
-	RecordID         string   `json:"record_id"`
-	ArtifactID       string   `json:"artifact_id"`
-	Score            float64  `json:"score"`
-	PassedTests      bool     `json:"passed_tests"`
-	BetterThanPrevious bool   `json:"better_than_previous"`
-	Confidence       float64  `json:"confidence"`
-	MissingCriteria  []string `json:"missing_criteria"`
-	SecurityIssues   []string `json:"security_issues"`
-	StyleIssues      []string `json:"style_issues"`
+	Event              string   `json:"event"`
+	RecordID           string   `json:"record_id"`
+	ArtifactID         string   `json:"artifact_id"`
+	Score              float64  `json:"score"`
+	PassedTests        bool     `json:"passed_tests"`
+	BetterThanPrevious bool     `json:"better_than_previous"`
+	Confidence         float64  `json:"confidence"`
+	MissingCriteria    []string `json:"missing_criteria"`
+	SecurityIssues     []string `json:"security_issues"`
+	StyleIssues        []string `json:"style_issues"`
 }
 
 // parseEvaluationRecords extracts every
@@ -232,15 +232,15 @@ func parseEvaluationRecords(events []transitionEvent) []evaluationRecordAudit {
 // record's array fields, with the per-record pass/fail and
 // better-than-previous counts.
 type rubricCoverage struct {
-	Total               int
-	Passed              int
-	Better              int
-	MissingCriteria     []string // union, deduped, sorted
-	SecurityIssues      []string // union, deduped, sorted
-	StyleIssues         []string // union, deduped, sorted
-	HasMissing          bool     // at least one record has any missing_criteria
-	HasSecurity         bool     // at least one record has any security_issues
-	HasStyle            bool     // at least one record has any style_issues
+	Total           int
+	Passed          int
+	Better          int
+	MissingCriteria []string // union, deduped, sorted
+	SecurityIssues  []string // union, deduped, sorted
+	StyleIssues     []string // union, deduped, sorted
+	HasMissing      bool     // at least one record has any missing_criteria
+	HasSecurity     bool     // at least one record has any security_issues
+	HasStyle        bool     // at least one record has any style_issues
 }
 
 // computeRubricCoverage aggregates per-record arrays into a
@@ -499,4 +499,3 @@ func main() {
 	fmt.Printf("\nwrote results table to %s\n", tablePath)
 	fmt.Println("The findings will be recorded in docs/probes/m3-t2-probe.md.")
 }
-

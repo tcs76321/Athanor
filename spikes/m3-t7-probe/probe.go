@@ -5,27 +5,27 @@
 // dialectical loop against a single-shot baseline on
 // three axes:
 //
-//   1. Calibration (T-a). For each sample, compare
-//      the LLM's reported confidence in the winning
-//      verdict against the actual outcome (the
-//      rubric-graded EvaluationRecord's score). A
-//      well-calibrated loop reports confidence that
-//      matches observed accuracy; a miscalibrated one
-//      over- or under-claims.
+//  1. Calibration (T-a). For each sample, compare
+//     the LLM's reported confidence in the winning
+//     verdict against the actual outcome (the
+//     rubric-graded EvaluationRecord's score). A
+//     well-calibrated loop reports confidence that
+//     matches observed accuracy; a miscalibrated one
+//     over- or under-claims.
 //
-//   2. Stability at T=0 (T-b). Re-run the same sample
-//      N times with a fixed seed and check that the
-//      winning artifact's score has a low variance. A
-//      stable loop produces comparable quality across
-//      runs; an unstable one is brittle to sampling
-//      noise.
+//  2. Stability at T=0 (T-b). Re-run the same sample
+//     N times with a fixed seed and check that the
+//     winning artifact's score has a low variance. A
+//     stable loop produces comparable quality across
+//     runs; an unstable one is brittle to sampling
+//     noise.
 //
-//   3. Diversity (T-c). Across the N candidate
-//      artifacts produced in one dialectical run,
-//      measure the average pairwise Jaccard distance.
-//      A diverse candidate set is the value-add of
-//      divergence; a low-diversity set means the
-//      engine is just retrying the same output.
+//  3. Diversity (T-c). Across the N candidate
+//     artifacts produced in one dialectical run,
+//     measure the average pairwise Jaccard distance.
+//     A diverse candidate set is the value-add of
+//     divergence; a low-diversity set means the
+//     engine is just retrying the same output.
 //
 // This probe is the planning + scaffolding commit. The
 // three sub-measurements land as separate spike
@@ -55,10 +55,10 @@ import (
 // (calibration, stability, diversity) all read from
 // this struct.
 type dialecticalResult struct {
-	Number     int
-	Goal       string
-	JobID      string
-	JobState   string
+	Number   int
+	Goal     string
+	JobID    string
+	JobState string
 	// ReportedConfidence is the LLM's verdict-time
 	// confidence (from the §13.1 comparison JSON).
 	ReportedConfidence float64

@@ -155,12 +155,12 @@ func TestDetectContextFloorViolationNone(t *testing.T) {
 
 func TestRenderMarkdownRow(t *testing.T) {
 	got := renderMarkdownRow(Result{
-		Number:        1,
-		Archetype:     "text",
-		Goal:          "Write a short essay about why local-first software matters.",
-		Criteria:      []string{"at least three arguments", "a conclusion"},
-		JobID:         "abc123def456",
-		JobWallTime:   90 * time.Second,
+		Number:      1,
+		Archetype:   "text",
+		Goal:        "Write a short essay about why local-first software matters.",
+		Criteria:    []string{"at least three arguments", "a conclusion"},
+		JobID:       "abc123def456",
+		JobWallTime: 90 * time.Second,
 		PhaseDur: map[string]time.Duration{
 			"planning":     20 * time.Second,
 			"diverging":    35 * time.Second,
@@ -169,9 +169,9 @@ func TestRenderMarkdownRow(t *testing.T) {
 		},
 		TotalCalls: 3, TotalPrompt: 1500, TotalCompl: 800,
 		ArtifactBytes: 1234,
-		Adherence:      "partial",
-		Usefulness:     "4",
-		Notes:          "two of three arguments, conclusion present",
+		Adherence:     "partial",
+		Usefulness:    "4",
+		Notes:         "two of three arguments, conclusion present",
 	})
 	want := "1 | text | Write a short essay about why local-first softw... | at least three arguments; a conclusion | abc12... | 90.0s | 20.0s | 35.0s | 30.0s | 5.0s | 3 | 1500 | 800 | 1234 | partial | 4 | two of three arguments, conclusion present"
 	if got != want {
@@ -214,4 +214,3 @@ func TestFtoa1(t *testing.T) {
 		}
 	}
 }
-

@@ -40,7 +40,7 @@ type IndexOptions struct {
 	Root      string
 	ProjectID string
 	// MaxFiles and MaxChunks bound a pass; ≤ 0 selects the defaults.
-	MaxFiles int
+	MaxFiles  int
 	MaxChunks int
 	// MaxSourceBytes, MaxChunkBytes, and FallbackLines are the §10.1
 	// division bounds (chunk ingestion); MaxSourceBytes is also the walker

@@ -50,6 +50,32 @@ jobs:
           version: v2.13
           args: --timeout=5m --build-tags sqlite_fts5
 
+  # Vulnerability scan (F3-T1). govulncheck is not part of `make check`
+  # (it downloads the vuln DB and is slow), so it is its own job.
+  vuln:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.27.1'
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+      - name: Vulnerability scan
+        run: make vuln
+
+  # Module-file hygiene (F3-T1): fail if `go mod tidy` would change
+  # go.mod/go.sum, so an untidy require set cannot land.
+  tidy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.27.1'
+      - name: Check go.mod/go.sum are tidy
+        run: make tidy-check
+
   # Behavioral integration probes (M2 hardening, M2-T4b exec, M4 gateway).
   # These bring up real rootless Podman pods and, for the gateway probes,
   # reach the real internet, so they are deliberately NOT part of `make

@@ -4,8 +4,6 @@ go 1.27
 
 toolchain go1.27.1
 
-require gopkg.in/yaml.v3 v3.0.1
-
 require (
 	codeberg.org/readeck/go-readability/v2 v2.1.2
 	github.com/fsnotify/fsnotify v1.10.1
@@ -16,6 +14,7 @@ require (
 	github.com/tree-sitter/tree-sitter-javascript v0.25.0
 	github.com/tree-sitter/tree-sitter-python v0.25.0
 	golang.org/x/net v0.55.0
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (

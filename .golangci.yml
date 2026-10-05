@@ -1,0 +1,20 @@
+# golangci-lint configuration (v2 schema).
+#
+# The repository previously ran golangci-lint with no config, so the
+# enabled linter set was whatever the tool's defaults happened to be on
+# any given release. This file makes the set explicit and — the reason
+# F3-T1 exists — turns on the gofmt/goimports formatter checks, which the
+# v2 default set does not run. `internal/mce/index.go` had drifted from
+# gofmt unnoticed because `make check` never checked formatting.
+#
+# `linters.default: standard` preserves the previous behavior (the
+# recommended linter set) while making it deliberate.
+version: "2"
+
+linters:
+  default: standard
+
+formatters:
+  enable:
+    - gofmt
+    - goimports

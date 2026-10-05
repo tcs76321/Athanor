@@ -100,36 +100,36 @@ func run() error {
 
 	checks := []check{
 		{
-			name:        "read-only rootfs",
-			command:     []string{"exec", containerName, "sh", "-c", "touch /etc/should-fail"},
-			wantExit:    1,
+			name:         "read-only rootfs",
+			command:      []string{"exec", containerName, "sh", "-c", "touch /etc/should-fail"},
+			wantExit:     1,
 			expectOutput: "Read-only",
 		},
 		{
-			name:    "tmpfs at /tmp writable",
-			command: []string{"exec", containerName, "sh", "-c", "echo ok > /tmp/x && cat /tmp/x"},
+			name:     "tmpfs at /tmp writable",
+			command:  []string{"exec", containerName, "sh", "-c", "echo ok > /tmp/x && cat /tmp/x"},
 			wantExit: 0,
 		},
 		{
-			name:    "token visible at /run/athanor/token",
-			command: []string{"exec", containerName, "cat", "/run/athanor/token"},
-			wantExit: 0,
+			name:         "token visible at /run/athanor/token",
+			command:      []string{"exec", containerName, "cat", "/run/athanor/token"},
+			wantExit:     0,
 			expectOutput: token,
 		},
 		{
-			name:    "no network: cannot reach external host",
-			command: []string{"exec", containerName, "wget", "-q", "-T", "3", "-O", "-", "http://example.com/"},
+			name:     "no network: cannot reach external host",
+			command:  []string{"exec", containerName, "wget", "-q", "-T", "3", "-O", "-", "http://example.com/"},
 			wantExit: 1, // wget fails (DNS or connect) on network=none
 		},
 		{
-			name:        "no host filesystem: /etc/hosts is container's own",
-			command:     []string{"exec", containerName, "cat", "/etc/hosts"},
-			wantExit:    0,
+			name:         "no host filesystem: /etc/hosts is container's own",
+			command:      []string{"exec", containerName, "cat", "/etc/hosts"},
+			wantExit:     0,
 			expectOutput: "localhost",
 		},
 		{
-			name:    "no podman socket",
-			command: []string{"exec", containerName, "sh", "-c", "ls /var/run/docker.sock /run/podman/podman.sock 2>&1"},
+			name:     "no podman socket",
+			command:  []string{"exec", containerName, "sh", "-c", "ls /var/run/docker.sock /run/podman/podman.sock 2>&1"},
 			wantExit: 1, // no socket file expected
 		},
 		{
@@ -138,8 +138,8 @@ func run() error {
 			// by reading cgroup v2's pids.max; the line ends in
 			// the limit value. Inside an alpine container, the
 			// cgroup path is /sys/fs/cgroup/pids.max.
-			name:    "pids cgroup limit set (64)",
-			command: []string{"exec", containerName, "sh", "-c", "cat /sys/fs/cgroup/pids.max 2>/dev/null || cat /sys/fs/cgroup/pids/pids.max 2>/dev/null"},
+			name:     "pids cgroup limit set (64)",
+			command:  []string{"exec", containerName, "sh", "-c", "cat /sys/fs/cgroup/pids.max 2>/dev/null || cat /sys/fs/cgroup/pids/pids.max 2>/dev/null"},
 			wantExit: 0,
 			// cgroup v2 prints "64" on the last token; v1 prints
 			// "64" on a line by itself. We accept either.

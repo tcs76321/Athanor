@@ -368,11 +368,11 @@ func waitTerminal(jobID string, timeout time.Duration) (*jobGetResp, error) {
 
 // sample is one row of the protocol's sample-goal table.
 type sample struct {
-	Number   int
-	Name     string
+	Number    int
+	Name      string
 	Archetype string
-	Goal     string
-	Criteria []string
+	Goal      string
+	Criteria  []string
 }
 
 // samples is the canonical 5-goal set from docs/probes/m1-quality-probe.md.

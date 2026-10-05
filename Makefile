@@ -15,7 +15,7 @@ export CGO_ENABLED
 # tag-less binary can never silently run.
 GO_TAGS = -tags sqlite_fts5
 
-.PHONY: build test test-race test-integration integration-images vet lint check tidy run clean hooks bench
+.PHONY: build test test-race test-integration integration-images vet lint check vuln tidy tidy-check run clean hooks bench
 
 build:
 	go build $(GO_TAGS) -o bin/athanor ./cmd/athanor
@@ -54,6 +54,13 @@ vet:
 lint:
 	golangci-lint run --timeout=5m --build-tags sqlite_fts5
 
+# Vulnerability scan (F3-T1). Requires govulncheck:
+#   go install golang.org/x/vuln/cmd/govulncheck@latest
+# Deliberately NOT part of `make check`: it downloads the vulnerability
+# database and is slow, so it runs as its own CI job instead.
+vuln:
+	govulncheck ./...
+
 # Engine throughput baseline. Runs the M1 full-chain benchmark 10x
 # against a fake Ollama (no network). The result is the comparison
 # point for M3's multi-candidate evaluation: M3 should be slower per
@@ -68,6 +75,12 @@ check: lint vet test-race
 
 tidy:
 	go mod tidy
+
+# tidy-check fails when go.mod/go.sum would change under `go mod tidy`
+# (F3-T1). CI runs it so an untidy module file cannot land silently.
+tidy-check:
+	go mod tidy
+	git diff --exit-code -- go.mod go.sum
 
 clean:
 	rm -rf state backups
