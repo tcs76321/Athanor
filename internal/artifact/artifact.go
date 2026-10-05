@@ -123,6 +123,10 @@ type Artifact struct {
 	Status       Status
 	StoragePath  string
 	ContentHash  string
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
+	// GitCommit is the SHA of the commit an accepted artifact was recorded
+	// to on an agent branch (§9.2, §14; ADR-0030). Empty until acceptance
+	// records it, or when the project has no repository.
+	GitCommit string
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }

@@ -94,7 +94,7 @@ func (a *Store) audit(ctx context.Context, tx *sql.Tx, art Artifact, data map[st
 const artifactSelect = `
 SELECT id, project_id, COALESCE(task_id, ''), COALESCE(job_id, ''), COALESCE(supersedes_id, ''),
        kind, version, status, COALESCE(storage_path, ''), COALESCE(content_hash, ''),
-       created_at, updated_at
+       COALESCE(git_commit, ''), created_at, updated_at
 FROM artifacts`
 
 // scanner is satisfied by both *sql.Row and *sql.Rows.
@@ -107,7 +107,7 @@ func scanArtifact(sc scanner) (Artifact, error) {
 	var kind, status string
 	var createdAt, updatedAt string
 	if err := sc.Scan(&art.ID, &art.ProjectID, &art.TaskID, &art.JobID, &art.SupersedesID,
-		&kind, &art.Version, &status, &art.StoragePath, &art.ContentHash,
+		&kind, &art.Version, &status, &art.StoragePath, &art.ContentHash, &art.GitCommit,
 		&createdAt, &updatedAt); err != nil {
 		return Artifact{}, fmt.Errorf("scanning artifact: %w", err)
 	}

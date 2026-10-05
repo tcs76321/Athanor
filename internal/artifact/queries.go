@@ -137,6 +137,26 @@ func (a *Store) SetStatus(ctx context.Context, id string, to Status) error {
 	})
 }
 
+// SetGitCommit records the SHA of the commit an accepted artifact was
+// recorded to on an agent branch (§9.2, §14; ADR-0030). It is a recording
+// operation, not a §9.3 status change: acceptance already happened, and
+// this attaches the Git identity that makes it undoable. The audit event
+// is appended separately from the update; the engine's caller treats a
+// missing commit as "skip + audit", never as a failed acceptance.
+func (a *Store) SetGitCommit(ctx context.Context, id, commit string) error {
+	art, err := a.Get(ctx, id)
+	if err != nil {
+		return err
+	}
+	if _, err := a.db.DB().ExecContext(ctx,
+		`UPDATE artifacts SET git_commit = ? WHERE id = ?`, nullIfEmpty(commit), id); err != nil {
+		return fmt.Errorf("recording artifact git commit: %w", err)
+	}
+	return a.audit(ctx, nil, art, map[string]any{
+		"event": "git_commit", "commit": commit,
+	})
+}
+
 // SupersedeAndAccept is M3-T3 commit 3.2: the §9.3 status
 // transition that promotes a candidate to accepted and
 // demotes the previous accepted to superseded, atomically.
