@@ -122,6 +122,12 @@ type Inference struct {
 	// generation from eating the per-call timeout (M3-T7.6b). 0 is
 	// replaced by the 4096 default; negative is rejected.
 	MaxOutputTokens int `yaml:"max_output_tokens"`
+	// Think controls a thinking-capable model's reasoning phase (Ollama's
+	// `think`). Defaults to false: a local-first deployment favors
+	// bounded, cheap calls, and a thinking model's reasoning can otherwise
+	// consume the output-token budget and leave the visible content empty
+	// (M3-T7 smoke). Set true to allow reasoning.
+	Think *bool `yaml:"think"`
 	// JudgmentSeed controls sampler-seed pinning on Temperature-0
 	// judgment calls (M3-T7.1). JudgmentSeedOff (default) leaves the
 	// seed unset so Ollama draws a random one per request;

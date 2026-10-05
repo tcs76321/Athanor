@@ -40,6 +40,12 @@ func applyDefaults(c *Config) {
 			*dst = &v
 		}
 	}
+	setFalse := func(dst **bool) {
+		if *dst == nil {
+			v := false
+			*dst = &v
+		}
+	}
 
 	if c.Version == 0 {
 		c.Version = CurrentVersion
@@ -69,6 +75,8 @@ func applyDefaults(c *Config) {
 	setStr(&c.Inference.JudgmentSeed, JudgmentSeedOff)
 	// Runaway guard (M3-T7.6b): cap output tokens per call.
 	setInt(&c.Inference.MaxOutputTokens, 4096)
+	// Thinking defaults off: bounded, cheap, deterministic local calls.
+	setFalse(&c.Inference.Think)
 
 	defaultPersona(&c.Personas.Wide, "qwen2.5:7b", 65536, 0.7)
 	defaultPersona(&c.Personas.Tall, "qwen2.5-coder:32b", 16384, 0.2)

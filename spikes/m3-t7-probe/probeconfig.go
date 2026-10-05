@@ -27,6 +27,8 @@ inference:
   ollama_url: "http://localhost:11434"
   json_format: true
   judgment_seed: %q
+  max_output_tokens: 4096
+  think: false
 
 network:
   external_api_host_allowlist:

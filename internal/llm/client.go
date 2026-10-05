@@ -55,6 +55,12 @@ type Request struct {
 	// string field. Bounding generation turns a hang into a truncation the
 	// parser rejects quickly.
 	MaxTokens int
+	// Think controls a thinking-capable model's reasoning phase (Ollama's
+	// `think`). nil leaves it to the model; false disables reasoning so
+	// the answer fits the token cap. The M3-T7 smoke found ornith-1.5:9b
+	// spent the entire num_predict budget on thinking, leaving the visible
+	// content empty.
+	Think *bool
 }
 
 // Response carries the model reply plus token accounting (§28.2).
@@ -86,6 +92,7 @@ type chatRequest struct {
 	Messages []Message `json:"messages"`
 	Stream   bool      `json:"stream"`
 	Format   any       `json:"format,omitempty"`
+	Think    *bool     `json:"think,omitempty"`
 	Options  chatOpts  `json:"options"`
 }
 
@@ -114,6 +121,7 @@ func (c *Client) Chat(ctx context.Context, req Request) (Response, error) {
 		Messages: req.Messages,
 		Stream:   false,
 		Format:   req.Format,
+		Think:    req.Think,
 		Options:  chatOpts{Temperature: req.Temperature, NumCtx: req.ContextTarget, Seed: req.Seed, NumPredict: req.MaxTokens},
 	})
 	if err != nil {
@@ -172,6 +180,7 @@ func (c *Client) Stream(ctx context.Context, req Request, onToken func(string)) 
 		Messages: req.Messages,
 		Stream:   true,
 		Format:   req.Format,
+		Think:    req.Think,
 		Options:  chatOpts{Temperature: req.Temperature, NumCtx: req.ContextTarget, Seed: req.Seed, NumPredict: req.MaxTokens},
 	})
 	if err != nil {

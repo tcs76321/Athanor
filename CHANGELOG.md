@@ -58,6 +58,11 @@ New entries are appended at the top. Do not rewrite history.
   otherwise stream for the full HTTP client timeout; the M3-T7 smoke saw
   evaluating calls hang for ~10 minutes. Bounding generation turns a hang into
   a fast truncation the parser rejects.
+- **fix(llm): disable thinking by default** (`inference.think`, default false) —
+  a thinking-capable model (`ornith-1.5:9b`) spent the entire output-token
+  budget on its reasoning phase, leaving the visible content empty
+  (`no JSON object in verdict: ""`) and failing the comparing phase.
+  `think: false` makes the model answer directly; `true` re-enables reasoning.
 
 ### M6 — Autonomy & Feedback
 

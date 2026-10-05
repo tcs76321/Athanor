@@ -505,6 +505,25 @@ func TestInference_MaxOutputTokens(t *testing.T) {
 	}
 }
 
+// TestInference_Think pins the M3-T7.6b thinking default: off, explicit
+// true honored.
+func TestInference_Think(t *testing.T) {
+	def, err := Default()
+	if err != nil {
+		t.Fatalf("Default(): %v", err)
+	}
+	if def.Inference.Think == nil || *def.Inference.Think {
+		t.Errorf("think default = %v, want explicit false", def.Inference.Think)
+	}
+	cfg, err := Parse([]byte("version: 2\ninference:\n  think: true\n"))
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	if cfg.Inference.Think == nil || !*cfg.Inference.Think {
+		t.Errorf("think = %v, want true", cfg.Inference.Think)
+	}
+}
+
 // TestInference_JudgmentSeed pins the seed-policy values: default off,
 // derived accepted, anything else rejected before defaults run.
 func TestInference_JudgmentSeed(t *testing.T) {

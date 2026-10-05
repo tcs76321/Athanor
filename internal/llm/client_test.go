@@ -93,11 +93,12 @@ func TestChatSendsPersonaOptions(t *testing.T) {
 // (json.Decode leaves absent struct fields untouched).
 func TestChatForwardsSeedAndFormat(t *testing.T) {
 	seed := int64(123456789)
+	noThink := false
 	ts, captured := fakeOllama(t, http.StatusOK, okChatResponse())
 	c := NewClient(ts.URL, nil)
 	if _, err := c.Chat(context.Background(), Request{
 		Model: "qwen3.8:27b-mlx", Messages: []Message{{Role: "user", Content: "judge"}},
-		Temperature: 0, ContextTarget: 8192, Seed: &seed, Format: "json", MaxTokens: 4096,
+		Temperature: 0, ContextTarget: 8192, Seed: &seed, Format: "json", MaxTokens: 4096, Think: &noThink,
 	}); err != nil {
 		t.Fatalf("Chat() err = %v", err)
 	}
@@ -109,6 +110,9 @@ func TestChatForwardsSeedAndFormat(t *testing.T) {
 	}
 	if captured.Options.NumPredict != 4096 {
 		t.Errorf("request num_predict = %d, want 4096", captured.Options.NumPredict)
+	}
+	if captured.Think == nil || *captured.Think {
+		t.Errorf("request think = %v, want false", captured.Think)
 	}
 
 	// Unset: a fresh server so the assertion is not masked by the values

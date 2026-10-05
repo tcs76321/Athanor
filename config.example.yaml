@@ -47,6 +47,9 @@ inference:
   # runaway guard so one degenerate generation cannot eat the call
   # timeout. 0 is replaced by this default.
   max_output_tokens: 4096
+  # think controls a thinking-capable model's reasoning phase. false
+  # (default) keeps calls bounded and cheap; true allows reasoning.
+  think: false
   # judgment_seed controls sampler-seed pinning on Temperature-0
   # judgment calls: "off" (default, random seed per request) or
   # "derived" (a deterministic seed derived from the job, phase, and
