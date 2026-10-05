@@ -16,11 +16,10 @@
 // stays focused on tool-execution containment.
 //
 // What this test does NOT cover: that the job actually *passes* on a
-// runner. Only a real CI run proves that. The job deliberately starts
-// non-blocking (`continue-on-error`) so it cannot break main before the
-// runner's rootless-Podman setup is proven, and it is promoted to a
-// required check once observed green — so this test asserts the job's
-// *presence and commands*, never its blocking flag.
+// runner. Only a real CI run proves that. F3-T7 promoted the job to a
+// required check (no `continue-on-error`) and this test now asserts that,
+// so a regression cannot quietly return the probes to advisory status.
+// F3-T1 added the `vuln` and `tidy` jobs, also asserted here.
 package ci
 
 import (
@@ -38,7 +37,8 @@ import (
 // and does not break when the workflow gains unrelated keys.
 type workflow struct {
 	Jobs map[string]struct {
-		Steps []struct {
+		ContinueOnError bool `yaml:"continue-on-error"`
+		Steps           []struct {
 			Name string `yaml:"name"`
 			Run  string `yaml:"run"`
 		} `yaml:"steps"`
@@ -65,6 +65,13 @@ func TestIntegrationJobRunsTheProbes(t *testing.T) {
 	if !ok {
 		t.Fatalf("ci.yml has no `integration` job; the behavioral probes would "+
 			"no longer run in CI. Jobs present: %v", jobNames(wf))
+	}
+	// F3-T7: the job must gate merges, not merely observe. A regression
+	// that re-adds continue-on-error would silently return the probes to
+	// advisory status.
+	if job.ContinueOnError {
+		t.Errorf("the `integration` job is continue-on-error; the behavioral "+
+			"probes must gate merges (F3-T7). Jobs present: %v", jobNames(wf))
 	}
 	var runs []string
 	for _, s := range job.Steps {

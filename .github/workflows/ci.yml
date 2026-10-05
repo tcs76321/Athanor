@@ -81,12 +81,12 @@ jobs:
   # reach the real internet, so they are deliberately NOT part of `make
   # check`. They run here on every push and PR.
   #
-  # The job starts NON-BLOCKING (continue-on-error) so the first landing
-  # cannot break main while the runner's rootless-podman setup is proven;
-  # it is flipped to required once it has been observed green on main.
+  # The job is REQUIRED (F3-T7): it carries no continue-on-error, so the
+  # behavioral probes gate merges and a regression in pod hardening, exec,
+  # or the gateway cannot land. (It was non-blocking while the runner's
+  # rootless-Podman setup was being proven; that period is over.)
   integration:
     runs-on: ubuntu-latest
-    continue-on-error: true
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
