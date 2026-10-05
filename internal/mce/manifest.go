@@ -132,3 +132,16 @@ func (m *IndexManifest) Delete(ctx context.Context, projectID, relpath string) e
 	}
 	return nil
 }
+
+// CountHash returns how many manifest rows in a project reference sourceHash.
+// It lets the indexer prune a superseded source only when no other indexed
+// path shares those content-addressed chunks (ADR-0028 §5).
+func (m *IndexManifest) CountHash(ctx context.Context, projectID, sourceHash string) (int, error) {
+	var n int
+	if err := m.db.DB().QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM indexed_sources WHERE project_id = ? AND source_hash = ?`,
+		projectID, sourceHash).Scan(&n); err != nil {
+		return 0, fmt.Errorf("mce: count manifest hash: %w", err)
+	}
+	return n, nil
+}
