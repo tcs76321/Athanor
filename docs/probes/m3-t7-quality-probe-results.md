@@ -114,12 +114,35 @@ train on its verdicts.
 
 ## Human rating sheet
 
-Unfilled. The runner's `packets/index.json` maps `packet_id` → goal/model/arm/
-run; packets are blind. Rate each artifact against its stated criteria 1–5.
+Agent read of `artifacts.md` for the text/document goals (the ones where the
+rubric has range to move). This is **not** human ground truth — it is one reader
+with reasons, to check whether the engine's ordering survives scrutiny. Code
+goals are omitted: the no-op test command leaves them uninformative.
 
-| packet_id | goal | arm | run | criteria met (Y/N) | score 1–5 | notes |
-|---|---|---|---|---|---|---|
-| | | | | | | |
+| goal | arm | run | criteria met | score 1–5 | notes |
+|---|---|---|---|---|---|
+| local-first-essay | dialectical | 1 | **N** | 2 | one blob paragraph, four reasons crammed, no separate conclusion — **engine scored it 0.97, the highest of the three** |
+| local-first-essay | dialectical | 2 | Y | 4 | three clean reasons + conclusion |
+| local-first-essay | dialectical | 3 | Y | 4 | three labeled reasons; crisp |
+| local-first-essay | single | 1 | Y | 4 | three reasons + title + conclusion; comparable |
+| md2html-readme | dialectical | 1 | Y | 3 | sections in order; title is the raw project id |
+| md2html-readme | dialectical | 2 | Y | 2 | sections out of order (License first); absurd `pip install <project-id>`; trailing LIMITATION |
+| md2html-readme | dialectical | 3 | Y | 4 | clean `# md2html`, correct order, sane install |
+| md2html-readme | single | 1 | Y | 3 | raw project id as title; absurd install name |
+| onboarding-email | dialectical | 1 | — | — | **job failed, no artifact** |
+| onboarding-email | dialectical | 2 | Y | 4 | under 120 words, one clear CTA |
+| onboarding-email | dialectical | 3 | Y | 4 | clear CTA |
+| onboarding-email | single | 1 | Y | 4 | clear CTA; comparable |
+| sunrise-alarm-brief | dialectical | 1 | Y | 4 | concrete module brief, two real risks |
+| sunrise-alarm-brief | dialectical | 2 | Y | 3 | metaphorical (sun / sleeper / alarm); inventive but off-brief |
+| sunrise-alarm-brief | dialectical | 3 | Y | 2 | self-referential ("brief document" as a part); meta LIMITATION |
+| sunrise-alarm-brief | single | 1 | Y | **5** | most professional (Alarm/Scheduler/Interface), concrete risks — **engine scored it lowest (0.92)** |
+
+**The engine's ordering does not survive the read.** Two clear inversions:
+`local-first-essay` run 1 violates the explicit "exactly three paragraphs"
+criterion yet scored highest (0.97), and `sunrise-alarm-brief` single is the best
+artifact yet scored *lowest* (0.92 vs 1.00). The candidates differ in obvious
+quality; the rubric cannot see it.
 
 ## Findings & decision
 
@@ -135,6 +158,12 @@ run; packets are blind. Rate each artifact against its stated criteria 1–5.
 4. **Reliability cost.** 3/30 dialectical jobs failed vs 0/10 single.
 5. **Judge validity: FAILED** (22%/51% error, saturation at 1.0, vacuous
    agreement). This is the headline the probe exists to produce.
+6. **The engine rubric is not merely saturated — it is wrong.** In the human
+   read, two of the largest quality gaps were scored against the grain
+   (`local-first-essay` r1 — the one artifact that violates the explicit
+   three-paragraph criterion — scored highest at 0.97; `sunrise-alarm-brief`
+   single — the best artifact — scored lowest at 0.92). So the load-bearing
+   signal failed independently of the third-party judges.
 
 **Decision.** Do not conclude either arm is better; the instrument cannot tell.
 The run is a **pilot** (N=10 goals, single arm n=1) and the task set is too easy
@@ -156,4 +185,5 @@ The run is a **pilot** (N=10 goals, single arm n=1) and the task set is too easy
 - Re-run only after: (a) real code verification (persist the candidate, run the
   real test command), (b) an independent-family verifier, (c) harder tasks that
   the model sometimes fails, (d) a judge protocol that returns a usable range.
-- Capture my artifact-level read (`artifacts.md`) as the human column — pending.
+- The agent read of `artifacts.md` is in the human rating sheet above; a true
+  human pass over `packets/index.json` is still wanted as the anchor.
