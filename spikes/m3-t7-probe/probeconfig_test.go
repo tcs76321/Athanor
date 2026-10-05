@@ -15,7 +15,7 @@ func TestProbeConfigYAML(t *testing.T) {
 	roles := []string{"wide", "tall", "main", "security", "alternative"}
 	for _, m := range probeModels {
 		for _, a := range arms {
-			raw := probeConfigYAML(m, a, "off")
+			raw := probeConfigYAML(m, a, "off", "127.0.0.1:7420")
 			var cfg map[string]any
 			if err := yaml.Unmarshal([]byte(raw), &cfg); err != nil {
 				t.Fatalf("config for %s/%s is not valid YAML: %v\n%s", m.Label, a.Name, err, raw)
@@ -24,6 +24,16 @@ func TestProbeConfigYAML(t *testing.T) {
 			// semantic validation) must accept the generated config.
 			if _, err := config.Parse([]byte(raw)); err != nil {
 				t.Fatalf("generated config for %s/%s is rejected by internal/config: %v\n%s", m.Label, a.Name, err, raw)
+			}
+			// The listen address must be in the Host-header allowlist
+			// (ADR-0011), or the daemon rejects every request.
+			netBlock, ok := cfg["network"].(map[string]any)
+			if !ok {
+				t.Fatalf("%s/%s: missing network block", m.Label, a.Name)
+			}
+			allow, _ := netBlock["external_api_host_allowlist"].([]any)
+			if len(allow) != 1 || allow[0] != "127.0.0.1:7420" {
+				t.Errorf("%s/%s: allowlist = %v, want [127.0.0.1:7420]", m.Label, a.Name, netBlock["external_api_host_allowlist"])
 			}
 
 			exec, ok := cfg["execution"].(map[string]any)
@@ -75,7 +85,7 @@ func TestProbeConfigYAML(t *testing.T) {
 // TestProbeConfigSeedPolicy pins the seed knob passed through to the
 // generated config.
 func TestProbeConfigSeedPolicy(t *testing.T) {
-	raw := probeConfigYAML(probeModels[0], arms[0], "derived")
+	raw := probeConfigYAML(probeModels[0], arms[0], "derived", "127.0.0.1:7420")
 	var cfg map[string]any
 	if err := yaml.Unmarshal([]byte(raw), &cfg); err != nil {
 		t.Fatalf("invalid YAML: %v", err)

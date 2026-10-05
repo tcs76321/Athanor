@@ -109,7 +109,7 @@ func (r *runnerConfig) runArm(m probeModel, a arm) error {
 		return err
 	}
 	cfgPath := filepath.Join(runDir, "config.yaml")
-	if err := os.WriteFile(cfgPath, []byte(probeConfigYAML(m, a, r.seedPolicy)), 0o644); err != nil {
+	if err := os.WriteFile(cfgPath, []byte(probeConfigYAML(m, a, r.seedPolicy, r.addr)), 0o644); err != nil {
 		return err
 	}
 	fmt.Printf("== %s / %s (candidates=%d runs=%d)\n", m.Label, a.Name, a.Candidates, a.Runs)
@@ -426,6 +426,7 @@ func printConfig(args []string) {
 	modelLabel := fs.String("model", probeModels[0].Label, "model label")
 	armName := fs.String("arm", arms[0].Name, "arm name (dialectical|single)")
 	seed := fs.String("seed", "off", "judgment_seed policy: off|derived")
+	addr := fs.String("addr", strings.TrimPrefix(daemonURL(), "http://"), "daemon listen address (must match the Host-header allowlist)")
 	_ = fs.Parse(args)
 
 	m, ok := modelByLabel(*modelLabel)
@@ -438,5 +439,5 @@ func printConfig(args []string) {
 		fmt.Fprintf(os.Stderr, "unknown arm %q\n", *armName)
 		os.Exit(2)
 	}
-	fmt.Print(probeConfigYAML(m, a, *seed))
+	fmt.Print(probeConfigYAML(m, a, *seed, *addr))
 }

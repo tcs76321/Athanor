@@ -8,7 +8,9 @@ import (
 // probeConfigYAML renders the daemon config for one (model, arm, seed)
 // run. It is generated rather than checked in so the arm configs cannot
 // drift from the matrix. seedPolicy is "off" or "derived"
-// (inference.judgment_seed); divergence is never seeded.
+// (inference.judgment_seed); divergence is never seeded. addr must be in
+// the external API Host-header allowlist (ADR-0011), or the daemon
+// rejects every request on a non-default port.
 //
 // Context targets: every generation/evaluation role meets §12.6's
 // coding_floor (32768) so code goals do not pause on a floor violation;
@@ -16,7 +18,7 @@ import (
 // planning. job_pod.default_tools grants the code-archetype tools the
 // engine's evaluation sub-steps require — without it, code jobs
 // soft-fail without ever running tests.
-func probeConfigYAML(m probeModel, a arm, seedPolicy string) string {
+func probeConfigYAML(m probeModel, a arm, seedPolicy, addr string) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, `version: 2
 
@@ -25,6 +27,10 @@ inference:
   ollama_url: "http://localhost:11434"
   json_format: true
   judgment_seed: %q
+
+network:
+  external_api_host_allowlist:
+    - %q
 
 personas:
   wide:
@@ -68,7 +74,7 @@ job_pod:
     - run_tests
     - lint
 `,
-		seedPolicy,
+		seedPolicy, addr,
 		m.Model, m.ContextTarget,
 		m.Model,
 		m.Model, m.ContextTarget,
