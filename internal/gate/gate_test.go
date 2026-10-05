@@ -21,10 +21,11 @@
 //     test walks the AST and asserts every `syscall.X` selector in `cmd/`
 //     references one of the allowlisted identifiers.
 //
-//  4. `os/exec` in `cmd/` is permitted only for the named file
-//     `cmd/athanor/jobpod_client.go` (M2 production Podman client). The
-//     allowlist is a single named file, not a directory or pattern; the
-//     gate is opt-in by exception, not opt-out by default.
+//  4. `os/exec` in `cmd/` is permitted only for the named files
+//     `cmd/athanor/jobpod_client.go` (M2 production Podman client) and
+//     `cmd/athanor/git_client.go` (F3-T5 Git-as-undo). The allowlist is a
+//     set of named files, not a directory or pattern; the gate is opt-in by
+//     exception, not opt-out by default.
 //
 //  5. `syscall` in `internal/airlock/paths/paths_linux.go` and
 //     `internal/airlock/paths/paths_darwin.go` is permitted only for
@@ -141,8 +142,13 @@ var allowedSyscallIdents = map[string]bool{
 // this map. The dirs map is keyed on the full repo-relative
 // path so a future contributor cannot create a sibling
 // directory and slip through.
+// F3-T5 (ADR-0030) adds cmd/athanor/git_client.go, the Git-as-undo
+// adapter that shells out to the `git` binary to commit an accepted
+// artifact on an agent branch. Like the Podman client it is Core-side,
+// never reachable from a Job Pod, and remains the only git call site.
 var allowedOsExecFiles = map[string]bool{
 	"jobpod_client.go": true,
+	"git_client.go":    true,
 }
 
 // allowedOsExecDirs are the directories in cmd/ under which
