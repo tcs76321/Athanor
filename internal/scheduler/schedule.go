@@ -64,7 +64,7 @@ func Blocked(tasks []project.Task) []string {
 				if !ok {
 					continue
 				}
-				if d.Status == project.TaskFailed || blocked[dep] {
+				if d.Status == project.TaskFailed || d.Status == project.TaskBlocked || blocked[dep] {
 					blocked[t.ID] = true
 					changed = true
 					break

@@ -3,6 +3,7 @@ package scheduler
 import (
 	"context"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/tcs76321/athanor/internal/job"
@@ -26,6 +27,11 @@ func diamondSpecs() []project.TaskSpec {
 
 func harness(t *testing.T) (*Scheduler, *project.Repo, *job.Repository, *fakeEnqueuer, string) {
 	t.Helper()
+	return harnessWith(t, diamondSpecs())
+}
+
+func harnessWith(t *testing.T, specs []project.TaskSpec) (*Scheduler, *project.Repo, *job.Repository, *fakeEnqueuer, string) {
+	t.Helper()
 	s, err := store.Open(filepath.Join(t.TempDir(), "test.db"))
 	if err != nil {
 		t.Fatal(err)
@@ -41,7 +47,7 @@ func harness(t *testing.T) (*Scheduler, *project.Repo, *job.Repository, *fakeEnq
 	if err != nil {
 		t.Fatal(err)
 	}
-	goalID, _, err := projects.CreateDAG(context.Background(), p.ID, goal, nil, diamondSpecs())
+	goalID, _, err := projects.CreateDAG(context.Background(), p.ID, goal, nil, specs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -118,7 +124,7 @@ func TestFailureBlocksDescendants(t *testing.T) {
 
 	sched.OnJobTerminal(ctx, started[0], job.StateFailed)
 	st := statuses(t, projects, goalID)
-	assertStatus(t, st, "A", project.TaskFailed)
+	assertStatus(t, st, "A", project.TaskBlocked)
 	assertStatus(t, st, "B", project.TaskBlocked)
 	assertStatus(t, st, "C", project.TaskBlocked)
 	assertStatus(t, st, "D", project.TaskBlocked)
@@ -160,7 +166,133 @@ func TestReconcilePicksUpTerminalJob(t *testing.T) {
 		t.Fatalf("Reconcile: %v", err)
 	}
 	st := statuses(t, projects, goalID)
-	assertStatus(t, st, "A", project.TaskFailed)
+	assertStatus(t, st, "A", project.TaskBlocked)
 	assertStatus(t, st, "B", project.TaskBlocked)
 	assertStatus(t, st, "D", project.TaskBlocked)
+}
+
+type fakeReDecomposer struct {
+	n     int
+	err   error
+	calls int
+}
+
+func (f *fakeReDecomposer) ReDecompose(_ context.Context, _ project.Task) (int, error) {
+	f.calls++
+	return f.n, f.err
+}
+
+type fakeEscalator struct {
+	calls  int
+	reason string
+}
+
+func (f *fakeEscalator) Escalate(_ context.Context, _ project.Task, reason string) error {
+	f.calls++
+	f.reason = reason
+	return nil
+}
+
+func budgetedSpecs() []project.TaskSpec {
+	specs := diamondSpecs()
+	specs[0].Budget.MaxJobs = 1 // A gets exactly one attempt
+	return specs
+}
+
+// §7.2 row 1 (happy retry): a transient failure is retried and can succeed.
+func TestRetryThenSuccess(t *testing.T) {
+	sched, projects, _, eng, goalID := harness(t)
+	sched.SetMaxTaskRetries(1)
+	esc := &fakeEscalator{}
+	sched.SetEscalator(esc)
+	ctx := context.Background()
+
+	started, _ := sched.Start(ctx, goalID)
+	sched.OnJobTerminal(ctx, started[0], job.StateFailed)
+	if len(eng.jobs) != 2 {
+		t.Fatalf("jobs after retry = %v, want a second attempt", eng.jobs)
+	}
+	assertStatus(t, statuses(t, projects, goalID), "A", project.TaskRunning)
+
+	sched.OnJobTerminal(ctx, eng.jobs[1], job.StateCompleted)
+	assertStatus(t, statuses(t, projects, goalID), "A", project.TaskCompleted)
+	if esc.calls != 0 {
+		t.Errorf("escalated on a successful retry")
+	}
+}
+
+// §7.2 row 1 (exhausted): after the retry budget the task blocks and escalates.
+func TestRetryExhaustionBlocksAndEscalates(t *testing.T) {
+	sched, projects, _, eng, goalID := harness(t)
+	sched.SetMaxTaskRetries(1)
+	esc := &fakeEscalator{}
+	sched.SetEscalator(esc)
+	ctx := context.Background()
+
+	started, _ := sched.Start(ctx, goalID)
+	sched.OnJobTerminal(ctx, started[0], job.StateFailed)  // retry
+	sched.OnJobTerminal(ctx, eng.jobs[1], job.StateFailed) // exhaust
+	st := statuses(t, projects, goalID)
+	assertStatus(t, st, "A", project.TaskBlocked)
+	assertStatus(t, st, "B", project.TaskBlocked)
+	assertStatus(t, st, "D", project.TaskBlocked)
+	if esc.calls != 1 {
+		t.Fatalf("escalations = %d, want 1", esc.calls)
+	}
+	if !strings.Contains(esc.reason, "retries_exhausted") {
+		t.Errorf("escalation reason = %q, want retries_exhausted", esc.reason)
+	}
+}
+
+// §7.2 row 3: a task's own budget is a tighter bound than the retry budget,
+// and exhaustion is reported as a budget cause.
+func TestBudgetExhaustionBlocksAndEscalates(t *testing.T) {
+	sched, projects, _, _, goalID := harnessWith(t, budgetedSpecs())
+	sched.SetMaxTaskRetries(5) // deliberately looser than the task budget
+	esc := &fakeEscalator{}
+	sched.SetEscalator(esc)
+	ctx := context.Background()
+
+	started, _ := sched.Start(ctx, goalID)
+	sched.OnJobTerminal(ctx, started[0], job.StateFailed)
+	assertStatus(t, statuses(t, projects, goalID), "A", project.TaskBlocked)
+	if esc.calls != 1 || !strings.Contains(esc.reason, "budget_exhausted") {
+		t.Fatalf("escalation = %d reason %q, want one budget_exhausted", esc.calls, esc.reason)
+	}
+}
+
+// §7.2 row 1: a wired ReDecomposer is attempted before escalation.
+func TestReDecompositionPrecedesEscalation(t *testing.T) {
+	sched, projects, _, _, goalID := harness(t)
+	sched.SetMaxTaskRetries(0)
+	rd := &fakeReDecomposer{n: 2}
+	esc := &fakeEscalator{}
+	sched.SetReDecomposer(rd)
+	sched.SetEscalator(esc)
+	ctx := context.Background()
+
+	started, _ := sched.Start(ctx, goalID)
+	sched.OnJobTerminal(ctx, started[0], job.StateFailed)
+	assertStatus(t, statuses(t, projects, goalID), "A", project.TaskBlocked)
+	if rd.calls != 1 {
+		t.Errorf("re-decomposer calls = %d, want 1", rd.calls)
+	}
+	if esc.calls != 0 {
+		t.Errorf("escalated despite successful re-decomposition")
+	}
+}
+
+// A cancelled job is terminal: no retry, even with retries configured.
+func TestCancelledJobFailsTaskWithoutRetry(t *testing.T) {
+	sched, projects, _, eng, goalID := harness(t)
+	sched.SetMaxTaskRetries(5)
+	sched.SetEscalator(&fakeEscalator{})
+	ctx := context.Background()
+
+	started, _ := sched.Start(ctx, goalID)
+	sched.OnJobTerminal(ctx, started[0], job.StateCancelled)
+	assertStatus(t, statuses(t, projects, goalID), "A", project.TaskFailed)
+	if len(eng.jobs) != 1 {
+		t.Errorf("jobs = %v, want no retry on cancellation", eng.jobs)
+	}
 }

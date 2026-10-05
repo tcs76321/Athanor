@@ -77,6 +77,16 @@ func TestBlockedNoFailureIsEmpty(t *testing.T) {
 	}
 }
 
+func TestBlockedPropagatesFromBlockedDep(t *testing.T) {
+	tasks := []project.Task{
+		task("A", project.TaskBlocked, ""),
+		task("B", project.TaskPending, "", "A"),
+	}
+	if got, want := Blocked(tasks), []string{"B"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("Blocked = %v, want %v", got, want)
+	}
+}
+
 func TestReadyMissingDepIsNotReady(t *testing.T) {
 	tasks := []project.Task{task("A", project.TaskPending, "", "ghost")}
 	if got := Ready(tasks); len(got) != 0 {

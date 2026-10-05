@@ -212,6 +212,7 @@ func run(configPath, addr, stateDir string) error {
 	// leaves of a decomposed goal and advances the graph as jobs finish;
 	// the engine notifies it through the terminal seam below.
 	sched := scheduler.New(projectRepo, job.NewRepository(st), eng, st)
+	sched.SetMaxTaskRetries(cfg.Execution.MaxTaskRetriesValue())
 	eng.SetOnJobTerminal(sched.OnJobTerminal)
 	srv := server.New(version)
 	srv.SetControl(killSwitch)
