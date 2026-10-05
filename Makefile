@@ -15,7 +15,7 @@ export CGO_ENABLED
 # tag-less binary can never silently run.
 GO_TAGS = -tags sqlite_fts5
 
-.PHONY: build test test-race test-integration integration-images vet lint check vuln tidy tidy-check fuzz cover run clean hooks bench probe-micro probe probe-judge probe-report probe-bundle probe-reconcile
+.PHONY: build test test-race test-integration integration-images vet lint check vuln tidy tidy-check fuzz cover run clean hooks bench probe-micro probe probe-judge probe-anchor probe-report probe-bundle probe-reconcile
 
 build:
 	go build $(GO_TAGS) -o bin/athanor ./cmd/athanor
@@ -86,6 +86,11 @@ probe:
 
 probe-judge:
 	go run $(GO_TAGS) ./spikes/m3-t7-probe judge -out $(PROBE_OUT)
+
+# F4-T4: score the human-anchor set and report per-judge reliability + rank
+# agreement. Needs the judge models pulled locally.
+probe-anchor:
+	go run $(GO_TAGS) ./spikes/m3-t7-probe anchor -out $(PROBE_OUT)/anchor
 
 probe-report:
 	go run $(GO_TAGS) ./spikes/m3-t7-probe report -out $(PROBE_OUT)

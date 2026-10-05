@@ -156,6 +156,8 @@ func main() {
 		printConfig(os.Args[2:])
 	case "judge":
 		runJudge(os.Args[2:])
+	case "anchor":
+		runAnchor(os.Args[2:])
 	case "bundle":
 		runBundle(os.Args[2:])
 	case "reconcile":
@@ -174,6 +176,7 @@ commands:
   report    aggregate collected results into report.md
   config    print the generated daemon config for one model/arm
   judge     score the collected packets with the third-party judge models
+  anchor    score the human-anchor set and report judge agreement
   bundle    write a labeled, human-readable artifact bundle (artifacts.md)
   reconcile re-read outcomes from the state DB to repair missed rows, then re-run report
 
