@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/tcs76321/athanor/internal/artifact"
+	"github.com/tcs76321/athanor/internal/corrections"
 	"github.com/tcs76321/athanor/internal/decompose"
 	"github.com/tcs76321/athanor/internal/hitl"
 	"github.com/tcs76321/athanor/internal/job"
@@ -418,4 +419,126 @@ func (a *API) handleProjectPush(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusCreated, toHITLResponse(res))
+}
+
+// correctionResponse is the JSON shape of a CorrectionRecord.
+type correctionResponse struct {
+	ID           string    `json:"id"`
+	ProjectID    string    `json:"project_id,omitempty"`
+	JobID        string    `json:"job_id,omitempty"`
+	ArtifactID   string    `json:"artifact_id,omitempty"`
+	Category     string    `json:"category"`
+	Severity     string    `json:"severity"`
+	Scope        string    `json:"scope"`
+	UserFeedback string    `json:"user_feedback,omitempty"`
+	DerivedRule  string    `json:"derived_rule"`
+	Status       string    `json:"status"`
+	AppliedCount int       `json:"applied_count"`
+	CreatedAt    time.Time `json:"created_at"`
+}
+
+func toCorrectionResponse(r corrections.Record) correctionResponse {
+	return correctionResponse{
+		ID: r.ID, ProjectID: r.ProjectID, JobID: r.JobID, ArtifactID: r.ArtifactID,
+		Category: r.Category, Severity: r.Severity, Scope: r.Scope,
+		UserFeedback: r.UserFeedback, DerivedRule: r.DerivedRule, Status: r.Status,
+		AppliedCount: r.AppliedCount, CreatedAt: r.CreatedAt,
+	}
+}
+
+type correctionRequest struct {
+	// Source defaults to user_correction; set user_rejection for a rejection.
+	Source          string `json:"source"`
+	Category        string `json:"category"`
+	Severity        string `json:"severity"`
+	Reason          string `json:"reason"`
+	DesiredBehavior string `json:"desired_behavior"`
+	Scope           string `json:"scope"`
+	ArtifactID      string `json:"artifact_id"`
+}
+
+// handleCorrectionCreate records a §18 CorrectionRecord (M6-T6, ADR-0037).
+// The §18.4 mandatory form (category, severity, reason, desired behavior,
+// scope) is enforced by the store for user-driven sources.
+func (a *API) handleCorrectionCreate(w http.ResponseWriter, r *http.Request) {
+	if a.corrections == nil {
+		writeError(w, http.StatusServiceUnavailable, "corrections are not configured")
+		return
+	}
+	var req correctionRequest
+	if !decodeBody(w, r, &req) {
+		return
+	}
+	src := corrections.Source(req.Source)
+	if src == "" {
+		src = corrections.SourceUserCorrection
+	}
+	rec, err := a.corrections.Capture(r.Context(), corrections.CaptureInput{
+		Source: src, ProjectID: r.PathValue("id"), ArtifactID: req.ArtifactID,
+		Category: req.Category, Severity: req.Severity,
+		UserFeedback: req.Reason, DerivedRule: req.DesiredBehavior, Scope: req.Scope,
+	})
+	if err != nil {
+		writeError(w, correctionStatus(err), err.Error())
+		return
+	}
+	writeJSON(w, http.StatusCreated, toCorrectionResponse(rec))
+}
+
+// handleCorrectionList lists a project's corrections.
+func (a *API) handleCorrectionList(w http.ResponseWriter, r *http.Request) {
+	if a.corrections == nil {
+		writeError(w, http.StatusServiceUnavailable, "corrections are not configured")
+		return
+	}
+	list, err := a.corrections.ListByProject(r.Context(), r.PathValue("id"))
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	out := make([]correctionResponse, 0, len(list))
+	for _, rec := range list {
+		out = append(out, toCorrectionResponse(rec))
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"corrections": out})
+}
+
+type correctionStatusRequest struct {
+	Status string `json:"status"`
+}
+
+// handleCorrectionStatus mutes/promotes a correction (§18.3).
+func (a *API) handleCorrectionStatus(w http.ResponseWriter, r *http.Request) {
+	if a.corrections == nil {
+		writeError(w, http.StatusServiceUnavailable, "corrections are not configured")
+		return
+	}
+	var req correctionStatusRequest
+	if !decodeBody(w, r, &req) {
+		return
+	}
+	id := r.PathValue("id")
+	if err := a.corrections.SetStatus(r.Context(), id, req.Status); err != nil {
+		writeError(w, correctionStatus(err), err.Error())
+		return
+	}
+	rec, err := a.corrections.Get(r.Context(), id)
+	if err != nil {
+		writeError(w, correctionStatus(err), err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, toCorrectionResponse(rec))
+}
+
+func correctionStatus(err error) int {
+	switch {
+	case errors.Is(err, corrections.ErrNotFound):
+		return http.StatusNotFound
+	case errors.Is(err, corrections.ErrIncompleteFeedback),
+		errors.Is(err, corrections.ErrInvalidField),
+		errors.Is(err, corrections.ErrUnknownSource):
+		return http.StatusBadRequest
+	default:
+		return http.StatusInternalServerError
+	}
 }

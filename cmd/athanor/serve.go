@@ -18,6 +18,7 @@ import (
 	"github.com/tcs76321/athanor/internal/artifact"
 	"github.com/tcs76321/athanor/internal/config"
 	"github.com/tcs76321/athanor/internal/control"
+	"github.com/tcs76321/athanor/internal/corrections"
 	"github.com/tcs76321/athanor/internal/engine"
 	"github.com/tcs76321/athanor/internal/evaluation"
 	"github.com/tcs76321/athanor/internal/hitl"
@@ -226,6 +227,10 @@ func run(configPath, addr, stateDir string) error {
 	// M6-T5 (ADR-0036): approval of a git_push request runs the push.
 	hitlSvc.SetApprover(hitl.TypeGitPush,
 		gitPushApprover{git: gitAdapter, projects: projectRepo, events: st}.Approve)
+	// M6-T6 (ADR-0037): CorrectionRecords. The engine reports phase failures
+	// through the sink; the API serves the §18.4 rejection form and lists.
+	correctionsRepo := corrections.NewRepo(st)
+	eng.SetCorrectionSink(correctionsRepo)
 	srv := server.New(version)
 	srv.SetControl(killSwitch)
 	externalAPI := api.New(projectRepo, job.NewRepository(st),
@@ -246,6 +251,7 @@ func run(configPath, addr, stateDir string) error {
 	externalAPI.SetDAGScheduling(cfg.Execution.DAGDecomposition)
 	externalAPI.SetHITL(hitlSvc)
 	externalAPI.SetPusher(gitPusher{projects: projectRepo, hitl: hitlRepo})
+	externalAPI.SetCorrections(correctionsRepo)
 	externalAPI.Register(srv.Mux())
 	// M2-T3 + M2-T4: internal API for Job Pods. Same loopback HTTP
 	// server, different path prefix (/internal/v1/), every route

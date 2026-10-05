@@ -12,6 +12,7 @@ import (
 
 	"github.com/tcs76321/athanor/internal/artifact"
 	"github.com/tcs76321/athanor/internal/control"
+	"github.com/tcs76321/athanor/internal/corrections"
 	"github.com/tcs76321/athanor/internal/decompose"
 	"github.com/tcs76321/athanor/internal/hitl"
 	"github.com/tcs76321/athanor/internal/job"
@@ -75,6 +76,15 @@ type Pusher interface {
 	RequestPush(ctx context.Context, projectID, remote string) (hitl.Request, error)
 }
 
+// Corrections is the surface the M6-T6 correction routes use (ADR-0037). The
+// concrete implementation is *corrections.Repo.
+type Corrections interface {
+	Capture(ctx context.Context, in corrections.CaptureInput) (corrections.Record, error)
+	ListByProject(ctx context.Context, projectID string) ([]corrections.Record, error)
+	SetStatus(ctx context.Context, id, status string) error
+	Get(ctx context.Context, id string) (corrections.Record, error)
+}
+
 // IndexSummary is an indexing pass's counters, also the route's JSON body.
 type IndexSummary struct {
 	Discovered int `json:"discovered"`
@@ -89,18 +99,19 @@ type IndexSummary struct {
 
 // API wires the HTTP handlers to the persistence and engine layers.
 type API struct {
-	projects   *project.Repo
-	jobs       *job.Repository
-	artifacts  *artifact.Store
-	engine     Engine
-	freezer    *control.KillSwitch
-	db         *store.Store
-	exporter   ManualExporter
-	indexer    IndexRunner
-	decomposer Decomposer
-	scheduler  Scheduler
-	hitl       HITL
-	pusher     Pusher
+	projects    *project.Repo
+	jobs        *job.Repository
+	artifacts   *artifact.Store
+	engine      Engine
+	freezer     *control.KillSwitch
+	db          *store.Store
+	exporter    ManualExporter
+	indexer     IndexRunner
+	decomposer  Decomposer
+	scheduler   Scheduler
+	hitl        HITL
+	pusher      Pusher
+	corrections Corrections
 	// dagScheduling mirrors execution.dag_decomposition: when true, goal
 	// submission decomposes and schedules instead of creating one task.
 	dagScheduling bool
@@ -157,6 +168,10 @@ func (a *API) SetHITL(h HITL) { a.hitl = h }
 // not wire one answers 503 on POST /projects/{id}/push.
 func (a *API) SetPusher(p Pusher) { a.pusher = p }
 
+// SetCorrections wires the M6-T6 CorrectionRecord store (ADR-0037). A daemon
+// that does not wire one answers 503 on the correction routes.
+func (a *API) SetCorrections(c Corrections) { a.corrections = c }
+
 // Register attaches all routes to mux.
 func (a *API) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /projects", a.handleProjectCreate)
@@ -177,6 +192,10 @@ func (a *API) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /hitl/{id}/decision", a.handleHITLDecision)
 	// M6-T5: a HITL-gated push request (ADR-0036).
 	mux.HandleFunc("POST /projects/{id}/push", a.handleProjectPush)
+	// M6-T6: CorrectionRecords (ADR-0037).
+	mux.HandleFunc("POST /projects/{id}/corrections", a.handleCorrectionCreate)
+	mux.HandleFunc("GET /projects/{id}/corrections", a.handleCorrectionList)
+	mux.HandleFunc("PATCH /corrections/{id}", a.handleCorrectionStatus)
 }
 
 // writeJSON is the single response writer: always JSON, always UTF-8.

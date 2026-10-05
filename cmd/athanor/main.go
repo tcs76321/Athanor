@@ -78,6 +78,10 @@ func main() {
 		err = runHITL(args[1:])
 	case "push":
 		err = runPush(args[1:])
+	case "corrections":
+		err = runCorrections(args[1:])
+	case "reject":
+		err = runReject(args[1:])
 	case "freeze":
 		err = runFreeze(args[1:])
 	case "unfreeze":
