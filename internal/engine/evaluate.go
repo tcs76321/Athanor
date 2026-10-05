@@ -266,9 +266,18 @@ func (e *Engine) evaluateCandidate(ctx context.Context, j job.Job, p project.Pro
 		return evaluation.Record{}, err
 	}
 
-	verdict, err := parseEvalVerdict(resp.Content)
+	verdict, coercions, err := parseEvalVerdict(resp.Content)
 	if err != nil {
 		return evaluation.Record{}, fmt.Errorf("parsing security verdict: %w", err)
+	}
+	if len(coercions) > 0 {
+		// M3-T7.5: the model emitted valid JSON with drifted types. The
+		// verdict was recovered by coercion; record it so the raw
+		// conformance rate is measurable rather than hidden.
+		e.audit(ctx, j.ID, map[string]any{
+			"event": "verdict_coerced", "phase": string(llm.PhaseEvaluating),
+			"artifact_id": cand.ID, "fields": coercions,
+		})
 	}
 
 	// Reconcile the LLM verdict with the deterministic test result:
@@ -301,9 +310,10 @@ func (e *Engine) evaluateCandidate(ctx context.Context, j job.Job, p project.Pro
 // parseEvalVerdict extracts the JSON the security persona produced.
 // A non-JSON response is a hard error — the §13.1 contract is
 // "structured JSON output," and a wandering verdict is not a verdict
-// at all. The brace-scan logic lives in `parseVerdictJSON`
-// (ADR-0012 follow-up); this function is a thin wrapper that
-// pins the destination type.
-func parseEvalVerdict(content string) (evalVerdict, error) {
-	return parseVerdictJSON[evalVerdict](content)
+// at all. The brace-scan logic and the tolerant type-drift coercion
+// live in `parseVerdictJSONCoerced` (ADR-0012 follow-up, M3-T7.5);
+// this function pins the destination type and returns the coercion
+// report so the caller can audit it.
+func parseEvalVerdict(content string) (evalVerdict, []string, error) {
+	return parseVerdictJSONCoerced[evalVerdict](content)
 }

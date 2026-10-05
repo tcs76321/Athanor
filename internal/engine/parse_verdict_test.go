@@ -12,6 +12,7 @@ package engine
 
 import (
 	"errors"
+	"strings"
 	"testing"
 )
 
@@ -115,5 +116,61 @@ func TestParseVerdictJSON_Generics(t *testing.T) {
 	}
 	if cv.Winner != "new" || cv.Confidence != 0.9 {
 		t.Errorf("comparisonVerdict = %+v, want winner=new confidence=0.9", cv)
+	}
+}
+
+// TestParseVerdictJSONCoerced_ConfidenceAsString reproduces the first M3-T7
+// smoke failure: the judge emitted a string where the struct wants a
+// float64. The coercion must recover the value and report the field.
+func TestParseVerdictJSONCoerced_ConfidenceAsString(t *testing.T) {
+	v, notes, err := parseVerdictJSONCoerced[evalVerdict](
+		`{"passed":true,"score":0.9,"confidence":"0.85","summary":"ok"}`)
+	if err != nil {
+		t.Fatalf("parseVerdictJSONCoerced: %v", err)
+	}
+	if v.Confidence != 0.85 {
+		t.Errorf("Confidence = %v, want 0.85", v.Confidence)
+	}
+	if len(notes) != 1 || !strings.Contains(notes[0], "confidence") {
+		t.Errorf("notes = %v, want one naming confidence", notes)
+	}
+}
+
+// TestParseVerdictJSONCoerced_StyleIssuesAsString reproduces the second
+// smoke failure: a string where the struct wants a []string.
+func TestParseVerdictJSONCoerced_StyleIssuesAsString(t *testing.T) {
+	v, notes, err := parseVerdictJSONCoerced[evalVerdict](
+		`{"style_issues":"avoid passive voice","missing_criteria":[]}`)
+	if err != nil {
+		t.Fatalf("parseVerdictJSONCoerced: %v", err)
+	}
+	if len(v.StyleIssues) != 1 || v.StyleIssues[0] != "avoid passive voice" {
+		t.Errorf("StyleIssues = %v, want one element", v.StyleIssues)
+	}
+	if len(notes) != 1 || !strings.Contains(notes[0], "style_issues") {
+		t.Errorf("notes = %v, want one naming style_issues", notes)
+	}
+}
+
+// TestParseVerdictJSONCoerced_ConformingHasNoNotes: a schema-conforming
+// verdict yields zero coercions, so the audit row is not emitted.
+func TestParseVerdictJSONCoerced_ConformingHasNoNotes(t *testing.T) {
+	_, notes, err := parseVerdictJSONCoerced[evalVerdict](
+		`{"passed":true,"score":0.9,"failed_tests":[],"missing_criteria":[],"security_issues":[],"style_issues":[],"better_than_previous":false,"confidence":0.9,"summary":"ok"}`)
+	if err != nil {
+		t.Fatalf("parseVerdictJSONCoerced: %v", err)
+	}
+	if len(notes) != 0 {
+		t.Errorf("notes = %v, want none for a conforming verdict", notes)
+	}
+}
+
+// TestParseVerdictJSONCoerced_UnrecoverableStillErrors: a type that cannot
+// be coerced (an object where a string is wanted) is still a hard error,
+// so coercion does not silently swallow garbage.
+func TestParseVerdictJSONCoerced_UnrecoverableStillErrors(t *testing.T) {
+	_, _, err := parseVerdictJSONCoerced[minimalVerdict](`{"winner":{"nested":true}}`)
+	if err == nil {
+		t.Fatal("expected an error for an uncoercible field")
 	}
 }

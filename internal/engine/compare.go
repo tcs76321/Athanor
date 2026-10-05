@@ -135,7 +135,7 @@ func (e *Engine) phaseCompare(ctx context.Context, j job.Job) error {
 		return err
 	}
 
-	verdict, err := parseComparisonVerdict(resp.Content)
+	verdict, coercions, err := parseComparisonVerdict(resp.Content)
 	if err != nil {
 		// M3-T3 commit 3.3: the unknown-winner case is
 		// now a typed error, not a silent downgrade. The
@@ -154,6 +154,12 @@ func (e *Engine) phaseCompare(ctx context.Context, j job.Job) error {
 		} else {
 			return fmt.Errorf("parsing comparison verdict: %w", err)
 		}
+	}
+	if len(coercions) > 0 {
+		// M3-T7.5: valid JSON with drifted types, recovered by coercion.
+		e.audit(ctx, j.ID, map[string]any{
+			"event": "verdict_coerced", "phase": string(llm.PhaseComparing), "fields": coercions,
+		})
 	}
 
 	// M3-T2 commit 2.5: the §19.3 deterministic guard is now
@@ -343,10 +349,10 @@ func isUnknownWinnerErr(err error) bool {
 // (ADR-0012 follow-up); this function is a thin wrapper
 // that pins the destination type, applies the §3.3
 // refinements, and returns the typed errUnknownWinner.
-func parseComparisonVerdict(content string) (comparisonVerdict, error) {
-	v, err := parseVerdictJSON[comparisonVerdict](content)
+func parseComparisonVerdict(content string) (comparisonVerdict, []string, error) {
+	v, coercions, err := parseVerdictJSONCoerced[comparisonVerdict](content)
 	if err != nil {
-		return v, err
+		return v, coercions, err
 	}
 	// M3-T3 commit 3.3: trim whitespace before the
 	// closed-set check. The M3-T1 carry-over polish item
@@ -364,7 +370,7 @@ func parseComparisonVerdict(content string) (comparisonVerdict, error) {
 		// `comparison_unknown_winner_downgraded` audit
 		// event, and proceeds with the verdict's Winner
 		// set to "none" (the safe default).
-		return v, fmt.Errorf("winner %q: %w", v.Winner, errUnknownWinner)
+		return v, coercions, fmt.Errorf("winner %q: %w", v.Winner, errUnknownWinner)
 	}
-	return v, nil
+	return v, coercions, nil
 }

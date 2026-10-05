@@ -115,7 +115,7 @@ func TestParseComparisonVerdict_TrimsWhitespace(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := parseComparisonVerdict(tc.input)
+			got, _, err := parseComparisonVerdict(tc.input)
 			if err != nil {
 				t.Fatalf("parseComparisonVerdict: %v", err)
 			}
@@ -143,7 +143,7 @@ func TestParseComparisonVerdict_UnknownWinnerReturnsTypedError(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := parseComparisonVerdict(tc.input)
+			_, _, err := parseComparisonVerdict(tc.input)
 			if err == nil {
 				t.Fatalf("parseComparisonVerdict returned nil error for unknown winner; want typed error")
 			}
