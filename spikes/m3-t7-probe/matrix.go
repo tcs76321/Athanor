@@ -14,6 +14,10 @@ type sampleGoal struct {
 	Archetype string // text | code | document
 	Goal      string
 	Criteria  []string
+	// TestCommand is the code goal's real test, run in the Job Pod after the
+	// candidate is materialized to /tmp/solution.py (F4-T0). It imports the
+	// module and asserts the goal's contract. Empty for non-code goals.
+	TestCommand string
 }
 
 // sampleGoals is the 10-goal set: M1-T8's five then M3-T2's five, with no
@@ -25,34 +29,40 @@ type sampleGoal struct {
 var sampleGoals = []sampleGoal{
 	{1, "local-first-essay", "M1-T8", "text",
 		"Write exactly three short paragraphs arguing why local-first software matters, one reason per paragraph.",
-		[]string{"exactly three paragraphs", "each paragraph names a distinct reason", "a one-sentence conclusion"}},
+		[]string{"exactly three paragraphs", "each paragraph names a distinct reason", "a one-sentence conclusion"}, ""},
 	{2, "onboarding-email", "M1-T8", "text",
 		"Draft a short onboarding email (under 120 words) for a new member of a local software club.",
-		[]string{"under 120 words", "one clear call to action"}},
+		[]string{"under 120 words", "one clear call to action"}, ""},
 	{3, "book-collection", "M1-T8", "code",
 		"Write a Python module defining a Book dataclass with title and author fields, and a function summarize(book) that returns 'title by author'.",
-		[]string{"pure stdlib", "docstrings on every public function", "a usage example"}},
+		[]string{"pure stdlib", "docstrings on every public function", "a usage example"},
+		`python -c "import solution; b=solution.Book(title='Dune',author='Herbert'); assert solution.summarize(b)=='Dune by Herbert', solution.summarize(b)"`},
 	{4, "md2html-readme", "M1-T8", "document",
 		"Write a short README with exactly three sections named Install, Usage, and License.",
-		[]string{"sections named Install, Usage, License", "a one-line project description at the top"}},
+		[]string{"sections named Install, Usage, License", "a one-line project description at the top"}, ""},
 	{5, "sunrise-alarm-brief", "M1-T8", "document",
 		"Write a short design brief with exactly three sections: Parts, Steps, and Risks.",
-		[]string{"sections named Parts, Steps, Risks", "at least two risks named"}},
+		[]string{"sections named Parts, Steps, Risks", "at least two risks named"}, ""},
 	{6, "fibonacci", "M3-T2", "code",
 		"Write a Python function fib(n) that returns the n-th Fibonacci number using recursion, with a docstring.",
-		[]string{"pure stdlib", "a docstring on the function", "a usage example"}},
+		[]string{"pure stdlib", "a docstring on the function", "a usage example"},
+		`python -c "import solution; assert solution.fib(0)==0 and solution.fib(1)==1 and solution.fib(10)==55"`},
 	{7, "stringutils", "M3-T2", "code",
 		"Write a Python module with three one-line functions: trim(s), pad(s, width), and reverse(s).",
-		[]string{"pure stdlib", "docstrings on every public function"}},
+		[]string{"pure stdlib", "docstrings on every public function"},
+		`python -c "import solution; assert solution.trim('  x  ')=='x'; assert solution.pad('x',3).startswith('x'); assert solution.reverse('abc')=='cba'"`},
 	{8, "cache-class", "M3-T2", "code",
 		"Write a Python class Cache with get(key), set(key, value), and evict(key) methods.",
-		[]string{"pure stdlib", "no TODO or FIXME placeholders"}},
+		[]string{"pure stdlib", "no TODO or FIXME placeholders"},
+		`python -c "import solution; c=solution.Cache(); c.set('a',1); assert c.get('a')==1; c.evict('a'); assert c.get('a') is None"`},
 	{9, "always-reverse", "M3-T2", "code",
 		"Write a Python function reverse(s) that returns its input reversed and must always succeed.",
-		[]string{"pure stdlib", "tests pass"}},
+		[]string{"pure stdlib", "tests pass"},
+		`python -c "import solution; assert solution.reverse('abc')=='cba'; assert solution.reverse('')==''"`},
 	{10, "todo-list", "M3-T2", "code",
 		"Write a Python class TodoList with add(task), complete(index), and pending() methods.",
-		[]string{"pure stdlib", "docstrings on every public function"}},
+		[]string{"pure stdlib", "docstrings on every public function"},
+		`python -c "import solution; t=solution.TodoList(); t.add('a'); t.add('b'); t.complete(0); assert len(t.pending())==1, t.pending()"`},
 }
 
 // arm is one experimental condition. Candidates is

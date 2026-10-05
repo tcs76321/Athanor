@@ -26,7 +26,7 @@ func (f *fakePodExecer) Exec(_ context.Context, _ string, spec jobpod.ExecSpec) 
 	return f.res, f.err
 }
 
-func TestPodExecutor_RunCode_StdinAndInterpreter(t *testing.T) {
+func TestPodExecutor_RunCode_MaterializesFileViaStdin(t *testing.T) {
 	f := &fakePodExecer{res: jobpod.ExecResult{ExitCode: 0, Stdout: "1\n"}}
 	a := newPodExecutor(f, "alpine:3.20")
 
@@ -37,9 +37,14 @@ func TestPodExecutor_RunCode_StdinAndInterpreter(t *testing.T) {
 	if res.Stdout != "1\n" {
 		t.Errorf("stdout = %q, want %q", res.Stdout, "1\n")
 	}
-	want := []string{"python", "-"}
-	if len(f.got.Command) != len(want) || f.got.Command[0] != want[0] || f.got.Command[1] != want[1] {
-		t.Errorf("command = %v, want %v", f.got.Command, want)
+	want := []string{"sh", "-c", "cat > /tmp/solution.py && python /tmp/solution.py"}
+	if len(f.got.Command) != len(want) {
+		t.Fatalf("command = %v, want %v", f.got.Command, want)
+	}
+	for i := range want {
+		if f.got.Command[i] != want[i] {
+			t.Errorf("command = %v, want %v", f.got.Command, want)
+		}
 	}
 	if string(f.got.Stdin) != "print(1)" {
 		t.Errorf("stdin = %q, want print(1) (code must travel on stdin, not argv)", f.got.Stdin)
@@ -57,7 +62,7 @@ func TestPodExecutor_RunTests_UsesShell(t *testing.T) {
 	if res.ExitCode != 1 {
 		t.Errorf("exit = %d, want 1", res.ExitCode)
 	}
-	want := []string{"sh", "-c", "pytest -q"}
+	want := []string{"sh", "-c", "cd /tmp && pytest -q"}
 	if len(f.got.Command) != len(want) {
 		t.Fatalf("command = %v, want %v", f.got.Command, want)
 	}

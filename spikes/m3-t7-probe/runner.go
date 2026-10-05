@@ -307,12 +307,15 @@ func (r *runnerConfig) runOne(g sampleGoal, m probeModel, a arm, run int, stateD
 		"name": name, "archetype": g.Archetype, "goal": g.Goal, "acceptance_criteria": g.Criteria,
 	}
 	if g.Archetype == "code" {
-		// The Job Pod runs the candidate via `python -` on stdin and never
-		// writes it to a file, so a real test command has nothing to test
-		// (`pytest -q` exits 5, failing every candidate). Use a no-op pass;
-		// code validity is judged by the LLM rubric plus execute_code.
-		// Documented limitation: docs/probes/m3-t7-quality-probe.md.
-		body["execution"] = map[string]any{"test_command": "true"}
+		// F4-T0: the Job Pod now materializes the candidate to
+		// /tmp/solution.py and runs the test command with that as cwd, so
+		// each code goal submits its real per-goal test. A code goal with no
+		// test command is a matrix bug, not a silent no-op.
+		tc := g.TestCommand
+		if tc == "" {
+			tc = "true"
+		}
+		body["execution"] = map[string]any{"test_command": tc}
 	}
 	if err := apiCall("POST", r.baseURL()+"/projects", body, &pr); err != nil {
 		mx.Error = "create project: " + err.Error()

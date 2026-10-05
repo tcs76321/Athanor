@@ -40,28 +40,42 @@ func newPodExecutor(pods podExecer, image string) *podExecutorAdapter {
 	return &podExecutorAdapter{pods: pods, image: image}
 }
 
-// RunCode pipes the source to `python -` on stdin so it never enters argv
-// or the host process table (ADR-0024 §3). The handler validates Language
-// against the closed set ("python"), so the interpreter is fixed here.
+// The Job Pod's root filesystem is read-only and its only writable location
+// is the /tmp tmpfs (ADR-0007/0024). Materializing the candidate there is what
+// lets a real test command see it. A dedicated, owner-scoped workspace mount
+// is future work (F4-T0); this is the contained first step.
+const (
+	podScratch    = "/tmp"
+	candidateFile = podScratch + "/solution.py"
+)
+
+// RunCode materializes the candidate to a file in the pod's writable scratch
+// and runs it. The source still travels on stdin (never argv or the host
+// process table, ADR-0024 §3): `cat` receives it and writes the file, then the
+// interpreter runs that file. Writing the file is what gives the subsequent
+// RunTests call something on disk to test — previously `python -` left nothing
+// behind and the real test command could only ever be a no-op. The handler
+// validates Language against the closed set ("python"), so the interpreter and
+// filename are fixed here.
 func (a *podExecutorAdapter) RunCode(ctx context.Context, jobID string, req toolenvelope.ExecuteRequest) (toolenvelope.ExecuteResult, error) {
 	return a.exec(ctx, jobID, jobpod.ExecSpec{
-		Command: []string{"python", "-"},
+		Command: []string{"sh", "-c", "cat > " + candidateFile + " && python " + candidateFile},
 		Stdin:   []byte(req.Code),
 	})
 }
 
-// RunTests runs the command through `sh -c` so a command line like
-// `pytest -q` works without the adapter parsing it into argv. The base
-// image must provide a POSIX shell (ADR-0024 §6); that is an operator
-// precondition until M7-T7 ships a Job Pod image.
+// RunTests runs the command through `sh -c` in the scratch dir so a command
+// line like `pytest -q` (or `python -c "import solution; ..."`) sees the file
+// RunCode wrote. The base image must provide a POSIX shell (ADR-0024 §6); that
+// is an operator precondition until M7-T7 ships a Job Pod image.
 func (a *podExecutorAdapter) RunTests(ctx context.Context, jobID string, req toolenvelope.ExecuteRequest) (toolenvelope.ExecuteResult, error) {
-	return a.exec(ctx, jobID, jobpod.ExecSpec{Command: []string{"sh", "-c", req.Command}})
+	return a.exec(ctx, jobID, jobpod.ExecSpec{Command: []string{"sh", "-c", "cd " + podScratch + " && " + req.Command}})
 }
 
 // Lint is RunTests with the linter command (the default `ruff check .` is
 // resolved server-side before the call).
 func (a *podExecutorAdapter) Lint(ctx context.Context, jobID string, req toolenvelope.ExecuteRequest) (toolenvelope.ExecuteResult, error) {
-	return a.exec(ctx, jobID, jobpod.ExecSpec{Command: []string{"sh", "-c", req.Command}})
+	return a.exec(ctx, jobID, jobpod.ExecSpec{Command: []string{"sh", "-c", "cd " + podScratch + " && " + req.Command}})
 }
 
 // exec is the shared body. It refuses early when no image is configured,

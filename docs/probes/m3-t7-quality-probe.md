@@ -63,14 +63,15 @@ in long prose. Goal 9 is deliberately failure-sensitive.
 | 9 | M3-T2 | code | "Write a Python function reverse(s) that returns its input reversed and must always succeed." | pure stdlib; tests pass |
 | 10 | M3-T2 | code | "Write a Python class TodoList with add(task), complete(index), and pending() methods." | pure stdlib; docstrings on every public function |
 
-**Code-goal test execution (probe limitation).** The Job Pod runs a candidate
-via `python -` on stdin and never writes it to a file, so the project's test
-command has nothing to test (`pytest -q` exits 5, failing *every* candidate).
-The probe therefore creates code projects with `execution.test_command: "true"`
-— a no-op pass — and the code signal comes from `execute_code` (does it run?)
-plus the LLM rubric. Absolute code scores are inflated by this; the N=3-vs-N=1
-comparison is unaffected because both arms share it. A production fix (persist
-the candidate to a file, then run the real test command) is out of scope here.
+**Code-goal test execution (fixed in F4-T0).** The Job Pod used to run a
+candidate via `python -` on stdin and never write it to a file, so the project's
+test command had nothing to test (`pytest -q` exits 5, failing *every*
+candidate) — the probe worked around it with `execution.test_command: "true"`,
+a no-op pass. F4-T0 changed the pod executor to materialize the candidate to
+`/tmp/solution.py` and run tests with `/tmp` as the working directory, so each
+code goal now submits a **real per-goal test** and code scores reflect
+pass/fail. The earlier full run (`results/main2`) predates this, so its code
+scores are inflated; the next run is the first with a real code signal.
 
 **Code-goal outcome capture (probe limitation, fixed).** The engine sets a job's
 `finished_at` at the terminal transition but writes its `strategy_outcomes` row
