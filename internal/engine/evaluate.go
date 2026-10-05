@@ -254,8 +254,8 @@ func (e *Engine) evaluateCandidate(ctx context.Context, j job.Job, p project.Pro
 			"Tests already ran in the Job Pod: passed=%v, failed_tests=%v. "+
 			"Apply the §19 acceptance-criteria check to the candidate content in the "+
 			"CANDIDATE ARTIFACT section above. "+
-			"Output JSON only: {passed, score, failed_tests, missing_criteria, "+
-			"security_issues, style_issues, better_than_previous, confidence, summary}.",
+			"Output JSON only: {passed, score (0.0-1.0), failed_tests, missing_criteria, "+
+			"security_issues, style_issues, better_than_previous, confidence (0.0-1.0), summary}.",
 		idx, total, cand.ID, testsPassed, failedTests)
 
 	// M5-T5: the candidate bytes are §11.2 §12 (tier 3, never evicted)
@@ -295,7 +295,18 @@ func (e *Engine) evaluateCandidate(ctx context.Context, j job.Job, p project.Pro
 
 	rec := evaluation.NewRecord(j.ID, cand.ID)
 	rec.ComparedAgainst = previousID
-	rec.Score = verdict.Score
+	// M3-T7.5b: the prompt asks for 0.0-1.0, but a model can still return a
+	// percentage (the M3-T7 smoke saw 96 next to 0.96). Normalize
+	// defensively so the §19.2 score and the strategy outcome stay on one
+	// scale regardless of the model's unit choice.
+	score := verdict.Score
+	if score > 1 {
+		score /= 100
+		if score > 1 {
+			score = 1
+		}
+	}
+	rec.Score = score
 	rec.PassedTests = verdict.Passed
 	rec.FailedTests = verdict.FailedTests
 	rec.MissingCriteria = verdict.MissingCriteria

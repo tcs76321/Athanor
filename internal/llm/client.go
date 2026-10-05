@@ -43,10 +43,11 @@ type Request struct {
 	// set it — a shared seed would collapse the N candidates into
 	// near-duplicates and destroy the value of multiple candidates.
 	Seed *int64
-	// Format requests a constrained response format. "json" enables
-	// Ollama JSON mode (ADR-0012) and is set only for the structured
-	// judgment phases (evaluating, comparing). Empty leaves it unset.
-	Format string
+	// Format requests a constrained response format: either the string
+	// "json" or a JSON-schema object (M3-T7.5b). It is set only for the
+	// structured judgment phases (evaluating, comparing); nil leaves it
+	// unset.
+	Format any
 }
 
 // Response carries the model reply plus token accounting (§28.2).
@@ -77,7 +78,7 @@ type chatRequest struct {
 	Model    string    `json:"model"`
 	Messages []Message `json:"messages"`
 	Stream   bool      `json:"stream"`
-	Format   string    `json:"format,omitempty"`
+	Format   any       `json:"format,omitempty"`
 	Options  chatOpts  `json:"options"`
 }
 

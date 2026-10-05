@@ -301,13 +301,19 @@ func (e *Engine) call(ctx context.Context, j job.Job, p project.Project, t proje
 
 	temperature := llm.ResolveTemperature(phase, persona.Temperature, nil)
 
-	// M3-T7.1 (ADR-0012): grammar-constrain the structured judgment
-	// phases, and optionally pin a derived seed on Temperature-0
-	// judgment calls. Divergence is intentionally left unseeded — a
-	// shared seed would collapse its N candidates.
-	resolvedFormat := ""
-	if e.cfg.Inference.JSONFormatEnabled() && phaseProducesJSON(phase) {
-		resolvedFormat = "json"
+	// M3-T7.5b (ADR-0012 §D6 upgrade): bind the judgment phases to a JSON
+	// schema, not just `format: "json"`. The schema grammar-constrains
+	// field types, which `"json"` does not — the M3-T7 smoke saw a string
+	// `confidence` and a string `style_issues` under `"json"`. The
+	// tolerant parser (M3-T7.5a) remains the fallback for a model or
+	// Ollama version that ignores the schema.
+	var resolvedFormat any
+	formatName := ""
+	if e.cfg.Inference.JSONFormatEnabled() {
+		if schema := verdictSchemaFor(phase); schema != nil {
+			resolvedFormat = schema
+			formatName = "json-schema"
+		}
 	}
 	var resolvedSeed *int64
 	if e.cfg.Inference.JudgmentSeed == config.JudgmentSeedDerived && temperature == 0 {
@@ -371,8 +377,9 @@ func (e *Engine) call(ctx context.Context, j job.Job, p project.Project, t proje
 		"sections": sections,
 		// M3-T7.1: generation provenance for reproducibility/audit.
 		// `seed` is null when judgment_seed is off (Ollama draws a
-		// random seed); `format` is "json" for the judgment phases.
-		"format": resolvedFormat, "seed": resolvedSeed,
+		// random seed); `format` names the constrained format
+		// ("json-schema" for the judgment phases).
+		"format": formatName, "seed": resolvedSeed,
 	})
 
 	// M6-T7 (§18.3, ADR-0038): audit which corrections were injected, at

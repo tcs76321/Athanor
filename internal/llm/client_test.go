@@ -117,8 +117,8 @@ func TestChatForwardsSeedAndFormat(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("Chat() err = %v", err)
 	}
-	if captured2.Format != "" {
-		t.Errorf("unset format = %q, want empty", captured2.Format)
+	if captured2.Format != nil {
+		t.Errorf("unset format = %v, want nil", captured2.Format)
 	}
 	if captured2.Options.Seed != nil {
 		t.Errorf("unset seed = %v, want nil", captured2.Options.Seed)
