@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/tcs76321/athanor/internal/artifact"
+	"github.com/tcs76321/athanor/internal/config"
 	"github.com/tcs76321/athanor/internal/job"
 	"github.com/tcs76321/athanor/internal/llm"
 	"github.com/tcs76321/athanor/internal/mce"
@@ -161,6 +162,18 @@ func (e *Engine) call(ctx context.Context, j job.Job, p project.Project, t proje
 	// point (context assembly) and marked injected after the call.
 	notes, noteIDs := e.pendingInterruptions(ctx, j.ID)
 
+	// M6-T11 (§13.4): only *active* insight statements reach the prompt; a
+	// proposed insight is provably inert.
+	var strategyNotes []string
+	if e.insights != nil && e.cfg != nil && config.Val(e.cfg.StrategyAnalysis.StrategyNotesInPrompts, true) {
+		stmts, err := e.insights.ActiveStatements(ctx)
+		if err != nil {
+			slog.Warn("engine: reading strategy insights", "job", j.ID, "err", err)
+		} else {
+			strategyNotes = stmts
+		}
+	}
+
 	res, err := prompt.Assemble(prompt.Input{
 		Phase:                  phase,
 		Project:                prompt.Project{Name: p.Name, Archetype: p.Archetype, Goal: p.Goal},
@@ -173,6 +186,7 @@ func (e *Engine) call(ctx context.Context, j job.Job, p project.Project, t proje
 		Candidates:             tiers.Candidates,
 		DormantIndex:           tiers.DormantIndex,
 		InterruptionNotes:      notes,
+		StrategyNotes:          strategyNotes,
 		Ceiling:                ceiling,
 		Suppressed:             suppressed,
 	})
@@ -334,6 +348,13 @@ func (e *Engine) call(ctx context.Context, j job.Job, p project.Project, t proje
 		}
 		e.audit(ctx, j.ID, map[string]any{
 			"event": "interruption_injected", "phase": phase, "count": len(noteIDs), "note_ids": noteIDs,
+		})
+	}
+
+	// M6-T11 (§13.4): audit the strategy-note injection channel.
+	if len(strategyNotes) > 0 {
+		e.auditCat(ctx, j.ID, "strategy", map[string]any{
+			"event": "strategy_notes_injected", "phase": phase, "count": len(strategyNotes),
 		})
 	}
 	return resp, nil

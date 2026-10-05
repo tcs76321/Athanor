@@ -194,6 +194,8 @@ type Engine struct {
 	interruptions InterruptionStore
 	// strategy is the §13.3 capture seam (M6-T10). nil disables capture.
 	strategy StrategySink
+	// insights is the §13.4 prompt channel (M6-T11). nil disables notes.
+	insights StrategyInsightSource
 	// inFlight is the count of running job goroutines. The cap is
 	// read from cap.MaxConcurrentJobs() on every Enqueue; the atomic
 	// counter is the only source of truth for the running count.
@@ -290,6 +292,10 @@ func (e *Engine) SetInterruptionStore(s InterruptionStore) { e.interruptions = s
 // SetStrategySink wires §13.3 strategy capture (M6-T10). A nil sink disables
 // capture.
 func (e *Engine) SetStrategySink(s StrategySink) { e.strategy = s }
+
+// SetStrategyInsightSource wires the §13.4 prompt channel (M6-T11). A nil
+// source disables strategy notes.
+func (e *Engine) SetStrategyInsightSource(s StrategyInsightSource) { e.insights = s }
 
 // recordFailureCorrection captures a phase failure as a runtime_error
 // CorrectionRecord (§18.1). Best-effort: a capture failure is logged, never

@@ -20,6 +20,13 @@ type StrategySink interface {
 	CreateOutcome(ctx context.Context, o strategy.Outcome) (strategy.Outcome, error)
 }
 
+// StrategyInsightSource is the §13.4 prompt channel (M6-T11): the statements
+// of *active* insights. Proposed insights are excluded by the source itself,
+// so they can never affect a prompt.
+type StrategyInsightSource interface {
+	ActiveStatements(ctx context.Context) ([]string, error)
+}
+
 // phaseStrategies is the engine's fixed phase → persona mapping (the persona
 // plan §13.1). Capture derives the profile from it with zero inference.
 var phaseStrategies = []struct{ phase, role string }{

@@ -522,6 +522,39 @@ func TestStrategyOutcomeOnFailure(t *testing.T) {
 	}
 }
 
+// TestProposedInsightDoesNotAffectPrompt proves the M6-T11 acceptance bar: a
+// *proposed* strategy insight is inert (never in a prompt); promoting it to
+// active makes it appear.
+func TestProposedInsightDoesNotAffectPrompt(t *testing.T) {
+	e := newEnv(t)
+	repo := strategy.NewRepo(e.db)
+	e.eng.SetStrategyInsightSource(repo)
+
+	ins, err := repo.CreateInsight(context.Background(), strategy.Insight{
+		Scope: strategy.ScopeGlobal, Polarity: strategy.PolarityWinning,
+		Pattern:   strategy.Pattern{Feature: "diverging.persona", Value: "alternative", Context: "archetype=code"},
+		Statement: "UNIQUE_MARKER prefer alternative divergence", Status: strategy.InsightProposed,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	job1 := e.submit(t)
+	e.eng.Run(context.Background(), job1)
+	if strings.Contains(e.ollama.lastPrompt, "UNIQUE_MARKER") {
+		t.Fatal("proposed insight leaked into a prompt")
+	}
+
+	if err := repo.SetInsightStatus(context.Background(), ins.ID, strategy.InsightActive); err != nil {
+		t.Fatal(err)
+	}
+	job2 := e.submit(t)
+	e.eng.Run(context.Background(), job2)
+	if !strings.Contains(e.ollama.lastPrompt, "UNIQUE_MARKER") {
+		t.Fatal("active insight missing from the prompt")
+	}
+}
+
 // fixedCap is a ConcurrencyCap that returns a fixed value, used by
 // M1-T8.4 tests to drive the engine's concurrency behavior.
 type fixedCap struct{ n int }
