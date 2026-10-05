@@ -44,8 +44,12 @@ type Features struct {
 	Archetype     string
 	CriteriaCount int
 	// Difficulty is a planning-phase hint ("easy" | "hard" | "", unknown).
-	// Default ignores it; it is the input F4-T2 (adaptive compute) will use.
+	// Default ignores it; Adaptive uses it first.
 	Difficulty string
+	// RecentSamples and RecentAcceptRate summarize prior StrategyOutcomes for
+	// this task class (0 samples = no history). Adaptive's second signal.
+	RecentSamples    int
+	RecentAcceptRate float64
 }
 
 // Limits are the operator-configured ceilings (ADR-0044 rule 4). A policy may
