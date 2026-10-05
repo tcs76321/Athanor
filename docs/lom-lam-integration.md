@@ -207,21 +207,63 @@ deterministic validators. This is the first and safest ML step.
    the learned tiers are the verifier and (later) the actor.
 3. **Verifier first.** The first ML investment is a distilled structured verifier
    behind the F4 seam, with the frozen judge as teacher and backstop.
-4. **Open tool selection: yes** — so a LAM is justified. The catch: there is no
-   usable open-weight LAM to adopt today, so this is a *train-it-ourselves* goal,
-   not an integration of someone else's model.
-5. **A training pipeline is in scope and first-class.** It must improve over time
-   and run on the hardware we actually own: an M1 Pro (16 GB) and an M2 Max
-   (32 GB) — the Apple-Silicon MLX/Metal path — and a Linux box (Ryzen 7 3700X,
-   32 GB, GTX 1080 Ti, 11 GB VRAM) — the CUDA path. That means small
-   QLoRA-class base models (≤3B on the 1080 Ti), shared corpus exporters, and a
-   portable training entry point rather than a single-vendor notebook.
+4. **Open tool selection: yes** — so a LAM is justified. There is no open-weight
+   *general GUI* LAM, but that is the wrong target: Athanor's closed text
+   tool-space is a function-calling problem, and open-weight function-calling
+   bases exist (xLAM-1B/7B Apache-2.0, Granite 3.x, Qwen, Hermes-3). The goal is
+   to **fine-tune** one on our own trajectories, not to invent an agent model.
+5. **A training pipeline is in scope and first-class**, and *inference and
+   training are different budgets*. The M2 Max (32 GB) already *runs* a 27B model
+   at long context; it is also the **primary training host** — QLoRA at short
+   sequence lengths (a few thousand tokens, which is all our corpus needs)
+   comfortably covers 1–14B and can reach ~27B at reduced context. The M1 Pro
+   (16 GB) is for inference/eval and ≤1–3B training. The Linux box (Ryzen 7
+   3700X, 32 GB, GTX 1080 Ti, 11 GB, **no bf16**) is a ≤3B CUDA fallback, *not*
+   the size gate. So: 1–14B specialists trained on the M2 Max via MLX, a shared
+   SQLite→JSONL exporter, and a portable training entry point rather than a
+   single-vendor notebook.
 6. **Ontology governance: still open.** Migrations-as-source-of-truth vs a
    user-editable ontology file. Proposed default: the schema stays code-owned;
    the ontology is a *generated, versioned view* of it, pinned by a link-checker
    test (mountains = schema, rivers = the ontology view).
 
-## 9. Sources
+## 9. RLVR — are we doing it already?
+
+**RLVR (RL with verifiable rewards)** trains a policy against a *programmatic*
+reward — the code runs, the tests pass, the schema validates, a constraint
+holds — rather than a learned preference model. It is the core of DeepSeek-R1's
+GRPO, Tülu 3, and most 2025–26 reasoning work.
+
+Athanor already has the two hardest ingredients:
+
+- **Verifiable rewards.** `execute_code` (does it run), the test command, lint,
+  JSON/schema validation, path containment, DAG acyclicity, budget bounds. Note
+  what is *not* on that list: the rubric and the `security` persona are learned,
+  gameable rewards, and must stay out of the RLVR reward.
+- **A sandboxed, resettable environment**: the Job Pod. That is the expensive
+  part of any RL loop, and we already ship it.
+
+What the engine does *now* is **inference-time** search, not weight updates:
+divergence produces N candidates, deterministic evaluation + comparison picks a
+winner. Best-of-N against a verifier is literally the inference-time form of RL
+("RL without the gradient"). The training form is **GRPO**, and the mapping is
+almost embarrassing: a divergence cycle *is* a GRPO group — N samples from one
+prompt, a group-relative advantage from the verifier, no value model needed. The
+engine is already emitting the data structure GRPO wants.
+
+So the honest answer to "are we doing it already?": **we have the reward and the
+environment, and we do the one-step version at inference; we do not yet update
+weights.** Ordered path:
+
+1. **Offline first — DPO/KTO** on accepted vs rejected artifacts: cheap, stable,
+   fits a 1–3B model, no environment loop.
+2. **Then online GRPO** using only the deterministic reward, reusing the
+   divergence group as the rollout group (M7 Daydreaming is the natural host;
+   the Agent-Lightning pattern is the plumbing).
+3. **Keep the frozen judge as an advisor, never as the RL reward** — otherwise
+   the policy learns to please the judge, i.e. reward hacking.
+
+## 10. Sources
 
 - Yonyou AI Lab, *Construct, Align, and Reason: Large Ontology Models for
   Enterprise Knowledge Management* (arXiv 2602.00029; 2604.09608).
