@@ -38,6 +38,11 @@ inference:
   # (evaluating, comparing) via Ollama JSON mode (ADR-0012). true by
   # default; set false only for a controlled format ablation (M3-T7).
   json_format: true
+  # json_schema upgrades the judgment phases from format:"json" to a JSON
+  # schema (ADR-0042). Off by default: schema-constrained decoding can run
+  # away on weaker models, and the tolerant verdict parser handles type
+  # drift without it.
+  json_schema: false
   # judgment_seed controls sampler-seed pinning on Temperature-0
   # judgment calls: "off" (default, random seed per request) or
   # "derived" (a deterministic seed derived from the job, phase, and

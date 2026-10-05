@@ -471,6 +471,26 @@ func TestInference_JSONFormat(t *testing.T) {
 	}
 }
 
+// TestInference_JSONSchema pins M3-T7.5b's opt-in schema knob: off by
+// default (the smoke showed it can hang a weak model), explicit true
+// honored.
+func TestInference_JSONSchema(t *testing.T) {
+	def, err := Default()
+	if err != nil {
+		t.Fatalf("Default(): %v", err)
+	}
+	if def.Inference.JSONSchema {
+		t.Error("json_schema default = true, want false")
+	}
+	cfg, err := Parse([]byte("version: 2\ninference:\n  json_schema: true\n"))
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	if !cfg.Inference.JSONSchema {
+		t.Error("explicit json_schema: true resolved to false")
+	}
+}
+
 // TestInference_JudgmentSeed pins the seed-policy values: default off,
 // derived accepted, anything else rejected before defaults run.
 func TestInference_JudgmentSeed(t *testing.T) {

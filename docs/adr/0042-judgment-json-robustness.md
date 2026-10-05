@@ -59,15 +59,20 @@ Coercion handles only the drift shapes seen in practice; an uncoercible value
 (e.g. an object where a string is wanted) is still a hard `VerdictParseError`,
 so tolerance never swallows garbage.
 
-### D2. Schema-constrained `format`
+### D2. Schema-constrained `format` (opt-in, default off)
 
-`llm.Request.Format` becomes `any`, and the engine sends a **JSON schema** for
-the two judgment phases (`internal/engine/verdict_schema.go`) instead of the
-string `"json"`. Ollama's structured-output mode grammar-constrains the
-response to the schema, so field *types* are enforced model-side, not merely
-JSON well-formedness. `inference.json_format` still gates it (default true);
-disabling it leaves the tolerant parser as the only defense. The brace scanner
-and D1 remain the fallback for models or Ollama versions that ignore the schema.
+`llm.Request.Format` becomes `any`, and the engine can send a **JSON schema**
+for the two judgment phases (`internal/engine/verdict_schema.go`), so Ollama
+grammar-constrains field *types*, not merely JSON well-formedness.
+
+It is **off by default** (`inference.json_schema: false`). The M3-T7 smoke
+found that schema-constrained decoding on `ornith-1.5:9b` can run away on an
+unbounded string field: one candidate evaluation generated for over seven
+minutes with no output, where `format:"json"` returns in ~30 s on the same
+input. Because D1 already handles the type drift the schema was meant to
+prevent, the default stays `format:"json"`; the schema is an opt-in
+experiment. Promoting it would first require bounding generation (e.g. a
+`num_predict` cap or bounded string fields in the schema).
 
 ### D3. Pinned score scale
 
@@ -86,9 +91,10 @@ scale regardless of the model's unit choice.
 - The `verdict_coerced` rate is a first-class M3-T7 metric: it distinguishes
   "the model conforms" from "the parser cleaned up", which the probe reports
   per model.
-- The schema is best-effort. A model or Ollama version that ignores the schema
-  degrades to D1, not to failure; a genuinely unreadable verdict is still a
-  hard error and still routes to `failed`.
+- Schema-constrained decoding is available but off by default, because the
+  smoke showed it can hang on a weak model. A model or Ollama version that
+  ignores the schema degrades to D1, not to failure; a genuinely unreadable
+  verdict is still a hard error and still routes to `failed`.
 
 ## Alternatives rejected
 

@@ -109,6 +109,14 @@ type Inference struct {
 	// explicit false, which the M3-T7 quality probe uses for a format
 	// ablation. Resolve via JSONFormatEnabled.
 	JSONFormat *bool `yaml:"json_format"`
+	// JSONSchema upgrades the judgment phases from `format: "json"` to a
+	// JSON schema (M3-T7.5b, ADR-0042). Off by default: the M3-T7 smoke
+	// found that schema-constrained decoding on ornith-1.5:9b can run away
+	// on an unbounded string field (one candidate ran >7 min with no
+	// output), whereas `"json"` returns promptly. The tolerant verdict
+	// parser (M3-T7.5a) handles the type drift the schema was meant to
+	// prevent, so the schema is an opt-in experiment, not the default.
+	JSONSchema bool `yaml:"json_schema"`
 	// JudgmentSeed controls sampler-seed pinning on Temperature-0
 	// judgment calls (M3-T7.1). JudgmentSeedOff (default) leaves the
 	// seed unset so Ollama draws a random one per request;

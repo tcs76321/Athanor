@@ -1585,6 +1585,9 @@ inference:
   # M3-T7.1 (ADR-0012): grammar-constrain the structured judgment
   # phases via Ollama JSON mode; default on.
   json_format: true
+  # M3-T7.5b (ADR-0042): opt in to JSON-schema-constrained judgment
+  # (stronger typing, but can run away on weak models); default off.
+  json_schema: false
   # M3-T7.1: sampler-seed policy on Temperature-0 judgment calls:
   # "off" (default, random) or "derived" (deterministic + audited).
   judgment_seed: "off"

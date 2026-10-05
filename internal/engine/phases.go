@@ -309,10 +309,13 @@ func (e *Engine) call(ctx context.Context, j job.Job, p project.Project, t proje
 	// Ollama version that ignores the schema.
 	var resolvedFormat any
 	formatName := ""
-	if e.cfg.Inference.JSONFormatEnabled() {
-		if schema := verdictSchemaFor(phase); schema != nil {
-			resolvedFormat = schema
+	if e.cfg.Inference.JSONFormatEnabled() && phaseProducesJSON(phase) {
+		if e.cfg.Inference.JSONSchema {
+			resolvedFormat = verdictSchemaFor(phase)
 			formatName = "json-schema"
+		} else {
+			resolvedFormat = "json"
+			formatName = "json"
 		}
 	}
 	var resolvedSeed *int64
