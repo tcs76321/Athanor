@@ -28,6 +28,7 @@ type runnerConfig struct {
 	outDir     string
 	seedPolicy string
 	goalLimit  int
+	onlyCSV    string
 	modelsCSV  string
 	timeout    time.Duration
 
@@ -50,6 +51,7 @@ func runMatrix(args []string) {
 	fs.StringVar(&r.outDir, "out", filepath.Join("spikes", "m3-t7-probe", "results"), "results directory")
 	fs.StringVar(&r.seedPolicy, "seed", "off", "judgment_seed policy: off|derived")
 	fs.IntVar(&r.goalLimit, "goals", 0, "limit to the first N sample goals (0 = all)")
+	fs.StringVar(&r.onlyCSV, "only", "", "comma-separated goal names to run (empty = all)")
 	fs.StringVar(&r.modelsCSV, "models", "", "comma-separated model labels to run (empty = all)")
 	fs.DurationVar(&r.timeout, "timeout", 45*time.Minute, "per-job wall-clock timeout")
 	fs.DurationVar(&r.maxWall, "max-wall", 12*time.Hour, "abort the whole run after this wall time (0 = no limit)")
@@ -115,8 +117,27 @@ func (r *runnerConfig) models() []probeModel {
 	return out
 }
 
-// goals applies the -goals smoke-test limit.
+// goals resolves the -only / -goals selection.
 func (r *runnerConfig) goals() []sampleGoal {
+	if r.onlyCSV != "" {
+		want := make(map[string]bool)
+		for _, n := range strings.Split(r.onlyCSV, ",") {
+			if n = strings.TrimSpace(n); n != "" {
+				want[n] = true
+			}
+		}
+		var out []sampleGoal
+		for _, g := range sampleGoals {
+			if want[g.Name] {
+				out = append(out, g)
+			}
+		}
+		if len(out) == 0 {
+			fmt.Fprintf(os.Stderr, "warning: -only %q matched no goal; running all\n", r.onlyCSV)
+			return sampleGoals
+		}
+		return out
+	}
 	if r.goalLimit <= 0 || r.goalLimit >= len(sampleGoals) {
 		return sampleGoals
 	}
