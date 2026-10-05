@@ -82,6 +82,8 @@ func main() {
 		err = runCorrections(args[1:])
 	case "reject":
 		err = runReject(args[1:])
+	case "strategy":
+		err = runStrategy(args[1:])
 	case "freeze":
 		err = runFreeze(args[1:])
 	case "unfreeze":

@@ -13,6 +13,7 @@ import (
 	"github.com/tcs76321/athanor/internal/job"
 	"github.com/tcs76321/athanor/internal/project"
 	"github.com/tcs76321/athanor/internal/store"
+	"github.com/tcs76321/athanor/internal/strategy"
 )
 
 type goalRequest struct {
@@ -558,4 +559,135 @@ func correctionStatus(err error) int {
 	default:
 		return http.StatusInternalServerError
 	}
+}
+
+type insightResponse struct {
+	ID                 string    `json:"id"`
+	Scope              string    `json:"scope"`
+	Polarity           string    `json:"polarity"`
+	Feature            string    `json:"feature"`
+	Value              string    `json:"value"`
+	Context            string    `json:"context"`
+	Statement          string    `json:"statement"`
+	Status             string    `json:"status"`
+	CohortJobs         int       `json:"cohort_jobs"`
+	AcceptRate         float64   `json:"accept_rate"`
+	BaselineAcceptRate float64   `json:"baseline_accept_rate"`
+	MedianScore        float64   `json:"median_score"`
+	MedianRetries      int       `json:"median_retries"`
+	MedianTokenCost    int       `json:"median_token_cost"`
+	CreatedAt          time.Time `json:"created_at"`
+}
+
+func toInsightResponse(i strategy.Insight) insightResponse {
+	return insightResponse{
+		ID: i.ID, Scope: i.Scope, Polarity: i.Polarity,
+		Feature: i.Pattern.Feature, Value: i.Pattern.Value, Context: i.Pattern.Context,
+		Statement: i.Statement, Status: i.Status,
+		CohortJobs: i.Evidence.CohortJobs, AcceptRate: i.Evidence.AcceptRate,
+		BaselineAcceptRate: i.Evidence.BaselineAcceptRate, MedianScore: i.Evidence.MedianScore,
+		MedianRetries: i.Evidence.MedianRetries, MedianTokenCost: i.Evidence.MedianTokenCost,
+		CreatedAt: i.CreatedAt,
+	}
+}
+
+// handleInsightList lists insights, optionally filtered by ?status=.
+func (a *API) handleInsightList(w http.ResponseWriter, r *http.Request) {
+	if a.strategy == nil {
+		writeError(w, http.StatusServiceUnavailable, "strategy analysis is not configured")
+		return
+	}
+	list, err := a.strategy.ListInsights(r.Context(), r.URL.Query().Get("status"))
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	out := make([]insightResponse, 0, len(list))
+	for _, ins := range list {
+		out = append(out, toInsightResponse(ins))
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"insights": out})
+}
+
+type mineRequest struct {
+	MinCohortSize      int     `json:"min_cohort_size"`
+	MinAcceptRateDelta float64 `json:"min_accept_rate_delta"`
+}
+
+// handleStrategyMine runs §13.4 aggregation and returns the newly proposed
+// insights.
+func (a *API) handleStrategyMine(w http.ResponseWriter, r *http.Request) {
+	if a.strategy == nil {
+		writeError(w, http.StatusServiceUnavailable, "strategy analysis is not configured")
+		return
+	}
+	var req mineRequest
+	if r.ContentLength > 0 {
+		if !decodeBody(w, r, &req) {
+			return
+		}
+	}
+	if req.MinCohortSize <= 0 {
+		req.MinCohortSize = 20
+	}
+	if req.MinAcceptRateDelta <= 0 {
+		req.MinAcceptRateDelta = 0.15
+	}
+	proposed, err := a.strategy.Mine(r.Context(), strategy.MineOptions{
+		MinCohortSize: req.MinCohortSize, MinAcceptRateDelta: req.MinAcceptRateDelta,
+	})
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	out := make([]insightResponse, 0, len(proposed))
+	for _, ins := range proposed {
+		out = append(out, toInsightResponse(ins))
+	}
+	writeJSON(w, http.StatusCreated, map[string]any{"proposed": out})
+}
+
+// handleInsightPromote activates an insight, directly when auto_promote is on
+// or via a HITL request otherwise.
+func (a *API) handleInsightPromote(w http.ResponseWriter, r *http.Request) {
+	if a.promoter == nil {
+		writeError(w, http.StatusServiceUnavailable, "insight promotion is not configured")
+		return
+	}
+	activated, requestID, err := a.promoter.Promote(r.Context(), r.PathValue("id"))
+	if err != nil {
+		writeError(w, strategyStatus(err), err.Error())
+		return
+	}
+	resp := map[string]any{"activated": activated}
+	if requestID != "" {
+		resp["request_id"] = requestID
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+// handleInsightMute mutes an insight (safe, no HITL required).
+func (a *API) handleInsightMute(w http.ResponseWriter, r *http.Request) {
+	if a.strategy == nil {
+		writeError(w, http.StatusServiceUnavailable, "strategy analysis is not configured")
+		return
+	}
+	id := r.PathValue("id")
+	if err := a.strategy.SetInsightStatus(r.Context(), id, strategy.InsightMuted); err != nil {
+		writeError(w, strategyStatus(err), err.Error())
+		return
+	}
+	ins, err := a.strategy.GetInsight(r.Context(), id)
+	if err != nil {
+		writeError(w, strategyStatus(err), err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, toInsightResponse(ins))
+}
+
+func strategyStatus(err error) int {
+	if errors.Is(err, strategy.ErrNotFound) {
+		return http.StatusNotFound
+	}
+	return http.StatusInternalServerError
 }

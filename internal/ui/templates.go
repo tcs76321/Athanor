@@ -52,7 +52,7 @@ func document(title, body string) string {
 <html lang="en"><head><meta charset="utf-8"><title>` + title + ` — Athanor</title>
 <style>` + css + `</style></head>
 <body>
-<header><b>Athanor</b><nav><a href="/ui">Dashboard</a><a href="/ui/projects">Projects</a><a href="/ui/corrections">Corrections</a></nav></header>
+<header><b>Athanor</b><nav><a href="/ui">Dashboard</a><a href="/ui/projects">Projects</a><a href="/ui/corrections">Corrections</a><a href="/ui/statistics">Statistics</a></nav></header>
 <main>` + body + `</main>
 <script>` + dashboardJS + `</script>
 </body></html>`
@@ -176,4 +176,19 @@ const diffBody = `
 <h1>Diff {{.Artifact.Kind}} v{{.Artifact.Version}} <span class="muted">{{.Artifact.ID | short}}</span></h1>
 <pre>{{range .Lines}}<span{{if eq .Kind "-"}} class="del"{{else if eq .Kind "+"}} class="add"{{end}}>{{.Kind}} {{.Text}}</span>
 {{end}}</pre>
+`
+
+const statisticsBody = `
+<h1>Statistics</h1>
+<p>{{.Jobs}} captured outcome(s) · {{.Accepted}} accepted · {{.Tokens}} total tokens</p>
+<h2>Strategy insights (§13.4)</h2>
+<table><thead><tr><th>Polarity</th><th>Status</th><th>Feature</th><th>Cohort</th><th>Accept / baseline</th><th>Statement</th></tr></thead><tbody>
+{{range .Insights}}<tr>
+<td>{{.Polarity}}</td><td>{{.Status}}</td><td>{{.Pattern.Feature}}={{.Pattern.Value}}</td>
+<td>{{.Evidence.CohortJobs}}</td><td>{{printf "%.2f" .Evidence.AcceptRate}} / {{printf "%.2f" .Evidence.BaselineAcceptRate}}</td>
+<td>{{.Statement}}</td>
+</tr>
+{{else}}<tr><td colspan="6" class="muted">none</td></tr>{{end}}
+</tbody></table>
+<p class="muted">Promote/mute from the CLI: athanor strategy promote|mute -id &lt;id&gt;.</p>
 `

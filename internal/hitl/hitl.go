@@ -54,8 +54,9 @@ const (
 
 // Request types (a subset of §20.1; the column is open text).
 const (
-	TypeTaskEscalation = "task_escalation"
-	TypeGitPush        = "git_push"
+	TypeTaskEscalation  = "task_escalation"
+	TypeGitPush         = "git_push"
+	TypeStrategyInsight = "strategy_insight"
 )
 
 // Request is one §20.2 HITL request.

@@ -18,6 +18,7 @@ import (
 	"github.com/tcs76321/athanor/internal/job"
 	"github.com/tcs76321/athanor/internal/project"
 	"github.com/tcs76321/athanor/internal/store"
+	"github.com/tcs76321/athanor/internal/strategy"
 )
 
 // Engine is the execution surface the API drives.
@@ -86,6 +87,21 @@ type Corrections interface {
 	Get(ctx context.Context, id string) (corrections.Record, error)
 }
 
+// Strategy is the §13.4 strategy-analysis surface (M6-T11). The concrete
+// implementation is *strategy.Repo.
+type Strategy interface {
+	Mine(ctx context.Context, opts strategy.MineOptions) ([]strategy.Insight, error)
+	ListInsights(ctx context.Context, status string) ([]strategy.Insight, error)
+	SetInsightStatus(ctx context.Context, id, status string) error
+	GetInsight(ctx context.Context, id string) (strategy.Insight, error)
+}
+
+// StrategyPromoter is the HITL-gated promotion surface (M6-T11). The
+// concrete implementation lives in cmd/.
+type StrategyPromoter interface {
+	Promote(ctx context.Context, insightID string) (activated bool, requestID string, err error)
+}
+
 // IndexSummary is an indexing pass's counters, also the route's JSON body.
 type IndexSummary struct {
 	Discovered int `json:"discovered"`
@@ -113,6 +129,8 @@ type API struct {
 	hitl        HITL
 	pusher      Pusher
 	corrections Corrections
+	strategy    Strategy
+	promoter    StrategyPromoter
 	// dagScheduling mirrors execution.dag_decomposition: when true, goal
 	// submission decomposes and schedules instead of creating one task.
 	dagScheduling bool
@@ -173,6 +191,12 @@ func (a *API) SetPusher(p Pusher) { a.pusher = p }
 // that does not wire one answers 503 on the correction routes.
 func (a *API) SetCorrections(c Corrections) { a.corrections = c }
 
+// SetStrategy wires the M6-T11 strategy-analysis store.
+func (a *API) SetStrategy(s Strategy) { a.strategy = s }
+
+// SetStrategyPromoter wires the HITL-gated insight promoter (M6-T11).
+func (a *API) SetStrategyPromoter(p StrategyPromoter) { a.promoter = p }
+
 // Register attaches all routes to mux.
 func (a *API) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /projects", a.handleProjectCreate)
@@ -197,6 +221,11 @@ func (a *API) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /projects/{id}/corrections", a.handleCorrectionCreate)
 	mux.HandleFunc("GET /projects/{id}/corrections", a.handleCorrectionList)
 	mux.HandleFunc("PATCH /corrections/{id}", a.handleCorrectionStatus)
+	// M6-T11: strategy analysis (ADR-0041).
+	mux.HandleFunc("GET /strategy/insights", a.handleInsightList)
+	mux.HandleFunc("POST /strategy/mine", a.handleStrategyMine)
+	mux.HandleFunc("POST /strategy/insights/{id}/promote", a.handleInsightPromote)
+	mux.HandleFunc("POST /strategy/insights/{id}/mute", a.handleInsightMute)
 }
 
 // writeJSON is the single response writer: always JSON, always UTF-8.

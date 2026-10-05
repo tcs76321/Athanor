@@ -26,6 +26,7 @@ import (
 	"github.com/tcs76321/athanor/internal/job"
 	"github.com/tcs76321/athanor/internal/project"
 	"github.com/tcs76321/athanor/internal/store"
+	"github.com/tcs76321/athanor/internal/strategy"
 )
 
 // Freezer reports the §22 kill-switch state.
@@ -43,6 +44,7 @@ type Deps struct {
 	Corrections   *corrections.Repo
 	HITL          *hitl.Service
 	Interruptions *interruptions.Repo
+	Strategy      *strategy.Repo
 	Freezer       Freezer
 	Engine        Enqueuer
 	// DefaultTTL is applied to defer decisions made without an explicit
@@ -73,6 +75,7 @@ func (u *UI) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /ui/projects/{id}", u.handleProject)
 	mux.HandleFunc("POST /ui/projects/{id}/corrections", u.handleCorrectionCreate)
 	mux.HandleFunc("GET /ui/corrections", u.handleCorrections)
+	mux.HandleFunc("GET /ui/statistics", u.handleStatistics)
 	mux.HandleFunc("POST /ui/corrections/{id}", u.handleCorrectionUpdate)
 	mux.HandleFunc("GET /ui/jobs/{id}", u.handleWatch)
 	mux.HandleFunc("GET /ui/jobs/{id}/stream", u.handleJobStream)
@@ -191,6 +194,28 @@ func (u *UI) handleCorrections(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	u.render(w, "Corrections", correctionsBody, map[string]any{"Corrections": active})
+}
+
+// handleStatistics is the read-only §13.4 panel: captured outcomes plus the
+// strategy insights (proposed/active/muted).
+func (u *UI) handleStatistics(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	var insights []strategy.Insight
+	var outcomes []strategy.Outcome
+	if u.deps.Strategy != nil {
+		insights, _ = u.deps.Strategy.ListInsights(ctx, "")
+		outcomes, _ = u.deps.Strategy.ListOutcomes(ctx, 500)
+	}
+	accepted, tokens := 0, 0
+	for _, o := range outcomes {
+		if o.Result == strategy.ResultAcceptedNew || o.Result == strategy.ResultAcceptedPrevious {
+			accepted++
+		}
+		tokens += o.TokenCost
+	}
+	u.render(w, "Statistics", statisticsBody, map[string]any{
+		"Insights": insights, "Jobs": len(outcomes), "Accepted": accepted, "Tokens": tokens,
+	})
 }
 
 func (u *UI) handleWatch(w http.ResponseWriter, r *http.Request) {

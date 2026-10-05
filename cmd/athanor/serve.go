@@ -241,6 +241,9 @@ func run(configPath, addr, stateDir string) error {
 	// M6-T10 (§13.3): strategy capture. Profiles at start, outcomes at end.
 	strategyRepo := strategy.NewRepo(st)
 	eng.SetStrategySink(strategyRepo)
+	eng.SetStrategyInsightSource(strategyRepo)
+	// M6-T11 (§13.4): promoting a strategy insight is HITL-gated.
+	hitlSvc.SetApprover(hitl.TypeStrategyInsight, insightActivator{repo: strategyRepo}.Approve)
 	srv := server.New(version)
 	srv.SetControl(killSwitch)
 	externalAPI := api.New(projectRepo, job.NewRepository(st),
@@ -262,11 +265,16 @@ func run(configPath, addr, stateDir string) error {
 	externalAPI.SetHITL(hitlSvc)
 	externalAPI.SetPusher(gitPusher{projects: projectRepo, hitl: hitlRepo})
 	externalAPI.SetCorrections(correctionsRepo)
+	externalAPI.SetStrategy(strategyRepo)
+	externalAPI.SetStrategyPromoter(insightPromoter{
+		strategy: strategyRepo, hitl: hitlRepo, autoPromote: cfg.StrategyAnalysis.AutoPromote,
+	})
 	// M6-T8 (ADR-0039): the local web UI. Its hub is the engine's token sink.
 	webUI := ui.New(ui.Deps{
 		Store: st, Projects: projectRepo, Jobs: job.NewRepository(st),
 		Artifacts: artifactStore, Corrections: correctionsRepo, HITL: hitlSvc,
-		Interruptions: interruptionsRepo, Freezer: killSwitch, Engine: eng,
+		Interruptions: interruptionsRepo, Strategy: strategyRepo,
+		Freezer: killSwitch, Engine: eng,
 		DefaultTTL: cfg.HITL.DefaultTTL.D(),
 	})
 	eng.SetTokenSink(webUI.Hub())
