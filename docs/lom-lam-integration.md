@@ -199,25 +199,27 @@ deterministic validators. This is the first and safest ML step.
 6. **LAM last**, in shadow mode, once the engine supports open tool selection
    and the trajectory corpus is large enough.
 
-## 8. Questions to bounce back on
+## 8. Decisions (from review)
 
-1. **Should the ontology be *explicit* (a real schema + reasoner) or *implicit*
-   (just the existing SQLite schema + graph queries)?** The explicit version is
-   more powerful and more work; the implicit version captures a lot for ~free.
-2. **Is a learned LOM even necessary**, or does a deterministic reasoner over the
-   object model plus `query_memory` get 80% of the benefit? (The research
-   internalizes because enterprise text is messy; Athanor's data is already
-   structured.)
-3. **Where does the first ML dollar go** — verifier, planner, or actor? I argue
-   **verifier first**.
-4. **Open tool selection**: do we want the agent choosing tools at all, or is the
-   Core-driven fixed pipeline (with human-designed tasks) safer *by design*? A
-   LAM is only justified if we answer "yes."
-5. **Training venue**: ship a training pipeline in-tree (heavy, needs a GPU
-   stack) or keep it a *spike + external notebook*, with only the *exporters*
-   in-tree? (AGENTS' dependency discipline argues for the latter.)
-6. **Ontology governance**: who owns schema changes — migrations (code) or a
-   user-editable ontology file? There's a real "rivers vs mountains" choice here.
+1. **The ontology is explicit** — a typed schema plus a reasoner, not just ad-hoc
+   graph queries over the SQLite tables.
+2. **A learned LOM is not necessary.** The reasoning tier stays deterministic;
+   the learned tiers are the verifier and (later) the actor.
+3. **Verifier first.** The first ML investment is a distilled structured verifier
+   behind the F4 seam, with the frozen judge as teacher and backstop.
+4. **Open tool selection: yes** — so a LAM is justified. The catch: there is no
+   usable open-weight LAM to adopt today, so this is a *train-it-ourselves* goal,
+   not an integration of someone else's model.
+5. **A training pipeline is in scope and first-class.** It must improve over time
+   and run on the hardware we actually own: an M1 Pro (16 GB) and an M2 Max
+   (32 GB) — the Apple-Silicon MLX/Metal path — and a Linux box (Ryzen 7 3700X,
+   32 GB, GTX 1080 Ti, 11 GB VRAM) — the CUDA path. That means small
+   QLoRA-class base models (≤3B on the 1080 Ti), shared corpus exporters, and a
+   portable training entry point rather than a single-vendor notebook.
+6. **Ontology governance: still open.** Migrations-as-source-of-truth vs a
+   user-editable ontology file. Proposed default: the schema stays code-owned;
+   the ontology is a *generated, versioned view* of it, pinned by a link-checker
+   test (mountains = schema, rivers = the ontology view).
 
 ## 9. Sources
 
