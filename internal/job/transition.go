@@ -54,10 +54,21 @@ func (r *Repository) Transition(ctx context.Context, id string, to State) (Job, 
 		return Job{}, fmt.Errorf("paused job %s must resume to %q (its paused_from), not %q",
 			id, current.PausedFrom, to)
 	}
+	// awaiting_approval jobs resume to exactly the state they waited from;
+	// a denied (rejected or expired) request fails the job. The HITL
+	// service is the only writer that resumes, and the repository enforces
+	// the invariant so a hand-edited row cannot resume elsewhere.
+	if current.State == StateAwaitingApproval && to != StateCancelled && to != StateFailed && to != current.AwaitingFrom {
+		return Job{}, fmt.Errorf("awaiting-approval job %s must resume to %q (its awaiting_from), not %q",
+			id, current.AwaitingFrom, to)
+	}
 
-	var pausedFrom any // SQL NULL unless pausing
+	var pausedFrom, awaitingFrom any // SQL NULL otherwise
 	if to == StatePaused {
 		pausedFrom = string(current.State)
+	}
+	if to == StateAwaitingApproval {
+		awaitingFrom = string(current.State)
 	}
 
 	tx, err := r.store.DB().BeginTx(ctx, nil)
@@ -70,12 +81,13 @@ func (r *Repository) Transition(ctx context.Context, id string, to State) (Job, 
 		UPDATE jobs SET
 			state = ?,
 			paused_from = ?,
+			awaiting_from = ?,
 			started_at  = CASE WHEN ? = 'context_building' AND started_at IS NULL
 			                   THEN strftime('%Y-%m-%dT%H:%M:%fZ','now') ELSE started_at END,
 			finished_at = CASE WHEN ? IN ('completed','failed','cancelled')
 			                   THEN strftime('%Y-%m-%dT%H:%M:%fZ','now') ELSE finished_at END
 		WHERE id = ? AND state = ?`,
-		string(to), pausedFrom, string(to), string(to), id, string(current.State),
+		string(to), pausedFrom, awaitingFrom, string(to), string(to), id, string(current.State),
 	)
 	if err != nil {
 		return Job{}, fmt.Errorf("transitioning job: %w", err)

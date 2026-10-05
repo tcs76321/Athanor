@@ -50,6 +50,24 @@ func TestLegalTransitions(t *testing.T) {
 		{StatePaused, StateReflecting},
 		{StatePaused, StateSynthesizing},
 		{StatePaused, StateCancelled},
+		// M6-T4: awaiting_approval is reachable from every active working
+		// state and resumes to the state it left (awaiting_from).
+		{StateContextBuilding, StateAwaitingApproval},
+		{StatePlanning, StateAwaitingApproval},
+		{StateDiverging, StateAwaitingApproval},
+		{StateEvaluating, StateAwaitingApproval},
+		{StateReflecting, StateAwaitingApproval},
+		{StateSynthesizing, StateAwaitingApproval},
+		{StateComparing, StateAwaitingApproval},
+		{StateAwaitingApproval, StateContextBuilding},
+		{StateAwaitingApproval, StatePlanning},
+		{StateAwaitingApproval, StateDiverging},
+		{StateAwaitingApproval, StateEvaluating},
+		{StateAwaitingApproval, StateReflecting},
+		{StateAwaitingApproval, StateSynthesizing},
+		{StateAwaitingApproval, StateComparing},
+		{StateAwaitingApproval, StateFailed},
+		{StateAwaitingApproval, StateCancelled},
 	}
 	for _, tc := range legal {
 		if !CanTransition(tc.from, tc.to) {
@@ -95,10 +113,10 @@ func TestIllegalTransitions(t *testing.T) {
 		{StatePlanning, StatePlanning},
 		{StateEvaluating, StateEvaluating},
 		{StateDiverging, StateDiverging},
-		{StatePaused, StateAwaitingApproval}, // M6 edge does not exist yet
-		{StateComparing, StateAwaitingApproval},
-		{StateCompleted, StateAwaitingApproval},
-		{"bogus", StatePlanning}, // unknown states
+		{StatePaused, StateAwaitingApproval},    // pausing and awaiting are distinct
+		{StateQueued, StateAwaitingApproval},    // queued work never awaited
+		{StateCompleted, StateAwaitingApproval}, // terminal states are final
+		{"bogus", StatePlanning},                // unknown states
 		{StatePlanning, "bogus"},
 	}
 	for _, tc := range illegal {

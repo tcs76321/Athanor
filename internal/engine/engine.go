@@ -358,7 +358,7 @@ func (e *Engine) Run(ctx context.Context, jobID string) {
 			slog.Error("engine: loading job", "job", jobID, "err", err)
 			return
 		}
-		if j.State.Terminal() || j.State == job.StatePaused {
+		if j.State.Terminal() || j.State == job.StatePaused || j.State == job.StateAwaitingApproval {
 			if j.State.Terminal() {
 				// M5-T5 (ADR-0023 §5): a finished job's evictions are
 				// history, not state. Clearing here (and only here)

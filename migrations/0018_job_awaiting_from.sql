@@ -1,0 +1,13 @@
+-- Migration 0018: resumable awaiting_approval (ROADMAP M6-T4; ARCHITECTURE
+-- §8.1, §20; ADR-0035).
+--
+-- §8.1's `awaiting_approval` state becomes reachable in M6-T4. Like
+-- `paused`, it needs to remember where to resume: `awaiting_from` records
+-- the state a job left in order to wait for a HITL decision, and the
+-- repository resumes to exactly that state.
+--
+-- ALTER TABLE ADD COLUMN cannot add a table-level CHECK in SQLite (see the
+-- migration 0006 note), so the value set is enforced in Go by
+-- job.Repository.Transition (the schema still stores the column, and a
+-- hand-edited row is rejected on the resume attempt).
+ALTER TABLE jobs ADD COLUMN awaiting_from TEXT;

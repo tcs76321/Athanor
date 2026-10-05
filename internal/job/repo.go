@@ -27,6 +27,7 @@ type Job struct {
 	ProjectID    string
 	State        State
 	PausedFrom   State // set only while State == paused
+	AwaitingFrom State // set only while State == awaiting_approval
 	RecoveryFlag string
 	Attempt      int
 	StartedAt    *time.Time

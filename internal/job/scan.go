@@ -10,7 +10,7 @@ import (
 
 const jobSelect = `
 SELECT id, task_id, project_id, state, COALESCE(paused_from, ''),
-       COALESCE(recovery_flag, ''), attempt,
+       COALESCE(awaiting_from, ''), COALESCE(recovery_flag, ''), attempt,
        started_at, finished_at, created_at, updated_at
 FROM jobs`
 
@@ -21,15 +21,16 @@ type scanner interface {
 
 func scanJob(sc scanner) (Job, error) {
 	var j Job
-	var state, pausedFrom, recovery string
+	var state, pausedFrom, awaitingFrom, recovery string
 	var startedAt, finishedAt sql.NullString
 	var createdAt, updatedAt string
 	if err := sc.Scan(&j.ID, &j.TaskID, &j.ProjectID, &state, &pausedFrom,
-		&recovery, &j.Attempt, &startedAt, &finishedAt, &createdAt, &updatedAt); err != nil {
+		&awaitingFrom, &recovery, &j.Attempt, &startedAt, &finishedAt, &createdAt, &updatedAt); err != nil {
 		return Job{}, fmt.Errorf("scanning job: %w", err)
 	}
 	j.State = State(state)
 	j.PausedFrom = State(pausedFrom)
+	j.AwaitingFrom = State(awaitingFrom)
 	j.RecoveryFlag = recovery
 	var err error
 	if j.CreatedAt, err = parseTS(createdAt); err != nil {

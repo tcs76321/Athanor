@@ -7,9 +7,10 @@
 // logic — evaluating always runs after diverging (§8.2: "no skipping
 // evaluation"); reflecting is reached only when no candidate passed
 // evaluation, and loops back to diverging within the M3-T4 budget.
-// The schema (migration 0004) accepts the full §8.1 state set so the
-// edge set could grow without a rebuild. The only edge still absent
-// here is `awaiting_approval`, which arrives with HITL in M6.
+// M6-T4 adds the `awaiting_approval` edges: a job may wait for a HITL
+// decision from any active working state and resumes to the state it left.
+// The schema (migration 0004, plus awaiting_from in 0018) accepts the full
+// §8.1 state set. The only edge still absent here is `queued → paused`.
 package job
 
 import "fmt"
@@ -73,21 +74,21 @@ func (s State) Valid() bool {
 //     resumes to the state recorded in paused_from (enforced by the
 //     repository, since the table cannot express data-dependent edges).
 //   - queued jobs cannot pause — they simply never start.
-//
-// `awaiting_approval` (M6) is deliberately not an outgoing edge of any
-// state: HITL hasn't been wired. Its existence in the §8.1 state set
-// satisfies the schema (migration 0004) but no code path can transition
-// into or out of it yet.
+//   - `awaiting_approval` (M6-T4) is legal from every active working state
+//     and resumes to the state recorded in awaiting_from (enforced by the
+//     repository, like paused_from). A rejected or expired request fails
+//     the job.
 var transitions = map[State][]State{
-	StateQueued:          {StateContextBuilding, StateCancelled},
-	StateContextBuilding: {StatePlanning, StatePaused, StateFailed, StateCancelled},
-	StatePlanning:        {StateDiverging, StatePaused, StateFailed, StateCancelled},
-	StateDiverging:       {StateEvaluating, StatePaused, StateFailed, StateCancelled},
-	StateEvaluating:      {StateSynthesizing, StateReflecting, StatePaused, StateFailed, StateCancelled},
-	StateReflecting:      {StateDiverging, StateSynthesizing, StatePaused, StateFailed, StateCancelled},
-	StateSynthesizing:    {StateComparing, StatePaused, StateFailed, StateCancelled},
-	StateComparing:       {StateCompleted, StateFailed, StatePaused, StateCancelled},
-	StatePaused:          {StateContextBuilding, StatePlanning, StateDiverging, StateEvaluating, StateReflecting, StateSynthesizing, StateCancelled},
+	StateQueued:           {StateContextBuilding, StateCancelled},
+	StateContextBuilding:  {StatePlanning, StatePaused, StateAwaitingApproval, StateFailed, StateCancelled},
+	StatePlanning:         {StateDiverging, StatePaused, StateAwaitingApproval, StateFailed, StateCancelled},
+	StateDiverging:        {StateEvaluating, StatePaused, StateAwaitingApproval, StateFailed, StateCancelled},
+	StateEvaluating:       {StateSynthesizing, StateReflecting, StatePaused, StateAwaitingApproval, StateFailed, StateCancelled},
+	StateReflecting:       {StateDiverging, StateSynthesizing, StatePaused, StateAwaitingApproval, StateFailed, StateCancelled},
+	StateSynthesizing:     {StateComparing, StatePaused, StateAwaitingApproval, StateFailed, StateCancelled},
+	StateComparing:        {StateCompleted, StateFailed, StatePaused, StateAwaitingApproval, StateCancelled},
+	StateAwaitingApproval: {StateContextBuilding, StatePlanning, StateDiverging, StateEvaluating, StateReflecting, StateSynthesizing, StateComparing, StateFailed, StateCancelled},
+	StatePaused:           {StateContextBuilding, StatePlanning, StateDiverging, StateEvaluating, StateReflecting, StateSynthesizing, StateCancelled},
 	// Terminal states have no outgoing edges by construction (absent map
 	// entries).
 }
