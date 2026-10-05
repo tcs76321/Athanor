@@ -12,6 +12,18 @@ New entries are appended at the top. Do not rewrite history.
 
 ### M6 — Autonomy & Feedback
 
+- **M6-T8.** Local web UI ([ADR-0039](docs/adr/0039-local-web-ui.md)).
+  `internal/ui` (stdlib `html/template` + SSE, mounted at `/ui` on the
+  loopback listener) serves Dashboard (active/terminal jobs, pending HITL
+  approvals with approve/reject/defer, freeze state; the phase cell updates
+  within ~1s from `/ui/events`), Projects (artifact history with an LCS diff
+  against the superseded version), Corrections (the mandatory §18.4 rejection
+  form plus mute/edit/promote), and Watch (`/ui/jobs/{id}/stream` multiplexes
+  streamed model tokens and job events; interruption notes; pause/resume/
+  cancel/retry). `llm.Client.Stream` (Ollama NDJSON) and the engine's
+  nil-safe `TokenSink` and `InterruptionStore` seams back it; migration 0020
+  adds `interruption_notes`. Loopback-only, no new dependency.
+
 - **M6-T7.** Feedback injection ([ADR-0038](docs/adr/0038-feedback-injection.md)).
   `corrections.Relevant` returns the active records that apply to a project
   (project-scoped plus global), ordered severity → scope → recency and capped;

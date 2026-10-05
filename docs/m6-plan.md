@@ -166,6 +166,10 @@ edit). Vector-similarity ranking is deferred to the `Relevant` seam.
 
 ## M6-T8 — Web UI
 
+**Status: ✅ complete (2026-10-04).** Commits `a3a9c24` (ADR), `9271e86`
+(interruptions), `c404359` (streaming + engine seams), `a1a2f05`
+(`internal/ui` + wiring). Statistics/Memory Browser parity stays backlog.
+
 - `internal/ui` over stdlib templates + `embed`; an SSE bus. (a) Dashboard +
   Approvals; (b) Projects/Artifacts/Corrections CRUD with diffs; (c) Watch
   View with live token stream, phase tree, tool log, and pause/stop/retry.

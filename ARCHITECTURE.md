@@ -1490,6 +1490,14 @@ An asynchronous dashboard summarizing overnight activity:
 - Daydreaming output (documentation drafts, proposed corrections, memory consolidated).
 - Token usage summary.
 
+> **Implementation status (M6-T8).** The local web UI is live
+> ([ADR-0039](docs/adr/0039-local-web-ui.md)) at `http://127.0.0.1:7420/ui`:
+> Dashboard (jobs + approvals + freeze, live phase via SSE), Projects
+> (artifact history + diffs), Corrections (§18.4 form, mute/edit/promote), and
+> Watch (streamed tokens + events, interruption notes, pause/resume/cancel/
+> retry). The **Statistics** and **Memory Browser** views and the DAG
+> visualizer remain backlog; the UI is loopback-only (§21.8).
+
 ---
 
 ## 28. Observability
