@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/tcs76321/athanor/internal/artifact"
 	"github.com/tcs76321/athanor/internal/job"
 	"github.com/tcs76321/athanor/internal/project"
 	"github.com/tcs76321/athanor/internal/store"
@@ -110,18 +111,14 @@ func (a *API) handleExport(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// isNotFoundErr is a small helper: the exporter's
-// artifact-store Get returns a wrapped ErrNotFound that
-// the standard errors.Is chain can match. Used to map
-// the error to a 404 in handleExport.
+// isNotFoundErr maps a missing artifact or project to a 404 in
+// handleExport. It matches the store sentinels with errors.Is rather than
+// comparing error strings: the previous string comparison used the
+// literal "artifact: not found", which never matched the real sentinel
+// ("artifact not found", further wrapped by the exporter), so a missing
+// artifact returned 500 instead of 404.
 func isNotFoundErr(err error) bool {
-	for err != nil {
-		if err.Error() == "artifact: not found" || err.Error() == "evaluation: record not found" {
-			return true
-		}
-		err = errors.Unwrap(err)
-	}
-	return false
+	return errors.Is(err, artifact.ErrNotFound) || errors.Is(err, project.ErrNotFound)
 }
 
 func (a *API) handleJobGet(w http.ResponseWriter, r *http.Request) {
