@@ -335,14 +335,23 @@ func (r *runnerConfig) runOne(g sampleGoal, m probeModel, a arm, run int, stateD
 		return mx
 	}
 	defer func() { _ = db.Close() }()
-	if o, ok, err := loadOutcome(db, gr.JobID); err == nil && ok {
-		mx.Winner = winnerFromResult(o.Result)
-		mx.Score = o.Score
-		mx.Confidence = o.Confidence
-		mx.TokenCost = o.TokenCost
-		mx.WallMS = o.WallMS
-		mx.Retries = o.Retries
-		mx.ReflectionLoops = o.ReflectionLoops
+	// The engine writes the strategy outcome just after the terminal
+	// transition; a fast poll can observe `completed` before the row lands,
+	// and the daemon is stopped at arm end — so retry briefly or the last
+	// job of an arm loses its score/winner.
+	for attempt := 0; attempt < 8; attempt++ {
+		o, ok, err := loadOutcome(db, gr.JobID)
+		if err == nil && ok {
+			mx.Winner = winnerFromResult(o.Result)
+			mx.Score = o.Score
+			mx.Confidence = o.Confidence
+			mx.TokenCost = o.TokenCost
+			mx.WallMS = o.WallMS
+			mx.Retries = o.Retries
+			mx.ReflectionLoops = o.ReflectionLoops
+			break
+		}
+		time.Sleep(500 * time.Millisecond)
 	}
 	_ = mx.fillCandidateMetrics(db, stateDir)
 	if txt, err := readArtifact(stateDir, mx.ArtifactID); err == nil {
