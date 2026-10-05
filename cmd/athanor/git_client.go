@@ -18,14 +18,32 @@ import (
 var ErrDirtyWorktree = errors.New("git: worktree has uncommitted changes")
 
 // gitClient records an accepted artifact to a project repository on an
-// agent-created branch (§14; ADR-0030). It is the only place in the binary
-// that shells out to `git`; Gate G1 allowlists this file for os/exec, the
-// same named-file exception the production Podman client uses.
+// agent-created branch (§14; ADR-0030) and, on an approved HITL request,
+// pushes the agent branch (M6-T5; ADR-0036). It is the only place in the
+// binary that shells out to `git`; Gate G1 allowlists this file for
+// os/exec, the same named-file exception the production Podman client uses.
 //
-// The method is deliberately mechanical: the engine decides the branch and
+// The methods are deliberately mechanical: the engine decides the branch and
 // the managed-namespace path, this adapter runs the porcelain. It never
-// pushes (push is HITL-gated, M6) and never rewrites history.
-type gitClient struct{}
+// pushes without an approval and never rewrites history.
+type gitClient struct {
+	// push is the command runner used by Push; nil selects gitRun. It is
+	// injectable so a test can assert the push argv without a real remote.
+	push func(ctx context.Context, repo string, args ...string) error
+}
+
+// Push pushes branch to remote (M6-T5, ADR-0036). It is only ever called
+// from an approved HITL request; rejection and expiry never reach it.
+func (g gitClient) Push(ctx context.Context, repoPath, remote, branch string) error {
+	if repoPath == "" || remote == "" || branch == "" {
+		return errors.New("git: repoPath, remote, and branch are required")
+	}
+	run := g.push
+	if run == nil {
+		run = gitRun
+	}
+	return run(ctx, repoPath, "push", remote, branch)
+}
 
 // Commit writes content to relPath on branch, commits it, and returns the
 // commit SHA. It creates the branch when absent. The worktree must be clean.

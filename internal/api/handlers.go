@@ -387,3 +387,35 @@ func hitlStatus(err error) int {
 		return http.StatusInternalServerError
 	}
 }
+
+type pushRequest struct {
+	Remote string `json:"remote"`
+}
+
+// handleProjectPush records a HITL request for a git push (M6-T5, ADR-0036).
+// It never pushes; approval does. A project with no repository_path is a 409.
+func (a *API) handleProjectPush(w http.ResponseWriter, r *http.Request) {
+	if a.pusher == nil {
+		writeError(w, http.StatusServiceUnavailable, "git push is not configured")
+		return
+	}
+	var req pushRequest
+	if r.ContentLength > 0 {
+		if !decodeBody(w, r, &req) {
+			return
+		}
+	}
+	res, err := a.pusher.RequestPush(r.Context(), r.PathValue("id"), req.Remote)
+	if err != nil {
+		status := http.StatusInternalServerError
+		switch {
+		case errors.Is(err, project.ErrNotFound):
+			status = http.StatusNotFound
+		case errors.Is(err, project.ErrNoRepository):
+			status = http.StatusConflict
+		}
+		writeError(w, status, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusCreated, toHITLResponse(res))
+}

@@ -37,6 +37,10 @@ func ValidArchetype(a string) bool {
 // ErrNotFound reports a missing project or task.
 var ErrNotFound = errors.New("project not found")
 
+// ErrNoRepository reports an operation that needs a project repository_path
+// when the project has none (M6-T5 push; ADR-0036).
+var ErrNoRepository = errors.New("project has no repository")
+
 // Goal text length bounds come from the goals table CHECK (§5).
 const (
 	goalMinLen = 20

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/tcs76321/athanor/internal/hitl"
+	"github.com/tcs76321/athanor/internal/project"
 )
 
 type fakeHITL struct {
@@ -117,5 +118,78 @@ func TestHITLDecisionErrors(t *testing.T) {
 	_ = r.Body.Close()
 	if fake.lastAction != "defer" || fake.lastDefer != 90*time.Minute {
 		t.Errorf("defer = %q/%v, want defer/1h30m", fake.lastAction, fake.lastDefer)
+	}
+}
+
+type fakePusher struct {
+	res    hitl.Request
+	err    error
+	calls  int
+	remote string
+}
+
+func (f *fakePusher) RequestPush(_ context.Context, _, remote string) (hitl.Request, error) {
+	f.calls++
+	f.remote = remote
+	return f.res, f.err
+}
+
+func TestProjectPushRoute(t *testing.T) {
+	h := newHarness(t)
+	p := createTestProject(t, h)
+	fake := &fakePusher{res: hitl.Request{ID: "r1", Type: "git_push", Severity: "high", Status: "pending", CreatedAt: time.Now()}}
+	h.api.SetPusher(fake)
+
+	resp, err := http.Post(h.ts.URL+"/projects/"+p.ID+"/push", "application/json",
+		strings.NewReader(`{"remote":"upstream"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("push status = %d, want 201", resp.StatusCode)
+	}
+	var body hitlResponse
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	if body.ID != "r1" || body.Type != "git_push" {
+		t.Fatalf("body = %+v", body)
+	}
+	if fake.calls != 1 || fake.remote != "upstream" {
+		t.Errorf("pusher calls = %d remote %q", fake.calls, fake.remote)
+	}
+}
+
+func TestProjectPushErrors(t *testing.T) {
+	h := newHarness(t)
+	p := createTestProject(t, h)
+
+	// 503: not configured.
+	resp, err := http.Post(h.ts.URL+"/projects/"+p.ID+"/push", "application/json", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusServiceUnavailable {
+		t.Fatalf("unwired status = %d, want 503", resp.StatusCode)
+	}
+
+	for _, tc := range []struct {
+		err  error
+		want int
+	}{
+		{project.ErrNoRepository, http.StatusConflict},
+		{project.ErrNotFound, http.StatusNotFound},
+	} {
+		h.api.SetPusher(&fakePusher{err: tc.err})
+		r, err := http.Post(h.ts.URL+"/projects/"+p.ID+"/push", "application/json", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = r.Body.Close()
+		if r.StatusCode != tc.want {
+			t.Errorf("err %v: status = %d, want %d", tc.err, r.StatusCode, tc.want)
+		}
 	}
 }

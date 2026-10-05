@@ -68,6 +68,13 @@ type HITL interface {
 	Decide(ctx context.Context, id, action, note string, deferFor time.Duration) (hitl.Request, error)
 }
 
+// Pusher is the surface the M6-T5 `POST /projects/{id}/push` route uses
+// (ADR-0036). It creates a git_push HITL request; the approved side effect
+// runs the actual push. The concrete implementation lives in cmd/.
+type Pusher interface {
+	RequestPush(ctx context.Context, projectID, remote string) (hitl.Request, error)
+}
+
 // IndexSummary is an indexing pass's counters, also the route's JSON body.
 type IndexSummary struct {
 	Discovered int `json:"discovered"`
@@ -93,6 +100,7 @@ type API struct {
 	decomposer Decomposer
 	scheduler  Scheduler
 	hitl       HITL
+	pusher     Pusher
 	// dagScheduling mirrors execution.dag_decomposition: when true, goal
 	// submission decomposes and schedules instead of creating one task.
 	dagScheduling bool
@@ -145,6 +153,10 @@ func (a *API) SetDAGScheduling(enabled bool) {
 // wire one answers 503 on the queue routes.
 func (a *API) SetHITL(h HITL) { a.hitl = h }
 
+// SetPusher wires the M6-T5 push-request path (ADR-0036). A daemon that does
+// not wire one answers 503 on POST /projects/{id}/push.
+func (a *API) SetPusher(p Pusher) { a.pusher = p }
+
 // Register attaches all routes to mux.
 func (a *API) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /projects", a.handleProjectCreate)
@@ -163,6 +175,8 @@ func (a *API) Register(mux *http.ServeMux) {
 	// M6-T4: the §20 HITL queue (ADR-0035).
 	mux.HandleFunc("GET /hitl", a.handleHITLList)
 	mux.HandleFunc("POST /hitl/{id}/decision", a.handleHITLDecision)
+	// M6-T5: a HITL-gated push request (ADR-0036).
+	mux.HandleFunc("POST /projects/{id}/push", a.handleProjectPush)
 }
 
 // writeJSON is the single response writer: always JSON, always UTF-8.

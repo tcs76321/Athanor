@@ -76,6 +76,8 @@ func main() {
 		err = runIndex(args[1:])
 	case "hitl":
 		err = runHITL(args[1:])
+	case "push":
+		err = runPush(args[1:])
 	case "freeze":
 		err = runFreeze(args[1:])
 	case "unfreeze":

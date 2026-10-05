@@ -207,8 +207,10 @@ func run(configPath, addr, stateDir string) error {
 	)
 	// F3-T5 (§14, ADR-0030): Git-as-undo. When an artifact is accepted
 	// and the project has a repository_path that is a clean git worktree,
-	// record it on an agent branch. Best-effort; never pushes.
-	eng.SetGitCommitter(gitClient{})
+	// record it on an agent branch. Best-effort; never pushes. M6-T5
+	// (ADR-0036) reuses the same adapter for the HITL-gated push.
+	gitAdapter := gitClient{}
+	eng.SetGitCommitter(gitAdapter)
 	// M6-T2 (ADR-0033): the dependency scheduler. It starts the ready
 	// leaves of a decomposed goal and advances the graph as jobs finish;
 	// the engine notifies it through the terminal seam below.
@@ -221,6 +223,9 @@ func run(configPath, addr, stateDir string) error {
 	hitlRepo := hitl.NewRepo(st)
 	hitlSvc := hitl.NewService(hitlRepo, job.NewRepository(st), eng, cfg.HITL.DefaultTTL.D())
 	sched.SetEscalator(hitlEscalator{repo: hitlRepo})
+	// M6-T5 (ADR-0036): approval of a git_push request runs the push.
+	hitlSvc.SetApprover(hitl.TypeGitPush,
+		gitPushApprover{git: gitAdapter, projects: projectRepo, events: st}.Approve)
 	srv := server.New(version)
 	srv.SetControl(killSwitch)
 	externalAPI := api.New(projectRepo, job.NewRepository(st),
@@ -240,6 +245,7 @@ func run(configPath, addr, stateDir string) error {
 	externalAPI.SetScheduler(sched)
 	externalAPI.SetDAGScheduling(cfg.Execution.DAGDecomposition)
 	externalAPI.SetHITL(hitlSvc)
+	externalAPI.SetPusher(gitPusher{projects: projectRepo, hitl: hitlRepo})
 	externalAPI.Register(srv.Mux())
 	// M2-T3 + M2-T4: internal API for Job Pods. Same loopback HTTP
 	// server, different path prefix (/internal/v1/), every route
