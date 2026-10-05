@@ -34,6 +34,16 @@ inference:
   ollama_url: "http://host.containers.internal:11434"
   cloud_enabled: false
   cloud_requires_approval: true
+  # json_format grammar-constrains the structured judgment phases
+  # (evaluating, comparing) via Ollama JSON mode (ADR-0012). true by
+  # default; set false only for a controlled format ablation (M3-T7).
+  json_format: true
+  # judgment_seed controls sampler-seed pinning on Temperature-0
+  # judgment calls: "off" (default, random seed per request) or
+  # "derived" (a deterministic seed derived from the job, phase, and
+  # candidate bytes, recorded in the llm_call audit row). Divergence is
+  # never seeded.
+  judgment_seed: "off"
 
 # Models assigned to functional roles (§12). security must stay at
 # temperature 0.0 — evaluation and compaction are deterministic.

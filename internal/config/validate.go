@@ -35,6 +35,12 @@ func validateRaw(c *Config) error {
 	if b := c.Inference.DefaultBackend; b != "" && b != "ollama" && b != "cloud" {
 		return fmt.Errorf("inference.default_backend must be \"ollama\" or \"cloud\", got %q", b)
 	}
+	switch s := c.Inference.JudgmentSeed; s {
+	case "", JudgmentSeedOff, JudgmentSeedDerived:
+	default:
+		return fmt.Errorf("inference.judgment_seed must be %q or %q, got %q",
+			JudgmentSeedOff, JudgmentSeedDerived, s)
+	}
 	for _, p := range []struct {
 		name string
 		cfg  PersonaConfig

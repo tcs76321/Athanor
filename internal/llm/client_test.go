@@ -86,6 +86,45 @@ func TestChatSendsPersonaOptions(t *testing.T) {
 	}
 }
 
+// TestChatForwardsSeedAndFormat (M3-T7.1) pins the wire contract for the
+// two new request knobs: a pinned seed appears under options.seed and a
+// non-empty format appears at the top level. Each case uses its own fake
+// server so the captured request is not polluted by a prior decode
+// (json.Decode leaves absent struct fields untouched).
+func TestChatForwardsSeedAndFormat(t *testing.T) {
+	seed := int64(123456789)
+	ts, captured := fakeOllama(t, http.StatusOK, okChatResponse())
+	c := NewClient(ts.URL, nil)
+	if _, err := c.Chat(context.Background(), Request{
+		Model: "qwen3.8:27b-mlx", Messages: []Message{{Role: "user", Content: "judge"}},
+		Temperature: 0, ContextTarget: 8192, Seed: &seed, Format: "json",
+	}); err != nil {
+		t.Fatalf("Chat() err = %v", err)
+	}
+	if captured.Format != "json" {
+		t.Errorf("request format = %q, want json", captured.Format)
+	}
+	if captured.Options.Seed == nil || *captured.Options.Seed != seed {
+		t.Errorf("request seed = %v, want %d", captured.Options.Seed, seed)
+	}
+
+	// Unset: a fresh server so the assertion is not masked by the values
+	// captured above.
+	ts2, captured2 := fakeOllama(t, http.StatusOK, okChatResponse())
+	c2 := NewClient(ts2.URL, nil)
+	if _, err := c2.Chat(context.Background(), Request{
+		Model: "m", Messages: []Message{{Role: "user", Content: "x"}},
+	}); err != nil {
+		t.Fatalf("Chat() err = %v", err)
+	}
+	if captured2.Format != "" {
+		t.Errorf("unset format = %q, want empty", captured2.Format)
+	}
+	if captured2.Options.Seed != nil {
+		t.Errorf("unset seed = %v, want nil", captured2.Options.Seed)
+	}
+}
+
 func TestChatUnreachableFailsLoudly(t *testing.T) {
 	// Point at a server that is guaranteed down.
 	ts := httptest.NewServer(http.NotFoundHandler())

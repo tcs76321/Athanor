@@ -452,6 +452,47 @@ func TestExampleConfigMatchesDefaults(t *testing.T) {
 	}
 }
 
+// TestInference_JSONFormat pins M3-T7.1's grammar-constraint knob:
+// default true, explicit false honored.
+func TestInference_JSONFormat(t *testing.T) {
+	def, err := Default()
+	if err != nil {
+		t.Fatalf("Default(): %v", err)
+	}
+	if !def.Inference.JSONFormatEnabled() {
+		t.Error("json_format default = false, want true")
+	}
+	cfg, err := Parse([]byte("version: 2\ninference:\n  json_format: false\n"))
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	if cfg.Inference.JSONFormatEnabled() {
+		t.Error("explicit json_format: false resolved to true")
+	}
+}
+
+// TestInference_JudgmentSeed pins the seed-policy values: default off,
+// derived accepted, anything else rejected before defaults run.
+func TestInference_JudgmentSeed(t *testing.T) {
+	def, err := Default()
+	if err != nil {
+		t.Fatalf("Default(): %v", err)
+	}
+	if def.Inference.JudgmentSeed != JudgmentSeedOff {
+		t.Errorf("judgment_seed default = %q, want %q", def.Inference.JudgmentSeed, JudgmentSeedOff)
+	}
+	cfg, err := Parse([]byte("version: 2\ninference:\n  judgment_seed: derived\n"))
+	if err != nil {
+		t.Fatalf("Parse(derived): %v", err)
+	}
+	if cfg.Inference.JudgmentSeed != JudgmentSeedDerived {
+		t.Errorf("judgment_seed = %q, want derived", cfg.Inference.JudgmentSeed)
+	}
+	if _, err := Parse([]byte("version: 2\ninference:\n  judgment_seed: always\n")); err == nil {
+		t.Error("Parse(judgment_seed: always) = nil error, want rejection")
+	}
+}
+
 // TestNetwork_SearchTemplateValid (M4-T7, ADR-0019 §4) proves the
 // search engine template validation accepts a well-formed template.
 func TestNetwork_SearchTemplateValid(t *testing.T) {

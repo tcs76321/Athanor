@@ -1582,6 +1582,12 @@ inference:
   ollama_url: "http://host.containers.internal:11434"
   cloud_enabled: false
   cloud_requires_approval: true
+  # M3-T7.1 (ADR-0012): grammar-constrain the structured judgment
+  # phases via Ollama JSON mode; default on.
+  json_format: true
+  # M3-T7.1: sampler-seed policy on Temperature-0 judgment calls:
+  # "off" (default, random) or "derived" (deterministic + audited).
+  judgment_seed: "off"
 
 personas:
   wide:

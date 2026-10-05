@@ -109,3 +109,21 @@ Ollama's `format` parameter was added in 0.3.0 (2024). Every supported release s
 
 - M3-T2 (Evaluation phase) lands this ADR's wire change in the same commit as the §19 evaluation rubric; the parser consolidation lands in a follow-up commit because it's a refactor, not a behavior change.
 - M3-T7 (quality probe #2) measures the post-ADR parse-failure rate on ~10 tasks across the 27B/9B model set.
+
+## Implementation status (M3-T7.1, 2026-10-05)
+
+D2 (parser consolidation) landed with M3-T2 (`internal/engine/parse_verdict.go`).
+The D1 wire change — `Format` on `llm.Request`/`chatRequest`, set to `"json"`
+for `evaluating` and `comparing` — was **not** landed at M3-T2 and is
+implemented here, together with the M3-T7.1 seed knob:
+
+- `Inference.JSONFormat` (`json_format`, default true) gates the wire
+  change, so the M3-T7 probe can run a controlled format ablation.
+- `Inference.JudgmentSeed` (`judgment_seed`, default `"off"`) may pin a
+  derived seed on Temperature-0 calls; the resolved seed and format are
+  recorded in every `llm_call` audit row. Divergence is never seeded
+  (a shared seed would collapse its candidates).
+- `llm.Request` gains `Seed *int64` and `Format string`.
+
+The brace-scan fallback (D3) is unchanged and remains the defense for
+models or Ollama versions that ignore `format`.

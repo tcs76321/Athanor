@@ -36,6 +36,17 @@ type Request struct {
 	// ContextTarget is the num_ctx the model is loaded with (§12.3: set at
 	// model load time, per persona).
 	ContextTarget int
+	// Seed pins Ollama's sampler seed when non-nil (M3-T7.1). A nil
+	// pointer leaves the seed unset, so Ollama draws a fresh random seed
+	// per request. Structured judgment calls at Temperature 0.0 may set
+	// it for reproducibility and audit; the divergence phase must NOT
+	// set it — a shared seed would collapse the N candidates into
+	// near-duplicates and destroy the value of multiple candidates.
+	Seed *int64
+	// Format requests a constrained response format. "json" enables
+	// Ollama JSON mode (ADR-0012) and is set only for the structured
+	// judgment phases (evaluating, comparing). Empty leaves it unset.
+	Format string
 }
 
 // Response carries the model reply plus token accounting (§28.2).
@@ -66,12 +77,14 @@ type chatRequest struct {
 	Model    string    `json:"model"`
 	Messages []Message `json:"messages"`
 	Stream   bool      `json:"stream"`
+	Format   string    `json:"format,omitempty"`
 	Options  chatOpts  `json:"options"`
 }
 
 type chatOpts struct {
 	Temperature float64 `json:"temperature"`
 	NumCtx      int     `json:"num_ctx"`
+	Seed        *int64  `json:"seed,omitempty"`
 }
 
 type chatResponse struct {
@@ -91,7 +104,8 @@ func (c *Client) Chat(ctx context.Context, req Request) (Response, error) {
 		Model:    req.Model,
 		Messages: req.Messages,
 		Stream:   false,
-		Options:  chatOpts{Temperature: req.Temperature, NumCtx: req.ContextTarget},
+		Format:   req.Format,
+		Options:  chatOpts{Temperature: req.Temperature, NumCtx: req.ContextTarget, Seed: req.Seed},
 	})
 	if err != nil {
 		return Response{}, fmt.Errorf("llm: marshalling request: %w", err)
@@ -148,7 +162,8 @@ func (c *Client) Stream(ctx context.Context, req Request, onToken func(string)) 
 		Model:    req.Model,
 		Messages: req.Messages,
 		Stream:   true,
-		Options:  chatOpts{Temperature: req.Temperature, NumCtx: req.ContextTarget},
+		Format:   req.Format,
+		Options:  chatOpts{Temperature: req.Temperature, NumCtx: req.ContextTarget, Seed: req.Seed},
 	})
 	if err != nil {
 		return Response{}, fmt.Errorf("llm: marshalling request: %w", err)

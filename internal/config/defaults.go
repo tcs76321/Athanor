@@ -62,6 +62,11 @@ func applyDefaults(c *Config) {
 	setStr(&c.Inference.DefaultBackend, "ollama")
 	setStr(&c.Inference.OllamaURL, "http://host.containers.internal:11434")
 	setTrue(&c.Inference.CloudRequiresApproval)
+	// M3-T7.1 (ADR-0012): grammar-constrain the structured judgment
+	// phases by default; leave the sampler seed unseeded (production-
+	// faithful) unless the operator opts into derived seeds.
+	setTrue(&c.Inference.JSONFormat)
+	setStr(&c.Inference.JudgmentSeed, JudgmentSeedOff)
 
 	defaultPersona(&c.Personas.Wide, "qwen2.5:7b", 65536, 0.7)
 	defaultPersona(&c.Personas.Tall, "qwen2.5-coder:32b", 16384, 0.2)

@@ -103,6 +103,36 @@ type Inference struct {
 	OllamaURL             string `yaml:"ollama_url"`
 	CloudEnabled          bool   `yaml:"cloud_enabled"`
 	CloudRequiresApproval *bool  `yaml:"cloud_requires_approval"`
+	// JSONFormat constrains the security persona's structured phases
+	// (evaluating, comparing) to valid JSON at the wire layer
+	// (ADR-0012). A pointer distinguishes "unset" (default true) from an
+	// explicit false, which the M3-T7 quality probe uses for a format
+	// ablation. Resolve via JSONFormatEnabled.
+	JSONFormat *bool `yaml:"json_format"`
+	// JudgmentSeed controls sampler-seed pinning on Temperature-0
+	// judgment calls (M3-T7.1). JudgmentSeedOff (default) leaves the
+	// seed unset so Ollama draws a random one per request;
+	// JudgmentSeedDerived pins a deterministic seed derived from the
+	// job, phase, and candidate bytes and records it in the llm_call
+	// audit row. Divergence is never seeded.
+	JudgmentSeed string `yaml:"judgment_seed"`
+}
+
+// Judgment-seed policy values for Inference.JudgmentSeed.
+const (
+	// JudgmentSeedOff leaves the Ollama sampler seed unset (random per
+	// request). This is the production-faithful default.
+	JudgmentSeedOff = "off"
+	// JudgmentSeedDerived pins a deterministic seed on Temperature-0
+	// calls, derived from stable inputs and recorded for audit.
+	JudgmentSeedDerived = "derived"
+)
+
+// JSONFormatEnabled reports whether structured judgment phases request
+// Ollama JSON mode, applying the documented default (true) when the
+// operator left json_format unset. Explicit false disables it.
+func (i Inference) JSONFormatEnabled() bool {
+	return Val(i.JSONFormat, true)
 }
 
 // PersonaConfig assigns a model to one functional role (§12).

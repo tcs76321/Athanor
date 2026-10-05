@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"hash/fnv"
 	"log/slog"
 	"time"
 
@@ -109,6 +110,38 @@ func (e *Engine) contexts(ctx context.Context, j job.Job) (project.Project, proj
 		return project.Project{}, project.Task{}, err
 	}
 	return p, t, nil
+}
+
+// phaseProducesJSON reports whether a phase expects a structured JSON
+// verdict from the security persona (ADR-0012). Only the two judgment
+// phases do; every other phase produces prose.
+func phaseProducesJSON(phase string) bool {
+	return phase == llm.PhaseEvaluating || phase == llm.PhaseComparing
+}
+
+// judgmentSeed derives the Ollama sampler seed for a Temperature-0
+// judgment call (M3-T7.1). It is a deterministic function of the job,
+// the phase, and the candidate bytes, so re-entering the same phase for
+// the same job (e.g. crash recovery) samples the same point, and
+// different candidates get independent seeds. The value is recorded in
+// the llm_call audit row so a post-mortem can replay the call.
+//
+// It is deliberately NOT a cross-job determinism guarantee — a fresh job
+// has a new ID, so a fresh run samples a different point. T-c measures
+// that residual instability rather than assuming it away. FNV-1a is
+// sufficient: this is a sampling key, not a security boundary.
+func judgmentSeed(jobID, phase string, candidates []prompt.CandidateArtifact) int64 {
+	h := fnv.New64a()
+	_, _ = h.Write([]byte(jobID))
+	_, _ = h.Write([]byte{0})
+	_, _ = h.Write([]byte(phase))
+	for _, c := range candidates {
+		_, _ = h.Write([]byte{0})
+		_, _ = h.Write([]byte(c.Kind))
+		_, _ = h.Write([]byte{0})
+		_, _ = h.Write([]byte(c.Content))
+	}
+	return int64(h.Sum64() & (1<<63 - 1))
 }
 
 // call performs one phase's LLM request with every guard: context
@@ -268,6 +301,20 @@ func (e *Engine) call(ctx context.Context, j job.Job, p project.Project, t proje
 
 	temperature := llm.ResolveTemperature(phase, persona.Temperature, nil)
 
+	// M3-T7.1 (ADR-0012): grammar-constrain the structured judgment
+	// phases, and optionally pin a derived seed on Temperature-0
+	// judgment calls. Divergence is intentionally left unseeded — a
+	// shared seed would collapse its N candidates.
+	resolvedFormat := ""
+	if e.cfg.Inference.JSONFormatEnabled() && phaseProducesJSON(phase) {
+		resolvedFormat = "json"
+	}
+	var resolvedSeed *int64
+	if e.cfg.Inference.JudgmentSeed == config.JudgmentSeedDerived && temperature == 0 {
+		s := judgmentSeed(j.ID, phase, candidates)
+		resolvedSeed = &s
+	}
+
 	// Per-phase wall-time budget (§8.2); falls back to the default budget.
 	budget, hasBudget := e.cfg.Execution.PhaseBudget(phase)
 	if !hasBudget || budget <= 0 {
@@ -281,6 +328,8 @@ func (e *Engine) call(ctx context.Context, j job.Job, p project.Project, t proje
 		Messages:      res.Messages,
 		Temperature:   temperature,
 		ContextTarget: persona.ContextTarget,
+		Seed:          resolvedSeed,
+		Format:        resolvedFormat,
 	}
 	var resp llm.Response
 	if e.tokenSink != nil {
@@ -320,6 +369,10 @@ func (e *Engine) call(ctx context.Context, j job.Job, p project.Project, t proje
 		"temperature": temperature, "prompt_tokens": resp.PromptTokens,
 		"completion_tokens": resp.CompletionTokens, "estimated_prompt_tokens": res.TotalToken,
 		"sections": sections,
+		// M3-T7.1: generation provenance for reproducibility/audit.
+		// `seed` is null when judgment_seed is off (Ollama draws a
+		// random seed); `format` is "json" for the judgment phases.
+		"format": resolvedFormat, "seed": resolvedSeed,
 	})
 
 	// M6-T7 (§18.3, ADR-0038): audit which corrections were injected, at
