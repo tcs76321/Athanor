@@ -120,6 +120,27 @@ func (r *Repo) TasksByGoal(ctx context.Context, goalID string) ([]Task, error) {
 		return nil, fmt.Errorf("listing tasks for goal %s: %w", goalID, err)
 	}
 	defer func() { _ = rows.Close() }()
+	return scanTasks(rows)
+}
+
+// TasksByProject loads every task for a project in insertion order (M6-T1:
+// the DAG inspection surface). A missing project yields an empty list.
+func (r *Repo) TasksByProject(ctx context.Context, projectID string) ([]Task, error) {
+	rows, err := r.store.DB().QueryContext(ctx,
+		`SELECT `+taskColumns+` FROM tasks WHERE project_id = ? ORDER BY rowid`, projectID)
+	if err != nil {
+		return nil, fmt.Errorf("listing tasks for project %s: %w", projectID, err)
+	}
+	defer func() { _ = rows.Close() }()
+	return scanTasks(rows)
+}
+
+// scanTasks drains a tasks result set using the shared column mapping.
+func scanTasks(rows interface {
+	Next() bool
+	Scan(...any) error
+	Err() error
+}) ([]Task, error) {
 	var out []Task
 	for rows.Next() {
 		t, err := scanTask(rows)

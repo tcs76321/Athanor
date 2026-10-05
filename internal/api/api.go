@@ -11,6 +11,7 @@ import (
 
 	"github.com/tcs76321/athanor/internal/artifact"
 	"github.com/tcs76321/athanor/internal/control"
+	"github.com/tcs76321/athanor/internal/decompose"
 	"github.com/tcs76321/athanor/internal/job"
 	"github.com/tcs76321/athanor/internal/project"
 	"github.com/tcs76321/athanor/internal/store"
@@ -42,6 +43,14 @@ type IndexRunner interface {
 	IndexProject(ctx context.Context, projectID, path string) (IndexSummary, error)
 }
 
+// Decomposer is the surface the M6-T1 `POST /projects/{id}/decompose`
+// route uses (ADR-0032). The concrete orchestrator is
+// *decompose.Decomposer; the pure graph model and validator live in
+// internal/dag.
+type Decomposer interface {
+	Decompose(ctx context.Context, projectID, goal string, criteria []string) (decompose.Result, error)
+}
+
 // IndexSummary is an indexing pass's counters, also the route's JSON body.
 type IndexSummary struct {
 	Discovered int `json:"discovered"`
@@ -56,14 +65,15 @@ type IndexSummary struct {
 
 // API wires the HTTP handlers to the persistence and engine layers.
 type API struct {
-	projects  *project.Repo
-	jobs      *job.Repository
-	artifacts *artifact.Store
-	engine    Engine
-	freezer   *control.KillSwitch
-	db        *store.Store
-	exporter  ManualExporter
-	indexer   IndexRunner
+	projects   *project.Repo
+	jobs       *job.Repository
+	artifacts  *artifact.Store
+	engine     Engine
+	freezer    *control.KillSwitch
+	db         *store.Store
+	exporter   ManualExporter
+	indexer    IndexRunner
+	decomposer Decomposer
 }
 
 // New builds the API.
@@ -89,6 +99,13 @@ func (a *API) SetIndexRunner(r IndexRunner) {
 	a.indexer = r
 }
 
+// SetDecomposer wires the M6-T1 DAG decomposer for `POST
+// /projects/{id}/decompose` (ADR-0032). A daemon that does not wire one
+// answers 503.
+func (a *API) SetDecomposer(d Decomposer) {
+	a.decomposer = d
+}
+
 // Register attaches all routes to mux.
 func (a *API) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /projects", a.handleProjectCreate)
@@ -101,6 +118,9 @@ func (a *API) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /exports/{id}", a.handleExport)
 	// M5-T8: synchronous repository indexing on operator request.
 	mux.HandleFunc("POST /projects/{id}/index", a.handleProjectIndex)
+	// M6-T1: explicit DAG decomposition (ADR-0032).
+	mux.HandleFunc("POST /projects/{id}/decompose", a.handleDecompose)
+	mux.HandleFunc("GET /projects/{id}/tasks", a.handleProjectTasks)
 }
 
 // writeJSON is the single response writer: always JSON, always UTF-8.

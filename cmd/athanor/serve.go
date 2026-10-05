@@ -216,6 +216,11 @@ func run(configPath, addr, stateDir string) error {
 	// (ADR-0028 §6). It shares the MCE runtime's chunk store and summarizer.
 	indexer := newMCEIndexer(mceRT, st, llmClient, cfg.ContextEngine)
 	externalAPI.SetIndexRunner(indexer)
+	// M6-T1: the explicit DAG decomposer behind POST /projects/{id}/decompose
+	// (ADR-0032). It shares the LLM client and persona registry with the
+	// engine; it produces and validates a task graph but does not enqueue
+	// jobs (the M6-T2 scheduler will).
+	externalAPI.SetDecomposer(newDecomposer(cfg, llmClient, registry, projectRepo, st))
 	externalAPI.Register(srv.Mux())
 	// M2-T3 + M2-T4: internal API for Job Pods. Same loopback HTTP
 	// server, different path prefix (/internal/v1/), every route

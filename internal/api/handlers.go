@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/tcs76321/athanor/internal/artifact"
+	"github.com/tcs76321/athanor/internal/decompose"
 	"github.com/tcs76321/athanor/internal/job"
 	"github.com/tcs76321/athanor/internal/project"
 	"github.com/tcs76321/athanor/internal/store"
@@ -49,6 +50,90 @@ func (a *API) handleGoalSubmit(w http.ResponseWriter, r *http.Request) {
 	}
 	a.engine.Enqueue(j.ID)
 	writeJSON(w, http.StatusCreated, goalResponse{TaskID: task.ID, JobID: j.ID})
+}
+
+// decompositionTask is the wire shape of one task in a decomposition
+// response. It is deliberately narrower than project.Task: the API exposes
+// the graph structure, not persistence internals.
+type decompositionTask struct {
+	ID        string   `json:"id"`
+	ParentID  string   `json:"parent_id,omitempty"`
+	Title     string   `json:"title"`
+	Status    string   `json:"status"`
+	DependsOn []string `json:"depends_on"`
+	Criteria  []string `json:"acceptance_criteria"`
+}
+
+type decompositionResponse struct {
+	GoalID  string              `json:"goal_id"`
+	Persona string              `json:"persona"`
+	Tasks   []decompositionTask `json:"tasks"`
+}
+
+func toDecompositionTasks(tasks []project.Task) []decompositionTask {
+	out := make([]decompositionTask, 0, len(tasks))
+	for _, t := range tasks {
+		out = append(out, decompositionTask{
+			ID: t.ID, ParentID: t.ParentID, Title: t.Title, Status: t.Status,
+			DependsOn: t.DependsOn, Criteria: t.Criteria,
+		})
+	}
+	return out
+}
+
+// handleDecompose is the M6-T1 explicit decomposition entry point
+// (ADR-0032). It runs the decomposer synchronously and returns the
+// persisted graph. 422 carries a machine-readable rejection reason; 409 is
+// reserved for the frozen kill switch; 503 means no decomposer is wired.
+func (a *API) handleDecompose(w http.ResponseWriter, r *http.Request) {
+	if a.freezer.Frozen() {
+		writeError(w, http.StatusConflict,
+			"daemon is frozen: no new work is accepted (unfreeze with a reason first, §22.2)")
+		return
+	}
+	if a.decomposer == nil {
+		writeError(w, http.StatusServiceUnavailable, "DAG decomposition is not configured")
+		return
+	}
+	var req goalRequest
+	if !decodeBody(w, r, &req) {
+		return
+	}
+	res, err := a.decomposer.Decompose(r.Context(), r.PathValue("id"), req.Goal, req.Criteria)
+	if err != nil {
+		writeError(w, decomposeStatus(err), err.Error())
+		return
+	}
+	writeJSON(w, http.StatusCreated, decompositionResponse{
+		GoalID: res.GoalID, Persona: res.Persona, Tasks: toDecompositionTasks(res.Tasks),
+	})
+}
+
+// handleProjectTasks lists a project's tasks (M6-T1 DAG inspection).
+func (a *API) handleProjectTasks(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if _, err := a.projects.Get(r.Context(), id); err != nil {
+		writeError(w, http.StatusNotFound, err.Error())
+		return
+	}
+	tasks, err := a.projects.TasksByProject(r.Context(), id)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"tasks": toDecompositionTasks(tasks)})
+}
+
+// decomposeStatus maps a decomposer error to an HTTP status.
+func decomposeStatus(err error) int {
+	switch {
+	case errors.Is(err, project.ErrNotFound):
+		return http.StatusNotFound
+	case errors.Is(err, decompose.ErrRejected), errors.Is(err, decompose.ErrInfeasible):
+		return http.StatusUnprocessableEntity
+	default:
+		return http.StatusInternalServerError
+	}
 }
 
 func (a *API) handleArtifacts(w http.ResponseWriter, r *http.Request) {

@@ -61,8 +61,11 @@ type goalSubmitResult struct {
 }
 
 func runGoal(args []string) error {
+	if len(args) > 0 && args[0] == "decompose" {
+		return runGoalDecompose(args[1:])
+	}
 	if len(args) == 0 || args[0] != "submit" {
-		return fmt.Errorf("usage: athanor goal submit -project ID -goal \"...\"")
+		return fmt.Errorf("usage: athanor goal submit|decompose -project ID -goal \"...\"")
 	}
 	fs := flag.NewFlagSet("goal submit", flag.ContinueOnError)
 	projectID := fs.String("project", "", "project id (required)")
