@@ -154,3 +154,28 @@ func scanTasks(rows interface {
 	}
 	return out, nil
 }
+
+// NonTerminalGoalIDs returns the distinct goal IDs that still have a task in
+// a non-terminal status — the M6-T2 boot reconcile work list.
+func (r *Repo) NonTerminalGoalIDs(ctx context.Context) ([]string, error) {
+	rows, err := r.store.DB().QueryContext(ctx,
+		`SELECT DISTINCT goal_id FROM tasks
+		 WHERE goal_id IS NOT NULL AND status NOT IN ('completed','failed')
+		 ORDER BY goal_id`)
+	if err != nil {
+		return nil, fmt.Errorf("listing non-terminal goals: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	var out []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("scanning goal id: %w", err)
+		}
+		out = append(out, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterating goal ids: %w", err)
+	}
+	return out, nil
+}

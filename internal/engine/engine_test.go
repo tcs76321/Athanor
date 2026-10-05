@@ -335,6 +335,26 @@ func TestRunCompletesFullChain(t *testing.T) {
 	}
 }
 
+// TestOnJobTerminalFiresForCompletion proves the M6-T2 terminal seam
+// (ADR-0033): the engine notifies a wired observer exactly once when a job
+// reaches a terminal state, with the job's final state.
+func TestOnJobTerminalFiresForCompletion(t *testing.T) {
+	e := newEnv(t)
+	jobID := e.submit(t)
+	type signal struct {
+		id    string
+		state job.State
+	}
+	var got []signal
+	e.eng.SetOnJobTerminal(func(_ context.Context, id string, s job.State) {
+		got = append(got, signal{id, s})
+	})
+	e.eng.Run(context.Background(), jobID)
+	if len(got) != 1 || got[0].id != jobID || got[0].state != job.StateCompleted {
+		t.Fatalf("terminal callback = %+v, want one completed for %s", got, jobID)
+	}
+}
+
 // fixedCap is a ConcurrencyCap that returns a fixed value, used by
 // M1-T8.4 tests to drive the engine's concurrency behavior.
 type fixedCap struct{ n int }

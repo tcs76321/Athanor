@@ -156,6 +156,11 @@ type Engine struct {
 	inFlight int64
 	mu       sync.Mutex // guards running set to avoid double-running a job
 	running  map[string]bool
+	// onTerminal is invoked when a job reaches a terminal state, so the
+	// M6-T2 scheduler can advance the job's task graph (ADR-0033). A nil
+	// seam is the M1 walking-skeleton default: nothing observes the
+	// transition.
+	onTerminal func(ctx context.Context, jobID string, state job.State)
 }
 
 // New wires an engine. Concurrency is bounded by cap.MaxConcurrentJobs,
@@ -218,6 +223,22 @@ func New(cfg *config.Config, db *store.Store, jobs *job.Repository, projects *pr
 // rather than a New() parameter so existing New call sites are unchanged;
 // production wires it in cmd/athanor/serve.go.
 func (e *Engine) SetGitCommitter(g GitCommitter) { e.git = g }
+
+// SetOnJobTerminal wires the terminal-transition observer the M6-T2
+// scheduler uses to advance a decomposed task graph (ADR-0033). It fires
+// once per terminal transition from Run (both the normal terminal branch
+// and the phase-error path). A nil fn (the default) is a no-op.
+func (e *Engine) SetOnJobTerminal(fn func(ctx context.Context, jobID string, state job.State)) {
+	e.onTerminal = fn
+}
+
+// signalTerminal invokes the terminal observer, if any. The callback runs
+// on the engine's job goroutine; the scheduler serializes its own work.
+func (e *Engine) signalTerminal(ctx context.Context, jobID string, state job.State) {
+	if e.onTerminal != nil {
+		e.onTerminal(ctx, jobID, state)
+	}
+}
 
 // staticCap is the fallback ConcurrencyCap when no PowerManager is
 // wired. It returns a fixed value derived from cfg.Limits at construction.
@@ -347,6 +368,8 @@ func (e *Engine) Run(ctx context.Context, jobID string) {
 				// M2-T4b.5 (ADR-0024 §2): a terminal job's Job Pod has no
 				// further use; stop it (idempotent, nil-safe).
 				e.stopPod(ctx, jobID)
+				// M6-T2 (ADR-0033): let the scheduler advance the graph.
+				e.signalTerminal(ctx, jobID, j.State)
 			}
 			return
 		}
@@ -370,6 +393,10 @@ func (e *Engine) Run(ctx context.Context, jobID string) {
 			slog.Error("engine: phase failed", "job", jobID, "state", j.State, "err", err)
 			if _, terr := e.jobs.Transition(ctx, jobID, job.StateFailed); terr != nil {
 				slog.Error("engine: marking job failed", "job", jobID, "err", terr)
+			} else {
+				// M6-T2 (ADR-0033): the failure path is a terminal
+				// transition too; the scheduler learns of it here.
+				e.signalTerminal(ctx, jobID, job.StateFailed)
 			}
 			e.audit(ctx, jobID, map[string]any{
 				"event": "job_failed", "state": string(j.State), "error": err.Error(),

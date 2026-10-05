@@ -28,6 +28,7 @@ import (
 	"github.com/tcs76321/athanor/internal/logging"
 	"github.com/tcs76321/athanor/internal/power"
 	"github.com/tcs76321/athanor/internal/project"
+	"github.com/tcs76321/athanor/internal/scheduler"
 	"github.com/tcs76321/athanor/internal/server"
 	"github.com/tcs76321/athanor/internal/store"
 	"github.com/tcs76321/athanor/migrations"
@@ -207,6 +208,11 @@ func run(configPath, addr, stateDir string) error {
 	// and the project has a repository_path that is a clean git worktree,
 	// record it on an agent branch. Best-effort; never pushes.
 	eng.SetGitCommitter(gitClient{})
+	// M6-T2 (ADR-0033): the dependency scheduler. It starts the ready
+	// leaves of a decomposed goal and advances the graph as jobs finish;
+	// the engine notifies it through the terminal seam below.
+	sched := scheduler.New(projectRepo, job.NewRepository(st), eng, st)
+	eng.SetOnJobTerminal(sched.OnJobTerminal)
 	srv := server.New(version)
 	srv.SetControl(killSwitch)
 	externalAPI := api.New(projectRepo, job.NewRepository(st),
@@ -358,6 +364,19 @@ func run(configPath, addr, stateDir string) error {
 	// (503 until job_pod.image is set). A recovered job resumes with the
 	// same dispatch.
 	eng.Recover(context.Background())
+
+	// M6-T2 (ADR-0033 §4): reconcile decomposed graphs after a restart.
+	// Recover restarts in-flight jobs; this pass applies any terminal job
+	// outcomes recorded before the crash and schedules newly-ready leaves.
+	if goals, err := projectRepo.NonTerminalGoalIDs(context.Background()); err != nil {
+		slog.Error("scheduler: listing goals to reconcile", "err", err)
+	} else {
+		for _, goalID := range goals {
+			if err := sched.Reconcile(context.Background(), goalID); err != nil {
+				slog.Error("scheduler: reconcile", "goal", goalID, "err", err)
+			}
+		}
+	}
 
 	// M5-T6: the minimal daydream memory-consolidation loop (ADR-0025 §6). It
 	// is off by default (the interactive power profile disallows daydreaming)
