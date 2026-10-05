@@ -58,6 +58,12 @@ New entries are appended at the top. Do not rewrite history.
   otherwise stream for the full HTTP client timeout; the M3-T7 smoke saw
   evaluating calls hang for ~10 minutes. Bounding generation turns a hang into
   a fast truncation the parser rejects.
+- **fix(security): `context_swap` enforces scope ownership** — the route now
+  forces the scope to the authenticated job (a client-supplied scope is
+  ignored) and the Core rejects a target chunk that belongs to another job or
+  project (`mce.ChunkStore.Owns`), closing a cross-scope read/active-pointer
+  gap in the untrusted-pod tool surface. Found in the M3-T7 deep review of the
+  MCE integration.
 - **fix(llm): disable thinking by default** (`inference.think`, default false) —
   a thinking-capable model (`ornith-1.5:9b`) spent the entire output-token
   budget on its reasoning phase, leaving the visible content empty

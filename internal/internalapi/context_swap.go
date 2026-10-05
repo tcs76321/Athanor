@@ -48,8 +48,17 @@ func (a *API) handleContextSwap(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "context_swap: target_chunk_id is required")
 		return
 	}
-	if req.Scope == "" {
-		req.Scope = jobID
+	// Isolation (§3.1): the pod never chooses which working set it rotates.
+	// Force the scope to the authenticated job — a client-supplied scope is
+	// ignored, so a pod cannot overwrite another job's active pointer.
+	req.Scope = jobID
+	// Attach the caller's project (server-side) so the store can enforce
+	// chunk ownership: a chunk is reachable only if it belongs to this job
+	// or to its project.
+	if a.projects != nil {
+		if pid, err := a.projects.JobProject(r.Context(), jobID); err == nil {
+			req.ProjectID = pid
+		}
 	}
 
 	// The per-job envelope gate. Gate G2's

@@ -298,6 +298,22 @@ func scanTask(row interface{ Scan(...any) error }) (Task, error) {
 	return t, nil
 }
 
+// JobProject resolves the project that owns a job. It is used by the
+// internal API to attach the caller's project for context_swap ownership
+// checks (M3-T7 finding B). An unknown job is ErrNotFound.
+func (r *Repo) JobProject(ctx context.Context, jobID string) (string, error) {
+	var projectID string
+	err := r.store.DB().QueryRowContext(ctx,
+		`SELECT project_id FROM jobs WHERE id = ?`, jobID).Scan(&projectID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", fmt.Errorf("%w: %s", ErrNotFound, jobID)
+	}
+	if err != nil {
+		return "", fmt.Errorf("loading project for job %s: %w", jobID, err)
+	}
+	return projectID, nil
+}
+
 // Task loads one task by ID.
 func (r *Repo) Task(ctx context.Context, id string) (Task, error) {
 	row := r.store.DB().QueryRowContext(ctx, `SELECT `+taskColumns+` FROM tasks WHERE id = ?`, id)

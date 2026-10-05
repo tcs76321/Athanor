@@ -43,6 +43,17 @@ func (a *contextSwapAdapter) SwapContext(ctx context.Context, req toolenvelope.C
 	if a.store == nil {
 		return nil, errors.New("context swap: chunk store not configured")
 	}
+	// Containment (M3-T7 finding B): a pod may only rotate a chunk that
+	// belongs to its own job or project. An unowned or unknown chunk is the
+	// same 404, so the response never discloses whether a foreign chunk
+	// exists.
+	owned, err := a.store.Owns(ctx, req.TargetChunkID, req.Scope, req.ProjectID)
+	if err != nil {
+		return nil, err
+	}
+	if !owned {
+		return nil, fmt.Errorf("%w: %s", internalapi.ErrChunkNotFound, req.TargetChunkID)
+	}
 	res, err := a.store.Swap(ctx, req.Scope, req.TargetChunkID)
 	if err != nil {
 		if errors.Is(err, mce.ErrNotFound) {

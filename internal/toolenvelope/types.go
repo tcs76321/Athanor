@@ -117,10 +117,15 @@ type ContextSwapRequest struct {
 	// Tool names the closed-set tool ("context_swap"). Defense-in-depth
 	// double-check, same as ExecuteRequest.Tool.
 	Tool Tool `json:"tool"`
-	// Scope names the working set whose active chunk is being rotated. The
-	// engine passes the job ID; an empty Scope defaults to the
-	// authenticated job ID server-side.
+	// Scope names the working set whose active chunk is being rotated. It
+	// is set server-side to the authenticated job ID; a client value is
+	// ignored (isolation).
 	Scope string `json:"scope"`
+	// ProjectID is the caller job's project, set server-side (a client
+	// value is ignored). It lets the Core enforce that the target chunk
+	// belongs to this job or its project — a pod cannot read another
+	// scope's chunks.
+	ProjectID string `json:"project_id,omitempty"`
 	// TargetChunkID is the dormant chunk to activate. It is a deterministic
 	// chunk handle from the Dormant Index (ADR-0021 §5).
 	TargetChunkID string `json:"target_chunk_id"`

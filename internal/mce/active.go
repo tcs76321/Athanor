@@ -49,6 +49,33 @@ func (c *ChunkStore) activeChunkID(ctx context.Context, scope string) (string, b
 	return id, true, nil
 }
 
+// Owns reports whether chunkID is reachable by (jobID, projectID) — the
+// containment check the context_swap route applies before rotating a
+// working set (M3-T7 finding B). A chunk is owned when it was ingested for
+// this job, or for this job's project (repository chunks carry a project
+// but no job). An unknown chunk is not owned, not an error.
+func (c *ChunkStore) Owns(ctx context.Context, chunkID, jobID, projectID string) (bool, error) {
+	if chunkID == "" {
+		return false, nil
+	}
+	var job, project sql.NullString
+	err := c.db.DB().QueryRowContext(ctx,
+		`SELECT job_id, project_id FROM context_chunks WHERE id = ?`, chunkID).Scan(&job, &project)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("mce: read chunk ownership for %s: %w", chunkID, err)
+	}
+	if job.Valid && jobID != "" && job.String == jobID {
+		return true, nil
+	}
+	if project.Valid && projectID != "" && project.String == projectID {
+		return true, nil
+	}
+	return false, nil
+}
+
 // Swap makes targetChunkID the active chunk for scope (§10.1; M5-T3).
 //
 // The loaded chunk is returned byte-exact (its stored bytes are hash-verified

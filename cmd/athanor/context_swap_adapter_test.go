@@ -40,7 +40,7 @@ func newAdapterHarness(t *testing.T) (*contextSwapAdapter, []division.Chunk) {
 	if len(chunks) < 2 {
 		t.Fatalf("need >= 2 chunks, got %d", len(chunks))
 	}
-	if _, err := cs.PutSource(context.Background(), mce.SourceRef{RelPath: "a.go"}, chunks); err != nil {
+	if _, err := cs.PutSource(context.Background(), mce.SourceRef{ProjectID: "proj-1", JobID: "job-1", RelPath: "a.go"}, chunks); err != nil {
 		t.Fatalf("PutSource: %v", err)
 	}
 	return newContextSwapAdapter(cs, true), chunks
@@ -88,6 +88,19 @@ func TestContextSwapAdapter_UnknownChunkIsNotFound(t *testing.T) {
 		toolenvelope.ContextSwapRequest{Scope: "s", TargetChunkID: "does-not-exist"})
 	if !errors.Is(err, internalapi.ErrChunkNotFound) {
 		t.Fatalf("err = %v, want internalapi.ErrChunkNotFound", err)
+	}
+}
+
+// TestContextSwapAdapter_RejectsForeignChunk is the M3-T7 finding-B
+// containment test: a pod may not rotate a chunk that belongs to another
+// job or project.
+func TestContextSwapAdapter_RejectsForeignChunk(t *testing.T) {
+	ad, chunks := newAdapterHarness(t)
+	_, err := ad.SwapContext(context.Background(), toolenvelope.ContextSwapRequest{
+		Scope: "job-2", ProjectID: "proj-2", TargetChunkID: chunks[0].ID,
+	})
+	if !errors.Is(err, internalapi.ErrChunkNotFound) {
+		t.Fatalf("err = %v, want ErrChunkNotFound for a foreign chunk", err)
 	}
 }
 
