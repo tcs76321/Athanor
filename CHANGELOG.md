@@ -12,6 +12,13 @@ New entries are appended at the top. Do not rewrite history.
 
 ### Foundations — F3: documentation, correctness & hardening sweep
 
+- **F3-T6.** The M3-T7-b/c quality-measurement **runbook** lands in
+  [docs/probes/m3-t7-quality-probe.md](docs/probes/m3-t7-quality-probe.md):
+  the manual collection recipe (event-table queries, binning, the T=0
+  stability approximation and its confound), with the honest note that the
+  measurement is **pending a live model run** and no findings are fabricated.
+  The execution stays a ROADMAP §7 backlog item.
+
 - **F3-T4.** Per-project execution config ([ADR-0031](docs/adr/0031-project-execution-config.md)):
   migration 0016 adds `projects.execution_json`; `project.Execution`
   (`test_command`, `build_command`, `linters`) is settable via
