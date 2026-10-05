@@ -28,6 +28,13 @@ New entries are appended at the top. Do not rewrite history.
   read-only outcome capture, `report.md`); real-loader validation of the
   generated configs and a boot pre-flight. Findings pending the live run
   ([protocol](docs/probes/m3-t7-quality-probe.md)).
+- **M3-T7.5.** Judgment JSON robustness
+  ([ADR-0042](docs/adr/0042-judgment-json-robustness.md)). The smoke run
+  hard-failed 3 of 4 jobs because `format:"json"` guarantees parseable but
+  not *typed* JSON. `llm.Request.Format` now carries a JSON schema per
+  judgment phase, the verdict parser tolerates common type drift and audits
+  every coercion (`verdict_coerced`), and the evaluation prompt pins
+  `score`/`confidence` to 0.0–1.0 with defensive normalization.
 
 ### Fixes
 
