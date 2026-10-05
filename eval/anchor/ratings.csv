@@ -1,0 +1,9 @@
+case_id,rater,rating,criteria_met,notes
+md-d1,agent,3,Y,"sections in order; title is the raw project id"
+md-d2,agent,2,Y,"sections out of order (License first); absurd pip install name; trailing LIMITATION"
+md-d3,agent,4,Y,"clean # md2html title; correct order; sane install"
+md-s1,agent,3,Y,"raw project id as title; absurd pip install name"
+sa-d1,agent,4,Y,"concrete module brief; two real risks"
+sa-d2,agent,3,Y,"metaphorical (sun/sleeper/alarm); inventive but off-brief"
+sa-d3,agent,2,Y,"self-referential (''brief document'' as a part); meta LIMITATION"
+sa-s1,agent,5,Y,"most professional (Alarm/Scheduler/Interface); concrete risks"
