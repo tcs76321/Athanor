@@ -277,6 +277,71 @@ func (r *Repo) ListByProject(ctx context.Context, projectID string) ([]Record, e
 	return r.query(ctx, `WHERE project_id = ? ORDER BY created_at DESC`, projectID)
 }
 
+// Relevant returns active corrections that apply to projectID — project-scoped
+// records for that project plus global records — ordered by severity
+// (critical first), then scope (project before global), then recency, capped
+// at limit (<=0 means no cap). This is the §18.3 retrieval seam; a similarity
+// ranker refines it later without touching the assembler.
+func (r *Repo) Relevant(ctx context.Context, projectID string, limit int) ([]Record, error) {
+	q := `WHERE status = 'active' AND (scope = 'global' OR project_id = ?)
+		ORDER BY CASE severity WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END,
+		CASE scope WHEN 'project' THEN 0 ELSE 1 END,
+		created_at DESC`
+	if limit > 0 {
+		q += fmt.Sprintf(` LIMIT %d`, limit)
+	}
+	return r.query(ctx, q, nullIfEmpty(projectID))
+}
+
+// EditInput is a partial update for a correction (§18.3 edit). Empty fields
+// are left unchanged; a non-empty field is validated against its closed set.
+type EditInput struct {
+	Category     string
+	Severity     string
+	Scope        string
+	UserFeedback string
+	DerivedRule  string
+}
+
+// Update applies an edit to a record and returns the updated record.
+func (r *Repo) Update(ctx context.Context, id string, in EditInput) (Record, error) {
+	rec, err := r.Get(ctx, id)
+	if err != nil {
+		return Record{}, err
+	}
+	if in.Category != "" {
+		if !validCategory(in.Category) {
+			return Record{}, fmt.Errorf("%w: category %q", ErrInvalidField, in.Category)
+		}
+		rec.Category = in.Category
+	}
+	if in.Severity != "" {
+		if !validSeverity(in.Severity) {
+			return Record{}, fmt.Errorf("%w: severity %q", ErrInvalidField, in.Severity)
+		}
+		rec.Severity = in.Severity
+	}
+	if in.Scope != "" {
+		if !validScope(in.Scope) {
+			return Record{}, fmt.Errorf("%w: scope %q", ErrInvalidField, in.Scope)
+		}
+		rec.Scope = in.Scope
+	}
+	if in.UserFeedback != "" {
+		rec.UserFeedback = in.UserFeedback
+	}
+	if in.DerivedRule != "" {
+		rec.DerivedRule = in.DerivedRule
+	}
+	if _, err := r.store.DB().ExecContext(ctx,
+		`UPDATE corrections SET category = ?, severity = ?, scope = ?, user_feedback = ?, derived_rule = ? WHERE id = ?`,
+		rec.Category, rec.Severity, rec.Scope, rec.UserFeedback, rec.DerivedRule, id,
+	); err != nil {
+		return Record{}, fmt.Errorf("updating correction: %w", err)
+	}
+	return r.Get(ctx, id)
+}
+
 // SetStatus moves a record between active/muted/expired (§18.3).
 func (r *Repo) SetStatus(ctx context.Context, id, status string) error {
 	if status != StatusActive && status != StatusMuted && status != StatusExpired {

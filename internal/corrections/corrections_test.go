@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/tcs76321/athanor/internal/project"
 	"github.com/tcs76321/athanor/internal/store"
 	"github.com/tcs76321/athanor/migrations"
 )
@@ -139,5 +140,73 @@ func TestSetStatusAndMarkApplied(t *testing.T) {
 	}
 	if err := repo.SetStatus(ctx, rec.ID, "bogus"); !errors.Is(err, ErrInvalidField) {
 		t.Errorf("bad status err = %v, want ErrInvalidField", err)
+	}
+}
+
+func TestRelevantOrdersSeverityThenScopeAndScopesProject(t *testing.T) {
+	repo, s := openCorrections(t)
+	ctx := context.Background()
+
+	projects := project.NewRepo(s)
+	pa, _, err := projects.Create(ctx, "pa", project.ArchetypeText, "Write a short essay about local-first software.", "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pb, _, err := projects.Create(ctx, "pb", project.ArchetypeText, "Write a different essay about local-first software.", "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	mk := func(projectID, scope, severity string) Record {
+		t.Helper()
+		r, err := repo.Capture(ctx, CaptureInput{
+			Source: SourceTestFailure, ProjectID: projectID, Scope: scope, Severity: severity,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return r
+	}
+	low := mk(pa.ID, ScopeProject, SeverityLow)
+	crit := mk(pa.ID, ScopeProject, SeverityCritical)
+	highGlobal := mk(pa.ID, ScopeGlobal, SeverityHigh)
+	mk(pb.ID, ScopeProject, SeverityCritical) // another project: excluded
+
+	got, err := repo.Relevant(ctx, pa.ID, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 3 {
+		t.Fatalf("relevant = %d, want 3 (project + global, not the other project)", len(got))
+	}
+	if got[0].ID != crit.ID || got[1].ID != highGlobal.ID || got[2].ID != low.ID {
+		t.Errorf("order = %s/%s/%s, want critical-project, high-global, low-project",
+			got[0].Severity, got[1].Severity, got[2].Severity)
+	}
+
+	capped, err := repo.Relevant(ctx, pa.ID, 2)
+	if err != nil || len(capped) != 2 {
+		t.Fatalf("capped relevant = %v (err %v), want 2", capped, err)
+	}
+}
+
+func TestUpdateEditsFields(t *testing.T) {
+	repo, _ := openCorrections(t)
+	ctx := context.Background()
+	rec, err := repo.Capture(ctx, CaptureInput{Source: SourceTestFailure})
+	if err != nil {
+		t.Fatal(err)
+	}
+	updated, err := repo.Update(ctx, rec.ID, EditInput{
+		Category: CategoryStyle, Severity: SeverityLow, DerivedRule: "prefer small functions",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.Category != CategoryStyle || updated.Severity != SeverityLow || updated.DerivedRule != "prefer small functions" {
+		t.Errorf("updated = %+v", updated)
+	}
+	if _, err := repo.Update(ctx, rec.ID, EditInput{Category: "bogus"}); !errors.Is(err, ErrInvalidField) {
+		t.Errorf("bad edit err = %v, want ErrInvalidField", err)
 	}
 }
