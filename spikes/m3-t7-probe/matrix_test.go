@@ -51,9 +51,10 @@ func TestArms(t *testing.T) {
 }
 
 func TestProbeModels(t *testing.T) {
-	if len(probeModels) != 2 {
-		t.Fatalf("probeModels = %d, want 2", len(probeModels))
+	if len(probeModels) == 0 {
+		t.Fatal("probeModels is empty")
 	}
+	generators := map[string]bool{}
 	for _, m := range probeModels {
 		if m.Label == "" || m.Model == "" {
 			t.Errorf("incomplete model %+v", m)
@@ -61,27 +62,19 @@ func TestProbeModels(t *testing.T) {
 		if m.ContextTarget < 32768 {
 			t.Errorf("model %q context_target = %d, below the code floor 32768", m.Label, m.ContextTarget)
 		}
+		generators[m.Model] = true
 	}
-}
-
-func TestCrossJudgeIsDifferentFamily(t *testing.T) {
-	cases := []struct {
-		gen  string
-		want string
-	}{
-		{"qwen27b", "ornith-1.5:9b"},
-		{"ornith9b", "qwen3.8:27b-mlx"},
-		{"unknown", neutralJudge},
+	if len(judgeModels) < 2 {
+		t.Errorf("judgeModels = %v, want at least two independent third-party judges", judgeModels)
 	}
-	for _, c := range cases {
-		if got := crossJudge(c.gen); got != c.want {
-			t.Errorf("crossJudge(%q) = %q, want %q", c.gen, got, c.want)
+	seen := map[string]bool{}
+	for _, j := range judgeModels {
+		if generators[j] {
+			t.Errorf("judge %q is also a generator; judges must be independent", j)
 		}
-	}
-	// The cross judge must never equal the generator's own model.
-	for _, m := range probeModels {
-		if got := crossJudge(m.Label); got == m.Model {
-			t.Errorf("crossJudge(%q) returned the generator's own model %q", m.Label, got)
+		if seen[j] {
+			t.Errorf("duplicate judge %q", j)
 		}
+		seen[j] = true
 	}
 }

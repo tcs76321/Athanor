@@ -18,38 +18,41 @@ type sampleGoal struct {
 
 // sampleGoals is the 10-goal set: M1-T8's five then M3-T2's five, with no
 // duplicates (M1's code goal is distinct from M3-T2's). Goal 9 is the
-// deliberately failure-sensitive "must always succeed" sample.
+// deliberately failure-sensitive "must always succeed" sample. The
+// objectives are deliberately small and bounded (explicit counts and
+// section names) so a 9B generator's output — and the difference between
+// the N=3 and N=1 arms — is visible rather than buried in long prose.
 var sampleGoals = []sampleGoal{
 	{1, "local-first-essay", "M1-T8", "text",
-		"Write a short essay about why local-first software matters.",
-		[]string{"at least three arguments", "a conclusion"}},
+		"Write exactly three short paragraphs arguing why local-first software matters, one reason per paragraph.",
+		[]string{"exactly three paragraphs", "each paragraph names a distinct reason", "a one-sentence conclusion"}},
 	{2, "onboarding-email", "M1-T8", "text",
-		"Draft a friendly onboarding email for a new community member of a local software club.",
-		[]string{"under 200 words", "one clear call to action"}},
+		"Draft a short onboarding email (under 120 words) for a new member of a local software club.",
+		[]string{"under 120 words", "one clear call to action"}},
 	{3, "book-collection", "M1-T8", "code",
-		"Write a Python module that manages a personal book collection with add, list, and search functions.",
+		"Write a Python module defining a Book dataclass with title and author fields, and a function summarize(book) that returns 'title by author'.",
 		[]string{"pure stdlib", "docstrings on every public function", "a usage example"}},
 	{4, "md2html-readme", "M1-T8", "document",
-		"Create a README for a small CLI tool that converts Markdown files to HTML.",
-		[]string{"installation section", "usage examples", "license section"}},
+		"Write a short README with exactly three sections named Install, Usage, and License.",
+		[]string{"sections named Install, Usage, License", "a one-line project description at the top"}},
 	{5, "sunrise-alarm-brief", "M1-T8", "document",
-		"Write a one-page design brief for a weekend project that builds a sunrise alarm clock from a Raspberry Pi.",
-		[]string{"parts list", "build steps", "at least two risks named"}},
+		"Write a short design brief with exactly three sections: Parts, Steps, and Risks.",
+		[]string{"sections named Parts, Steps, Risks", "at least two risks named"}},
 	{6, "fibonacci", "M3-T2", "code",
-		"Write a Python function that returns the n-th Fibonacci number using recursion.",
-		[]string{"pure stdlib", "docstrings on every public function", "a usage example"}},
+		"Write a Python function fib(n) that returns the n-th Fibonacci number using recursion, with a docstring.",
+		[]string{"pure stdlib", "a docstring on the function", "a usage example"}},
 	{7, "stringutils", "M3-T2", "code",
-		"Write a Python module with three utility functions for trimming, padding, and reversing strings.",
+		"Write a Python module with three one-line functions: trim(s), pad(s, width), and reverse(s).",
 		[]string{"pure stdlib", "docstrings on every public function"}},
 	{8, "cache-class", "M3-T2", "code",
-		"Write a Python cache class with get, set, and evict methods.",
+		"Write a Python class Cache with get(key), set(key, value), and evict(key) methods.",
 		[]string{"pure stdlib", "no TODO or FIXME placeholders"}},
 	{9, "always-reverse", "M3-T2", "code",
-		"Write a Python function that returns its input reversed. The function must always succeed.",
+		"Write a Python function reverse(s) that returns its input reversed and must always succeed.",
 		[]string{"pure stdlib", "tests pass"}},
 	{10, "todo-list", "M3-T2", "code",
-		"Write a Python class for managing a todo list, with add, complete, list_pending, and clear methods.",
-		[]string{"pure stdlib", "docstrings on every public function", "no TODO or FIXME placeholders"}},
+		"Write a Python class TodoList with add(task), complete(index), and pending() methods.",
+		[]string{"pure stdlib", "docstrings on every public function"}},
 }
 
 // arm is one experimental condition. Candidates is
@@ -78,31 +81,17 @@ type probeModel struct {
 	ContextTarget int
 }
 
-// probeModels are Runs A and B. Run C (qwen tall/main + ornith
-// alternative), the optional cross-family pairing, is launched by
-// passing its model mix explicitly; it is not part of the default matrix.
+// probeModels are the generator(s) under test. The first full M3-T7 run
+// uses the fast local model only; the 27B model is an optional later run
+// (see docs/probes/m3-t7-quality-probe.md).
 var probeModels = []probeModel{
-	{Label: "qwen27b", Model: "qwen3.8:27b-mlx", ContextTarget: 32768},
 	{Label: "ornith9b", Model: "ornith-1.5:9b", ContextTarget: 32768},
 }
 
-// neutralJudge is the third-family judge used for the neutral channel.
-const neutralJudge = "gemma4:12b-mlx"
-
-// crossJudge returns the cross-model judge for a generator: a different
-// model family from the generator's, so the judge and generator do not
-// share correlated failure modes. An unknown generator label falls back
-// to the neutral judge.
-func crossJudge(generatorLabel string) string {
-	switch generatorLabel {
-	case "qwen27b":
-		return "ornith-1.5:9b"
-	case "ornith9b":
-		return "qwen3.8:27b-mlx"
-	default:
-		return neutralJudge
-	}
-}
+// judgeModels are the independent third-party judges that score every
+// artifact offline (the `judge` subcommand). Both differ in family from
+// the generator, so their errors are not correlated with it.
+var judgeModels = []string{"gemma4:12b-mlx", "granite4.2:3b"}
 
 // modelByLabel resolves a matrix model by its filesystem label.
 func modelByLabel(label string) (probeModel, bool) {

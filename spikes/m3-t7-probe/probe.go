@@ -154,6 +154,8 @@ func main() {
 		runReport(os.Args[2:])
 	case "config":
 		printConfig(os.Args[2:])
+	case "judge":
+		runJudge(os.Args[2:])
 	default:
 		usage()
 		os.Exit(2)
@@ -167,6 +169,7 @@ commands:
   run       run the measurement matrix (manages the daemon lifecycle)
   report    aggregate collected results into report.md
   config    print the generated daemon config for one model/arm
+  judge     score the collected packets with the third-party judge models
 
 Run each command with -h for its flags. Protocol:
 docs/probes/m3-t7-quality-probe.md
