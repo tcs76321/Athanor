@@ -15,7 +15,7 @@ export CGO_ENABLED
 # tag-less binary can never silently run.
 GO_TAGS = -tags sqlite_fts5
 
-.PHONY: build test test-race test-integration integration-images vet lint check vuln tidy tidy-check run clean hooks bench
+.PHONY: build test test-race test-integration integration-images vet lint check vuln tidy tidy-check fuzz run clean hooks bench
 
 build:
 	go build $(GO_TAGS) -o bin/athanor ./cmd/athanor
@@ -69,6 +69,15 @@ vuln:
 # recorded in docs/benchmarks/engine-m1.txt.
 bench:
 	go test $(GO_TAGS) -bench=. -benchtime=10x -run=^$$ ./internal/engine/
+
+# Short fuzz pass (F3-T7) over the security-sensitive parsers. The seed
+# corpora also run as ordinary tests under `make test` (Go executes each
+# seed when -fuzz is absent), so CI still exercises the inputs; this
+# target adds real mutation time. Run a target longer locally when
+# touching the corresponding parser.
+fuzz:
+	go test $(GO_TAGS) -run=^$$ -fuzz=FuzzResolve -fuzztime=10s ./internal/airlock/paths/
+	go test $(GO_TAGS) -run=^$$ -fuzz=FuzzParseVerdictJSON -fuzztime=10s ./internal/engine/
 
 # Aggregate gate; run before pushing. The pre-push hook also calls this.
 check: lint vet test-race
