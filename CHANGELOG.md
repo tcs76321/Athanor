@@ -10,6 +10,29 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### M5 — Context Engine — M5-T8: repository indexing pipeline
+
+- **M5-T8.** The MCE gains its producer. Ten commits (`M5-T8.1`–`M5-T8.10`)
+  plus the doc sweep:
+  [ADR-0028](docs/adr/0028-repository-indexing.md) + [plan](docs/m5-t8-plan.md)
+  lock the design — a project `repository_path` ([§6.1](ARCHITECTURE.md)),
+  an `indexed_sources` manifest (migration **0014**) for incrementality, a
+  bounded pipeline (walk → divide → prune → summarize → embed), a
+  path+summary+content **embedding digest**, referentially-safe pruning, and
+  three triggers (CLI / API / idle). `projects.repository_path` is set by
+  `athanor project create -repo`. `internal/mce` gains `index_walk.go`
+  (`Discover`), `manifest.go`, `index.go` (`Indexer.RunOnce`/`RunAll`), and
+  `prune.go` (`PruneSource`); it still imports no `internal/llm` — the
+  summarizer and embedder are the existing seams whose adapters live in
+  `cmd/`. `athanor index -project` and `POST /projects/{id}/index` run it to
+  completion; the §17.1 Repository Exploration daydream action runs one
+  bounded pass per project under the existing power/idle/freeze gates.
+  Empirical proof: an unchanged repository makes **zero** model calls on a
+  second pass; an edit/delete converges; a mid-size repo is reachable via
+  `query_memory` → `context_swap` (`TestIndexRepositoryEndToEnd`). **M5 is
+  complete; Gate G5 is fully closed.** Demo:
+  [docs/demo-m5-t8.md](docs/demo-m5-t8.md). `make check` green throughout.
+
 ### Foundations — F2: SQLite single-connection discipline
 
 - **F2.** [ADR-0027](docs/adr/0027-sqlite-single-connection.md) turns the

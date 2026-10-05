@@ -225,3 +225,23 @@ code outside a pod; every internal route envelope-gated) are re-proven.
   "Implemented" note (the ADR-0021/0022/0023/0025/0026 pattern).
 - The embedding half is only as good as `memory_embedding_model`; leaving it
   empty is supported and leaves retrieval full-text.
+
+**Implemented (M5-T8.2–T8.10):** migration 0014 adds `projects.repository_path`
+and the `indexed_sources` manifest; `internal/mce/index_walk.go` implements the
+deterministic `Discover`; `internal/mce/manifest.go` owns the manifest;
+`internal/mce/index.go` implements `Indexer.RunOnce`/`RunAll` (bounded,
+incremental, digest embeddings); `internal/mce/prune.go` implements
+referentially-safe pruning (`PruneSource`, with a shared-hash guard so
+identical files never strip each other's chunks); `project.Repo` carries the
+repository path; `context_engine` gains `index_batch_files`,
+`index_batch_chunks`, `index_embed_bytes`, and `index_ignore_dirs`; and
+`athanor index` + `POST /projects/{id}/index` + the §17.1 Repository
+Exploration daydream action wire the pipeline. `internal/mce` still imports no
+`internal/llm`. One refinement over §6: pruning is composed by the indexer
+(`PruneSource` + `IndexManifest.Delete`) rather than a separate `ForgetPath`.
+One refinement over §2: `MaxFiles`/`MaxChunks` bound a pass at file
+granularity, so a single file's chunks may complete a pass slightly over the
+chunk budget — an accepted one-file overshoot. Empirical proof:
+`TestIndexRepositoryEndToEnd` (40-file repo → 0 model calls on a second pass →
+edit/delete converge → `query_memory` → `context_swap`), and
+[docs/demo-m5-t8.md](../demo-m5-t8.md). **Gate G5 fully closed.**
