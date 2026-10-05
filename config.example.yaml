@@ -172,10 +172,11 @@ execution:
     verifier_min_fraction: 0.5
     min_anchor_agreement: 0.6
     jaccard_floor: 0.30
-    max_diversity_rerolls: 1
+    max_diversity_rerolls: 0
     cost_aware: true
     quality_tie_margin: 0.02
     require_cross_family: true
+    heterogeneous_diversity: true
 
 strategy_analysis:
   enabled: true

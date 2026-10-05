@@ -75,6 +75,10 @@ type Plan struct {
 	// it. An empty map means "engine default": main for generation, security
 	// for judgment.
 	ModelRouting map[string]string
+	// DivergenceRoles is the ordered persona list the divergence phase cycles
+	// through (F4-T5 heterogeneous diversity). Empty means "one role for all
+	// candidates": the PhaseDiverging route, or main.
+	DivergenceRoles []string
 }
 
 // Policy decides a job's plan. Implementations must be pure and total: no I/O,

@@ -36,21 +36,26 @@ func (e *Engine) phaseDivergeN(ctx context.Context, j job.Job) error {
 	if e.cfg == nil {
 		return errors.New("engine: cfg is nil (diverge phase requires config)")
 	}
-	// F4-T1c/T2: resolve the plan once here (after planning, so the
-	// difficulty hint is visible), audit it, then use its candidate count
-	// and routed personas. A nil policy/decfg reproduces pre-F4 behavior.
+	// F4-T1c/T2/T5: resolve the plan once here (after planning, so the
+	// difficulty hint is visible), audit it, then use its candidate count,
+	// routed personas, and diversity policy. A nil policy/config reproduces
+	// pre-F4 behavior.
 	plan := e.planFor(ctx, j, p, t)
 	e.auditComputePlan(ctx, j.ID, "divergence", plan)
-	role := e.roleFor(plan, llm.PhaseDiverging, llm.RoleMain)
 	n := plan.Candidates
 	if max := e.cfg.Execution.MaxHardTaskVariations; max > 0 && n > max {
 		n = max
+	}
+	roles := plan.DivergenceRoles
+	if len(roles) == 0 {
+		roles = []string{e.roleFor(plan, llm.PhaseDiverging, llm.RoleMain)}
 	}
 
 	e.audit(ctx, j.ID, map[string]any{
 		"event":      "divergence_start",
 		"candidates": n,
 		"archetype":  p.Archetype,
+		"roles":      roles,
 	})
 
 	// M4-T7 research sub-step (ADR-0019 §7): fetch the task's
@@ -63,52 +68,62 @@ func (e *Engine) phaseDivergeN(ctx context.Context, j job.Job) error {
 		return fmt.Errorf("research sub-step: %w", err)
 	}
 
-	// M3-T7-a: keep each candidate's text in memory so we can
-	// compute pairwise Jaccard distance after the loop. The
-	// set is bounded by `n` (default 3, hard-capped by
-	// MaxHardTaskVariations) so the memory cost is trivial.
-	candidateTexts := make([]string, 0, n)
-
-	for i := 0; i < n; i++ {
-		// The instruction appends a per-candidate seed so consecutive
-		// calls with the same prompt still produce different outputs
-		// at the same temperature. Without the seed the LLM has
-		// nothing to anchor the variation; with the seed the
-		// evaluator can tell candidates apart by their index.
-		seed := fmt.Sprintf("CANDIDATE %d of %d. Produce a solution that differs from any other candidate you might generate for this task.", i+1, n)
-		if research != "" {
-			seed += "\n\n" + research
+	// F4-T5: enforce a Jaccard floor with a bounded re-roll. A below-floor
+	// batch is discarded (draft → candidate → rejected) so it is never
+	// evaluated, and the next attempt runs with a fresh seed. Diversity is
+	// undefined for a single candidate, so n < 2 never re-rolls.
+	floor := e.cfg.Execution.JaccardFloorValue()
+	maxRerolls := e.cfg.Execution.MaxDiversityRerollsValue()
+	for attempt := 0; ; attempt++ {
+		candidateTexts := make([]string, 0, n)
+		batch := make([]artifact.Artifact, 0, n)
+		for i := 0; i < n; i++ {
+			// Cycle personas for heterogeneous diversity, and append a
+			// per-candidate seed so consecutive same-prompt calls still
+			// produce different outputs at the same temperature.
+			candRole := roles[i%len(roles)]
+			seed := fmt.Sprintf("CANDIDATE %d of %d. Produce a solution that differs from any other candidate you might generate for this task.", i+1, n)
+			if research != "" {
+				seed += "\n\n" + research
+			}
+			resp, err := e.call(ctx, j, p, t, llm.PhaseDiverging, candRole, seed, nil)
+			if err != nil {
+				return fmt.Errorf("divergence candidate %d/%d: %w", i+1, n, err)
+			}
+			art, err := e.artifacts.CreateDraftFor(ctx, p.ID, t.ID, j.ID,
+				artifact.KindProposal, []byte(resp.Content))
+			if err != nil {
+				return fmt.Errorf("persisting divergence candidate %d: %w", i+1, err)
+			}
+			batch = append(batch, art)
+			candidateTexts = append(candidateTexts, resp.Content)
+			e.audit(ctx, j.ID, map[string]any{
+				"event": "divergence_candidate", "index": i + 1, "of": n,
+				"chars": len(resp.Content), "persona": candRole,
+			})
 		}
-		resp, err := e.call(ctx, j, p, t, llm.PhaseDiverging, role, seed, nil)
-		if err != nil {
-			return fmt.Errorf("divergence candidate %d/%d: %w", i+1, n, err)
-		}
-		if _, err := e.artifacts.CreateDraftFor(ctx, p.ID, t.ID, j.ID,
-			artifact.KindProposal, []byte(resp.Content)); err != nil {
-			return fmt.Errorf("persisting divergence candidate %d: %w", i+1, err)
-		}
-		candidateTexts = append(candidateTexts, resp.Content)
+		avgJaccard := averagePairwiseJaccard(candidateTexts)
 		e.audit(ctx, j.ID, map[string]any{
-			"event": "divergence_candidate",
-			"index": i + 1,
-			"of":    n,
-			"chars": len(resp.Content),
+			"event":       "divergence_jaccard",
+			"candidates":  n,
+			"avg_jaccard": avgJaccard,
+			"floor":       floor,
+			"attempt":     attempt,
+			"archetype":   p.Archetype,
+			"roles":       roles,
+		})
+		if n < 2 || avgJaccard >= floor || attempt >= maxRerolls {
+			break
+		}
+		for _, art := range batch {
+			_ = e.artifacts.SetStatus(ctx, art.ID, artifact.StatusCandidate)
+			_ = e.artifacts.SetStatus(ctx, art.ID, artifact.StatusRejected)
+		}
+		e.audit(ctx, j.ID, map[string]any{
+			"event": "divergence_reroll", "attempt": attempt,
+			"avg_jaccard": avgJaccard, "floor": floor,
 		})
 	}
-
-	// M3-T7-a: emit the average pairwise Jaccard distance
-	// across the candidate set as a `divergence_jaccard`
-	// event. The metric is the empirical case for the
-	// "is divergence doing useful work" question; a low
-	// Jaccard (<0.3) on >20% of tasks is the trigger for
-	// the re-roll policy (ROADMAP §7, M3-T7-a).
-	avgJaccard := averagePairwiseJaccard(candidateTexts)
-	e.audit(ctx, j.ID, map[string]any{
-		"event":       "divergence_jaccard",
-		"candidates":  n,
-		"avg_jaccard": avgJaccard,
-		"archetype":   p.Archetype,
-	})
 
 	_, err = e.jobs.Transition(ctx, j.ID, job.StateEvaluating)
 	return err

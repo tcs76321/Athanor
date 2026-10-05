@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/tcs76321/athanor/internal/artifact"
 	"github.com/tcs76321/athanor/internal/evaluation"
@@ -86,12 +87,14 @@ func (e *Engine) phaseCompare(ctx context.Context, j job.Job) error {
 	// calibrate "better than previous").
 	var (
 		previousID       string
+		previousJobID    string
 		previousRecords  []evaluation.Record
 		previousAvgScore float64
 		previousAvgConf  float64
 	)
 	if prev, err := e.artifacts.LatestAcceptedByProject(ctx, p.ID); err == nil {
 		previousID = prev.ID
+		previousJobID = prev.JobID
 		if prs, perr := e.eval.ListByArtifact(ctx, prev.ID); perr == nil {
 			previousRecords = prs
 			if n := len(prs); n > 0 {
@@ -197,6 +200,27 @@ func (e *Engine) phaseCompare(ctx context.Context, j job.Job) error {
 		})
 	}
 
+	// F4-T6 cost-aware acceptance: a quality tie at materially lower token
+	// cost wins. Applied only when the verdict declines the new artifact
+	// (winner "previous") and the new artifact's best score is within the
+	// tie margin of the previous's average score.
+	if e.cfg.Execution.CostAwareEnabled() && previousID != "" && verdict.Winner == "previous" {
+		newScore := e.maxEvaluationScore(ctx, j.ID)
+		newTokens, _ := e.eventStats(ctx, j.ID)
+		prevTokens := e.jobTokenCost(ctx, previousJobID)
+		if costTieWins(newScore, previousAvgScore, e.cfg.Execution.QualityTieMarginValue(), newTokens, prevTokens) {
+			verdict.Winner = "new"
+			verdict.Confidence = 1
+			verdict.Reasons = append(verdict.Reasons, fmt.Sprintf(
+				"cost-aware: quality tie (%.2f vs %.2f) at lower token cost (%d < %d)",
+				newScore, previousAvgScore, newTokens, prevTokens))
+			e.audit(ctx, j.ID, map[string]any{
+				"event": "cost_aware_accept", "new_tokens": newTokens, "previous_tokens": prevTokens,
+				"new_score": newScore, "previous_score": previousAvgScore,
+			})
+		}
+	}
+
 	e.audit(ctx, j.ID, map[string]any{
 		"event":            "verification_decision",
 		"judge_mode":       string(plan.JudgeMode),
@@ -208,6 +232,11 @@ func (e *Engine) phaseCompare(ctx context.Context, j job.Job) error {
 		"judge_family":     judgeFamily,
 		"cross_family_ok":  crossOK,
 	})
+	tokenCost, _ := e.eventStats(ctx, j.ID)
+	wallMS := int64(0)
+	if j.StartedAt != nil {
+		wallMS = time.Since(*j.StartedAt).Milliseconds()
+	}
 	e.audit(ctx, j.ID, map[string]any{
 		"event":                   "comparison",
 		"winner":                  verdict.Winner,
@@ -218,6 +247,8 @@ func (e *Engine) phaseCompare(ctx context.Context, j job.Job) error {
 		"previous_id":             previousID,
 		"records":                 len(records),
 		"judge_called":            judgeCalled,
+		"token_cost":              tokenCost,
+		"wall_time_ms":            wallMS,
 		"previous_records_count":  len(previousRecords),
 		"previous_avg_score":      previousAvgScore,
 		"previous_avg_confidence": previousAvgConf,
@@ -280,6 +311,29 @@ func resolveRewardHack(verdict comparisonVerdict, ver verify.Result, hasPrevious
 	verdict.Reasons = append(verdict.Reasons,
 		"reward-hacking guard: deterministic verifier failed; LLM 'new' overridden")
 	return verdict, true
+}
+
+// costTieWins reports whether the new artifact wins a near-tie on quality by
+// spending fewer tokens (F4-T6). A zero cost is unknown and never wins.
+func costTieWins(newScore, prevScore, margin float64, newTokens, prevTokens int) bool {
+	if newTokens <= 0 || prevTokens <= 0 {
+		return false
+	}
+	return newScore >= prevScore-margin && newTokens < prevTokens
+}
+
+// jobTokenCost reads a job's recorded strategy token cost (0 when absent or
+// the outcome has not been captured).
+func (e *Engine) jobTokenCost(ctx context.Context, jobID string) int {
+	if e.db == nil || jobID == "" {
+		return 0
+	}
+	var cost int
+	if err := e.db.DB().QueryRowContext(ctx,
+		`SELECT token_cost FROM strategy_outcomes WHERE job_id = ?`, jobID).Scan(&cost); err != nil {
+		return 0
+	}
+	return cost
 }
 
 // runComparisonJudge calls the LLM comparison judge. When count > 1 it

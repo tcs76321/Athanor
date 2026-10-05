@@ -183,11 +183,12 @@ func applyDefaults(c *Config) {
 		c.Execution.Policy.QualityTieMargin = &v
 	}
 	if c.Execution.Policy.MaxDiversityRerolls == nil {
-		n := 1
+		n := 0
 		c.Execution.Policy.MaxDiversityRerolls = &n
 	}
 	setTrue(&c.Execution.Policy.CostAware)
 	setTrue(&c.Execution.Policy.RequireCrossFamily)
+	setTrue(&c.Execution.Policy.HeterogeneousDiversity)
 
 	if c.Execution.MinJudgeConfidence == nil {
 		def := 0.7

@@ -147,7 +147,7 @@ func (e *Engine) listCandidateArtifacts(ctx context.Context, j job.Job) ([]artif
 	}
 	var out []artifact.Artifact
 	for _, a := range rows {
-		if a.JobID == j.ID && a.Kind == artifact.KindProposal {
+		if a.JobID == j.ID && a.Kind == artifact.KindProposal && a.Status == artifact.StatusDraft {
 			out = append(out, a)
 		}
 	}

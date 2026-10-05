@@ -370,6 +370,10 @@ type PolicyConfig struct {
 	// and generator personas share a family (F4-T3). When false, the
 	// mismatch is audited but not blocked.
 	RequireCrossFamily *bool `yaml:"require_cross_family"`
+	// HeterogeneousDiversity cycles divergence candidates across the
+	// generator and `alternative` personas so a non-trivial task draws
+	// from more than one source (F4-T5). Default true.
+	HeterogeneousDiversity *bool `yaml:"heterogeneous_diversity"`
 }
 
 // Policy-mode enum values.
@@ -432,10 +436,11 @@ func (e *Execution) JaccardFloorValue() float64 {
 	return *e.Policy.JaccardFloor
 }
 
-// MaxDiversityRerollsValue resolves max_diversity_rerolls (default 1).
+// MaxDiversityRerollsValue resolves max_diversity_rerolls (default 0 — the
+// re-roll is opt-in; the Jaccard metric is always audited).
 func (e *Execution) MaxDiversityRerollsValue() int {
 	if e.Policy.MaxDiversityRerolls == nil {
-		return 1
+		return 0
 	}
 	return *e.Policy.MaxDiversityRerolls
 }
@@ -456,6 +461,13 @@ func (e *Execution) QualityTieMarginValue() float64 {
 // RequireCrossFamilyValue resolves require_cross_family (default true).
 func (e *Execution) RequireCrossFamilyValue() bool {
 	return Val(e.Policy.RequireCrossFamily, true)
+}
+
+// HeterogeneousDiversityEnabled resolves heterogeneous_diversity (default
+// true): divergence candidates cycle across the generator and `alternative`
+// personas (F4-T5).
+func (e *Execution) HeterogeneousDiversityEnabled() bool {
+	return Val(e.Policy.HeterogeneousDiversity, true)
 }
 
 // MaxTaskRetriesValue resolves execution.max_task_retries, applying the

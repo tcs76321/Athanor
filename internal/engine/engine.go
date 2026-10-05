@@ -420,6 +420,21 @@ func (e *Engine) decidePlan(in policy.Inputs) policy.Plan {
 			plan.ModelRouting[policy.PhaseEvaluating] = jp
 			plan.ModelRouting[policy.PhaseComparing] = jp
 		}
+		// F4-T5 heterogeneous diversity: cycle candidates across the
+		// generator and the `alternative` persona so a non-trivial task
+		// draws from more than one source. A custom policy may set
+		// DivergenceRoles explicitly; this is only the default.
+		if e.cfg.Execution.HeterogeneousDiversityEnabled() && plan.Candidates >= 2 && len(plan.DivergenceRoles) == 0 {
+			gen := plan.ModelRouting[policy.PhaseDiverging]
+			if gen == "" {
+				gen = llm.RoleMain
+			}
+			if gen == llm.RoleAlternative {
+				plan.DivergenceRoles = []string{llm.RoleAlternative}
+			} else {
+				plan.DivergenceRoles = []string{gen, llm.RoleAlternative}
+			}
+		}
 	}
 	return plan
 }
