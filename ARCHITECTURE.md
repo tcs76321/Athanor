@@ -1107,6 +1107,13 @@ All Athanor containers run rootless. No privileged containers by default.
 
 All files entering or leaving agent-managed workspaces pass through the Scanner.
 
+> **Containment scope (ADR-0029).** Path containment via `internal/airlock/paths`
+> applies to every *externally-influenced* path (ingress filenames, indexed
+> repository-relative paths, the export tree) and opens them with `O_NOFOLLOW`.
+> Internal, operator-controlled paths (config, state, artifacts, logs, backups,
+> tokens) are exempt because they derive from operator configuration or
+> server-generated IDs, not untrusted input.
+
 **Ingress rules:**
 - Resolve symlinks (reject if they escape workspace).
 - Validate root paths.

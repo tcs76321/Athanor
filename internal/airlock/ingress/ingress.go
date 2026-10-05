@@ -264,16 +264,30 @@ func (w *Watcher) processor(ctx context.Context) {
 // original file.
 func (w *Watcher) process(ctx context.Context, pf pendingFile) {
 	fullPath := filepath.Join(w.root, pf.relPath)
-	_, pathErr := paths.Validate(w.root, pf.relPath, paths.ValidateOptions{})
-	if pathErr != nil {
-		w.auditRejected(ctx, pf, pathErr.Error())
-		return
-	}
-	sha, size, err := hashFile(fullPath)
+	// Route the externally-controlled relative path through the §21.3
+	// containment layer and open it with O_NOFOLLOW, so Validate's Lstat
+	// and the read are the same open file: a symlink swapped in after the
+	// check cannot be followed (the kernel-level half of M4-T1). The
+	// previous code validated, then re-opened by path, leaving the
+	// Lstat→open TOCTOU window open for inbox filenames.
+	f, err := paths.OpenNoFollow(w.root, pf.relPath)
 	if err != nil {
-		w.logger.Warn("ingress: hash failed", "relpath", pf.relPath, "err", err)
+		w.auditRejected(ctx, pf, err.Error())
 		return
 	}
+	defer func() { _ = f.Close() }()
+	info, err := f.Stat()
+	if err != nil {
+		w.logger.Warn("ingress: stat failed", "relpath", pf.relPath, "err", err)
+		return
+	}
+	bytes, err := io.ReadAll(f)
+	if err != nil {
+		w.logger.Warn("ingress: read failed", "relpath", pf.relPath, "err", err)
+		return
+	}
+	sha := sha256.Sum256(bytes)
+	size := int64(len(bytes))
 	shaHex := hex.EncodeToString(sha[:])
 	if _, err := w.quarantine_.Get(ctx, shaHex); err == nil {
 		w.auditDuplicate(ctx, pf, shaHex, "quarantine")
@@ -284,16 +298,6 @@ func (w *Watcher) process(ctx context.Context, pf pendingFile) {
 	}
 	if w.processedExists(shaHex) {
 		w.auditDuplicate(ctx, pf, shaHex, "processed")
-		return
-	}
-	bytes, err := os.ReadFile(fullPath)
-	if err != nil {
-		w.logger.Warn("ingress: read failed", "relpath", pf.relPath, "err", err)
-		return
-	}
-	info, err := os.Lstat(fullPath)
-	if err != nil {
-		w.logger.Warn("ingress: lstat failed", "relpath", pf.relPath, "err", err)
 		return
 	}
 	result := w.registry.RunAll(ctx, scanner.PipelineIngress, scanner.ScanInput{
@@ -330,24 +334,6 @@ func (w *Watcher) process(ctx context.Context, pf pendingFile) {
 		return
 	}
 	w.auditQuarantined(ctx, pf, shaHex, size, stored, result)
-}
-
-// hashFile returns the SHA-256 and the byte count of path.
-func hashFile(path string) ([32]byte, int64, error) {
-	var zero [32]byte
-	f, err := os.Open(path)
-	if err != nil {
-		return zero, 0, err
-	}
-	defer func() { _ = f.Close() }()
-	h := sha256.New()
-	n, err := io.Copy(h, f)
-	if err != nil {
-		return zero, 0, err
-	}
-	var out [32]byte
-	copy(out[:], h.Sum(nil))
-	return out, n, nil
 }
 
 // processedExists checks whether a `.processed/<sha256>.*`
