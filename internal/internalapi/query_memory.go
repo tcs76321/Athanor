@@ -54,6 +54,23 @@ func (a *API) handleQueryMemory(w http.ResponseWriter, r *http.Request) {
 	if req.Scope == "" {
 		req.Scope = jobID
 	}
+	// Isolation (§3.1): the pod may only query its own scope. A non-empty
+	// scope must be the caller's job or its project — never another
+	// project's memory (M3-T7 security review). The store's mandatory scope
+	// filter is not a containment check if the pod chooses the scope.
+	if req.Scope != jobID {
+		allowed := false
+		if a.projects != nil {
+			if pid, err := a.projects.JobProject(r.Context(), jobID); err == nil && req.Scope == pid {
+				allowed = true
+			}
+		}
+		if !allowed {
+			a.auditReject(r.Context(), jobID, toolenvelope.ToolQueryMemory, "scope not permitted")
+			writeError(w, http.StatusForbidden, "query_memory: scope must be the caller's job or project")
+			return
+		}
+	}
 
 	// The per-job envelope gate. Gate G2's
 	// TestGateG2ToolEnvelopeBypassImpossible requires this handler file to

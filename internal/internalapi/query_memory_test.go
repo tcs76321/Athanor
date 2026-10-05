@@ -130,6 +130,28 @@ func TestQueryMemory_RejectsEmptyQuery(t *testing.T) {
 	}
 }
 
+// TestQueryMemory_RejectsForeignScope pins the M3-T7 security-review fix:
+// a pod may not query another job's or project's memory by choosing a scope.
+func TestQueryMemory_RejectsForeignScope(t *testing.T) {
+	q := &fakeQuerier{}
+	env := newHandlerTestEnvWithQuerier(t, q)
+	_, taskID := env.seedProject(t)
+	env.tokens.WithToken(taskID, goodToken)
+	env.tools.WithAllow(taskID, mustParseTools(t, "query_memory"))
+
+	body, _ := json.Marshal(toolenvelope.QueryMemoryRequest{Query: "x", Scope: "someone-elses-project"})
+	req := httptest.NewRequest("POST", "/internal/v1/jobs/"+taskID+"/query_memory", bytes.NewReader(body))
+	req.Header.Set("Authorization", "Bearer "+goodToken)
+	w := httptest.NewRecorder()
+	env.mux.ServeHTTP(w, req)
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want 403; body = %s", w.Code, w.Body.String())
+	}
+	if len(q.reqs) != 0 {
+		t.Errorf("querier called %d times, want 0 for a foreign scope", len(q.reqs))
+	}
+}
+
 func TestQueryMemory_ErrorMapping(t *testing.T) {
 	cases := []struct {
 		name string
