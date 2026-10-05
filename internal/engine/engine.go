@@ -48,6 +48,7 @@ import (
 	"github.com/tcs76321/athanor/internal/interruptions"
 	"github.com/tcs76321/athanor/internal/job"
 	"github.com/tcs76321/athanor/internal/llm"
+	"github.com/tcs76321/athanor/internal/policy"
 	"github.com/tcs76321/athanor/internal/project"
 	"github.com/tcs76321/athanor/internal/store"
 	"github.com/tcs76321/athanor/internal/toolenvelope"
@@ -196,6 +197,9 @@ type Engine struct {
 	strategy StrategySink
 	// insights is the §13.4 prompt channel (M6-T11). nil disables notes.
 	insights StrategyInsightSource
+	// policy is the F4-T1 compute/model-selection seam (ADR-0044). nil uses
+	// policy.Default, which reproduces pre-F4 behavior exactly.
+	policy policy.Policy
 	// inFlight is the count of running job goroutines. The cap is
 	// read from cap.MaxConcurrentJobs() on every Enqueue; the atomic
 	// counter is the only source of truth for the running count.
@@ -296,6 +300,43 @@ func (e *Engine) SetStrategySink(s StrategySink) { e.strategy = s }
 // SetStrategyInsightSource wires the §13.4 prompt channel (M6-T11). A nil
 // source disables strategy notes.
 func (e *Engine) SetStrategyInsightSource(s StrategyInsightSource) { e.insights = s }
+
+// SetPolicy wires the F4-T1 compute/model-selection seam (ADR-0044). A nil
+// policy uses policy.Default, so behavior is unchanged until one is set.
+func (e *Engine) SetPolicy(p policy.Policy) { e.policy = p }
+
+// planFor resolves a job's compute plan through the policy seam. Given the
+// engine's config it is pure, so re-resolving after a crash-resume yields the
+// same plan. A nil policy uses policy.Default.
+func (e *Engine) planFor(archetype string) policy.Plan {
+	in := policy.Inputs{
+		Features: policy.Features{Archetype: archetype},
+		Limits: policy.Limits{
+			CandidatesCeiling: 1,
+			ReflectionCeiling: policy.DefaultReflectionLoops,
+		},
+	}
+	if e.cfg != nil {
+		in.Limits.CandidatesCeiling = e.cfg.Execution.DivergenceCandidates
+		in.Limits.ReflectionCeiling = e.cfg.Execution.MaxReflectionLoopsValue()
+	}
+	if e.policy == nil {
+		return policy.Default{}.Decide(in)
+	}
+	return e.policy.Decide(in)
+}
+
+// auditComputePlan records the resolved plan (ADR-0044: the decision is
+// audited so outcomes can be attributed to it).
+func (e *Engine) auditComputePlan(ctx context.Context, jobID string, plan policy.Plan) {
+	e.audit(ctx, jobID, map[string]any{
+		"event":                "compute_planned",
+		"candidates":           plan.Candidates,
+		"max_reflection_loops": plan.MaxReflectionLoops,
+		"judge_mode":           string(plan.JudgeMode),
+		"judge_count":          plan.JudgeCount,
+	})
+}
 
 // recordFailureCorrection captures a phase failure as a runtime_error
 // CorrectionRecord (§18.1). Best-effort: a capture failure is logged, never

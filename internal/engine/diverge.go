@@ -36,10 +36,7 @@ func (e *Engine) phaseDivergeN(ctx context.Context, j job.Job) error {
 	if e.cfg == nil {
 		return errors.New("engine: cfg is nil (diverge phase requires config)")
 	}
-	n := e.cfg.Execution.DivergenceCandidates
-	if n < 1 {
-		n = 1
-	}
+	n := e.planFor(p.Archetype).Candidates
 	if max := e.cfg.Execution.MaxHardTaskVariations; max > 0 && n > max {
 		n = max
 	}

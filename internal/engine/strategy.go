@@ -40,7 +40,7 @@ var phaseStrategies = []struct{ phase, role string }{
 
 // strategySignature builds the §13.3 signature: one entry per executed phase
 // with its resolved persona and temperature.
-func (e *Engine) strategySignature() []strategy.SignatureEntry {
+func (e *Engine) strategySignature(archetype string) []strategy.SignatureEntry {
 	out := make([]strategy.SignatureEntry, 0, len(phaseStrategies))
 	for _, s := range phaseStrategies {
 		persona, ok := e.registry.Persona(s.role)
@@ -52,8 +52,8 @@ func (e *Engine) strategySignature() []strategy.SignatureEntry {
 			Persona:     s.role,
 			Temperature: llm.ResolveTemperature(s.phase, persona.Temperature, nil),
 		}
-		if s.phase == llm.PhaseDiverging && e.cfg != nil {
-			entry.Candidates = e.cfg.Execution.DivergenceCandidates
+		if s.phase == llm.PhaseDiverging {
+			entry.Candidates = e.planFor(archetype).Candidates
 		}
 		out = append(out, entry)
 	}
@@ -70,9 +70,11 @@ func (e *Engine) captureProfile(ctx context.Context, j job.Job) {
 		slog.Error("engine: loading project for strategy profile", "job", j.ID, "err", err)
 		return
 	}
+	plan := e.planFor(p.Archetype)
+	e.auditComputePlan(ctx, j.ID, plan)
 	if _, err := e.strategy.CreateProfile(ctx, strategy.Profile{
 		JobID: j.ID, ProjectID: p.ID, Archetype: p.Archetype,
-		Signature: e.strategySignature(),
+		Signature: e.strategySignature(p.Archetype),
 	}); err != nil {
 		slog.Error("engine: capturing strategy profile", "job", j.ID, "err", err)
 	}

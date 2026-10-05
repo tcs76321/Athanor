@@ -23,20 +23,12 @@ import (
 // 2 when the field is zero (defensive — defaults.go
 // should always set it).
 //
-// The constant below is kept only so existing call sites
-// and tests that reference `maxReflectionIterations`
-// continue to compile; it is not the source of truth.
-const maxReflectionIterations = 2
-
-// resolveMaxReflectionLoops reads the budget from config. An explicit 0
-// disables reflection (used by a pure single-shot baseline and by
-// F4-T2's policy); a nil field falls back to the default 2. The fallback
-// is defensive — defaults.go fills the pointer.
+// resolveMaxReflectionLoops resolves the reflection budget through the policy
+// seam (F4-T1): the configured ceiling, or policy.DefaultReflectionLoops when
+// config is absent. An explicit 0 disables reflection — the pure single-shot
+// baseline and F4-T2's policy.
 func (e *Engine) resolveMaxReflectionLoops() int {
-	if e.cfg == nil {
-		return maxReflectionIterations
-	}
-	return e.cfg.Execution.MaxReflectionLoopsValue()
+	return e.planFor("").MaxReflectionLoops
 }
 
 // reflectCounterPrefix is the `system_state` key prefix
