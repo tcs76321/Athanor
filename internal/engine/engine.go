@@ -43,6 +43,7 @@ import (
 
 	"github.com/tcs76321/athanor/internal/artifact"
 	"github.com/tcs76321/athanor/internal/config"
+	"github.com/tcs76321/athanor/internal/corrections"
 	"github.com/tcs76321/athanor/internal/evaluation"
 	"github.com/tcs76321/athanor/internal/job"
 	"github.com/tcs76321/athanor/internal/llm"
@@ -106,6 +107,13 @@ type GitCommitter interface {
 	Commit(ctx context.Context, repoPath, branch, relPath string, content []byte, message string) (string, error)
 }
 
+// CorrectionSink is the §18 feedback seam (M6-T6): the engine reports a
+// phase failure as a runtime_error CorrectionRecord. The production impl is
+// *corrections.Repo; a nil sink is valid (unit tests, the M1 skeleton).
+type CorrectionSink interface {
+	Capture(ctx context.Context, in corrections.CaptureInput) (corrections.Record, error)
+}
+
 // ErrPaused reports that the job was paused instead of failed — the
 // context floor was violated (recommend-or-escalate, §12.3) or the kill
 // switch froze the daemon mid-run.
@@ -148,6 +156,9 @@ type Engine struct {
 	// accepted artifact to the project repository on an agent branch. nil
 	// means "no git"; the engine audits the skip and continues.
 	git GitCommitter
+	// corrections is the §18 feedback seam (M6-T6, ADR-0037): a phase
+	// failure is reported as a runtime_error CorrectionRecord. nil is valid.
+	corrections CorrectionSink
 	// inFlight is the count of running job goroutines. The cap is
 	// read from cap.MaxConcurrentJobs() on every Enqueue; the atomic
 	// counter is the only source of truth for the running count.
@@ -223,6 +234,26 @@ func New(cfg *config.Config, db *store.Store, jobs *job.Repository, projects *pr
 // rather than a New() parameter so existing New call sites are unchanged;
 // production wires it in cmd/athanor/serve.go.
 func (e *Engine) SetGitCommitter(g GitCommitter) { e.git = g }
+
+// SetCorrectionSink wires the §18 feedback seam (M6-T6). It is a setter so
+// existing New call sites are unchanged; production wires the corrections
+// repo in cmd/athanor/serve.go. A nil sink is a no-op.
+func (e *Engine) SetCorrectionSink(s CorrectionSink) { e.corrections = s }
+
+// recordFailureCorrection captures a phase failure as a runtime_error
+// CorrectionRecord (§18.1). Best-effort: a capture failure is logged, never
+// fatal — the job has already failed.
+func (e *Engine) recordFailureCorrection(ctx context.Context, jobID, projectID string, phase job.State, cause error) {
+	if e.corrections == nil {
+		return
+	}
+	if _, err := e.corrections.Capture(ctx, corrections.CaptureInput{
+		Source: corrections.SourceRuntimeError, JobID: jobID, ProjectID: projectID,
+		Detail: cause.Error() + " (phase " + string(phase) + ")",
+	}); err != nil {
+		slog.Error("engine: recording failure correction", "job", jobID, "err", err)
+	}
+}
 
 // SetOnJobTerminal wires the terminal-transition observer the M6-T2
 // scheduler uses to advance a decomposed task graph (ADR-0033). It fires
@@ -395,8 +426,10 @@ func (e *Engine) Run(ctx context.Context, jobID string) {
 				slog.Error("engine: marking job failed", "job", jobID, "err", terr)
 			} else {
 				// M6-T2 (ADR-0033): the failure path is a terminal
-				// transition too; the scheduler learns of it here.
+				// transition too; the scheduler learns of it here. M6-T6
+				// records the failure as a CorrectionRecord (§18.1).
 				e.signalTerminal(ctx, jobID, job.StateFailed)
+				e.recordFailureCorrection(ctx, jobID, j.ProjectID, j.State, err)
 			}
 			e.audit(ctx, jobID, map[string]any{
 				"event": "job_failed", "state": string(j.State), "error": err.Error(),

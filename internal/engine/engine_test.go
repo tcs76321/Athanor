@@ -17,6 +17,7 @@ import (
 	"github.com/tcs76321/athanor/internal/artifact"
 	"github.com/tcs76321/athanor/internal/config"
 	"github.com/tcs76321/athanor/internal/control"
+	"github.com/tcs76321/athanor/internal/corrections"
 	"github.com/tcs76321/athanor/internal/evaluation"
 	"github.com/tcs76321/athanor/internal/job"
 	"github.com/tcs76321/athanor/internal/llm"
@@ -352,6 +353,37 @@ func TestOnJobTerminalFiresForCompletion(t *testing.T) {
 	e.eng.Run(context.Background(), jobID)
 	if len(got) != 1 || got[0].id != jobID || got[0].state != job.StateCompleted {
 		t.Fatalf("terminal callback = %+v, want one completed for %s", got, jobID)
+	}
+}
+
+type fakeCorrectionSink struct {
+	calls int
+	in    corrections.CaptureInput
+}
+
+func (f *fakeCorrectionSink) Capture(_ context.Context, in corrections.CaptureInput) (corrections.Record, error) {
+	f.calls++
+	f.in = in
+	return corrections.Record{ID: "c1"}, nil
+}
+
+// TestPhaseFailureRecordsCorrection proves the M6-T6 engine seam: a phase
+// failure is reported to the correction sink as a runtime_error source.
+func TestPhaseFailureRecordsCorrection(t *testing.T) {
+	e := newEnvWithCfg(t, func(c *config.Config) {
+		// An unreachable Ollama makes the first phase call fail.
+		c.Inference.OllamaURL = "http://127.0.0.1:1"
+	})
+	sink := &fakeCorrectionSink{}
+	e.eng.SetCorrectionSink(sink)
+	jobID := e.submit(t)
+	e.eng.Run(context.Background(), jobID)
+
+	if sink.calls != 1 {
+		t.Fatalf("correction captures = %d, want 1", sink.calls)
+	}
+	if sink.in.Source != corrections.SourceRuntimeError || sink.in.JobID != jobID {
+		t.Errorf("capture input = %+v, want runtime_error for %s", sink.in, jobID)
 	}
 }
 
