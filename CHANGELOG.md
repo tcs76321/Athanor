@@ -12,6 +12,18 @@ New entries are appended at the top. Do not rewrite history.
 
 ### M6 — Autonomy & Feedback
 
+- **M6-T10.** Strategy capture ([ADR-0040](docs/adr/0040-strategy-capture.md)).
+  Migration 0021 adds `strategy_profiles`, `strategy_outcomes`, and
+  `strategy_insights`. `internal/strategy` records a StrategyProfile at job
+  start — derived with **zero inference** from the engine's fixed phase →
+  persona map, resolved temperatures, and candidate count — and an immutable
+  StrategyOutcome at terminal state (result from the job state plus the
+  comparison winner, score from EvaluationRecords, confidence/tokens from the
+  event log, wall time from the job timestamps, reflection loops from the
+  typed counter). `UNIQUE(job_id)` makes capture idempotent, and a boot
+  `Backfill` creates records for legacy terminal jobs. `strategy_insights`
+  is created but mined in M6-T11.
+
 - **M6-T9.** Feedback-loop E2E. `internal/engine/feedback_e2e_test.go`
   (`TestFeedbackLoopE2E`) runs a job to a document artifact, records the
   §18.4 structured rejection through `corrections.Capture`, then runs a

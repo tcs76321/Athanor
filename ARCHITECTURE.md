@@ -769,6 +769,15 @@ wall_time: duration
 
 Both records are written transactionally with the corresponding state transitions and retained indefinitely — they are small, and they are the dataset everything in §13.4 learns from.
 
+> **Implementation status (M6-T10).** Capture is live
+> ([ADR-0040](docs/adr/0040-strategy-capture.md)): migration 0021 adds
+> `strategy_profiles`/`strategy_outcomes`/`strategy_insights`;
+> `internal/strategy` writes an idempotent profile at job start (derived from
+> the phase → persona plan, zero inference) and an immutable outcome at
+> terminal state, with a boot backfill for legacy jobs. The records are
+> written immediately after their transition rather than inside the job
+> repository's transaction (ADR-0040 §4). §13.4 aggregation is M6-T11.
+
 ### 13.4 Strategy Analysis Engine
 
 Aggregation is **deterministic** (grouping/ranking over `StrategyOutcome`s), run offline — primarily as the Daydreaming *Strategy Mining* action (§17.1). An optional Temp 0.0 `security` pass phrases detected patterns; it never invents numbers.

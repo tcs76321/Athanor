@@ -187,6 +187,10 @@ edit). Vector-similarity ranking is deferred to the `Relevant` seam.
 
 ## M6-T10 — Strategy capture
 
+**Status: ✅ complete (2026-10-05).** Commits `f1d14a1` (ADR), `7c5084d`
+(migration 0021), `5672daa` (`internal/strategy`), `876fef9` (engine capture
++ wiring). `strategy_insights` is created but mined in M6-T11.
+
 - Persist `StrategyProfile` at job start and an immutable `StrategyOutcome`
   at job end, transactionally with transitions; derive with zero inference
   from the persona plan; backfill pre-capture jobs. Migration adds
