@@ -112,6 +112,16 @@ Conclusion: **the third-party judge layer did not produce a trustworthy quality
 signal.** We cannot use it to adjudicate single vs dialectical, and we must not
 train on its verdicts.
 
+**T0b validation (re-run with the fixed protocol).** After the protocol fix —
+retry on empty responses, reject a missing `score`, drop the JSON-format hint on
+retry, and a per-judge reliability gate — the same 37 packets judged cleanly:
+**gemma 32/37 (86%)** and **granite 33/37 (89%)** of calls succeeded (up from
+78% / 49%). Reliability is fixed. But **saturation persists**: every successful
+gemma score is 1.0, and granite is 1.0 on 27/33 (0.0 on 6). Absolute-score
+judging still cannot rank. Discrimination needs *harder* tasks (the ceiling
+effect) and/or a pairwise protocol — a reliable judge is not yet a
+discriminating one. That is F4-T4's problem.
+
 ## Human rating sheet
 
 Agent read of `artifacts.md` for the text/document goals (the ones where the
