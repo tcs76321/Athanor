@@ -43,7 +43,10 @@ go run -tags sqlite_fts5 ./spikes/m3-t7-probe run -goals 1 -models qwen27b
 # 3. the full locked matrix (hours; see the protocol)
 go run -tags sqlite_fts5 ./spikes/m3-t7-probe run
 
-# 4. aggregate every results.json into report.md
+# 4. score every artifact with the third-party judges (gemma + granite)
+go run -tags sqlite_fts5 ./spikes/m3-t7-probe judge
+
+# 5. aggregate every results.json into report.md
 go run -tags sqlite_fts5 ./spikes/m3-t7-probe report
 ```
 
@@ -85,4 +88,6 @@ finishes in a few hours).
 | `collect.go` | read-only DB + artifact collection |
 | `report.go` | pure report aggregation/rendering |
 | `runner.go` | daemon lifecycle + matrix execution + output writing |
+| `soak.go` | run guards, RSS/DB/disk soak sampling, orphan-pod check |
+| `judge.go` | offline third-party judging over the blind packets |
 | `*_test.go` | unit tests for every pure piece |

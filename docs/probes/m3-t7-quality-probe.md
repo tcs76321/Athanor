@@ -44,75 +44,75 @@ These decisions are fixed for the run; changing them re-opens the protocol.
 
 ### Sample set — 10 goals (2 text / 6 code / 2 document)
 
-One project per goal. Goals 1–5 are the M1-T8 set (continuity with
-`docs/probes/m1-quality-probe.md`); goals 6–10 are the M3-T2 rubric-covering
-code set (`spikes/m3-t2-probe/`). Goal 9 is deliberately failure-sensitive.
+One project per goal. Goals 1–5 began as the M1-T8 set and goals 6–10 as the
+M3-T2 rubric-covering code set; the objectives were tightened (explicit
+paragraph/section counts, one-line functions) so a 9B generator produces a
+bounded artifact and the N=3-vs-N=1 difference is visible rather than buried
+in long prose. Goal 9 is deliberately failure-sensitive.
 
 | # | Src | Archetype | Goal | Criteria |
 |---|---|---|---|---|
-| 1 | M1-T8 | text | "Write a short essay about why local-first software matters." | at least three arguments; a conclusion |
-| 2 | M1-T8 | text | "Draft a friendly onboarding email for a new community member of a local software club." | under 200 words; one clear call to action |
-| 3 | M1-T8 | code | "Write a Python module that manages a personal book collection with add, list, and search functions." | pure stdlib; docstrings on every public function; a usage example |
-| 4 | M1-T8 | document | "Create a README for a small CLI tool that converts Markdown files to HTML." | installation section; usage examples; license section |
-| 5 | M1-T8 | document | "Write a one-page design brief for a weekend project that builds a sunrise alarm clock from a Raspberry Pi." | parts list; build steps; at least two risks named |
-| 6 | M3-T2 | code | "Write a Python function that returns the n-th Fibonacci number using recursion." | pure stdlib; docstrings on every public function; a usage example |
-| 7 | M3-T2 | code | "Write a Python module with three utility functions for trimming, padding, and reversing strings." | pure stdlib; docstrings on every public function |
-| 8 | M3-T2 | code | "Write a Python cache class with get, set, and evict methods." | pure stdlib; no TODO or FIXME placeholders |
-| 9 | M3-T2 | code | "Write a Python function that returns its input reversed. The function must always succeed." | pure stdlib; tests pass |
-| 10 | M3-T2 | code | "Write a Python class for managing a todo list, with add, complete, list_pending, and clear methods." | pure stdlib; docstrings on every public function; no TODO or FIXME placeholders |
+| 1 | M1-T8 | text | "Write exactly three short paragraphs arguing why local-first software matters, one reason per paragraph." | exactly three paragraphs; each names a distinct reason; a one-sentence conclusion |
+| 2 | M1-T8 | text | "Draft a short onboarding email (under 120 words) for a new member of a local software club." | under 120 words; one clear call to action |
+| 3 | M1-T8 | code | "Write a Python module defining a Book dataclass with title and author fields, and a function summarize(book) that returns 'title by author'." | pure stdlib; docstrings on every public function; a usage example |
+| 4 | M1-T8 | document | "Write a short README with exactly three sections named Install, Usage, and License." | sections named Install, Usage, License; a one-line project description at the top |
+| 5 | M1-T8 | document | "Write a short design brief with exactly three sections: Parts, Steps, and Risks." | sections named Parts, Steps, Risks; at least two risks named |
+| 6 | M3-T2 | code | "Write a Python function fib(n) that returns the n-th Fibonacci number using recursion, with a docstring." | pure stdlib; a docstring on the function; a usage example |
+| 7 | M3-T2 | code | "Write a Python module with three one-line functions: trim(s), pad(s, width), and reverse(s)." | pure stdlib; docstrings on every public function |
+| 8 | M3-T2 | code | "Write a Python class Cache with get(key), set(key, value), and evict(key) methods." | pure stdlib; no TODO or FIXME placeholders |
+| 9 | M3-T2 | code | "Write a Python function reverse(s) that returns its input reversed and must always succeed." | pure stdlib; tests pass |
+| 10 | M3-T2 | code | "Write a Python class TodoList with add(task), complete(index), and pending() methods." | pure stdlib; docstrings on every public function |
 
 ### Models and runs
 
-| Run | Personas | Arms |
+| Role | Model | Notes |
 |---|---|---|
-| A | all → `qwen3.8:27b-mlx` | N=3 (×3 runs) + N=1 (×1 run) |
-| B | all → `ornith-1.5:9b` | N=3 (×3 runs) + N=1 (×1 run) |
-| C (optional) | `tall/main/wide/security` → qwen, `alternative` → ornith | N=3 |
+| Generator | `ornith-1.5:9b` | the fast local model; the first full run uses it only |
+| Judge (third-party) | `gemma4:12b-mlx` | independent family; scores every artifact offline |
+| Judge (third-party) | `granite4.2:3b` | independent family; cheap second opinion |
 
-Models must already be pulled locally (`ollama list`). Run C tests the
-ROADMAP tagline ("27 B tall + 9 B ornith for alternative") and whether a
-different-family alternative improves diversity/quality; it is attempted
-only if the memory rule below passes.
+The generator runs both arms (N=3 ×3 runs + N=1 ×1 run); the two judges
+score every artifact offline via the probe's `judge` subcommand. The 27 B
+model is an optional later run — omitting it is what keeps the full matrix
+to a few hours instead of a day. All models must already be pulled locally
+(`ollama list`).
 
 ### Repetition
 
 - Dialectical arm (N=3): each goal run **3×**. The headline uses all three
   (median); T-c stability reads the three `winner` values directly.
 - Single arm (N=1): each goal run **1×**.
-- Per model: 10 × (3+1) = **40 jobs**; Runs A+B ≈ 80 jobs.
+- Generator: 10 × (3+1) = **40 jobs** (a few hours on the fast model).
 
 ### Memory / residency rule
 
-qwen3.8:27b (~22 GB resident) + ornith-1.5:9b (~6.6 GB) ≈ 28.6 GB on a
-32 GiB host — feasible but tight. Before any run:
+The generator (`ornith-1.5:9b`, ~7 GB) fits comfortably alone. The judges
+(`gemma4:12b-mlx` ~14 GB, `granite4.2:3b` ~2 GB) run offline in a separate
+pass, so they never co-reside with the generator's daemon. Before any run:
 
 1. Read `ollama ps`, `vm_stat`, `memory_pressure`.
 2. Load the model; require `ollama ps` to report **`100% GPU`** and swap
    I/O to stay **0**. A partial-CPU reading invalidates the run.
-3. For Runs A/B (timing-critical) set `OLLAMA_MAX_LOADED_MODELS=1` and
-   `OLLAMA_NUM_PARALLEL=1` so co-residency cannot happen by accident.
-4. Attempt co-residency (Run C, or a judge loaded alongside a generator)
-   only with **both** models at `100% GPU` and ≥ ~2 GB headroom; otherwise
-   fall back to single-model-per-run.
-5. Judging runs offline with the daemon stopped, so the judge gets the
-   whole machine.
+3. Set `OLLAMA_MAX_LOADED_MODELS=1` and `OLLAMA_NUM_PARALLEL=1` so
+   co-residency cannot happen by accident.
+4. The judge pass runs with the generator daemon stopped, so each judge
+   gets the machine; the two judges may co-reside if headroom allows.
 
-### Scoring — five channels
+### Scoring — four channels
 
 1. **Deterministic** criteria checks (stdlib-only, docstrings present, no
    TODO/FIXME, tests exit 0) — machine-checkable per artifact.
-2. **Cross-model judge:** qwen judges ornith artifacts and vice versa,
-   blind (goal + criteria + artifact only; no arm/model label).
-3. **Neutral third judge:** `gemma4:12b-mlx` (different family from both).
-4. **Human rating:** the operator scores every artifact against the
-   criteria. *Relief valve:* rating/pasting may be limited to 2 artifacts
-   per goal/model (the single run + the first dialectical run); the
-   remaining two dialectical runs feed T-c and the automated/cross-model
-   judges only.
-5. **Online agent (optional):** the probe emits a paste-ready full-artifact
-   judge packet per artifact (goal, criteria, artifact, strict output
-   schema); the operator transcribes the returned score. **Privacy:** this
-   sends artifact text off-machine — opt in per packet.
+2. **Third-party judges:** `gemma4:12b-mlx` and `granite4.2:3b`, blind
+   (goal + criteria + artifact only; no arm/model label), invoked by the
+   `judge` subcommand at temperature 0 with a fixed seed. Both differ in
+   family from the generator, so their errors are not correlated with it.
+3. **Human rating:** the operator scores every artifact against the
+   criteria. *Relief valve:* rating may be limited to the single run plus
+   the first dialectical run per goal; the remaining dialectical runs feed
+   T-c and the automated judges only.
+4. **Online agent (optional):** the probe emits a paste-ready full-artifact
+   judge packet per artifact; the operator transcribes the returned score.
+   **Privacy:** this sends artifact text off-machine — opt in per packet.
 
 ### Determinism and seeding
 
