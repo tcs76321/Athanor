@@ -92,3 +92,14 @@ table rebuilds and keeps each migration tied to the capability that needs it.
   execution, no syscall).
 - The §7.3 status-name discrepancy is tracked here and closed by the M6-T2
   migration and its ADR.
+
+## Implemented (M6-T1.2–T1.6)
+
+`internal/dag` (pure parser + validator), `internal/decompose` (tall→main
+orchestration with typed rejection/infeasible errors and `jobs` audit rows),
+`project.CreateDAG`/`TasksByGoal`/`TasksByProject`, the
+`POST /projects/{id}/decompose` and `GET /projects/{id}/tasks` routes, and
+`athanor goal decompose` all landed. The graph bounds are
+`execution.dag_max_tasks/depth/total_jobs`. No migration was needed. The M6-T2
+scheduler migration remains the point that reconciles the §7.3 status names,
+as §5 records.

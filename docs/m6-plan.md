@@ -26,6 +26,9 @@ corner.
 
 ## M6-T1 — DAG decomposition (detailed)
 
+**Status: ✅ complete (2026-10-04).** All seven commits landed; the
+`goal submit` path is deliberately still single-task pending M6-T2.
+
 **Acceptance:** Generated DAGs pass validation or are rejected with reason;
 decomposition failure retries with the simpler `main` persona.
 

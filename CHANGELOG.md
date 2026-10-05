@@ -10,6 +10,21 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### M6 — Autonomy & Feedback
+
+- **M6-T1.** DAG decomposition ([ADR-0032](docs/adr/0032-dag-decomposition.md),
+  [plan](docs/m6-plan.md)). A new pure `internal/dag` package parses the
+  model's structured output and validates it deterministically (unique keys,
+  resolved parent/dependency references, acyclicity with a topological order,
+  depth/node/leaf-coverage/budget bounds); `internal/decompose` makes the
+  `tall`-persona call, retries a parse or validation failure once with `main`,
+  and persists the accepted graph through the new `project.Repo.CreateDAG`
+  (atomic, key→ID resolved) — no migration, because the existing `tasks`
+  columns already carry the graph. Exposed as `POST /projects/{id}/decompose`,
+  `GET /projects/{id}/tasks`, and `athanor goal decompose`; graph bounds are
+  `execution.dag_max_tasks/depth/total_jobs`. `goal submit` is unchanged until
+  the M6-T2 scheduler enqueues ready tasks.
+
 ### Foundations — F3: documentation, correctness & hardening sweep
 
 - **F3-T6.** The M3-T7-b/c quality-measurement **runbook** lands in

@@ -255,6 +255,19 @@ When a `Goal` is submitted, Athanor uses the `tall` persona to autonomously deco
 4. Submit DAG to user for quick approval (optional; can be auto-approved for trusted goals).
 5. Execute tasks respecting dependency order.
 
+> **Implementation status (M6-T1).** Decomposition is built as an explicit
+> Core step: the pure `internal/dag` package parses the model's structured
+> output and validates it deterministically (keys, references, acyclicity,
+> depth/node/leaf-coverage/budget bounds), and `internal/decompose` drives the
+> `tall` persona — retrying a parse or validation failure once with `main` —
+> before persisting the graph through `project.CreateDAG`
+> ([ADR-0032](docs/adr/0032-dag-decomposition.md), [plan](docs/m6-plan.md)).
+> It is exposed as `athanor goal decompose` and
+> `POST /projects/{id}/decompose`. The dependency scheduler that executes a
+> DAG is **M6-T2**; until it lands, `goal submit` still creates a single task,
+> and the §7.3 `status` names are reconciled with the shipped `tasks` enum by
+> the M6-T2 migration.
+
 ### 7.2 DAG Failure & Recovery Policy
 
 | Failure Type | Policy |
@@ -1572,6 +1585,11 @@ execution:
     planning: 120s
     evaluating: 600s        # must accommodate Job Pod boot + test suite
     default: 300s
+  # M6-T1 (ADR-0032): bounds the decomposer validator enforces on a task
+  # graph before it is persisted.
+  dag_max_tasks: 25
+  dag_max_depth: 6
+  dag_max_total_jobs: 100
 
 strategy_analysis:
   enabled: true
