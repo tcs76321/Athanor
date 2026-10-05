@@ -832,6 +832,15 @@ updated_at: timestamp
 - Every insight carries its evidence inline; the UI shows cohort size and deltas so users can judge for themselves.
 - All computation is local. Nothing leaves the machine.
 
+> **Implementation status (M6-T11).** The analysis engine is live
+> ([ADR-0041](docs/adr/0041-strategy-analysis.md)): `strategy.Mine` groups
+> outcomes into cohorts deterministically and applies the cohort floor,
+> accept-rate delta, and confidence-consistency thresholds; proposed insights
+> are inert (`ActiveStatements` returns active only, in the prompt at §11.2
+> §14), and promotion is HITL-gated (`auto_promote` default off). Persona-plan
+> bias, template ranking, and ExplorationPath proposals remain future
+> channels.
+
 ---
 
 ## 14. Coding Workflow

@@ -12,6 +12,19 @@ New entries are appended at the top. Do not rewrite history.
 
 ### M6 — Autonomy & Feedback
 
+- **M6-T11.** Strategy analysis ([ADR-0041](docs/adr/0041-strategy-analysis.md)).
+  `strategy.Mine` deterministically groups captured outcomes into cohorts by
+  strategy feature (persona, candidate count) and applies §13.4's thresholds
+  (cohort floor, accept-rate delta, directionally-consistent confidence),
+  writing **proposed** insights whose statements are rendered from the numbers
+  (no LLM in the detection path). Proposed insights are provably inert:
+  `ActiveStatements` returns active insights only, and the engine injects them
+  at §11.2 position 14 / tier 7 (audited `strategy_notes_injected`).
+  Promotion is HITL-gated through the M6-T4 queue (`strategy_analysis.auto_promote`
+  default off); muting is direct. Exposed by `GET /strategy/insights`,
+  `POST /strategy/mine`, `.../promote`, `.../mute`, `athanor strategy ...`, and
+  a read-only Statistics panel.
+
 - **M6-T10.** Strategy capture ([ADR-0040](docs/adr/0040-strategy-capture.md)).
   Migration 0021 adds `strategy_profiles`, `strategy_outcomes`, and
   `strategy_insights`. `internal/strategy` records a StrategyProfile at job

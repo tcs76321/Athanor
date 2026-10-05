@@ -5,10 +5,10 @@
 **Gate:** G6 — HITL gates every external/irreversible action; feedback-loop
 E2E green; a multi-task DAG demo passes unattended.
 
-This is the milestone-level plan. M6-T1 is the current work item and is
-specified to commit granularity below; T2–T11 are outlines that fix
-interfaces and sequencing so later tasks do not paint themselves into a
-corner.
+This is the milestone-level plan. **M6 is complete (T1–T11).** Each task
+section below is marked done with its commits; T2–T11 were outlines that
+fixed interfaces and sequencing so later tasks did not paint themselves into
+a corner.
 
 ## Shared decisions
 
@@ -197,6 +197,10 @@ edit). Vector-similarity ranking is deferred to the `Relevant` seam.
   `strategy_profiles`, `strategy_outcomes`, `strategy_insights`; ADR-0039.
 
 ## M6-T11 — Strategy analysis
+
+**Status: ✅ complete (2026-10-05).** Commits `6c53d9d` (ADR), `c5bfd12`
+(mining), `d606d72` (engine notes), `e21cd55` (HITL promotion + API/CLI/UI).
+This closes **M6**; Gate G6's live-model DAG demo remains a documented gap.
 
 - Deterministic aggregation over outcomes → proposed insights at thresholds;
   HITL-gated activation/muting (T4); strategy notes at assembly position 14;
