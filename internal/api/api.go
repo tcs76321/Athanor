@@ -8,10 +8,12 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"time"
 
 	"github.com/tcs76321/athanor/internal/artifact"
 	"github.com/tcs76321/athanor/internal/control"
 	"github.com/tcs76321/athanor/internal/decompose"
+	"github.com/tcs76321/athanor/internal/hitl"
 	"github.com/tcs76321/athanor/internal/job"
 	"github.com/tcs76321/athanor/internal/project"
 	"github.com/tcs76321/athanor/internal/store"
@@ -59,6 +61,13 @@ type Scheduler interface {
 	Start(ctx context.Context, goalID string) ([]string, error)
 }
 
+// HITL is the surface the M6-T4 queue routes use (ADR-0035). The concrete
+// implementation is *hitl.Service.
+type HITL interface {
+	Pending(ctx context.Context) ([]hitl.Request, error)
+	Decide(ctx context.Context, id, action, note string, deferFor time.Duration) (hitl.Request, error)
+}
+
 // IndexSummary is an indexing pass's counters, also the route's JSON body.
 type IndexSummary struct {
 	Discovered int `json:"discovered"`
@@ -83,6 +92,7 @@ type API struct {
 	indexer    IndexRunner
 	decomposer Decomposer
 	scheduler  Scheduler
+	hitl       HITL
 	// dagScheduling mirrors execution.dag_decomposition: when true, goal
 	// submission decomposes and schedules instead of creating one task.
 	dagScheduling bool
@@ -131,6 +141,10 @@ func (a *API) SetDAGScheduling(enabled bool) {
 	a.dagScheduling = enabled
 }
 
+// SetHITL wires the M6-T4 HITL queue (ADR-0035). A daemon that does not
+// wire one answers 503 on the queue routes.
+func (a *API) SetHITL(h HITL) { a.hitl = h }
+
 // Register attaches all routes to mux.
 func (a *API) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /projects", a.handleProjectCreate)
@@ -146,6 +160,9 @@ func (a *API) Register(mux *http.ServeMux) {
 	// M6-T1: explicit DAG decomposition (ADR-0032).
 	mux.HandleFunc("POST /projects/{id}/decompose", a.handleDecompose)
 	mux.HandleFunc("GET /projects/{id}/tasks", a.handleProjectTasks)
+	// M6-T4: the §20 HITL queue (ADR-0035).
+	mux.HandleFunc("GET /hitl", a.handleHITLList)
+	mux.HandleFunc("POST /hitl/{id}/decision", a.handleHITLDecision)
 }
 
 // writeJSON is the single response writer: always JSON, always UTF-8.

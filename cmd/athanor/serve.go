@@ -20,6 +20,7 @@ import (
 	"github.com/tcs76321/athanor/internal/control"
 	"github.com/tcs76321/athanor/internal/engine"
 	"github.com/tcs76321/athanor/internal/evaluation"
+	"github.com/tcs76321/athanor/internal/hitl"
 	"github.com/tcs76321/athanor/internal/internalapi"
 	"github.com/tcs76321/athanor/internal/internalapi/runner"
 	"github.com/tcs76321/athanor/internal/job"
@@ -214,6 +215,12 @@ func run(configPath, addr, stateDir string) error {
 	sched := scheduler.New(projectRepo, job.NewRepository(st), eng, st)
 	sched.SetMaxTaskRetries(cfg.Execution.MaxTaskRetriesValue())
 	eng.SetOnJobTerminal(sched.OnJobTerminal)
+	// M6-T4 (ADR-0035): the HITL queue. The scheduler's Escalator seam
+	// turns an exhausted task into a request; the service waits resumes,
+	// fails on rejection, and denies on expiry.
+	hitlRepo := hitl.NewRepo(st)
+	hitlSvc := hitl.NewService(hitlRepo, job.NewRepository(st), eng, cfg.HITL.DefaultTTL.D())
+	sched.SetEscalator(hitlEscalator{repo: hitlRepo})
 	srv := server.New(version)
 	srv.SetControl(killSwitch)
 	externalAPI := api.New(projectRepo, job.NewRepository(st),
@@ -232,6 +239,7 @@ func run(configPath, addr, stateDir string) error {
 	// switches goal submission to decompose-then-schedule (ADR-0033 §5).
 	externalAPI.SetScheduler(sched)
 	externalAPI.SetDAGScheduling(cfg.Execution.DAGDecomposition)
+	externalAPI.SetHITL(hitlSvc)
 	externalAPI.Register(srv.Mux())
 	// M2-T3 + M2-T4: internal API for Job Pods. Same loopback HTTP
 	// server, different path prefix (/internal/v1/), every route
@@ -368,6 +376,13 @@ func run(configPath, addr, stateDir string) error {
 	// internal API dispatches execute_code / run_tests / lint into it
 	// (503 until job_pod.image is set). A recovered job resumes with the
 	// same dispatch.
+	//
+	// M6-T4 (ADR-0035): the HITL expiry sweep runs alongside recovery so an
+	// unanswered request is denied on schedule.
+	hitlCtx, cancelHITL := context.WithCancel(context.Background())
+	defer cancelHITL()
+	startHITLExpiry(hitlCtx, hitlSvc, cfg.HITL.ExpiryInterval.D(), slog.Default())
+
 	eng.Recover(context.Background())
 
 	// M6-T2 (ADR-0033 §4): reconcile decomposed graphs after a restart.

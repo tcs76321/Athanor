@@ -1,11 +1,14 @@
 package api
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/tcs76321/athanor/internal/artifact"
 	"github.com/tcs76321/athanor/internal/decompose"
+	"github.com/tcs76321/athanor/internal/hitl"
 	"github.com/tcs76321/athanor/internal/job"
 	"github.com/tcs76321/athanor/internal/project"
 	"github.com/tcs76321/athanor/internal/store"
@@ -288,4 +291,99 @@ func (a *API) handleJobEvents(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"events": out})
+}
+
+// hitlResponse is the JSON shape of a HITL request. It is deliberately
+// explicit (rather than serializing hitl.Request) so the field names are
+// stable snake_case and payload is passed through verbatim.
+type hitlResponse struct {
+	ID           string          `json:"id"`
+	ProjectID    string          `json:"project_id,omitempty"`
+	JobID        string          `json:"job_id,omitempty"`
+	Type         string          `json:"type"`
+	Severity     string          `json:"severity"`
+	Status       string          `json:"status"`
+	Payload      json.RawMessage `json:"payload,omitempty"`
+	DecisionNote string          `json:"decision_note,omitempty"`
+	ExpiresAt    *time.Time      `json:"expires_at,omitempty"`
+	DecidedAt    *time.Time      `json:"decided_at,omitempty"`
+	CreatedAt    time.Time       `json:"created_at"`
+}
+
+func toHITLResponse(r hitl.Request) hitlResponse {
+	payload := json.RawMessage(r.PayloadJSON)
+	if len(payload) == 0 || !json.Valid(payload) {
+		payload = json.RawMessage(`{}`)
+	}
+	return hitlResponse{
+		ID: r.ID, ProjectID: r.ProjectID, JobID: r.JobID, Type: r.Type,
+		Severity: r.Severity, Status: r.Status, Payload: payload,
+		DecisionNote: r.DecisionNote, ExpiresAt: r.ExpiresAt, DecidedAt: r.DecidedAt,
+		CreatedAt: r.CreatedAt,
+	}
+}
+
+// handleHITLList lists pending HITL requests (M6-T4, ADR-0035).
+func (a *API) handleHITLList(w http.ResponseWriter, r *http.Request) {
+	if a.hitl == nil {
+		writeError(w, http.StatusServiceUnavailable, "HITL queue is not configured")
+		return
+	}
+	reqs, err := a.hitl.Pending(r.Context())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	out := make([]hitlResponse, 0, len(reqs))
+	for _, req := range reqs {
+		out = append(out, toHITLResponse(req))
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"requests": out})
+}
+
+type hitlDecisionRequest struct {
+	Action string `json:"action"`
+	Note   string `json:"note"`
+	// DeferFor is a Go duration string ("1h"); required for a defer.
+	DeferFor string `json:"defer_for"`
+}
+
+// handleHITLDecision applies approve/reject/defer to a pending request.
+func (a *API) handleHITLDecision(w http.ResponseWriter, r *http.Request) {
+	if a.hitl == nil {
+		writeError(w, http.StatusServiceUnavailable, "HITL queue is not configured")
+		return
+	}
+	var req hitlDecisionRequest
+	if !decodeBody(w, r, &req) {
+		return
+	}
+	var deferFor time.Duration
+	if req.DeferFor != "" {
+		d, err := time.ParseDuration(req.DeferFor)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid defer_for: "+err.Error())
+			return
+		}
+		deferFor = d
+	}
+	res, err := a.hitl.Decide(r.Context(), r.PathValue("id"), req.Action, req.Note, deferFor)
+	if err != nil {
+		writeError(w, hitlStatus(err), err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, toHITLResponse(res))
+}
+
+func hitlStatus(err error) int {
+	switch {
+	case errors.Is(err, hitl.ErrNotFound):
+		return http.StatusNotFound
+	case errors.Is(err, hitl.ErrNotPending):
+		return http.StatusConflict
+	case errors.Is(err, hitl.ErrUnknownAction):
+		return http.StatusBadRequest
+	default:
+		return http.StatusInternalServerError
+	}
 }
