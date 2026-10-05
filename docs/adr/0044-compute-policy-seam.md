@@ -1,4 +1,4 @@
-# ADR 0044 — Compute policy as an explicit seam (F4-T1)
+# ADR 0044 — Model-selection policy as an explicit seam (F4-T1)
 
 **Status:** Proposed — lands with F4-T1 · **Date:** 2026-10-05 · **Refs:** ARCHITECTURE §13, §13.4, §29; ROADMAP F4; [docs/f4-plan.md](../f4-plan.md)
 
@@ -15,7 +15,10 @@ Today the engine's compute is fixed constants: `divergence_candidates` (default
 3), `max_reflection_loops` (default 2), the `security` judge persona, and a
 single judge call. These are read from config but there is no single place
 that decides *how much* compute a given task should get, and no seam to change
-that decision per task or from history.
+that decision per task or from history. Nor is there a seam to choose *which*
+model runs a phase: one generator serves every phase and judges its own
+candidates — and the M3-T7 probe showed that self-judging is why best-of-N
+collapses toward best-of-1.
 
 F4 needs that seam. This ADR records its shape so F4-T1 can implement it and
 F4-T2..T5 can build on it without re-litigating the interface.
@@ -34,9 +37,10 @@ Policy.Decide(TaskFeatures, Context) -> Plan
   queried — the policy is pure).
 - **Context** (in): remaining budget, wall time, power/profile state, whether a
   prior accepted artifact exists.
-- **Plan** (out): `{Candidates, MaxReflectionLoops, JudgeMode, JudgeCount}` —
-  where `JudgeMode` distinguishes "deterministic verifier decides" from "LLM
-  judge decides" (F4-T3/T4).
+- **Plan** (out): `{Candidates, MaxReflectionLoops, JudgeMode, JudgeCount,
+  ModelRouting}` — where `JudgeMode` distinguishes "deterministic verifier
+  decides" from "LLM judge decides" (F4-T3/T4), and `ModelRouting` maps each
+  phase to the model/persona/family the job should use.
 
 Rules:
 
@@ -55,14 +59,22 @@ Rules:
    lower compute, never raise it past the ceiling.
 5. **Rivers, not mountains.** The policy never touches security constraints,
    the judge persona's temperature (still pinned 0.0), containment, or the
-   HITL rules. It allocates compute only.
+   HITL rules. It allocates compute and selects models only.
+6. **Routing is a river too.** `ModelRouting` chooses the model/persona/family
+   per phase — most importantly a **different-family judge** for evaluation
+   (F4-T3). The default routes exactly as the pre-F4 engine does (one `main`
+   generator, the `security` judge), so routing is an additive capability, not
+   a behavior change.
 
 ## Consequences
 
 - F4-T2 (adaptive compute) becomes "implement a policy that returns N=1 on
   tasks the planner marks easy," not an engine rewrite.
-- F4-T3/T4 (verification-first, judge quorum) express their decisions through
-  `JudgeMode`/`JudgeCount` rather than editing phase logic.
+- F4-T3/T4 (verification-first, judge quorum, cross-family judging) express
+  their decisions through `JudgeMode`/`JudgeCount`/`ModelRouting` rather than
+  editing phase logic.
+- F4-T5 (heterogeneous diversity) expresses "sample candidates from a
+  different family" through `Plan.ModelRouting`, not by editing divergence.
 - Every job's compute plan is already part of the strategy dataset, so the
   probe's result directly informs the default policy.
 - A `nil` policy (tests, the M1 skeleton) falls back to the default plan, so

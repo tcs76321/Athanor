@@ -102,12 +102,13 @@ Routing is a **river**. It may evolve; the mountains may not move:
 Each layer feeds the next, and each is gated. Do not start L3–L5 before L1 has
 accumulated enough outcome data to learn from.
 
-## 8. Follow-up: an ADR
+## 8. The ADR
 
-Open an ADR reframing **F4-T1** from "compute policy" to **"model-selection
-policy"**: `Policy.Decide(features, context) → Plan{candidates, model routing,
-reflection loops, judge mode/count}`, defaulting byte-identically to today's
-behavior, with the routing table sourced from `strategy_outcomes`.
+This reframe is recorded in [ADR-0044](adr/0044-compute-policy-seam.md), now
+"Model-selection policy as an explicit seam (F4-T1)": `Policy.Decide(features,
+context) → Plan{candidates, model routing, reflection loops, judge mode/count}`,
+defaulting byte-identically to today's behavior. The routing table is sourced
+from `strategy_outcomes`.
 
 ## 9. Open questions
 
