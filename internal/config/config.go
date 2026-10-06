@@ -252,6 +252,16 @@ type ContextEngine struct {
 	IndexBatchChunks int      `yaml:"index_batch_chunks"`
 	IndexEmbedBytes  *int     `yaml:"index_embed_bytes"`
 	IndexIgnoreDirs  []string `yaml:"index_ignore_dirs"`
+	// F5 automatic working set (ADR-0059, superseding ADR-0048's deferral).
+	// RepositoryIndexLimit caps how many project-scoped repository chunks
+	// the Dormant Index publishes per prompt (tier 6); it must be positive.
+	// SeedActiveChunk, when true, activates the single top-ranked project
+	// chunk into tier 3 before the first call when no chunk is active; it is
+	// off by default because tier 3 is full-fidelity and never evicted, and
+	// SeedActiveMaxBytes bounds the seeded chunk's size.
+	RepositoryIndexLimit int   `yaml:"repository_index_limit"`
+	SeedActiveChunk      *bool `yaml:"seed_active_chunk"`
+	SeedActiveMaxBytes   int   `yaml:"seed_active_max_bytes"`
 }
 
 // IndexEmbedBytesValue resolves index_embed_bytes, applying the documented
@@ -269,6 +279,13 @@ func (c *ContextEngine) IndexEmbedBytesValue() int {
 // unset. Explicit false disables ingestion and the M5-T3 swap.
 func (c *ContextEngine) LosslessSwapping() bool {
 	return Val(c.EnableLosslessSwapping, true)
+}
+
+// SeedActiveChunkEnabled resolves seed_active_chunk (default false): when
+// true, the working-set adapter activates the top-ranked project chunk into
+// tier 3 when a job has no active chunk (ADR-0059).
+func (c *ContextEngine) SeedActiveChunkEnabled() bool {
+	return Val(c.SeedActiveChunk, false)
 }
 
 // Execution configures the dialectical loop (§13, §19).

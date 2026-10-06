@@ -325,6 +325,59 @@ func (c *ChunkStore) IndexForJob(ctx context.Context, jobID string) ([]IndexEntr
 	return scanIndex(rows)
 }
 
+// DefaultRepositoryIndexLimit bounds the project-scoped Dormant Index rows a
+// single prompt publishes when the caller passes no explicit limit.
+const DefaultRepositoryIndexLimit = 20
+
+// IndexForProject returns the Dormant Index (§10.1) rows for a project's
+// repository chunks (F5, ADR-0059): chunks the repository indexer ingested,
+// which carry a project_id and no job_id. When query has full-text tokens the
+// rows are ranked by FTS5 bm25 over the Dormant Index summaries; otherwise the
+// most recently updated rows are returned. limit <= 0 selects
+// DefaultRepositoryIndexLimit.
+//
+// This is the read the engine's tier-6 Dormant Index uses to surface project
+// context to a normal job: the model sees the ranked table of contents and can
+// context_swap any entry (ChunkStore.Owns admits project-owned chunks). The
+// §10.5 ladder still evicts tier 6 first, so an over-large index cannot breach
+// the context budget.
+func (c *ChunkStore) IndexForProject(ctx context.Context, projectID, query string, limit int) ([]IndexEntry, error) {
+	if projectID == "" {
+		return nil, nil
+	}
+	if limit <= 0 {
+		limit = DefaultRepositoryIndexLimit
+	}
+	if match := ftsQuery(query); match != "" {
+		rows, err := c.db.DB().QueryContext(ctx, `
+			SELECT c.id, c.source_relpath, c.lang, c.kind,
+			       c.byte_start, c.byte_end, c.line_start, c.line_end,
+			       COALESCE(d.summary, ''), COALESCE(d.summary_status, 'pending')
+			FROM dormant_index_fts
+			JOIN dormant_index d ON d.rowid = dormant_index_fts.rowid
+			JOIN context_chunks c ON c.id = d.chunk_id
+			WHERE dormant_index_fts MATCH ?
+			  AND c.project_id = ?
+			  AND c.job_id IS NULL
+			ORDER BY bm25(dormant_index_fts), c.source_relpath, c.byte_start
+			LIMIT ?`, match, projectID, limit)
+		if err != nil {
+			return nil, fmt.Errorf("mce: rank project dormant index: %w", err)
+		}
+		defer func() { _ = rows.Close() }()
+		return scanIndex(rows)
+	}
+	rows, err := c.db.DB().QueryContext(ctx,
+		indexSelect+` WHERE c.project_id = ? AND c.job_id IS NULL
+			ORDER BY c.updated_at DESC, c.source_relpath, c.byte_start
+			LIMIT ?`, projectID, limit)
+	if err != nil {
+		return nil, fmt.Errorf("mce: list project dormant index: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	return scanIndex(rows)
+}
+
 // scanIndex materializes Dormant Index rows from an `indexSelect` query.
 func scanIndex(rows *sql.Rows) ([]IndexEntry, error) {
 	var out []IndexEntry

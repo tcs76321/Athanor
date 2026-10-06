@@ -134,6 +134,16 @@ func applyDefaults(c *Config) {
 		v := 2048
 		c.ContextEngine.IndexEmbedBytes = &v
 	}
+	// F5 automatic working set (ADR-0059): the Dormant Index publishes up to
+	// 20 ranked project chunks per prompt; tier-3 seeding is off by default
+	// and byte-capped at 16 KiB.
+	if c.ContextEngine.RepositoryIndexLimit == 0 {
+		c.ContextEngine.RepositoryIndexLimit = 20
+	}
+	setFalse(&c.ContextEngine.SeedActiveChunk)
+	if c.ContextEngine.SeedActiveMaxBytes == 0 {
+		c.ContextEngine.SeedActiveMaxBytes = 16384
+	}
 
 	setInt(&c.Execution.DivergenceCandidates, 3)
 	setInt(&c.Execution.MaxHardTaskVariations, 10)

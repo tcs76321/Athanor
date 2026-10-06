@@ -48,6 +48,13 @@ remain the retrieval path, and the ADR/ARCHITECTURE note is updated to say so.
 A relevance-ranked, size-bounded injection is a future task once the probe
 measures working-set token pressure.
 
+> **Update (F5, [ADR-0059](0059-automatic-working-set.md)).** That future
+> task is now built: the Dormant Index unions the job's chunks with ranked,
+> bounded project-repository chunks (FTS5 `bm25` over the summary index,
+> capped by `context_engine.repository_index_limit`), and tier-3 seeding is
+> opt-in and byte-capped. The rationale below is preserved as the record of
+> the original deferred decision.
+
 ## Consequences
 
 - The Gate G-F4 "the loop learns" arm is satisfiable and tested: a mined

@@ -109,6 +109,12 @@ index would bloat the prompt worse than the status quo — or consciously scope
 the MCE to the tool path and simplify. The probe's token data informs the
 choice.
 
+> **Resolved (F5, [ADR-0059](adr/0059-automatic-working-set.md)).** The
+> Dormant Index now unions the job's own chunks with ranked, bounded
+> project-repository chunks (FTS5 `bm25` over summaries, capped by
+> `context_engine.repository_index_limit`), so repository context reaches a
+> normal job's prompt; OPTIONAL tier-3 seeding is off by default.
+
 ## Gate G-F4
 
 After F4, the following are enforceable and tested:

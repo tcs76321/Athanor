@@ -129,6 +129,14 @@ context_engine:
   index_batch_chunks: 200
   index_embed_bytes: 2048
   index_ignore_dirs: []
+  # F5 automatic working set (ADR-0059). repository_index_limit caps how many
+  # ranked project repository chunks the Dormant Index publishes per prompt
+  # (tier 6). seed_active_chunk activates the top-ranked project chunk into
+  # tier 3 when a job has no active chunk; it is off by default because tier 3
+  # is full-fidelity and never evicted, and seed_active_max_bytes bounds it.
+  repository_index_limit: 20
+  seed_active_chunk: false
+  seed_active_max_bytes: 16384
 
 execution:
   divergence_candidates: 3

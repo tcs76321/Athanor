@@ -503,6 +503,16 @@ When building a prompt for a new job or phase, the MCE fills the available KV ca
 
 If the assembled context exceeds the hardware limit, tiers are evicted strictly bottom-up (7 → 6 → 5 → 4) before any full-fidelity content (tiers 1–3) is touched.
 
+> **Implementation status (F5).** Tier 6 (the Dormant Index) is populated by
+> the job's own chunks **plus** ranked, bounded project-repository chunks
+> ([ADR-0059](docs/adr/0059-automatic-working-set.md)): the query hint is the
+> task title/description/criteria, ranking is FTS5 `bm25` over the summary
+> index (no model call), and `context_engine.repository_index_limit` caps the
+> rows. Tier 3 (the full-fidelity active chunk) is `context_swap`-driven;
+> optional auto-seeding is off by default (`context_engine.seed_active_chunk`)
+> because tier 3 is never evicted. (ADR-0048 had originally deferred the
+> automatic working set; ADR-0059 supersedes that decision.)
+
 ---
 
 ## 11. Prompt Architecture
@@ -860,9 +870,12 @@ updated_at: timestamp
 > judge/verifier contradiction to the verifier (ADR-0045/0046). Divergence
 > cycles across personas with a bounded Jaccard re-roll, and a quality tie can
 > break toward the cheaper artifact (ADR-0047). Active winning insights bias
-> the divergence persona (`policy_biased_from_insight`), security-failure
-> cycles fail fast, and the MCE automatic working set stays scoped to the tool
-> path (ADR-0048).
+> the divergence persona (`policy_biased_from_insight`), and security-failure
+> cycles fail fast. The MCE automatic working set was scoped to the tool path
+> under ADR-0048 and is now widened by **F5** ([ADR-0059](docs/adr/0059-automatic-working-set.md)):
+> the Dormant Index (tier 6) unions ranked, bounded project-repository chunks,
+> so repository context reaches a normal job's prompt and is one
+> `context_swap` away.
 
 ---
 
@@ -1710,6 +1723,13 @@ context_engine:
   division_max_source_bytes: 1048576
   division_max_chunk_bytes: 131072
   division_fallback_lines: 120
+  # F5 automatic working set (ADR-0059): the Dormant Index publishes up to
+  # repository_index_limit ranked project repository chunks per prompt (tier
+  # 6); seed_active_chunk (default false) activates the top-ranked project
+  # chunk into tier 3, bounded by seed_active_max_bytes.
+  repository_index_limit: 20
+  seed_active_chunk: false
+  seed_active_max_bytes: 16384
 
 execution:
   divergence_candidates: 3

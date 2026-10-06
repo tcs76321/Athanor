@@ -33,6 +33,18 @@ New entries are appended at the top. Do not rewrite history.
   `compare_before_accept` now fails loudly at load. Tests:
   `internal/verify/docs_test.go`, `internal/engine/verification_gates_test.go`.
 
+- **F5-B (MCE).** Automatic working set ([ADR-0059](docs/adr/0059-automatic-working-set.md),
+  superseding ADR-0048 §T7c). The Dormant Index (§10.5 tier 6) now unions the
+  job's own chunks with ranked, bounded project-repository chunks:
+  `ChunkStore.IndexForProject` ranks `project_id = ? AND job_id IS NULL` rows
+  by FTS5 `bm25` over the summary index (no model call), the engine passes a
+  query hint from the task plus `context_engine.repository_index_limit`
+  (default 20), and the adapter de-duplicates job-first. repository context
+  now reaches a normal job's prompt and is one `context_swap` away. Opt-in
+  tier-3 seeding (`context_engine.seed_active_chunk`, default false) is
+  byte-capped by `seed_active_max_bytes`. Tests:
+  `internal/mce/index_project_test.go`, `cmd/athanor/context_provider_test.go`.
+
 ### M7 — Endurance & Release
 
 - **M7-T9/T10.** Soak harness + release checklist. `scripts/soak.sh` /

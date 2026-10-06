@@ -1,8 +1,8 @@
-// M5-T5.6 adapter tests: the MCE→engine boundary (ADR-0019 inversion).
-// internal/mce and internal/engine never import each other; this file
-// proves the manufactured bridge maps storage records into the prompt
-// package's tier payloads faithfully, and that serve.go's composition is
-// sound.
+// M5-T5.6 / F5 adapter tests: the MCE→engine boundary (ADR-0019 inversion).
+// internal/mce and internal/engine never import each other; this file proves
+// the manufactured bridge maps storage records into the prompt package's tier
+// payloads faithfully, that the project Dormant Index union works (ADR-0059),
+// and that serve.go's composition is sound.
 package main
 
 import (
@@ -29,7 +29,7 @@ func migratedChunkStore(t *testing.T) *mce.ChunkStore {
 	return mce.NewChunkStore(st)
 }
 
-// TestServeCompositionProvidesMCEContext mirrors serve.go's M5-T5.6
+// TestServeCompositionProvidesMCEContext mirrors serve.go's M5-T5.6/F5
 // composition: the MCE runtime built at boot, wired into the engine as the
 // §10.4 ladder seam plus a provider gated on the swapping flag. It is the
 // structural proof that the pieces fit before the daemon ever starts.
@@ -46,7 +46,7 @@ func TestServeCompositionProvidesMCEContext(t *testing.T) {
 	// The compile-time `var _ engine.ContextProvider` assertion in
 	// context_provider.go proves the adapter type; here we prove both are
 	// usable through the interfaces serve.go passes to engine.New.
-	var provider engine.ContextProvider = newContextProvider(rt.Store, rt.LosslessSwapping)
+	var provider engine.ContextProvider = newContextProvider(rt.Store, rt.LosslessSwapping, config.ContextEngine{})
 	evictor := engine.NewLadderEvictor()
 	// A seam with nothing evictable reports an empty eviction, which is
 	// the gate's pause path — not an error and not a bogus free count.
@@ -56,7 +56,7 @@ func TestServeCompositionProvidesMCEContext(t *testing.T) {
 	}
 	// The gate is the runtime's own flag: enabled here, so the provider is
 	// live (an empty store simply yields no working set).
-	if _, ok, err := provider.ActiveChunk(context.Background(), "job-1"); err != nil || ok {
+	if _, ok, err := provider.ActiveChunk(context.Background(), engine.ContextQuery{JobID: "job-1"}); err != nil || ok {
 		t.Fatalf("ActiveChunk on an empty store = (%v, %v), want (false, nil)", ok, err)
 	}
 }
@@ -79,8 +79,8 @@ func TestContextProviderMapsActiveChunkAndIndex(t *testing.T) {
 		t.Fatalf("swap to second chunk: %v", err)
 	}
 
-	p := newContextProvider(cs, true)
-	chunk, ok, err := p.ActiveChunk(ctx, "job-1")
+	p := newContextProvider(cs, true, config.ContextEngine{})
+	chunk, ok, err := p.ActiveChunk(ctx, engine.ContextQuery{JobID: "job-1"})
 	if err != nil || !ok {
 		t.Fatalf("ActiveChunk = (%v, %v), want a chunk", ok, err)
 	}
@@ -94,7 +94,7 @@ func TestContextProviderMapsActiveChunkAndIndex(t *testing.T) {
 		t.Errorf("chunk text = %q, want the stored bytes %q", chunk.Text, chunks[1].Content)
 	}
 
-	index, err := p.DormantIndex(ctx, "job-1")
+	index, err := p.DormantIndex(ctx, engine.ContextQuery{JobID: "job-1"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -111,11 +111,89 @@ func TestContextProviderMapsActiveChunkAndIndex(t *testing.T) {
 	}
 
 	// A job with no chunks sees an empty working set, not an error.
-	if _, ok, err := p.ActiveChunk(ctx, "job-other"); err != nil || ok {
+	if _, ok, err := p.ActiveChunk(ctx, engine.ContextQuery{JobID: "job-other"}); err != nil || ok {
 		t.Errorf("ActiveChunk(other) = (%v, %v), want (false, nil)", ok, err)
 	}
-	if idx, err := p.DormantIndex(ctx, "job-other"); err != nil || len(idx) != 0 {
+	if idx, err := p.DormantIndex(ctx, engine.ContextQuery{JobID: "job-other"}); err != nil || len(idx) != 0 {
 		t.Errorf("DormantIndex(other) = (%d, %v), want (0, nil)", len(idx), err)
+	}
+}
+
+// TestContextProviderIncludesProjectIndex proves the F5 (ADR-0059) union: the
+// Dormant Index carries the job's own chunks plus the project's repository
+// chunks, and the project rows require a ProjectID.
+func TestContextProviderIncludesProjectIndex(t *testing.T) {
+	cs := migratedChunkStore(t)
+	ctx := context.Background()
+	jobChunks := division.New(division.Options{}).Divide("job.go", "go", []byte("package job\n\nfunc J() {}\n"))
+	repoChunks := division.New(division.Options{}).Divide("repo.go", "go", []byte("package repo\n\nfunc R() {}\n"))
+	if _, err := cs.PutSource(ctx, mce.SourceRef{RelPath: "job.go", JobID: "job-1", ProjectID: "p1"}, jobChunks); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := cs.PutSource(ctx, mce.SourceRef{RelPath: "repo.go", ProjectID: "p1"}, repoChunks); err != nil {
+		t.Fatal(err)
+	}
+
+	p := newContextProvider(cs, true, config.ContextEngine{})
+
+	// With the project scope: both sources are present.
+	index, err := p.DormantIndex(ctx, engine.ContextQuery{JobID: "job-1", ProjectID: "p1", Limit: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	paths := map[string]bool{}
+	for _, line := range index {
+		paths[line.RelPath] = true
+	}
+	if !paths["job.go"] || !paths["repo.go"] {
+		t.Fatalf("index paths = %v, want both job.go and repo.go", paths)
+	}
+
+	// Without the project scope: only the job's own chunks.
+	only, err := p.DormantIndex(ctx, engine.ContextQuery{JobID: "job-1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(only) != len(jobChunks) {
+		t.Fatalf("job-only rows = %d, want %d", len(only), len(jobChunks))
+	}
+	for _, line := range only {
+		if line.RelPath != "job.go" {
+			t.Errorf("job-only row = %q, want job.go", line.RelPath)
+		}
+	}
+}
+
+// TestContextProviderSeedsActiveChunk proves the opt-in tier-3 seed: with no
+// active chunk and seeding on, the top-ranked project chunk becomes active;
+// an oversized chunk is not seeded.
+func TestContextProviderSeedsActiveChunk(t *testing.T) {
+	cs := migratedChunkStore(t)
+	ctx := context.Background()
+	repoChunks := division.New(division.Options{}).Divide("repo.go", "go", []byte("package repo\n\nfunc R() {}\n"))
+	if _, err := cs.PutSource(ctx, mce.SourceRef{RelPath: "repo.go", ProjectID: "p1"}, repoChunks); err != nil {
+		t.Fatal(err)
+	}
+
+	on := newContextProvider(cs, true, config.ContextEngine{SeedActiveChunk: boolPtr(true), SeedActiveMaxBytes: 1 << 20})
+	chunk, ok, err := on.ActiveChunk(ctx, engine.ContextQuery{JobID: "job-1", ProjectID: "p1"})
+	if err != nil || !ok {
+		t.Fatalf("seeded ActiveChunk = (%v, %v), want a seeded chunk", ok, err)
+	}
+	if chunk.RelPath != "repo.go" {
+		t.Errorf("seeded chunk path = %q, want repo.go", chunk.RelPath)
+	}
+	// The seed persisted: a second call sees the active chunk without a
+	// re-seed.
+	again, ok, err := on.ActiveChunk(ctx, engine.ContextQuery{JobID: "job-1", ProjectID: "p1"})
+	if err != nil || !ok || again.ID != chunk.ID {
+		t.Errorf("second ActiveChunk = (%+v, %v, %v), want the same active chunk", again, ok, err)
+	}
+
+	// A one-byte cap refuses the seed.
+	capped := newContextProvider(cs, true, config.ContextEngine{SeedActiveChunk: boolPtr(true), SeedActiveMaxBytes: 1})
+	if _, ok, err := capped.ActiveChunk(ctx, engine.ContextQuery{JobID: "job-2", ProjectID: "p1"}); err != nil || ok {
+		t.Errorf("oversized seed = (%v, %v), want no chunk", ok, err)
 	}
 }
 
@@ -134,20 +212,20 @@ func TestContextProviderRespectsLosslessSwappingGate(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	disabled := newContextProvider(cs, false)
-	if _, ok, err := disabled.ActiveChunk(ctx, "job-1"); err != nil || ok {
+	disabled := newContextProvider(cs, false, config.ContextEngine{})
+	if _, ok, err := disabled.ActiveChunk(ctx, engine.ContextQuery{JobID: "job-1"}); err != nil || ok {
 		t.Errorf("disabled ActiveChunk = (%v, %v), want (false, nil)", ok, err)
 	}
-	if idx, err := disabled.DormantIndex(ctx, "job-1"); err != nil || len(idx) != 0 {
+	if idx, err := disabled.DormantIndex(ctx, engine.ContextQuery{JobID: "job-1"}); err != nil || len(idx) != 0 {
 		t.Errorf("disabled DormantIndex = (%d, %v), want (0, nil)", len(idx), err)
 	}
 
 	// A nil store (MCE not built) must behave the same way, not panic.
-	empty := newContextProvider(nil, true)
-	if _, ok, err := empty.ActiveChunk(ctx, "job-1"); err != nil || ok {
+	empty := newContextProvider(nil, true, config.ContextEngine{})
+	if _, ok, err := empty.ActiveChunk(ctx, engine.ContextQuery{JobID: "job-1"}); err != nil || ok {
 		t.Errorf("nil-store ActiveChunk = (%v, %v), want (false, nil)", ok, err)
 	}
-	if idx, err := empty.DormantIndex(ctx, "job-1"); err != nil || len(idx) != 0 {
+	if idx, err := empty.DormantIndex(ctx, engine.ContextQuery{JobID: "job-1"}); err != nil || len(idx) != 0 {
 		t.Errorf("nil-store DormantIndex = (%d, %v), want (0, nil)", len(idx), err)
 	}
 }

@@ -207,10 +207,11 @@ func run(configPath, addr, stateDir string) error {
 		// critical-pressure call, recorded in the job's suppression
 		// row. It stays stateless; the engine persists the result.
 		engine.NewLadderEvictor(),
-		// M5-T5.6: the MCE working set (§10.1 active chunk +
-		// Dormant Index) behind the same lossless-swapping gate as
-		// ingestion and the context_swap route.
-		newContextProvider(mceRT.Store, mceRT.LosslessSwapping),
+		// M5-T5.6 / F5: the MCE working set (§10.1 active chunk +
+		// Dormant Index, now including ranked project repository
+		// rows) behind the same lossless-swapping gate as ingestion
+		// and the context_swap route (ADR-0059).
+		newContextProvider(mceRT.Store, mceRT.LosslessSwapping, cfg.ContextEngine),
 		// M2-T4b.5: the ADR-0024 §2 Job Pod lifecycle seam. It starts a
 		// long-lived idle pod before the code-archetype sub-steps and
 		// stops it at terminal state, so the runner's per-job token

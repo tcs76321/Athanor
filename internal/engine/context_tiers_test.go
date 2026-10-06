@@ -24,11 +24,11 @@ type fakeContextProvider struct {
 	err      error
 }
 
-func (f fakeContextProvider) ActiveChunk(context.Context, string) (prompt.ChunkText, bool, error) {
+func (f fakeContextProvider) ActiveChunk(context.Context, ContextQuery) (prompt.ChunkText, bool, error) {
 	return f.chunk, f.hasChunk, f.err
 }
 
-func (f fakeContextProvider) DormantIndex(context.Context, string) ([]prompt.IndexLine, error) {
+func (f fakeContextProvider) DormantIndex(context.Context, ContextQuery) ([]prompt.IndexLine, error) {
 	return f.index, f.err
 }
 

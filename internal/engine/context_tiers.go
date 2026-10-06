@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log/slog"
 	"sort"
+	"strings"
 
 	"github.com/tcs76321/athanor/internal/config"
 	"github.com/tcs76321/athanor/internal/corrections"
@@ -23,6 +24,18 @@ import (
 // tool envelope, the persisted suppression state — and the §10.4 eviction
 // seam that walks the ladder.
 
+// ContextQuery identifies the working set to load. JobID is the context_swap
+// scope (the active chunk). ProjectID, Query, and Limit scope the
+// project-repository rows the Dormant Index publishes (F5, ADR-0059): Query
+// ranks them by summary relevance and Limit caps them (≤0 asks the provider
+// for its default).
+type ContextQuery struct {
+	JobID     string
+	ProjectID string
+	Query     string
+	Limit     int
+}
+
 // ContextProvider is the engine's window onto the MCE working set
 // (ADR-0023 §7). The production implementation lives in cmd/ over
 // mce.ChunkStore (ADR-0019 inversion: the MCE must not import the engine).
@@ -31,11 +44,14 @@ import (
 // prompts stay byte-identical to the pre-T5 assembler. That is what every
 // unit test that predates M5-T5 relies on.
 type ContextProvider interface {
-	// ActiveChunk returns the §10.1 chunk currently active for a job's
-	// scope. ok is false when no chunk is active.
-	ActiveChunk(ctx context.Context, jobID string) (chunk prompt.ChunkText, ok bool, err error)
-	// DormantIndex returns the job's §10.1 Dormant Index rows.
-	DormantIndex(ctx context.Context, jobID string) ([]prompt.IndexLine, error)
+	// ActiveChunk returns the §10.1 chunk currently active for the job's
+	// scope. ok is false when no chunk is active. When the provider is
+	// configured to seed (context_engine.seed_active_chunk), it may activate
+	// the top-ranked project chunk before returning.
+	ActiveChunk(ctx context.Context, q ContextQuery) (chunk prompt.ChunkText, ok bool, err error)
+	// DormantIndex returns the §10.1 Dormant Index rows for the job: its own
+	// chunks plus ranked, bounded project-repository rows.
+	DormantIndex(ctx context.Context, q ContextQuery) ([]prompt.IndexLine, error)
 }
 
 // Eviction is the outcome of one §10.4 force-eviction (ADR-0022 §5).
@@ -253,18 +269,49 @@ func (e *Engine) promptTiersFor(ctx context.Context, j job.Job, t project.Task,
 	if e.ctxProvider == nil {
 		return pt
 	}
-	chunk, ok, err := e.ctxProvider.ActiveChunk(ctx, j.ID)
+	q := e.contextQuery(j, t)
+	chunk, ok, err := e.ctxProvider.ActiveChunk(ctx, q)
 	switch {
 	case err != nil:
 		slog.Warn("engine: reading active chunk", "job", j.ID, "err", err)
 	case ok:
 		pt.ActiveChunk = &chunk
 	}
-	idx, err := e.ctxProvider.DormantIndex(ctx, j.ID)
+	idx, err := e.ctxProvider.DormantIndex(ctx, q)
 	if err != nil {
 		slog.Warn("engine: reading dormant index", "job", j.ID, "err", err)
 	} else {
 		pt.DormantIndex = idx
+		if len(idx) > 0 {
+			// F5 (ADR-0059): the Dormant Index now carries project
+			// repository rows, so record what was published.
+			e.auditCat(ctx, j.ID, "context", map[string]any{
+				"event": "dormant_index_sourced", "project": j.ProjectID,
+				"rows": len(idx), "limit": q.Limit,
+			})
+		}
 	}
 	return pt
+}
+
+// contextQuery builds the MCE working-set query for one call: the job scope
+// (the active chunk), the project scope and configured limit (the ranked
+// repository rows), and a relevance hint from the task title, description,
+// and acceptance criteria.
+func (e *Engine) contextQuery(j job.Job, t project.Task) ContextQuery {
+	q := ContextQuery{JobID: j.ID, ProjectID: j.ProjectID}
+	if e.cfg != nil {
+		q.Limit = e.cfg.ContextEngine.RepositoryIndexLimit
+	}
+	var b strings.Builder
+	b.WriteString(t.Title)
+	for _, part := range append([]string{t.Description}, t.Criteria...) {
+		if part == "" {
+			continue
+		}
+		b.WriteByte('\n')
+		b.WriteString(part)
+	}
+	q.Query = b.String()
+	return q
 }

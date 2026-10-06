@@ -111,6 +111,14 @@ func validateRaw(c *Config) error {
 	if v := c.ContextEngine.IndexEmbedBytes; v != nil && *v < 0 {
 		return fmt.Errorf("context_engine.index_embed_bytes must be >= 0, got %d", *v)
 	}
+	// F5 automatic working set (ADR-0059): negative bounds are typos; 0 is
+	// replaced by the default in applyDefaults.
+	if v := c.ContextEngine.RepositoryIndexLimit; v < 0 {
+		return fmt.Errorf("context_engine.repository_index_limit must be positive, got %d", v)
+	}
+	if v := c.ContextEngine.SeedActiveMaxBytes; v < 0 {
+		return fmt.Errorf("context_engine.seed_active_max_bytes must be positive, got %d", v)
+	}
 	// Invariant §4.3: all compaction runs at Temp 0.0. Enforced here so no
 	// configuration can weaken it.
 	if t := c.ContextEngine.CompactionTemperature; t != 0 {
