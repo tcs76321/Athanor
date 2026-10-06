@@ -38,6 +38,8 @@ type runnerConfig struct {
 	judgeMode  string
 	judgeModel string
 	altModel   string
+	// gates enables the F5 code acceptance gates in the generated config.
+	gates bool
 
 	// Run guards (M3-T7 soak hardening).
 	maxWall        time.Duration
@@ -70,6 +72,7 @@ func runMatrix(args []string) {
 	fs.StringVar(&r.judgeMode, "judge-mode", "", `execution.policy.judge_mode: "" (default) | llm | verifier`)
 	fs.StringVar(&r.judgeModel, "judge-model", "", "personas.security.model override (cross-family judge)")
 	fs.StringVar(&r.altModel, "alt-model", "", "personas.alternative.model override (multi-model generation)")
+	fs.BoolVar(&r.gates, "gates", false, "enable the F5 code acceptance gates (require_tests_for_code, require_documentation_for_code); default off to isolate the loop")
 	_ = fs.Parse(args)
 
 	if err := r.run(); err != nil {
@@ -203,7 +206,7 @@ func (r *runnerConfig) runArm(m probeModel, a arm) error {
 		return err
 	}
 	cfgPath := filepath.Join(runDir, "config.yaml")
-	pol := probePolicy{JudgeMode: r.judgeMode, JudgeModel: r.judgeModel, AltModel: r.altModel, OllamaURL: r.ollamaURL}
+	pol := probePolicy{JudgeMode: r.judgeMode, JudgeModel: r.judgeModel, AltModel: r.altModel, OllamaURL: r.ollamaURL, CodeGates: r.gates}
 	if err := os.WriteFile(cfgPath, []byte(probeConfigYAML(m, a, r.seedPolicy, r.addr, r.noReflect, pol)), 0o644); err != nil {
 		return err
 	}
@@ -598,6 +601,7 @@ func printConfig(args []string) {
 	judgeModel := fs.String("judge-model", "", "personas.security.model override")
 	altModel := fs.String("alt-model", "", "personas.alternative.model override")
 	ollamaURL := fs.String("ollama", "http://localhost:11434", "Ollama base URL written into the config")
+	gates := fs.Bool("gates", false, "enable the F5 code acceptance gates")
 	_ = fs.Parse(args)
 
 	m, ok := modelByLabel(*modelLabel)
@@ -611,5 +615,5 @@ func printConfig(args []string) {
 		os.Exit(2)
 	}
 	fmt.Print(probeConfigYAML(m, a, *seed, *addr, *noReflect,
-		probePolicy{JudgeMode: *judgeMode, JudgeModel: *judgeModel, AltModel: *altModel, OllamaURL: *ollamaURL}))
+		probePolicy{JudgeMode: *judgeMode, JudgeModel: *judgeModel, AltModel: *altModel, OllamaURL: *ollamaURL, CodeGates: *gates}))
 }

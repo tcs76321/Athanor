@@ -6,14 +6,22 @@ import (
 )
 
 // probePolicy carries the F4 follow-up run knobs into the generated config:
-// the judge mode, an optional cross-family `security` model, and an optional
-// second `alternative` model (multi-model generation). Empty fields keep the
-// pre-F4 single-model behavior.
+// the judge mode, an optional cross-family `security` model, an optional
+// second `alternative` model (multi-model generation), and the F5 code
+// acceptance gates.
 type probePolicy struct {
 	JudgeMode  string // "" | "llm" | "verifier"
 	JudgeModel string // personas.security.model override
 	AltModel   string // personas.alternative.model override
 	OllamaURL  string // inference.ollama_url override ("" = localhost:11434)
+	// CodeGates enables execution.require_tests_for_code and
+	// require_documentation_for_code (F5). The probe defaults them OFF so the
+	// headline dialectical-vs-single-shot comparison isolates the loop: the
+	// F5 gates post-date the M3-T7 baseline, and the documentation gate is a
+	// heuristic that would reject valid code goals (e.g. cache-class,
+	// always-reverse) whose criteria do not mention docstrings. Run the
+	// gates as a separate arm (-gates) to measure their effect.
+	CodeGates bool
 }
 
 func orDefault(v, def string) string {
@@ -81,6 +89,8 @@ personas:
 
 execution:
   divergence_candidates: %d
+  require_tests_for_code: %t
+  require_documentation_for_code: %t
 `,
 		orDefault(p.OllamaURL, "http://localhost:11434"), seedPolicy, addr,
 		m.Model, m.ContextTarget,
@@ -89,6 +99,7 @@ execution:
 		orDefault(p.JudgeModel, m.Model), m.ContextTarget,
 		orDefault(p.AltModel, m.Model), m.ContextTarget,
 		a.Candidates,
+		p.CodeGates, p.CodeGates,
 	)
 	if p.JudgeMode != "" {
 		fmt.Fprintf(&b, "  policy:\n    judge_mode: %q\n", p.JudgeMode)

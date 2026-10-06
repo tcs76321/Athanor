@@ -138,3 +138,32 @@ func TestProbeConfigVerifierMode(t *testing.T) {
 		t.Errorf("alternative model = %v, want gemma4:12b-mlx", got)
 	}
 }
+
+// TestProbeConfigGatePolicy pins the F5 code-gate knob: the probe defaults
+// the gates OFF (isolating the headline loop from the F5 behavior change) and
+// -gates turns them on, and both renderings validate.
+func TestProbeConfigGatePolicy(t *testing.T) {
+	readExec := func(raw string) map[string]any {
+		t.Helper()
+		if _, err := config.Parse([]byte(raw)); err != nil {
+			t.Fatalf("generated config rejected by internal/config: %v\n%s", err, raw)
+		}
+		var cfg map[string]any
+		if err := yaml.Unmarshal([]byte(raw), &cfg); err != nil {
+			t.Fatal(err)
+		}
+		return cfg["execution"].(map[string]any)
+	}
+
+	off := readExec(probeConfigYAML(probeModels[0], arms[0], "off", "127.0.0.1:7420", false, probePolicy{}))
+	if off["require_tests_for_code"] != false || off["require_documentation_for_code"] != false {
+		t.Errorf("default gates = tests %v docs %v, want both false",
+			off["require_tests_for_code"], off["require_documentation_for_code"])
+	}
+
+	on := readExec(probeConfigYAML(probeModels[0], arms[0], "off", "127.0.0.1:7420", false, probePolicy{CodeGates: true}))
+	if on["require_tests_for_code"] != true || on["require_documentation_for_code"] != true {
+		t.Errorf("enabled gates = tests %v docs %v, want both true",
+			on["require_tests_for_code"], on["require_documentation_for_code"])
+	}
+}
