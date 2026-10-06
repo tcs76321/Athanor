@@ -4,9 +4,19 @@
 spine, not a new user-facing capability. Sits between M6 and M7; does not
 renumber M7.
 
-**Status:** code complete; Gate G-F4 measurement (anchor calibration + probe
-re-run) in progress · **Gate:** G-F4 · **Seeded by:** the M3-T7 quality probe
-(`docs/probes/m3-t7-quality-probe.md`) and its [results](probes/m3-t7-quality-probe-results.md).
+**Status:** code complete; **Gate G-F4 not closed** — the anchor calibration
+fails (judge discrimination 0.00). · **Gate:** G-F4 · **Seeded by:** the M3-T7
+quality probe (`docs/probes/m3-t7-quality-probe.md`) and its
+[results](probes/m3-t7-quality-probe-results.md).
+
+**Measured 2026-10-05** (M2 Max, Ollama 0.35.1, `ornith-1.5:9b`):
+[anchor calibration](probes/f4-anchor-calibration.md) (both judges saturate at
+the 1–5 ceiling, Spearman 0.00) and the
+[micro re-run](probes/f4-micro-run.md) (code instrument repaired — real tests
+discriminate and `todo-list` completes after fence-normalization; diversity
+0.65–0.89; the document goal still saturates). The judge-discrimination arm is
+the unmet gate condition; deterministic verification (T3) is the mitigation
+and needs a cross-family `judge_mode: verifier` run.
 
 **Landed:** T0 (`/tmp/solution.py` real tests; judge retry/reliability gate;
 `eval/anchor`), T1 (`internal/policy`; [ADR-0044](../docs/adr/0044-compute-policy-seam.md)),
