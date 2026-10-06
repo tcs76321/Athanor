@@ -200,6 +200,22 @@ keep the machine awake on AC (no in-tree power guard until M7).
 - **Roadmap:** update the status table as milestones progress — it is the project's honest heartbeat.
 - **Spikes:** timeboxed, with an explicit hypothesis. Findings land in `docs/`; the spike itself stays disposable.
 
+## Install & headless
+
+```bash
+make jobpod-image                  # build the Job Pod base image (podman)
+sh scripts/install.sh               # install the binary; writes a default config
+sh scripts/install.sh --service     # also install a systemd user unit / launchd agent
+/usr/local/bin/athanor start        # doctor, then serve
+```
+
+On Linux the unit lands at `~/.config/systemd/user/athanor.service`
+(`systemctl --user enable --now athanor`); on macOS the agent lands at
+`~/Library/LaunchAgents/com.athanor.agent.plist`. The daemon binds loopback
+only; for a remote host, reach the UI through SSH port forwarding
+(`ssh -L 7420:127.0.0.1:7420 host`). Templates and the installer are pinned by
+`internal/deploy`'s test.
+
 ## Backups & restore
 
 Scheduled backups run from `backup.schedule` (default `0 3 * * *`) and retain

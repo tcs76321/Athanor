@@ -1,0 +1,18 @@
+[Unit]
+Description=Athanor Core (local-first autonomous agent daemon)
+Documentation=https://github.com/tcs76321/Athanor
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# install.sh substitutes the absolute paths below.
+ExecStart=__BINARY__ serve -config __CONFIG__ -state-dir __STATE__
+Restart=on-failure
+RestartSec=5
+# Bound the file descriptors / memory a runaway job could exhaust.
+LimitNOFILE=65536
+# The daemon binds loopback only (§21.8); no network exposure.
+
+[Install]
+WantedBy=default.target

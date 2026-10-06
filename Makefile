@@ -15,10 +15,21 @@ export CGO_ENABLED
 # tag-less binary can never silently run.
 GO_TAGS = -tags sqlite_fts5
 
-.PHONY: build test test-race test-integration integration-images vet lint check vuln tidy tidy-check fuzz cover run clean hooks bench probe-micro probe probe-judge probe-anchor probe-report probe-bundle probe-reconcile
+.PHONY: build test test-race test-integration integration-images vet lint check vuln tidy tidy-check fuzz cover run clean hooks bench probe-micro probe probe-judge probe-anchor probe-report probe-bundle probe-reconcile jobpod-image install
 
 build:
 	go build $(GO_TAGS) -o bin/athanor ./cmd/athanor
+
+# Job Pod base image (M7-T7). Build once per machine; set job_pod.image to
+# $(JOBPOD_IMAGE) in config.yaml. Hardened at run time by the pod manager.
+JOBPOD_IMAGE ?= athanor-jobpod:latest
+jobpod-image:
+	podman build -t $(JOBPOD_IMAGE) -f deploy/jobpod.Containerfile deploy
+
+# Install the binary (and, optionally, a headless service unit): `make install`
+# or `sh scripts/install.sh --service` (M7-T7/T8).
+install:
+	sh scripts/install.sh
 
 run:
 	go run $(GO_TAGS) ./cmd/athanor

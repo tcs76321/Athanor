@@ -75,9 +75,11 @@ Full topology, isolation rules, and every subsystem are documented in [`ARCHITEC
 
 ### Install & First Run
 
-> **Note:** Athanor is pre-MVP; the container packaging (`athanor doctor` /
-> `athanor start` below) is the M7 target. Today the daemon runs directly
-> from a clone with a real CLI:
+> **Install (M7-T7/T8):** build a Job Pod image with `make jobpod-image`, then
+> `sh scripts/install.sh` (add `--service` for a systemd user unit / launchd
+> agent). `athanor start` runs `doctor` then serves. The Core runs as a host
+> binary; execution happens in rootless Podman Job Pods. You can also run
+> directly from a clone:
 
 ```bash
 make build

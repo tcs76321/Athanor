@@ -12,6 +12,11 @@ New entries are appended at the top. Do not rewrite history.
 
 ### M7 — Endurance & Release
 
+- **M7-T7/T8.** Packaging + headless install. `deploy/jobpod.Containerfile`
+  (Job Pod base image, `make jobpod-image`), `scripts/install.sh` (binary +
+  `--service`), systemd user unit / launchd agent templates, and
+  `athanor start` (doctor then serve). `internal/deploy` asserts the artifacts
+  and Makefile targets. [ADR-0056](docs/adr/0056-packaging.md).
 - **M7-T6.** Morning Digest (§27.2). `internal/digest.Build` aggregates a
   window's completed/failed jobs (with reasons), goals/tasks, artifacts by
   status, pending HITL, active alarms, daydream output, and token usage;

@@ -57,6 +57,13 @@ func main() {
 		runServe(serveFlags(args))
 		return
 	}
+	if args[0] == "start" {
+		if err := runStart(args[1:]); err != nil {
+			fmt.Fprintln(os.Stderr, "athanor:", err)
+			os.Exit(1)
+		}
+		return
+	}
 
 	var err error
 	switch args[0] {
@@ -118,6 +125,7 @@ func usage() {
 
 commands:
   (default) serve    run the daemon: -config, -addr, -state-dir, -version
+  start              run doctor, then serve (M7-T7 onboarding)
   init               write ./config.yaml containing every default value
   doctor             check the host, backend, and config (§30.2)
   alarms             list active alarms [-resolve <id>] (§22.3)

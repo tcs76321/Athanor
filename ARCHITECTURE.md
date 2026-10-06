@@ -1955,3 +1955,12 @@ Athanor is deployed via a single CLI binary (`athanor`) which:
 - Run migrations (forward-only, embedded in binary).
 - Restart Core Pod.
 - Resume from checkpoint.
+
+> **Implementation status (M7-T7/T8).** Packaging ships the **host-binary**
+> shape ([ADR-0056](docs/adr/0056-packaging.md)): `make jobpod-image` builds
+> the Job Pod base image; `scripts/install.sh [--service]` installs the
+> binary and a systemd user unit (Linux) or launchd agent (macOS); `athanor
+> start` runs `doctor` then serves. The Core is not yet published as an OCI
+> image — a Core-Pod image can layer on later without changing the daemon.
+> The fresh-install demo and the §31.3 audit sign-off are Gate G7 human
+> checkpoints.
