@@ -114,6 +114,13 @@ single-model setup. Findings: [`docs/probes/m1-quality-probe.md`](docs/probes/m1
 the cross-family rule compares it exactly. It defaults to the model name with
 its tag stripped, but declare it when two tags share a lineage.
 
+**Model residency.** Ollama must run with `OLLAMA_MAX_LOADED_MODELS=1` and
+`OLLAMA_NUM_PARALLEL=1` (ARCHITECTURE §12.5). A cross-family judge *swaps* in
+at the judgment phases rather than co-residing; `inference.keep_alive`
+(default `5m`) bounds idle retention. Give `comparing`/`evaluating` budgets
+room for a cold load. The probe reads `/api/ps` and fails a run with more than
+one resident model.
+
 ## Running the daemon
 
 ```bash

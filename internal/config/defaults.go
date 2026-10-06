@@ -80,6 +80,10 @@ func applyDefaults(c *Config) {
 	setInt(&c.Inference.MaxOutputTokens, 4096)
 	// Thinking defaults off: bounded, cheap, deterministic local calls.
 	setFalse(&c.Inference.Think)
+	// §12.5 model residency: keep a model resident for a short window after
+	// a call, then let Ollama unload it. Single residency is the server's
+	// OLLAMA_MAX_LOADED_MODELS=1; this only bounds idle retention.
+	setStr(&c.Inference.KeepAlive, "5m")
 
 	defaultPersona(&c.Personas.Wide, "qwen2.5:7b", 65536, 0.7)
 	defaultPersona(&c.Personas.Tall, "qwen2.5-coder:32b", 16384, 0.2)

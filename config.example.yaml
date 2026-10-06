@@ -56,6 +56,10 @@ inference:
   # candidate bytes, recorded in the llm_call audit row). Divergence is
   # never seeded.
   judgment_seed: "off"
+  # keep_alive is Ollama's per-call residency duration (§12.5). "5m" keeps a
+  # model warm briefly then lets Ollama unload it; "0" unloads immediately.
+  # Single residency is the server's OLLAMA_MAX_LOADED_MODELS=1, not this.
+  keep_alive: "5m"
 
 # Models assigned to functional roles (§12). security must stay at
 # temperature 0.0 — evaluation and compaction are deterministic.

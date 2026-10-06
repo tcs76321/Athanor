@@ -352,6 +352,7 @@ func (e *Engine) call(ctx context.Context, j job.Job, p project.Project, t proje
 		Format:        resolvedFormat,
 		MaxTokens:     e.cfg.Inference.MaxOutputTokens,
 		Think:         think,
+		KeepAlive:     e.cfg.Inference.KeepAlive,
 	}
 	var resp llm.Response
 	if e.tokenSink != nil {
@@ -400,6 +401,8 @@ func (e *Engine) call(ctx context.Context, j job.Job, p project.Project, t proje
 		"max_output_tokens": req.MaxTokens,
 		"think":             thinkFlag(think),
 		"budget_sec":        int64(budget / time.Second),
+		// F4 follow-up D3: the residency bound (§12.5).
+		"keep_alive": req.KeepAlive,
 	})
 
 	// M6-T7 (§18.3, ADR-0038): audit which corrections were injected, at

@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 	"text/template"
+	"time"
 
 	"github.com/tcs76321/athanor/internal/toolenvelope"
 )
@@ -43,6 +44,11 @@ func validateRaw(c *Config) error {
 	}
 	if c.Inference.MaxOutputTokens < 0 {
 		return fmt.Errorf("inference.max_output_tokens must be >= 0, got %d", c.Inference.MaxOutputTokens)
+	}
+	if k := c.Inference.KeepAlive; k != "" {
+		if _, err := time.ParseDuration(k); err != nil {
+			return fmt.Errorf("inference.keep_alive must be a duration like \"5m\" (or empty), got %q", k)
+		}
 	}
 	for _, p := range []struct {
 		name string

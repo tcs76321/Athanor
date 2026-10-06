@@ -625,6 +625,16 @@ If `effective_context < task_context_minimum`:
 - Avoid rapid reload loops (debounce).
 - Allow Ollama to unload idle models.
 - Prefer reusing already-loaded models for repeated jobs.
+- **One resident model at a time.** A cross-family role (e.g. a judge from a
+  different lineage than the generator) is served by *swapping* models at a
+  phase boundary, not by co-residing both. Residency is bounded by Ollama's
+  server setting `OLLAMA_MAX_LOADED_MODELS=1` (with
+  `OLLAMA_NUM_PARALLEL=1`); the Core can *verify* residency (the probe reads
+  `/api/ps`) but cannot set that server variable, so it is an operator
+  precondition. The alternative — co-residency — would force both models to
+  fit on the machine and shrink each model's usable context, which is the
+  opposite of what a local-first deployment wants. Per-phase wall-time
+  budgets must therefore account for a possible cold load.
 
 ### 12.6 Context Floors vs. Persona Targets
 

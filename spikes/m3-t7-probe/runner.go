@@ -32,6 +32,8 @@ type runnerConfig struct {
 	modelsCSV  string
 	timeout    time.Duration
 	noReflect  bool
+	// ollamaURL is queried (/api/ps) for the single-residency check.
+	ollamaURL string
 
 	// Run guards (M3-T7 soak hardening).
 	maxWall        time.Duration
@@ -60,6 +62,7 @@ func runMatrix(args []string) {
 	fs.IntVar(&r.maxConsecFails, "max-consecutive-errors", 5, "abort after this many consecutive job errors (0 = no limit)")
 	fs.DurationVar(&r.soakInterval, "soak-interval", 30*time.Second, "RSS/DB/disk soak sampling interval")
 	fs.BoolVar(&r.noReflect, "no-reflect", false, "disable reflection loops (pure single-shot baseline)")
+	fs.StringVar(&r.ollamaURL, "ollama", "http://localhost:11434", "Ollama base URL for the /api/ps residency check")
 	_ = fs.Parse(args)
 
 	if err := r.run(); err != nil {
@@ -210,6 +213,7 @@ func (r *runnerConfig) runArm(m probeModel, a arm) error {
 	defer sampler.stopAndWait()
 
 	consecutiveErrors := 0
+	maxLoaded := 0
 	metrics := make([]jobMetrics, 0, len(r.goals())*a.Runs)
 	for _, g := range r.goals() {
 		for run := 1; run <= a.Runs; run++ {
@@ -219,6 +223,16 @@ func (r *runnerConfig) runArm(m probeModel, a arm) error {
 			}
 			mx := r.runOne(g, m, a, run, stateDir)
 			metrics = append(metrics, mx)
+			// F4 follow-up D2: verify single-model residency (ARCHITECTURE
+			// §12.5). A co-resident generator + judge invalidates the run.
+			if names, lerr := loadedModels(r.ollamaURL); lerr == nil {
+				if len(names) > maxLoaded {
+					maxLoaded = len(names)
+				}
+				if len(names) > 1 {
+					fmt.Printf("  WARN: %d models resident: %v\n", len(names), names)
+				}
+			}
 			if mx.Error != "" {
 				consecutiveErrors++
 				fmt.Printf("  %-18s run %d: ERROR %s\n", g.Name, run, mx.Error)
@@ -252,7 +266,13 @@ func (r *runnerConfig) runArm(m probeModel, a arm) error {
 	if err := writePackets(filepath.Join(runDir, "packets"), metrics); err != nil {
 		return err
 	}
-	return os.WriteFile(filepath.Join(runDir, "report.md"), []byte(renderReport(metrics)), 0o644)
+	if err := os.WriteFile(filepath.Join(runDir, "report.md"), []byte(renderReport(metrics)), 0o644); err != nil {
+		return err
+	}
+	if maxLoaded > 1 {
+		return fmt.Errorf("model residency violated: up to %d models resident at once; set OLLAMA_MAX_LOADED_MODELS=1 (ARCHITECTURE §12.5)", maxLoaded)
+	}
+	return nil
 }
 
 // startDaemon launches `athanor serve` with the arm's config and state

@@ -135,6 +135,12 @@ type Inference struct {
 	// job, phase, and candidate bytes and records it in the llm_call
 	// audit row. Divergence is never seeded.
 	JudgmentSeed string `yaml:"judgment_seed"`
+	// KeepAlive is Ollama's `keep_alive` duration sent on every call
+	// (§12.5): how long a model stays resident after a call. Default
+	// "5m"; an explicit "0" unloads immediately, a long value (e.g.
+	// "24h") pins it. It bounds idle retention; single residency itself
+	// is the server's `OLLAMA_MAX_LOADED_MODELS=1`.
+	KeepAlive string `yaml:"keep_alive"`
 }
 
 // Judgment-seed policy values for Inference.JudgmentSeed.

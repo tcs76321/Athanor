@@ -61,6 +61,11 @@ type Request struct {
 	// spent the entire num_predict budget on thinking, leaving the visible
 	// content empty.
 	Think *bool
+	// KeepAlive is Ollama's `keep_alive` duration for this call (§12.5): how
+	// long the model stays resident afterward. Empty omits the field
+	// (Ollama's default). A cross-family judge swaps rather than
+	// co-resides, so this bounds idle retention.
+	KeepAlive string
 }
 
 // Response carries the model reply plus token accounting (§28.2).
@@ -88,12 +93,13 @@ func NewClient(baseURL string, httpClient *http.Client) *Client {
 // chatRequest/chatResponse mirror Ollama's /api/chat schema. Options
 // carry the persona's load-time knobs (§12.3).
 type chatRequest struct {
-	Model    string    `json:"model"`
-	Messages []Message `json:"messages"`
-	Stream   bool      `json:"stream"`
-	Format   any       `json:"format,omitempty"`
-	Think    *bool     `json:"think,omitempty"`
-	Options  chatOpts  `json:"options"`
+	Model     string    `json:"model"`
+	Messages  []Message `json:"messages"`
+	Stream    bool      `json:"stream"`
+	Format    any       `json:"format,omitempty"`
+	Think     *bool     `json:"think,omitempty"`
+	KeepAlive string    `json:"keep_alive,omitempty"`
+	Options   chatOpts  `json:"options"`
 }
 
 type chatOpts struct {
@@ -117,12 +123,13 @@ func (c *Client) Chat(ctx context.Context, req Request) (Response, error) {
 		return Response{}, fmt.Errorf("llm: request has no model")
 	}
 	body, err := json.Marshal(chatRequest{
-		Model:    req.Model,
-		Messages: req.Messages,
-		Stream:   false,
-		Format:   req.Format,
-		Think:    req.Think,
-		Options:  chatOpts{Temperature: req.Temperature, NumCtx: req.ContextTarget, Seed: req.Seed, NumPredict: req.MaxTokens},
+		Model:     req.Model,
+		Messages:  req.Messages,
+		Stream:    false,
+		Format:    req.Format,
+		Think:     req.Think,
+		KeepAlive: req.KeepAlive,
+		Options:   chatOpts{Temperature: req.Temperature, NumCtx: req.ContextTarget, Seed: req.Seed, NumPredict: req.MaxTokens},
 	})
 	if err != nil {
 		return Response{}, fmt.Errorf("llm: marshalling request: %w", err)
@@ -176,12 +183,13 @@ func (c *Client) Stream(ctx context.Context, req Request, onToken func(string)) 
 		return Response{}, fmt.Errorf("llm: request has no model")
 	}
 	body, err := json.Marshal(chatRequest{
-		Model:    req.Model,
-		Messages: req.Messages,
-		Stream:   true,
-		Format:   req.Format,
-		Think:    req.Think,
-		Options:  chatOpts{Temperature: req.Temperature, NumCtx: req.ContextTarget, Seed: req.Seed, NumPredict: req.MaxTokens},
+		Model:     req.Model,
+		Messages:  req.Messages,
+		Stream:    true,
+		Format:    req.Format,
+		Think:     req.Think,
+		KeepAlive: req.KeepAlive,
+		Options:   chatOpts{Temperature: req.Temperature, NumCtx: req.ContextTarget, Seed: req.Seed, NumPredict: req.MaxTokens},
 	})
 	if err != nil {
 		return Response{}, fmt.Errorf("llm: marshalling request: %w", err)
