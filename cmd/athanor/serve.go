@@ -14,6 +14,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/tcs76321/athanor/internal/alarms"
 	"github.com/tcs76321/athanor/internal/api"
 	"github.com/tcs76321/athanor/internal/artifact"
 	"github.com/tcs76321/athanor/internal/config"
@@ -120,6 +121,8 @@ func run(configPath, addr, stateDir string) error {
 	if err != nil {
 		return fmt.Errorf("loading kill switch state: %w", err)
 	}
+	// M7-T3 (§22.3): the alarm service. Critical alarms drive the kill switch.
+	alarmSvc := alarms.NewService(st, killSwitch)
 
 	// Wire the walking skeleton (M1): personas → LLM client → engine.
 	registry, err := llm.NewRegistry(cfg.Personas)
@@ -296,6 +299,8 @@ func run(configPath, addr, stateDir string) error {
 	externalAPI.SetStrategyPromoter(insightPromoter{
 		strategy: strategyRepo, hitl: hitlRepo, autoPromote: cfg.StrategyAnalysis.AutoPromote,
 	})
+	// M7-T3 (§22.3): the alarm queue (GET /alarms).
+	externalAPI.SetAlarms(alarmSvc)
 	// M6-T8 (ADR-0039): the local web UI. Its hub is the engine's token sink.
 	webUI := ui.New(ui.Deps{
 		Store: st, Projects: projectRepo, Jobs: job.NewRepository(st),
@@ -500,6 +505,13 @@ func run(configPath, addr, stateDir string) error {
 	})
 	powerSup.Start(context.Background())
 	defer powerSup.Close()
+
+	// M7-T3 (§22.3): the alarm monitor. One immediate evaluation then a poll
+	// every minute; a critical alarm freezes through the same kill switch.
+	alarmTh := alarms.DefaultThresholds()
+	alarmMon := alarms.NewMonitor(alarmSvc, alarms.NewStoreLoader(st, alarmTh), alarmTh, time.Minute, slog.Default())
+	alarmMon.Start(context.Background())
+	defer alarmMon.Close()
 
 	// M5-T6: the minimal daydream memory-consolidation loop (ADR-0025 §6). It
 	// is off by default (the interactive power profile disallows daydreaming)

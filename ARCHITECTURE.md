@@ -1334,6 +1334,15 @@ Frozen mode never lifts automatically. Unfreezing requires explicit user acknowl
 
 ---
 
+> **Implementation status (M7-T3).** The §22.3 model is live
+> ([ADR-0053](docs/adr/0053-alarms.md)): `internal/alarms` persists alarms
+> (migration 0023), a pure `Detect` covers all nine categories, and the
+> `StoreLoader`-backed monitor evaluates them on a one-minute poll. A
+> `critical` alarm freezes the system through the §22.1 kill switch.
+> `GET /alarms` and `athanor alarms [-resolve <id>]` expose the queue.
+> `self_modification`/`drift` are raise-ready from audit events; the guards
+> that emit those events are future work (static prompts are compiled in).
+
 ## 23. State, Persistence, and Recovery
 
 ### 23.1 SQLite Configuration

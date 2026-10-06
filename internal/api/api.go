@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/tcs76321/athanor/internal/alarms"
 	"github.com/tcs76321/athanor/internal/artifact"
 	"github.com/tcs76321/athanor/internal/control"
 	"github.com/tcs76321/athanor/internal/corrections"
@@ -102,6 +103,13 @@ type StrategyPromoter interface {
 	Promote(ctx context.Context, insightID string) (activated bool, requestID string, err error)
 }
 
+// Alarms is the §22.3 alarm surface (M7-T3). The concrete implementation is
+// *alarms.Service.
+type Alarms interface {
+	Active(ctx context.Context) ([]alarms.Alarm, error)
+	Resolve(ctx context.Context, id string) error
+}
+
 // IndexSummary is an indexing pass's counters, also the route's JSON body.
 type IndexSummary struct {
 	Discovered int `json:"discovered"`
@@ -131,6 +139,7 @@ type API struct {
 	corrections Corrections
 	strategy    Strategy
 	promoter    StrategyPromoter
+	alarms      Alarms
 	// dagScheduling mirrors execution.dag_decomposition: when true, goal
 	// submission decomposes and schedules instead of creating one task.
 	dagScheduling bool
@@ -197,6 +206,10 @@ func (a *API) SetStrategy(s Strategy) { a.strategy = s }
 // SetStrategyPromoter wires the HITL-gated insight promoter (M6-T11).
 func (a *API) SetStrategyPromoter(p StrategyPromoter) { a.promoter = p }
 
+// SetAlarms wires the M7-T3 alarm service. A daemon without one answers 503
+// on the alarm routes.
+func (a *API) SetAlarms(s Alarms) { a.alarms = s }
+
 // Register attaches all routes to mux.
 func (a *API) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /projects", a.handleProjectCreate)
@@ -226,6 +239,9 @@ func (a *API) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /strategy/mine", a.handleStrategyMine)
 	mux.HandleFunc("POST /strategy/insights/{id}/promote", a.handleInsightPromote)
 	mux.HandleFunc("POST /strategy/insights/{id}/mute", a.handleInsightMute)
+	// M7-T3: the §22.3 alarm queue.
+	mux.HandleFunc("GET /alarms", a.handleAlarmList)
+	mux.HandleFunc("POST /alarms/{id}/resolve", a.handleAlarmResolve)
 }
 
 // writeJSON is the single response writer: always JSON, always UTF-8.

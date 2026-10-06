@@ -64,6 +64,8 @@ func main() {
 		err = runInit(args[1:])
 	case "doctor":
 		err = runDoctor(args[1:])
+	case "alarms":
+		err = runAlarms(args[1:])
 	case "project":
 		err = runProject(args[1:])
 	case "goal":
@@ -112,6 +114,7 @@ commands:
   (default) serve    run the daemon: -config, -addr, -state-dir, -version
   init               write ./config.yaml containing every default value
   doctor             check the host, backend, and config (§30.2)
+  alarms             list active alarms [-resolve <id>] (§22.3)
   project create     -name -archetype -goal [-criteria] [-addr]
   goal submit        -project -goal [-criteria] [-addr]
   job watch          -job [-timeout] [-addr]   (streams progress, prints artifact)

@@ -12,6 +12,11 @@ New entries are appended at the top. Do not rewrite history.
 
 ### M7 — Endurance & Release
 
+- **M7-T3.** Alarms (§22.3). `internal/alarms` adds the nine-category /
+  four-level model, a persistent active/resolved store (migration 0023), a
+  pure `Detect` covering every category, and a `StoreLoader`-backed monitor;
+  a `critical` alarm freezes through the kill switch. Surfaces: `GET /alarms`,
+  `POST /alarms/{id}/resolve`, `athanor alarms`. [ADR-0053](docs/adr/0053-alarms.md).
 - **M7-T2.** Daydreaming engine (§17). `internal/daydream` owns the §17.1
   closed action set + `DaydreamLog` (migration 0022); the cmd driver adds
   Proactive Documentation (`main`, draft README), Feedback Review (security,
