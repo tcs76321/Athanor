@@ -19,6 +19,7 @@ type jobMetrics struct {
 	Archetype       string  `json:"archetype"`
 	ModelLabel      string  `json:"model_label"`
 	Model           string  `json:"model"`
+	Family          string  `json:"family,omitempty"`
 	Arm             string  `json:"arm"`
 	Run             int     `json:"run"`
 	JobID           string  `json:"job_id"`

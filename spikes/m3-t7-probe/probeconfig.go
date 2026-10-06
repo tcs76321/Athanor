@@ -49,6 +49,19 @@ func probeConfigYAML(m probeModel, a arm, seedPolicy, addr string, noReflect boo
 	if noReflect {
 		reflectLine = "  max_reflection_loops: 0\n"
 	}
+	// The security (judge) and alternative personas may be a different model
+	// than the generator; declare each one's true family so the engine's
+	// cross-family judge guard compares lineages, not tag strings.
+	secModel := orDefault(p.JudgeModel, m.Model)
+	secFamily := familyForTag(secModel)
+	if secFamily == "" {
+		secFamily = m.Family
+	}
+	altModel := orDefault(p.AltModel, m.Model)
+	altFamily := familyForTag(altModel)
+	if altFamily == "" {
+		altFamily = m.Family
+	}
 	var b strings.Builder
 	fmt.Fprintf(&b, `version: 2
 
@@ -68,22 +81,27 @@ network:
 personas:
   wide:
     model: %q
+    family: %q
     context_target: %d
     temperature: 0.7
   tall:
     model: %q
+    family: %q
     context_target: 16384
     temperature: 0.2
   main:
     model: %q
+    family: %q
     context_target: %d
     temperature: 0.4
   security:
     model: %q
+    family: %q
     context_target: %d
     temperature: 0.0
   alternative:
     model: %q
+    family: %q
     context_target: %d
     temperature: 0.8
 
@@ -93,11 +111,11 @@ execution:
   require_documentation_for_code: %t
 `,
 		orDefault(p.OllamaURL, "http://localhost:11434"), seedPolicy, addr,
-		m.Model, m.ContextTarget,
-		m.Model,
-		m.Model, m.ContextTarget,
-		orDefault(p.JudgeModel, m.Model), m.ContextTarget,
-		orDefault(p.AltModel, m.Model), m.ContextTarget,
+		m.Model, m.Family, m.ContextTarget,
+		m.Model, m.Family,
+		m.Model, m.Family, m.ContextTarget,
+		secModel, secFamily, m.ContextTarget,
+		altModel, altFamily, m.ContextTarget,
 		a.Candidates,
 		p.CodeGates, p.CodeGates,
 	)

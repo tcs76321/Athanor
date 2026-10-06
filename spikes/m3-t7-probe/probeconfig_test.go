@@ -139,6 +139,31 @@ func TestProbeConfigVerifierMode(t *testing.T) {
 	}
 }
 
+// TestProbeConfigDeclaresFamilies proves every persona carries its declared
+// family, and that the security/alternative personas use the *overridden*
+// model's family (the cross-family judge guard compares these).
+func TestProbeConfigDeclaresFamilies(t *testing.T) {
+	raw := probeConfigYAML(probeModels[0], arms[0], "off", "127.0.0.1:7420", false,
+		probePolicy{JudgeModel: "gemma4:12b-mlx", AltModel: "gemma4:12b-mlx"})
+	if _, err := config.Parse([]byte(raw)); err != nil {
+		t.Fatalf("config rejected by internal/config: %v\n%s", err, raw)
+	}
+	var cfg map[string]any
+	if err := yaml.Unmarshal([]byte(raw), &cfg); err != nil {
+		t.Fatal(err)
+	}
+	p := cfg["personas"].(map[string]any)
+	if got := p["wide"].(map[string]any)["family"]; got != probeModels[0].Family {
+		t.Errorf("wide family = %v, want %v", got, probeModels[0].Family)
+	}
+	if got := p["security"].(map[string]any)["family"]; got != "gemma" {
+		t.Errorf("security family = %v, want gemma (the judge's family)", got)
+	}
+	if got := p["alternative"].(map[string]any)["family"]; got != "gemma" {
+		t.Errorf("alternative family = %v, want gemma", got)
+	}
+}
+
 // TestProbeConfigGatePolicy pins the F5 code-gate knob: the probe defaults
 // the gates OFF (isolating the headline loop from the F5 behavior change) and
 // -gates turns them on, and both renderings validate.

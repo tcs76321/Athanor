@@ -86,22 +86,53 @@ var arms = []arm{
 // persona: it must meet §12.6's coding_floor (32768) for the code goals,
 // or the engine pauses with a floor violation.
 type probeModel struct {
-	Label         string // filesystem-safe
-	Model         string // Ollama tag
+	Label string // filesystem-safe
+	Model string // Ollama tag
+	// Family is the declared model lineage written to
+	// personas.<role>.family. The engine's cross-family judge guard compares
+	// it, and it is NOT always the tag prefix: ornith-1.5 reports family
+	// "qwen35", not "ornith". Declaring it makes the guard correct.
+	Family        string
 	ContextTarget int
 }
 
-// probeModels are the generator(s) under test. The first full M3-T7 run
-// uses the fast local model only; the 27B model is an optional later run
-// (see docs/probes/m3-t7-quality-probe.md).
+// probeModels are the generators under test, smallest to largest. Every one
+// is also an offline judge (judgeModels): the probe's design is to measure
+// each model as a generator AND as a judge across the size/family ladder.
 var probeModels = []probeModel{
-	{Label: "ornith9b", Model: "ornith-1.5:9b", ContextTarget: 32768},
+	{Label: "granite3b", Model: "granite4.2:3b", Family: "granite", ContextTarget: 32768},
+	{Label: "gemmae4b", Model: "gemma4:e4b-mlx", Family: "gemma", ContextTarget: 32768},
+	{Label: "granite8b", Model: "granite4.2:8b", Family: "granite", ContextTarget: 32768},
+	{Label: "ornith9b", Model: "ornith-1.5:9b", Family: "qwen35", ContextTarget: 32768},
+	{Label: "gemma12b", Model: "gemma4:12b-mlx", Family: "gemma", ContextTarget: 32768},
+	{Label: "qwen27b", Model: "qwen3.8:27b-mlx", Family: "qwen3.8", ContextTarget: 32768},
+	{Label: "granite30b", Model: "granite4.2:30b", Family: "granite", ContextTarget: 32768},
+	{Label: "nemotron30b", Model: "nemotron-3.5-lightning:30b-mlx", Family: "nemotron", ContextTarget: 32768},
+	{Label: "muse30b", Model: "muse-glimmer:30b-mlx", Family: "muse", ContextTarget: 32768},
+	{Label: "ornith35b", Model: "ornith-1.5:35b", Family: "qwen35", ContextTarget: 32768},
 }
 
-// judgeModels are the independent third-party judges that score every
-// artifact offline (the `judge` subcommand). Both differ in family from
-// the generator, so their errors are not correlated with it.
-var judgeModels = []string{"gemma4:12b-mlx", "granite4.2:3b"}
+// judgeModels are the offline judges that score every artifact. In this
+// design they are the full model roster (each model is judged by all
+// others); "independence" is enforced where it matters — the in-engine
+// cross-family judge per generator — not by excluding judges from the
+// generator set.
+var judgeModels = []string{
+	"granite4.2:3b", "gemma4:e4b-mlx", "granite4.2:8b", "ornith-1.5:9b",
+	"gemma4:12b-mlx", "qwen3.8:27b-mlx", "granite4.2:30b",
+	"nemotron-3.5-lightning:30b-mlx", "muse-glimmer:30b-mlx", "ornith-1.5:35b",
+}
+
+// familyForTag returns the declared family for a model tag known to the
+// matrix, or "" when unknown.
+func familyForTag(tag string) string {
+	for _, m := range probeModels {
+		if m.Model == tag {
+			return m.Family
+		}
+	}
+	return ""
+}
 
 // modelByLabel resolves a matrix model by its filesystem label.
 func modelByLabel(label string) (probeModel, bool) {

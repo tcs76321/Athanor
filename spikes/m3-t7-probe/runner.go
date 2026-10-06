@@ -40,6 +40,10 @@ type runnerConfig struct {
 	altModel   string
 	// gates enables the F5 code acceptance gates in the generated config.
 	gates bool
+	// dialecticalRuns overrides the dialectical arm's repetition (default 3).
+	// A cross-model panel runs 1 to bound wall time; the core generator keeps
+	// 3 for T-c stability.
+	dialecticalRuns int
 
 	// Run guards (M3-T7 soak hardening).
 	maxWall        time.Duration
@@ -73,6 +77,7 @@ func runMatrix(args []string) {
 	fs.StringVar(&r.judgeModel, "judge-model", "", "personas.security.model override (cross-family judge)")
 	fs.StringVar(&r.altModel, "alt-model", "", "personas.alternative.model override (multi-model generation)")
 	fs.BoolVar(&r.gates, "gates", false, "enable the F5 code acceptance gates (require_tests_for_code, require_documentation_for_code); default off to isolate the loop")
+	fs.IntVar(&r.dialecticalRuns, "dialectical-runs", 3, "repetitions of the dialectical arm (panel runs 1; the core generator keeps 3 for T-c)")
 	_ = fs.Parse(args)
 
 	if err := r.run(); err != nil {
@@ -132,6 +137,20 @@ func (r *runnerConfig) models() []probeModel {
 	return out
 }
 
+// armSet returns the arms for this run, honoring -dialectical-runs. A panel
+// generator uses 1 (time-bounded); the core generator keeps the default 3 so
+// T-c stability reads three winners.
+func (r *runnerConfig) armSet() []arm {
+	runs := r.dialecticalRuns
+	if runs < 1 {
+		runs = 1
+	}
+	return []arm{
+		{Name: "dialectical", Candidates: 3, Runs: runs},
+		{Name: "single", Candidates: 1, Runs: 1},
+	}
+}
+
 // goals resolves the -only / -goals selection.
 func (r *runnerConfig) goals() []sampleGoal {
 	if r.onlyCSV != "" {
@@ -178,7 +197,7 @@ func (r *runnerConfig) run() error {
 	}
 	r.start = time.Now()
 	for _, m := range r.models() {
-		for _, a := range arms {
+		for _, a := range r.armSet() {
 			err := r.runArm(m, a)
 			if errors.Is(err, errAbort) {
 				fmt.Fprintf(os.Stderr, "m3-t7: aborting run: %v\n", err)
@@ -327,7 +346,7 @@ func (r *runnerConfig) stopDaemon(cmd *exec.Cmd) {
 func (r *runnerConfig) runOne(g sampleGoal, m probeModel, a arm, run int, stateDir string) jobMetrics {
 	mx := jobMetrics{
 		GoalName: g.Name, GoalNumber: g.Number, Archetype: g.Archetype,
-		ModelLabel: m.Label, Model: m.Model, Arm: a.Name, Run: run,
+		ModelLabel: m.Label, Model: m.Model, Family: m.Family, Arm: a.Name, Run: run,
 	}
 	name := fmt.Sprintf("%s-%s-%s-r%d-%d", g.Name, m.Label, a.Name, run, time.Now().UnixNano()%1_000_000)
 

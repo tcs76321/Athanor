@@ -7,8 +7,11 @@ import (
 )
 
 // headlineRow pairs the single-shot and dialectical outcomes for one
-// goal. Delta is dialectical minus single (positive = the loop helped).
+// (model, goal). Delta is dialectical minus single (positive = the loop
+// helped).
 type headlineRow struct {
+	Model             string
+	Family            string
 	Goal              string
 	Archetype         string
 	SingleScore       float64
@@ -18,12 +21,12 @@ type headlineRow struct {
 	DialecticalTokens float64
 }
 
-// armMeans returns the mean score and mean token cost for one (goal,
-// arm), ignoring errored rows. A missing arm yields zeroes.
-func armMeans(metrics []jobMetrics, goalName, armName string) (score, tokens float64) {
+// armMeans returns the mean score and mean token cost for one
+// (model, goal, arm), ignoring errored rows. A missing arm yields zeroes.
+func armMeans(metrics []jobMetrics, model, goalName, armName string) (score, tokens float64) {
 	var scores, toks []float64
 	for _, m := range metrics {
-		if m.GoalName == goalName && m.Arm == armName && m.State != "error" {
+		if m.ModelLabel == model && m.GoalName == goalName && m.Arm == armName && m.State != "error" {
 			scores = append(scores, m.Score)
 			toks = append(toks, float64(m.TokenCost))
 		}
@@ -31,28 +34,56 @@ func armMeans(metrics []jobMetrics, goalName, armName string) (score, tokens flo
 	return mean(scores), mean(toks)
 }
 
-// headlineTable builds the per-goal paired comparison. Goals are sorted
-// by name for a stable report.
+// headlineTable builds the per-(model, goal) paired comparison. Rows are
+// sorted by model then goal for a stable, self-describing report.
 func headlineTable(metrics []jobMetrics) []headlineRow {
-	archetype := make(map[string]string)
-	var order []string
+	type key struct{ model, goal string }
+	seen := map[key]bool{}
+	arch := map[key]string{}
+	family := map[string]string{}
+	var keys []key
 	for _, m := range metrics {
-		if _, ok := archetype[m.GoalName]; !ok {
-			archetype[m.GoalName] = m.Archetype
-			order = append(order, m.GoalName)
+		k := key{m.ModelLabel, m.GoalName}
+		if !seen[k] {
+			seen[k] = true
+			keys = append(keys, k)
+		}
+		arch[k] = m.Archetype
+		if m.Family != "" {
+			family[m.ModelLabel] = m.Family
 		}
 	}
-	sort.Strings(order)
-	out := make([]headlineRow, 0, len(order))
-	for _, g := range order {
-		s, st := armMeans(metrics, g, "single")
-		d, dt := armMeans(metrics, g, "dialectical")
+	sort.Slice(keys, func(i, j int) bool {
+		if keys[i].model != keys[j].model {
+			return keys[i].model < keys[j].model
+		}
+		return keys[i].goal < keys[j].goal
+	})
+	out := make([]headlineRow, 0, len(keys))
+	for _, k := range keys {
+		s, st := armMeans(metrics, k.model, k.goal, "single")
+		d, dt := armMeans(metrics, k.model, k.goal, "dialectical")
 		out = append(out, headlineRow{
-			Goal: g, Archetype: archetype[g],
+			Model: k.model, Family: family[k.model], Goal: k.goal, Archetype: arch[k],
 			SingleScore: s, DialecticalScore: d, Delta: d - s,
 			SingleTokens: st, DialecticalTokens: dt,
 		})
 	}
+	return out
+}
+
+// modelLabels returns the distinct model labels, sorted.
+func modelLabels(metrics []jobMetrics) []string {
+	seen := map[string]bool{}
+	var out []string
+	for _, m := range metrics {
+		if m.ModelLabel == "" || seen[m.ModelLabel] {
+			continue
+		}
+		seen[m.ModelLabel] = true
+		out = append(out, m.ModelLabel)
+	}
+	sort.Strings(out)
 	return out
 }
 
@@ -68,29 +99,29 @@ func calibrationPairs(metrics []jobMetrics) []confScore {
 	return out
 }
 
-// stabilityTally classifies each goal's dialectical winners across its
-// runs and tallies the class frequency — the T-c input.
+// stabilityTally classifies each (model, goal)'s dialectical winners across
+// its runs and tallies the class frequency — the T-c input.
 func stabilityTally(metrics []jobMetrics) map[string]int {
-	byGoal := make(map[string][]string)
+	byKey := make(map[string][]string)
 	for _, m := range metrics {
 		if m.Arm == "dialectical" && m.State != "error" {
-			byGoal[m.GoalName] = append(byGoal[m.GoalName], m.Winner)
+			byKey[m.ModelLabel+"\x00"+m.GoalName] = append(byKey[m.ModelLabel+"\x00"+m.GoalName], m.Winner)
 		}
 	}
 	tally := make(map[string]int)
-	for _, winners := range byGoal {
+	for _, winners := range byKey {
 		tally[stabilityClass(winners)]++
 	}
 	return tally
 }
 
-// meanDiversity averages the candidate-set diversity across an arm's
-// completed runs. The single arm has one candidate, so its diversity is
-// zero by construction.
-func meanDiversity(metrics []jobMetrics, armName string) float64 {
+// meanDiversity averages the candidate-set diversity across one model's
+// completed runs of an arm. The single arm has one candidate, so its
+// diversity is zero by construction.
+func meanDiversity(metrics []jobMetrics, model, armName string) float64 {
 	var ds []float64
 	for _, m := range metrics {
-		if m.Arm == armName && m.State != "error" {
+		if m.ModelLabel == model && m.Arm == armName && m.State != "error" {
 			ds = append(ds, m.Diversity)
 		}
 	}
@@ -120,12 +151,12 @@ func renderReport(metrics []jobMetrics) string {
 	b.WriteString("# M3-T7 results\n\n")
 	fmt.Fprintf(&b, "Collected %d job rows.\n\n", len(metrics))
 
-	b.WriteString("## Headline — dialectical vs single-shot\n\n")
-	b.WriteString("| goal | archetype | single score | dialectical score | delta | single tok | dialectical tok |\n")
-	b.WriteString("|---|---|---|---|---|---|---|\n")
+	b.WriteString("## Headline — dialectical vs single-shot (per model)\n\n")
+	b.WriteString("| model | family | goal | archetype | single | dialectical | delta | single tok | dialectical tok |\n")
+	b.WriteString("|---|---|---|---|---|---|---|---|---|\n")
 	for _, r := range headlineTable(metrics) {
-		fmt.Fprintf(&b, "| %s | %s | %.2f | %.2f | %+.2f | %.0f | %.0f |\n",
-			r.Goal, r.Archetype, r.SingleScore, r.DialecticalScore, r.Delta, r.SingleTokens, r.DialecticalTokens)
+		fmt.Fprintf(&b, "| %s | %s | %s | %s | %.2f | %.2f | %+.2f | %.0f | %.0f |\n",
+			r.Model, r.Family, r.Goal, r.Archetype, r.SingleScore, r.DialecticalScore, r.Delta, r.SingleTokens, r.DialecticalTokens)
 	}
 
 	b.WriteString("\n## T-b — judge-confidence calibration (dialectical arm)\n\n")
@@ -143,9 +174,12 @@ func renderReport(metrics []jobMetrics) string {
 		}
 	}
 
-	b.WriteString("\n## T-a — candidate diversity\n\n")
-	fmt.Fprintf(&b, "Mean pairwise Jaccard distance (dialectical): %.3f\n", meanDiversity(metrics, "dialectical"))
-	fmt.Fprintf(&b, "Mean pairwise Jaccard distance (single): %.3f\n", meanDiversity(metrics, "single"))
+	b.WriteString("\n## T-a — candidate diversity (per model)\n\n")
+	b.WriteString("| model | dialectical | single |\n|---|---|---|\n")
+	for _, label := range modelLabels(metrics) {
+		fmt.Fprintf(&b, "| %s | %.3f | %.3f |\n",
+			label, meanDiversity(metrics, label, "dialectical"), meanDiversity(metrics, label, "single"))
+	}
 
 	b.WriteString("\n## F4 — verification decisions\n\n")
 	accepts, det := verificationSummary(metrics)

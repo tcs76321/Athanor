@@ -8,6 +8,7 @@ import (
 // mk builds a completed synthetic job row for the report tests.
 func mk(goal, arm string, run int, score, conf, div float64, winner string, tokens int) jobMetrics {
 	return jobMetrics{
+		ModelLabel: "m1", Family: "fam",
 		GoalName: goal, Archetype: "code", Arm: arm, Run: run, State: "completed",
 		Score: score, Confidence: conf, Diversity: div, Winner: winner, TokenCost: tokens,
 	}
@@ -27,6 +28,9 @@ func TestHeadlineTable(t *testing.T) {
 	}
 	if rows[0].Goal != "a" || rows[1].Goal != "b" {
 		t.Errorf("rows not sorted by goal: %+v", rows)
+	}
+	if rows[0].Model != "m1" || rows[0].Family != "fam" {
+		t.Errorf("row model/family = %q/%q, want m1/fam", rows[0].Model, rows[0].Family)
 	}
 	if !almost(rows[0].SingleScore, 0.4) {
 		t.Errorf("single score = %v, want 0.4", rows[0].SingleScore)
@@ -81,10 +85,10 @@ func TestMeanDiversity(t *testing.T) {
 		mk("a", "dialectical", 2, 1, 1, 0.4, "new", 1),
 		mk("b", "single", 1, 1, 1, 0, "new", 1),
 	}
-	if got := meanDiversity(metrics, "dialectical"); !almost(got, 0.6) {
+	if got := meanDiversity(metrics, "m1", "dialectical"); !almost(got, 0.6) {
 		t.Errorf("dialectical diversity = %v, want 0.6", got)
 	}
-	if got := meanDiversity(metrics, "single"); got != 0 {
+	if got := meanDiversity(metrics, "m1", "single"); got != 0 {
 		t.Errorf("single diversity = %v, want 0", got)
 	}
 }
@@ -94,7 +98,7 @@ func TestRenderReport(t *testing.T) {
 		mk("a", "single", 1, 0.4, 0.5, 0, "new", 100),
 		mk("a", "dialectical", 1, 0.6, 0.7, 0.5, "new", 300),
 	})
-	for _, want := range []string{"Headline", "T-b", "T-c", "T-a", "Mean pairwise Jaccard", "a | code"} {
+	for _, want := range []string{"Headline", "model", "T-b", "T-c", "candidate diversity", "a | code"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("report missing %q\n%s", want, out)
 		}

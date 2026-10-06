@@ -50,31 +50,56 @@ func TestArms(t *testing.T) {
 	}
 }
 
+// TestArmSetDialecticalRuns proves -dialectical-runs overrides only the
+// dialectical arm's repetition, and clamps <1 to 1.
+func TestArmSetDialecticalRuns(t *testing.T) {
+	for _, tc := range []struct {
+		in   int
+		want int
+	}{{1, 1}, {2, 2}, {0, 1}, {-3, 1}} {
+		r := &runnerConfig{dialecticalRuns: tc.in}
+		byName := map[string]arm{}
+		for _, a := range r.armSet() {
+			byName[a.Name] = a
+		}
+		if got := byName["dialectical"].Runs; got != tc.want {
+			t.Errorf("dialecticalRuns=%d → dialectical.Runs=%d, want %d", tc.in, got, tc.want)
+		}
+		if got := byName["single"].Runs; got != 1 {
+			t.Errorf("dialecticalRuns=%d → single.Runs=%d, want 1", tc.in, got)
+		}
+	}
+}
+
 func TestProbeModels(t *testing.T) {
 	if len(probeModels) == 0 {
 		t.Fatal("probeModels is empty")
 	}
-	generators := map[string]bool{}
 	for _, m := range probeModels {
 		if m.Label == "" || m.Model == "" {
 			t.Errorf("incomplete model %+v", m)
 		}
+		if m.Family == "" {
+			t.Errorf("model %q has no declared family; the cross-family judge guard needs it", m.Label)
+		}
 		if m.ContextTarget < 32768 {
 			t.Errorf("model %q context_target = %d, below the code floor 32768", m.Label, m.ContextTarget)
 		}
-		generators[m.Model] = true
+		if familyForTag(m.Model) != m.Family {
+			t.Errorf("familyForTag(%q) = %q, want %q", m.Model, familyForTag(m.Model), m.Family)
+		}
 	}
 	if len(judgeModels) < 2 {
-		t.Errorf("judgeModels = %v, want at least two independent third-party judges", judgeModels)
+		t.Fatalf("judgeModels = %v, want at least two", judgeModels)
 	}
 	seen := map[string]bool{}
 	for _, j := range judgeModels {
-		if generators[j] {
-			t.Errorf("judge %q is also a generator; judges must be independent", j)
-		}
 		if seen[j] {
 			t.Errorf("duplicate judge %q", j)
 		}
 		seen[j] = true
+		if familyForTag(j) == "" {
+			t.Errorf("judge %q is not a known matrix model; declare its family", j)
+		}
 	}
 }
