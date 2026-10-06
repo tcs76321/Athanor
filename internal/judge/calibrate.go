@@ -63,6 +63,67 @@ func MeetsAgreement(samples []Sample, floor float64) bool {
 	return Spearman(samples) >= floor
 }
 
+// KendallTau returns Kendall's tau-b between two equal-length series
+// (tie-aware). It returns 0 when the lengths differ, n < 2, or either series
+// is constant. Like Spearman it measures rank agreement; unlike Spearman it
+// is built from pairwise concordance, which is what the pairwise judge
+// protocol produces directly.
+func KendallTau(xs, ys []float64) float64 {
+	n := len(xs)
+	if n < 2 || len(ys) != n {
+		return 0
+	}
+	var concordant, discordant, tiesX, tiesY int
+	for i := 0; i < n; i++ {
+		for j := i + 1; j < n; j++ {
+			dx := xs[i] - xs[j]
+			dy := ys[i] - ys[j]
+			switch {
+			case dx == 0 && dy == 0:
+				// joint tie contributes to neither concordance set
+			case dx == 0:
+				tiesX++
+			case dy == 0:
+				tiesY++
+			case (dx > 0) == (dy > 0):
+				concordant++
+			default:
+				discordant++
+			}
+		}
+	}
+	n0 := float64(n*(n-1)) / 2
+	denom := math.Sqrt((n0 - float64(tiesX)) * (n0 - float64(tiesY)))
+	if denom == 0 {
+		return 0
+	}
+	return float64(concordant-discordant) / denom
+}
+
+// PairVote is one pairwise judgment against the anchor's implied preference.
+type PairVote struct {
+	// AnchorABetter is true when A's anchor rating exceeds B's.
+	AnchorABetter bool
+	// JudgeChoseA is true when the judge preferred A.
+	JudgeChoseA bool
+}
+
+// PairAgreement returns the fraction of pairs the judge orders the same way
+// the anchor does. Ties and inconsistent orderings are excluded by the
+// caller, so this is "accuracy on decisive pairs".
+func PairAgreement(votes []PairVote) float64 {
+	if len(votes) == 0 {
+		return 0
+	}
+	agree := 0
+	for _, v := range votes {
+		if v.AnchorABetter == v.JudgeChoseA {
+			agree++
+		}
+	}
+	return float64(agree) / float64(len(votes))
+}
+
 // ranks returns 1-based average ranks for values (ascending). Ties share
 // their mean rank, which is what makes the rank correlation tie-aware.
 func ranks(values []float64) []float64 {
