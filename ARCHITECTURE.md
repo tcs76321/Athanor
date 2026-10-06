@@ -1420,6 +1420,16 @@ power:
 
 ---
 
+> **Implementation status (M7-T1).** The §24 table is enforced by a pure
+> `power.Decide` policy and a `Supervisor` poll loop
+> ([ADR-0051](docs/adr/0051-power-supervisor.md)). The Darwin adapter reads
+> `pmset`/`ioreg` and holds `caffeinate`; the Linux adapter reads
+> `/sys/class/power_supply` and holds `systemd-inhibit`. The engine consults
+> the resulting pause gate at each phase boundary and `ResumePaused` re-drives
+> power-paused jobs on AC restore or wake. Sleep/wake is detected from a poll
+> gap (a future IOKit/logind adapter is the event-driven upgrade); a
+> power-paused job that survives a restart resumes on the next unpause.
+
 ## 25. Tool Interface
 
 Tools are constrained, audited, and available only to Job Pods and the Core orchestrator.

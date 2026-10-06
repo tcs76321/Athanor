@@ -71,6 +71,14 @@ type ConcurrencyCap interface {
 	MaxConcurrentJobs() int
 }
 
+// PauseGate is the §24 power surface the engine consults: when Paused() is
+// true (on battery without an override, or system sleep) active jobs pause at
+// the next phase boundary; a later ResumePaused re-drives them. Satisfied by
+// *power.PowerManager. A nil gate never pauses.
+type PauseGate interface {
+	Paused() bool
+}
+
 // ToolRunner is the engine's window onto the internal API
 // (ROADMAP M2-T4, ADR-0009). The production impl is
 // internal/internalapi/runner.HTTPClient; tests pass a fake. The
@@ -161,6 +169,8 @@ type Engine struct {
 	registry  *llm.Registry
 	freezer   Freezer
 	cap       ConcurrencyCap
+	// pauseGate is the §24 power pause signal (M7-T1). nil never pauses.
+	pauseGate PauseGate
 	// runner is the engine's window onto the Job Pod internal
 	// API (M2-T4). nil means "no Job Pod manager"; the code
 	// archetype's sub-steps short-circuit without HTTP calls.
@@ -327,6 +337,10 @@ type StrategyHistory interface {
 // SetStrategyHistory wires the F4-T2 outcome-history seam. A nil seam
 // disables the familiarity signal (difficulty and criteria still apply).
 func (e *Engine) SetStrategyHistory(h StrategyHistory) { e.history = h }
+
+// SetPauseGate wires the §24 power pause signal (M7-T1). A nil gate means
+// the engine never pauses for power.
+func (e *Engine) SetPauseGate(g PauseGate) { e.pauseGate = g }
 
 // SetVerifiers wires the F4-T3 deterministic verifier registry. A nil
 // registry uses verify.Default().
@@ -642,6 +656,46 @@ func (e *Engine) Recover(ctx context.Context) {
 	}
 }
 
+// pauseReason returns the active stop reason ("kill_switch", "power", or "")
+// so the engine's run loop has a single gate and a post-mortem can tell the
+// two apart.
+func (e *Engine) pauseReason() string {
+	if e.freezer.Frozen() {
+		return "kill_switch"
+	}
+	if e.pauseGate != nil && e.pauseGate.Paused() {
+		return "power"
+	}
+	return ""
+}
+
+// ResumePaused re-drives every job parked in `paused` back to its
+// paused_from state and enqueues it. It is the §24 wake / AC-restore path:
+// the power Supervisor's OnResume calls it when the pause gate reopens. A job
+// paused for another reason (e.g. a context-floor violation) simply re-pauses
+// on the next run, so this is safe to call broadly.
+func (e *Engine) ResumePaused(ctx context.Context) {
+	active, err := e.jobs.Active(ctx)
+	if err != nil {
+		slog.Error("power resume: listing active jobs", "err", err)
+		return
+	}
+	for _, j := range active {
+		if j.State != job.StatePaused || j.PausedFrom == "" {
+			continue
+		}
+		if _, err := e.jobs.Transition(ctx, j.ID, j.PausedFrom); err != nil {
+			slog.Error("power resume: transition", "job", j.ID, "err", err)
+			continue
+		}
+		e.audit(ctx, j.ID, map[string]any{
+			"event": "job_resumed", "reason": "power", "to": string(j.PausedFrom),
+		})
+		slog.Info("power resume: re-driving paused job", "job", j.ID, "to", j.PausedFrom)
+		e.Enqueue(j.ID)
+	}
+}
+
 // audit appends an engine event to the append-only log under the `jobs`
 // category (§28.1).
 func (e *Engine) audit(ctx context.Context, jobID string, data map[string]any) {
@@ -699,13 +753,17 @@ func (e *Engine) Run(ctx context.Context, jobID string) {
 			return
 		}
 
-		// §22.1: frozen means no work proceeds. Active jobs pause; queued
-		// jobs simply stay queued (nothing has started). Either way,
-		// unfreeze resumes them via Recover.
-		if e.freezer.Frozen() {
+		// §22.1 / §24: the kill switch or the power policy can stop work.
+		// Active jobs pause (and are re-driven by Recover or ResumePaused);
+		// queued jobs simply stay queued (nothing has started).
+		if reason := e.pauseReason(); reason != "" {
 			if job.CanTransition(j.State, job.StatePaused) {
 				if _, err := e.jobs.Transition(ctx, jobID, job.StatePaused); err != nil {
-					slog.Error("engine: pausing for freeze", "job", jobID, "err", err)
+					slog.Error("engine: pausing", "job", jobID, "reason", reason, "err", err)
+				} else {
+					e.audit(ctx, jobID, map[string]any{
+						"event": "job_paused", "reason": reason, "from": string(j.State),
+					})
 				}
 			}
 			return

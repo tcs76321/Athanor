@@ -12,6 +12,14 @@ New entries are appended at the top. Do not rewrite history.
 
 ### M7 — Endurance & Release
 
+- **M7-T1.** Power/idle integration (§24). Pure `power.Decide` policy (AC,
+  battery threshold + override, active hours, idle, sleep) with a
+  `Supervisor` poll loop over an injected `Observer`; platform adapters in
+  `cmd/athanor/power_{darwin,linux,other}.go` (`pmset`/`ioreg`/`caffeinate`;
+  `/sys/class/power_supply`/`xprintidle`/`systemd-inhibit`), Gate-G1
+  allowlisted. The engine gains a `PauseGate` (battery/sleep pause, distinct
+  from the kill switch) and `ResumePaused` for wake/AC-restore.
+  [ADR-0051](docs/adr/0051-power-supervisor.md).
 - **M7-T5.** `athanor doctor` — host/backend/config diagnostics per §30.2.
   `internal/doctor` is a pure check engine over an injected `Probes` seam;
   `cmd/athanor/doctor.go` is the only OS-touching implementation (`os/exec`,

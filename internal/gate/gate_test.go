@@ -23,10 +23,12 @@
 //
 //  4. `os/exec` in `cmd/` is permitted only for the named files
 //     `cmd/athanor/jobpod_client.go` (M2 production Podman client),
-//     `cmd/athanor/git_client.go` (F3-T5 Git-as-undo), and
-//     `cmd/athanor/doctor.go` (M7-T5 host diagnostics). The allowlist is a
-//     set of named files, not a directory or pattern; the gate is opt-in by
-//     exception, not opt-out by default.
+//     `cmd/athanor/git_client.go` (F3-T5 Git-as-undo),
+//     `cmd/athanor/doctor.go` (M7-T5 host diagnostics), and
+//     `cmd/athanor/power_darwin.go` / `power_linux.go` (M7-T1 OS power
+//     observer and assertion). The allowlist is a set of named files, not a
+//     directory or pattern; the gate is opt-in by exception, not opt-out by
+//     default.
 //
 //  5. `syscall` in `internal/airlock/paths/paths_linux.go` and
 //     `internal/airlock/paths/paths_darwin.go` is permitted only for
@@ -151,6 +153,8 @@ var allowedOsExecFiles = map[string]bool{
 	"jobpod_client.go": true,
 	"git_client.go":    true,
 	"doctor.go":        true,
+	"power_darwin.go":  true,
+	"power_linux.go":   true,
 }
 
 // allowedOsExecDirs are the directories in cmd/ under which

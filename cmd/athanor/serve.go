@@ -125,10 +125,12 @@ func run(configPath, addr, stateDir string) error {
 	if err != nil {
 		return fmt.Errorf("building persona registry: %w", err)
 	}
-	// M1-T8.4: PowerManager is the live source of the engine's
-	// concurrency cap. M6 will add an OS watcher that switches
-	// profiles; for now it stays at the default (interactive).
-	powerMgr := power.NewPowerManager(nil)
+	// M7-T1 (§24): the PowerManager is the live source of the engine's
+	// concurrency cap and daydreaming gate. The Supervisor below drives it
+	// from the real OS observer; the OS watcher holds an idle-sleep
+	// assertion while autonomous work runs.
+	osPowerWatcher := newOSWatcher()
+	powerMgr := power.NewPowerManager(osPowerWatcher)
 	// M2-T2: Job Pod manager. Owns the lifecycle of every Podman
 	// Job Pod. Sweep runs at boot to clean up after a crash or
 	// kill -9. M2-T4b wired the engine↔pod lifecycle (ADR-0024): the
@@ -210,6 +212,9 @@ func run(configPath, addr, stateDir string) error {
 		// (TokenFor) exists when the internal API execs into it.
 		newPodLifecycle(podMgr, cfg),
 	)
+	// M7-T1 (§24): the engine consults the power gate before each phase, so
+	// a battery/sleep pause parks active jobs and ResumePaused re-drives them.
+	eng.SetPauseGate(powerMgr)
 	// F3-T5 (§14, ADR-0030): Git-as-undo. When an artifact is accepted
 	// and the project has a repository_path that is a clean git worktree,
 	// record it on an agent branch. Best-effort; never pushes. M6-T5
@@ -465,6 +470,35 @@ func run(configPath, addr, stateDir string) error {
 			}
 		}
 	}
+
+	// M7-T1 (§24): the power/idle Supervisor. One immediate observation then
+	// a poll every 30s. It applies the pure policy to powerMgr (profile +
+	// pause) and, when the gate reopens, re-drives power-paused jobs.
+	powerSup := power.NewSupervisor(power.SupervisorDeps{
+		Manager:  powerMgr,
+		Observer: newPowerObserver(),
+		Config:   powerConfigFrom(cfg),
+		Interval: 30 * time.Second,
+		Watcher:  osPowerWatcher,
+		Hooks: power.Hooks{
+			OnPause: func(reason string) {
+				slog.Info("power: deep work paused", "reason", reason)
+			},
+			OnResume: func() {
+				slog.Info("power: deep work resumed — re-driving paused jobs")
+				eng.ResumePaused(context.Background())
+			},
+			Audit: func(event string, data map[string]any) {
+				data["event"] = event
+				if _, err := st.AppendEvent(context.Background(), store.Event{Category: "power", Data: data}); err != nil {
+					slog.Error("power: audit", "err", err)
+				}
+			},
+		},
+		Log: slog.Default(),
+	})
+	powerSup.Start(context.Background())
+	defer powerSup.Close()
 
 	// M5-T6: the minimal daydream memory-consolidation loop (ADR-0025 §6). It
 	// is off by default (the interactive power profile disallows daydreaming)

@@ -66,7 +66,12 @@ type PowerManager struct {
 	watcher        OSWatcher
 	currentProfile Profile
 	limits         Limits
-	observers      []func(Limits)
+	// paused is the §24 "deep work pauses" signal (on battery without an
+	// override, or while the system sleeps). It is distinct from the kill
+	// switch: it is transient and does not require an operator reason to
+	// clear.
+	paused    bool
+	observers []func(Limits)
 }
 
 // NewPowerManager creates a new PowerManager with the given OSWatcher.
@@ -168,6 +173,32 @@ func (pm *PowerManager) CurrentProfile() Profile {
 	pm.mu.RLock()
 	defer pm.mu.RUnlock()
 	return pm.currentProfile
+}
+
+// ApplyDecision installs a §24 Decision from the Supervisor: the profile
+// (which selects the concurrency cap and daydreaming allowance) and the pause
+// flag. This is the automatic path; ToggleAutonomousMode remains the manual
+// UI override. Observe gets notified only on an actual change.
+func (pm *PowerManager) ApplyDecision(d Decision) {
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+	if pm.currentProfile == d.Profile && pm.paused == d.Pause {
+		return
+	}
+	pm.currentProfile = d.Profile
+	pm.limits = profileLimits(d.Profile)
+	pm.paused = d.Pause
+	slog.Info("PowerManager decision applied", "profile", d.Profile, "pause", d.Pause, "reason", d.Reason)
+	pm.notifyObservers()
+}
+
+// Paused reports whether the §24 policy has paused deep work (battery below
+// the threshold without an override, or system sleep). It satisfies the
+// engine's power PauseGate.
+func (pm *PowerManager) Paused() bool {
+	pm.mu.RLock()
+	defer pm.mu.RUnlock()
+	return pm.paused
 }
 
 // MaxConcurrentJobs returns the current cap on concurrent jobs, sourced
