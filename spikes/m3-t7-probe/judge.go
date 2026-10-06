@@ -264,9 +264,16 @@ func runJudge(args []string) {
 
 	judges := splitCSV(*judgesCSV)
 	base := strings.TrimRight(*ollamaURL, "/")
-	var results []judgeResult
-	packets := 0
 
+	// Collect every packet first so judging can be ordered judge-outer: on a
+	// single-residency server (ARCHITECTURE §12.5) that means len(judges)
+	// model loads, not len(packets)*len(judges). The anchor protocol uses the
+	// same ordering; packet-outer thrashes the model on every packet.
+	type packet struct {
+		id, goal, model, arm, content string
+		run                           int
+	}
+	var packetList []packet
 	err := filepath.WalkDir(*outDir, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -290,28 +297,14 @@ func runJudge(args []string) {
 			return fmt.Errorf("%s: %w", path, err)
 		}
 		for _, row := range index {
-			packet, err := os.ReadFile(filepath.Join(packetsDir, row.PacketID+".md"))
+			content, err := os.ReadFile(filepath.Join(packetsDir, row.PacketID+".md"))
 			if err != nil {
 				return err
 			}
-			for _, j := range judges {
-				res := judgeResult{
-					Goal: row.Goal, ModelLabel: row.Model, Arm: row.Arm,
-					Run: row.Run, PacketID: row.PacketID, Judge: j,
-				}
-				jr, jerr := callJudge(base, j, string(packet), judgeSeed(row.PacketID, j))
-				if jerr != nil {
-					res.Error = jerr.Error()
-				} else {
-					res.Score = jr.Score
-					res.CriteriaMet = jr.CriteriaMet
-					res.CriteriaMissing = jr.CriteriaMissing
-					res.Notes = jr.Notes
-				}
-				results = append(results, res)
-			}
-			packets++
-			fmt.Printf("judged %s with %d judges\n", row.PacketID, len(judges))
+			packetList = append(packetList, packet{
+				id: row.PacketID, goal: row.Goal, model: row.Model,
+				arm: row.Arm, run: row.Run, content: string(content),
+			})
 		}
 		return nil
 	})
@@ -319,10 +312,32 @@ func runJudge(args []string) {
 		fmt.Fprintln(os.Stderr, "m3-t7 judge:", err)
 		os.Exit(1)
 	}
-	if packets == 0 {
+	if len(packetList) == 0 {
 		fmt.Fprintf(os.Stderr, "m3-t7 judge: no packets found under %s\n", *outDir)
 		os.Exit(1)
 	}
+
+	var results []judgeResult
+	for _, j := range judges {
+		fmt.Printf("judge %s: scoring %d packets\n", j, len(packetList))
+		for _, p := range packetList {
+			res := judgeResult{
+				Goal: p.goal, ModelLabel: p.model, Arm: p.arm,
+				Run: p.run, PacketID: p.id, Judge: j,
+			}
+			jr, jerr := callJudge(base, j, p.content, judgeSeed(p.id, j))
+			if jerr != nil {
+				res.Error = jerr.Error()
+			} else {
+				res.Score = jr.Score
+				res.CriteriaMet = jr.CriteriaMet
+				res.CriteriaMissing = jr.CriteriaMissing
+				res.Notes = jr.Notes
+			}
+			results = append(results, res)
+		}
+	}
+	packets := len(packetList)
 	// Reliability gate: a judge whose calls mostly error is not a
 	// measurement. Report per-judge success and fail loudly below the floor,
 	// after writing the raw results so a failure is still inspectable.
