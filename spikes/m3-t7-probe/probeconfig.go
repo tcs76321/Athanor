@@ -13,6 +13,7 @@ type probePolicy struct {
 	JudgeMode  string // "" | "llm" | "verifier"
 	JudgeModel string // personas.security.model override
 	AltModel   string // personas.alternative.model override
+	OllamaURL  string // inference.ollama_url override ("" = localhost:11434)
 }
 
 func orDefault(v, def string) string {
@@ -45,7 +46,7 @@ func probeConfigYAML(m probeModel, a arm, seedPolicy, addr string, noReflect boo
 
 inference:
   default_backend: ollama
-  ollama_url: "http://localhost:11434"
+  ollama_url: %q
   json_format: true
   judgment_seed: %q
   max_output_tokens: 4096
@@ -81,7 +82,7 @@ personas:
 execution:
   divergence_candidates: %d
 `,
-		seedPolicy, addr,
+		orDefault(p.OllamaURL, "http://localhost:11434"), seedPolicy, addr,
 		m.Model, m.ContextTarget,
 		m.Model,
 		m.Model, m.ContextTarget,

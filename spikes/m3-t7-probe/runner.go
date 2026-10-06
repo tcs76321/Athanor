@@ -203,7 +203,7 @@ func (r *runnerConfig) runArm(m probeModel, a arm) error {
 		return err
 	}
 	cfgPath := filepath.Join(runDir, "config.yaml")
-	pol := probePolicy{JudgeMode: r.judgeMode, JudgeModel: r.judgeModel, AltModel: r.altModel}
+	pol := probePolicy{JudgeMode: r.judgeMode, JudgeModel: r.judgeModel, AltModel: r.altModel, OllamaURL: r.ollamaURL}
 	if err := os.WriteFile(cfgPath, []byte(probeConfigYAML(m, a, r.seedPolicy, r.addr, r.noReflect, pol)), 0o644); err != nil {
 		return err
 	}
@@ -597,6 +597,7 @@ func printConfig(args []string) {
 	judgeMode := fs.String("judge-mode", "", `execution.policy.judge_mode: "" (default) | llm | verifier`)
 	judgeModel := fs.String("judge-model", "", "personas.security.model override")
 	altModel := fs.String("alt-model", "", "personas.alternative.model override")
+	ollamaURL := fs.String("ollama", "http://localhost:11434", "Ollama base URL written into the config")
 	_ = fs.Parse(args)
 
 	m, ok := modelByLabel(*modelLabel)
@@ -610,5 +611,5 @@ func printConfig(args []string) {
 		os.Exit(2)
 	}
 	fmt.Print(probeConfigYAML(m, a, *seed, *addr, *noReflect,
-		probePolicy{JudgeMode: *judgeMode, JudgeModel: *judgeModel, AltModel: *altModel}))
+		probePolicy{JudgeMode: *judgeMode, JudgeModel: *judgeModel, AltModel: *altModel, OllamaURL: *ollamaURL}))
 }
