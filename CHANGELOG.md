@@ -23,6 +23,16 @@ New entries are appended at the top. Do not rewrite history.
   the existing host allowlist, so there is no new config key; safe methods are
   untouched. Tests: `internal/server/cross_site_test.go`.
 
+- **F5-C (config/engine).** Code acceptance gates ([ADR-0058](docs/adr/0058-verification-gates.md)).
+  `require_tests_for_code` and `require_documentation_for_code` are now real,
+  decisive gates (default true): a code candidate cannot pass unless its test
+  command ran and passed, or it carries a recognized documentation construct
+  (docstring, doc-comment block, or docs section). `compare_before_accept` is
+  removed — it could only ever disable the §8.2 mandatory comparison, which
+  Gate G3 forbids. Config parsing is strict, so a pre-F5 config that sets
+  `compare_before_accept` now fails loudly at load. Tests:
+  `internal/verify/docs_test.go`, `internal/engine/verification_gates_test.go`.
+
 ### M7 — Endurance & Release
 
 - **M7-T9/T10.** Soak harness + release checklist. `scripts/soak.sh` /

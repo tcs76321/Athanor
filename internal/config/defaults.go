@@ -151,7 +151,6 @@ func applyDefaults(c *Config) {
 	setStr(&c.Execution.JudgePersona, "security")
 	setTrue(&c.Execution.RequireTestsForCode)
 	setTrue(&c.Execution.RequireDocumentationForCode)
-	setTrue(&c.Execution.CompareBeforeAccept)
 	// M6-T1 (ADR-0032): bounds for the decomposed task graph. They cap
 	// the validator so one model call cannot queue an unbounded DAG.
 	setInt(&c.Execution.DAGMaxTasks, 25)

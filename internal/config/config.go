@@ -282,19 +282,15 @@ type Execution struct {
 	// MaxReflectionLoopsValue.
 	MaxReflectionLoops *int   `yaml:"max_reflection_loops"`
 	JudgePersona       string `yaml:"judge_persona"`
-	// The three flags below are M3-deferred: declared and
-	// defaulted to true so the shipped example config validates
-	// and parses, but the engine does not yet consult them.
-	// Operators who set any of these to false today will see
-	// no behavior change. They become effective in M6/M7. See
-	// ROADMAP §7 and the M3 close-out entry that documents
-	// the deferral. The pointer types are used so the
-	// defaults package can distinguish "unset" (apply true)
-	// from "explicitly false" (still no behavior change in
-	// M3, but the field shape is ready for M6/M7 to read).
+	// RequireTestsForCode and RequireDocumentationForCode are the F5 code
+	// acceptance gates (ADR-0058). Both default true. When true, a
+	// code-archetype candidate cannot pass unless the test command ran and
+	// passed (RequireTestsForCode) or the candidate carries a documentation
+	// construct (RequireDocumentationForCode). The pointer types let the
+	// defaults package distinguish "unset" (apply true) from an explicit
+	// false (disable the gate); resolve via the *Value methods below.
 	RequireTestsForCode         *bool `yaml:"require_tests_for_code"`
 	RequireDocumentationForCode *bool `yaml:"require_documentation_for_code"`
-	CompareBeforeAccept         *bool `yaml:"compare_before_accept"`
 	// MinJudgeConfidence is the §19.3 deterministic guard
 	// threshold. The pointer type lets the operator explicitly
 	// disable the guard by setting the value to 0 (the
@@ -495,6 +491,23 @@ func (e *Execution) MaxReflectionLoopsValue() int {
 		return 2
 	}
 	return *e.MaxReflectionLoops
+}
+
+// RequireTestsForCodeValue resolves require_tests_for_code (default true).
+// When true, a code-archetype candidate cannot be accepted unless its test
+// command actually ran and passed (F5; ADR-0058). An explicit false restores
+// the pre-F5 behavior, where a missing test run falls through to the LLM
+// judge.
+func (e *Execution) RequireTestsForCodeValue() bool {
+	return Val(e.RequireTestsForCode, true)
+}
+
+// RequireDocumentationForCodeValue resolves require_documentation_for_code
+// (default true). When true, a code-archetype candidate must carry a
+// recognized documentation construct (F5; ADR-0058). An explicit false
+// disables the gate.
+func (e *Execution) RequireDocumentationForCodeValue() bool {
+	return Val(e.RequireDocumentationForCode, true)
 }
 
 // MinJudge returns the §19.3 guard threshold, applying the

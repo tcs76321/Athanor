@@ -258,6 +258,14 @@ func newEnvWithCfg(t *testing.T, mutate func(*config.Config)) *testEnv {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// F5: the require_*_for_code acceptance gates default on. Most engine
+	// tests exercise other behavior with a fake runner and a generic model
+	// response that carries no docs, so disable the gates here; the
+	// gate-specific tests (verification_gates_test.go) turn them back on
+	// via the mutate callback.
+	gate := false
+	cfg.Execution.RequireTestsForCode = &gate
+	cfg.Execution.RequireDocumentationForCode = &gate
 	// M3-T1: the evaluating and comparing phases use the `security`
 	// persona, whose default `ContextTarget` is 8192 — too small for
 	// the default 32768 coding floor. Bump it so the §12.6 feasibility

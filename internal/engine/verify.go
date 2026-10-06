@@ -23,7 +23,17 @@ import (
 func (e *Engine) verifyCandidate(ctx context.Context, j job.Job, p project.Project, t project.Task,
 	content string, idx int) (verify.Result, verify.Input, error) {
 
-	in := verify.Input{Archetype: p.Archetype, Content: content, Criteria: t.Criteria}
+	in := verify.Input{
+		Archetype: p.Archetype,
+		Content:   content,
+		Criteria:  t.Criteria,
+	}
+	// F5 (ADR-0058): the code acceptance gates. An explicit false restores
+	// the pre-F5 behavior; the config resolver applies the true default.
+	if e.cfg != nil {
+		in.RequireTests = e.cfg.Execution.RequireTestsForCodeValue()
+		in.RequireDocs = e.cfg.Execution.RequireDocumentationForCodeValue()
+	}
 	if p.Archetype != project.ArchetypeCode || e.runner == nil {
 		return e.verifierRegistry().Run(in), in, nil
 	}

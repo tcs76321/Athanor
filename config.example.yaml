@@ -135,13 +135,13 @@ execution:
   max_hard_task_variations: 10
   max_reflection_loops: 2
   judge_persona: security
-  # The three flags below are M3-deferred: declared and
-  # defaulted to true, but the engine does not yet consult
-  # them. Operators who set any of these to false today will
-  # see no behavior change. They become effective in M6/M7.
+  # F5 code acceptance gates (ADR-0058). Both default true. When true, a
+  # code-archetype candidate cannot pass unless the test command ran and
+  # passed (require_tests_for_code) or the candidate carries a documentation
+  # construct (require_documentation_for_code). Set either to false to
+  # restore the pre-F5 behavior.
   require_tests_for_code: true
   require_documentation_for_code: true
-  compare_before_accept: true
   min_judge_confidence: 0.7
   # Wall-time budgets per Dialectical phase (§13); "default" covers phases
   # without a specific entry.

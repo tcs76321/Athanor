@@ -1715,15 +1715,12 @@ execution:
   divergence_candidates: 3
   max_hard_task_variations: 10
   judge_persona: security
-  # The three flags below (require_tests_for_code,
-  # require_documentation_for_code, compare_before_accept)
-  # are M3-deferred: declared and defaulted to true, but the
-  # engine does not yet consult them. Operators who set any
-  # of these to false today will see no behavior change. They
-  # become effective in M6/M7. See ROADMAP §7.
+  # F5 code acceptance gates (ADR-0058): a code-archetype candidate cannot
+  # pass unless its test command ran and passed (require_tests_for_code) or
+  # it carries a documentation construct (require_documentation_for_code).
+  # Both default true; set either false to restore the pre-F5 behavior.
   require_tests_for_code: true
   require_documentation_for_code: true
-  compare_before_accept: true
   min_judge_confidence: 0.7   # comparison confidence threshold in §19.3
   # Wall-time budgets are enforced per Dialectical phase (planning, diverging,
   # evaluating, reflecting, synthesizing, comparing). A single global job timeout

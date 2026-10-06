@@ -1,8 +1,10 @@
 // Package verify is F4-T3's deterministic verification layer. It answers a
 // narrow question: does a candidate pass the checks a *parser* can apply,
 // with no LLM in the loop? Code candidates are checked by the Job Pod's
-// real test run (and lint); text/document candidates by structural
-// constraints parsed from the acceptance criteria. Anything the library
+// real test run (and lint), and — when execution.require_*_for_code demand
+// it (F5) — by the tests-required and documentation-presence gates;
+// text/document candidates by structural constraints parsed from the
+// acceptance criteria. Anything the library
 // cannot parse is "not applicable" — the caller then consults the LLM
 // judge, so a verifier can only ever make acceptance more deterministic,
 // never weaker.
@@ -29,6 +31,13 @@ type Input struct {
 	// LintRan/LintPassed describe the linter run (optional).
 	LintRan    bool
 	LintPassed bool
+	// RequireTests and RequireDocs are the execution.require_*_for_code
+	// gates (F5). RequireTests: a code candidate fails unless the test
+	// command actually ran and passed. RequireDocs: a code candidate fails
+	// unless it carries a documentation construct. Both default false at the
+	// Input level; the engine resolves the config defaults (true).
+	RequireTests bool
+	RequireDocs  bool
 }
 
 // Verdict is one verifier's decision. Applied reports whether the verifier
@@ -81,14 +90,15 @@ type archetypeVerifier interface {
 	Archetypes() []string
 }
 
-// Default is the in-tree verifier set: code gets the real test run and the
-// linter; text/document get structural checks; data/media have no
-// deterministic verifier yet (deferred), so their candidates are decided by
-// the LLM judge.
+// Default is the in-tree verifier set: code gets the real test run, the
+// linter, and (when required) the documentation-presence gate; text/document
+// get structural checks; data/media have no deterministic verifier yet
+// (deferred), so their candidates are decided by the LLM judge.
 func Default() *Registry {
 	return NewRegistry(
 		testsVerifier{},
 		lintVerifier{},
+		docsVerifier{},
 		structureVerifier{},
 	)
 }
@@ -169,6 +179,14 @@ func (testsVerifier) Archetypes() []string {
 func (testsVerifier) Name() string { return "tests" }
 func (testsVerifier) Verify(in Input) Verdict {
 	if !in.TestRan {
+		// F5: when the operator requires tests for code, a candidate with no
+		// test run fails deterministically instead of falling through to the
+		// LLM judge. Without the requirement, a missing run stays
+		// non-decisive (the pre-F5 behavior).
+		if in.RequireTests {
+			return Verdict{Verifier: "tests", Applied: true, Hard: true, Pass: false, Score: 0,
+				Reasons: []string{"tests required for code but no test run occurred"}}
+		}
 		return Verdict{Verifier: "tests", Applied: false, Hard: true}
 	}
 	if in.TestsPassed {
