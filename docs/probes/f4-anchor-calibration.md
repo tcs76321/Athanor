@@ -1,5 +1,13 @@
 # F4 — Human-anchor calibration results
 
+> **Correction (2026-10-05, follow-up):** this run used the original **8-case**
+> anchor, which was too small and too near-ceiling to measure discrimination
+> (all ratings 2–5). On the **expanded 16-case** anchor (with objective code
+> labels), the picture is different: `gemma4` reaches Spearman **0.61**,
+> `granite` 0.53, and the **generator itself (`ornith-1.5:9b`) 0.77**. See
+> [`f4-verifier-run.md`](f4-verifier-run.md) §C1. The 0.00 below is an
+> artifact of the anchor, not a final verdict on the judges.
+
 **Run:** 2026-10-05 · `make probe-anchor` · judges `gemma4:12b-mlx` (`117d0d84cf2a`) and `granite4.2:3b` (`7a65e6414ad6`) · Ollama 0.35.1 · Apple M2 Max, 32 GB.
 **Harness:** the probe's `anchor` subcommand scores the 8 blind `eval/anchor`
 cases with a human-eval-like prompt (rate 1–5, use the whole range, JSON out)

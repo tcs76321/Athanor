@@ -36,6 +36,24 @@ New entries are appended at the top. Do not rewrite history.
 - **F4-T8.** Per-phase `think` (off for judgment), `max_output_tokens`, and
   per-call bounds audited on every `llm_call`.
 
+### F4 follow-ups (2026-10-05)
+
+- **A1** code fences are normalized at artifact persistence (diverge +
+  synthesize), not only at pod execution.
+- **D** single-model residency: ARCHITECTURE §12.5 states one resident model
+  (cross-family roles swap), the probe verifies via `/api/ps`, and
+  `inference.keep_alive` is forwarded and audited.
+- **C0** the human anchor is expanded to 16 cases (harder text/document +
+  objective code labels anchored by test pass/fail).
+- **B** the probe gains `-judge-mode`/`-judge-model`/`-alt-model`; the report
+  shows the deterministic-accept fraction and a cross-family guard.
+- **C1** `anchor -protocol pointwise5|pointwise100|pairwise` and
+  `internal/judge` `KendallTau`/`PairAgreement`; measured on the 16-case
+  anchor (gemma 0.61, granite 0.53, self-judge 0.77; pairwise position-biased).
+- [ADR-0049](docs/adr/0049-model-onboarding-qualification.md) (proposed) —
+  model onboarding & qualification; backlog.
+- [Verifier-run findings](docs/probes/f4-verifier-run.md).
+
 ### M3-T7 — quality probe (in progress)
 
 - **M3-T7.1.** Structured-judgment determinism precursor

@@ -4,19 +4,30 @@
 spine, not a new user-facing capability. Sits between M6 and M7; does not
 renumber M7.
 
-**Status:** code complete; **Gate G-F4 not closed** — the anchor calibration
-fails (judge discrimination 0.00). · **Gate:** G-F4 · **Seeded by:** the M3-T7
-quality probe (`docs/probes/m3-t7-quality-probe.md`) and its
+**Status:** code complete; **Gate G-F4 partially met** — the deterministic
+verifier arm is met, the judge-agreement arm is weak/ambiguous. · **Gate:**
+G-F4 · **Seeded by:** the M3-T7 quality probe
+(`docs/probes/m3-t7-quality-probe.md`) and its
 [results](probes/m3-t7-quality-probe-results.md).
 
 **Measured 2026-10-05** (M2 Max, Ollama 0.35.1, `ornith-1.5:9b`):
-[anchor calibration](probes/f4-anchor-calibration.md) (both judges saturate at
-the 1–5 ceiling, Spearman 0.00) and the
-[micro re-run](probes/f4-micro-run.md) (code instrument repaired — real tests
-discriminate and `todo-list` completes after fence-normalization; diversity
-0.65–0.89; the document goal still saturates). The judge-discrimination arm is
-the unmet gate condition; deterministic verification (T3) is the mitigation
-and needs a cross-family `judge_mode: verifier` run.
+- **Verifier-mode runs** (cross-family gemma4 judge; single-model and
+  multi-model generation) decided **7/7 code accepts deterministically**
+  (`judge_called=false`) — the gate's verifier arm. [verifier run](probes/f4-verifier-run.md).
+- **Expanded 16-case anchor:** judge agreement `gemma4` **0.61** (passes the
+  0.60 floor), `granite4.2` 0.53, and the **generator itself 0.77**;
+  `pairwise` fails on position bias (27/40 order-inconsistent), and
+  pointwise-100 does not beat pointwise-5. [anchor](probes/f4-anchor-calibration.md).
+- **Micro re-run:** code instrument repaired (real tests decide; fences
+  normalized), diversity 0.6–0.88. [micro](probes/f4-micro-run.md).
+
+The judge-agreement arm is **weak and confounded**: on the anchor, capability
+appears to dominate family (the generator scored best), which is the opposite
+of a naive cross-family claim, though the anchor measures absolute scoring,
+not the correlated-error property F4-T3 guards against. Deterministic
+verification remains the load-bearing acceptance signal; the LLM judge stays
+an advisory tie/fallback. A paired same-vs-cross-family ranking experiment is
+the follow-up.
 
 **Landed:** T0 (`/tmp/solution.py` real tests; judge retry/reliability gate;
 `eval/anchor`), T1 (`internal/policy`; [ADR-0044](../docs/adr/0044-compute-policy-seam.md)),
