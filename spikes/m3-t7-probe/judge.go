@@ -320,7 +320,7 @@ func runJudge(args []string) {
 	var results []judgeResult
 	for _, j := range judges {
 		fmt.Printf("judge %s: scoring %d packets\n", j, len(packetList))
-		for _, p := range packetList {
+		for i, p := range packetList {
 			res := judgeResult{
 				Goal: p.goal, ModelLabel: p.model, Arm: p.arm,
 				Run: p.run, PacketID: p.id, Judge: j,
@@ -335,6 +335,9 @@ func runJudge(args []string) {
 				res.Notes = jr.Notes
 			}
 			results = append(results, res)
+			if (i+1)%10 == 0 || i+1 == len(packetList) {
+				fmt.Printf("  %s: %d/%d\n", j, i+1, len(packetList))
+			}
 		}
 	}
 	packets := len(packetList)
