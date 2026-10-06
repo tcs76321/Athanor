@@ -12,6 +12,12 @@ New entries are appended at the top. Do not rewrite history.
 
 ### M7 — Endurance & Release
 
+- **M7-T9/T10.** Soak harness + release checklist. `scripts/soak.sh` /
+  `make soak` repeat the quality-probe workload (RSS/DB/disk sampling,
+  budgets) for `SOAK_HOURS`; the runbook is `docs/soak-m7.md`. Gate G7
+  close-out, the §31.3 audit table, and the demo are in
+  `docs/m7-gate-g7.md` and `docs/demo-m7.md`. The 24h run, fresh-install
+  timing, and audit sign-off are human checkpoints.
 - **M7-T7/T8.** Packaging + headless install. `deploy/jobpod.Containerfile`
   (Job Pod base image, `make jobpod-image`), `scripts/install.sh` (binary +
   `--service`), systemd user unit / launchd agent templates, and

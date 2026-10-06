@@ -15,7 +15,7 @@ export CGO_ENABLED
 # tag-less binary can never silently run.
 GO_TAGS = -tags sqlite_fts5
 
-.PHONY: build test test-race test-integration integration-images vet lint check vuln tidy tidy-check fuzz cover run clean hooks bench probe-micro probe probe-judge probe-anchor probe-report probe-bundle probe-reconcile jobpod-image install
+.PHONY: build test test-race test-integration integration-images vet lint check vuln tidy tidy-check fuzz cover run clean hooks bench probe-micro probe probe-judge probe-anchor probe-report probe-bundle probe-reconcile jobpod-image install soak
 
 build:
 	go build $(GO_TAGS) -o bin/athanor ./cmd/athanor
@@ -30,6 +30,12 @@ jobpod-image:
 # or `sh scripts/install.sh --service` (M7-T7/T8).
 install:
 	sh scripts/install.sh
+
+# M7-T9: the 24h soak harness. Human-run; see docs/soak-m7.md. Repeats the
+# quality-probe workload (which samples RSS/DB/disk to soak.csv) for SOAK_HOURS.
+SOAK_OUT ?= spikes/m3-t7-probe/results/soak
+soak:
+	SOAK_OUT=$(SOAK_OUT) sh scripts/soak.sh
 
 run:
 	go run $(GO_TAGS) ./cmd/athanor
