@@ -34,6 +34,10 @@ type runnerConfig struct {
 	noReflect  bool
 	// ollamaURL is queried (/api/ps) for the single-residency check.
 	ollamaURL string
+	// F4 follow-up run knobs.
+	judgeMode  string
+	judgeModel string
+	altModel   string
 
 	// Run guards (M3-T7 soak hardening).
 	maxWall        time.Duration
@@ -63,6 +67,9 @@ func runMatrix(args []string) {
 	fs.DurationVar(&r.soakInterval, "soak-interval", 30*time.Second, "RSS/DB/disk soak sampling interval")
 	fs.BoolVar(&r.noReflect, "no-reflect", false, "disable reflection loops (pure single-shot baseline)")
 	fs.StringVar(&r.ollamaURL, "ollama", "http://localhost:11434", "Ollama base URL for the /api/ps residency check")
+	fs.StringVar(&r.judgeMode, "judge-mode", "", `execution.policy.judge_mode: "" (default) | llm | verifier`)
+	fs.StringVar(&r.judgeModel, "judge-model", "", "personas.security.model override (cross-family judge)")
+	fs.StringVar(&r.altModel, "alt-model", "", "personas.alternative.model override (multi-model generation)")
 	_ = fs.Parse(args)
 
 	if err := r.run(); err != nil {
@@ -196,7 +203,8 @@ func (r *runnerConfig) runArm(m probeModel, a arm) error {
 		return err
 	}
 	cfgPath := filepath.Join(runDir, "config.yaml")
-	if err := os.WriteFile(cfgPath, []byte(probeConfigYAML(m, a, r.seedPolicy, r.addr, r.noReflect)), 0o644); err != nil {
+	pol := probePolicy{JudgeMode: r.judgeMode, JudgeModel: r.judgeModel, AltModel: r.altModel}
+	if err := os.WriteFile(cfgPath, []byte(probeConfigYAML(m, a, r.seedPolicy, r.addr, r.noReflect, pol)), 0o644); err != nil {
 		return err
 	}
 	fmt.Printf("== %s / %s (candidates=%d runs=%d)\n", m.Label, a.Name, a.Candidates, a.Runs)
@@ -392,6 +400,7 @@ func (r *runnerConfig) runOne(g sampleGoal, m probeModel, a arm, run int, stateD
 		time.Sleep(500 * time.Millisecond)
 	}
 	_ = mx.fillCandidateMetrics(db, stateDir)
+	mx.fillVerification(db)
 	if txt, err := readArtifact(stateDir, mx.ArtifactID); err == nil {
 		mx.ArtifactText = txt
 	}
@@ -455,16 +464,23 @@ func writeCSV(path string, metrics []jobMetrics) error {
 	w := csv.NewWriter(f)
 	defer w.Flush()
 	header := []string{"goal", "archetype", "model_label", "arm", "run", "state", "winner",
-		"confidence", "score", "token_cost", "wall_ms", "retries", "diversity", "candidates", "job_id", "error"}
+		"confidence", "score", "token_cost", "wall_ms", "retries", "diversity", "candidates",
+		"judge_called", "verifier_applied", "verifier_passed", "job_id", "error"}
 	if err := w.Write(header); err != nil {
 		return err
 	}
 	for _, m := range metrics {
+		judgeCalled := ""
+		if m.JudgeCalled != nil {
+			judgeCalled = strconv.FormatBool(*m.JudgeCalled)
+		}
 		if err := w.Write([]string{
 			m.GoalName, m.Archetype, m.ModelLabel, m.Arm, strconv.Itoa(m.Run), m.State, m.Winner,
 			strconv.FormatFloat(m.Confidence, 'f', 4, 64), strconv.FormatFloat(m.Score, 'f', 4, 64),
 			strconv.Itoa(m.TokenCost), strconv.Itoa(m.WallMS), strconv.Itoa(m.Retries),
-			strconv.FormatFloat(m.Diversity, 'f', 4, 64), strconv.Itoa(m.Candidates), m.JobID, m.Error,
+			strconv.FormatFloat(m.Diversity, 'f', 4, 64), strconv.Itoa(m.Candidates),
+			judgeCalled, strconv.Itoa(m.VerifierApplied), strconv.FormatBool(m.VerifierPassed),
+			m.JobID, m.Error,
 		}); err != nil {
 			return err
 		}
@@ -578,6 +594,9 @@ func printConfig(args []string) {
 	seed := fs.String("seed", "off", "judgment_seed policy: off|derived")
 	addr := fs.String("addr", strings.TrimPrefix(daemonURL(), "http://"), "daemon listen address (must match the Host-header allowlist)")
 	noReflect := fs.Bool("no-reflect", false, "disable reflection loops")
+	judgeMode := fs.String("judge-mode", "", `execution.policy.judge_mode: "" (default) | llm | verifier`)
+	judgeModel := fs.String("judge-model", "", "personas.security.model override")
+	altModel := fs.String("alt-model", "", "personas.alternative.model override")
 	_ = fs.Parse(args)
 
 	m, ok := modelByLabel(*modelLabel)
@@ -590,5 +609,6 @@ func printConfig(args []string) {
 		fmt.Fprintf(os.Stderr, "unknown arm %q\n", *armName)
 		os.Exit(2)
 	}
-	fmt.Print(probeConfigYAML(m, a, *seed, *addr, *noReflect))
+	fmt.Print(probeConfigYAML(m, a, *seed, *addr, *noReflect,
+		probePolicy{JudgeMode: *judgeMode, JudgeModel: *judgeModel, AltModel: *altModel}))
 }

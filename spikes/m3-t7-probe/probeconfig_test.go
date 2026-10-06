@@ -16,7 +16,7 @@ func TestProbeConfigYAML(t *testing.T) {
 	roles := []string{"wide", "tall", "main", "security", "alternative"}
 	for _, m := range probeModels {
 		for _, a := range arms {
-			raw := probeConfigYAML(m, a, "off", "127.0.0.1:7420", false)
+			raw := probeConfigYAML(m, a, "off", "127.0.0.1:7420", false, probePolicy{})
 			var cfg map[string]any
 			if err := yaml.Unmarshal([]byte(raw), &cfg); err != nil {
 				t.Fatalf("config for %s/%s is not valid YAML: %v\n%s", m.Label, a.Name, err, raw)
@@ -86,7 +86,7 @@ func TestProbeConfigYAML(t *testing.T) {
 // TestProbeConfigSeedPolicy pins the seed knob passed through to the
 // generated config.
 func TestProbeConfigSeedPolicy(t *testing.T) {
-	raw := probeConfigYAML(probeModels[0], arms[0], "derived", "127.0.0.1:7420", false)
+	raw := probeConfigYAML(probeModels[0], arms[0], "derived", "127.0.0.1:7420", false, probePolicy{})
 	var cfg map[string]any
 	if err := yaml.Unmarshal([]byte(raw), &cfg); err != nil {
 		t.Fatalf("invalid YAML: %v", err)
@@ -103,11 +103,38 @@ func TestProbeConfigSeedPolicy(t *testing.T) {
 // TestProbeConfigNoReflect pins the -no-reflect knob and proves the
 // generated config still validates.
 func TestProbeConfigNoReflect(t *testing.T) {
-	raw := probeConfigYAML(probeModels[0], arms[0], "off", "127.0.0.1:7420", true)
+	raw := probeConfigYAML(probeModels[0], arms[0], "off", "127.0.0.1:7420", true, probePolicy{})
 	if !strings.Contains(raw, "max_reflection_loops: 0") {
 		t.Errorf("no-reflect config missing max_reflection_loops: 0\n%s", raw)
 	}
 	if _, err := config.Parse([]byte(raw)); err != nil {
 		t.Fatalf("no-reflect config rejected by internal/config: %v", err)
+	}
+}
+
+// TestProbeConfigVerifierMode pins the F4 follow-up B knobs: the generated
+// config carries the judge-mode policy and the cross-family security/alt
+// model overrides, and still validates.
+func TestProbeConfigVerifierMode(t *testing.T) {
+	raw := probeConfigYAML(probeModels[0], arms[0], "off", "127.0.0.1:7420", false,
+		probePolicy{JudgeMode: "verifier", JudgeModel: "gemma4:12b-mlx", AltModel: "gemma4:12b-mlx"})
+	if _, err := config.Parse([]byte(raw)); err != nil {
+		t.Fatalf("verifier config rejected by internal/config: %v\n%s", err, raw)
+	}
+	var cfg map[string]any
+	if err := yaml.Unmarshal([]byte(raw), &cfg); err != nil {
+		t.Fatal(err)
+	}
+	exec := cfg["execution"].(map[string]any)
+	pol, ok := exec["policy"].(map[string]any)
+	if !ok || pol["judge_mode"] != "verifier" {
+		t.Errorf("execution.policy = %v, want judge_mode verifier", exec["policy"])
+	}
+	personas := cfg["personas"].(map[string]any)
+	if got := personas["security"].(map[string]any)["model"]; got != "gemma4:12b-mlx" {
+		t.Errorf("security model = %v, want gemma4:12b-mlx", got)
+	}
+	if got := personas["alternative"].(map[string]any)["model"]; got != "gemma4:12b-mlx" {
+		t.Errorf("alternative model = %v, want gemma4:12b-mlx", got)
 	}
 }

@@ -33,6 +33,11 @@ type jobMetrics struct {
 	ReflectionLoops int     `json:"reflection_loops"`
 	Diversity       float64 `json:"diversity"`
 	Candidates      int     `json:"candidates"`
+	// F4-T3 decision (nil JudgeCalled = no comparison reached).
+	JudgeCalled     *bool `json:"judge_called,omitempty"`
+	VerifierApplied int   `json:"verifier_applied,omitempty"`
+	VerifierPassed  bool  `json:"verifier_passed,omitempty"`
+	CrossFamilyOK   *bool `json:"cross_family_ok,omitempty"`
 	// ArtifactText is the final artifact's content. It is used to build
 	// judge packets and is not serialized into results.json (the file is
 	// read back from the state dir when packets are generated).
@@ -164,6 +169,64 @@ func loadDivergenceJaccard(db *sql.DB, jobID string) (avg float64, candidates in
 		return m.AvgJaccard, m.Candidates, true
 	}
 	return 0, 0, false
+}
+
+// verificationRow is the F4-T3/F4-T4 comparison decision for a job.
+type verificationRow struct {
+	JudgeCalled     bool  `json:"judge_called"`
+	VerifierApplied int   `json:"verifier_applied"`
+	VerifierPassed  bool  `json:"verifier_passed"`
+	CrossFamilyOK   *bool `json:"cross_family_ok,omitempty"`
+}
+
+// loadVerificationDecision reads a job's latest `verification_decision`
+// event (F4-T3). The boolean is false when the job never reached comparison.
+func loadVerificationDecision(db *sql.DB, jobID string) (verificationRow, bool) {
+	rows, err := db.Query(
+		`SELECT data_json FROM events WHERE job_id = ? AND category = 'jobs' ORDER BY id DESC`, jobID)
+	if err != nil {
+		return verificationRow{}, false
+	}
+	defer func() { _ = rows.Close() }()
+	for rows.Next() {
+		var d string
+		if err := rows.Scan(&d); err != nil {
+			return verificationRow{}, false
+		}
+		var m struct {
+			Event           string `json:"event"`
+			JudgeCalled     *bool  `json:"judge_called"`
+			VerifierApplied int    `json:"verifier_applied"`
+			VerifierPassed  bool   `json:"verifier_passed"`
+			CrossFamilyOK   *bool  `json:"cross_family_ok"`
+		}
+		if json.Unmarshal([]byte(d), &m) != nil || m.Event != "verification_decision" {
+			continue
+		}
+		v := verificationRow{
+			VerifierApplied: m.VerifierApplied,
+			VerifierPassed:  m.VerifierPassed,
+			CrossFamilyOK:   m.CrossFamilyOK,
+		}
+		if m.JudgeCalled != nil {
+			v.JudgeCalled = *m.JudgeCalled
+		}
+		return v, true
+	}
+	return verificationRow{}, false
+}
+
+// fillVerification records the F4-T3 decision (if any) on the metrics row.
+func (m *jobMetrics) fillVerification(db *sql.DB) {
+	v, ok := loadVerificationDecision(db, m.JobID)
+	if !ok {
+		return
+	}
+	jc := v.JudgeCalled
+	m.JudgeCalled = &jc
+	m.VerifierApplied = v.VerifierApplied
+	m.VerifierPassed = v.VerifierPassed
+	m.CrossFamilyOK = v.CrossFamilyOK
 }
 
 // fillCandidateMetrics records the job's candidate count and diversity

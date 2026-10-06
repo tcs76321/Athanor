@@ -97,6 +97,21 @@ func meanDiversity(metrics []jobMetrics, armName string) float64 {
 	return mean(ds)
 }
 
+// verificationSummary counts completed code accepts and how many were decided
+// without the LLM judge (F4-T3) — the deterministic-accept fraction.
+func verificationSummary(metrics []jobMetrics) (codeAccepts, deterministicAccepts int) {
+	for _, m := range metrics {
+		if m.Archetype != "code" || m.Winner != "new" || m.State != "completed" {
+			continue
+		}
+		codeAccepts++
+		if m.JudgeCalled != nil && !*m.JudgeCalled {
+			deterministicAccepts++
+		}
+	}
+	return codeAccepts, deterministicAccepts
+}
+
 // renderReport renders the markdown findings skeleton over all collected
 // metrics. It fills the tables mechanically; interpretation and the ADR
 // trigger stay with the human writing the findings.
@@ -131,6 +146,30 @@ func renderReport(metrics []jobMetrics) string {
 	b.WriteString("\n## T-a — candidate diversity\n\n")
 	fmt.Fprintf(&b, "Mean pairwise Jaccard distance (dialectical): %.3f\n", meanDiversity(metrics, "dialectical"))
 	fmt.Fprintf(&b, "Mean pairwise Jaccard distance (single): %.3f\n", meanDiversity(metrics, "single"))
+
+	b.WriteString("\n## F4 — verification decisions\n\n")
+	accepts, det := verificationSummary(metrics)
+	if accepts == 0 {
+		b.WriteString("No completed code accepts in this run.\n")
+	} else {
+		fmt.Fprintf(&b, "Code accepts: %d; decided without the LLM judge: %d (%.0f%%).\n",
+			accepts, det, float64(det)/float64(accepts)*100)
+	}
+	judged := 0
+	mismatched := 0
+	for _, m := range metrics {
+		if m.JudgeCalled != nil && *m.JudgeCalled {
+			judged++
+		}
+		if m.CrossFamilyOK != nil && !*m.CrossFamilyOK {
+			mismatched++
+		}
+	}
+	fmt.Fprintf(&b, "Comparisons that called the LLM judge: %d.\n", judged)
+	if mismatched > 0 {
+		fmt.Fprintf(&b, "WARNING: %d comparison(s) had cross_family_ok=false — the judge shared the generator's family.\n", mismatched)
+	}
+
 	b.WriteString("\n## Environment / caveats\n\n")
 	b.WriteString("- Fill in the model digests, Ollama version, and any confounds from the daemon logs.\n")
 	b.WriteString("- T-c across fresh jobs confounds model nondeterminism with input nondeterminism; note it.\n")

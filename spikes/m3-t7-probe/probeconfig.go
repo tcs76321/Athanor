@@ -5,6 +5,23 @@ import (
 	"strings"
 )
 
+// probePolicy carries the F4 follow-up run knobs into the generated config:
+// the judge mode, an optional cross-family `security` model, and an optional
+// second `alternative` model (multi-model generation). Empty fields keep the
+// pre-F4 single-model behavior.
+type probePolicy struct {
+	JudgeMode  string // "" | "llm" | "verifier"
+	JudgeModel string // personas.security.model override
+	AltModel   string // personas.alternative.model override
+}
+
+func orDefault(v, def string) string {
+	if v == "" {
+		return def
+	}
+	return v
+}
+
 // probeConfigYAML renders the daemon config for one (model, arm, seed)
 // run. It is generated rather than checked in so the arm configs cannot
 // drift from the matrix. seedPolicy is "off" or "derived"
@@ -18,7 +35,7 @@ import (
 // planning. job_pod.default_tools grants the code-archetype tools the
 // engine's evaluation sub-steps require — without it, code jobs
 // soft-fail without ever running tests.
-func probeConfigYAML(m probeModel, a arm, seedPolicy, addr string, noReflect bool) string {
+func probeConfigYAML(m probeModel, a arm, seedPolicy, addr string, noReflect bool, p probePolicy) string {
 	reflectLine := ""
 	if noReflect {
 		reflectLine = "  max_reflection_loops: 0\n"
@@ -33,6 +50,7 @@ inference:
   judgment_seed: %q
   max_output_tokens: 4096
   think: false
+  keep_alive: "5m"
 
 network:
   external_api_host_allowlist:
@@ -62,12 +80,27 @@ personas:
 
 execution:
   divergence_candidates: %d
-%s  phase_wall_time_budgets:
+`,
+		seedPolicy, addr,
+		m.Model, m.ContextTarget,
+		m.Model,
+		m.Model, m.ContextTarget,
+		orDefault(p.JudgeModel, m.Model), m.ContextTarget,
+		orDefault(p.AltModel, m.Model), m.ContextTarget,
+		a.Candidates,
+	)
+	if p.JudgeMode != "" {
+		fmt.Fprintf(&b, "  policy:\n    judge_mode: %q\n", p.JudgeMode)
+	}
+	b.WriteString(reflectLine)
+	// `comparing` must accommodate a model swap under single residency
+	// (ARCHITECTURE §12.5), so it is larger than the M3-T7 120s.
+	b.WriteString(`  phase_wall_time_budgets:
     planning: "900s"
     diverging: "900s"
     evaluating: "900s"
     synthesizing: "900s"
-    comparing: "120s"
+    comparing: "600s"
     default: "900s"
 
 limits:
@@ -79,14 +112,6 @@ job_pod:
     - execute_code
     - run_tests
     - lint
-`,
-		seedPolicy, addr,
-		m.Model, m.ContextTarget,
-		m.Model,
-		m.Model, m.ContextTarget,
-		m.Model, m.ContextTarget,
-		m.Model, m.ContextTarget,
-		a.Candidates, reflectLine,
-	)
+`)
 	return b.String()
 }

@@ -100,3 +100,18 @@ func TestRenderReport(t *testing.T) {
 		}
 	}
 }
+
+// TestVerificationSummary pins the F4-T3 deterministic-accept counting.
+func TestVerificationSummary(t *testing.T) {
+	yes, no := true, false
+	metrics := []jobMetrics{
+		{Archetype: "code", Winner: "new", State: "completed", JudgeCalled: &no},
+		{Archetype: "code", Winner: "new", State: "completed", JudgeCalled: &yes},
+		{Archetype: "code", Winner: "none", State: "failed", JudgeCalled: &yes},
+		{Archetype: "text", Winner: "new", State: "completed", JudgeCalled: &yes},
+	}
+	accepts, det := verificationSummary(metrics)
+	if accepts != 2 || det != 1 {
+		t.Fatalf("verificationSummary = %d accepts / %d deterministic, want 2/1", accepts, det)
+	}
+}
