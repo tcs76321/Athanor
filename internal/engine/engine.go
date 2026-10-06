@@ -740,13 +740,17 @@ func (e *Engine) Run(ctx context.Context, jobID string) {
 				// keeps `system_state` bounded while a paused job keeps
 				// its suppression for the resume.
 				e.clearSuppressedTiers(ctx, jobID)
+				// M6-T10 (§13.3): capture the immutable outcome before any
+				// teardown that can block. stopPod can take seconds on a real
+				// pod, and an offline collector must never observe a terminal
+				// job with no strategy_outcomes row (the M3-T7 code-goal
+				// capture gap F4 deferred).
+				e.captureOutcome(ctx, jobID)
+				// M6-T2 (ADR-0033): let the scheduler advance the graph.
+				e.signalTerminal(ctx, jobID, j.State)
 				// M2-T4b.5 (ADR-0024 §2): a terminal job's Job Pod has no
 				// further use; stop it (idempotent, nil-safe).
 				e.stopPod(ctx, jobID)
-				// M6-T2 (ADR-0033): let the scheduler advance the graph.
-				e.signalTerminal(ctx, jobID, j.State)
-				// M6-T10 (§13.3): capture the immutable outcome.
-				e.captureOutcome(ctx, jobID)
 			}
 			return
 		}
@@ -786,6 +790,10 @@ func (e *Engine) Run(ctx context.Context, jobID string) {
 				e.signalTerminal(ctx, jobID, job.StateFailed)
 				e.recordFailureCorrection(ctx, jobID, j.ProjectID, j.State, err)
 				e.captureOutcome(ctx, jobID)
+				// M2-T4b.5 (ADR-0024 §2): a failed job is terminal too; stop
+				// its pod now. The failure path used to return without
+				// teardown, leaving the pod for the next boot's sweep.
+				e.stopPod(ctx, jobID)
 			}
 			e.audit(ctx, jobID, map[string]any{
 				"event": "job_failed", "state": string(j.State), "error": err.Error(),

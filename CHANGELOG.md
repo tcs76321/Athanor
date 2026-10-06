@@ -67,6 +67,15 @@ New entries are appended at the top. Do not rewrite history.
   sub-steps "in synthesizing") is corrected; and the deploy unit's repository
   URL casing matches the module path.
 
+### F4 (probe pre-work)
+
+- **Outcome capture + pod teardown ordering.** `engine.Run` now captures a
+  job's `StrategyOutcome` **before** stopping its Job Pod, so an offline
+  collector never observes a terminal job with no outcome row (the M3-T7
+  code-goal capture gap). The failure path now also stops its pod instead of
+  leaking it to the next boot's M2-T5 sweep. Pre-work for the G-F4 closeout
+  probe ([plan](docs/probes/gf4-probe-plan.md)).
+
 ### M7 — Endurance & Release
 
 - **M7-T9/T10.** Soak harness + release checklist. `scripts/soak.sh` /

@@ -7,6 +7,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/tcs76321/athanor/internal/job"
 	"github.com/tcs76321/athanor/internal/store"
 )
 
@@ -149,5 +150,36 @@ func TestPodLifecycle_NilSeamIsNoOp(t *testing.T) {
 	env.eng.Run(context.Background(), jobID)
 	if got := env.runner.CallCount(); got != 8 {
 		t.Errorf("runner calls = %d, want 8 with a nil lifecycle seam", got)
+	}
+}
+
+// TestPodLifecycle_StopsPodOnFailure proves the P0.2 fix: a failed code job
+// stops its Job Pod in-process instead of leaking it to the next boot's M2-T5
+// sweep. Before the fix, the failure branch returned without teardown.
+func TestPodLifecycle_StopsPodOnFailure(t *testing.T) {
+	env := newEnv(t)
+	lc := &fakeLifecycle{runner: env.runner}
+	env.eng.podLifecycle = lc
+	env.runner.WithError(errors.New("boom"))
+
+	jobID := env.submitCode(t)
+	env.eng.Run(context.Background(), jobID)
+
+	j, err := env.jobs.Get(context.Background(), jobID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if j.State != job.StateFailed {
+		t.Fatalf("state = %s, want failed", j.State)
+	}
+	_, stopped, _ := lc.snapshot()
+	found := false
+	for _, id := range stopped {
+		if id == jobID {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("stopped = %v, want the failed job %s torn down", stopped, jobID)
 	}
 }
