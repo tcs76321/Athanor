@@ -200,6 +200,23 @@ keep the machine awake on AC (no in-tree power guard until M7).
 - **Roadmap:** update the status table as milestones progress — it is the project's honest heartbeat.
 - **Spikes:** timeboxed, with an explicit hypothesis. Findings land in `docs/`; the spike itself stays disposable.
 
+## Backups & restore
+
+Scheduled backups run from `backup.schedule` (default `0 3 * * *`) and retain
+`backup.max_local_backups` snapshots under `<state-dir>/backups/`. Force one
+and restore offline with:
+
+```bash
+make build
+./bin/athanor backup -state-dir state -keep 10        # force a snapshot
+# stop the daemon first — it holds the database open
+./bin/athanor restore -from state/backups/athanor-v0023-20260101T030000Z.db -force -state-dir state
+```
+
+Restore is an explicit, `-force`-gated file replacement; it also removes the
+stale `-wal`/`-shm` files. The restore drill is covered by
+`internal/backup`'s `TestSnapshotPruneRestore`.
+
 ## License
 
 AGPL-3.0 — see [LICENSE](LICENSE).

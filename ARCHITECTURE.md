@@ -1391,6 +1391,15 @@ backup:
 
 Backups include: SQLite database, configuration, prompt templates, feedback records, workspace metadata. May exclude large binary artifacts if configured.
 
+> **Implementation status (M7-T4).** Backups are live
+> ([ADR-0054](docs/adr/0054-backups.md)): `internal/backup` schedules a
+> VACUUM-INTO snapshot from `backup.schedule` (dependency-free 5-field cron),
+> prunes to `max_local_backups`, and audits a `backup_created` event.
+> `athanor backup` forces one; `athanor restore -from <file> -force` restores
+> offline (daemon stopped). Only the SQLite database is snapshotted today;
+> `include_workspace_metadata` is accepted but the config/workspace-metadata
+> copy is deferred.
+
 ### 23.5 Migrations
 
 - Versioned.

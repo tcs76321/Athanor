@@ -17,6 +17,7 @@ import (
 	"github.com/tcs76321/athanor/internal/alarms"
 	"github.com/tcs76321/athanor/internal/api"
 	"github.com/tcs76321/athanor/internal/artifact"
+	"github.com/tcs76321/athanor/internal/backup"
 	"github.com/tcs76321/athanor/internal/config"
 	"github.com/tcs76321/athanor/internal/control"
 	"github.com/tcs76321/athanor/internal/corrections"
@@ -512,6 +513,21 @@ func run(configPath, addr, stateDir string) error {
 	alarmMon := alarms.NewMonitor(alarmSvc, alarms.NewStoreLoader(st, alarmTh), alarmTh, time.Minute, slog.Default())
 	alarmMon.Start(context.Background())
 	defer alarmMon.Close()
+
+	// M7-T4 (§23.4): scheduled backups + retention. Auto + a valid cron
+	// schedule are required; a malformed spec fails boot loudly.
+	if config.Val(cfg.Backup.Auto, true) && cfg.Backup.Schedule != "" {
+		bkSched, err := backup.NewScheduler(backup.SchedulerDeps{
+			DB: st.DB(), Dir: filepath.Join(stateDir, "backups"), Version: st.Version,
+			Schedule: cfg.Backup.Schedule, Keep: cfg.Backup.MaxLocalBackups,
+			Events: st, Log: slog.Default(),
+		})
+		if err != nil {
+			return fmt.Errorf("backup scheduler: %w", err)
+		}
+		bkSched.Start(context.Background())
+		defer bkSched.Close()
+	}
 
 	// M5-T6: the minimal daydream memory-consolidation loop (ADR-0025 §6). It
 	// is off by default (the interactive power profile disallows daydreaming)

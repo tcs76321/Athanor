@@ -12,6 +12,11 @@ New entries are appended at the top. Do not rewrite history.
 
 ### M7 — Endurance & Release
 
+- **M7-T4.** Backups (§23.4). `internal/backup` adds a snapshot wrapper, a
+  retention pruner, an atomic offline restore, a dependency-free 5-field cron
+  matcher, and a scheduler that audits `backup_created`. CLI:
+  `athanor backup`, `athanor restore -from <file> -force`. `store.Backup`
+  no longer collides on same-second snapshots. [ADR-0054](docs/adr/0054-backups.md).
 - **M7-T3.** Alarms (§22.3). `internal/alarms` adds the nine-category /
   four-level model, a persistent active/resolved store (migration 0023), a
   pure `Detect` covering every category, and a `StoreLoader`-backed monitor;

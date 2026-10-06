@@ -18,6 +18,14 @@ func Backup(db *sql.DB, backupDir string, version int) (string, error) {
 	}
 	name := fmt.Sprintf("athanor-v%04d-%s.db", version, time.Now().UTC().Format("20060102T150405Z"))
 	dest := filepath.Join(backupDir, name)
+	// VACUUM INTO refuses an existing destination, and two snapshots within the
+	// same second share a name; make the path unique deterministically.
+	for i := 1; ; i++ {
+		if _, statErr := os.Stat(dest); os.IsNotExist(statErr) {
+			break
+		}
+		dest = filepath.Join(backupDir, fmt.Sprintf("athanor-v%04d-%s-%d.db", version, time.Now().UTC().Format("20060102T150405Z"), i))
+	}
 	// VACUUM INTO takes a literal expression; bind parameters are not
 	// reliably supported for it, so quote the path defensively.
 	q := strings.ReplaceAll(dest, "'", "''")
