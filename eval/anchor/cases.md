@@ -237,3 +237,150 @@ LIMITATION: The task provides no substantive subject matter beyond the artifact 
 - **Timing drift**: the scheduled fire time may drift from the intended time if the system clock is not accurate or is not adjusted for time zones and daylight saving transitions.
 - **User misconfiguration**: unclear interface wording could cause users to set an incorrect alarm time or repeat pattern, leading to failed wake-ups.
 ~~~~
+
+---
+
+## essay-e1
+
+- **Goal:** Write exactly three short paragraphs arguing why local-first software matters, one reason per paragraph.
+- **Criteria:** exactly three paragraphs; each paragraph names a distinct reason; a one-sentence conclusion
+
+~~~~
+Local-first software keeps your data on hardware you control. When the network is down or a vendor shuts its doors, your notes, photos, and code remain readable and yours.
+
+It also keeps latency low. A local database answers in microseconds, so the interface stays responsive instead of waiting on a round trip to a distant server.
+
+Finally, it makes privacy the default. Nothing leaves the machine unless you explicitly share it, so there is no silent telemetry to leak or sell. For these reasons, local-first design is worth the extra engineering.
+~~~~
+
+---
+
+## essay-e2
+
+- **Goal:** Write exactly three short paragraphs arguing why local-first software matters, one reason per paragraph.
+- **Criteria:** exactly three paragraphs; each paragraph names a distinct reason; a one-sentence conclusion
+
+~~~~
+# Why Local-First Matters
+
+Local-first software is important for many reasons. First, it respects user ownership. Second, it improves speed. Third, it protects privacy. Fourth, it reduces cost. Fifth, it improves reliability. In conclusion, local-first software matters for all of these reasons.
+~~~~
+
+---
+
+## brief-d1
+
+- **Goal:** Write a short design brief with exactly three sections: Parts, Steps, and Risks.
+- **Criteria:** sections named Parts, Steps, Risks; at least two risks named
+
+~~~~
+## Parts
+- **Scheduler**: computes the next fire time from a saved time and repeat rule.
+- **Signal**: emits sound and light through two independent drivers.
+- **Store**: persists alarms and user preferences.
+
+## Steps
+1. Load the saved alarms and validate each schedule.
+2. Register the next fire time with the platform timer.
+3. At fire time, drive the signal and record the wake event.
+
+## Risks
+- **Clock drift**: a device clock that is not NTP-synced can fire the alarm minutes late.
+- **Driver failure**: if one signal driver fails, the fallback driver must still wake the user.
+~~~~
+
+---
+
+## brief-d2
+
+- **Goal:** Write a short design brief with exactly three sections: Parts, Steps, and Risks.
+- **Criteria:** sections named Parts, Steps, Risks; at least two risks named
+
+~~~~
+## Parts
+The alarm system is made of several important things that work together.
+
+## Steps
+First we design it, then we build it, then we test it, and then we ship it.
+
+## Risks
+Many things could go wrong, but we will handle them as they come up.
+~~~~
+
+---
+
+## code-fib-pass
+
+- **Goal:** Write a Python function fib(n) that returns the n-th Fibonacci number using recursion, with a docstring.
+- **Criteria:** pure stdlib; a docstring on the function; a usage example
+
+~~~~
+def fib(n: int) -> int:
+    """Return the n-th Fibonacci number, where fib(0) = 0 and fib(1) = 1."""
+    if n < 2:
+        return n
+    return fib(n - 1) + fib(n - 2)
+~~~~
+
+---
+
+## code-fib-fail
+
+- **Goal:** Write a Python function fib(n) that returns the n-th Fibonacci number using recursion, with a docstring.
+- **Criteria:** pure stdlib; a docstring on the function; a usage example
+
+~~~~
+def fib(n):
+    return n - 1
+~~~~
+
+---
+
+## code-todo-pass
+
+- **Goal:** Write a Python class TodoList with add(task), complete(index), and pending() methods.
+- **Criteria:** pure stdlib; docstrings on every public function
+
+~~~~
+class TodoList:
+    """A tiny in-memory task list."""
+
+    def __init__(self) -> None:
+        """Create an empty list."""
+        self._tasks: list[str] = []
+        self._done: set[int] = set()
+
+    def add(self, task: str) -> None:
+        """Append a task."""
+        self._tasks.append(task)
+
+    def complete(self, index: int) -> None:
+        """Mark the task at `index` complete."""
+        self._done.add(index)
+
+    def pending(self) -> list[str]:
+        """Return the tasks that are not yet complete."""
+        return [t for i, t in enumerate(self._tasks) if i not in self._done]
+~~~~
+
+---
+
+## code-todo-fail
+
+- **Goal:** Write a Python class TodoList with add(task), complete(index), and pending() methods.
+- **Criteria:** pure stdlib; docstrings on every public function
+
+~~~~
+class TodoList:
+    def __init__(self):
+        self._tasks = []
+
+    def add(self, task):
+        self._tasks.append(task)
+
+    def complete(self, index):
+        pass
+
+    def pending(self):
+        return self._tasks
+~~~~

@@ -11,8 +11,8 @@ func TestParseAnchorCases(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(cases) != 8 {
-		t.Fatalf("cases = %d, want 8", len(cases))
+	if len(cases) != 16 {
+		t.Fatalf("cases = %d, want 16", len(cases))
 	}
 	for _, c := range cases {
 		if c.ID == "" || c.Goal == "" || c.Criteria == "" || c.Artifact == "" {
@@ -26,11 +26,14 @@ func TestParseAnchorRatings(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(ratings) != 8 {
-		t.Fatalf("ratings = %d, want 8", len(ratings))
+	if len(ratings) != 16 {
+		t.Fatalf("ratings = %d, want 16", len(ratings))
 	}
 	if ratings["sa-s1"] != 5 {
 		t.Errorf("sa-s1 = %v, want 5", ratings["sa-s1"])
+	}
+	if ratings["code-fib-fail"] != 1 {
+		t.Errorf("code-fib-fail = %v, want 1 (objective label)", ratings["code-fib-fail"])
 	}
 }
 
