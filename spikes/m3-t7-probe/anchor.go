@@ -343,19 +343,21 @@ func runAnchorPointwise(base, protocol string, judges []string, cases []anchorCa
 		packetFor = anchorPacket100
 	}
 	var rows []anchorRow
-	for _, c := range cases {
-		packet := packetFor(c)
-		for _, j := range judges {
+	// Judge-outer ordering keeps one model resident for all cases on a
+	// single-residency server (ARCHITECTURE §12.5): two swaps total instead
+	// of one per call.
+	for _, j := range judges {
+		for _, c := range cases {
 			row := anchorRow{CaseID: c.ID, Judge: j}
-			jr, jerr := callJudge(base, j, packet, judgeSeed("anchor-"+protocol+"-"+c.ID, j))
+			jr, jerr := callJudge(base, j, packetFor(c), judgeSeed("anchor-"+protocol+"-"+c.ID, j))
 			if jerr != nil {
 				row.Error = jerr.Error()
 			} else {
 				row.Score = jr.Score
 			}
 			rows = append(rows, row)
+			fmt.Printf("anchored %s with %s\n", c.ID, j)
 		}
-		fmt.Printf("anchored %s with %d judges\n", c.ID, len(judges))
 	}
 	if err := writeJSON(filepath.Join(outDir, "anchor.json"), rows); err != nil {
 		fmt.Fprintln(os.Stderr, "anchor:", err)
@@ -425,9 +427,11 @@ func runAnchorPairwise(base string, judges []string, cases []anchorCase,
 		pairs = pairs[:maxPairs]
 	}
 	var rows []pairRow
-	for _, p := range pairs {
-		i, j := p.i, p.j
-		for _, jd := range judges {
+	// Judge-outer ordering minimizes model swaps on a single-residency
+	// server (ARCHITECTURE §12.5).
+	for _, jd := range judges {
+		for _, p := range pairs {
+			i, j := p.i, p.j
 			row := pairRow{CaseA: cases[i].ID, CaseB: cases[j].ID, Judge: jd}
 			fwd, e1 := callAnchorPair(base, jd, anchorPairPacket(cases[i], cases[j]),
 				judgeSeed("pair-f-"+cases[i].ID+"-"+cases[j].ID, jd))
