@@ -5,20 +5,18 @@
 // → synthesizing (consumes passing candidates) → comparing
 // (§19.3 deterministic rule) → completed/failed.
 //
-// M3-T1 is the milestone that completed §8.2 exactly. Pre-M3
-// simplifications (M1 walking skeleton: single-candidate divergence,
-// no evaluation phase, M1 "winner=new by default" comparison) are
-// gone. What survives:
-//   - Context is still assembled naively (prompt v1) — the MCE
-//     arrives in M5. The §12.6 floor rule still applies, so a
-//     context-shortage pause-and-recommend still happens here.
+// M3-T1 completed §8.2; the MCE (§10) landed in M5, so context is
+// assembled through the §10.5 tier ladder rather than the naive prompt v1.
+// Notes that remain true:
+//   - The §12.6 floor rule still applies, so a context-shortage
+//     pause-and-recommend still happens here.
 //   - The ExplorationPath seam in `llm.ResolveTemperature` is wired
-//     but the engine always passes `nil` today (the path table and
-//     stage resolution land later per the ROADMAP backlog).
-//   - The M2-T4 code-archetype sub-steps (`runCodeInPod`,
-//     `runTestsInPod`) run inside the synthesizing phase, with
-//     `running_tests` recorded as an event-row substate (not a
-//     column) per §8.1's "tracked sub-state" note.
+//     but the engine always passes `nil` (the path table and stage
+//     resolution remain ROADMAP backlog).
+//   - The code-archetype pod sub-steps (`runCodeInPod`, `runTestsInPod`)
+//     run inside `phaseEvaluate` (M3-T2, ADR-0014), with
+//     `running_tests` recorded as an event-row substate (not a column)
+//     per §8.1's "tracked sub-state" note.
 //   - Per-phase audits still flow into the append-only events log.
 //   - The §19.3 comparison rule is enforced as a guard on the
 //     security-persona verdict, not a free-form "LLM said new wins":

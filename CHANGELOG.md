@@ -59,6 +59,14 @@ New entries are appended at the top. Do not rewrite history.
   `Engine.StopPods` rather than leaving them for the M2-T5 startup sweep.
   Test: `internal/engine/pod_lifecycle_test.go`.
 
+- **F5-F (docs).** Documentation-drift sweep: README status now reads
+  M0–M6 complete / M7 code-complete / F5 hardening, the stale "M4-T8 done"
+  deferred line is gone, and the M5 working-set caveat is replaced with the
+  F5 resolution; ARCHITECTURE §25 gains an honest implemented/deferred Status
+  column; the stale `internal/engine` package comment (MCE "arrives in M5",
+  sub-steps "in synthesizing") is corrected; and the deploy unit's repository
+  URL casing matches the module path.
+
 ### M7 — Endurance & Release
 
 - **M7-T9/T10.** Soak harness + release checklist. `scripts/soak.sh` /

@@ -1477,25 +1477,34 @@ power:
 
 Tools are constrained, audited, and available only to Job Pods and the Core orchestrator.
 
-| Tool | Description | HITL Required |
-|---|---|---|
-| `read_file(path)` | Read approved workspace file | No |
-| `write_file(path, content)` | Write approved workspace file | No |
-| `list_files(path)` | List approved directory | No |
-| `search_files(pattern)` | Search workspace content | No |
-| `execute_code(language, code)` | Execute inside Job Pod | No |
-| `run_tests(command)` | Run project tests in Job Pod | No |
-| `git_operation(repo, op)` | Local Git operations (branch, commit) | No |
-| `git_push(repo, remote)` | Push to remote | Yes |
-| `fetch_url(url)` | Fetch through Gateway (Reader Mode) | No (if domain allowlisted) |
-| `search_web(query)` | Search through Gateway | No (if search engine allowlisted) |
-| `browser_mode(url)` | Full browser in isolated Job Pod | Yes |
-| `query_memory(query)` | Hybrid vector + FTS retrieval from SQLite | No |
-| `context_swap(target_chunk_id)` | Swap dormant full-fidelity chunk into active context | No |
-| `create_artifact(type, content)` | Create versioned artifact | No |
-| `request_approval(type, details)` | Create HITL request | N/A |
-| `add_correction(category, reason)` | Create `CorrectionRecord` | No |
-| `install_package(name)` | Install system or language package | Yes |
+| Tool | Description | HITL Required | Status |
+|---|---|---|---|
+| `read_file(path)` | Read approved workspace file | No | Deferred |
+| `write_file(path, content)` | Write approved workspace file | No | Deferred |
+| `list_files(path)` | List approved directory | No | Deferred |
+| `search_files(pattern)` | Search workspace content | No | Deferred |
+| `execute_code(language, code)` | Execute inside Job Pod | No | **Live** |
+| `run_tests(command)` | Run project tests in Job Pod | No | **Live** |
+| `lint(command)` | Run the project linter in Job Pod | No | **Live** |
+| `git_operation(repo, op)` | Local Git operations (branch, commit) | No | Allowlisted; no route (Core commits directly) |
+| `git_push(repo, remote)` | Push to remote | Yes | **Live** (HITL-gated Core action) |
+| `fetch_url(url)` | Fetch through Gateway (Reader Mode) | No (if domain allowlisted) | **Live** |
+| `search_web(query)` | Search through Gateway | No (if search engine allowlisted) | **Live** (inert until configured) |
+| `browser_mode(url)` | Full browser in isolated Job Pod | Yes | Deferred |
+| `query_memory(query)` | Hybrid vector + FTS retrieval from SQLite | No | **Live** |
+| `context_swap(target_chunk_id)` | Swap dormant full-fidelity chunk into active context | No | **Live** |
+| `create_artifact(type, content)` | Create versioned artifact | No | Deferred |
+| `request_approval(type, details)` | Create HITL request | N/A | Deferred |
+| `add_correction(category, reason)` | Create `CorrectionRecord` | No | Deferred |
+| `install_package(name)` | Install system or language package | Yes | Deferred |
+
+> The **Status** column is the honest picture: the eight-tool closed set
+> (`execute_code`, `run_tests`, `lint`, `git_operation`, `fetch_url`,
+> `search_web`, `context_swap`, `query_memory`) is live behind the per-job
+> envelope, `git_push` is a HITL-gated **Core** action, and the remaining rows
+> are deferred (see ROADMAP §7). The agent reaches repository files today
+> through the M5-T8 indexing pipeline plus `query_memory`/`context_swap`
+> rather than a `read_file` tool.
 
 > **Implementation status (F3-T5).** Built: `execute_code`, `run_tests`,
 > `lint`, `fetch_url`, `search_web`, `context_swap`, `query_memory` — the

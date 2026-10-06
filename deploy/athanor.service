@@ -1,6 +1,6 @@
 [Unit]
 Description=Athanor Core (local-first autonomous agent daemon)
-Documentation=https://github.com/tcs76321/Athanor
+Documentation=https://github.com/tcs76321/athanor
 After=network-online.target
 Wants=network-online.target
 
