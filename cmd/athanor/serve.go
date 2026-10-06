@@ -19,6 +19,7 @@ import (
 	"github.com/tcs76321/athanor/internal/config"
 	"github.com/tcs76321/athanor/internal/control"
 	"github.com/tcs76321/athanor/internal/corrections"
+	"github.com/tcs76321/athanor/internal/daydream"
 	"github.com/tcs76321/athanor/internal/engine"
 	"github.com/tcs76321/athanor/internal/evaluation"
 	"github.com/tcs76321/athanor/internal/hitl"
@@ -515,6 +516,10 @@ func run(configPath, addr, stateDir string) error {
 		freezer:     killSwitch,
 		projects:    projectRepo,
 		indexer:     indexer,
+		logs:        daydream.NewRepo(st),
+		corrections: correctionsRepo,
+		strategy:    strategyRepo,
+		generator:   mainPersonaGenerator(registry, llmClient),
 		log:         slog.Default(),
 	})
 	defer daydream.Close()

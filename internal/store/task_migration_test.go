@@ -15,7 +15,7 @@ func TestTaskLifecycleMigration(t *testing.T) {
 	s, _ := openTemp(t)
 	db := s.DB()
 
-	if err := Migrate(db, migrationsExcept(t, "0017", "0018", "0019", "0020", "0021"), ""); err != nil {
+	if err := Migrate(db, migrationsExcept(t, "0017", "0018", "0019", "0020", "0021", "0022"), ""); err != nil {
 		t.Fatalf("migrating to v16: %v", err)
 	}
 	if got := VersionOf(t, db); got != 16 {
@@ -40,8 +40,8 @@ func TestTaskLifecycleMigration(t *testing.T) {
 	if err := Migrate(db, migrations.FS, t.TempDir()); err != nil {
 		t.Fatalf("applying 0017: %v", err)
 	}
-	if got := VersionOf(t, db); got != 21 {
-		t.Fatalf("version = %d after 0017, want 21", got)
+	if got := VersionOf(t, db); got != 22 {
+		t.Fatalf("version = %d after 0017, want 22", got)
 	}
 
 	// Rows preserved and M1 statuses remapped.

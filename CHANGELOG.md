@@ -12,6 +12,13 @@ New entries are appended at the top. Do not rewrite history.
 
 ### M7 — Endurance & Release
 
+- **M7-T2.** Daydreaming engine (§17). `internal/daydream` owns the §17.1
+  closed action set + `DaydreamLog` (migration 0022); the cmd driver adds
+  Proactive Documentation (`main`, draft README), Feedback Review (security,
+  global correction from repeated project rules — `SourceFeedbackReview`), and
+  Strategy Mining (deterministic §13.4 aggregation → proposed insights).
+  `skill_refinement` stays deferred; all actions are draft-only and
+  battery-gated. [ADR-0052](docs/adr/0052-daydream-engine.md).
 - **M7-T1.** Power/idle integration (§24). Pure `power.Decide` policy (AC,
   battery threshold + override, active hours, idle, sleep) with a
   `Supervisor` poll loop over an injected `Observer`; platform adapters in

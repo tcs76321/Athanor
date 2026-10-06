@@ -40,6 +40,10 @@ const (
 	SourceLoopDetection    Source = "loop_detection"
 	SourceBudgetExhaustion Source = "budget_exhaustion"
 	SourceHallucinatedPath Source = "hallucinated_path"
+	// SourceFeedbackReview is the §17.1 Feedback Review daydream action: a
+	// global correction derived from the same rule recurring across
+	// projects. It is machine-proposed, so its fields are explicit.
+	SourceFeedbackReview Source = "feedback_review"
 )
 
 // Categories (§18.2).
@@ -125,6 +129,10 @@ var sourceDefaults = map[Source]sourceProfile{
 	SourceLoopDetection:    {ScopeProject, CategoryPerformance, SeverityHigh, "Do not repeat the same tool call; change the approach."},
 	SourceBudgetExhaustion: {ScopeProject, CategoryTooling, SeverityHigh, "Reduce scope or token usage to stay within budget."},
 	SourceHallucinatedPath: {ScopeProject, CategoryDocumentation, SeverityHigh, "Only reference files and symbols that exist."},
+	// Feedback Review derives a global rule from repeated project-level
+	// corrections; the caller supplies the rule and category, so only a
+	// global/low default is fixed here.
+	SourceFeedbackReview: {ScopeGlobal, CategoryOther, SeverityLow, ""},
 }
 
 func validSource(s Source) bool { _, ok := sourceDefaults[s]; return ok }

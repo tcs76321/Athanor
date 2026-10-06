@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -9,11 +10,14 @@ import (
 
 	"github.com/tcs76321/athanor/internal/artifact"
 	"github.com/tcs76321/athanor/internal/config"
+	"github.com/tcs76321/athanor/internal/corrections"
+	"github.com/tcs76321/athanor/internal/daydream"
 	"github.com/tcs76321/athanor/internal/job"
 	"github.com/tcs76321/athanor/internal/mce"
 	"github.com/tcs76321/athanor/internal/power"
 	"github.com/tcs76321/athanor/internal/project"
 	"github.com/tcs76321/athanor/internal/store"
+	"github.com/tcs76321/athanor/internal/strategy"
 	"github.com/tcs76321/athanor/migrations"
 )
 
@@ -268,5 +272,224 @@ func TestDaydreamSkipsExplorationWithoutIndexer(t *testing.T) {
 	}
 	if got := countCategory(t, st, "daydream"); got != 0 {
 		t.Fatalf("daydream events = %d, want 0", got)
+	}
+}
+
+// seedProject inserts a repository-less project row.
+func seedProject(t *testing.T, st *store.Store, id string) {
+	t.Helper()
+	if _, err := st.DB().ExecContext(context.Background(),
+		`INSERT INTO projects (id, name, archetype, goal) VALUES (?, ?, 'code', 'build things that last')`,
+		id, "proj-"+id); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestDaydreamFeedbackReviewProposesGlobal covers the M7-T2 Feedback Review
+// action: a rule recurring across two projects becomes one global correction,
+// and a second pass does not duplicate it.
+func TestDaydreamFeedbackReviewProposesGlobal(t *testing.T) {
+	st := migratedStore(t)
+	seedProject(t, st, "p1")
+	seedProject(t, st, "p2")
+	corrRepo := corrections.NewRepo(st)
+	ctx := context.Background()
+	const rule = "Prefer dependency injection over package-level state."
+	for _, pid := range []string{"p1", "p2"} {
+		if _, err := corrRepo.Capture(ctx, corrections.CaptureInput{
+			Source: corrections.SourceUserRejection, ProjectID: pid, Scope: corrections.ScopeProject,
+			Category: corrections.CategoryArchitecture, Severity: corrections.SeverityHigh,
+			UserFeedback: "no package-level state", DerivedRule: rule,
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	r := newDaydreamRunner(t, st, &fakeDaydreamCompactor{}, true, false)
+	r.deps.corrections = corrRepo
+
+	countGlobal := func() int {
+		recs, err := corrRepo.Active(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		n := 0
+		for _, rec := range recs {
+			if rec.Scope == corrections.ScopeGlobal && rec.DerivedRule == rule {
+				n++
+			}
+		}
+		return n
+	}
+
+	if err := r.pass(ctx); err != nil {
+		t.Fatalf("pass: %v", err)
+	}
+	if got := countGlobal(); got != 1 {
+		t.Fatalf("global corrections = %d, want 1", got)
+	}
+	if err := r.pass(ctx); err != nil {
+		t.Fatalf("second pass: %v", err)
+	}
+	if got := countGlobal(); got != 1 {
+		t.Fatalf("second pass duplicated the global correction: %d", got)
+	}
+}
+
+// fakeGenerator is a cmd-local daydream generator.
+type fakeGenerator struct {
+	content string
+	err     error
+	calls   int
+}
+
+func (f *fakeGenerator) Generate(context.Context, string) (string, error) {
+	f.calls++
+	return f.content, f.err
+}
+
+// TestDaydreamProactiveDocumentation covers the M7-T2 Proactive Documentation
+// action: a repository-backed project with no document artifact gets one draft
+// README, and a second pass is idempotent.
+func TestDaydreamProactiveDocumentation(t *testing.T) {
+	st := migratedStore(t)
+	repoDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(repoDir, "main.go"), []byte("package main\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.DB().ExecContext(context.Background(),
+		`INSERT INTO projects (id, name, archetype, goal, repository_path)
+		 VALUES ('p1','proj','code','build things that last',?)`, repoDir); err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	r := newDaydreamRunner(t, st, &fakeDaydreamCompactor{}, true, false)
+	r.deps.projects = project.NewRepo(st)
+	r.deps.artifacts = artifact.NewStore(st, t.TempDir())
+	gen := &fakeGenerator{content: "# Proj\n\nA readme.\n"}
+	r.deps.generator = gen
+	r.deps.logs = daydream.NewRepo(st)
+
+	if err := r.pass(ctx); err != nil {
+		t.Fatalf("pass: %v", err)
+	}
+	if gen.calls != 1 {
+		t.Fatalf("generator calls = %d, want 1", gen.calls)
+	}
+	arts, err := r.deps.artifacts.ListByProject(ctx, "p1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var docs int
+	for _, a := range arts {
+		if a.Kind == artifact.KindDocument && a.Status == artifact.StatusDraft {
+			docs++
+		}
+	}
+	if docs != 1 {
+		t.Fatalf("draft document artifacts = %d, want 1", docs)
+	}
+	logs, err := r.deps.logs.Recent(ctx, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, l := range logs {
+		if l.Action == daydream.ActionProactiveDocumentation && len(l.ArtifactsProduced) == 1 {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("no proactive_documentation DaydreamLog: %+v", logs)
+	}
+
+	// Idempotent: the document now exists, so no second generation.
+	if err := r.pass(ctx); err != nil {
+		t.Fatalf("second pass: %v", err)
+	}
+	if gen.calls != 1 {
+		t.Fatalf("second pass regenerated: calls = %d", gen.calls)
+	}
+}
+
+// TestDaydreamStrategyMining covers the M7-T2 Strategy Mining action: seeded
+// outcomes crossing the cohort floor produce proposed insights.
+func TestDaydreamStrategyMining(t *testing.T) {
+	st := migratedStore(t)
+	stratRepo := strategy.NewRepo(st)
+	ctx := context.Background()
+	if _, err := st.DB().ExecContext(ctx,
+		`INSERT INTO projects (id, name, archetype, goal) VALUES ('p1','proj','code','build things that last')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.DB().ExecContext(ctx,
+		`INSERT INTO tasks (id, project_id, title) VALUES ('t1','p1','do work')`); err != nil {
+		t.Fatal(err)
+	}
+	for _, j := range []string{"j1", "j2", "j3", "j4"} {
+		if _, err := st.DB().ExecContext(ctx,
+			`INSERT INTO jobs (id, task_id, project_id, state) VALUES (?, 't1','p1','completed')`, j); err != nil {
+			t.Fatal(err)
+		}
+	}
+	seed := func(jobID, persona string, accepted bool) {
+		t.Helper()
+		if _, err := stratRepo.CreateProfile(ctx, strategy.Profile{
+			JobID: jobID, ProjectID: "p1", Archetype: "code",
+			Signature: []strategy.SignatureEntry{{Phase: "diverging", Persona: persona, Candidates: 3}},
+		}); err != nil {
+			t.Fatal(err)
+		}
+		result := strategy.ResultRejected
+		conf := 0.2
+		if accepted {
+			result = strategy.ResultAcceptedNew
+			conf = 0.9
+		}
+		if _, err := stratRepo.CreateOutcome(ctx, strategy.Outcome{
+			JobID: jobID, Result: result, Score: 0.5, EvaluatorConfidence: conf,
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	seed("j1", "alternative", true)
+	seed("j2", "alternative", true)
+	seed("j3", "main", false)
+	seed("j4", "main", false)
+
+	r := newDaydreamRunner(t, st, &fakeDaydreamCompactor{}, true, false)
+	r.deps.strategy = stratRepo
+	r.deps.cfg.StrategyAnalysis = config.StrategyAnalysis{
+		Enabled: boolPtr(true), MinCohortSize: 2, MinAcceptRateDelta: 0.15,
+	}
+	r.deps.logs = daydream.NewRepo(st)
+
+	if err := r.pass(ctx); err != nil {
+		t.Fatalf("pass: %v", err)
+	}
+	insights, err := stratRepo.ListInsights(ctx, strategy.InsightProposed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(insights) == 0 {
+		t.Fatal("strategy mining proposed no insights from a clear cohort")
+	}
+}
+
+// TestDaydreamLogPersistedForConsolidation covers the §17.3 DaydreamLog for
+// the M5-T6 action.
+func TestDaydreamLogPersistedForConsolidation(t *testing.T) {
+	st := migratedStore(t)
+	seedJob(t, st, "completed")
+	r := newDaydreamRunner(t, st, &fakeDaydreamCompactor{}, true, false)
+	r.deps.logs = daydream.NewRepo(st)
+	if err := r.pass(context.Background()); err != nil {
+		t.Fatalf("pass: %v", err)
+	}
+	logs, err := r.deps.logs.Recent(context.Background(), 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(logs) != 1 || logs[0].Action != daydream.ActionMemoryConsolidation {
+		t.Fatalf("logs = %+v, want one memory_consolidation row", logs)
 	}
 }

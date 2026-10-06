@@ -967,14 +967,19 @@ When the job queue is empty, the system is idle, and AC power is present, Athano
 | **Feedback Review** | `security` (temp 0.0) | Analyze patterns in rejections and failures. Propose new global `CorrectionRecord`s derived from repeated project-level corrections. |
 | **Strategy Mining** | `security` (temp 0.0) | Run deterministic aggregation over `StrategyOutcome`s (§13.4). Detect winning/losing patterns; create proposed `StrategyInsight`s. Read-only over history; produces proposals only. |
 
-> **Implementation status (M5-T8).** Two of the six actions have minimal
-> in-tree drivers: **Memory Consolidation** (`cmd/athanor/daydream.go`,
-> ADR-0025 §6) and **Repository Exploration** (the M5-T8 indexing pipeline,
-> ADR-0028 §6 — `athanor index` / `POST /projects/{id}/index` and the idle
-> action). The native `sqlite-vec` accelerator the row names remains deferred
-> (ADR-0026 §2); embeddings are BLOBs behind the `VectorIndex` seam. The
-> other four actions, the §17.3 `DaydreamLog`, and the OS AC/battery watcher
-> are **M7-T2**.
+> **Implementation status (M5-T8 / M7-T2).** Five of the six actions are
+> live in `cmd/athanor/daydream.go` ([ADR-0052](docs/adr/0052-daydream-engine.md)):
+> **Memory Consolidation** (ADR-0025 §6), **Repository Exploration**
+> (M5-T8, ADR-0028 §6), **Proactive Documentation** (a draft README for a
+> repository-backed project with none), **Feedback Review** (a global
+> correction from a project rule recurring across projects,
+> `corrections.SourceFeedbackReview`), and **Strategy Mining** (the
+> deterministic §13.4 pass). The §17.3 `DaydreamLog` is persisted
+> (`migration 0022`, `internal/daydream`), and the OS AC/battery watcher
+> landed in M7-T1 (ADR-0051). **Skill Refinement** remains deferred with the
+> skills runtime (ROADMAP §7). The native `sqlite-vec` accelerator the row
+> names is still deferred (ADR-0026 §2); embeddings are BLOBs behind the
+> `VectorIndex` seam.
 
 ### 17.2 Daydreaming Constraints
 
