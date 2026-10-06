@@ -59,6 +59,19 @@ type ollamaChatRequest struct {
 // thinking-capable judge (e.g. the generator) must be measured the same way.
 var judgeThink *bool
 
+// judgeNumCtx, when > 0, caps the context Ollama loads for a judge call.
+// The anchor artifacts are short; without this, a judge is loaded at its
+// model-default context (e.g. 131072), which is far slower than needed.
+var judgeNumCtx int
+
+func judgeOptions(numPredict int, seed int64) map[string]any {
+	opts := map[string]any{"temperature": 0.0, "seed": seed, "num_predict": numPredict}
+	if judgeNumCtx > 0 {
+		opts["num_ctx"] = judgeNumCtx
+	}
+	return opts
+}
+
 type ollamaChatResponse struct {
 	Message struct {
 		Content string `json:"content"`
@@ -92,7 +105,7 @@ func callJudgeOnce(baseURL, model, packet string, seed int64, useFormat bool) (j
 		Messages: []map[string]string{{"role": "user", "content": packet}},
 		Stream:   false,
 		Think:    judgeThink,
-		Options:  map[string]any{"temperature": 0.0, "seed": seed, "num_predict": 2048},
+		Options:  judgeOptions(2048, seed),
 	}
 	if useFormat {
 		req.Format = "json"

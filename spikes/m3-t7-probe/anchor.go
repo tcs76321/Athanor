@@ -214,7 +214,7 @@ func callAnchorPair(baseURL, model, packet string, seed int64) (string, error) {
 			Messages: []map[string]string{{"role": "user", "content": packet}},
 			Stream:   false,
 			Think:    judgeThink,
-			Options:  map[string]any{"temperature": 0.0, "seed": seed, "num_predict": 512},
+			Options:  judgeOptions(512, seed),
 		}
 		if attempt%2 == 0 {
 			req.Format = "json"
@@ -305,7 +305,9 @@ func runAnchor(args []string) {
 	protocol := fs.String("protocol", "pointwise5", "pointwise5 | pointwise100 | pairwise")
 	maxPairs := fs.Int("max-pairs", 0, "cap pairwise comparisons (0 = all); pairwise is O(pairs x 2 x judges)")
 	thinkMode := fs.String("think", "default", "send Ollama think on judge calls: default | false | true")
+	numCtx := fs.Int("num-ctx", 8192, "cap the judge's Ollama context (0 = model default)")
 	_ = fs.Parse(args)
+	judgeNumCtx = *numCtx
 
 	switch *thinkMode {
 	case "default":
