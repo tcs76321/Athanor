@@ -59,6 +59,10 @@ type countingOllama struct {
 	// for the planning phase. F4-T2 tests use it to emit a
 	// `DIFFICULTY: easy|hard` hint the engine parses.
 	planningContent string
+	// genericContent, when non-empty, is the response the fake returns for
+	// every non-planning, non-judgment phase (diverging, synthesizing).
+	// F4 follow-up tests use it to return fenced code.
+	genericContent string
 }
 
 func newCountingOllama(t *testing.T) *countingOllama {
@@ -113,6 +117,9 @@ func newCountingOllama(t *testing.T) *countingOllama {
 		content := "A thoughtful result."
 		if phase == "PLANNING" && o.planningContent != "" {
 			content = o.planningContent
+		}
+		if o.genericContent != "" && phase != "PLANNING" {
+			content = o.genericContent
 		}
 		// M3-T2 commit 2.4: sleep for the configured delay
 		// after reading the request body, but only if the
@@ -209,6 +216,13 @@ func (o *countingOllama) setPlanning(content string) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	o.planningContent = content
+}
+
+// setGeneric configures the fake's non-planning, non-judgment response.
+func (o *countingOllama) setGeneric(content string) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.genericContent = content
 }
 
 type testEnv struct {

@@ -514,13 +514,20 @@ func (e *Engine) phaseSynthesize(ctx context.Context, j job.Job) error {
 		return err
 	}
 
+	// F4 follow-up (A1): the synthesized final must also be raw source for a
+	// code archetype, so the accepted artifact and its git commit are clean.
+	content := resp.Content
+	if p.Archetype == project.ArchetypeCode {
+		content = normalizeCode(content)
+	}
+
 	kind := finalKindFor(p.Archetype)
 	if prev, err := e.artifacts.LatestForJob(ctx, j.ID, kind); err == nil {
-		if _, err := e.artifacts.NewVersion(ctx, prev.ID, []byte(resp.Content)); err != nil {
+		if _, err := e.artifacts.NewVersion(ctx, prev.ID, []byte(content)); err != nil {
 			return fmt.Errorf("versioning final artifact: %w", err)
 		}
 	} else {
-		if _, err := e.artifacts.CreateDraftFor(ctx, p.ID, t.ID, j.ID, kind, []byte(resp.Content)); err != nil {
+		if _, err := e.artifacts.CreateDraftFor(ctx, p.ID, t.ID, j.ID, kind, []byte(content)); err != nil {
 			return fmt.Errorf("persisting final artifact: %w", err)
 		}
 	}

@@ -101,13 +101,20 @@ func (e *Engine) phaseDivergeN(ctx context.Context, j job.Job) error {
 			if err != nil {
 				return fmt.Errorf("divergence candidate %d/%d: %w", i+1, n, err)
 			}
+			// F4 follow-up (A1): persist raw code, not a fenced block, so
+			// the stored artifact, the eval/compare prompt, and the eventual
+			// git commit are all importable source.
+			content := resp.Content
+			if p.Archetype == project.ArchetypeCode {
+				content = normalizeCode(content)
+			}
 			art, err := e.artifacts.CreateDraftFor(ctx, p.ID, t.ID, j.ID,
-				artifact.KindProposal, []byte(resp.Content))
+				artifact.KindProposal, []byte(content))
 			if err != nil {
 				return fmt.Errorf("persisting divergence candidate %d: %w", i+1, err)
 			}
 			batch = append(batch, art)
-			candidateTexts = append(candidateTexts, resp.Content)
+			candidateTexts = append(candidateTexts, content)
 			e.audit(ctx, j.ID, map[string]any{
 				"event": "divergence_candidate", "index": i + 1, "of": n,
 				"chars": len(resp.Content), "persona": candRole,

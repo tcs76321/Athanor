@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -222,6 +223,33 @@ func TestNormalizeCode(t *testing.T) {
 	for _, c := range cases {
 		if got := normalizeCode(c.in); got != c.want {
 			t.Errorf("normalizeCode(%q) = %q, want %q", c.in, got, c.want)
+		}
+	}
+}
+
+// TestCodeArtifactsArePersistedFenceFree proves F4 follow-up A1: a fenced
+// model response is normalized before persistence, so stored artifacts (and
+// thus the git commit and the eval/compare prompt) are importable source.
+func TestCodeArtifactsArePersistedFenceFree(t *testing.T) {
+	env := newEnv(t)
+	env.ollama.setGeneric("```python\nclass TodoList:\n    pass\n```")
+	jobID := env.submitCode(t)
+	env.eng.Run(context.Background(), jobID)
+
+	arts, err := env.artifacts.ListByJob(context.Background(), jobID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(arts) == 0 {
+		t.Fatal("no artifacts persisted for the code job")
+	}
+	for _, a := range arts {
+		content, err := env.artifacts.ReadContent(context.Background(), a.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(string(content), "```") {
+			t.Errorf("artifact %s (%s) contains a code fence: %q", a.ID, a.Kind, string(content))
 		}
 	}
 }
