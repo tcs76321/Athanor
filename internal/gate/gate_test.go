@@ -22,8 +22,9 @@
 //     references one of the allowlisted identifiers.
 //
 //  4. `os/exec` in `cmd/` is permitted only for the named files
-//     `cmd/athanor/jobpod_client.go` (M2 production Podman client) and
-//     `cmd/athanor/git_client.go` (F3-T5 Git-as-undo). The allowlist is a
+//     `cmd/athanor/jobpod_client.go` (M2 production Podman client),
+//     `cmd/athanor/git_client.go` (F3-T5 Git-as-undo), and
+//     `cmd/athanor/doctor.go` (M7-T5 host diagnostics). The allowlist is a
 //     set of named files, not a directory or pattern; the gate is opt-in by
 //     exception, not opt-out by default.
 //
@@ -149,6 +150,7 @@ var allowedSyscallIdents = map[string]bool{
 var allowedOsExecFiles = map[string]bool{
 	"jobpod_client.go": true,
 	"git_client.go":    true,
+	"doctor.go":        true,
 }
 
 // allowedOsExecDirs are the directories in cmd/ under which

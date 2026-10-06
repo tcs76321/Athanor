@@ -1814,6 +1814,15 @@ athanor doctor
 
 Doctor proposes fixes where possible.
 
+> **Implementation status (M7-T5).** `athanor doctor` is live
+> ([ADR-0050](docs/adr/0050-doctor.md)): `internal/doctor` runs the checks
+> over an injected OS boundary and `cmd/athanor/doctor.go` supplies the real
+> probes (Podman rootless check, Ollama reachability + per-persona model
+> presence with `ollama pull` remediation, memory, disk, state-dir
+> writability, Job Pod image, §12.6 context feasibility, network policy).
+> The power-policy check reports the configured posture; the live AC/battery
+> read arrives with the M7-T1 watcher.
+
 ### 30.3 First Project
 
 The first-run flow does not open a generic chat. It creates a project.

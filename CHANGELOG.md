@@ -10,6 +10,17 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### M7 — Endurance & Release
+
+- **M7-T5.** `athanor doctor` — host/backend/config diagnostics per §30.2.
+  `internal/doctor` is a pure check engine over an injected `Probes` seam;
+  `cmd/athanor/doctor.go` is the only OS-touching implementation (`os/exec`,
+  HTTP, `/proc`, `sysctl`), allowlisted by Gate G1. Checks: rootless Podman,
+  Git, Ollama reachability, per-persona model presence (with the literal
+  `ollama pull` remediation), memory, disk, state-dir writability, Job Pod
+  image, §12.6 context feasibility, network policy. Fail vs. warn severity
+  is documented. [ADR-0050](docs/adr/0050-doctor.md).
+
 ### F4 — adaptive judgment & verification (code complete)
 
 - **F4-T1.** `internal/policy` — a pure compute/model-selection seam
