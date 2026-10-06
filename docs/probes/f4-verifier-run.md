@@ -78,6 +78,31 @@ code cases:
 | pointwise100 | granite4.2:3b | 56% | 0.78 | 0.62 |
 | pairwise (40 pairs × 2 orders) | gemma4:12b-mlx | 70% | — | — |
 | pointwise5 (control) | **ornith-1.5:9b** (the generator, `think:false`) | **100%** | **0.77** | 0.59 |
+| pointwise5 | **qwen3.8:27b-mlx** (different family, larger, `think:false`) | 100% | 0.67 | 0.51 |
+
+**The order is monotone in capability, not in family.**
+
+| judge | family vs generator | size/capability | Spearman |
+|---|---|---|---|
+| ornith-1.5:9b | same | strongest in set | 0.77 |
+| qwen3.8:27b | different | large | 0.67 |
+| gemma4:12b | different | mid | 0.61 |
+| granite4.2:3b | different | small | 0.53 |
+
+Upgrading the cross-family judge from gemma-12B to qwen-27B improved agreement
+(0.61 → 0.67), but it still did not reach the same-family generator (0.77). So
+"ornith just needed a better peer" is **partially** true — a stronger peer
+helps — but the same-family model remains the best scorer on this anchor.
+With n=16 agent-rated cases, the 0.06–0.10 gaps are **within noise**; the
+robust signal is only the coarse capability ordering.
+
+This leaves **family and capability confounded**: ornith is both the
+same-family judge *and* (per its own card) the strongest model in the set. The
+clean test is a **same-family, larger** judge (e.g. an Ornith-1.5 MoE) against
+qwen-27B — hold capability high, vary family. Until then, the defensible
+claim is unchanged: *deterministic verification decides objective accepts; an
+LLM judge is an advisory tiebreaker, and among LLM judges capability appears
+to matter at least as much as family.*
 
 **Granularity did not help.** The 0–100 scale left gemma essentially
 unchanged (0.62 vs 0.61) and made granite *less* reliable (81% → 56%), though
