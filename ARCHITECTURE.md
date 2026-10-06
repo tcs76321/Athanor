@@ -1429,6 +1429,13 @@ Backups include: SQLite database, configuration, prompt templates, feedback reco
 - Job resumes from last committed checkpoint on next startup.
 - If no checkpoint is valid, job restarts with a recorded reason in `EventLog`.
 
+> **Implementation status (F5).** Graceful shutdown extends this posture
+> ([ADR-0060](docs/adr/0060-shutdown-semantics.md)): `SIGINT`/`SIGTERM` stops
+> active Job Pods immediately and **abandons** in-flight phases rather than
+> draining them, because §23.3 guarantees the last committed phase is durable
+> and the boot `Recover` resumes exactly there. No new job state is
+> introduced.
+
 ---
 
 ## 24. Power and Idle Policy

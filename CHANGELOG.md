@@ -52,6 +52,13 @@ New entries are appended at the top. Do not rewrite history.
   (the whole-tree `make cover` number can hide a regression in one weak
   package). A new `coverage` CI job runs it, pinned by `internal/ci`.
 
+- **F5-E (engine).** Shutdown semantics ([ADR-0060](docs/adr/0060-shutdown-semantics.md)).
+  Graceful shutdown is **abandon-and-recover**: `SIGINT`/`SIGTERM` does not
+  drain in-flight phases (state is committed per transition; `Recover` resumes
+  on the next boot), but it now stops active Job Pods immediately via
+  `Engine.StopPods` rather than leaving them for the M2-T5 startup sweep.
+  Test: `internal/engine/pod_lifecycle_test.go`.
+
 ### M7 — Endurance & Release
 
 - **M7-T9/T10.** Soak harness + release checklist. `scripts/soak.sh` /

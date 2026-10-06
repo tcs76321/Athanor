@@ -54,3 +54,29 @@ func (e *Engine) stopPod(ctx context.Context, jobID string) {
 		slog.Warn("engine: stopping job pod", "job", jobID, "err", err)
 	}
 }
+
+// StopPods tears down the Job Pod of every active (non-terminal) job during
+// graceful shutdown, so pods do not linger until the next boot's M2-T5 sweep
+// (F5, ADR-0060).
+//
+// It deliberately does not wait for in-flight phases: the daemon's shutdown
+// posture is abandon-and-recover. State is committed after every transition
+// (§23.3), and Recover resumes a non-terminal job on the next start (§23.6).
+// A nil seam or a listing error is a logged no-op — the startup sweep is the
+// backstop.
+func (e *Engine) StopPods(ctx context.Context) {
+	if e.podLifecycle == nil || e.jobs == nil {
+		return
+	}
+	active, err := e.jobs.Active(ctx)
+	if err != nil {
+		slog.Warn("engine: listing active jobs for pod cleanup", "err", err)
+		return
+	}
+	for _, j := range active {
+		if j.State.Terminal() {
+			continue
+		}
+		e.stopPod(ctx, j.ID)
+	}
+}

@@ -576,6 +576,10 @@ func run(configPath, addr, stateDir string) error {
 
 	ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer cancel()
+	// F5 (ADR-0060): tear down active Job Pods now rather than leaving them
+	// for the next boot's M2-T5 sweep. In-flight phases are not drained;
+	// state is committed per transition and Recover resumes them.
+	eng.StopPods(ctx)
 	if err := httpSrv.Shutdown(ctx); err != nil {
 		return fmt.Errorf("shutting down http server: %w", err)
 	}

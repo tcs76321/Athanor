@@ -45,6 +45,26 @@ func (f *fakeLifecycle) snapshot() (ensured, stopped []string, atCount []int) {
 	return append([]string(nil), f.ensured...), append([]string(nil), f.stopped...), append([]int(nil), f.atCount...)
 }
 
+// TestStopPods_StopsActiveJobPods proves the F5 (ADR-0060) shutdown teardown:
+// every active (non-terminal) job's pod is stopped, and a nil seam is a no-op.
+func TestStopPods_StopsActiveJobPods(t *testing.T) {
+	env := newEnv(t)
+	lc := &fakeLifecycle{}
+	env.eng.podLifecycle = lc
+
+	jobID := env.submitCode(t) // queued → non-terminal
+	env.eng.StopPods(context.Background())
+
+	_, stopped, _ := lc.snapshot()
+	if len(stopped) != 1 || stopped[0] != jobID {
+		t.Fatalf("stopped = %v, want [%s]", stopped, jobID)
+	}
+
+	// A nil seam must not panic.
+	env.eng.podLifecycle = nil
+	env.eng.StopPods(context.Background())
+}
+
 // TestPodLifecycle_EnsureBeforeExecThenStopOnTerminal pins the ADR-0024 §2
 // lifecycle: the pod is ensured before the first pod sub-step (so the
 // runner's TokenFor exists) and stopped once the job is terminal. It also
