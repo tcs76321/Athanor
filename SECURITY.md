@@ -43,5 +43,10 @@ report. If a proof of concept requires them, describe the shape instead.
   bypass reports are high interest.
 - The §21.3 airlock path-containment layer and the scanner pipeline are in
   scope.
+- The loopback HTTP surface is reachable by any page the user visits, so
+  cross-site request forgery (state-changing requests triggered by a third
+  site) is in scope. The Host-header allowlist ([ADR-0011](docs/adr/0011-external-api-host-allowlist.md))
+  closes DNS rebinding; the `Sec-Fetch-Site`/`Origin` guard
+  ([ADR-0057](docs/adr/0057-cross-site-request-defense.md)) closes CSRF.
 - The daemon binds loopback only; remote-access configuration is out of
   scope.

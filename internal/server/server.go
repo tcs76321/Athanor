@@ -28,6 +28,10 @@ type Server struct {
 	control       Control
 	mux           *http.ServeMux
 	hostAllowlist hostAllowlist
+	// origins is the set of browser Origin values the cross-site guard
+	// (ADR-0057) accepts for state-changing requests. It is derived from
+	// the same host allowlist, so there is one source of truth.
+	origins map[string]struct{}
 }
 
 // defaultHostAllowlist is the §D1 set from ADR-0011.
@@ -52,6 +56,7 @@ func New(version string) *Server {
 	// middleware.go is a compile-time sanity check).
 	hl, _ := newHostAllowlist(defaultHostAllowlist)
 	s.hostAllowlist = hl
+	s.origins = hl.originSet()
 	s.mux.HandleFunc("/healthz", s.handleHealthz)
 	return s
 }
@@ -68,6 +73,7 @@ func (s *Server) SetHostAllowlist(entries []string) error {
 		return err
 	}
 	s.hostAllowlist = hl
+	s.origins = hl.originSet()
 	return nil
 }
 
@@ -88,16 +94,26 @@ func (s *Server) Register(pattern string, h http.HandlerFunc) {
 // at once (internal/api).
 func (s *Server) Mux() *http.ServeMux { return s.mux }
 
-// Handler returns the root http.Handler with all routes attached. The
-// external API is wrapped in the Host-header allowlist middleware
-// (ADR-0011); the internal API is not (it has its own bearer-token
-// auth, ADR-0008). When the allowlist is empty (a test escape hatch),
-// the middleware is a no-op.
+// Handler returns the root http.Handler with all routes attached.
+//
+// Two middlewares wrap the mux (ARCHITECTURE §21.8; ADR-0011, ADR-0057):
+//
+//   - hostMiddleware enforces the Host-header allowlist (the DNS-rebinding
+//     defense); it is skipped when the allowlist is empty (the documented
+//     test escape hatch).
+//   - crossSiteMiddleware rejects a browser-marked cross-site request to a
+//     state-changing route (CSRF); it is always active.
+//
+// The internal API (/internal/v1/) shares this mux and is wrapped by both,
+// but its callers are Job Pods and the CLI, which send neither Origin nor
+// Sec-Fetch-Site, so the cross-site guard is a no-op there; its own
+// bearer-token middleware (ADR-0008) remains the pod-facing defense.
 func (s *Server) Handler() http.Handler {
+	h := s.crossSiteMiddleware(s.mux)
 	if len(s.hostAllowlist.allowed) == 0 {
-		return s.mux
+		return h
 	}
-	return s.hostMiddleware(s.mux)
+	return s.hostMiddleware(h)
 }
 
 type healthResponse struct {

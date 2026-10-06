@@ -10,6 +10,19 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### F5 — Hardening & Completion
+
+- **F5-A (security).** Cross-site request defense ([ADR-0057](docs/adr/0057-cross-site-request-defense.md)).
+  The loopback HTTP surface's Host-header allowlist (ADR-0011) closes DNS
+  rebinding but not CSRF: a page the user visits can send a bodyless
+  `POST /freeze` or a UI form post with the legitimate `Host`. A new
+  `crossSiteMiddleware` in `internal/server` rejects state-changing requests
+  (`POST/PUT/PATCH/DELETE`) unless `Sec-Fetch-Site` is `same-origin`/`none`,
+  the request carries no browser signals at all (the CLI, Job Pods, curl), or
+  `Origin` is one of the daemon's own origins. The origin set derives from
+  the existing host allowlist, so there is no new config key; safe methods are
+  untouched. Tests: `internal/server/cross_site_test.go`.
+
 ### M7 — Endurance & Release
 
 - **M7-T9/T10.** Soak harness + release checklist. `scripts/soak.sh` /
