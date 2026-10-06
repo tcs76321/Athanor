@@ -106,8 +106,9 @@ func TestToolchainJobsRunTheChecks(t *testing.T) {
 		t.Fatalf("parsing ci.yml: %v", err)
 	}
 	for job, want := range map[string]string{
-		"vuln": "make vuln",
-		"tidy": "make tidy-check",
+		"vuln":     "make vuln",
+		"tidy":     "make tidy-check",
+		"coverage": "make cover-check",
 	} {
 		j, ok := wf.Jobs[job]
 		if !ok {
@@ -133,6 +134,9 @@ func TestToolchainJobsRunTheChecks(t *testing.T) {
 	}
 	if _, ok := targetRecipe(string(mk), "tidy-check"); !ok {
 		t.Errorf("Makefile has no `tidy-check` target; the CI tidy job has nothing to run")
+	}
+	if _, ok := targetRecipe(string(mk), "cover-check"); !ok {
+		t.Errorf("Makefile has no `cover-check` target; the CI coverage job has nothing to run")
 	}
 }
 

@@ -76,6 +76,19 @@ jobs:
       - name: Check go.mod/go.sum are tidy
         run: make tidy-check
 
+  # Per-package coverage floor for the security-critical packages (F5).
+  # `make cover` reports a whole-tree number that can hide a regression in one
+  # weakly-covered package; this job pins conservative per-package floors.
+  coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.27.1'
+      - name: Coverage floor
+        run: make cover-check
+
   # Behavioral integration probes (M2 hardening, M2-T4b exec, M4 gateway).
   # These bring up real rootless Podman pods and, for the gateway probes,
   # reach the real internet, so they are deliberately NOT part of `make

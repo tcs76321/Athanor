@@ -45,6 +45,13 @@ New entries are appended at the top. Do not rewrite history.
   byte-capped by `seed_active_max_bytes`. Tests:
   `internal/mce/index_project_test.go`, `cmd/athanor/context_provider_test.go`.
 
+- **F5-D (coverage).** Per-package coverage floor for the security-critical
+  packages: `scripts/cover-check.sh` / `make cover-check` pins conservative
+  statement-coverage floors on `internal/airlock/paths`, `internal/gateway`,
+  `internal/toolenvelope`, `internal/internalapi`, and `internal/mce/division`
+  (the whole-tree `make cover` number can hide a regression in one weak
+  package). A new `coverage` CI job runs it, pinned by `internal/ci`.
+
 ### M7 — Endurance & Release
 
 - **M7-T9/T10.** Soak harness + release checklist. `scripts/soak.sh` /

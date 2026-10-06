@@ -85,6 +85,17 @@ passes to golangci-lint (`--build-tags sqlite_fts5`). Never build or test
 with a bare `go` command: a tag-less binary fails the `store.CheckFTS5`
 boot preflight with a named error before any migration runs (ADR-0026 §1).
 
+### Coverage floor
+
+`make cover-check` (the `coverage` CI job) enforces a conservative per-package
+statement-coverage floor on the security-critical packages — `internal/airlock/paths`,
+`internal/gateway`, `internal/toolenvelope`, `internal/internalapi`, and
+`internal/mce/division` — because the whole-tree `make cover` number can hide a
+regression in one weak package behind a strong one (`internal/gate` has no
+statements and is intentionally absent). Bump a floor deliberately when
+coverage improves; lowering one belongs in the commit message. `make cover`
+still reports the whole tree with no aggregate floor.
+
 ## Per-phase budgets
 
 Default `execution.phase_wall_time_budgets` are sized for 7–12 B models at
