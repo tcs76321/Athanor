@@ -302,6 +302,7 @@ func runAnchor(args []string) {
 	minSuccess := fs.Float64("min-success", 0.8, "fail if a judge's call success rate is below this")
 	minAgreement := fs.Float64("min-agreement", 0.6, "fail if a judge's agreement is below this")
 	protocol := fs.String("protocol", "pointwise5", "pointwise5 | pointwise100 | pairwise")
+	maxPairs := fs.Int("max-pairs", 0, "cap pairwise comparisons (0 = all); pairwise is O(pairs x 2 x judges)")
 	_ = fs.Parse(args)
 
 	cases, err := parseAnchorCases(filepath.Join(*dir, "cases.md"))
@@ -325,7 +326,7 @@ func runAnchor(args []string) {
 	case "pointwise5", "pointwise100":
 		runAnchorPointwise(base, *protocol, judges, cases, ratings, *outDir, *minSuccess, *minAgreement)
 	case "pairwise":
-		runAnchorPairwise(base, judges, cases, ratings, *outDir, *minSuccess, *minAgreement)
+		runAnchorPairwise(base, judges, cases, ratings, *outDir, *minSuccess, *minAgreement, *maxPairs)
 	default:
 		fmt.Fprintf(os.Stderr, "anchor: unknown protocol %q\n", *protocol)
 		os.Exit(2)
@@ -406,9 +407,10 @@ func runAnchorPointwise(base, protocol string, judges []string, cases []anchorCa
 // runAnchorPairwise runs the A/B protocol in both orders and reports
 // reliability and pair agreement.
 func runAnchorPairwise(base string, judges []string, cases []anchorCase,
-	ratings map[string]float64, outDir string, minSuccess, minAgreement float64) {
+	ratings map[string]float64, outDir string, minSuccess, minAgreement float64, maxPairs int) {
 
-	var rows []pairRow
+	type idxPair struct{ i, j int }
+	var pairs []idxPair
 	for i := 0; i < len(cases); i++ {
 		for j := i + 1; j < len(cases); j++ {
 			ra, okA := ratings[cases[i].ID]
@@ -416,22 +418,30 @@ func runAnchorPairwise(base string, judges []string, cases []anchorCase,
 			if !okA || !okB || ra == rb {
 				continue
 			}
-			for _, jd := range judges {
-				row := pairRow{CaseA: cases[i].ID, CaseB: cases[j].ID, Judge: jd}
-				fwd, e1 := callAnchorPair(base, jd, anchorPairPacket(cases[i], cases[j]),
-					judgeSeed("pair-f-"+cases[i].ID+"-"+cases[j].ID, jd))
-				rev, e2 := callAnchorPair(base, jd, anchorPairPacket(cases[j], cases[i]),
-					judgeSeed("pair-r-"+cases[j].ID+"-"+cases[i].ID, jd))
-				switch {
-				case e1 != nil:
-					row.Error = e1.Error()
-				case e2 != nil:
-					row.Error = e2.Error()
-				default:
-					row.Winner = reconcilePair(fwd, rev)
-				}
-				rows = append(rows, row)
+			pairs = append(pairs, idxPair{i, j})
+		}
+	}
+	if maxPairs > 0 && len(pairs) > maxPairs {
+		pairs = pairs[:maxPairs]
+	}
+	var rows []pairRow
+	for _, p := range pairs {
+		i, j := p.i, p.j
+		for _, jd := range judges {
+			row := pairRow{CaseA: cases[i].ID, CaseB: cases[j].ID, Judge: jd}
+			fwd, e1 := callAnchorPair(base, jd, anchorPairPacket(cases[i], cases[j]),
+				judgeSeed("pair-f-"+cases[i].ID+"-"+cases[j].ID, jd))
+			rev, e2 := callAnchorPair(base, jd, anchorPairPacket(cases[j], cases[i]),
+				judgeSeed("pair-r-"+cases[j].ID+"-"+cases[i].ID, jd))
+			switch {
+			case e1 != nil:
+				row.Error = e1.Error()
+			case e2 != nil:
+				row.Error = e2.Error()
+			default:
+				row.Winner = reconcilePair(fwd, rev)
 			}
+			rows = append(rows, row)
 		}
 	}
 	if err := writeJSON(filepath.Join(outDir, "pairs.json"), rows); err != nil {
