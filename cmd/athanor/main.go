@@ -70,6 +70,8 @@ func main() {
 		err = runBackup(args[1:])
 	case "restore":
 		err = runRestore(args[1:])
+	case "digest":
+		err = runDigest(args[1:])
 	case "project":
 		err = runProject(args[1:])
 	case "goal":
@@ -121,6 +123,7 @@ commands:
   alarms             list active alarms [-resolve <id>] (§22.3)
   backup             write a database snapshot [-state-dir state] [-keep N]
   restore            restore a snapshot -from <file> -force (daemon stopped)
+  digest             print the Morning Digest [-hours 12] (§27.2)
   project create     -name -archetype -goal [-criteria] [-addr]
   goal submit        -project -goal [-criteria] [-addr]
   job watch          -job [-timeout] [-addr]   (streams progress, prints artifact)

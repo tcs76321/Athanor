@@ -1576,6 +1576,13 @@ An asynchronous dashboard summarizing overnight activity:
 - Daydreaming output (documentation drafts, proposed corrections, memory consolidated).
 - Token usage summary.
 
+> **Implementation status (M7-T6).** The digest is live
+> ([ADR-0055](docs/adr/0055-morning-digest.md)): `internal/digest.Build`
+> aggregates a window over jobs (with failure reasons), goals/tasks,
+> artifacts, pending HITL, active alarms, daydream logs, and token usage;
+> `GET /digest?hours=N` and `athanor digest` expose it. Scheduled morning
+> delivery can reuse the same aggregation.
+
 > **Implementation status (M6-T8).** The local web UI is live
 > ([ADR-0039](docs/adr/0039-local-web-ui.md)) at `http://127.0.0.1:7420/ui`:
 > Dashboard (jobs + approvals + freeze, live phase via SSE), Projects

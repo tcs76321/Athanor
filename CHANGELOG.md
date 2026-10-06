@@ -12,6 +12,10 @@ New entries are appended at the top. Do not rewrite history.
 
 ### M7 — Endurance & Release
 
+- **M7-T6.** Morning Digest (§27.2). `internal/digest.Build` aggregates a
+  window's completed/failed jobs (with reasons), goals/tasks, artifacts by
+  status, pending HITL, active alarms, daydream output, and token usage;
+  `GET /digest?hours=N` and `athanor digest`. [ADR-0055](docs/adr/0055-morning-digest.md).
 - **M7-T4.** Backups (§23.4). `internal/backup` adds a snapshot wrapper, a
   retention pruner, an atomic offline restore, a dependency-free 5-field cron
   matcher, and a scheduler that audits `backup_created`. CLI:

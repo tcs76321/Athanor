@@ -242,6 +242,8 @@ func (a *API) Register(mux *http.ServeMux) {
 	// M7-T3: the §22.3 alarm queue.
 	mux.HandleFunc("GET /alarms", a.handleAlarmList)
 	mux.HandleFunc("POST /alarms/{id}/resolve", a.handleAlarmResolve)
+	// M7-T6: the §27.2 Morning Digest.
+	mux.HandleFunc("GET /digest", a.handleDigest)
 }
 
 // writeJSON is the single response writer: always JSON, always UTF-8.

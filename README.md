@@ -141,6 +141,9 @@ Then watch it work in real time from the Watch View, or queue it and check the M
 - **Backups (M7-T4).** Scheduled VACUUM-INTO snapshots with retention
   (`backup.schedule` / `max_local_backups`), `athanor backup`, and an offline
   `athanor restore -from <file> -force`. [ADR-0054](docs/adr/0054-backups.md).
+- **Morning Digest (M7-T6).** `GET /digest?hours=N` / `athanor digest` summarize
+  a window's jobs (with reasons), artifacts, approvals, alarms, daydream
+  output, and token usage. [ADR-0055](docs/adr/0055-morning-digest.md).
 - **Walking-skeleton pipeline.** Submit a goal → queued → context_building → planning → diverging → evaluating → (reflecting) → synthesizing → comparing → completed. Draft artifacts persist under `state/artifacts/` with SHA-256 content hashes; the supersede chain is linear.
 - **Dialectical engine (M3-T1 + M3-T2).** N-candidate divergence (default 3) feeds the evaluation phase, which runs the security persona at Temperature 0.0 with a per-archetype §19.1 rubric (`internal/engine/rubric.go`) and persists one `EvaluationRecord` per candidate. The §19.3 deterministic guard (`DecideWinner` in `internal/engine/decide.go`) downgrades an LLM `winner: new` verdict when no record meets `better_than_previous + confidence > min_judge_confidence`. Per-phase wall-time budgets emit a `context_deadline_exceeded` audit row on timeout.
 - **Append-only audit log.** Every state transition writes a `jobs` event in the same transaction as the state update. `GET /jobs/{id}/events` returns the full chain.
