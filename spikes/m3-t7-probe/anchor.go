@@ -213,6 +213,7 @@ func callAnchorPair(baseURL, model, packet string, seed int64) (string, error) {
 			Model:    model,
 			Messages: []map[string]string{{"role": "user", "content": packet}},
 			Stream:   false,
+			Think:    judgeThink,
 			Options:  map[string]any{"temperature": 0.0, "seed": seed, "num_predict": 512},
 		}
 		if attempt%2 == 0 {
@@ -303,7 +304,21 @@ func runAnchor(args []string) {
 	minAgreement := fs.Float64("min-agreement", 0.6, "fail if a judge's agreement is below this")
 	protocol := fs.String("protocol", "pointwise5", "pointwise5 | pointwise100 | pairwise")
 	maxPairs := fs.Int("max-pairs", 0, "cap pairwise comparisons (0 = all); pairwise is O(pairs x 2 x judges)")
+	thinkMode := fs.String("think", "default", "send Ollama think on judge calls: default | false | true")
 	_ = fs.Parse(args)
+
+	switch *thinkMode {
+	case "default":
+	case "false":
+		f := false
+		judgeThink = &f
+	case "true":
+		t := true
+		judgeThink = &t
+	default:
+		fmt.Fprintf(os.Stderr, "anchor: unknown -think %q\n", *thinkMode)
+		os.Exit(2)
+	}
 
 	cases, err := parseAnchorCases(filepath.Join(*dir, "cases.md"))
 	if err != nil {

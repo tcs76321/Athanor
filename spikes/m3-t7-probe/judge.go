@@ -50,8 +50,14 @@ type ollamaChatRequest struct {
 	Messages []map[string]string `json:"messages"`
 	Stream   bool                `json:"stream"`
 	Format   string              `json:"format"`
+	Think    *bool               `json:"think,omitempty"`
 	Options  map[string]any      `json:"options"`
 }
+
+// judgeThink, when non-nil, is sent as Ollama's `think` on anchor/judge
+// calls. The engine disables thinking on judgment phases (F4-T8); a
+// thinking-capable judge (e.g. the generator) must be measured the same way.
+var judgeThink *bool
 
 type ollamaChatResponse struct {
 	Message struct {
@@ -85,6 +91,7 @@ func callJudgeOnce(baseURL, model, packet string, seed int64, useFormat bool) (j
 		Model:    model,
 		Messages: []map[string]string{{"role": "user", "content": packet}},
 		Stream:   false,
+		Think:    judgeThink,
 		Options:  map[string]any{"temperature": 0.0, "seed": seed, "num_predict": 2048},
 	}
 	if useFormat {

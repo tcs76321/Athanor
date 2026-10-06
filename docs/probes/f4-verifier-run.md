@@ -67,5 +67,19 @@ accepts (100%)**. `cross_family_ok=true`.
 
 ## C1 — judge protocol discrimination
 
-_Pending: `anchor -protocol {pointwise5, pointwise100, pairwise}` on the
-16-case anchor. Results appended here._
+On the **expanded 16-case anchor** (C0), with objective labels on the four
+code cases:
+
+| protocol | judge | reliability | Spearman | Kendall |
+|---|---|---|---|---|
+| pointwise5 | gemma4:12b-mlx | 94% | **0.61** | 0.46 |
+| pointwise5 | granite4.2:3b | 81% | 0.53 | 0.38 |
+| pointwise100 | _pending_ | | | |
+| pairwise | _pending_ | | | |
+
+**Key correction:** the earlier 0.00 agreement was an artifact of the
+underpowered 8-case anchor (ratings 2–5, near-ceiling). With clear low and
+high anchors — especially the objective code cases (rating 1 vs 5) — gemma
+reaches Spearman 0.61 and clears the 0.60 floor; granite (0.53) does not.
+The judge layer is not hopeless; the anchor was.
+
