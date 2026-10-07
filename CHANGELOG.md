@@ -10,6 +10,16 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### M8-T12 — adversarial self-critique and tree search (deferred, documented)
+
+- **M8-T12.** Both operations are recorded as **deferred with rationale**, not
+  implemented: neither can be shipped without a verification edge (a claimed
+  break must be verifiable; tree search needs the harder corpus to be
+  measurable). Documented in
+  [docs/cognitive-operations.md §7](docs/cognitive-operations.md) under the
+  ADR-0064 rule "no operation without a verification edge." The repertoire is
+  not pruned; the operations are simply not invoked yet.
+
 ### M8-T11 — self-refine operation
 
 - **M8-T11.** A new `refine` cognitive operation: when an evaluation cycle

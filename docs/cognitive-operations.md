@@ -44,8 +44,8 @@ class (I = internal-reversible, X = external/irreversible); `State` = today
 | **Diverge (best-of-N)** | generate N candidates @ temp>0 | verifier/rank over set | N or floor met | I | M·N | ✅ `internal/engine/diverge.go` |
 | **Critique** | judge a candidate against criteria | deterministic first, judge advisory | verdict | I | S–M | ✅ `internal/verify` + judge |
 | **Self-refine** | write → review → rewrite → perfect | verifier must accept the rewrite | ≤ k rewrites | I | M·k | ✅ M8-T11 (opt-in `self_refine`); repairs the best candidate in place under the `refining` phase |
-| **Tree search / rollouts** | explore branches, back up the best | verifier per leaf | node/step budget | I | L | ✗ |
-| **Adversarial self-critique** ("nightmare") | generate failure cases, red-team own output | verifier on discovered break | case budget | I | M | ✗ (external corpora exist) |
+| **Tree search / rollouts** | explore branches, back up the best | verifier per leaf | node/step budget | I | L | ⏸ deferred (M8-T12) |
+| **Adversarial self-critique** ("nightmare") | generate failure cases, red-team own output | verifier on discovered break | case budget | I | M | ⏸ deferred (M8-T12) |
 | **Scratchpad** | persistent working memory across phases | none (context only) | job end | I | S | ✗ |
 | **Simulate** | counterfactual rollout against a model | oracle (for code: tests) | budget | I | L | ◐ tests-as-oracle only |
 | **Consult gateway** | fetch allowlisted sources for grounding | reader + injection scan | per-source | I | S–M | ✅ ADR-0019 |
@@ -122,7 +122,26 @@ The M8 probe runs an **ablation**, not a verdict:
 Read out per operation: keep, de-prioritise for a class, or build a stronger
 form — always with the repertoire intact.
 
-## 7. Open questions
+## 7. Deferred (M8-T12): adversarial self-critique and tree search
+
+Both operations are real and worthwhile, and both are **deferred** rather than
+implemented now, for the same reason: **their verification edge does not exist
+cheaply yet, and shipping them without it would violate the cognitive-regulation
+rule** (no operation without a verification edge).
+
+- **Adversarial self-critique** produces *claimed* breaks. Counting a claim
+  requires a way to *verify* it — for code, generating a stress test and running
+  it in the Job Pod; for text, mapping the claim onto a deterministic structural
+  check. Without that, the output is unverified LLM opinion, and capturing it as
+  `CorrectionRecord`s would pollute the feedback store the whole system learns
+  from. Enabling work: a generated-test → pod → grounded-break path.
+- **Tree search / rollouts** is L-sized and its value is unmeasurable until the
+  harder corpus (ADR-0061) exists to show where branching beats best-of-N.
+
+Both stay in the repertoire (never pruned); neither is invoked until its edge is
+real. This is the ADR-0064 rule applied to itself.
+
+## 8. Open questions
 
 - How is "novelty" measured on a local model without an embedding dependency?
   (candidate: task-feature distance + FTS5 similarity, no ML.)
