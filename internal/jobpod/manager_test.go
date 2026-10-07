@@ -430,8 +430,7 @@ func TestSweep_RemovesOrphans(t *testing.T) {
 	// inserting directly so we don't have to run Start's argv
 	// pipeline (which would also call `podman run`).
 	m.pods[knownID] = &podEntry{
-		pod:   &Pod{ID: knownID, State: StateRunning},
-		stopC: make(chan struct{}),
+		pod: &Pod{ID: knownID, State: StateRunning},
 	}
 
 	res, err := m.Sweep(context.Background())

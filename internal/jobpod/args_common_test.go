@@ -43,7 +43,7 @@ func TestBuildArgs_CommonFlags(t *testing.T) {
 		"--cpus 1.0",
 		"--network none",
 		"--tmpfs /tmp:rw,noexec,nosuid,nodev,size=8m",
-		"--name 3b241101-e2bb-4255-8caf-4136c566a962",
+		"--name athanor-job-3b241101-e2bb-4255-8caf-4136c566a962",
 		"alpine:3.20",
 		"sh -c echo hello",
 	}

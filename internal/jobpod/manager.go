@@ -33,9 +33,9 @@ type manager struct {
 
 type podEntry struct {
 	pod      *Pod
-	stopC    chan struct{} // closed by the supervisor when the pod terminates
-	tokenDir string        // host dir bind-mounted to /run/athanor; "" if no token
-	token    string        // the per-job secret; never logged
+	cancel   context.CancelFunc // stops the supervisor goroutine
+	tokenDir string             // host dir bind-mounted to /run/athanor; "" if no token
+	token    string             // the per-job secret; never logged
 }
 
 // New returns a Manager ready for use. The supervisor goroutines
@@ -107,7 +107,17 @@ func (m *manager) Start(ctx context.Context, spec Spec) (*Pod, error) {
 		m.mu.Unlock()
 		return nil, ErrAlreadyExists
 	}
+	// Reserve the ID under the lock so a concurrent Start for the same pod
+	// cannot also invoke `podman run` (the manager is not the only caller).
+	// The placeholder is replaced by the real entry on success and removed
+	// by release() on any failure below.
+	m.pods[spec.ID] = &podEntry{pod: &Pod{ID: spec.ID, State: StatePending}}
 	m.mu.Unlock()
+	release := func() {
+		m.mu.Lock()
+		delete(m.pods, spec.ID)
+		m.mu.Unlock()
+	}
 
 	// Step 4: token dir. If the spec supplies both Token and
 	// TokenDir we trust the caller (engine passes a pre-issued
@@ -121,6 +131,7 @@ func (m *manager) Start(ctx context.Context, spec Spec) (*Pod, error) {
 		if m.tokenBase != "" {
 			dir, tok, err := NewTokenDir(m.tokenBase, spec.ID)
 			if err != nil {
+				release()
 				return nil, fmt.Errorf("generating token dir: %w", err)
 			}
 			tokenDir = dir
@@ -131,6 +142,7 @@ func (m *manager) Start(ctx context.Context, spec Spec) (*Pod, error) {
 		// Caller-supplied: trust it. (M2-T4 will pass these
 		// through from a separate TokenIssuer.)
 	default:
+		release()
 		return nil, fmt.Errorf("%w: Token and TokenDir must both be set or both empty", ErrInvalidSpec)
 	}
 
@@ -138,15 +150,17 @@ func (m *manager) Start(ctx context.Context, spec Spec) (*Pod, error) {
 	if _, stderr, err := m.client.Run(ctx, args...); err != nil {
 		// Pod didn't come up; remove any token dir we created.
 		_ = RemoveTokenDir(tokenDir)
+		release()
 		// Surface podman's stderr: the raw exit code (often 125) is
 		// useless for diagnosis without it.
 		return nil, fmt.Errorf("podman run: %w: %s", err, strings.TrimSpace(string(stderr)))
 	}
 
+	sctx, cancel := context.WithCancel(ctx)
 	pod := &Pod{ID: spec.ID, State: StatePending}
 	entry := &podEntry{
 		pod:      pod,
-		stopC:    make(chan struct{}),
+		cancel:   cancel,
 		tokenDir: tokenDir,
 		token:    spec.Token,
 	}
@@ -155,7 +169,7 @@ func (m *manager) Start(ctx context.Context, spec Spec) (*Pod, error) {
 	m.pods[spec.ID] = entry
 	m.mu.Unlock()
 
-	go m.supervise(ctx, spec.ID, entry)
+	go m.supervise(sctx, spec.ID, entry)
 	return pod, nil
 }
 
@@ -214,7 +228,6 @@ type exitCoder interface{ ExitCode() int }
 // On a terminal-state observation the per-job token dir is removed
 // — the container is gone and the secret should not outlive it.
 func (m *manager) supervise(ctx context.Context, id string, entry *podEntry) {
-	defer close(entry.stopC)
 	// defer the token-dir removal so it runs whether we exit via
 	// terminal state, ctx cancellation, or a panic. Stop is a
 	// separate path and removes the dir itself.
@@ -316,6 +329,11 @@ func (m *manager) Stop(ctx context.Context, id string) error {
 	// succeeded. The container is gone from our map; the
 	// directory's job is done.
 	_ = RemoveTokenDir(entry.tokenDir)
+	// Cancel the supervisor so it stops polling `podman inspect` for a
+	// container we just removed (otherwise it spins forever on the error).
+	if entry.cancel != nil {
+		entry.cancel()
+	}
 	m.mu.Lock()
 	delete(m.pods, id)
 	m.mu.Unlock()

@@ -11,7 +11,7 @@ func buildArgs(spec Spec) []string {
 	limits := withDefaults(spec.ResourceLimits)
 	args := []string{
 		"run", "--rm",
-		"--name", spec.ID,
+		"--name", containerNamePrefix + spec.ID,
 		"--detach",
 		"--read-only",
 		"--cap-drop", "ALL",
