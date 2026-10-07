@@ -10,6 +10,15 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### M8-T18 — non-code check engine in the probe
+
+- **M8-T18.** `spikes/m3-t7-probe/checks.go` turns a corpus task's `checks:`
+  map into deterministic pass/fail (`required_sections`, `strict_section_order`,
+  `exact_paragraphs`, `max_words`, `forbidden_phrases`, `no_headings`,
+  bullet-count minimums). Semantic kinds (`json_schema`, fabrication,
+  contradiction) are reported **advisory** and never gate. The corpus loader
+  now carries `checks`.
+
 ### M8-T17 design — multi-file code artifacts and fixture staging (ADR-0065)
 
 - **M8-T17 (design).** [ADR-0065](docs/adr/0065-multi-file-code-artifacts.md):

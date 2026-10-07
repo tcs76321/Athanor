@@ -15,15 +15,16 @@ import (
 // probe consumes are declared; the YAML decoder ignores the rest (the rubric,
 // checks, expected failure modes are read by the check engine / humans).
 type corpusTask struct {
-	ID          string   `yaml:"id"`
-	Title       string   `yaml:"title"`
-	Archetype   string   `yaml:"archetype"`
-	Tier        string   `yaml:"tier"`
-	Language    string   `yaml:"language"`
-	Goal        string   `yaml:"goal"`
-	Criteria    []string `yaml:"criteria"`
-	Fixture     string   `yaml:"fixture"`
-	TestCommand string   `yaml:"test_command"`
+	ID          string         `yaml:"id"`
+	Title       string         `yaml:"title"`
+	Archetype   string         `yaml:"archetype"`
+	Tier        string         `yaml:"tier"`
+	Language    string         `yaml:"language"`
+	Goal        string         `yaml:"goal"`
+	Criteria    []string       `yaml:"criteria"`
+	Fixture     string         `yaml:"fixture"`
+	TestCommand string         `yaml:"test_command"`
+	Checks      map[string]any `yaml:"checks"`
 }
 
 // corpusFile is the top-level tasks.yaml shape.
@@ -61,6 +62,7 @@ func loadCorpus(path string) ([]sampleGoal, error) {
 			Criteria:    t.Criteria,
 			Fixture:     t.Fixture,
 			TestCommand: t.TestCommand,
+			Checks:      t.Checks,
 		})
 	}
 	return out, nil

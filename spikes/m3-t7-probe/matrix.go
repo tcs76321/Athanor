@@ -21,6 +21,9 @@ type sampleGoal struct {
 	// Fixture is the bench task's starter repo/files path (M8-T16, ADR-0061);
 	// empty for the locked M3-T7 set and for tasks with no fixture.
 	Fixture string
+	// Checks is the bench task's deterministic check map (M8-T18); nil for the
+	// locked M3-T7 set and for code tasks (whose test command is the check).
+	Checks map[string]any
 }
 
 // sampleGoals is the 10-goal set: M1-T8's five then M3-T2's five, with no
