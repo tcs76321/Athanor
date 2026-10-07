@@ -10,6 +10,15 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### M8-T23 — combined endurance + quality soak harness
+
+- **M8-T23.** The probe gains `soak`: one long-lived daemon over the corpus,
+  resumable (`metrics.jsonl` is append-only), early-stoppable (SIGINT finalizes
+  with results so far), and incrementally reported (a rolling report after every
+  pass). `-kill-after` injects one `kill -9` + restart and records it in
+  `soak-events.log`. The sleep/wake checkpoint stays human. See
+  [docs/soak-m7.md](docs/soak-m7.md).
+
 ### M8-T21 — corpus-aware probe report
 
 - **M8-T21.** Each job row now carries its bench tier (`E`/`M`/`H`) and the

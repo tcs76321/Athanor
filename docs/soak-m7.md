@@ -30,6 +30,27 @@ final `report`. The probe runner manages the daemon lifecycle and enforces
 per-job wall-time, disk, and consecutive-error budgets, so a wedged iteration
 aborts rather than hanging the soak.
 
+## Combined endurance + quality soak (M8-T23)
+
+The probe adds a `soak` subcommand: one long-lived daemon over the bench
+corpus, resumable and early-stoppable.
+
+```bash
+go run ./spikes/m3-t7-probe soak \
+  -model ornith9b -corpus eval/bench/tasks.yaml -hours 24 -kill-after 6h \
+  -out spikes/m3-t7-probe/results/soak
+```
+
+- Results accumulate in `<out>/metrics.jsonl` (append-only); re-running resumes
+  without resetting.
+- A rolling `report.md` / `results.json` / `results.csv` is written after every
+  pass, so stopping early still yields a readout for what completed.
+- `SIGINT`/`SIGTERM` finalizes cleanly (flush + report + stop daemon).
+- `-kill-after` injects one `kill -9` + restart, exercising crash recovery; the
+  event lands in `<out>/soak-events.log`.
+- The sleep/wake checkpoint remains a human step (the host cannot be slept
+  safely by the harness); record it alongside the run.
+
 ## Acceptance (Gate G7)
 
 - Zero orphan Job Pods after the run (`podman ps -a`) and after a `kill -9`

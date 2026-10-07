@@ -150,6 +150,8 @@ func main() {
 	switch os.Args[1] {
 	case "run":
 		runMatrix(os.Args[2:])
+	case "soak":
+		runSoak(os.Args[2:])
 	case "report":
 		runReport(os.Args[2:])
 	case "config":
@@ -173,6 +175,7 @@ func usage() {
 
 commands:
   run       run the measurement matrix (manages the daemon lifecycle)
+  soak      combined endurance + quality soak: one daemon, resumable, early-stop (M8-T23)
   report    aggregate collected results into report.md
   config    print the generated daemon config for one model/arm
   judge     score the collected packets with the third-party judge models

@@ -156,6 +156,22 @@ func modelByLabel(label string) (probeModel, bool) {
 	return probeModel{}, false
 }
 
+// namedArm resolves any arm (including the M8-T22 ablation arms) by name.
+func namedArm(name string) (arm, bool) {
+	for _, a := range []arm{
+		{Name: "single", Candidates: 1, Reflection: 0},
+		{Name: "dialectical", Candidates: 3, Reflection: -1},
+		{Name: "bestof3", Candidates: 3, Reflection: 0},
+		{Name: "reflect", Candidates: 1, Reflection: -1},
+		{Name: "full", Candidates: 3, Reflection: -1},
+	} {
+		if a.Name == name {
+			return a, true
+		}
+	}
+	return arm{}, false
+}
+
 // armByName resolves a matrix arm by name.
 func armByName(name string) (arm, bool) {
 	for _, a := range arms {
