@@ -8,6 +8,7 @@ import (
 
 	"github.com/tcs76321/athanor/internal/artifact"
 	"github.com/tcs76321/athanor/internal/project"
+	"github.com/tcs76321/athanor/internal/toolenvelope"
 )
 
 type fakeGit struct {
@@ -19,11 +20,20 @@ type fakeGit struct {
 	content []byte
 	sha     string
 	err     error
+	// tree form
+	treeCalls int
+	files     []toolenvelope.File
 }
 
 func (f *fakeGit) Commit(_ context.Context, repo, branch, rel string, content []byte, msg string) (string, error) {
 	f.calls++
 	f.repo, f.branch, f.rel, f.content, f.msg = repo, branch, rel, content, msg
+	return f.sha, f.err
+}
+
+func (f *fakeGit) CommitTree(_ context.Context, repo, branch string, files []toolenvelope.File, msg string) (string, error) {
+	f.treeCalls++
+	f.repo, f.branch, f.files, f.msg = repo, branch, files, msg
 	return f.sha, f.err
 }
 
@@ -76,6 +86,43 @@ func TestRecordGitCommitRecordsSHA(t *testing.T) {
 	}
 	if got.GitCommit != "deadbeef" {
 		t.Errorf("artifact git_commit = %q, want deadbeef", got.GitCommit)
+	}
+}
+
+// TestRecordGitCommitTreeForMultiFile proves ADR-0065 §5: a multi-file code
+// artifact commits as a tree at its relative paths, not a managed blob.
+func TestRecordGitCommitTreeForMultiFile(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	p, _, err := e.projects.Create(ctx, "git-tree-"+t.Name(), "code",
+		"build a multi-file thing that lasts", "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	art, err := e.artifacts.CreateDraft(ctx, p.ID, artifact.KindCode,
+		[]byte("=== FILE: a.py ===\nx\n=== FILE: b.py ===\ny\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, st := range []artifact.Status{artifact.StatusCandidate, artifact.StatusAccepted} {
+		if err := e.artifacts.SetStatus(ctx, art.ID, st); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	f := &fakeGit{sha: "treeface"}
+	e.eng.SetGitCommitter(f)
+	e.eng.recordGitCommit(ctx, project.Project{ID: p.ID, RepositoryPath: "/repo"}, art)
+
+	if f.treeCalls != 1 || f.calls != 0 {
+		t.Fatalf("treeCalls=%d calls=%d, want the tree path once", f.treeCalls, f.calls)
+	}
+	if len(f.files) != 2 || f.files[0].Path != "a.py" || f.files[1].Path != "b.py" {
+		t.Errorf("committed files = %+v, want a.py then b.py", f.files)
+	}
+	got, _ := e.artifacts.Get(ctx, art.ID)
+	if got.GitCommit != "treeface" {
+		t.Errorf("git_commit = %q, want treeface", got.GitCommit)
 	}
 }
 

@@ -36,12 +36,37 @@ func (e *Engine) recordGitCommit(ctx context.Context, p project.Project, art art
 		})
 		return
 	}
-	// Managed namespace + agent branch (ADR-0030 §Decision). The path is
-	// git-relative, so path.Join (not filepath.Join) keeps it portable.
+	// Agent branch (ADR-0030 §Decision).
 	branch := "athanor/" + p.ID
-	rel := path.Join(".athanor", "artifacts", string(art.Kind), art.ID)
 	message := fmt.Sprintf("athanor: accept %s %s", art.Kind, art.ID)
 
+	// ADR-0065 §5: a multi-file code candidate commits its files at their
+	// repository-relative paths, one atomic commit, so the accepted source
+	// really lands in the repo. Anything else (a single file, non-code) keeps
+	// the managed-namespace blob commit.
+	if files, ferr := candidateFiles(string(content)); ferr == nil && len(files) > 1 {
+		sha, cerr := e.git.CommitTree(ctx, p.RepositoryPath, branch, files, message)
+		if cerr != nil {
+			e.auditCat(ctx, art.JobID, "jobs", map[string]any{
+				"event": "git_commit_failed", "artifact": art.ID, "branch": branch, "error": cerr.Error(),
+			})
+			return
+		}
+		if err := e.artifacts.SetGitCommit(ctx, art.ID, sha); err != nil {
+			e.auditCat(ctx, art.JobID, "jobs", map[string]any{
+				"event": "git_commit_record_failed", "artifact": art.ID, "commit": sha, "error": err.Error(),
+			})
+			return
+		}
+		e.auditCat(ctx, art.JobID, "jobs", map[string]any{
+			"event": "git_committed", "artifact": art.ID, "commit": sha, "branch": branch, "files": len(files),
+		})
+		return
+	}
+
+	// Managed namespace + agent branch. The path is git-relative, so
+	// path.Join (not filepath.Join) keeps it portable.
+	rel := path.Join(".athanor", "artifacts", string(art.Kind), art.ID)
 	sha, err := e.git.Commit(ctx, p.RepositoryPath, branch, rel, content, message)
 	if err != nil {
 		e.auditCat(ctx, art.JobID, "jobs", map[string]any{

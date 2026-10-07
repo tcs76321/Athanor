@@ -31,6 +31,9 @@ New entries are appended at the top. Do not rewrite history.
   through a containment-safe reader (no symlinks, VCS/dep dirs skipped, size
   bounds), shows it to the model, and overlays the candidate on it for the test
   run. Distinct from `repository_path` (the evolving git-as-undo target).
+- **B5.** Git-as-undo gains `CommitTree`: a multi-file candidate commits its
+  files at repository-relative paths in one atomic commit; single-file and
+  non-code artifacts keep the managed-namespace blob commit.
 
 ### M8-T16 — bench corpus loader in the probe
 

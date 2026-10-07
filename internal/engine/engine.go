@@ -118,6 +118,10 @@ type ToolRunner interface {
 // than committing.
 type GitCommitter interface {
 	Commit(ctx context.Context, repoPath, branch, relPath string, content []byte, message string) (string, error)
+	// CommitTree writes a multi-file candidate into the repository at its
+	// relative paths and commits once (ADR-0065 §5). Used for a code tree so
+	// accepted source lands in the repo, not a managed blob.
+	CommitTree(ctx context.Context, repoPath, branch string, files []toolenvelope.File, message string) (string, error)
 }
 
 // CorrectionSink is the §18 feedback seam (M6-T6): the engine reports a

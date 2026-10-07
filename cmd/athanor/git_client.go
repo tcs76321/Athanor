@@ -9,6 +9,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/tcs76321/athanor/internal/toolenvelope"
 )
 
 // ErrDirtyWorktree is returned when the project repository has uncommitted
@@ -54,23 +56,7 @@ func (gitClient) Commit(ctx context.Context, repoPath, branch, relPath string, c
 	if branch == "" || relPath == "" {
 		return "", errors.New("git: branch and relPath are required")
 	}
-	if err := gitRun(ctx, repoPath, "rev-parse", "--is-inside-work-tree"); err != nil {
-		return "", fmt.Errorf("git: %s is not a worktree: %w", repoPath, err)
-	}
-	status, err := gitOutput(ctx, repoPath, "status", "--porcelain")
-	if err != nil {
-		return "", err
-	}
-	if strings.TrimSpace(status) != "" {
-		return "", ErrDirtyWorktree
-	}
-
-	// Create the agent branch if it does not exist, else check it out.
-	if err := gitRun(ctx, repoPath, "rev-parse", "--verify", "--quiet", "refs/heads/"+branch); err != nil {
-		if err := gitRun(ctx, repoPath, "checkout", "-b", branch); err != nil {
-			return "", err
-		}
-	} else if err := gitRun(ctx, repoPath, "checkout", branch); err != nil {
+	if err := prepareBranch(ctx, repoPath, branch); err != nil {
 		return "", err
 	}
 
@@ -92,6 +78,68 @@ func (gitClient) Commit(ctx context.Context, repoPath, branch, relPath string, c
 		return "", err
 	}
 	return strings.TrimSpace(sha), nil
+}
+
+// CommitTree writes every file (sanitized repository-relative paths) into the
+// repository and makes one commit on branch (ADR-0065 §5). It is the
+// multi-file form of Commit: accepted source lands in the repo at its real
+// paths rather than in a managed blob namespace. The worktree must be clean.
+func (gitClient) CommitTree(ctx context.Context, repoPath, branch string, files []toolenvelope.File, message string) (string, error) {
+	if repoPath == "" {
+		return "", errors.New("git: empty repository path")
+	}
+	if branch == "" {
+		return "", errors.New("git: branch is required")
+	}
+	if len(files) == 0 {
+		return "", errors.New("git: no files to commit")
+	}
+	if err := prepareBranch(ctx, repoPath, branch); err != nil {
+		return "", err
+	}
+	for _, f := range files {
+		rel, err := toolenvelope.SanitizeRelPath(f.Path)
+		if err != nil {
+			return "", fmt.Errorf("git: unsafe path: %w", err)
+		}
+		dst := filepath.Join(repoPath, filepath.FromSlash(rel))
+		if err := os.MkdirAll(filepath.Dir(dst), 0o700); err != nil {
+			return "", fmt.Errorf("git: creating dir for %s: %w", rel, err)
+		}
+		if err := os.WriteFile(dst, []byte(f.Content), 0o600); err != nil {
+			return "", fmt.Errorf("git: writing %s: %w", rel, err)
+		}
+		if err := gitRun(ctx, repoPath, "add", "--", rel); err != nil {
+			return "", err
+		}
+	}
+	if err := gitRun(ctx, repoPath, "commit", "--no-gpg-sign", "-m", message); err != nil {
+		return "", err
+	}
+	sha, err := gitOutput(ctx, repoPath, "rev-parse", "HEAD")
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(sha), nil
+}
+
+// prepareBranch validates the worktree is clean and checks out (creating if
+// needed) the agent branch. Shared by Commit and CommitTree.
+func prepareBranch(ctx context.Context, repoPath, branch string) error {
+	if err := gitRun(ctx, repoPath, "rev-parse", "--is-inside-work-tree"); err != nil {
+		return fmt.Errorf("git: %s is not a worktree: %w", repoPath, err)
+	}
+	status, err := gitOutput(ctx, repoPath, "status", "--porcelain")
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(status) != "" {
+		return ErrDirtyWorktree
+	}
+	if err := gitRun(ctx, repoPath, "rev-parse", "--verify", "--quiet", "refs/heads/"+branch); err != nil {
+		return gitRun(ctx, repoPath, "checkout", "-b", branch)
+	}
+	return gitRun(ctx, repoPath, "checkout", branch)
 }
 
 // gitRun runs a git subcommand in repo and discards stdout. Stderr is
