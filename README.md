@@ -181,7 +181,7 @@ Gate G7 human checkpoints (the 24h soak, the fresh-install timing, and the §31.
 ## Documentation
 
 - **[ARCHITECTURE.md](ARCHITECTURE.md)** — the complete design: topology, object model, MCE, personas, dialectical engine, security, configuration reference, testing strategy.
-- **[docs/](docs/)** — implementation notes ([SQLite setup](docs/sqlite-setup.md), [ADRs](docs/adr/)).
+- **[docs/](docs/)** — implementation notes ([SQLite setup](docs/sqlite-setup.md), [ADRs](docs/adr/), [known issues](docs/known-issues.md)).
 - **[spikes/](spikes/)** — throwaway validation code.
 
 ## License

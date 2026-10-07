@@ -10,6 +10,21 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Fixes (2026-10-06 review)
+
+- **Containment and lifecycle hardening.** A static review of `internal/` and
+  `cmd/` found and fixed: Job Pods were named by bare UUID so `Sweep` (the
+  kill -9 orphan backstop) never matched them; `Stop` did not cancel the
+  supervisor goroutine, which then spun on a failing `podman inspect` forever;
+  `Start`'s duplicate-ID check was racy; `airlock/paths.Validate` checked
+  symlink escape only at the final component, so a symlinked *directory* under
+  root escaped; log rotation could permanently kill logging after a transient
+  FS error; the gateway per-host rate-limiter map grew without bound; a failed
+  scheduled backup re-fired within the same minute; the engine left a §10.5
+  suppression row behind on the failure path; and the probe config let an
+  out-of-matrix judge inherit the generator's family. Open items are recorded
+  in [docs/known-issues.md](docs/known-issues.md).
+
 ### F5 — Hardening & Completion
 
 - **F5-A (security).** Cross-site request defense ([ADR-0057](docs/adr/0057-cross-site-request-defense.md)).
