@@ -3,6 +3,21 @@
 Working agreements for AI coding agents and human contributors. Short on
 purpose; details live in `ARCHITECTURE.md`, `ROADMAP.md`, and `DEVELOPMENT.md`.
 
+## Terminology
+
+- **Cognitive regulation** — the budgets, termination conditions, and
+  verification edges that keep agent iteration bounded and honest. Use
+  this term (not "emotional regulation") in docs, comments, and ADRs.
+- **Repertoire vs. selection** — every technique ships (the repertoire);
+  what the agent learns is *when, where, and for whom* to invoke it
+  (selection). The repertoire is never pruned; budget regulates
+  invocation, and grounded outcomes (tests, APIs, schema checks) are the
+  teacher, human evals the calibration, the LLM judge advisory only.
+- **HITL boundary** — human approval gates only external or irreversible
+  actions. Internal, contained, reversible work (tangents, rewrites,
+  candidate churn) proceeds autonomously under budget and success
+  tracking.
+
 ## Commands
 
 - One tool call per command. No multi-command strings, no compound shell
@@ -148,6 +163,12 @@ signing flow); signatures are not required for the agent's commits.
 
 - In plan mode: only read, search, and inspect. Do not edit files, run
   state-changing commands, or create directories.
+- **Plans live in the conversation.** Develop and revise the plan with the
+  user directly; keep it in the conversation rather than in a file. Do not
+  create or update plan files unless the user explicitly asks, and then
+  write only under the session's designated plan directory. A plan is a
+  working agreement, not a committed artifact; committed decisions belong
+  in an ADR.
 - When reality disagrees with the plan, stop and surface it. Update the
   plan, write an ADR if needed, then continue. No silent drift.
 
