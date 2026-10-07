@@ -4,9 +4,11 @@
 spine, not a new user-facing capability. Sits between M6 and M7; does not
 renumber M7.
 
-**Status:** code complete; **Gate G-F4 partially met** — the deterministic
-verifier arm is met, the judge-agreement arm is weak/ambiguous. · **Gate:**
-G-F4 · **Seeded by:** the M3-T7 quality probe
+**Status:** **Closed — inconclusive** (2026-10-07;
+[ADR-0063](adr/0063-f4-closeout.md)): the deterministic-verifier arm is met
+emphatically; the judge-trust and human-anchor arms are instrument-limited
+(saturated task set, provisional anchor) and move to M8. · **Gate:** G-F4 ·
+**Seeded by:** the M3-T7 quality probe
 (`docs/probes/m3-t7-quality-probe.md`) and its
 [results](probes/m3-t7-quality-probe-results.md).
 

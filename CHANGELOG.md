@@ -10,6 +10,17 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### F4 closeout + M8 (ADR-0063)
+
+- **F4 closed — inconclusive.** The deterministic-verifier arm is met
+  (42/42 code accepts decided without the LLM judge); the judge-trust and
+  human-anchor arms are instrument-limited (saturated M3-T7 set, provisional
+  anchor) and move to **M8 — Integrated Validation & Cognitive Regulation**
+  (Gate G8). The repertoire of cognitive operations ships whole; selection
+  is learned from grounded outcomes, and a novelty reset returns prior
+  specialization toward the built-in default heuristics blended with
+  exploration randomness. [ADR-0063](docs/adr/0063-f4-closeout.md).
+
 ### Verifier-first acceptance (ADR-0062)
 
 - **`execution.policy.judge_mode` now defaults to `verifier`.** Deterministic
