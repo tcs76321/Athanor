@@ -55,6 +55,8 @@ New entries are appended at the top. Do not rewrite history.
   [docs/soak-m7.md](docs/soak-m7.md).
 - `soak -only <names>` / `-goals N` select a subset of the goal set for smoke
   and partial runs (same semantics as `run`).
+- `soak -judge-model <tag>` overrides `personas.security.model` so the deciding
+  judge is a different family from the generator (F4 cross-family guard).
 
 ### M8-T21 — corpus-aware probe report
 
