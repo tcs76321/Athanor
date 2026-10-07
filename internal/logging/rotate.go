@@ -51,16 +51,26 @@ func (w *rotatingWriter) Write(p []byte) (int, error) {
 }
 
 func (w *rotatingWriter) rotateLocked() error {
+	rotated := fmt.Sprintf("%s.%d", w.path, time.Now().UnixNano())
 	if err := w.f.Close(); err != nil {
 		return fmt.Errorf("closing during rotation: %w", err)
 	}
-	w.f = nil
-	rotated := fmt.Sprintf("%s.%d", w.path, time.Now().UnixNano())
 	if err := os.Rename(w.path, rotated); err != nil && !os.IsNotExist(err) {
+		// Rename failed: reopen the original so logging keeps working
+		// instead of leaving w.f nil (which would make every later Write
+		// fail with os.ErrClosed permanently).
+		if f, rerr := os.OpenFile(w.path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, filePerm); rerr == nil {
+			w.f = f
+		}
 		return fmt.Errorf("rotating log: %w", err)
 	}
 	f, err := os.OpenFile(w.path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, filePerm)
 	if err != nil {
+		// Reopen of the fresh path failed; fall back to the rotated file so
+		// the process keeps logging rather than going permanently silent.
+		if rf, rerr := os.OpenFile(rotated, os.O_CREATE|os.O_WRONLY|os.O_APPEND, filePerm); rerr == nil {
+			w.f = rf
+		}
 		return fmt.Errorf("reopening log after rotation: %w", err)
 	}
 	w.f = f

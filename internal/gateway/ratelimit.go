@@ -101,10 +101,19 @@ func (b *tokenBucket) take(now time.Time) bool {
 type hostRateLimiter struct {
 	mu       sync.Mutex
 	buckets  map[string]*tokenBucket
-	now      func() time.Time // injected for tests
+	last     map[string]time.Time // last-seen time per host, for eviction
+	now      func() time.Time     // injected for tests
 	capacity float64
 	refill   float64
 }
+
+// Eviction bounds: the daemon is long-lived and the host key comes from a URL,
+// so without eviction the map grows without bound (e.g. under the `allow`
+// escape hatch or many allowlisted subdomains).
+const (
+	hostRateLimiterMaxBuckets = 1024
+	hostRateLimiterIdleTTL    = time.Hour
+)
 
 // newHostRateLimiter constructs a limiter that gives each
 // host `capacity` tokens and refills at `refill` tokens
@@ -116,6 +125,7 @@ func newHostRateLimiter(now func() time.Time, capacity, refillPerSecond float64)
 	}
 	return &hostRateLimiter{
 		buckets:  make(map[string]*tokenBucket),
+		last:     make(map[string]time.Time),
 		now:      now,
 		capacity: capacity,
 		refill:   refillPerSecond,
@@ -129,10 +139,41 @@ func newHostRateLimiter(now func() time.Time, capacity, refillPerSecond float64)
 func (h *hostRateLimiter) take(host string) bool {
 	h.mu.Lock()
 	defer h.mu.Unlock()
+	now := h.now()
 	b, ok := h.buckets[host]
 	if !ok {
-		b = newTokenBucket(h.now(), h.capacity, h.refill)
+		if len(h.buckets) >= hostRateLimiterMaxBuckets {
+			h.evictLocked(now)
+		}
+		b = newTokenBucket(now, h.capacity, h.refill)
 		h.buckets[host] = b
 	}
-	return b.take(h.now())
+	h.last[host] = now
+	return b.take(now)
+}
+
+// evictLocked drops idle hosts, then least-recently-seen hosts, until the map
+// is under the cap. The caller holds h.mu.
+func (h *hostRateLimiter) evictLocked(now time.Time) {
+	for host, seen := range h.last {
+		if now.Sub(seen) > hostRateLimiterIdleTTL {
+			delete(h.buckets, host)
+			delete(h.last, host)
+		}
+	}
+	for len(h.buckets) >= hostRateLimiterMaxBuckets {
+		var oldest string
+		var seen time.Time
+		first := true
+		for host, t := range h.last {
+			if first || t.Before(seen) {
+				oldest, seen, first = host, t, false
+			}
+		}
+		if first {
+			return
+		}
+		delete(h.buckets, oldest)
+		delete(h.last, oldest)
+	}
 }

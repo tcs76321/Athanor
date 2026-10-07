@@ -97,13 +97,16 @@ func (s *Scheduler) Tick(ctx context.Context, now time.Time) {
 	if already {
 		return
 	}
-	if _, err := s.RunNow(ctx); err != nil {
-		s.log.Error("backup: scheduled run failed", "err", err)
-		return
-	}
+	// Mark the attempt before running so a failure does not re-fire on the
+	// next tick within the same matching minute (the schedule fires once per
+	// minute; a partial/failed snapshot should not double-run).
 	s.mu.Lock()
 	s.lastRun = now
 	s.mu.Unlock()
+	if _, err := s.RunNow(ctx); err != nil {
+		s.log.Error("backup: scheduled run failed (will not retry this minute)", "err", err)
+		return
+	}
 }
 
 // RunNow forces a snapshot + prune regardless of schedule (the CLI path).
