@@ -204,7 +204,7 @@ func (c *soakRunConfig) run() error {
 	if s := soakSummary(filepath.Join(c.outDir, "soak.csv")); s != "" {
 		fmt.Printf("soak: %s\n", s)
 	}
-	if names, err := orphanPods(); err == nil && len(names) > 0 {
+	if names := settleOrphanPods(30 * time.Second); len(names) > 0 {
 		logEvent("WARNING: %d orphan job pod(s) at end: %v", len(names), names)
 	}
 	reason := "budget reached"

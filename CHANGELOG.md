@@ -18,6 +18,10 @@ New entries are appended at the top. Do not rewrite history.
   never ran, and `Stop` never removed the pod (orphans after every code job).
   A single `podName(id)` helper now names the container everywhere. Found by
   the M8 probe smoke; regression tests in `internal/jobpod`.
+- The probe's post-arm orphan check now **settles** (polls up to 15s) before
+  reporting: a terminal job's `stopPod` can lag the terminal transition the
+  probe observes, so an immediate check raced the teardown and reported a
+  transient non-orphan.
 
 ### M8-T25 — real-world-internal workflow map
 

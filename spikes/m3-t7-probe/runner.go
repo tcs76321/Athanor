@@ -316,7 +316,7 @@ func (r *runnerConfig) runArm(m probeModel, a arm) error {
 	if s := soakSummary(filepath.Join(runDir, "soak.csv")); s != "" {
 		fmt.Printf("  soak: %s\n", s)
 	}
-	if names, err := orphanPods(); err == nil {
+	if names := settleOrphanPods(15 * time.Second); len(names) > 0 {
 		fmt.Printf("  orphan athanor-job pods after arm: %d %v\n", len(names), names)
 	}
 

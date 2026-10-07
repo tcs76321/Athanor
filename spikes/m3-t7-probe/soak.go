@@ -151,6 +151,22 @@ func soakSummary(path string) string {
 		n, float64(maxRSS)/1024, float64(maxDB)/(1<<20), minFree)
 }
 
+// settleOrphanPods waits up to timeout for Job Pod teardown to finish before
+// reporting orphans. A terminal job's stopPod can lag the terminal transition
+// the probe observes over the API, so an immediate check races the teardown and
+// reports a transient "orphan" that is gone moments later. Returns the names
+// still present at the deadline (or the first error's empty set).
+func settleOrphanPods(timeout time.Duration) []string {
+	deadline := time.Now().Add(timeout)
+	for {
+		names, err := orphanPods()
+		if err != nil || len(names) == 0 || time.Now().After(deadline) {
+			return names
+		}
+		time.Sleep(2 * time.Second)
+	}
+}
+
 // orphanPods returns the names of any surviving athanor Job Pods. The
 // M2-T5 teardown should always leave zero; a non-empty result after an
 // arm is a containment regression worth surfacing.
