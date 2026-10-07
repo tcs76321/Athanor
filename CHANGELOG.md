@@ -10,6 +10,15 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### M8-T24 — process & recovery matrix
+
+- **M8-T24.** [docs/m8-process-matrix.md](docs/m8-process-matrix.md) consolidates
+  the failure/process scenarios 0.0.0 must survive (crash per phase, migration
+  idempotency, backup→restore, kill switch, HITL expiry, orphan sweep, power
+  transitions, `kill -9`, sleep/wake, 24h soak) with the test or harness that
+  proves each, and marks the human checkpoints. Linked from the Gate G7
+  checklist.
+
 ### M8-T23 — combined endurance + quality soak harness
 
 - **M8-T23.** The probe gains `soak`: one long-lived daemon over the corpus,

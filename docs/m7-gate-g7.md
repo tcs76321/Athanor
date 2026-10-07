@@ -30,6 +30,9 @@ result here. **Status: pending human sign-off.**
 | Migrations are forward-only, idempotent, backed up | automated | `internal/store` migration tests; Gate G0 |
 | Sleep/wake pauses and resumes | human | macOS/Linux observer + `ResumePaused`; verify with a real sleep cycle |
 
+The consolidated process/recovery matrix (each scenario, its test, and the
+deliberately-human checkpoints) is [m8-process-matrix.md](m8-process-matrix.md).
+
 ## 24-hour soak (M7-T9)
 
 Run [`soak-m7.md`](soak-m7.md) on AC hardware; the results are the evidence.
