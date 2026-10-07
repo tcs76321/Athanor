@@ -10,6 +10,17 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### M8-T6 — Cognitive Operations design (ADR-0064)
+
+- **M8-T6.** [ADR-0064](docs/adr/0064-cognitive-operations.md) and
+  [docs/cognitive-operations.md](docs/cognitive-operations.md) fix the model: a
+  shipped **repertoire** of cognitive operations, each with a verification
+  edge, termination condition, and containment class (cognitive regulation);
+  **selection** learned from grounded outcomes, calibrated by human evals,
+  with the judge advisory; and a **novelty reset** toward the built-in default
+  heuristics blended with exploration randomness. This is the spine for M8's
+  ablation and learning substrate.
+
 ### M8-T4 — documented deliberate trust boundaries
 
 - **M8-T4.** `SECURITY.md` records the intentional boundaries a reader might
