@@ -65,8 +65,9 @@ Selection is learned from evidence, not hard-coded:
 
 - **Trajectory store** — each terminal job records which operations ran, their
   cost, and the **grounded outcome** (tests, failing APIs, schema checks). This
-  is `StrategyProfile`/`StrategyOutcome` extended so the signature includes the
-  operations invoked (M8-T7).
+  is `StrategyProfile`/`StrategyOutcome` extended so the outcome records the
+  executed operations (M8-T7; `strategy_outcomes.operations_json`, migration
+  0024).
 - **Eligibility / selection** — `internal/policy` chooses operations from the
   trajectory evidence, task features, and remaining budget (M8-T8). Pure and
   deterministic; the default reproduces today's behaviour.

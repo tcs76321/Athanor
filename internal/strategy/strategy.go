@@ -77,7 +77,10 @@ type Outcome struct {
 	ReflectionLoops     int
 	TokenCost           int
 	WallTime            time.Duration
-	CreatedAt           time.Time
+	// Operations is the executed cognitive trajectory (M8-T7): the ordered
+	// operations that ran, with attributed cost and grounded verdicts.
+	Operations []Operation
+	CreatedAt  time.Time
 }
 
 // Repo persists strategy records.
@@ -158,13 +161,17 @@ func (r *Repo) CreateOutcome(ctx context.Context, o Outcome) (Outcome, error) {
 	if err != nil {
 		return Outcome{}, fmt.Errorf("strategy: outcome requires a profile: %w", err)
 	}
+	ops, err := json.Marshal(nonNilOperations(o.Operations))
+	if err != nil {
+		return Outcome{}, fmt.Errorf("marshalling operations: %w", err)
+	}
 	if _, err := r.store.DB().ExecContext(ctx,
 		`INSERT INTO strategy_outcomes
-		   (id, job_id, strategy_profile_id, result, score, evaluator_confidence, retries, reflection_loops, token_cost, wall_time_ms)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		   (id, job_id, strategy_profile_id, result, score, evaluator_confidence, retries, reflection_loops, token_cost, wall_time_ms, operations_json)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		 ON CONFLICT(job_id) DO NOTHING`,
 		ids.New(), o.JobID, profile.ID, o.Result, o.Score, o.EvaluatorConfidence,
-		o.Retries, o.ReflectionLoops, o.TokenCost, o.WallTime.Milliseconds(),
+		o.Retries, o.ReflectionLoops, o.TokenCost, o.WallTime.Milliseconds(), string(ops),
 	); err != nil {
 		return Outcome{}, fmt.Errorf("inserting strategy outcome: %w", err)
 	}
@@ -174,13 +181,13 @@ func (r *Repo) CreateOutcome(ctx context.Context, o Outcome) (Outcome, error) {
 // GetOutcomeByJob loads a job's outcome.
 func (r *Repo) GetOutcomeByJob(ctx context.Context, jobID string) (Outcome, error) {
 	row := r.store.DB().QueryRowContext(ctx,
-		`SELECT id, job_id, strategy_profile_id, result, score, evaluator_confidence, retries, reflection_loops, token_cost, wall_time_ms, created_at
+		`SELECT id, job_id, strategy_profile_id, result, score, evaluator_confidence, retries, reflection_loops, token_cost, wall_time_ms, operations_json, created_at
 		 FROM strategy_outcomes WHERE job_id = ?`, jobID)
 	var o Outcome
-	var createdAt string
+	var createdAt, opsJSON string
 	var wallMS int64
 	err := row.Scan(&o.ID, &o.JobID, &o.StrategyProfileID, &o.Result, &o.Score, &o.EvaluatorConfidence,
-		&o.Retries, &o.ReflectionLoops, &o.TokenCost, &wallMS, &createdAt)
+		&o.Retries, &o.ReflectionLoops, &o.TokenCost, &wallMS, &opsJSON, &createdAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Outcome{}, fmt.Errorf("%w: no outcome for job %s", ErrNotFound, jobID)
 	}
@@ -188,6 +195,9 @@ func (r *Repo) GetOutcomeByJob(ctx context.Context, jobID string) (Outcome, erro
 		return Outcome{}, fmt.Errorf("loading strategy outcome: %w", err)
 	}
 	o.WallTime = time.Duration(wallMS) * time.Millisecond
+	if err := json.Unmarshal([]byte(opsJSON), &o.Operations); err != nil {
+		return Outcome{}, fmt.Errorf("decoding operations: %w", err)
+	}
 	if o.CreatedAt, err = parseTS(createdAt); err != nil {
 		return Outcome{}, err
 	}
@@ -196,7 +206,7 @@ func (r *Repo) GetOutcomeByJob(ctx context.Context, jobID string) (Outcome, erro
 
 // ListOutcomes returns outcomes, newest first (limit <= 0 means no limit).
 func (r *Repo) ListOutcomes(ctx context.Context, limit int) ([]Outcome, error) {
-	q := `SELECT id, job_id, strategy_profile_id, result, score, evaluator_confidence, retries, reflection_loops, token_cost, wall_time_ms, created_at
+	q := `SELECT id, job_id, strategy_profile_id, result, score, evaluator_confidence, retries, reflection_loops, token_cost, wall_time_ms, operations_json, created_at
 	      FROM strategy_outcomes ORDER BY created_at DESC, id DESC`
 	if limit > 0 {
 		q += fmt.Sprintf(` LIMIT %d`, limit)
@@ -209,13 +219,16 @@ func (r *Repo) ListOutcomes(ctx context.Context, limit int) ([]Outcome, error) {
 	var out []Outcome
 	for rows.Next() {
 		var o Outcome
-		var createdAt string
+		var createdAt, opsJSON string
 		var wallMS int64
 		if err := rows.Scan(&o.ID, &o.JobID, &o.StrategyProfileID, &o.Result, &o.Score, &o.EvaluatorConfidence,
-			&o.Retries, &o.ReflectionLoops, &o.TokenCost, &wallMS, &createdAt); err != nil {
+			&o.Retries, &o.ReflectionLoops, &o.TokenCost, &wallMS, &opsJSON, &createdAt); err != nil {
 			return nil, err
 		}
 		o.WallTime = time.Duration(wallMS) * time.Millisecond
+		if err := json.Unmarshal([]byte(opsJSON), &o.Operations); err != nil {
+			return nil, err
+		}
 		t, err := parseTS(createdAt)
 		if err != nil {
 			return nil, err

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
+	"sort"
 	"strconv"
 
 	"github.com/tcs76321/athanor/internal/job"
@@ -141,6 +142,7 @@ func (e *Engine) captureOutcome(ctx context.Context, jobID string) {
 	if j.StartedAt != nil && j.FinishedAt != nil {
 		o.WallTime = j.FinishedAt.Sub(*j.StartedAt)
 	}
+	o.Operations = e.trajectory(ctx, jobID)
 	if _, err := e.strategy.CreateOutcome(ctx, o); err != nil {
 		slog.Error("engine: capturing strategy outcome", "job", jobID, "err", err)
 	}
@@ -235,4 +237,134 @@ func (e *Engine) reflectionLoops(ctx context.Context, jobID string) int {
 		return 0
 	}
 	return n
+}
+
+// trajectory derives the job's executed cognitive operations from its event
+// log (M8-T7; ADR-0064). Cost is attributed per phase from `llm_call` rows
+// (calls + tokens); grounded verdicts come from `verification` (a
+// deterministic verifier) and `tests_ran` (real tests); research and commit
+// are recorded from their own audit events. The result is ordered by the
+// canonical operation sequence so trajectories are comparable across jobs.
+func (e *Engine) trajectory(ctx context.Context, jobID string) []strategy.Operation {
+	events, err := e.db.QueryEvents(ctx, store.EventFilter{JobID: jobID, Category: "jobs"})
+	if err != nil {
+		return nil
+	}
+	byName := map[string]*strategy.Operation{}
+	get := func(name string) *strategy.Operation {
+		if op, ok := byName[name]; ok {
+			return op
+		}
+		op := &strategy.Operation{Name: name}
+		byName[name] = op
+		return op
+	}
+	for _, ev := range events {
+		var d struct {
+			Event            string `json:"event"`
+			Phase            string `json:"phase"`
+			Persona          string `json:"persona"`
+			PromptTokens     int    `json:"prompt_tokens"`
+			CompletionTokens int    `json:"completion_tokens"`
+			Applied          bool   `json:"applied"`
+			Passed           bool   `json:"passed"`
+			VerifierApplied  bool   `json:"verifier_applied"`
+			VerifierPassed   bool   `json:"verifier_passed"`
+			Outcome          string `json:"outcome"`
+		}
+		if json.Unmarshal([]byte(ev.DataJSON), &d) != nil {
+			continue
+		}
+		switch d.Event {
+		case "llm_call":
+			name := operationForPhase(d.Phase)
+			if name == "" {
+				continue
+			}
+			op := get(name)
+			op.Calls++
+			op.Tokens += d.PromptTokens + d.CompletionTokens
+			if op.Phase == "" {
+				op.Phase = d.Phase
+			}
+			if op.Persona == "" {
+				op.Persona = d.Persona
+			}
+		case "verification":
+			if !d.Applied {
+				continue
+			}
+			op := get(strategy.OpVerify)
+			op.Grounded = true
+			op.Passed = d.Passed
+			if op.Phase == "" {
+				op.Phase = string(llm.PhaseEvaluating)
+			}
+		case "verification_decision":
+			if !d.VerifierApplied {
+				continue
+			}
+			op := get(strategy.OpVerify)
+			op.Grounded = true
+			op.Passed = d.VerifierPassed
+		case "comparison":
+			get(strategy.OpCompare)
+		case "tests_ran":
+			get(strategy.OpVerify).Grounded = true
+		case "research_fetch":
+			if d.Outcome != "fetched" {
+				continue
+			}
+			get(strategy.OpResearch)
+		case "git_committed":
+			get(strategy.OpCommit)
+		}
+	}
+	out := make([]strategy.Operation, 0, len(byName))
+	for _, name := range trajectoryOrder {
+		if op, ok := byName[name]; ok {
+			out = append(out, *op)
+			delete(byName, name)
+		}
+	}
+	// Defensive: emit any operation not in the canonical order (a new
+	// vocabulary entry must also extend trajectoryOrder) deterministically.
+	if len(byName) > 0 {
+		rest := make([]string, 0, len(byName))
+		for name := range byName {
+			rest = append(rest, name)
+		}
+		sort.Strings(rest)
+		for _, name := range rest {
+			out = append(out, *byName[name])
+		}
+	}
+	return out
+}
+
+// trajectoryOrder is the canonical emission order for a job's operations.
+var trajectoryOrder = []string{
+	strategy.OpResearch, strategy.OpPlan, strategy.OpDiverge, strategy.OpVerify,
+	strategy.OpReflect, strategy.OpSynthesize, strategy.OpCompare, strategy.OpCommit,
+}
+
+// operationForPhase maps an engine phase to its cognitive operation ("" when
+// the phase has no operation, e.g. an unknown phase).
+func operationForPhase(phase string) string {
+	switch phase {
+	case llm.PhasePlanning:
+		return strategy.OpPlan
+	case llm.PhaseDiverging:
+		return strategy.OpDiverge
+	case llm.PhaseEvaluating:
+		return strategy.OpVerify
+	case llm.PhaseReflecting:
+		return strategy.OpReflect
+	case llm.PhaseSynthesizing:
+		return strategy.OpSynthesize
+	case llm.PhaseComparing:
+		return strategy.OpCompare
+	default:
+		return ""
+	}
 }

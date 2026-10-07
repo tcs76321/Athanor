@@ -10,6 +10,18 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### M8-T7 — strategy trajectory (executed cognitive operations)
+
+- **M8-T7.** Every terminal job now records its executed cognitive trajectory:
+  migration 0024 adds `strategy_outcomes.operations_json`, holding the ordered
+  operations (plan / diverge / verify / reflect / synthesize / compare /
+  research / commit) with attributed calls and tokens, and grounded verdicts
+  where a deterministic verifier decided. `internal/strategy` gains the
+  `Operation` type and the canonical vocabulary; the engine derives the
+  trajectory from the event log.
+  [ADR-0064](docs/adr/0064-cognitive-operations.md),
+  [catalog](docs/cognitive-operations.md).
+
 ### M8-T6 — Cognitive Operations design (ADR-0064)
 
 - **M8-T6.** [ADR-0064](docs/adr/0064-cognitive-operations.md) and

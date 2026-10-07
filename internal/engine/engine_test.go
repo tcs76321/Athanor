@@ -538,6 +538,19 @@ func TestStrategyProfileAndOutcomeCaptured(t *testing.T) {
 	if outcome.StrategyProfileID != profile.ID {
 		t.Errorf("outcome profile = %q, want %q", outcome.StrategyProfileID, profile.ID)
 	}
+	// M8-T7: the terminal job carries its executed cognitive trajectory.
+	if len(outcome.Operations) == 0 {
+		t.Fatalf("trajectory is empty; want the executed operations")
+	}
+	names := map[string]bool{}
+	for _, op := range outcome.Operations {
+		names[op.Name] = true
+	}
+	for _, want := range []string{strategy.OpPlan, strategy.OpDiverge, strategy.OpSynthesize, strategy.OpCompare} {
+		if !names[want] {
+			t.Errorf("trajectory missing %q: %+v", want, outcome.Operations)
+		}
+	}
 }
 
 // TestStrategyOutcomeOnFailure proves a failed job still produces an outcome.
