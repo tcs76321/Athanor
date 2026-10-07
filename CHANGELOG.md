@@ -10,6 +10,21 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### G-F4 probe (2026-10-06)
+
+- **10-model probe.** All ten models (3–35 B, five families) run as generators
+  and as judges; findings in
+  [docs/probes/gf4-closeout.md](docs/probes/gf4-closeout.md). Verifier arm met
+  (**42/42 code accepts decided deterministically**); anchor agreement
+  0.57–0.81 (8/10 ≥ 0.60); confidence still saturated; T-c only 40% 3-same;
+  the dialectical loop shows no advantage on bounded code and mixed gains on
+  text/document. Gate G-F4 **remains not fully closed** (human anchor rating
+  pending; judge discrimination weak).
+- **Probe harness fixes.** Judge-outer packet scoring (`49c3efa`), progress
+  output (`3431296`), and `judge -think/-num-ctx/-max-predict` so the judge
+  pass disables thinking and caps output consistently with the engine
+  (`4728bf4`).
+
 ### Fixes (2026-10-06 review)
 
 - **Containment and lifecycle hardening.** A static review of `internal/` and
