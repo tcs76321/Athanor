@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/tcs76321/athanor/internal/internalapi"
@@ -48,6 +49,33 @@ func TestPodExecutor_RunCode_MaterializesFileViaStdin(t *testing.T) {
 	}
 	if string(f.got.Stdin) != "print(1)" {
 		t.Errorf("stdin = %q, want print(1) (code must travel on stdin, not argv)", f.got.Stdin)
+	}
+}
+
+func TestPodExecutor_RunCode_StagesFileTree(t *testing.T) {
+	f := &fakePodExecer{res: jobpod.ExecResult{ExitCode: 0}}
+	a := newPodExecutor(f, "alpine:3.20")
+
+	files := []toolenvelope.File{
+		{Path: "bank/__init__.py", Content: "x"},
+		{Path: "solution.py", Content: "y"},
+	}
+	if _, err := a.RunCode(context.Background(), "job-1", toolenvelope.ExecuteRequest{Files: files}); err != nil {
+		t.Fatalf("RunCode: %v", err)
+	}
+	if len(f.got.Command) != 3 || f.got.Command[0] != "sh" || f.got.Command[1] != "-c" {
+		t.Fatalf("command = %v, want [sh -c <script>]", f.got.Command)
+	}
+	if !strings.Contains(f.got.Command[2], "python -c '") {
+		t.Errorf("command script = %q, want a python -c unpacker", f.got.Command[2])
+	}
+	// The manifest travels on stdin as JSON, not raw source.
+	staged, err := toolenvelope.DecodeFiles(f.got.Stdin)
+	if err != nil {
+		t.Fatalf("stdin is not a valid manifest: %v", err)
+	}
+	if len(staged) != 2 || staged[0].Path != "bank/__init__.py" || staged[1].Path != "solution.py" {
+		t.Errorf("staged files = %+v, want the two sorted paths", staged)
 	}
 }
 

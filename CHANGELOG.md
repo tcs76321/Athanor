@@ -17,6 +17,11 @@ New entries are appended at the top. Do not rewrite history.
   `Files` tree (sanitized relative paths) and overlays it on a task **fixture**,
   then runs the test command; git-as-undo commits the tree. Split into B1–B6;
   this makes the harder corpus's multi-file code tasks runnable.
+- **B1.** `toolenvelope` gains a `File` type, `SanitizeRelPath`,
+  `EncodeFiles`/`DecodeFiles`, and `IsTreeManifest`.
+- **B2.** `execute_code` stages a `Files` tree into the pod scratch as a JSON
+  manifest on stdin (never argv), re-validated in-pod; single-file `Code`
+  remains the shorthand.
 
 ### M8-T16 — bench corpus loader in the probe
 

@@ -49,6 +49,24 @@ const (
 	candidateFile = podScratch + "/solution.py"
 )
 
+// treeUnpacker is the fixed in-pod program that materializes a Files tree
+// (ADR-0065). It reads the JSON manifest on stdin — content never touches
+// argv (ADR-0024 §3) — and re-validates every path before writing. That
+// re-validation is defense in depth behind toolenvelope.EncodeFiles: the pod
+// is the last line of containment, so it refuses a traversal path even if the
+// Core's check were bypassed. It contains no single quotes, so it is safe to
+// wrap in single quotes for sh.
+const treeUnpacker = `import sys,json,os
+m=json.load(sys.stdin)
+for f in m.get("files",[]):
+    p=f["path"]
+    if p=="" or p.startswith("/") or ".." in p.split("/") or "\x00" in p:
+        sys.stderr.write("unsafe path: "+p+"\n"); sys.exit(2)
+    d=os.path.dirname(p)
+    if d: os.makedirs(d,exist_ok=True)
+    open(p,"w").write(f["content"])
+`
+
 // RunCode materializes the candidate to a file in the pod's writable scratch
 // and runs it. The source still travels on stdin (never argv or the host
 // process table, ADR-0024 §3): `cat` receives it and writes the file, then the
@@ -58,6 +76,19 @@ const (
 // validates Language against the closed set ("python"), so the interpreter and
 // filename are fixed here.
 func (a *podExecutorAdapter) RunCode(ctx context.Context, jobID string, req toolenvelope.ExecuteRequest) (toolenvelope.ExecuteResult, error) {
+	// ADR-0065: a multi-file candidate is staged as a tree rather than a
+	// single program. Staging is the materialization step; the task's test
+	// command (RunTests) is what runs against the tree.
+	if len(req.Files) > 0 {
+		manifest, err := toolenvelope.EncodeFiles(req.Files)
+		if err != nil {
+			return toolenvelope.ExecuteResult{}, fmt.Errorf("encoding candidate file tree: %w", err)
+		}
+		return a.exec(ctx, jobID, jobpod.ExecSpec{
+			Command: []string{"sh", "-c", "mkdir -p " + podScratch + " && cd " + podScratch + " && python -c '" + treeUnpacker + "'"},
+			Stdin:   manifest,
+		})
+	}
 	return a.exec(ctx, jobID, jobpod.ExecSpec{
 		Command: []string{"sh", "-c", "cat > " + candidateFile + " && python " + candidateFile},
 		Stdin:   []byte(req.Code),

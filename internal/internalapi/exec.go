@@ -20,7 +20,11 @@ const allowedLanguage = "python"
 type executeCodeRequest struct {
 	Language string `json:"language"`
 	Code     string `json:"code"`
-	Timeout  int    `json:"timeout_seconds"`
+	// Files is a multi-file candidate tree (ADR-0065). Non-empty supersedes
+	// Code: the pod stages the tree and the task's run_tests command exercises
+	// it.
+	Files   []toolenvelope.File `json:"files"`
+	Timeout int                 `json:"timeout_seconds"`
 }
 
 // runTestsRequest is the body of POST /internal/v1/jobs/{id}/run_tests.
@@ -103,7 +107,7 @@ func (a *API) handleExecuteCode(w http.ResponseWriter, r *http.Request) {
 	if !decodeBody(w, r, &req) {
 		return
 	}
-	if req.Code == "" {
+	if req.Code == "" && len(req.Files) == 0 {
 		writeError(w, http.StatusBadRequest, "execute_code: code is required")
 		return
 	}
@@ -147,6 +151,7 @@ func (a *API) handleExecuteCode(w http.ResponseWriter, r *http.Request) {
 		Tool:           toolenvelope.ToolExecuteCode,
 		Language:       req.Language,
 		Code:           req.Code,
+		Files:          req.Files,
 		TimeoutSeconds: req.Timeout,
 	})
 	if err != nil {
