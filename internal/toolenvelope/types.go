@@ -20,6 +20,11 @@ type ExecuteRequest struct {
 	Language string `json:"language,omitempty"`
 	// Code is the source to execute. Ignored by run_tests.
 	Code string `json:"code,omitempty"`
+	// Files is a multi-file candidate tree (ADR-0065). When non-empty it
+	// supersedes Code for execute_code: the pod stages every file under the
+	// scratch dir (paths sanitized) and runs the program. Code stays the
+	// single-file shorthand so existing callers are unchanged.
+	Files []File `json:"files,omitempty"`
 	// Command is the test command line. Ignored by execute_code.
 	// Example: "pytest -q".
 	Command string `json:"command,omitempty"`
