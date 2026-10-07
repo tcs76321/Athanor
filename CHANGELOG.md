@@ -10,6 +10,15 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### M8-T3 — scope-isolation structural gate
+
+- **M8-T3.** `internal/gate/gate_scope_test.go` parses the shared wire types
+  and fails the build when a scope-carrying `*Request` type (`Scope` /
+  `ProjectID` / `JobID`) is not registered with the handler that constrains
+  its scope server-side — so a future scope-trusting field cannot land
+  silently. Enforces the security-review rule "no pod-supplied identifier
+  may select a scope."
+
 ### M8-T2 — job context route resolves the real job (O2 + F-3)
 
 - **M8-T2.** `GET /internal/v1/jobs/{id}` resolves a *job* to its task

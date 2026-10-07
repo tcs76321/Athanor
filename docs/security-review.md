@@ -70,10 +70,13 @@ job id. **Fixed:** `Repo.JobTask` resolves job → task_id → task (mirroring
 
 ## Recommendations
 
-1. Fix F-3 (`Repo.JobTask`) and update the harness to use real job ids.
-2. Add a **structural gate** for scope isolation: a test asserting every
-   scope-carrying request struct (`ContextSwapRequest`, `QueryMemoryRequest`)
-   is scope-constrained in its handler — so a future scope-trusting field
-   cannot land silently.
-3. Consider a general rule: **no pod-supplied identifier may select a scope**;
-   scopes are always derived server-side from the authenticated job.
+1. ~~Fix F-3 (`Repo.JobTask`) and update the harness to use real job ids.~~
+   **Done 2026-10-07** (M8-T2): `Repo.JobTask` resolves job → task and
+   returns the real state; the harness seeds a real job row.
+2. ~~Add a **structural gate** for scope isolation.~~ **Done 2026-10-07**
+   (M8-T3): `internal/gate/gate_scope_test.go` parses the shared wire types
+   and fails the build when any scope-carrying `*Request` type is not
+   registered with the handler that constrains its scope.
+3. **No pod-supplied identifier may select a scope**; scopes are always
+   derived server-side from the authenticated job — now enforced by the gate
+   in (2).
