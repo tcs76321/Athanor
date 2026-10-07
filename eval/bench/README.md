@@ -28,8 +28,9 @@ most hard (H) tasks.
 2. **Headroom by construction.** Difficulty comes from multi-file structure,
    edge cases, exact-output requirements, multi-constraint prompts, long
    context, and adversarial/ambiguous specs — not from arbitrary obscurity.
-3. **Layered difficulty.** E (sanity), M (discriminating), H (hard). H tasks
-   are the measuring instrument; E tasks catch harness regressions.
+3. **Layered difficulty.** M (discriminating), H (hard), and E (sanity). The
+   existing M3-T7 10-goal set **is** the E baseline and is not duplicated here;
+   this corpus adds the M and H tasks that provide headroom.
 4. **Judge-relevant by design.** Each M/H task ships a **quality rubric** and an
    **anchor pair** (a good artifact and a near-miss, objectively labeled), so a
    judge is measured on *within-task ordering* — the correlated-error property
@@ -72,7 +73,8 @@ Each task in `tasks.yaml` carries:
 
 Run the corpus in tiers and check the spread:
 
-- **E** should pass for ~all models — a harness sanity check.
+- **E** = the existing M3-T7 10-goal set (not in this corpus); it should pass
+  for ~all models — a harness sanity check.
 - **M** should discriminate across sizes (roughly 40–80% pass for 9–12 B).
 - **H** should have headroom: a 9–12 B model below ~30%, and no model at 100%
   across a tier.

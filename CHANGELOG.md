@@ -31,7 +31,8 @@ New entries are appended at the top. Do not rewrite history.
   `ratings.csv`; a machine cross-check, not the human anchor.
 - **Harder benchmark corpus** ([ADR-0061](docs/adr/0061-harder-benchmark.md),
   [spec](eval/bench/README.md)). `eval/bench/` specifies 15
-  deterministic-first tasks in tiers E/M/H across code, document, text, and
+  deterministic-first tasks in tiers M/H (the M3-T7 set remains the E
+  baseline) across code, document, text, and
   data, plus an adversarial case and per-task anchor pairs — because the
   M3-T7 set saturated in the 10-model probe. The corpus is the specification;
   fixtures, test suites, and anchor pairs are the enabling work.

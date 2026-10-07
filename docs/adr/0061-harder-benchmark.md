@@ -34,8 +34,8 @@ Adopt `eval/bench/` as the project's task corpus:
   on the LLM judge.
 - **Headroom by construction.** Difficulty comes from multi-file structure,
   edge cases, exact-output requirements, multi-constraint prompts, long
-  context, and adversarial specs. Tiers E/M/H, with H designed so a 9–12 B
-  model passes well under half.
+  context, and adversarial specs. Tiers M and H (the M3-T7 10-goal set remains
+  the E baseline), with H designed so a 9–12 B model passes well under half.
 - **Anchor pairs.** Each M/H task ships a good and a near-miss artifact with
   objective labels, so judge quality is measured on *within-task ordering*, not
   cross-case scoring.
