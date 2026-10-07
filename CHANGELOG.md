@@ -10,6 +10,14 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### M8-T17 design — multi-file code artifacts and fixture staging (ADR-0065)
+
+- **M8-T17 (design).** [ADR-0065](docs/adr/0065-multi-file-code-artifacts.md):
+  a code candidate is a file **tree** stored as one blob; the pod stages a
+  `Files` tree (sanitized relative paths) and overlays it on a task **fixture**,
+  then runs the test command; git-as-undo commits the tree. Split into B1–B6;
+  this makes the harder corpus's multi-file code tasks runnable.
+
 ### M8-T16 — bench corpus loader in the probe
 
 - **M8-T16.** The M3-T7 probe gains `-corpus eval/bench/tasks.yaml`: it loads
