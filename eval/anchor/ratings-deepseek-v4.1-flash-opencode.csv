@@ -1,0 +1,17 @@
+case_id,rater,rating,criteria_met,notes
+md-d1,DeepSeek V4.1 Flash in OpenCode,3,Y,three sections in order and a one-line description; H1 is the raw run id
+md-d2,DeepSeek V4.1 Flash in OpenCode,2,Y,sections present but License first; absurd package name; trailing LIMITATION
+md-d3,DeepSeek V4.1 Flash in OpenCode,5,Y,clean title and description; correct order; sane install
+md-s1,DeepSeek V4.1 Flash in OpenCode,3,Y,sections correct and no LIMITATION; H1 and install name are the raw run id
+sa-d1,DeepSeek V4.1 Flash in OpenCode,4,Y,concrete modules; two real distinct risks
+sa-d2,DeepSeek V4.1 Flash in OpenCode,3,Y,inventive metaphor but off-brief; sections and two risks present; LIMITATION
+sa-d3,DeepSeek V4.1 Flash in OpenCode,2,Y,self-referential (the brief document is a 'part'); meta LIMITATION
+sa-s1,DeepSeek V4.1 Flash in OpenCode,5,Y,professional module names; concrete risks; fully meets
+essay-e1,DeepSeek V4.1 Flash in OpenCode,5,Y,exactly three paragraphs; distinct reasons; one-sentence conclusion
+essay-e2,DeepSeek V4.1 Flash in OpenCode,1,N,one paragraph; not three; reasons are a list rather than paragraphs
+brief-d1,DeepSeek V4.1 Flash in OpenCode,5,Y,concrete Parts/Steps/Risks; two named risks
+brief-d2,DeepSeek V4.1 Flash in OpenCode,2,N,sections present but content vague; no risks actually named
+code-fib-pass,DeepSeek V4.1 Flash in OpenCode,5,Y,test passes; docstring present; usage example absent (minor)
+code-fib-fail,DeepSeek V4.1 Flash in OpenCode,1,N,wrong result (n-1); no docstring; test fails
+code-todo-pass,DeepSeek V4.1 Flash in OpenCode,5,Y,correct; docstrings on every public method
+code-todo-fail,DeepSeek V4.1 Flash in OpenCode,1,N,complete is a no-op; no docstrings; test fails

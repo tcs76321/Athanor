@@ -131,6 +131,15 @@ interface, spending the output budget on hidden reasoning and emitting empty
 visible content. Its judge scores are correspondingly low (dialectical 0.60).
 A targeted re-run with explicit per-model thinking handling is a follow-up.
 
+## Agent (frontier) rating
+
+As an upper-bound *machine* rater, **DeepSeek V4.1 Flash in OpenCode** rated
+the same anchor set ([agent rating](../../eval/anchor/agent-rating-deepseek-v4.1-flash.md)):
+**Spearman 0.984 / Kendall τ-b 0.970** against the existing ratings (code
+cases 1.000), 15/16 identical — far above the local judges' 0.57–0.81. It
+confirms the machine-provisional tier is self-consistent, but it is machine vs
+machine and so does **not** establish human agreement.
+
 ## Gate G-F4 verdict
 
 | arm | status |

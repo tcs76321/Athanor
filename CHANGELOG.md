@@ -24,6 +24,11 @@ New entries are appended at the top. Do not rewrite history.
   output (`3431296`), and `judge -think/-num-ctx/-max-predict` so the judge
   pass disables thinking and caps output consistently with the engine
   (`4728bf4`).
+- **Agent (frontier) anchor rating.** *DeepSeek V4.1 Flash in OpenCode* rated
+  the 16-case anchor ([report](eval/anchor/agent-rating-deepseek-v4.1-flash.md)):
+  Spearman **0.984** vs the existing ratings (code cases 1.000), 15/16
+  identical — far above the local judges' 0.57–0.81. Recorded separately from
+  `ratings.csv`; a machine cross-check, not the human anchor.
 
 ### Fixes (2026-10-06 review)
 
