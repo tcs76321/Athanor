@@ -126,7 +126,13 @@ func (c *soakRunConfig) run() error {
 		fmt.Printf("soak: resuming — %d rows already collected\n", len(prior))
 	}
 
-	r := &runnerConfig{addr: c.addr, timeout: c.timeout, outDir: c.outDir, ollamaURL: c.ollamaURL}
+	r := &runnerConfig{
+		binary:    c.binary,
+		addr:      c.addr,
+		outDir:    c.outDir,
+		timeout:   c.timeout,
+		ollamaURL: c.ollamaURL,
+	}
 
 	var interrupted atomic.Bool
 	sigc := make(chan os.Signal, 1)
