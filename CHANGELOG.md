@@ -10,6 +10,16 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### M8-T1 — gateway policy denial is distinguishable (O1)
+
+- **M8-T1.** A gateway policy denial now returns `451` plus a new
+  `toolenvelope.ErrPolicyDenied` (was a bare `403` folded into
+  `ErrToolDisallowed`); the runner maps the two statuses to distinct
+  sentinels and the engine audits `outcome=denied` separately
+  (known-issues O1). Contract: [ADR-0019](docs/adr/0019-gateway-tools.md);
+  tests: `internalapi/gateway_tools_test.go`,
+  `runner/httpclient_test.go`, `engine/research_test.go`.
+
 ### F4 closeout + M8 (ADR-0063)
 
 - **F4 closed — inconclusive.** The deterministic-verifier arm is met

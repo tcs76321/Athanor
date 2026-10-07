@@ -12,23 +12,6 @@ recording; each entry names its location and status.
 
 ## Open
 
-### O1 — Gateway policy denial is indistinguishable from a tool-envelope violation (medium)
-
-`internal/internalapi/gateway_tools.go` returns **403** for a gateway policy
-denial (`ErrFetchDenied`), and `internal/internalapi/runner/httpclient.go`
-maps **any** 403 to `toolenvelope.ErrToolDisallowed`. So a
-domain-allowlist denial reaches the engine as "tool not in the job envelope".
-
-- **Impact:** the research sub-step soft-fails either way, but the audit and
-  error text misattribute the cause (envelope vs policy), and any future
-  caller that branches on `ErrToolDisallowed` will be wrong for a denial.
-- **Fix:** return a distinct status for a policy denial (e.g. `451` /
-  `424`), map it to a distinct sentinel in the runner, and branch on it in
-  the engine's research path.
-- **Why open:** it changes the internal-API status contract, the runner
-  mapping, and an engine error path — a design change that deserves tests,
-  not a mid-probe edit.
-
 ### O2 — `GET /internal/v1/jobs/{id}` reports a hardcoded state (low)
 
 `internal/internalapi/handlers.go` (`handleJobGet`) writes
@@ -42,6 +25,12 @@ domain-allowlist denial reaches the engine as "tool not in the job envelope".
   API and its serve wiring; low value given the token-lifetime bound.
 
 ---
+
+## Fixed (2026-10-07)
+
+| Finding | Resolution |
+|---|---|
+| O1: a gateway policy denial (403) was indistinguishable from a tool-envelope violation | a policy denial is now `451` (`internalapi.ErrFetchDenied`) → `toolenvelope.ErrPolicyDenied` in the runner; the engine audits `outcome=denied` distinctly. Contract in [ADR-0019](adr/0019-gateway-tools.md) §1/§7; tests in `internalapi/gateway_tools_test.go`, `runner/httpclient_test.go`, `engine/research_test.go`. |
 
 ## Fixed (2026-10-06 review)
 

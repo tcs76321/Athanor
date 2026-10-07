@@ -35,7 +35,9 @@ var (
 	ErrSearchNotConfigured = errors.New("internalapi: search_web is not configured (network.search_engine_url_template is empty)")
 	// ErrFetchDenied: the gateway Policy refused the URL (off-list,
 	// deny-list, IDN, private IP, redirect escape). A containment
-	// refusal, not a malfunction. → 403.
+	// refusal, not a malfunction. → 451, deliberately distinct from the
+	// 403 an envelope violation returns so the runner can tell a policy
+	// denial from a disallowed tool (known-issues O1).
 	ErrFetchDenied = errors.New("internalapi: fetch denied by gateway policy")
 	// ErrContentRejected: the fetched content was refused by the
 	// Reader pipeline (not extractable, or it tripped the
@@ -203,7 +205,7 @@ func (a *API) writeGatewayError(w http.ResponseWriter, r *http.Request, jobID st
 		writeError(w, http.StatusNotImplemented, ErrSearchNotConfigured.Error())
 	case errors.Is(err, ErrFetchDenied):
 		a.auditReject(r.Context(), jobID, tool, "denied by gateway policy")
-		writeError(w, http.StatusForbidden, ErrFetchDenied.Error())
+		writeError(w, http.StatusUnavailableForLegalReasons, ErrFetchDenied.Error())
 	case errors.Is(err, ErrContentRejected):
 		a.auditReject(r.Context(), jobID, tool, "content rejected by reader pipeline")
 		writeError(w, http.StatusUnprocessableEntity, ErrContentRejected.Error())

@@ -195,7 +195,7 @@ func TestFetchURL_GatewayErrorMapping(t *testing.T) {
 		err  error
 		want int
 	}{
-		{"denied", fmt.Errorf("wrapped: %w", ErrFetchDenied), http.StatusForbidden},
+		{"denied", fmt.Errorf("wrapped: %w", ErrFetchDenied), http.StatusUnavailableForLegalReasons},
 		{"content rejected", fmt.Errorf("wrapped: %w", ErrContentRejected), http.StatusUnprocessableEntity},
 		{"failed", fmt.Errorf("dial: %w", ErrFetchFailed), http.StatusBadGateway},
 		{"unknown", errors.New("mystery"), http.StatusBadGateway},

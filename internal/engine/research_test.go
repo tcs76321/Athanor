@@ -197,6 +197,34 @@ func TestResearchContext_DisallowedWhenEnvelopeLacksTool(t *testing.T) {
 	}
 }
 
+// TestResearchContext_PolicyDeniedAuditsDenied is the O1 proof: a
+// gateway policy denial (ErrPolicyDenied) is audited as "denied",
+// distinct from an envelope miss ("disallowed"). Both soft-fail, but
+// the audit now names the real cause.
+func TestResearchContext_PolicyDeniedAuditsDenied(t *testing.T) {
+	env := newEnv(t)
+	ctx, j, p, task := researchFixture(t, env, "See https://denied.test/guide for context.")
+	env.eng.runner = &pickRunner{
+		ToolRunner: env.runner,
+		errFor:     map[string]error{"https://denied.test/guide": toolenvelope.ErrPolicyDenied},
+	}
+
+	block, err := env.eng.researchContext(ctx, j, p, task)
+	if err != nil {
+		t.Fatalf("researchContext: %v", err)
+	}
+	if block != "" {
+		t.Errorf("block = %q, want empty (source denied)", block)
+	}
+	out := researchOutcomes(t, env, j.ID)
+	if out["denied"] != 1 {
+		t.Errorf("outcomes = %v, want denied=1", out)
+	}
+	if out["disallowed"] != 0 {
+		t.Errorf("outcomes = %v, want disallowed=0 (denial is not an envelope miss)", out)
+	}
+}
+
 // pickRunner wraps a ToolRunner and fails FetchURL for specific URLs
 // (the per-URL error case the global fake cannot express).
 type pickRunner struct {

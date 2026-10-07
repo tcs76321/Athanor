@@ -86,6 +86,16 @@ var ErrUnknownTool = errors.New("toolenvelope: unknown tool")
 // them) is the one that returns the sentinel.
 var ErrToolDisallowed = errors.New("toolenvelope: tool not in job envelope")
 
+// ErrPolicyDenied is the typed sentinel for "the tool is in the job
+// envelope, but the §21.5 gateway policy refused the destination"
+// (off-list host, deny-list, IDN, private IP, or a redirect escape).
+// It is deliberately distinct from ErrToolDisallowed (known-issues O1):
+// the internal API returns 451 for a policy denial and 403 for an
+// envelope violation, and the runner maps each status to its own
+// sentinel so the engine's research path can audit the real cause
+// instead of misattributing a denial as an envelope miss.
+var ErrPolicyDenied = errors.New("toolenvelope: destination denied by gateway policy")
+
 // Envelope is the per-job tool allowlist. It is a value type built
 // from a fixed set at construction time; once built, it is read-only.
 // The zero value is an empty envelope (no tools allowed) — a valid

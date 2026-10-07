@@ -118,6 +118,14 @@ func (e *Engine) researchContext(ctx context.Context, j job.Job, p project.Proje
 				"event": "research_fetch", "url": u, "outcome": "disallowed",
 			})
 			continue
+		case errors.Is(err, toolenvelope.ErrPolicyDenied):
+			// The tool was in the envelope but the gateway policy
+			// refused the host (known-issues O1). Audited distinctly
+			// so a denial is not misread as an envelope miss.
+			e.audit(ctx, j.ID, map[string]any{
+				"event": "research_fetch", "url": u, "outcome": "denied",
+			})
+			continue
 		case err != nil:
 			e.audit(ctx, j.ID, map[string]any{
 				"event": "research_fetch", "url": u, "outcome": "error",

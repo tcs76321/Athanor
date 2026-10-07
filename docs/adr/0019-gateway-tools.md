@@ -41,7 +41,9 @@ Handler flow (identical in shape to `handleExecuteCode` /
 `handleRunTests` / `handleLint`): parse body → per-job envelope check via
 `a.tools.EnvelopeFor` (403 + `toolenvelope.ErrToolDisallowed` when the
 tool is not in the envelope) → `auditAllow` → dispatch → typed error
-mapping. The dispatch target is the §21.5 gateway, reached through a
+mapping. A gateway **policy** refusal is a distinct `451` +
+`toolenvelope.ErrPolicyDenied` (known-issues O1), so the runner and the
+engine can tell a denial from an envelope miss. The dispatch target is the §21.5 gateway, reached through a
 narrow interface (§2 below). Callers are the engine (via the
 `internal/internalapi/runner` loopback client, exactly as a Job Pod would
 call) and, in the future, pod-side code through the same routes.
@@ -190,9 +192,9 @@ mirroring `pod_wiring.go`'s sub-step pattern (ADR-0009/0014):
   containment event, not a job failure. Only transport-level errors on
   *every* source escalate.
 - Every attempt appends a `research_fetch` audit event: `url`,
-  `outcome` (`fetched` | `denied_off_list` | `denied_private_ip` |
-  `disallowed` | `reader_rejected` | `error`), `mode`, `bytes`,
-  `truncated`.
+  `outcome` (`fetched` | `denied` | `denied_off_list` |
+  `denied_private_ip` | `disallowed` | `reader_rejected` | `error`),
+  `mode`, `bytes`, `truncated`.
 
 ## Consequences
 

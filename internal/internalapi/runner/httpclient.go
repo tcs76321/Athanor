@@ -158,6 +158,13 @@ func postTool[T any](c *HTTPClient, ctx context.Context, jobID, suffix string, r
 		return zero, fmt.Errorf("runner: post: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode == http.StatusUnavailableForLegalReasons {
+		// 451: the tool was in the job envelope, but the §21.5 gateway
+		// policy refused the destination (known-issues O1). Kept
+		// distinct from ErrToolDisallowed so the engine's research path
+		// audits a denial, not an envelope miss.
+		return zero, ErrPolicyDenied
+	}
 	if resp.StatusCode == http.StatusForbidden {
 		// Disallowed tool. Surface as a typed error so the
 		// engine can distinguish "pod says no" from "pod is
@@ -203,6 +210,10 @@ func (c *HTTPClient) post(ctx context.Context, jobID, suffix string, req toolenv
 		return toolenvelope.ExecuteResult{}, fmt.Errorf("runner: post: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode == http.StatusUnavailableForLegalReasons {
+		// 451: gateway policy denial (known-issues O1); see postTool.
+		return toolenvelope.ExecuteResult{}, ErrPolicyDenied
+	}
 	if resp.StatusCode == http.StatusForbidden {
 		// Disallowed tool. Surface as a typed error so the
 		// engine can distinguish "pod says no" from "pod is
@@ -227,3 +238,9 @@ func (c *HTTPClient) post(ctx context.Context, jobID, suffix string, req toolenv
 // surfaces toolenvelope.ErrToolDisallowed so the engine can
 // distinguish "pod says no" from "pod is broken" with errors.Is.
 var ErrToolDisallowed = toolenvelope.ErrToolDisallowed
+
+// ErrPolicyDenied is re-exported from toolenvelope (known-issues O1).
+// The internal API returns 451 when the gateway policy refuses a
+// destination that the envelope admitted; the runner surfaces this so
+// the engine can audit the denial distinctly from an envelope miss.
+var ErrPolicyDenied = toolenvelope.ErrPolicyDenied
