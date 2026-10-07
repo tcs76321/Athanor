@@ -78,6 +78,12 @@ type arm struct {
 	Name       string
 	Candidates int
 	Runs       int
+	// Reflection overrides execution.max_reflection_loops: -1 leaves it to
+	// the run-level flag/default, 0 disables reflection, >0 sets the ceiling.
+	// Used by the -ablation arms (M8-T22).
+	Reflection int
+	// SelfRefine enables execution.self_refine for this arm (M8-T22).
+	SelfRefine bool
 }
 
 // arms are the two conditions of the headline experiment. The dialectical

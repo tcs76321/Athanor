@@ -10,6 +10,14 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### M8-T22 — component ablation arms in the probe
+
+- **M8-T22.** `run -ablation` selects four arms isolating the loop's
+  components — `single` (N=1, no reflection), `bestof3` (N=3, no reflection),
+  `reflect` (N=1, reflection on), `full` (N=3, reflection on, optional
+  self-refine) — instead of the dialectical-vs-single pair. An arm now carries
+  `max_reflection_loops` / `self_refine`, rendered into the generated config.
+
 ### M8-T18 — non-code check engine in the probe
 
 - **M8-T18.** `spikes/m3-t7-probe/checks.go` turns a corpus task's `checks:`

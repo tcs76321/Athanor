@@ -45,9 +45,20 @@ func orDefault(v, def string) string {
 // engine's evaluation sub-steps require — without it, code jobs
 // soft-fail without ever running tests.
 func probeConfigYAML(m probeModel, a arm, seedPolicy, addr string, noReflect bool, p probePolicy) string {
+	// Per-arm reflection: an explicit arm value wins; -1 falls back to the
+	// run-level -no-reflect flag (M8-T22).
 	reflectLine := ""
-	if noReflect {
+	switch {
+	case a.Reflection == 0:
 		reflectLine = "  max_reflection_loops: 0\n"
+	case a.Reflection > 0:
+		reflectLine = fmt.Sprintf("  max_reflection_loops: %d\n", a.Reflection)
+	case noReflect:
+		reflectLine = "  max_reflection_loops: 0\n"
+	}
+	selfRefineLine := ""
+	if a.SelfRefine {
+		selfRefineLine = "  self_refine: true\n"
 	}
 	// The security (judge) and alternative personas may be a different model
 	// than the generator; declare each one's true family so the engine's
@@ -126,6 +137,7 @@ execution:
 		fmt.Fprintf(&b, "  policy:\n    judge_mode: %q\n", p.JudgeMode)
 	}
 	b.WriteString(reflectLine)
+	b.WriteString(selfRefineLine)
 	// `comparing` must accommodate a model swap under single residency
 	// (ARCHITECTURE §12.5), so it is larger than the M3-T7 120s.
 	b.WriteString(`  phase_wall_time_budgets:

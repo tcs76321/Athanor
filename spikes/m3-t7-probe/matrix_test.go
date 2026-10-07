@@ -71,6 +71,31 @@ func TestArmSetDialecticalRuns(t *testing.T) {
 	}
 }
 
+// TestArmSetAblation proves the M8-T22 component ablation: four arms isolating
+// divergence, reflection, and the full loop from single-shot.
+func TestArmSetAblation(t *testing.T) {
+	r := &runnerConfig{ablation: true, dialecticalRuns: 2}
+	got := map[string]arm{}
+	for _, a := range r.armSet() {
+		got[a.Name] = a
+	}
+	if len(got) != 4 {
+		t.Fatalf("ablation arms = %d, want 4", len(got))
+	}
+	if got["single"].Candidates != 1 || got["single"].Reflection != 0 {
+		t.Errorf("single = %+v", got["single"])
+	}
+	if got["bestof3"].Candidates != 3 || got["bestof3"].Reflection != 0 {
+		t.Errorf("bestof3 = %+v", got["bestof3"])
+	}
+	if got["reflect"].Candidates != 1 || got["reflect"].Reflection != -1 {
+		t.Errorf("reflect = %+v", got["reflect"])
+	}
+	if got["full"].Candidates != 3 || got["full"].Reflection != -1 {
+		t.Errorf("full = %+v", got["full"])
+	}
+}
+
 func TestProbeModels(t *testing.T) {
 	if len(probeModels) == 0 {
 		t.Fatal("probeModels is empty")

@@ -49,6 +49,11 @@ type runnerConfig struct {
 	// goals; empty means "use the locked M3-T7 set".
 	corpusPath string
 	corpus     []sampleGoal
+	// ablation selects the four-arm component ablation (M8-T22) instead of
+	// the default dialectical-vs-single pair; selfRefine enables
+	// execution.self_refine in the ablation arms.
+	ablation   bool
+	selfRefine bool
 
 	// Run guards (M3-T7 soak hardening).
 	maxWall        time.Duration
@@ -84,6 +89,8 @@ func runMatrix(args []string) {
 	fs.BoolVar(&r.gates, "gates", false, "enable the F5 code acceptance gates (require_tests_for_code, require_documentation_for_code); default off to isolate the loop")
 	fs.IntVar(&r.dialecticalRuns, "dialectical-runs", 3, "repetitions of the dialectical arm (panel runs 1; the core generator keeps 3 for T-c)")
 	fs.StringVar(&r.corpusPath, "corpus", "", "path to eval/bench/tasks.yaml; when set, run the harder corpus instead of the locked sampleGoals (M8-T16)")
+	fs.BoolVar(&r.ablation, "ablation", false, "run the four-arm component ablation (single | bestof3 | reflect | full) instead of dialectical-vs-single (M8-T22)")
+	fs.BoolVar(&r.selfRefine, "self-refine", false, "enable execution.self_refine in the ablation arms")
 	_ = fs.Parse(args)
 
 	if r.corpusPath != "" {
@@ -161,9 +168,19 @@ func (r *runnerConfig) armSet() []arm {
 	if runs < 1 {
 		runs = 1
 	}
+	if r.ablation {
+		// M8-T22 component ablation: isolate divergence (bestof3), reflection
+		// (reflect), and the full loop from the single-shot baseline.
+		return []arm{
+			{Name: "single", Candidates: 1, Runs: 1, Reflection: 0},
+			{Name: "bestof3", Candidates: 3, Runs: runs, Reflection: 0},
+			{Name: "reflect", Candidates: 1, Runs: runs, Reflection: -1},
+			{Name: "full", Candidates: 3, Runs: runs, Reflection: -1, SelfRefine: r.selfRefine},
+		}
+	}
 	return []arm{
-		{Name: "dialectical", Candidates: 3, Runs: runs},
-		{Name: "single", Candidates: 1, Runs: 1},
+		{Name: "dialectical", Candidates: 3, Runs: runs, Reflection: -1},
+		{Name: "single", Candidates: 1, Runs: 1, Reflection: -1},
 	}
 }
 
