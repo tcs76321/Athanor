@@ -332,6 +332,14 @@ type StrategyHistory interface {
 	RecentStats(ctx context.Context, archetype string, limit int) (samples int, acceptRate float64, err error)
 }
 
+// StrategyOperationHistory is the M8-T10 optional seam: per-operation execution
+// counts for a task class, feeding the exploration floor so an unproven
+// operation stays eligible. It is type-asserted, so a source that implements
+// only StrategyHistory keeps working.
+type StrategyOperationHistory interface {
+	OperationSamples(ctx context.Context, archetype string, limit int) (map[string]int, error)
+}
+
 // SetStrategyHistory wires the F4-T2 outcome-history seam. A nil seam
 // disables the familiarity signal (difficulty and criteria still apply).
 func (e *Engine) SetStrategyHistory(h StrategyHistory) { e.history = h }
@@ -402,6 +410,12 @@ func (e *Engine) planInputs(ctx context.Context, j job.Job, p project.Project, t
 		if samples, rate, err := e.history.RecentStats(ctx, p.Archetype, 20); err == nil {
 			in.Features.RecentSamples = samples
 			in.Features.RecentAcceptRate = rate
+		}
+		// M8-T10: per-operation counts feed the exploration floor.
+		if oph, ok := e.history.(StrategyOperationHistory); ok {
+			if m, err := oph.OperationSamples(ctx, p.Archetype, 20); err == nil {
+				in.Features.OperationSamples = m
+			}
 		}
 	}
 	// F4-T7a: an active insight can bias the divergence persona. Proposed

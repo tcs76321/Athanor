@@ -24,7 +24,7 @@ func (Adaptive) Decide(in Inputs) Plan {
 		// Reflection cannot run without budget, so it leaves the eligible
 		// set (M8-T8). The selection seam is recomputed after the ceiling
 		// changes.
-		plan.Operations = eligibleOperations(plan)
+		plan.Operations = eligibleOperations(plan, in.Features.OperationSamples)
 	}
 	return plan
 }

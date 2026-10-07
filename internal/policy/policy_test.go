@@ -105,6 +105,24 @@ func TestNovelty(t *testing.T) {
 	}
 }
 
+// TestEnsureExploration pins the M8-T10 anti-collapse guard: an unproven
+// runnable operation is restored even when a selection dropped it, while a
+// proven dropped operation stays dropped.
+func TestEnsureExploration(t *testing.T) {
+	runnable := []string{cognitive.OpPlan, cognitive.OpDiverge, cognitive.OpVerify}
+	eligible := []string{cognitive.OpDiverge} // a selection dropped plan and verify
+	samples := map[string]int{
+		cognitive.OpPlan:    0, // unproven → restored
+		cognitive.OpDiverge: 10,
+		cognitive.OpVerify:  5, // proven → stays dropped
+	}
+	got := ensureExploration(eligible, runnable, samples)
+	want := []string{cognitive.OpPlan, cognitive.OpDiverge}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("ensureExploration = %v, want %v", got, want)
+	}
+}
+
 // TestAdaptive_DropsReflectionOnEasy proves the adaptive policy narrows the
 // eligible set when it makes a task easy.
 func TestAdaptive_DropsReflectionOnEasy(t *testing.T) {

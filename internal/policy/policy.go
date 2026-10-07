@@ -56,6 +56,11 @@ type Features struct {
 	// active StrategyInsight names a winning divergence persona for this
 	// task class, it leads DivergenceRoles. Empty means no bias.
 	PreferredDivergencePersona string
+	// OperationSamples counts how many recent outcomes recorded each
+	// operation for this class (M8-T10). An operation below
+	// ExplorationFloorSamples is unproven, and the exploration floor keeps it
+	// eligible so a learned selection cannot starve it.
+	OperationSamples map[string]int
 }
 
 // Limits are the operator-configured ceilings (ADR-0044 rule 4). A policy may
@@ -127,16 +132,50 @@ func Novelty(f Features) float64 {
 	return 1 - float64(f.RecentSamples)/float64(NoveltyFullSamples)
 }
 
-// eligibleOperations derives the eligible operation set from a plan: the
-// canonical baseline, minus reflection when the plan grants it no budget.
-// Pure and total, so it stays unit-testable in isolation.
-func eligibleOperations(p Plan) []string {
-	out := make([]string, 0, len(cognitive.BaselineOperations))
+// ExplorationFloorSamples is the minimum number of recorded runs below which an
+// operation is "unproven" and must remain eligible regardless of learned
+// selection (M8-T10). It is the anti-collapse guard: a narrow history can never
+// starve the repertoire.
+const ExplorationFloorSamples = 3
+
+// eligibleOperations derives the runnable operation set from a plan (the
+// canonical baseline, minus reflection when the plan grants it no budget) and
+// applies the exploration floor. Pure and total.
+func eligibleOperations(p Plan, samples map[string]int) []string {
+	runnable := make([]string, 0, len(cognitive.BaselineOperations))
 	for _, op := range cognitive.BaselineOperations {
 		if op == cognitive.OpReflect && p.MaxReflectionLoops == 0 {
 			continue
 		}
-		out = append(out, op)
+		runnable = append(runnable, op)
+	}
+	// Selection does not narrow beyond hard constraints yet (M8-T8b); the
+	// floor is placed before that mechanism so it cannot starve an unproven
+	// operation once it lands.
+	return ensureExploration(runnable, runnable, samples)
+}
+
+// ensureExploration restores any runnable operation that is unproven (fewer
+// than ExplorationFloorSamples recorded runs) into the eligible set. A
+// selection may drop a *proven* operation, but never an unproven one.
+// `runnable` is the universe of operations that can run at all (hard
+// constraints applied); the floor can only restore within it. Pure and total —
+// the output is in canonical (runnable) order.
+func ensureExploration(eligible, runnable []string, samples map[string]int) []string {
+	keep := make(map[string]bool, len(eligible)+len(runnable))
+	for _, op := range eligible {
+		keep[op] = true
+	}
+	for _, op := range runnable {
+		if samples[op] < ExplorationFloorSamples {
+			keep[op] = true
+		}
+	}
+	out := make([]string, 0, len(runnable))
+	for _, op := range runnable {
+		if keep[op] {
+			out = append(out, op)
+		}
 	}
 	return out
 }
@@ -174,7 +213,7 @@ func (Default) Decide(in Inputs) Plan {
 			PhaseComparing:  "security",
 		},
 	}
-	p.Operations = eligibleOperations(p)
+	p.Operations = eligibleOperations(p, in.Features.OperationSamples)
 	p.Novelty = Novelty(in.Features)
 	return p
 }

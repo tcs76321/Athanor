@@ -69,3 +69,32 @@ func TestOutcomeOperationsDefaultEmpty(t *testing.T) {
 		t.Errorf("operations = %#v, want empty non-nil", out.Operations)
 	}
 }
+
+// TestOperationSamples proves the M8-T10 input: per-operation counts over
+// recent outcomes for an archetype, counted once per outcome.
+func TestOperationSamples(t *testing.T) {
+	repo, s := openStrategy(t)
+	ctx := context.Background()
+	projectID, jobID := createJob(t, s)
+	if _, err := repo.CreateProfile(ctx, Profile{JobID: jobID, ProjectID: projectID, Archetype: "code"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := repo.CreateOutcome(ctx, Outcome{JobID: jobID, Result: ResultAcceptedNew, Operations: []cognitive.Operation{
+		{Name: cognitive.OpPlan}, {Name: cognitive.OpDiverge}, {Name: cognitive.OpDiverge},
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	counts, err := repo.OperationSamples(ctx, "code", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if counts[cognitive.OpPlan] != 1 {
+		t.Errorf("op plan samples = %d, want 1", counts[cognitive.OpPlan])
+	}
+	if counts[cognitive.OpDiverge] != 1 {
+		t.Errorf("op diverge samples = %d, want 1 (once per outcome)", counts[cognitive.OpDiverge])
+	}
+	if counts[cognitive.OpVerify] != 0 {
+		t.Errorf("op verify samples = %d, want 0 (absent)", counts[cognitive.OpVerify])
+	}
+}

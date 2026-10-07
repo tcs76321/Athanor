@@ -10,6 +10,15 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### M8-T10 — exploration floor
+
+- **M8-T10.** `strategy.OperationSamples` counts recent per-operation runs for
+  a class, and `policy.ensureExploration` is the anti-collapse guard: a learned
+  selection may drop a *proven* operation but never an unproven one (fewer than
+  `ExplorationFloorSamples` recorded runs). The engine reads the counts through
+  an optional `StrategyOperationHistory` seam. Selection still returns the
+  baseline (M8-T8), so this is the guard placed before the narrowing lands.
+
 ### M8-T9 — novelty detection and the anti-rut reset
 
 - **M8-T9.** `policy.Novelty` scores how far a task class is from history in
