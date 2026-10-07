@@ -45,6 +45,16 @@ type jobMetrics struct {
 	ArtifactText string `json:"-"`
 	// Error is set when the job could not be completed or collected.
 	Error string `json:"error,omitempty"`
+	// Tier is the bench corpus tier ("H"/"M") when -corpus is used, else "E"
+	// (the locked M3-T7 set). M8-T21.
+	Tier string `json:"tier,omitempty"`
+	// CheckPass is the deterministic non-code check outcome (nil when the task
+	// has no `checks`, e.g. code tasks whose test command is the check).
+	CheckPass *bool `json:"check_pass,omitempty"`
+	// CheckFailures names failed deterministic checks; CheckAdvisory names the
+	// semantic checks reported but never gating. M8-T18/T21.
+	CheckFailures []string `json:"check_failures,omitempty"`
+	CheckAdvisory []string `json:"check_advisory,omitempty"`
 }
 
 // openResultsDB opens the daemon's SQLite database read-only so the probe

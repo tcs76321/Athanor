@@ -143,6 +143,55 @@ func verificationSummary(metrics []jobMetrics) (codeAccepts, deterministicAccept
 	return codeAccepts, deterministicAccepts
 }
 
+// tierPassRow is the deterministic pass count for one (tier, arm) cell.
+type tierPassRow struct {
+	Tier string
+	Arm  string
+	N    int
+	Pass int
+}
+
+// jobPassed is the deterministic acceptance signal for one job: the task's
+// non-code checks when it has them, else the engine's accept (a completed job
+// whose winning artifact is new). M8-T21.
+func jobPassed(m jobMetrics) bool {
+	if m.CheckPass != nil {
+		return *m.CheckPass
+	}
+	return m.State == "completed" && m.Winner == "new"
+}
+
+// corpusSummary aggregates the deterministic pass rate by (tier, arm) — the
+// corpus read that answers "does the loop help, and where". M8-T21.
+func corpusSummary(metrics []jobMetrics) []tierPassRow {
+	type key struct{ tier, arm string }
+	agg := map[key]*tierPassRow{}
+	var order []key
+	for _, m := range metrics {
+		k := key{m.Tier, m.Arm}
+		if _, ok := agg[k]; !ok {
+			agg[k] = &tierPassRow{Tier: m.Tier, Arm: m.Arm}
+			order = append(order, k)
+		}
+		r := agg[k]
+		r.N++
+		if jobPassed(m) {
+			r.Pass++
+		}
+	}
+	sort.Slice(order, func(i, j int) bool {
+		if order[i].tier != order[j].tier {
+			return order[i].tier < order[j].tier
+		}
+		return order[i].arm < order[j].arm
+	})
+	out := make([]tierPassRow, 0, len(order))
+	for _, k := range order {
+		out = append(out, *agg[k])
+	}
+	return out
+}
+
 // renderReport renders the markdown findings skeleton over all collected
 // metrics. It fills the tables mechanically; interpretation and the ADR
 // trigger stay with the human writing the findings.
@@ -157,6 +206,16 @@ func renderReport(metrics []jobMetrics) string {
 	for _, r := range headlineTable(metrics) {
 		fmt.Fprintf(&b, "| %s | %s | %s | %s | %.2f | %.2f | %+.2f | %.0f | %.0f |\n",
 			r.Model, r.Family, r.Goal, r.Archetype, r.SingleScore, r.DialecticalScore, r.Delta, r.SingleTokens, r.DialecticalTokens)
+	}
+
+	b.WriteString("\n## Corpus — deterministic pass rate (tier × arm)\n\n")
+	b.WriteString("| tier | arm | n | pass | rate |\n|---|---|---|---|---|\n")
+	for _, r := range corpusSummary(metrics) {
+		rate := 0.0
+		if r.N > 0 {
+			rate = float64(r.Pass) / float64(r.N) * 100
+		}
+		fmt.Fprintf(&b, "| %s | %s | %d | %d | %.0f%% |\n", r.Tier, r.Arm, r.N, r.Pass, rate)
 	}
 
 	b.WriteString("\n## T-b — judge-confidence calibration (dialectical arm)\n\n")

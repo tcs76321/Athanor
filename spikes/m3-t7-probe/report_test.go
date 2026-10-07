@@ -14,6 +14,33 @@ func mk(goal, arm string, run int, score, conf, div float64, winner string, toke
 	}
 }
 
+func TestCorpusSummary(t *testing.T) {
+	pass, fail := true, false
+	metrics := []jobMetrics{
+		{Tier: "H", Arm: "single", State: "completed", Winner: "new", CheckPass: &pass},
+		{Tier: "H", Arm: "single", State: "completed", Winner: "new", CheckPass: &fail},
+		{Tier: "H", Arm: "full", State: "completed", Winner: "new"}, // code: engine accept
+		{Tier: "M", Arm: "full", State: "failed", Winner: "none"},
+	}
+	rows := corpusSummary(metrics)
+	byKey := map[string]tierPassRow{}
+	for _, r := range rows {
+		byKey[r.Tier+"/"+r.Arm] = r
+	}
+	if len(rows) != 3 {
+		t.Fatalf("cells = %+v, want 3", rows)
+	}
+	if r := byKey["H/single"]; r.N != 2 || r.Pass != 1 {
+		t.Errorf("H/single = %+v, want 1/2", r)
+	}
+	if r := byKey["H/full"]; r.N != 1 || r.Pass != 1 {
+		t.Errorf("H/full = %+v, want 1/1 (engine accept)", r)
+	}
+	if r := byKey["M/full"]; r.N != 1 || r.Pass != 0 {
+		t.Errorf("M/full = %+v, want 0/1", r)
+	}
+}
+
 func TestHeadlineTable(t *testing.T) {
 	metrics := []jobMetrics{
 		mk("a", "single", 1, 0.4, 0.5, 0, "new", 100),

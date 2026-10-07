@@ -10,6 +10,14 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### M8-T21 — corpus-aware probe report
+
+- **M8-T21.** Each job row now carries its bench tier (`E`/`M`/`H`) and the
+  deterministic non-code check outcome (passed/failed kinds, advisory kinds).
+  The report gains a **tier × arm deterministic pass-rate** section: non-code
+  tasks use their checks; code tasks use the engine's accept. This is the read
+  that answers "does the loop help, and where".
+
 ### M8-T22 — component ablation arms in the probe
 
 - **M8-T22.** `run -ablation` selects four arms isolating the loop's

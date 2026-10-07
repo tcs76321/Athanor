@@ -384,7 +384,7 @@ func (r *runnerConfig) stopDaemon(cmd *exec.Cmd) {
 // returned.
 func (r *runnerConfig) runOne(g sampleGoal, m probeModel, a arm, run int, stateDir string) jobMetrics {
 	mx := jobMetrics{
-		GoalName: g.Name, GoalNumber: g.Number, Archetype: g.Archetype,
+		GoalName: g.Name, GoalNumber: g.Number, Archetype: g.Archetype, Tier: tierOf(g.Source),
 		ModelLabel: m.Label, Model: m.Model, Family: m.Family, Arm: a.Name, Run: run,
 	}
 	name := fmt.Sprintf("%s-%s-%s-r%d-%d", g.Name, m.Label, a.Name, run, time.Now().UnixNano()%1_000_000)
@@ -473,7 +473,29 @@ func (r *runnerConfig) runOne(g sampleGoal, m probeModel, a arm, run int, stateD
 	if txt, err := readArtifact(stateDir, mx.ArtifactID); err == nil {
 		mx.ArtifactText = txt
 	}
+	// M8-T21: apply the task's deterministic non-code checks to the accepted
+	// artifact. Code tasks carry no `checks` (their test command is the check).
+	if len(g.Checks) > 0 && mx.ArtifactText != "" {
+		pass, results := runChecks(g.Checks, mx.ArtifactText)
+		mx.CheckPass = &pass
+		for _, r := range results {
+			if r.Advisory {
+				mx.CheckAdvisory = append(mx.CheckAdvisory, r.Kind)
+			} else if !r.Pass {
+				mx.CheckFailures = append(mx.CheckFailures, r.Kind)
+			}
+		}
+	}
 	return mx
+}
+
+// tierOf maps a goal's Source to a bench tier. A "bench:H" source is tier H;
+// anything else is the E baseline (the locked M3-T7 set).
+func tierOf(source string) string {
+	if strings.HasPrefix(source, "bench:") {
+		return strings.TrimPrefix(source, "bench:")
+	}
+	return "E"
 }
 
 // waitJob polls a job until it reaches a terminal state or the timeout
