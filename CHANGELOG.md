@@ -34,6 +34,11 @@ New entries are appended at the top. Do not rewrite history.
 - **B5.** Git-as-undo gains `CommitTree`: a multi-file candidate commits its
   files at repository-relative paths in one atomic commit; single-file and
   non-code artifacts keep the managed-namespace blob commit.
+- **B6.** The six code tasks are revised to a pinned `solution.py`/package
+  contract with self-contained hidden tests (bank/lru/expr verified against
+  reference solutions). `code-bank-multifile` becomes the single-module
+  `code-bank-atomic`; `code-refactor-provided` ships a `messy.py` fixture the
+  model must refactor and extend. Single-file tasks need no fixture.
 
 ### M8-T16 — bench corpus loader in the probe
 

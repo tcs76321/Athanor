@@ -12,21 +12,38 @@ tasks:
 
   # ---------------------------------------------------------------- code ---
 
-  - id: code-bank-multifile
-    title: Multi-file bank package with a ledger
+  - id: code-bank-atomic
+    title: Bank accounts with atomic transfers and a ledger
     archetype: code
     tier: H
     language: python
-    goal: "Implement a `bank` package (account.py, ledger.py, __init__.py) with Account.deposit, Account.withdraw, Account.transfer, and a Ledger that records every change; overdraft must raise, and transfer must be atomic."
+    goal: "Implement solution.py with `class Account(ledger=None)` exposing `balance`, `deposit(n)`, `withdraw(n)`, and `transfer(other, n)`, and `class Ledger` exposing an `entries` list. Overdraft must raise and leave the balance unchanged; a transfer that cannot complete must leave both balances unchanged; the ledger records one entry per successful operation."
     criteria:
       - "pure stdlib"
-      - "deposit/withdraw/transfer implemented with correct balances"
-      - "overdraft raises a typed error and leaves balances unchanged"
-      - "transfer is atomic: a failure on the target leaves both accounts unchanged"
-      - "the Ledger records one entry per successful mutation"
-    fixture: eval/bench/fixtures/code-bank-multifile
-    test_command: "python -m pytest -q"
-    acceptance_floor: "test_command exits 0 AND every criterion above is exercised by a passing test"
+      - "deposit/withdraw/transfer update balances correctly"
+      - "overdraft raises and leaves the balance unchanged"
+      - "a failed transfer is atomic (both balances unchanged)"
+      - "the ledger records one entry per successful operation"
+    test_command: |
+      python -c 'import solution
+      l=solution.Ledger()
+      a=solution.Account(l); a.deposit(100)
+      assert a.balance==100, a.balance
+      b=solution.Account(l); a.transfer(b,30)
+      assert a.balance==70 and b.balance==30, (a.balance,b.balance)
+      assert len(l.entries)==2, l.entries
+      before=a.balance
+      ok=False
+      try: a.withdraw(1000)
+      except Exception: ok=True
+      assert ok, "overdraft must raise"
+      assert a.balance==before, "failed withdrawal changed the balance"
+      ok=False
+      try: a.transfer(b,1000)
+      except Exception: ok=True
+      assert ok, "over-limit transfer must raise"
+      assert a.balance==before and b.balance==30, "failed transfer was not atomic"'
+    acceptance_floor: "test_command exits 0"
     quality_rubric:
       - "5: all tests pass; errors typed; atomicity proven; ledger consistent"
       - "3: tests pass but error types are generic or the ledger misses a path"
@@ -42,17 +59,31 @@ tasks:
     archetype: code
     tier: H
     language: python
-    goal: "Implement evaluate(expr) for integer arithmetic with + - * /, parentheses, unary minus, and correct precedence; division by zero and malformed input must raise distinct typed errors."
+    goal: "Implement evaluate(expr) in solution.py for integer arithmetic with + - * /, parentheses, unary minus, and correct precedence; division by zero raises ZeroDivisionError and malformed input raises ValueError."
     criteria:
       - "pure stdlib"
       - "precedence and associativity correct for * / over + -"
       - "parentheses and nested parentheses handled"
       - "unary minus handled at start and after operators"
-      - "division by zero raises ZeroDivisionError (or a typed subclass)"
-      - "malformed input raises a typed ValueError"
-    fixture: eval/bench/fixtures/code-expr-eval
-    test_command: "python -m pytest -q"
-    acceptance_floor: "test_command exits 0 AND the precedence, unary, and error tests all pass"
+      - "division by zero raises ZeroDivisionError"
+      - "malformed input raises ValueError"
+    test_command: |
+      python -c 'import solution
+      assert solution.evaluate("2+3*4")==14
+      assert solution.evaluate("(2+3)*4")==20
+      assert solution.evaluate("-3+5")==2
+      assert solution.evaluate("10-2-3")==5
+      assert solution.evaluate("2*-3")==-6
+      assert solution.evaluate("2*(3+4)-5")==9
+      ok=False
+      try: solution.evaluate("1/0")
+      except ZeroDivisionError: ok=True
+      assert ok, "division by zero must raise ZeroDivisionError"
+      ok=False
+      try: solution.evaluate("2+")
+      except ValueError: ok=True
+      assert ok, "malformed input must raise ValueError"'
+    acceptance_floor: "test_command exits 0"
     quality_rubric:
       - "5: all pass; parser is not eval(); errors typed and distinct"
       - "3: all pass but uses eval() or collapses error cases"
@@ -68,16 +99,26 @@ tasks:
     archetype: code
     tier: H
     language: python
-    goal: "Implement an LRUCache(capacity, ttl_seconds) with O(1) get/put, LRU eviction at capacity, and expiry by TTL; get on an expired key must miss and evict."
+    goal: "Implement LRUCache(capacity, ttl_seconds) in solution.py with get/put, LRU eviction at capacity (an update refreshes recency), and expiry by TTL; get on an expired key misses."
     criteria:
       - "pure stdlib"
-      - "get/put are O(1) (no linear scan on the hot path)"
       - "eviction is LRU, including on update of an existing key"
       - "expired entries miss even when under capacity"
-      - "capacity 1 and ttl 0 edge cases behave per the tests"
-    fixture: eval/bench/fixtures/code-lru-ttl
-    test_command: "python -m pytest -q"
-    acceptance_floor: "test_command exits 0 AND the O(1), LRU, and expiry tests pass"
+      - "capacity 1 evicts correctly"
+    test_command: |
+      python -c 'import solution,time
+      c=solution.LRUCache(2,0.05)
+      c.put("a",1); c.put("b",2)
+      assert c.get("a")==1
+      c.put("c",3)
+      assert c.get("b") is None, "b should be evicted as LRU"
+      assert c.get("a")==1 and c.get("c")==3
+      time.sleep(0.08)
+      assert c.get("a") is None, "a should have expired"
+      d=solution.LRUCache(1,10)
+      d.put("x",1); d.put("y",2)
+      assert d.get("x") is None and d.get("y")==2'
+    acceptance_floor: "test_command exits 0"
     quality_rubric:
       - "5: all pass; true O(1) with an ordered map; expiry consistent"
       - "3: all pass but update does not refresh recency"
@@ -93,16 +134,22 @@ tasks:
     archetype: code
     tier: H
     language: python
-    goal: "Implement unified_diff(a, b) that returns a unified diff with correct @@ hunk headers and 3 lines of context, matching the format of difflib.unified_diff for the provided cases."
+    goal: "Implement unified_diff(a, b) in solution.py returning the same lines as difflib.unified_diff(a, b) (lists of lines), including correct @@ hunk headers and 3 lines of context."
     criteria:
       - "pure stdlib"
       - "hunk headers have correct start/length"
       - "3 lines of context on each side"
       - "identical inputs produce an empty diff"
-      - "output matches the fixtures byte-for-byte"
-    fixture: eval/bench/fixtures/code-unified-diff
-    test_command: "python -m pytest -q"
-    acceptance_floor: "test_command exits 0 (exact-output assertions)"
+    test_command: |
+      python -c 'import solution,difflib
+      a="a\nb\nc\nd\ne\nf\ng\nh\n".splitlines(True)
+      b="a\nB\nc\nd\ne\nf\ng\nh\n".splitlines(True)
+      assert list(solution.unified_diff(a,b))==list(difflib.unified_diff(a,b))
+      assert list(solution.unified_diff(a,a))==[]
+      c="1\n2\n3\n4\n5\n".splitlines(True)
+      d="1\n2\nX\n4\n5\n".splitlines(True)
+      assert list(solution.unified_diff(c,d))==list(difflib.unified_diff(c,d))'
+    acceptance_floor: "test_command exits 0"
     quality_rubric:
       - "5: byte-exact on all cases; hunk math correct"
       - "3: correct hunks but off-by-one context or header counts"
@@ -118,15 +165,19 @@ tasks:
     archetype: code
     tier: M
     language: python
-    goal: "Refactor the provided `messy.py` into the same public API without changing behavior: every provided test must still pass, the linter must pass, and duplicated logic must be removed."
+    goal: "The starter tree contains messy.py. Refactor it (consolidate the nested/duplicated branches) and add `classify_many(xs)` returning a list of classifications, keeping the existing public functions (`classify`, `add`, `add_twice`) unchanged. Emit the full refactored file as a `=== FILE: messy.py ===` block."
     criteria:
-      - "all provided tests pass unchanged"
-      - "ruff and mypy pass on the refactored module"
-      - "public function names and signatures are unchanged"
-      - "duplicated branches are consolidated"
+      - "pure stdlib"
+      - "classify, add, and add_twice are unchanged in behavior"
+      - "classify_many(xs) returns a list of classifications"
+      - "the nested branches are consolidated"
     fixture: eval/bench/fixtures/code-refactor-provided
-    test_command: "python -m pytest -q && ruff check . && mypy ."
-    acceptance_floor: "tests pass AND ruff and mypy exit 0"
+    test_command: |
+      python -c 'import messy
+      assert messy.classify(-1)=="neg" and messy.classify(0)=="zero" and messy.classify(5)=="pos"
+      assert messy.add(2,3)==5 and messy.add_twice(2,3)==8
+      assert messy.classify_many([-1,0,2])==["neg","zero","pos"], messy.classify_many([-1,0,2])'
+    acceptance_floor: "test_command exits 0"
     quality_rubric:
       - "5: behavior preserved; clearer structure; lint/type clean"
       - "3: tests pass but lint warnings remain or duplication persists"

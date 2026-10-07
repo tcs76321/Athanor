@@ -101,7 +101,7 @@ let them gate acceptance.
 
 | id | archetype | tier | one-liner |
 |---|---|---|---|
-| `code-bank-multifile` | code | H | multi-file bank package + ledger, atomic transfer |
+| `code-bank-atomic` | code | H | bank accounts + ledger, atomic transfer (**renamed from `code-bank-multifile`**: single-module) |
 | `code-expr-eval` | code | H | arithmetic evaluator, precedence, typed errors |
 | `code-lru-ttl` | code | H | O(1) LRU cache with TTL and edge cases |
 | `code-unified-diff` | code | H | byte-exact unified diff |
@@ -117,18 +117,18 @@ let them gate acceptance.
 | `data-json-normalize` | data | H | normalize events to a JSON Schema |
 | `adversarial-ambiguous-spec` | document | H | flag a contradiction, do not fabricate |
 
-## Required assets (not yet implemented)
+## Required assets
 
-The corpus is the specification. Running it needs, per task:
+The corpus is the specification; the enabling work is partly landed:
 
-- `eval/bench/fixtures/<id>/` — the starter repo/files (code, data) or the
-  source material (document, text).
-- Test suites (`code-*`) and check implementations for the non-code `checks`
-  kinds.
-- `anchor pairs` (good + near-miss artifacts) for judge calibration.
-
-These are the enabling work; until they exist, `tasks.yaml` is a design, not a
-runnable matrix.
+- **Code tasks are runnable (M8-T17, ADR-0065).** Each code task's
+  `test_command` is a self-contained hidden test run in the Job Pod against the
+  candidate. A task that provides starter code (`code-refactor-provided`) ships
+  `fixtures/<id>/`, read through `execution.fixture_path` and overlaid by the
+  candidate. Multi-file candidates use `=== FILE: path ===` blocks.
+- **Still needed:** `anchor pairs` (good + near-miss artifacts) for judge
+  calibration, and the non-code `checks` implementations (`json_schema`,
+  `required_sections`, …) for the document/text/data/adversarial tasks.
 
 ## Probe integration
 
