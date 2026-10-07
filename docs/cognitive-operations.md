@@ -43,7 +43,7 @@ class (I = internal-reversible, X = external/irreversible); `State` = today
 | **Draft** | generate one candidate | verifier on output | one artifact | I | M | ✅ |
 | **Diverge (best-of-N)** | generate N candidates @ temp>0 | verifier/rank over set | N or floor met | I | M·N | ✅ `internal/engine/diverge.go` |
 | **Critique** | judge a candidate against criteria | deterministic first, judge advisory | verdict | I | S–M | ✅ `internal/verify` + judge |
-| **Self-refine** | write → review → rewrite → perfect | verifier must accept the rewrite | ≤ k rewrites | I | M·k | ◐ reflection is coarse (whole-candidate) |
+| **Self-refine** | write → review → rewrite → perfect | verifier must accept the rewrite | ≤ k rewrites | I | M·k | ✅ M8-T11 (opt-in `self_refine`); repairs the best candidate in place under the `refining` phase |
 | **Tree search / rollouts** | explore branches, back up the best | verifier per leaf | node/step budget | I | L | ✗ |
 | **Adversarial self-critique** ("nightmare") | generate failure cases, red-team own output | verifier on discovered break | case budget | I | M | ✗ (external corpora exist) |
 | **Scratchpad** | persistent working memory across phases | none (context only) | job end | I | S | ✗ |

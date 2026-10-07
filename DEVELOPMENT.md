@@ -121,6 +121,8 @@ single-model setup. Findings: [`docs/probes/m1-quality-probe.md`](docs/probes/m1
 | `max_diversity_rerolls` | `0` | opt-in: re-roll a below-`jaccard_floor` batch |
 | `cost_aware` | `true` | a quality tie breaks toward the cheaper artifact |
 | `novelty_reset` | `auto` | `auto` drops learned persona bias on a novel task class; `reset` always; `keep` never (M8-T9) |
+| `self_refine` | `false` | `true` enables the M8-T11 self-refine repair of the best candidate on a failed cycle |
+| `max_self_refine_loops` | `1` | bounds self-refine attempts per job; `0` disables even when `self_refine` is true |
 
 `personas.<role>.family` declares the model lineage (e.g. `gemma4`, `qwen`);
 the cross-family rule compares it exactly. It defaults to the model name with

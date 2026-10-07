@@ -17,6 +17,8 @@ func runtimePolicy(phase string) (string, error) {
 		return "PHASE: DIVERGENCE (high temperature).\nGenerate candidate solutions that genuinely differ in approach. Explore\northogonal options; avoid premature convergence on one strategy.", nil
 	case llm.PhaseEvaluating:
 		return "PHASE: EVALUATION (temperature 0.0 — maximally deterministic).\nCheck the work strictly against each acceptance criterion. Identify\nfailures precisely. Do not improvise criteria that were not stated.", nil
+	case llm.PhaseRefining:
+		return "PHASE: SELF-REFINE (targeted repair).\nRewrite the candidate to fix exactly the failures listed. Keep what already\nworks; change only what is necessary. Output the full corrected artifact,\ncomplete and self-contained.", nil
 	case llm.PhaseReflecting:
 		return "PHASE: REFLECTION.\nAnalyze why candidates failed. Identify missing constraints. Propose\nimprovements or hybrid approaches.", nil
 	case llm.PhaseSynthesizing:

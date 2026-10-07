@@ -1,11 +1,15 @@
 package llm
 
-// Phase names (§8.1 job states; §13.1 Dialectical phases). The Dialectical
-// Engine phase names double as job state names.
+// Phase names (§8.1 job states; §13.1 Dialectical phases). Most Dialectical
+// Engine phase names double as job state names. PhaseRefining is the
+// exception (M8-T11, ADR-0064): it is a call phase only — the self-refine
+// operation runs *within* the evaluating state (repair the best candidate,
+// re-verify in place), so no job state is named "refining".
 const (
 	PhasePlanning     = "planning"
 	PhaseDiverging    = "diverging"
 	PhaseEvaluating   = "evaluating"
+	PhaseRefining     = "refining"
 	PhaseReflecting   = "reflecting"
 	PhaseSynthesizing = "synthesizing"
 	PhaseComparing    = "comparing"
@@ -25,6 +29,7 @@ var phaseSpecs = map[string]PhaseSpec{
 	PhasePlanning:     {Min: 0.2, Max: 0.2}, // low — deterministic planning
 	PhaseDiverging:    {Min: 0.7, Max: 1.1}, // high — explore, avoid convergence
 	PhaseEvaluating:   {Min: 0.0, Max: 0.0}, // zero — maximally deterministic
+	PhaseRefining:     {Min: 0.6, Max: 0.8}, // moderate-to-high — targeted repair
 	PhaseReflecting:   {Min: 0.6, Max: 0.8}, // moderate-to-high
 	PhaseSynthesizing: {Min: 0.2, Max: 0.2}, // low
 	PhaseComparing:    {Min: 0.0, Max: 0.0}, // zero — deterministic judgment

@@ -284,6 +284,11 @@ func validateCross(c *Config) error {
 	if v := c.Execution.MaxTaskRetries; v != nil && *v < 0 {
 		return fmt.Errorf("execution.max_task_retries must be ≥ 0, got %d", *v)
 	}
+	// M8-T11: the self-refine budget is a non-negative count; 0 disables it
+	// even when self_refine is true.
+	if v := c.Execution.MaxSelfRefineLoops; v != nil && *v < 0 {
+		return fmt.Errorf("execution.max_self_refine_loops must be ≥ 0, got %d", *v)
+	}
 	// M6-T4 (ADR-0035): HITL windows must be positive after defaults.
 	if c.HITL.DefaultTTL <= 0 {
 		return fmt.Errorf("hitl.default_ttl must be positive, got %s", c.HITL.DefaultTTL)

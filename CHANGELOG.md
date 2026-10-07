@@ -10,6 +10,20 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### M8-T11 — self-refine operation
+
+- **M8-T11.** A new `refine` cognitive operation: when an evaluation cycle
+  yields no passing candidate, the best-scoring candidate is critiqued and
+  rewritten in place under a dedicated `refining` phase, then re-verified by
+  the ordinary deterministic verifier — the operation's verification edge.
+  Unlike reflection (prose proposal + re-diverge the whole set), self-refine
+  repairs one candidate and re-evaluates only the repair. Opt-in
+  (`execution.self_refine`, default false) and bounded by
+  `execution.max_self_refine_loops` (default 1). The `llm` refiner call is
+  attributed to `refine` in the trajectory; the re-verification to `verify`.
+  [ADR-0064](docs/adr/0064-cognitive-operations.md),
+  [catalog](docs/cognitive-operations.md).
+
 ### M8-T10 — exploration floor
 
 - **M8-T10.** `strategy.OperationSamples` counts recent per-operation runs for

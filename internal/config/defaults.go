@@ -173,6 +173,14 @@ func applyDefaults(c *Config) {
 		n := 2
 		c.Execution.MaxTaskRetries = &n
 	}
+	// M8-T11: self-refine ships opt-in (default off) with a one-attempt
+	// budget, so the operation is available but changes no behavior until
+	// enabled.
+	setFalse(&c.Execution.SelfRefine)
+	if c.Execution.MaxSelfRefineLoops == nil {
+		n := 1
+		c.Execution.MaxSelfRefineLoops = &n
+	}
 	// F4 (ADR-0044..0046): the compute/selection policy. The defaults
 	// reproduce pre-F4 behavior (fixed compute, LLM judge, no reroll),
 	// except cost-aware acceptance, which only changes near-ties.

@@ -354,6 +354,8 @@ func operationForPhase(phase string) string {
 		return cognitive.OpDiverge
 	case llm.PhaseEvaluating:
 		return cognitive.OpVerify
+	case llm.PhaseRefining:
+		return cognitive.OpRefine
 	case llm.PhaseReflecting:
 		return cognitive.OpReflect
 	case llm.PhaseSynthesizing:

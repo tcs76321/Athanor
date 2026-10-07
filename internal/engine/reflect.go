@@ -80,6 +80,47 @@ func (e *Engine) setReflectCounter(ctx context.Context, jobID string, n int) err
 	return nil
 }
 
+// refineCounterPrefix is the `system_state` key prefix for the M8-T11
+// self-refine counter (`refine:counter:<job-id>`). It mirrors the reflection
+// counter: a separate bound so repair attempts and re-divergence retries are
+// budgeted independently.
+const refineCounterPrefix = "refine:counter:"
+
+// getRefineCounter reads the self-refine counter (0 when absent, like
+// getReflectCounter).
+func (e *Engine) getRefineCounter(ctx context.Context, jobID string) int {
+	var value string
+	err := e.db.DB().QueryRowContext(ctx,
+		`SELECT value FROM system_state WHERE key = ?`,
+		refineCounterPrefix+jobID,
+	).Scan(&value)
+	if err != nil {
+		if !errors.Is(err, sql.ErrNoRows) {
+			slog.Warn("engine: reading refine counter", "job", jobID, "err", err)
+		}
+		return 0
+	}
+	n, perr := strconv.Atoi(value)
+	if perr != nil || n < 0 {
+		slog.Warn("engine: parsing refine counter", "job", jobID, "value", value, "err", perr)
+		return 0
+	}
+	return n
+}
+
+// setRefineCounter upserts the self-refine counter.
+func (e *Engine) setRefineCounter(ctx context.Context, jobID string, n int) error {
+	_, err := e.db.DB().ExecContext(ctx,
+		`INSERT INTO system_state (key, value) VALUES (?, ?)
+		 ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+		refineCounterPrefix+jobID, strconv.Itoa(n),
+	)
+	if err != nil {
+		return fmt.Errorf("setting refine counter for %s: %w", jobID, err)
+	}
+	return nil
+}
+
 // phaseReflect (§13.1 Phase 4, M3-T1): entered only when the
 // evaluating phase found no passing candidates. Asks the LLM
 // (main/tall/alternative persona, moderate-to-high temperature) what

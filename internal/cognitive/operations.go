@@ -16,6 +16,7 @@ const (
 	OpDraft      = "draft"
 	OpDiverge    = "diverge"
 	OpVerify     = "verify"
+	OpRefine     = "refine"
 	OpReflect    = "reflect"
 	OpSynthesize = "synthesize"
 	OpCompare    = "compare"
@@ -35,7 +36,7 @@ var BaselineOperations = []string{
 // (M8-T7). Capture emits operations in this order so trajectories are
 // comparable across jobs; an operation absent from the run is simply omitted.
 var ExecutionOrder = []string{
-	OpResearch, OpPlan, OpDraft, OpDiverge, OpVerify, OpReflect,
+	OpResearch, OpPlan, OpDraft, OpDiverge, OpVerify, OpRefine, OpReflect,
 	OpSynthesize, OpCompare, OpCompress, OpCommit,
 }
 
@@ -59,7 +60,7 @@ type Operation struct {
 // ValidOperation reports whether name is in the canonical vocabulary.
 func ValidOperation(name string) bool {
 	switch name {
-	case OpPlan, OpResearch, OpDraft, OpDiverge, OpVerify, OpReflect,
+	case OpPlan, OpResearch, OpDraft, OpDiverge, OpVerify, OpRefine, OpReflect,
 		OpSynthesize, OpCompare, OpCompress, OpCommit:
 		return true
 	default:

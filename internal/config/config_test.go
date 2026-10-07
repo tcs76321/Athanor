@@ -470,6 +470,23 @@ func TestNoveltyReset(t *testing.T) {
 	}
 }
 
+// TestSelfRefineConfig pins M8-T11's opt-in default and validation.
+func TestSelfRefineConfig(t *testing.T) {
+	def, err := Default()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if def.Execution.SelfRefineEnabled() {
+		t.Error("self_refine default = true, want false (opt-in)")
+	}
+	if got := def.Execution.MaxSelfRefineLoopsValue(); got != 1 {
+		t.Errorf("max_self_refine_loops default = %d, want 1", got)
+	}
+	if _, err := Parse([]byte("version: 2\nexecution:\n  max_self_refine_loops: -1\n")); err == nil {
+		t.Error("negative max_self_refine_loops accepted, want a load error")
+	}
+}
+
 // TestInference_JSONFormat pins M3-T7.1's grammar-constraint knob:
 // default true, explicit false honored.
 func TestInference_JSONFormat(t *testing.T) {

@@ -337,6 +337,15 @@ type Execution struct {
 	// (default 2) from an explicit 0 (retries disabled); a task's own
 	// budget.max_jobs, when set, is a tighter bound.
 	MaxTaskRetries *int `yaml:"max_task_retries"`
+	// SelfRefine enables the M8-T11 self-refine operation: when a cycle
+	// yields no passing candidate, the best-scoring candidate is critiqued
+	// and rewritten in place, then re-verified deterministically. Default
+	// false — the operation ships (the repertoire is whole) but is opt-in
+	// until the harder corpus shows it earns its keep.
+	SelfRefine *bool `yaml:"self_refine"`
+	// MaxSelfRefineLoops bounds self-refine repair attempts per job
+	// (M8-T11). Default 1; 0 disables it even when SelfRefine is true.
+	MaxSelfRefineLoops *int `yaml:"max_self_refine_loops"`
 	// Policy is the F4 compute/selection river (ADR-0044/0045/0046). It
 	// parameterizes the policy seam, verification-first selection, judge
 	// quorum/calibration, diversity enforcement, and cost-aware
@@ -526,6 +535,20 @@ func (e *Execution) MaxReflectionLoopsValue() int {
 		return 2
 	}
 	return *e.MaxReflectionLoops
+}
+
+// SelfRefineEnabled resolves execution.self_refine (default false). When true,
+// a cycle with no passing candidate triggers the M8-T11 self-refine repair.
+func (e *Execution) SelfRefineEnabled() bool {
+	return Val(e.SelfRefine, false)
+}
+
+// MaxSelfRefineLoopsValue resolves execution.max_self_refine_loops (default 1).
+func (e *Execution) MaxSelfRefineLoopsValue() int {
+	if e.MaxSelfRefineLoops == nil {
+		return 1
+	}
+	return *e.MaxSelfRefineLoops
 }
 
 // RequireTestsForCodeValue resolves require_tests_for_code (default true).

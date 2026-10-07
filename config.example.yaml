@@ -169,6 +169,11 @@ execution:
   # M6-T3 (ADR-0034): retries a failed task gets before it blocks and
   # escalates. 0 disables retries.
   max_task_retries: 2
+  # M8-T11: self-refine is opt-in. When true, an evaluation cycle with no
+  # passing candidate repairs the best one in place and re-verifies it;
+  # bounded by max_self_refine_loops (0 disables even when true).
+  self_refine: false
+  max_self_refine_loops: 1
 
   # F4 policy block (ADR-0044..0046, ADR-0062). compute_policy: "default"
   # keeps the fixed N/reflection; "adaptive" lowers compute on easy/familiar
