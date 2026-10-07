@@ -195,6 +195,35 @@ func TestOpenNoFollowRejectsFinalComponentSymlink(t *testing.T) {
 	}
 }
 
+// TestValidate_RejectsIntermediateSymlinkDirectory locks the F5 fix: a
+// symlinked *directory* under root (root/sub -> outside) must be rejected,
+// not just a symlinked final component. Before the fix the containment check
+// ran only when the final component was a symlink, so this resolved outside
+// root and passed Validate.
+func TestValidate_RejectsIntermediateSymlinkDirectory(t *testing.T) {
+	root := t.TempDir()
+	outside := t.TempDir()
+	mustWrite(t, filepath.Join(outside, "secret.txt"), "secret")
+	if err := os.Symlink(outside, filepath.Join(root, "sub")); err != nil {
+		t.Fatalf("symlink dir: %v", err)
+	}
+	if _, err := Validate(root, filepath.Join("sub", "secret.txt"), ValidateOptions{}); !errors.Is(err, ErrSymlinkEscape) {
+		t.Fatalf("Validate through a symlinked directory = %v, want ErrSymlinkEscape", err)
+	}
+	// A symlinked directory that stays inside root is allowed.
+	inner := filepath.Join(root, "inner")
+	if err := os.Mkdir(inner, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	mustWrite(t, filepath.Join(inner, "ok.txt"), "ok")
+	if err := os.Symlink(inner, filepath.Join(root, "inner-link")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Validate(root, filepath.Join("inner-link", "ok.txt"), ValidateOptions{}); err != nil {
+		t.Fatalf("Validate through an in-root symlink = %v, want nil", err)
+	}
+}
+
 // mustWrite fails the test on write error. Used so the
 // table above reads as data, not control flow.
 func mustWrite(t *testing.T, path, body string) {

@@ -128,24 +128,24 @@ func Validate(root, rel string, opts ValidateOptions) (string, error) {
 		// executable.
 		return "", ErrSetUID
 	}
-	// Symlink check: filepath.EvalSymlinks on the resolved
-	// path. If the canonical form does not start with the
-	// canonical root, the symlink escapes. The
-	// kernel-level defense against a TOCTOU swap is
-	// OpenNoFollow.
-	if mode&os.ModeSymlink != 0 {
-		canonical, err := filepath.EvalSymlinks(resolved)
-		if err != nil {
-			return "", ErrSymlinkEscape
-		}
-		rootCanonical, err := filepath.EvalSymlinks(root)
-		if err != nil {
-			return "", ErrSymlinkEscape
-		}
-		if !strings.HasPrefix(filepath.Clean(canonical), filepath.Clean(rootCanonical)+string(filepath.Separator)) &&
-			filepath.Clean(canonical) != filepath.Clean(rootCanonical) {
-			return "", ErrSymlinkEscape
-		}
+	// Symlink containment: resolve every symlink in the path — not only the
+	// final component — and require the canonical target to stay within the
+	// canonical root. Checking only the final component (the pre-fix
+	// behavior) let a symlinked *directory* under root (e.g. root/sub -> /etc)
+	// resolve outside root, because OpenNoFollow's O_NOFOLLOW guards only the
+	// last component. The path exists here (AllowMissing returned above), so
+	// EvalSymlinks cannot fail on a missing component.
+	canonical, err := filepath.EvalSymlinks(resolved)
+	if err != nil {
+		return "", ErrSymlinkEscape
+	}
+	rootCanonical, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		return "", ErrSymlinkEscape
+	}
+	if filepath.Clean(canonical) != filepath.Clean(rootCanonical) &&
+		!strings.HasPrefix(filepath.Clean(canonical), filepath.Clean(rootCanonical)+string(filepath.Separator)) {
+		return "", ErrSymlinkEscape
 	}
 	// Executable check. The +x bit is the user/group/other
 	// exec bit; a regular file with any +x bit is treated
