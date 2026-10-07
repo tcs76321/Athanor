@@ -12,17 +12,7 @@ recording; each entry names its location and status.
 
 ## Open
 
-### O2 — `GET /internal/v1/jobs/{id}` reports a hardcoded state (low)
-
-`internal/internalapi/handlers.go` (`handleJobGet`) writes
-`State: "running"` unconditionally instead of reading the job's state.
-
-- **Impact:** cosmetic in practice — the route is reachable only with a live
-  per-job token, which exists only while the job's pod is alive (i.e. while
-  the job runs) — but the field claims to be the job state and is not.
-- **Fix:** inject a job-state lookup and return the real state.
-- **Why open:** requires a constructor/interface change through the internal
-  API and its serve wiring; low value given the token-lifetime bound.
+None.
 
 ---
 
@@ -31,6 +21,7 @@ recording; each entry names its location and status.
 | Finding | Resolution |
 |---|---|
 | O1: a gateway policy denial (403) was indistinguishable from a tool-envelope violation | a policy denial is now `451` (`internalapi.ErrFetchDenied`) → `toolenvelope.ErrPolicyDenied` in the runner; the engine audits `outcome=denied` distinctly. Contract in [ADR-0019](adr/0019-gateway-tools.md) §1/§7; tests in `internalapi/gateway_tools_test.go`, `runner/httpclient_test.go`, `engine/research_test.go`. |
+| O2: `GET /internal/v1/jobs/{id}` reported a hardcoded `State: "running"` | `handleJobGet` now returns the job's real state via `Repo.JobTask` (which also fixes F-3: job → task resolution). Tests in `internalapi/handlers_test.go`. |
 
 ## Fixed (2026-10-06 review)
 

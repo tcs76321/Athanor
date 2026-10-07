@@ -314,6 +314,28 @@ func (r *Repo) JobProject(ctx context.Context, jobID string) (string, error) {
 	return projectID, nil
 }
 
+// JobTask resolves a job to its owning task and the job's current
+// state. It is the job-context lookup for GET /internal/v1/jobs/{id}
+// (known-issues O2/F-3): the route previously loaded a *task* by a *job*
+// id — always a 404 in production — and hardcoded the state to
+// "running". An unknown job is ErrNotFound.
+func (r *Repo) JobTask(ctx context.Context, jobID string) (Task, string, error) {
+	var taskID, state string
+	err := r.store.DB().QueryRowContext(ctx,
+		`SELECT task_id, state FROM jobs WHERE id = ?`, jobID).Scan(&taskID, &state)
+	if errors.Is(err, sql.ErrNoRows) {
+		return Task{}, "", fmt.Errorf("%w: %s", ErrNotFound, jobID)
+	}
+	if err != nil {
+		return Task{}, "", fmt.Errorf("loading task for job %s: %w", jobID, err)
+	}
+	t, err := r.Task(ctx, taskID)
+	if err != nil {
+		return Task{}, "", err
+	}
+	return t, state, nil
+}
+
 // Task loads one task by ID.
 func (r *Repo) Task(ctx context.Context, id string) (Task, error) {
 	row := r.store.DB().QueryRowContext(ctx, `SELECT `+taskColumns+` FROM tasks WHERE id = ?`, id)

@@ -10,6 +10,14 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### M8-T2 — job context route resolves the real job (O2 + F-3)
+
+- **M8-T2.** `GET /internal/v1/jobs/{id}` resolves a *job* to its task
+  through `Repo.JobTask` and returns the job's real state; previously it
+  loaded a task by a job id (a production 404) and hardcoded `"running"`
+  (known-issues O2, security-review F-3). The handler harness now seeds a
+  real job row (`seedProjectJob`).
+
 ### M8-T1 — gateway policy denial is distinguishable (O1)
 
 - **M8-T1.** A gateway policy denial now returns `451` plus a new

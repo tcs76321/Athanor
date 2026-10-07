@@ -69,14 +69,31 @@ func (e *handlerTestEnv) seedProject(t *testing.T) (string, string) {
 	return task.ProjectID, task.ID
 }
 
+// seedProjectJob creates a project + task plus a real job row for the
+// task and returns (projectID, taskID, jobID). It is the F-3 fix to the
+// harness: GET /internal/v1/jobs/{id} resolves a job to its task
+// (Repo.JobTask), so the route tests must present a real job id rather
+// than reusing a task id.
+func (e *handlerTestEnv) seedProjectJob(t *testing.T) (string, string, string) {
+	t.Helper()
+	projectID, taskID := e.seedProject(t)
+	jobID := "job-" + taskID
+	if _, err := e.store.DB().ExecContext(context.Background(),
+		`INSERT INTO jobs (id, task_id, project_id, state) VALUES (?, ?, ?, 'diverging')`,
+		jobID, taskID, projectID); err != nil {
+		t.Fatalf("insert job: %v", err)
+	}
+	return projectID, taskID, jobID
+}
+
 // --- GET /internal/v1/jobs/{id} ---------------------------------------
 
 func TestHandleJobGet_RealRoundTrip(t *testing.T) {
 	env := newHandlerTestEnv(t)
-	_, taskID := env.seedProject(t)
-	env.tokens.WithToken(taskID, goodToken)
+	_, _, jobID := env.seedProjectJob(t)
+	env.tokens.WithToken(jobID, goodToken)
 
-	req := httptest.NewRequest("GET", "/internal/v1/jobs/"+taskID, nil)
+	req := httptest.NewRequest("GET", "/internal/v1/jobs/"+jobID, nil)
 	req.Header.Set("Authorization", "Bearer "+goodToken)
 	w := httptest.NewRecorder()
 	env.mux.ServeHTTP(w, req)
@@ -88,8 +105,8 @@ func TestHandleJobGet_RealRoundTrip(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
 		t.Fatalf("decode: %v; body = %s", err, w.Body.String())
 	}
-	if body.ID != taskID {
-		t.Errorf("body.ID = %q, want %q", body.ID, taskID)
+	if body.ID != jobID {
+		t.Errorf("body.ID = %q, want %q", body.ID, jobID)
 	}
 	if body.TaskTitle == "" {
 		t.Errorf("body.TaskTitle is empty; want non-empty (the goal text)")
@@ -97,8 +114,26 @@ func TestHandleJobGet_RealRoundTrip(t *testing.T) {
 	if len(body.Criteria) != 2 {
 		t.Errorf("body.Criteria has %d items, want 2", len(body.Criteria))
 	}
-	if body.State != "running" {
-		t.Errorf("body.State = %q, want %q", body.State, "running")
+	// O2: the state is read from the job row (seeded 'diverging'), not
+	// a hardcoded "running".
+	if body.State != "diverging" {
+		t.Errorf("body.State = %q, want %q (the seeded job state)", body.State, "diverging")
+	}
+}
+
+// TestHandleJobGet_UnknownJobIsNotFound is the F-3 regression: a job id
+// with no jobs row is a 404, not a task lookup that happens to miss.
+func TestHandleJobGet_UnknownJobIsNotFound(t *testing.T) {
+	env := newHandlerTestEnv(t)
+	env.tokens.WithToken("no-such-job", goodToken)
+
+	req := httptest.NewRequest("GET", "/internal/v1/jobs/no-such-job", nil)
+	req.Header.Set("Authorization", "Bearer "+goodToken)
+	w := httptest.NewRecorder()
+	env.mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Errorf("status = %d, want 404; body = %s", w.Code, w.Body.String())
 	}
 }
 

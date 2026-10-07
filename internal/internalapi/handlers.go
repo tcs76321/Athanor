@@ -106,10 +106,12 @@ type jobResponse struct {
 	Criteria        []string `json:"acceptance_criteria"`
 }
 
-// handleJobGet returns the authenticated job's task context. The
-// pod reads this once at startup to learn the goal, the acceptance
-// criteria, and the description. M2-T4 will use this; M2-T3
-// commits only prove the round-trip works.
+// handleJobGet returns the authenticated job's task context and its
+// current state. The pod reads this once at startup to learn the goal,
+// the acceptance criteria, and the description. The job id is resolved
+// to its task through Repo.JobTask (known-issues O2/F-3: the route
+// previously loaded a *task* by a *job* id — a production 404 — and
+// hardcoded `State: "running"`).
 func (a *API) handleJobGet(w http.ResponseWriter, r *http.Request) {
 	jobID := jobIDFromContext(r.Context())
 	if jobID == "" {
@@ -118,10 +120,10 @@ func (a *API) handleJobGet(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnauthorized, "missing authenticated job id")
 		return
 	}
-	task, err := a.projects.Task(r.Context(), jobID)
+	task, state, err := a.projects.JobTask(r.Context(), jobID)
 	if err != nil {
 		if errors.Is(err, project.ErrNotFound) {
-			writeError(w, http.StatusNotFound, "task not found for job "+jobID)
+			writeError(w, http.StatusNotFound, "job not found: "+jobID)
 			return
 		}
 		writeError(w, http.StatusInternalServerError, err.Error())
@@ -129,7 +131,7 @@ func (a *API) handleJobGet(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, jobResponse{
 		ID:              jobID,
-		State:           "running", // M1: jobs at this point are running
+		State:           state,
 		ProjectID:       task.ProjectID,
 		TaskTitle:       task.Title,
 		TaskDescription: task.Description,

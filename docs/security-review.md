@@ -38,16 +38,16 @@ job, but a non-empty scope was passed to the store unchecked. A pod could query
 the caller's job id or its project id (resolved via `project.Repo.JobProject`);
 anything else is 403 and audited. Test: `TestQueryMemory_RejectsForeignScope`.
 
-### F-3 — `handleJobGet` resolves a *task* by a *job* id (OPEN, latent)
+### F-3 — `handleJobGet` resolves a *task* by a *job* id (FIXED 2026-10-07)
 
-`GET /internal/v1/jobs/{id}` calls `a.projects.Task(ctx, jobID)` — but `jobID`
-is a job id and `Repo.Task` loads by task id, so in production the route returns
-404. It is masked in tests because the harness uses a task id as the job id, and
-the current engine does not call this route (the tool sub-steps pass their
-payloads directly). **Recommended fix:** resolve job → task_id → task (a
-`Repo.JobTask`, mirroring `Repo.EnvelopeFor`), and update the handler test
-harness to seed a real job row. Low urgency (latent), but correctness-relevant
-for any future pod that reads its task context at startup.
+`GET /internal/v1/jobs/{id}` called `a.projects.Task(ctx, jobID)` — but `jobID`
+is a job id and `Repo.Task` loads by task id, so in production the route
+returned 404. It was masked in tests because the harness used a task id as the
+job id. **Fixed:** `Repo.JobTask` resolves job → task_id → task (mirroring
+`Repo.EnvelopeFor`) and returns the job's real state; `handleJobGet` uses it
+(this also closes **O2**), and the harness seeds a real job row
+(`seedProjectJob`). Tests: `handlers_test.go`
+(`TestHandleJobGet_RealRoundTrip`, `TestHandleJobGet_UnknownJobIsNotFound`).
 
 ## What is sound
 
