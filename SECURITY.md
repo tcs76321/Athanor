@@ -50,3 +50,27 @@ report. If a proof of concept requires them, describe the shape instead.
   ([ADR-0057](docs/adr/0057-cross-site-request-defense.md)) closes CSRF.
 - The daemon binds loopback only; remote-access configuration is out of
   scope.
+
+## Deliberate trust boundaries
+
+These are intentional design boundaries, documented so a reader does not
+mistake them for gaps:
+
+- **Pod-supplied commands run inside the pod.** `run_tests` and `lint` accept a
+  command from the job (an operator/project command), which executes *inside*
+  the already-hardened Job Pod. It grants no capability the pod did not
+  already have; the pod remains rootless, read-only-rootfs, `--network=none`,
+  with no host mounts beyond the approved one. `execute_code` language is
+  closed to `python`.
+- **The cross-site guard allows non-browser clients.** A request carrying
+  neither `Sec-Fetch-Site` nor `Origin` is treated as a non-browser client
+  (the CLI, a Job Pod, curl) and allowed past the CSRF guard. Those callers
+  hold no ambient browser authority, and are separately bounded by the
+  loopback-only bind, the Host-header allowlist (ADR-0011), and — for pods —
+  the per-job bearer token (ADR-0008).
+- **Internal API status contract.** A tool that is not in the job's envelope
+  is `403` + `ErrToolDisallowed`; a destination the §21.5 gateway policy
+  refuses is `451` + `ErrPolicyDenied`. The two are deliberately distinct so
+  a caller can tell an envelope miss from a containment denial (known-issues
+  O1; [ADR-0019](docs/adr/0019-gateway-tools.md)). No pod-supplied identifier
+  may select a data scope — enforced by `internal/gate/gate_scope_test.go`.

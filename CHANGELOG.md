@@ -10,6 +10,14 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### M8-T4 — documented deliberate trust boundaries
+
+- **M8-T4.** `SECURITY.md` records the intentional boundaries a reader might
+  mistake for gaps: pod-supplied `run_tests`/`lint` commands execute inside
+  the pod; the cross-site guard allows non-browser clients; the internal API
+  distinguishes an envelope `403` from a gateway-policy `451`. The
+  known-issues log now reads "Open: none" (O1/O2 fixed in M8-T1/T2).
+
 ### M8-T3 — scope-isolation structural gate
 
 - **M8-T3.** `internal/gate/gate_scope_test.go` parses the shared wire types
