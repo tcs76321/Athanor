@@ -49,3 +49,5 @@ soak run's notes; the harness cannot sleep the host safely.
   row 16 during the soak.
 - Rows 16 and 18 are produced by the M8-T23 harness on real hardware; their
   evidence lands under `spikes/m3-t7-probe/results/soak/` (gitignored).
+
+See also: the real-world-internal workflow map, [m8-workflows.md](m8-workflows.md).

@@ -10,6 +10,14 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### M8-T25 — real-world-internal workflow map
+
+- **M8-T25.** [docs/m8-workflows.md](docs/m8-workflows.md) maps the end-to-end
+  workflows 0.0.0 must perform (code single/multi-file, document/text/data,
+  allowlisted research, brainstorm, daydream, digest, HITL, power) to their
+  evidence, and states how much the M8-T23 soak exercises versus what stays
+  demo/unit — with the external/irreversible scope explicitly excluded.
+
 ### M8-T24 — process & recovery matrix
 
 - **M8-T24.** [docs/m8-process-matrix.md](docs/m8-process-matrix.md) consolidates
