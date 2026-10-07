@@ -3,6 +3,7 @@ package toolenvelope
 import (
 	"errors"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -76,6 +77,29 @@ func TestEncodeDecodeRoundTrip(t *testing.T) {
 func TestDecodeFilesRejectsTraversal(t *testing.T) {
 	if _, err := DecodeFiles([]byte(`{"files":[{"path":"../evil","content":"x"}]}`)); !errors.Is(err, ErrPathTraversal) {
 		t.Errorf("decoding a traversal path error = %v, want ErrPathTraversal", err)
+	}
+}
+
+func TestParseFileMarkers(t *testing.T) {
+	text := "=== FILE: bank/__init__.py ===\nfrom .account import Account\n\n=== FILE: solution.py ===\nprint(1)\n"
+	files, err := ParseFileMarkers(text)
+	if err != nil {
+		t.Fatalf("ParseFileMarkers: %v", err)
+	}
+	if len(files) != 2 {
+		t.Fatalf("files = %+v, want 2", files)
+	}
+	if files[0].Path != "bank/__init__.py" || !strings.Contains(files[0].Content, "Account") {
+		t.Errorf("first file = %+v", files[0])
+	}
+	if files[1].Path != "solution.py" || files[1].Content != "print(1)\n" {
+		t.Errorf("second file = %+v", files[1])
+	}
+	if f, err := ParseFileMarkers("print(1)\n"); err != nil || f != nil {
+		t.Errorf("no-marker parse = %+v, %v; want nil, nil", f, err)
+	}
+	if _, err := ParseFileMarkers("=== FILE: ../evil ===\nx\n"); !errors.Is(err, ErrPathTraversal) {
+		t.Errorf("hostile path error = %v, want ErrPathTraversal", err)
 	}
 }
 

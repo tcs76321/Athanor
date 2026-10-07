@@ -41,9 +41,18 @@ func (e *Engine) runCodeInPod(ctx context.Context, j job.Job, p project.Project,
 		return nil
 	}
 
-	req := toolenvelope.ExecuteRequest{
-		Language: "python",
-		Code:     normalizeCode(code),
+	// ADR-0065: a code candidate may be a multi-file tree. A single
+	// solution.py keeps the historical write-and-run shorthand; anything else
+	// is staged as a tree for the test command to exercise.
+	files, ferr := candidateFiles(code)
+	if ferr != nil {
+		return fmt.Errorf("parsing code candidate tree: %w", ferr)
+	}
+	var req toolenvelope.ExecuteRequest
+	if len(files) == 1 && files[0].Path == "solution.py" {
+		req = toolenvelope.ExecuteRequest{Language: "python", Code: normalizeCode(files[0].Content)}
+	} else {
+		req = toolenvelope.ExecuteRequest{Language: "python", Files: files}
 	}
 	start := time.Now()
 	res, err := e.runner.RunCode(ctx, j.ID, req)
@@ -88,6 +97,21 @@ func (e *Engine) runCodeInPod(ctx context.Context, j job.Job, p project.Project,
 // Phase 3 sequence is now: per-candidate code-exec + test-run
 // + LLM verdict, all in `evaluating`.
 //
+// candidateFiles turns a code candidate's raw output into a file tree
+// (ADR-0065): `=== FILE: path ===` blocks become multiple files; a stored
+// JSON manifest is decoded; anything else is a single solution.py. Pure.
+func candidateFiles(content string) ([]toolenvelope.File, error) {
+	if files, err := toolenvelope.ParseFileMarkers(content); err != nil {
+		return nil, err
+	} else if len(files) > 0 {
+		return files, nil
+	}
+	if toolenvelope.IsTreeManifest([]byte(content)) {
+		return toolenvelope.DecodeFiles([]byte(content))
+	}
+	return []toolenvelope.File{{Path: "solution.py", Content: content}}, nil
+}
+
 // normalizeCode unwraps a single markdown code fence if the model wrapped the
 // source in one. The Job Pod materializes the text as `/tmp/solution.py` and
 // imports it, so a leading ```python fence is a syntax error. This is a

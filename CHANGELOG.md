@@ -22,6 +22,10 @@ New entries are appended at the top. Do not rewrite history.
 - **B2.** `execute_code` stages a `Files` tree into the pod scratch as a JSON
   manifest on stdin (never argv), re-validated in-pod; single-file `Code`
   remains the shorthand.
+- **B3.** The engine parses `=== FILE: path ===` blocks into a candidate tree
+  (`candidateFiles`); a lone `solution.py` keeps the write-and-run shorthand.
+  The code prompt documents the multi-file marker convention; path traversal
+  in a marker is rejected.
 
 ### M8-T16 — bench corpus loader in the probe
 

@@ -16,7 +16,7 @@ import (
 // `/tmp/solution.py` and imports it. The first post-F4 micro run showed the
 // generator emitting prose-and-fences, which imports as invalid Python and
 // fails the real test for a packaging reason rather than a logic one.
-const codeOnlyInstruction = "Output ONLY the raw source file contents (Python). No markdown code fences, no prose, no commentary, no explanation."
+const codeOnlyInstruction = "Output ONLY raw Python source, no markdown code fences, no prose, no commentary. A single-file task outputs just the file contents. A multi-file task emits each file as a block beginning with a line `=== FILE: <relative path> ===` followed by that file's raw contents; emit every file the task requires."
 
 // phaseDivergeN (§13.1 Phase 2): generates N candidate artifacts, each
 // persisted as a draft `proposal` artifact (§9.1). The number of

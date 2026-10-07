@@ -23,8 +23,11 @@ tasks where the loop's value is most in question.
 
 ## Decision
 
-**1. A code candidate is a file tree, stored as one blob.** The artifact's
-content is a JSON manifest of `{path, content}` entries. Keeping one artifact
+**1. A code candidate is a file tree, stored as one blob.** A multi-file
+candidate is the model's raw output carrying `=== FILE: path ===` block
+headers (human-readable and diff-friendly, and what the docs verifier already
+scans); a single-file candidate is just the source. The pod-staging **wire**
+encoding is a JSON manifest of `{path, content}` entries. Keeping one artifact
 per candidate means the artifact store, content hashing, dedupe, and the
 eventual git-as-undo commit need no schema change — only the *interpretation*
 of the blob changes for the `code` archetype. Binary and oversized entries are

@@ -5,9 +5,46 @@ import (
 	"errors"
 	"fmt"
 	"path"
+	"regexp"
 	"sort"
 	"strings"
 )
+
+// fileMarker matches a multi-file block header (ADR-0065):
+//
+//	=== FILE: bank/account.py ===
+//
+// A code model emits one block per file; the text up to the next marker is
+// that file's content. The marker is deliberately unlikely in source and
+// line-anchored so a stray "===" in code is not mistaken for a header.
+var fileMarker = regexp.MustCompile(`(?m)^[ \t]*={2,}[ \t]*FILE:[ \t]*(\S+)[ \t]*={2,}[ \t]*$`)
+
+// ParseFileMarkers extracts a multi-file tree from a model's output. It
+// returns (nil, nil) when the text carries no marker — the caller then treats
+// the whole output as a single file. Paths are sanitized; an unsafe path is an
+// error, so a hostile model cannot direct a write outside the scratch dir.
+func ParseFileMarkers(text string) ([]File, error) {
+	idx := fileMarker.FindAllStringSubmatchIndex(text, -1)
+	if len(idx) == 0 {
+		return nil, nil
+	}
+	var out []File
+	for i, m := range idx {
+		p := text[m[2]:m[3]]
+		start := m[1]
+		end := len(text)
+		if i+1 < len(idx) {
+			end = idx[i+1][0]
+		}
+		content := strings.TrimLeft(text[start:end], "\r\n")
+		clean, err := SanitizeRelPath(p)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, File{Path: clean, Content: content})
+	}
+	return ValidateFiles(out)
+}
 
 // File is one entry of a multi-file code candidate (ADR-0065). Path is a
 // container-relative path; Content is the file's text. A code candidate is a
