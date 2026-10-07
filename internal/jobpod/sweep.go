@@ -12,6 +12,13 @@ import (
 // touching unrelated containers on the host.
 const containerNamePrefix = "athanor-job-"
 
+// podName is the podman container name for a job id. It MUST match the
+// `--name` buildArgs sets at Start and the prefix Sweep filters on. Exec,
+// Stop, and supervise all address the container by this name via podName —
+// addressing it by the bare id instead is the regression that made exec fail
+// with exit 125 ("no such container") and left orphan pods behind.
+func podName(id string) string { return containerNamePrefix + id }
+
 // Sweep force-removes any athanor-job-* container the manager did
 // not start itself. Called once at daemon boot to clean up after a
 // crash, kill -9, or other unexpected exit. Idempotent on a clean

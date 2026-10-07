@@ -83,6 +83,38 @@ func validSpec() Spec {
 	}
 }
 
+// TestContainerNameIsPrefixedEverywhere is the regression guard for the
+// naming mismatch: Start creates the container as athanor-job-<id>, so every
+// later podman call (exec, inspect, stop) must address it by podName(id).
+// Addressing the bare id made code exec fail with exit 125 ("no such
+// container") and left orphan pods behind.
+func TestContainerNameIsPrefixedEverywhere(t *testing.T) {
+	m, client := startedManager(t)
+	run := client.Calls()[0]
+	nameOK := false
+	for _, a := range run {
+		if a == podName(goodID) {
+			nameOK = true
+			break
+		}
+	}
+	if !nameOK {
+		t.Fatalf("start argv %v does not name the container %s", run, podName(goodID))
+	}
+	if err := m.Stop(context.Background(), goodID); err != nil {
+		t.Fatalf("Stop: %v", err)
+	}
+	var stopOK bool
+	for _, c := range client.Calls() {
+		if len(c) == 3 && c[0] == "rm" && c[1] == "-f" && c[2] == podName(goodID) {
+			stopOK = true
+		}
+	}
+	if !stopOK {
+		t.Errorf("no `rm -f %s` among %v", podName(goodID), client.Calls())
+	}
+}
+
 // TestStart_ValidatesSpec asserts every invalid Spec shape returns
 // ErrInvalidSpec without making a client call.
 func TestStart_ValidatesSpec(t *testing.T) {
@@ -184,7 +216,7 @@ func TestStart_DuplicateID(t *testing.T) {
 	}
 }
 
-// TestStop_HappyPath asserts Stop calls `podman rm -f <id>` and
+// TestStop_HappyPath asserts Stop calls `podman rm -f athanor-job-<id>` and
 // removes the pod from the in-memory map.
 func TestStop_HappyPath(t *testing.T) {
 	client := &fakeClient{}
@@ -197,8 +229,8 @@ func TestStop_HappyPath(t *testing.T) {
 	}
 	calls := client.Calls()
 	last := calls[len(calls)-1]
-	if last[0] != "rm" || last[1] != "-f" || last[2] != goodID {
-		t.Errorf("last call = %v, want [rm -f %s]", last, goodID)
+	if last[0] != "rm" || last[1] != "-f" || last[2] != podName(goodID) {
+		t.Errorf("last call = %v, want [rm -f %s]", last, podName(goodID))
 	}
 	if _, err := m.Get(goodID); !errors.Is(err, ErrNotFound) {
 		t.Errorf("Get after Stop err = %v, want ErrNotFound", err)

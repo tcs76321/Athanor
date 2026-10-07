@@ -196,7 +196,7 @@ func (m *manager) Exec(ctx context.Context, jobID string, spec ExecSpec) (ExecRe
 		return ExecResult{}, fmt.Errorf("%w: pod %s is %s", ErrNotRunning, jobID, entry.pod.State)
 	}
 
-	args := buildExecArgs(jobID, len(spec.Stdin) > 0, spec.Command)
+	args := buildExecArgs(podName(jobID), len(spec.Stdin) > 0, spec.Command)
 	start := time.Now()
 	stdout, stderr, err := m.client.RunStdin(ctx, spec.Stdin, args...)
 	res := ExecResult{
@@ -248,7 +248,7 @@ func (m *manager) supervise(ctx context.Context, id string, entry *podEntry) {
 			return
 		case <-ticker.C:
 		}
-		stdout, stderr, err := m.client.Run(ctx, "inspect", "--format", podmanInspectFormat, id)
+		stdout, stderr, err := m.client.Run(ctx, "inspect", "--format", podmanInspectFormat, podName(id))
 		if err != nil {
 			// Inspect may fail transiently (e.g. container is being
 			// created). Treat as "still running" and try again.
@@ -319,7 +319,7 @@ func (m *manager) Stop(ctx context.Context, id string) error {
 	if !exists {
 		return ErrNotFound
 	}
-	if _, _, err := m.client.Run(ctx, "rm", "-f", id); err != nil {
+	if _, _, err := m.client.Run(ctx, "rm", "-f", podName(id)); err != nil {
 		// A failed stop is not necessarily fatal: the pod may have
 		// already exited. We remove it from the in-memory map
 		// regardless so future Stop calls are no-ops.

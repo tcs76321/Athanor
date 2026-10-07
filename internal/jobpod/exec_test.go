@@ -45,7 +45,7 @@ func TestExec_ArgvWithStdin(t *testing.T) {
 	}
 	calls := client.Calls()
 	last := calls[len(calls)-1]
-	want := []string{"exec", "-i", goodID, "python", "-"}
+	want := []string{"exec", "-i", podName(goodID), "python", "-"}
 	if !reflect.DeepEqual(last, want) {
 		t.Errorf("exec argv = %v, want %v", last, want)
 	}
@@ -64,7 +64,7 @@ func TestExec_NoStdinOmitsInteractiveFlag(t *testing.T) {
 	}
 	calls := client.Calls()
 	last := calls[len(calls)-1]
-	want := []string{"exec", goodID, "pytest", "-q"}
+	want := []string{"exec", podName(goodID), "pytest", "-q"}
 	if !reflect.DeepEqual(last, want) {
 		t.Errorf("exec argv = %v, want %v", last, want)
 	}

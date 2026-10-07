@@ -10,6 +10,15 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Fix — Job Pod name mismatch broke every code exec (regression from `d0d884a`)
+
+- `Start` names the container `athanor-job-<id>` (so `Sweep` matches), but
+  `Exec`, `Stop`, and `supervise` still addressed the **bare** `<id>`. Every
+  `podman exec` therefore returned **125** ("no such container"), so real code
+  never ran, and `Stop` never removed the pod (orphans after every code job).
+  A single `podName(id)` helper now names the container everywhere. Found by
+  the M8 probe smoke; regression tests in `internal/jobpod`.
+
 ### M8-T25 — real-world-internal workflow map
 
 - **M8-T25.** [docs/m8-workflows.md](docs/m8-workflows.md) maps the end-to-end
