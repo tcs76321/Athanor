@@ -64,6 +64,11 @@ var judgeThink *bool
 // model-default context (e.g. 131072), which is far slower than needed.
 var judgeNumCtx int
 
+// judgeMaxPredict caps a judge's output tokens. A score JSON needs ~100
+// tokens; the engine's judgment calls are bounded too (F4-T8). The default is
+// generous because the judge may list criteria; runJudge lowers it.
+var judgeMaxPredict = 2048
+
 func judgeOptions(numPredict int, seed int64) map[string]any {
 	opts := map[string]any{"temperature": 0.0, "seed": seed, "num_predict": numPredict}
 	if judgeNumCtx > 0 {
@@ -105,7 +110,7 @@ func callJudgeOnce(baseURL, model, packet string, seed int64, useFormat bool) (j
 		Messages: []map[string]string{{"role": "user", "content": packet}},
 		Stream:   false,
 		Think:    judgeThink,
-		Options:  judgeOptions(2048, seed),
+		Options:  judgeOptions(judgeMaxPredict, seed),
 	}
 	if useFormat {
 		req.Format = "json"
@@ -260,7 +265,25 @@ func runJudge(args []string) {
 	ollamaURL := fs.String("ollama", "http://localhost:11434", "Ollama base URL")
 	judgesCSV := fs.String("judges", strings.Join(judgeModels, ","), "comma-separated judge models")
 	minSuccess := fs.Float64("min-success", 0.8, "fail if any judge's success rate is below this fraction")
+	thinkMode := fs.String("think", "false", "send Ollama think on judge calls: default | false | true")
+	numCtx := fs.Int("num-ctx", 8192, "cap the judge's Ollama context (0 = model default)")
+	maxPredict := fs.Int("max-predict", 512, "cap judge output tokens (a score JSON needs ~100)")
 	_ = fs.Parse(args)
+
+	judgeNumCtx = *numCtx
+	judgeMaxPredict = *maxPredict
+	switch *thinkMode {
+	case "default":
+	case "false":
+		f := false
+		judgeThink = &f
+	case "true":
+		t := true
+		judgeThink = &t
+	default:
+		fmt.Fprintf(os.Stderr, "judge: unknown -think %q\n", *thinkMode)
+		os.Exit(2)
+	}
 
 	judges := splitCSV(*judgesCSV)
 	base := strings.TrimRight(*ollamaURL, "/")
