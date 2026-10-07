@@ -10,6 +10,17 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Fix — a hanging pod tool call stalled a job forever (found by the soak)
+
+- The per-phase wall-time budget was applied **only to LLM calls**
+  (`phases.go`), never to the pod tool calls (`execute_code` / `run_tests` /
+  `lint`). A candidate whose test hung (an infinite loop, or a test blocked on
+  stdin) left the job in `evaluating` indefinitely — the first 4h soak wedged on
+  its very first task. Pod tool calls are now bounded by the evaluating phase
+  budget (`Engine.toolContext`), and a tool timeout **soft-fails the candidate**
+  (`tool_deadline_exceeded`) rather than failing the job, so the loop keeps
+  moving. Regression test `TestToolDeadlineDoesNotHangJob`.
+
 ### Fix — Job Pod name mismatch broke every code exec (regression from `d0d884a`)
 
 - `Start` names the container `athanor-job-<id>` (so `Sweep` matches), but

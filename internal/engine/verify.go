@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/tcs76321/athanor/internal/job"
 	"github.com/tcs76321/athanor/internal/llm"
@@ -38,11 +39,25 @@ func (e *Engine) verifyCandidate(ctx context.Context, j job.Job, p project.Proje
 		return e.verifierRegistry().Run(in), in, nil
 	}
 
+	// Bug fix (probe soak): bound every pod tool call by the evaluating
+	// phase's wall-time budget. The per-phase budget was applied only to LLM
+	// calls (phases.go), so a hanging command — an infinite loop, or a test
+	// blocked on stdin — stalled the job forever. A tool deadline soft-fails
+	// the candidate (TestsPassed=false) rather than failing the job, so the
+	// loop keeps moving.
+	tctx, cancel := e.toolContext(ctx)
+	defer cancel()
+
 	// M2-T4b.5 (ADR-0024 §2): make the job's Job Pod exist before the pod
 	// sub-steps, so the per-job token the runner presents is available.
-	e.ensurePod(ctx, j)
-	if err := e.runCodeInPod(ctx, j, p, t, content); err != nil {
-		return verify.Result{}, in, err
+	e.ensurePod(tctx, j)
+	if err := e.runCodeInPod(tctx, j, p, t, content); err != nil {
+		if !errors.Is(err, context.DeadlineExceeded) {
+			return verify.Result{}, in, err
+		}
+		e.audit(ctx, j.ID, map[string]any{
+			"event": "tool_deadline_exceeded", "tool": "execute_code", "candidate": idx,
+		})
 	}
 
 	testCommand := p.TestCommand()
@@ -53,12 +68,18 @@ func (e *Engine) verifyCandidate(ctx context.Context, j job.Job, p project.Proje
 		"event": "substate_entered", "phase": string(llm.PhaseEvaluating),
 		"substate": "running_tests", "candidate": idx,
 	})
-	res, runErr := e.runner.RunTests(ctx, j.ID, toolenvelope.ExecuteRequest{Command: testCommand})
+	res, runErr := e.runner.RunTests(tctx, j.ID, toolenvelope.ExecuteRequest{Command: testCommand})
 	exitCode := 0
-	if runErr == nil {
+	switch {
+	case runErr == nil:
 		exitCode = res.ExitCode
 		in.TestsPassed = res.ExitCode == 0
-	} else if !errors.Is(runErr, toolenvelope.ErrToolDisallowed) {
+	case errors.Is(runErr, context.DeadlineExceeded):
+		// The test command hung; reject this candidate, keep the job alive.
+		e.audit(ctx, j.ID, map[string]any{
+			"event": "tool_deadline_exceeded", "tool": "run_tests", "candidate": idx,
+		})
+	case !errors.Is(runErr, toolenvelope.ErrToolDisallowed):
 		e.audit(ctx, j.ID, map[string]any{
 			"event": "tests_run_failed", "candidate": idx, "error": runErr.Error(),
 		})
@@ -73,17 +94,36 @@ func (e *Engine) verifyCandidate(ctx context.Context, j job.Job, p project.Proje
 	// disallowed `lint` tool (not in the envelope) leaves the verifier
 	// unapplied.
 	if len(p.Execution.Linters) > 0 {
-		lres, lerr := e.runner.RunLint(ctx, j.ID, toolenvelope.ExecuteRequest{})
-		if lerr == nil {
+		lres, lerr := e.runner.RunLint(tctx, j.ID, toolenvelope.ExecuteRequest{})
+		switch {
+		case lerr == nil:
 			in.LintRan = true
 			in.LintPassed = lres.ExitCode == 0
-		} else if !errors.Is(lerr, toolenvelope.ErrToolDisallowed) {
+		case errors.Is(lerr, context.DeadlineExceeded):
+			e.audit(ctx, j.ID, map[string]any{
+				"event": "tool_deadline_exceeded", "tool": "lint", "candidate": idx,
+			})
+		case !errors.Is(lerr, toolenvelope.ErrToolDisallowed):
 			e.audit(ctx, j.ID, map[string]any{
 				"event": "lint_run_failed", "candidate": idx, "error": lerr.Error(),
 			})
 		}
 	}
 	return e.verifierRegistry().Run(in), in, nil
+}
+
+// toolContext bounds a pod tool call (execute_code / run_tests / lint) by the
+// evaluating phase's wall-time budget, with a 10m fallback. The per-phase
+// budget was previously applied only to LLM calls, so a hanging command could
+// stall a job indefinitely. The returned cancel must be deferred by the caller.
+func (e *Engine) toolContext(parent context.Context) (context.Context, context.CancelFunc) {
+	budget := 10 * time.Minute
+	if e.cfg != nil {
+		if b, ok := e.cfg.Execution.PhaseBudget(string(llm.PhaseEvaluating)); ok && b > 0 {
+			budget = b
+		}
+	}
+	return context.WithTimeout(parent, budget)
 }
 
 // auditVerification records one deterministic verification result. `where`
