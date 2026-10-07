@@ -35,6 +35,8 @@ New entries are appended at the top. Do not rewrite history.
   pass). `-kill-after` injects one `kill -9` + restart and records it in
   `soak-events.log`. The sleep/wake checkpoint stays human. See
   [docs/soak-m7.md](docs/soak-m7.md).
+- `soak -only <names>` / `-goals N` select a subset of the goal set for smoke
+  and partial runs (same semantics as `run`).
 
 ### M8-T21 — corpus-aware probe report
 

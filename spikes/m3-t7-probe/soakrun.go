@@ -44,6 +44,10 @@ type soakRunConfig struct {
 	killAfter    time.Duration
 	gates        bool
 	ollamaURL    string
+	// onlyCSV / goalLimit select a subset of the goal set (smoke + partial
+	// runs), reusing the `run` command's semantics.
+	onlyCSV   string
+	goalLimit int
 }
 
 func runSoak(args []string) {
@@ -62,6 +66,8 @@ func runSoak(args []string) {
 	fs.DurationVar(&c.killAfter, "kill-after", 0, "kill -9 the daemon once after this elapsed time, then restart (0 = off)")
 	fs.BoolVar(&c.gates, "gates", false, "enable the F5 code acceptance gates")
 	fs.StringVar(&c.ollamaURL, "ollama", "http://localhost:11434", "Ollama base URL for the /api/ps residency check")
+	fs.StringVar(&c.onlyCSV, "only", "", "comma-separated goal names to soak (empty = all)")
+	fs.IntVar(&c.goalLimit, "goals", 0, "limit to the first N goals after loading (0 = all)")
 	_ = fs.Parse(args)
 	if err := c.run(); err != nil {
 		fmt.Fprintln(os.Stderr, "m3-t7 soak:", err)
@@ -89,6 +95,9 @@ func (c *soakRunConfig) run() error {
 		}
 		goals = g
 	}
+	// Apply -only / -goals selection (same semantics as the `run` command).
+	sel := &runnerConfig{corpus: goals, onlyCSV: c.onlyCSV, goalLimit: c.goalLimit}
+	goals = sel.goals()
 	abs, err := filepath.Abs(c.outDir)
 	if err != nil {
 		return err
