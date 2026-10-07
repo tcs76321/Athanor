@@ -112,14 +112,16 @@ func (e *Engine) verifyCandidate(ctx context.Context, j job.Job, p project.Proje
 	return e.verifierRegistry().Run(in), in, nil
 }
 
-// toolContext bounds a pod tool call (execute_code / run_tests / lint) by the
-// evaluating phase's wall-time budget, with a 10m fallback. The per-phase
-// budget was previously applied only to LLM calls, so a hanging command could
-// stall a job indefinitely. The returned cancel must be deferred by the caller.
+// toolContext bounds a pod tool call (execute_code / run_tests / lint). The
+// cap is the smaller of 5 minutes and the evaluating phase's wall-time budget:
+// no legitimate single-module test takes longer, and a hanging command must be
+// cut quickly rather than eating the whole phase budget. The per-phase budget
+// was previously applied only to LLM calls, so a hanging command could stall a
+// job indefinitely. The returned cancel must be deferred by the caller.
 func (e *Engine) toolContext(parent context.Context) (context.Context, context.CancelFunc) {
-	budget := 10 * time.Minute
+	budget := 5 * time.Minute
 	if e.cfg != nil {
-		if b, ok := e.cfg.Execution.PhaseBudget(string(llm.PhaseEvaluating)); ok && b > 0 {
+		if b, ok := e.cfg.Execution.PhaseBudget(string(llm.PhaseEvaluating)); ok && b > 0 && b < budget {
 			budget = b
 		}
 	}
