@@ -182,6 +182,7 @@ Gate G7 human checkpoints (the 24h soak, the fresh-install timing, and the §31.
 
 - **[ARCHITECTURE.md](ARCHITECTURE.md)** — the complete design: topology, object model, MCE, personas, dialectical engine, security, configuration reference, testing strategy.
 - **[docs/](docs/)** — implementation notes ([SQLite setup](docs/sqlite-setup.md), [ADRs](docs/adr/), [known issues](docs/known-issues.md)).
+- **[eval/bench/](eval/bench/README.md)** — the harder, deterministic-first benchmark corpus ([ADR-0061](docs/adr/0061-harder-benchmark.md)).
 - **[spikes/](spikes/)** — throwaway validation code.
 
 ## License

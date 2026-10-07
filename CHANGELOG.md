@@ -29,6 +29,12 @@ New entries are appended at the top. Do not rewrite history.
   Spearman **0.984** vs the existing ratings (code cases 1.000), 15/16
   identical — far above the local judges' 0.57–0.81. Recorded separately from
   `ratings.csv`; a machine cross-check, not the human anchor.
+- **Harder benchmark corpus** ([ADR-0061](docs/adr/0061-harder-benchmark.md),
+  [spec](eval/bench/README.md)). `eval/bench/` specifies 15
+  deterministic-first tasks in tiers E/M/H across code, document, text, and
+  data, plus an adversarial case and per-task anchor pairs — because the
+  M3-T7 set saturated in the 10-model probe. The corpus is the specification;
+  fixtures, test suites, and anchor pairs are the enabling work.
 
 ### Fixes (2026-10-06 review)
 

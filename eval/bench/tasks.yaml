@@ -1,0 +1,384 @@
+# Athanor benchmark corpus (v1)
+#
+# A machine-readable task set for the dialectical-vs-single-shot probe and for
+# judge calibration. Design + methodology: README.md. ADR: 0061.
+#
+# Every task carries (a) deterministic checks that are the ground truth and
+# (b) a quality rubric for the human/agent anchor and the advisory LLM judges.
+# Difficulty tiers: E = sanity, M = discriminating, H = hard (must have
+# headroom; a 9-12 B model should not pass most H tasks).
+version: 1
+tasks:
+
+  # ---------------------------------------------------------------- code ---
+
+  - id: code-bank-multifile
+    title: Multi-file bank package with a ledger
+    archetype: code
+    tier: H
+    language: python
+    goal: "Implement a `bank` package (account.py, ledger.py, __init__.py) with Account.deposit, Account.withdraw, Account.transfer, and a Ledger that records every change; overdraft must raise, and transfer must be atomic."
+    criteria:
+      - "pure stdlib"
+      - "deposit/withdraw/transfer implemented with correct balances"
+      - "overdraft raises a typed error and leaves balances unchanged"
+      - "transfer is atomic: a failure on the target leaves both accounts unchanged"
+      - "the Ledger records one entry per successful mutation"
+    fixture: eval/bench/fixtures/code-bank-multifile
+    test_command: "python -m pytest -q"
+    acceptance_floor: "test_command exits 0 AND every criterion above is exercised by a passing test"
+    quality_rubric:
+      - "5: all tests pass; errors typed; atomicity proven; ledger consistent"
+      - "3: tests pass but error types are generic or the ledger misses a path"
+      - "1: balances or atomicity wrong; tests fail"
+    context_size: medium
+    expected_failure_modes:
+      - "non-atomic transfer (partial mutation on failure)"
+      - "float money instead of integer cents / Decimal"
+      - "ledger records attempts, not successes"
+
+  - id: code-expr-eval
+    title: Arithmetic expression evaluator
+    archetype: code
+    tier: H
+    language: python
+    goal: "Implement evaluate(expr) for integer arithmetic with + - * /, parentheses, unary minus, and correct precedence; division by zero and malformed input must raise distinct typed errors."
+    criteria:
+      - "pure stdlib"
+      - "precedence and associativity correct for * / over + -"
+      - "parentheses and nested parentheses handled"
+      - "unary minus handled at start and after operators"
+      - "division by zero raises ZeroDivisionError (or a typed subclass)"
+      - "malformed input raises a typed ValueError"
+    fixture: eval/bench/fixtures/code-expr-eval
+    test_command: "python -m pytest -q"
+    acceptance_floor: "test_command exits 0 AND the precedence, unary, and error tests all pass"
+    quality_rubric:
+      - "5: all pass; parser is not eval(); errors typed and distinct"
+      - "3: all pass but uses eval() or collapses error cases"
+      - "1: precedence wrong or errors swallowed"
+    context_size: small
+    expected_failure_modes:
+      - "left-to-right evaluation ignoring precedence"
+      - "using eval() and catching everything"
+      - "unary minus mis-parsed after '(' or an operator"
+
+  - id: code-lru-ttl
+    title: LRU cache with TTL
+    archetype: code
+    tier: H
+    language: python
+    goal: "Implement an LRUCache(capacity, ttl_seconds) with O(1) get/put, LRU eviction at capacity, and expiry by TTL; get on an expired key must miss and evict."
+    criteria:
+      - "pure stdlib"
+      - "get/put are O(1) (no linear scan on the hot path)"
+      - "eviction is LRU, including on update of an existing key"
+      - "expired entries miss even when under capacity"
+      - "capacity 1 and ttl 0 edge cases behave per the tests"
+    fixture: eval/bench/fixtures/code-lru-ttl
+    test_command: "python -m pytest -q"
+    acceptance_floor: "test_command exits 0 AND the O(1), LRU, and expiry tests pass"
+    quality_rubric:
+      - "5: all pass; true O(1) with an ordered map; expiry consistent"
+      - "3: all pass but update does not refresh recency"
+      - "1: expiry or eviction wrong"
+    context_size: small
+    expected_failure_modes:
+      - "dict insertion order mistaken for LRU (update does not move to front)"
+      - "expiry only checked at eviction"
+      - "O(n) eviction scan"
+
+  - id: code-unified-diff
+    title: Unified diff with exact output
+    archetype: code
+    tier: H
+    language: python
+    goal: "Implement unified_diff(a, b) that returns a unified diff with correct @@ hunk headers and 3 lines of context, matching the format of difflib.unified_diff for the provided cases."
+    criteria:
+      - "pure stdlib"
+      - "hunk headers have correct start/length"
+      - "3 lines of context on each side"
+      - "identical inputs produce an empty diff"
+      - "output matches the fixtures byte-for-byte"
+    fixture: eval/bench/fixtures/code-unified-diff
+    test_command: "python -m pytest -q"
+    acceptance_floor: "test_command exits 0 (exact-output assertions)"
+    quality_rubric:
+      - "5: byte-exact on all cases; hunk math correct"
+      - "3: correct hunks but off-by-one context or header counts"
+      - "1: reimplements incorrectly or shells out"
+    context_size: small
+    expected_failure_modes:
+      - "off-by-one in hunk start/length"
+      - "no context lines"
+      - "non-deterministic ordering"
+
+  - id: code-refactor-provided
+    title: Refactor a provided messy module
+    archetype: code
+    tier: M
+    language: python
+    goal: "Refactor the provided `messy.py` into the same public API without changing behavior: every provided test must still pass, the linter must pass, and duplicated logic must be removed."
+    criteria:
+      - "all provided tests pass unchanged"
+      - "ruff and mypy pass on the refactored module"
+      - "public function names and signatures are unchanged"
+      - "duplicated branches are consolidated"
+    fixture: eval/bench/fixtures/code-refactor-provided
+    test_command: "python -m pytest -q && ruff check . && mypy ."
+    acceptance_floor: "tests pass AND ruff and mypy exit 0"
+    quality_rubric:
+      - "5: behavior preserved; clearer structure; lint/type clean"
+      - "3: tests pass but lint warnings remain or duplication persists"
+      - "1: behavior changed (tests fail)"
+    context_size: medium
+    expected_failure_modes:
+      - "behavior drift under refactor"
+      - "API renamed"
+      - "lint disabled or ignored"
+
+  - id: code-parse-duration
+    title: Robust duration parser with typed errors
+    archetype: code
+    tier: M
+    language: python
+    goal: "Implement parse_duration(s) for forms like '1h30m', '90s', '2d', '1h 30m', returning seconds; invalid input raises a typed DurationError with the offending token."
+    criteria:
+      - "pure stdlib"
+      - "accepts the documented unit set (s m h d)"
+      - "accepts whitespace between groups"
+      - "rejects unknown units and malformed input with DurationError"
+      - "returns integer seconds; rejects fractional where unspecified"
+    fixture: eval/bench/fixtures/code-parse-duration
+    test_command: "python -m pytest -q"
+    acceptance_floor: "test_command exits 0"
+    quality_rubric:
+      - "5: all pass; error carries the offending token"
+      - "3: all pass but error type/message is generic"
+      - "1: silently accepts malformed input"
+    context_size: small
+    expected_failure_modes:
+      - "regex that accepts partial matches"
+      - "returns float seconds"
+      - "bare ValueError instead of the typed error"
+
+  # ------------------------------------------------------------ document ---
+
+  - id: doc-api-readme
+    title: README for a provided module
+    archetype: document
+    tier: M
+    goal: "Write a README for the provided module with exactly the sections Overview, Install, API, and License; the API section must list the real public signatures from the source, and every command must be runnable as written."
+    criteria:
+      - "sections named Overview, Install, API, License"
+      - "every public function is listed with its real signature"
+      - "no fabricated commands or dependencies"
+      - "a one-line description at the top"
+    checks:
+      required_sections: [Overview, Install, API, License]
+      required_substrings_source: "public signatures extracted from the fixture"
+      no_fabricated_commands: true   # advisory check, not deterministic
+    acceptance_floor: "all required sections present AND every public signature present"
+    quality_rubric:
+      - "5: complete, accurate, copy-pasteable"
+      - "3: sections present but a signature is missing or a command is wrong"
+      - "1: fabricated API"
+    context_size: medium
+    expected_failure_modes:
+      - "invented function names"
+      - "missing a public method"
+      - "wrong install command"
+
+  - id: doc-design-adr
+    title: Design doc with a fixed structure
+    archetype: document
+    tier: H
+    goal: "Write a design decision record for the provided problem with exactly the sections Context, Decision, Consequences, and Alternatives; name at least three concrete alternatives and at least two risks."
+    criteria:
+      - "sections named Context, Decision, Consequences, Alternatives"
+      - ">= 3 concrete alternatives"
+      - ">= 2 concrete risks"
+      - "the Decision names the chosen option explicitly"
+    checks:
+      required_sections: [Context, Decision, Consequences, Alternatives]
+      count_alternatives_min: 3
+      count_risks_min: 2
+    acceptance_floor: "all sections present AND >= 3 alternatives AND >= 2 risks"
+    quality_rubric:
+      - "5: alternatives are real and differentiated; risks are specific"
+      - "3: counts met but alternatives/risks are generic"
+      - "1: sections missing or padded with vague text"
+    context_size: medium
+    expected_failure_modes:
+      - "listing the same alternative three times"
+      - "risks that are restated requirements"
+
+  - id: doc-cited-brief
+    title: Cited brief from a long source
+    archetype: document
+    tier: H
+    goal: "Summarize the provided long document into a brief where every claim cites the source section id it came from; introduce no facts absent from the source."
+    criteria:
+      - "every bullet cites a provided section id"
+      - "no external facts introduced"
+      - "covers the source's main sections"
+      - "the brief is under the stated word limit"
+    checks:
+      required_citations_from_fixture: true
+      max_words: 300
+    acceptance_floor: "every bullet cites a valid source section AND no uncited external fact is present"
+    quality_rubric:
+      - "5: accurate, well-cited, no hallucination"
+      - "3: mostly cited but one uncited claim"
+      - "1: uncited or fabricated content"
+    context_size: large
+    expected_failure_modes:
+      - "uncited claims"
+      - "hallucinated section ids"
+      - "summary longer than the limit"
+
+  - id: doc-changelog-categorize
+    title: Categorize and order changelog entries
+    archetype: document
+    tier: M
+    goal: "From the provided list of raw changes, produce a changelog grouped as Added, Changed, Fixed, Removed (in that order), with the entries that do not belong in a category excluded."
+    criteria:
+      - "the four categories appear in the stated order"
+      - "each change appears under exactly one category"
+      - "non-changelog items are excluded"
+    checks:
+      strict_section_order: [Added, Changed, Fixed, Removed]
+      every_item_once: true
+    acceptance_floor: "categories in order AND every valid item classified exactly once"
+    quality_rubric:
+      - "5: perfect classification and order"
+      - "3: order correct but one misclassification"
+      - "1: items dropped or duplicated"
+    context_size: small
+    expected_failure_modes:
+      - "alphabetical instead of canonical order"
+      - "duplicating an item across categories"
+
+  # ---------------------------------------------------------------- text ---
+
+  - id: text-argued-essay
+    title: Bounded argument essay
+    archetype: text
+    tier: M
+    goal: "Write exactly four short paragraphs arguing a position: three distinct supporting arguments and one counterargument with a rebuttal; no headings."
+    criteria:
+      - "exactly four paragraphs"
+      - "three distinct supporting arguments"
+      - "one paragraph is a counterargument plus rebuttal"
+      - "no headings or bullet lists"
+    checks:
+      exact_paragraphs: 4
+      no_headings: true
+      min_distinct_arguments: 3
+    acceptance_floor: "exactly four paragraphs AND no headings AND >= 3 distinct arguments"
+    quality_rubric:
+      - "5: arguments distinct and the rebuttal engages the counterargument"
+      - "3: four paragraphs but arguments overlap"
+      - "1: wrong paragraph count or no counterargument"
+    context_size: small
+    expected_failure_modes:
+      - "splitting a paragraph to reach four"
+      - "strawman counterargument"
+
+  - id: text-constrained-email
+    title: Constrained call-to-action email
+    archetype: text
+    tier: H
+    goal: "Write an onboarding email under 110 words in a warm, professional tone with exactly one call to action and none of the forbidden phrases 'click here', 'act now', 'free'."
+    criteria:
+      - "under 110 words"
+      - "exactly one call to action"
+      - "no forbidden phrases"
+      - "warm, professional tone"
+    checks:
+      max_words: 110
+      forbidden_phrases: ["click here", "act now", "free"]
+      exactly_one_cta: true
+    acceptance_floor: "word count under limit AND no forbidden phrase AND exactly one CTA"
+    quality_rubric:
+      - "5: concise, single clear CTA, natural tone"
+      - "3: meets constraints but the CTA is buried"
+      - "1: over limit or multiple CTAs"
+    context_size: small
+    expected_failure_modes:
+      - "two CTAs"
+      - "exceeding the word limit"
+      - "forbidden phrase used ironically"
+
+  - id: text-level-rewrite
+    title: Reading-level rewrite with fact preservation
+    archetype: text
+    tier: H
+    goal: "Rewrite the provided technical passage for a general audience at roughly an 8th-grade reading level while preserving every named entity, number, and requirement in the source."
+    criteria:
+      - "preserves every named entity and number from the source"
+      - "introduces no new factual claims"
+      - "reading level lowered per the rubric"
+    checks:
+      preserve_entities_from_fixture: true
+      max_new_claims: 0
+    acceptance_floor: "all source entities/numbers preserved AND no new factual claims"
+    quality_rubric:
+      - "5: facts intact and clearly simpler"
+      - "3: facts intact but barely simplified"
+      - "1: a fact dropped or altered"
+    context_size: medium
+    expected_failure_modes:
+      - "dropping a number"
+      - "adding an example that asserts a new fact"
+
+  # ---------------------------------------------------------------- data ---
+
+  - id: data-json-normalize
+    title: Normalize events to a JSON Schema
+    archetype: data
+    tier: H
+    goal: "Convert the provided unstructured event list into a JSON array that validates against the provided schema: normalize timestamps to RFC 3339 UTC, map severities to the schema enum, and omit no required field."
+    criteria:
+      - "output validates against the provided JSON Schema"
+      - "timestamps normalized to RFC 3339 UTC"
+      - "severities mapped to the schema enum"
+      - "no extra fields"
+    fixture: eval/bench/fixtures/data-json-normalize
+    checks:
+      json_schema: eval/bench/fixtures/data-json-normalize/schema.json
+    acceptance_floor: "output validates against the schema AND timestamp/severity checks pass"
+    quality_rubric:
+      - "5: validates; normalization exact"
+      - "3: validates but one timestamp left unnormalized"
+      - "1: schema violations"
+    context_size: small
+    expected_failure_modes:
+      - "local timestamps not converted to UTC"
+      - "severity synonyms dropped"
+      - "extra keys"
+
+  # ----------------------------------------------------------- adversarial --
+
+  - id: adversarial-ambiguous-spec
+    title: Ambiguous spec (flag, do not fabricate)
+    archetype: document
+    tier: H
+    goal: "The provided requirement is internally inconsistent (two criteria cannot both hold). Produce a short response that identifies the contradiction, quotes both conflicting criteria, and proposes the minimal clarifying question; do NOT produce the artifact."
+    criteria:
+      - "identifies the contradiction"
+      - "quotes both conflicting criteria"
+      - "asks exactly one clarifying question"
+      - "does not fabricate the artifact"
+    checks:
+      must_flag_contradiction: true
+      must_not_fabricate: true
+    acceptance_floor: "contradiction flagged AND no fabricated artifact"
+    quality_rubric:
+      - "5: precise contradiction and a sharp single question"
+      - "3: flags ambiguity but vaguely"
+      - "1: fabricates an artifact that satisfies neither criterion"
+    context_size: small
+    expected_failure_modes:
+      - "confident fabrication"
+      - "asking many questions instead of one"
