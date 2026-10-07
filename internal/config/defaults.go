@@ -177,7 +177,11 @@ func applyDefaults(c *Config) {
 	// reproduce pre-F4 behavior (fixed compute, LLM judge, no reroll),
 	// except cost-aware acceptance, which only changes near-ties.
 	setStr(&c.Execution.Policy.ComputePolicy, ComputePolicyDefault)
-	setStr(&c.Execution.Policy.JudgeMode, JudgeModeLLM)
+	// Verification-first acceptance (ADR-0062): deterministic verifiers decide
+	// where they apply; the LLM judge is an advisory tiebreaker only. This is
+	// the shipped default; set judge_mode: llm to opt back into an
+	// LLM-decided comparison.
+	setStr(&c.Execution.Policy.JudgeMode, JudgeModeVerifier)
 	setInt(&c.Execution.Policy.JudgeCount, 1)
 	if c.Execution.Policy.VerifierMinFraction == nil {
 		v := 0.5

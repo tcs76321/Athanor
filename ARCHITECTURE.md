@@ -1129,7 +1129,8 @@ Where `threshold` is `execution.min_judge_confidence` in the configuration refer
 > ([ADR-0045](docs/adr/0045-verification-first-selection.md)): per-archetype
 > deterministic verifiers run first, the LLM judge is a tiebreaker, and the
 > deciding judge must come from a different model **family** than the
-> generator. `execution.policy.judge_mode` selects the path. The judge is
+> generator. `execution.policy.judge_mode` selects the path and now defaults to
+> `verifier` ([ADR-0062](docs/adr/0062-verifier-first-acceptance.md)). The judge is
 > additionally bounded by quorum (`judge_count`) and a reward-hacking guard
 > that resolves a judge/verifier contradiction to the verifier
 > ([ADR-0046](docs/adr/0046-judge-protocol.md)). Because the M3-T7 probe found

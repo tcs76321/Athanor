@@ -10,6 +10,18 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Verifier-first acceptance (ADR-0062)
+
+- **`execution.policy.judge_mode` now defaults to `verifier`.** Deterministic
+  verifiers decide acceptance where they apply; the LLM judge is an advisory
+  tiebreaker, consulted only when no hard verifier is decisive and still bound
+  by cross-family, quorum, and the §19.3 guard. `judge_mode: llm` restores the
+  LLM-decided comparison. This formalizes the 10-model probe result — 42/42
+  code accepts were decided deterministically while the judge was reliable but
+  undiscriminating (saturated confidence, 40% verdict stability, 0.45–0.99
+  scale variance). `data`/`media` remain judge-advisory (a recorded follow-up).
+  [ADR-0062](docs/adr/0062-verifier-first-acceptance.md).
+
 ### G-F4 probe (2026-10-06)
 
 - **10-model probe.** All ten models (3–35 B, five families) run as generators

@@ -22,6 +22,7 @@ import (
 	"testing"
 
 	"github.com/tcs76321/athanor/internal/artifact"
+	"github.com/tcs76321/athanor/internal/config"
 	"github.com/tcs76321/athanor/internal/evaluation"
 	"github.com/tcs76321/athanor/internal/job"
 )
@@ -45,8 +46,14 @@ func (e *testEnv) phaseCalls() map[string]int {
 // candidates, evaluates each, persists 3 EvaluationRecords, picks
 // the best, and lands in `completed` with the final artifact in
 // `accepted` status.
+//
+// This test pins the LLM-comparison path (COMPARISON calls = 1), so it
+// selects judge_mode: llm explicitly; the shipped default is verifier-first
+// (ADR-0062), covered by TestRun_CodeArchetype_VerifierFirstByDefault.
 func TestRun_FullDialecticalChain_ThreeCandidates_CodeArchetype(t *testing.T) {
-	env := newEnv(t)
+	env := newEnvWithCfg(t, func(c *config.Config) {
+		c.Execution.Policy.JudgeMode = config.JudgeModeLLM
+	})
 	jobID := env.submitCode(t)
 	eval := evaluation.NewRepo(env.db)
 	env.eng.Run(context.Background(), jobID)
@@ -114,6 +121,34 @@ func TestRun_FullDialecticalChain_ThreeCandidates_CodeArchetype(t *testing.T) {
 	}
 	if final.Status != artifact.StatusAccepted {
 		t.Errorf("final status = %s, want %s", final.Status, artifact.StatusAccepted)
+	}
+}
+
+// TestRun_CodeArchetype_VerifierFirstByDefault proves the ADR-0062 shipped
+// default: with no judge_mode configured (verifier-first), a code job whose
+// real tests pass is accepted by the deterministic verifier and the LLM
+// comparison judge is never called.
+func TestRun_CodeArchetype_VerifierFirstByDefault(t *testing.T) {
+	env := newEnv(t) // shipped default: judge_mode verifier
+	jobID := env.submitCode(t)
+	env.eng.Run(context.Background(), jobID)
+
+	j, err := env.jobs.Get(context.Background(), jobID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if j.State != job.StateCompleted {
+		t.Fatalf("state = %s, want completed", j.State)
+	}
+	if got := env.phaseCalls()["COMPARISON"]; got != 0 {
+		t.Errorf("LLM COMPARISON calls = %d, want 0 (a decisive verifier decides; ADR-0062)", got)
+	}
+	final, err := env.artifacts.LatestForJob(context.Background(), jobID, artifact.KindCode)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if final.Status != artifact.StatusAccepted {
+		t.Errorf("final status = %s, want accepted", final.Status)
 	}
 }
 

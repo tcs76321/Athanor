@@ -114,7 +114,7 @@ single-model setup. Findings: [`docs/probes/m1-quality-probe.md`](docs/probes/m1
 | Key | Default | Effect |
 |---|---|---|
 | `compute_policy` | `default` | `adaptive` lowers N/reflection on easy or familiar tasks |
-| `judge_mode` | `llm` | `verifier` runs deterministic verifiers first; LLM only on ties |
+| `judge_mode` | `verifier` | `verifier` runs deterministic verifiers first and treats the LLM judge as an advisory tiebreaker; `llm` routes acceptance through the judge |
 | `judge_count` | `1` | `>1` requires a majority (quorum) before accepting |
 | `require_cross_family` | `true` | refuse a judge sharing the generator's model family |
 | `heterogeneous_diversity` | `true` | cycle divergence candidates across personas |
