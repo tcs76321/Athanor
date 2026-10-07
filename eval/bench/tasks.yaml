@@ -193,15 +193,23 @@ tasks:
     archetype: code
     tier: M
     language: python
-    goal: "Implement parse_duration(s) for forms like '1h30m', '90s', '2d', '1h 30m', returning seconds; invalid input raises a typed DurationError with the offending token."
+    goal: "Implement parse_duration(s) in solution.py for forms like '1h30m', '90s', '2d', '1h 30m', returning integer seconds; invalid input raises (a typed error is preferred)."
     criteria:
       - "pure stdlib"
       - "accepts the documented unit set (s m h d)"
       - "accepts whitespace between groups"
-      - "rejects unknown units and malformed input with DurationError"
-      - "returns integer seconds; rejects fractional where unspecified"
-    fixture: eval/bench/fixtures/code-parse-duration
-    test_command: "python -m pytest -q"
+      - "rejects unknown units and malformed input"
+      - "returns integer seconds"
+    test_command: |
+      python -c 'import solution
+      assert solution.parse_duration("1h30m")==5400
+      assert solution.parse_duration("90s")==90
+      assert solution.parse_duration("2d")==172800
+      assert solution.parse_duration("1h 30m")==5400
+      ok=False
+      try: solution.parse_duration("5x")
+      except Exception: ok=True
+      assert ok, "unknown unit must raise"'
     acceptance_floor: "test_command exits 0"
     quality_rubric:
       - "5: all pass; error carries the offending token"

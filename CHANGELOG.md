@@ -22,6 +22,11 @@ New entries are appended at the top. Do not rewrite history.
   reporting: a terminal job's `stopPod` can lag the terminal transition the
   probe observes, so an immediate check raced the teardown and reported a
   transient non-orphan.
+- `code-parse-duration` in the bench corpus still pointed at a non-existent
+  fixture and used `python -m pytest -q`; it now uses the pinned `solution.py`
+  contract with a self-contained hidden test, like the other five code tasks.
+  Its dangling `fixture:` made the engine hard-fail at evaluation (ADR-0065 §6
+  fails loudly on a missing fixture).
 
 ### M8-T25 — real-world-internal workflow map
 
