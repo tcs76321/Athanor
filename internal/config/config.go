@@ -393,6 +393,10 @@ type PolicyConfig struct {
 	// generator and `alternative` personas so a non-trivial task draws
 	// from more than one source (F4-T5). Default true.
 	HeterogeneousDiversity *bool `yaml:"heterogeneous_diversity"`
+	// NoveltyReset is the anti-rut control (M8-T9; ADR-0064 §5): "auto"
+	// (default) drops learned persona bias when a task class is novel,
+	// "reset" always drops it, "keep" never does.
+	NoveltyReset string `yaml:"novelty_reset"`
 }
 
 // Policy-mode enum values.
@@ -402,6 +406,11 @@ const (
 
 	JudgeModeLLM      = "llm"
 	JudgeModeVerifier = "verifier"
+
+	// Anti-rut reset modes (M8-T9).
+	NoveltyResetAuto  = "auto"
+	NoveltyResetReset = "reset"
+	NoveltyResetKeep  = "keep"
 )
 
 // ComputePolicySelection resolves execution.policy.compute_policy with the
@@ -487,6 +496,15 @@ func (e *Execution) RequireCrossFamilyValue() bool {
 // personas (F4-T5).
 func (e *Execution) HeterogeneousDiversityEnabled() bool {
 	return Val(e.Policy.HeterogeneousDiversity, true)
+}
+
+// NoveltyResetSelection resolves execution.policy.novelty_reset with the
+// documented "auto" fallback (M8-T9).
+func (e *Execution) NoveltyResetSelection() string {
+	if e.Policy.NoveltyReset == "" {
+		return NoveltyResetAuto
+	}
+	return e.Policy.NoveltyReset
 }
 
 // MaxTaskRetriesValue resolves execution.max_task_retries, applying the

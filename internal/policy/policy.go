@@ -94,6 +94,37 @@ type Plan struct {
 	// its budget is zero. Execution does not yet vary with it — that is the
 	// M8-T8b follow-up once the harder corpus can justify a selection.
 	Operations []string
+	// Novelty is how far this task class is from history, in [0,1]
+	// (M8-T9): 1 with no prior outcome for the class, 0 once it is
+	// familiar. The engine resets learned bias when it is high.
+	Novelty float64
+	// NoveltyReset reports that learned bias was dropped for this plan
+	// (set by the engine; the anti-rut reset, ADR-0064 §5).
+	NoveltyReset bool
+}
+
+// NoveltyFullSamples is the sample count at which a task class counts as
+// fully familiar (novelty 0). Below it, novelty rises linearly to 1 at zero
+// history.
+const NoveltyFullSamples = 5
+
+// NoveltyThreshold is the novelty at or above which selection resets prior
+// specialisation (the anti-rut reset, ADR-0064 §5).
+const NoveltyThreshold = 0.5
+
+// Novelty scores how far a task class is from history, in [0,1]: 1 when there
+// is no prior outcome for the class, falling to 0 once NoveltyFullSamples
+// exist. Pure and total — it conditions only on the sample count, with no
+// model, embeddings, or extra dependency. A class with history is familiar; a
+// class without is novel.
+func Novelty(f Features) float64 {
+	if f.RecentSamples <= 0 {
+		return 1
+	}
+	if f.RecentSamples >= NoveltyFullSamples {
+		return 0
+	}
+	return 1 - float64(f.RecentSamples)/float64(NoveltyFullSamples)
 }
 
 // eligibleOperations derives the eligible operation set from a plan: the
@@ -144,5 +175,6 @@ func (Default) Decide(in Inputs) Plan {
 		},
 	}
 	p.Operations = eligibleOperations(p)
+	p.Novelty = Novelty(in.Features)
 	return p
 }

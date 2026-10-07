@@ -206,6 +206,7 @@ func applyDefaults(c *Config) {
 	setTrue(&c.Execution.Policy.CostAware)
 	setTrue(&c.Execution.Policy.RequireCrossFamily)
 	setTrue(&c.Execution.Policy.HeterogeneousDiversity)
+	setStr(&c.Execution.Policy.NoveltyReset, NoveltyResetAuto)
 
 	if c.Execution.MinJudgeConfidence == nil {
 		def := 0.7

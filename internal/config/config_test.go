@@ -452,6 +452,24 @@ func TestExampleConfigMatchesDefaults(t *testing.T) {
 	}
 }
 
+// TestNoveltyReset pins M8-T9's anti-rut config: the default is "auto" and an
+// unknown value is rejected at load.
+func TestNoveltyReset(t *testing.T) {
+	def, err := Default()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := def.Execution.NoveltyResetSelection(); got != NoveltyResetAuto {
+		t.Errorf("default novelty_reset = %q, want %q", got, NoveltyResetAuto)
+	}
+	if _, err := Parse([]byte("version: 2\nexecution:\n  policy:\n    novelty_reset: sometimes\n")); err == nil {
+		t.Error("invalid novelty_reset accepted, want a load error")
+	}
+	if _, err := Parse([]byte("version: 2\nexecution:\n  policy:\n    novelty_reset: keep\n")); err != nil {
+		t.Errorf("valid novelty_reset rejected: %v", err)
+	}
+}
+
 // TestInference_JSONFormat pins M3-T7.1's grammar-constraint knob:
 // default true, explicit false honored.
 func TestInference_JSONFormat(t *testing.T) {

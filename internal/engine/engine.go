@@ -457,6 +457,14 @@ func (e *Engine) decidePlan(in policy.Inputs) policy.Plan {
 			}
 		}
 	}
+	// M8-T9: the anti-rut reset (ADR-0064 §5). On a novel task class, drop
+	// the learned persona bias so specialisation does not steer a genuinely
+	// new problem; the plan stays on the shipped default path. Controlled
+	// by execution.policy.novelty_reset (auto|reset|keep).
+	if e.shouldResetNovelty(plan) {
+		plan.NoveltyReset = true
+		return plan
+	}
 	// F4-T7a: an active insight's preferred persona leads divergence. Applied
 	// after the heterogeneity default so the insight always wins position 0.
 	if pref := in.Features.PreferredDivergencePersona; pref != "" {
@@ -468,6 +476,24 @@ func (e *Engine) decidePlan(in policy.Inputs) policy.Plan {
 		plan.InsightBias = pref
 	}
 	return plan
+}
+
+// shouldResetNovelty reports whether the anti-rut reset applies to this plan
+// (M8-T9). "keep" never resets, "reset" always resets, and "auto" (the
+// default) resets when the task class is novel. Pure over the plan and config.
+func (e *Engine) shouldResetNovelty(plan policy.Plan) bool {
+	mode := config.NoveltyResetAuto
+	if e.cfg != nil {
+		mode = e.cfg.Execution.NoveltyResetSelection()
+	}
+	switch mode {
+	case config.NoveltyResetKeep:
+		return false
+	case config.NoveltyResetReset:
+		return true
+	default: // auto
+		return plan.Novelty >= policy.NoveltyThreshold
+	}
 }
 
 // roleFor resolves the persona serving a phase through the plan's
@@ -527,6 +553,12 @@ func (e *Engine) auditComputePlan(ctx context.Context, jobID, stage string, plan
 	if stage == "divergence" && plan.InsightBias != "" {
 		e.audit(ctx, jobID, map[string]any{
 			"event": "policy_biased_from_insight", "persona": plan.InsightBias,
+		})
+	}
+	// M8-T9: record that the anti-rut reset dropped the learned bias.
+	if stage == "divergence" && plan.NoveltyReset {
+		e.audit(ctx, jobID, map[string]any{
+			"event": "novelty_reset", "novelty": plan.Novelty,
 		})
 	}
 }

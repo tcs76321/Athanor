@@ -190,6 +190,9 @@ execution:
     quality_tie_margin: 0.02
     require_cross_family: true
     heterogeneous_diversity: true
+    # M8-T9: "auto" (default) drops learned persona bias when a task class is
+    # novel; "reset" always drops it; "keep" never does.
+    novelty_reset: "auto"
 
 strategy_analysis:
   enabled: true

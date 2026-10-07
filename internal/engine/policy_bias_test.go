@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/tcs76321/athanor/internal/config"
 	"github.com/tcs76321/athanor/internal/job"
 	"github.com/tcs76321/athanor/internal/strategy"
 )
@@ -13,7 +14,12 @@ import (
 // personas, and the bias is audited. The insight is promoted from proposed to
 // active, so the inert-proposed contract still holds.
 func TestActiveInsightBiasesPersonaPlan(t *testing.T) {
-	e := newEnv(t)
+	// novelty_reset: keep — this is the F4-T7a "the loop learns" bar, so the
+	// fresh (novel) test env must not reset the bias. The reset path has its
+	// own test below.
+	e := newEnvWithCfg(t, func(c *config.Config) {
+		c.Execution.Policy.NoveltyReset = config.NoveltyResetKeep
+	})
 	repo := strategy.NewRepo(e.db)
 	e.eng.SetStrategyInsightSource(repo)
 
@@ -43,6 +49,44 @@ func TestActiveInsightBiasesPersonaPlan(t *testing.T) {
 	}
 	if got := divergencePersonas(t, e, jobID); got["alternative"] == 0 {
 		t.Fatalf("divergence personas = %v, want alternative to lead", got)
+	}
+}
+
+// TestNoveltyResetDropsLearnedBias is the M8-T9 anti-rut bar: with the
+// default novelty_reset=auto and no history for the class, learned persona
+// bias is dropped (the plan stays on the shipped default path) and the reset
+// is audited.
+func TestNoveltyResetDropsLearnedBias(t *testing.T) {
+	e := newEnv(t) // default config: novelty_reset auto
+	repo := strategy.NewRepo(e.db)
+	e.eng.SetStrategyInsightSource(repo)
+
+	ctx := context.Background()
+	ins, err := repo.CreateInsight(ctx, strategy.Insight{
+		Scope: strategy.ScopeGlobal, Polarity: strategy.PolarityWinning,
+		Pattern: strategy.Pattern{
+			Feature: "diverging.persona", Value: "alternative", Context: "archetype=text",
+		},
+		Statement: "Divergence led by 'alternative' was accepted more often.",
+		Status:    strategy.InsightProposed,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.SetInsightStatus(ctx, ins.ID, strategy.InsightActive); err != nil {
+		t.Fatal(err)
+	}
+
+	jobID := e.submitWithCriteria(t, "text",
+		"Write a short essay about local-first software.",
+		[]string{"one", "two", "three"})
+	e.eng.Run(ctx, jobID)
+
+	if _, ok := eventField(t, e, jobID, "novelty_reset", "novelty"); !ok {
+		t.Fatal("no novelty_reset audit row on a novel class")
+	}
+	if _, ok := eventField(t, e, jobID, "policy_biased_from_insight", "persona"); ok {
+		t.Error("learned bias applied despite a novelty reset; the rut was not reset")
 	}
 }
 

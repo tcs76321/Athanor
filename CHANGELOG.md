@@ -10,6 +10,15 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### M8-T9 — novelty detection and the anti-rut reset
+
+- **M8-T9.** `policy.Novelty` scores how far a task class is from history in
+  [0,1] (pure; sample-count only, no embeddings). The engine's anti-rut reset
+  (`execution.policy.novelty_reset: auto|reset|keep`, default `auto`) drops
+  the learned persona bias on a novel class so specialisation never steers a
+  genuinely new problem; the reset is audited as `novelty_reset`.
+  [ADR-0064](docs/adr/0064-cognitive-operations.md).
+
 ### M8-T8 — operation-selection seam + shared vocabulary package
 
 - **M8-T8.** The canonical cognitive-operation vocabulary and `Operation` type

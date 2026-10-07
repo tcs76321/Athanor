@@ -120,6 +120,7 @@ single-model setup. Findings: [`docs/probes/m1-quality-probe.md`](docs/probes/m1
 | `heterogeneous_diversity` | `true` | cycle divergence candidates across personas |
 | `max_diversity_rerolls` | `0` | opt-in: re-roll a below-`jaccard_floor` batch |
 | `cost_aware` | `true` | a quality tie breaks toward the cheaper artifact |
+| `novelty_reset` | `auto` | `auto` drops learned persona bias on a novel task class; `reset` always; `keep` never (M8-T9) |
 
 `personas.<role>.family` declares the model lineage (e.g. `gemma4`, `qwen`);
 the cross-family rule compares it exactly. It defaults to the model name with

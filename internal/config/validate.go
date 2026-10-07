@@ -152,6 +152,12 @@ func validateRaw(c *Config) error {
 		return fmt.Errorf("execution.policy.judge_mode must be %q or %q, got %q",
 			JudgeModeLLM, JudgeModeVerifier, m)
 	}
+	switch n := c.Execution.Policy.NoveltyReset; n {
+	case "", NoveltyResetAuto, NoveltyResetReset, NoveltyResetKeep:
+	default:
+		return fmt.Errorf("execution.policy.novelty_reset must be %q, %q, or %q, got %q",
+			NoveltyResetAuto, NoveltyResetReset, NoveltyResetKeep, n)
+	}
 	for name, v := range map[string]*float64{
 		"execution.policy.verifier_min_fraction": c.Execution.Policy.VerifierMinFraction,
 		"execution.policy.min_anchor_agreement":  c.Execution.Policy.MinAnchorAgreement,

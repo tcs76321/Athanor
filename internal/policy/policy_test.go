@@ -1,6 +1,7 @@
 package policy
 
 import (
+	"math"
 	"reflect"
 	"testing"
 
@@ -83,6 +84,23 @@ func TestDefault_OperationsBaseline(t *testing.T) {
 	for _, op := range noReflect.Operations {
 		if op == cognitive.OpReflect {
 			t.Errorf("Operations contains reflect with a zero budget: %v", noReflect.Operations)
+		}
+	}
+}
+
+// TestNovelty pins the M8-T9 pure novelty curve: 1 with no history, falling
+// linearly to 0 at NoveltyFullSamples.
+func TestNovelty(t *testing.T) {
+	cases := []struct {
+		samples int
+		want    float64
+	}{
+		{0, 1}, {1, 0.8}, {4, 0.2}, {5, 0}, {9, 0},
+	}
+	for _, tc := range cases {
+		got := Novelty(Features{RecentSamples: tc.samples})
+		if math.Abs(got-tc.want) > 1e-9 {
+			t.Errorf("Novelty(samples=%d) = %v, want %v", tc.samples, got, tc.want)
 		}
 	}
 }
