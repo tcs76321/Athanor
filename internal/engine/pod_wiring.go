@@ -48,6 +48,15 @@ func (e *Engine) runCodeInPod(ctx context.Context, j job.Job, p project.Project,
 	if ferr != nil {
 		return fmt.Errorf("parsing code candidate tree: %w", ferr)
 	}
+	// ADR-0065: overlay the candidate on the task's fixture tree so the test
+	// command runs against the merged project, not the candidate alone.
+	if fx := p.Execution.FixturePath; fx != "" {
+		base, berr := readFixtureTree(fx)
+		if berr != nil {
+			return fmt.Errorf("reading fixture: %w", berr)
+		}
+		files = overlayFiles(base, files)
+	}
 	var req toolenvelope.ExecuteRequest
 	if len(files) == 1 && files[0].Path == "solution.py" {
 		req = toolenvelope.ExecuteRequest{Language: "python", Code: normalizeCode(files[0].Content)}

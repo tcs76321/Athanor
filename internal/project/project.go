@@ -72,6 +72,11 @@ type Execution struct {
 	TestCommand  string   `json:"test_command,omitempty"`
 	BuildCommand string   `json:"build_command,omitempty"`
 	Linters      []string `json:"linters,omitempty"`
+	// FixturePath is the immutable starter tree a code task reads (ADR-0065):
+	// staged into the Job Pod under the candidate and shown to the model.
+	// Distinct from RepositoryPath, which is the evolving git-as-undo output
+	// target. Empty means no fixture. Read only through airlock containment.
+	FixturePath string `json:"fixture_path,omitempty"`
 }
 
 // DefaultCodeTestCommand is the built-in test command for a `code` project

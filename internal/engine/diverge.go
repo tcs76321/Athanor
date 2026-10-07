@@ -93,6 +93,13 @@ func (e *Engine) phaseDivergeN(ctx context.Context, j job.Job) error {
 			seed := fmt.Sprintf("CANDIDATE %d of %d. Produce a solution that differs from any other candidate you might generate for this task.", i+1, n)
 			if p.Archetype == project.ArchetypeCode {
 				seed += "\n" + codeOnlyInstruction
+				// ADR-0065: a code task with a fixture shows the starter tree
+				// so the model can modify it (e.g. a refactor task).
+				if fx := p.Execution.FixturePath; fx != "" {
+					if fixture, ferr := readFixtureTree(fx); ferr == nil && len(fixture) > 0 {
+						seed += "\n\n" + renderFixture(fixture)
+					}
+				}
 			}
 			if research != "" {
 				seed += "\n\n" + research

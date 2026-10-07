@@ -26,6 +26,11 @@ New entries are appended at the top. Do not rewrite history.
   (`candidateFiles`); a lone `solution.py` keeps the write-and-run shorthand.
   The code prompt documents the multi-file marker convention; path traversal
   in a marker is rejected.
+- **B4.** A dedicated `execution.fixture_path` (project execution config, no
+  migration — the column is free-form JSON). The engine reads the fixture tree
+  through a containment-safe reader (no symlinks, VCS/dep dirs skipped, size
+  bounds), shows it to the model, and overlays the candidate on it for the test
+  run. Distinct from `repository_path` (the evolving git-as-undo target).
 
 ### M8-T16 — bench corpus loader in the probe
 
