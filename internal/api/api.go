@@ -286,6 +286,8 @@ type projectExecution struct {
 	TestCommand  string   `json:"test_command"`
 	BuildCommand string   `json:"build_command"`
 	Linters      []string `json:"linters"`
+	// FixturePath is the immutable starter tree for a code task (ADR-0065).
+	FixturePath string `json:"fixture_path"`
 }
 
 type projectResponse struct {
@@ -315,6 +317,7 @@ func (a *API) handleProjectCreate(w http.ResponseWriter, r *http.Request) {
 			TestCommand:  req.Execution.TestCommand,
 			BuildCommand: req.Execution.BuildCommand,
 			Linters:      req.Execution.Linters,
+			FixturePath:  req.Execution.FixturePath,
 		}
 		if err := a.projects.SetExecution(r.Context(), p.ID, ex); err != nil {
 			writeError(w, http.StatusInternalServerError, err.Error())

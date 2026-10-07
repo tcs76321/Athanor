@@ -387,7 +387,15 @@ func (r *runnerConfig) runOne(g sampleGoal, m probeModel, a arm, run int, stateD
 		if tc == "" {
 			tc = "true"
 		}
-		body["execution"] = map[string]any{"test_command": tc}
+		exec := map[string]any{"test_command": tc}
+		// ADR-0065: a bench code task with a starter tree passes its
+		// fixture_path (absolute, so the daemon reads it regardless of cwd).
+		if g.Fixture != "" {
+			if abs, err := filepath.Abs(g.Fixture); err == nil {
+				exec["fixture_path"] = abs
+			}
+		}
+		body["execution"] = exec
 	}
 	if err := apiCall("POST", r.baseURL()+"/projects", body, &pr); err != nil {
 		mx.Error = "create project: " + err.Error()
