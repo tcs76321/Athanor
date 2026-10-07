@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/tcs76321/athanor/internal/artifact"
+	"github.com/tcs76321/athanor/internal/cognitive"
 	"github.com/tcs76321/athanor/internal/config"
 	"github.com/tcs76321/athanor/internal/control"
 	"github.com/tcs76321/athanor/internal/corrections"
@@ -546,7 +547,7 @@ func TestStrategyProfileAndOutcomeCaptured(t *testing.T) {
 	for _, op := range outcome.Operations {
 		names[op.Name] = true
 	}
-	for _, want := range []string{strategy.OpPlan, strategy.OpDiverge, strategy.OpSynthesize, strategy.OpCompare} {
+	for _, want := range []string{cognitive.OpPlan, cognitive.OpDiverge, cognitive.OpSynthesize, cognitive.OpCompare} {
 		if !names[want] {
 			t.Errorf("trajectory missing %q: %+v", want, outcome.Operations)
 		}

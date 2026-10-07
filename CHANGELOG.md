@@ -10,6 +10,17 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### M8-T8 — operation-selection seam + shared vocabulary package
+
+- **M8-T8.** The canonical cognitive-operation vocabulary and `Operation` type
+  move to the leaf package `internal/cognitive`, imported by both `policy`
+  (selection) and `strategy` (capture) — one source of truth, and the policy
+  seam stays free of the store dependency. `policy.Plan` gains an `Operations`
+  eligible-set surface: `Default` returns the baseline set (minus reflection
+  when its budget is zero) and `Adaptive` narrows it on easy tasks; the
+  decision is audited as `compute_planned.operations`. Execution does not yet
+  vary with it (M8-T8b, once the harder corpus can justify a selection).
+
 ### M8-T7 — strategy trajectory (executed cognitive operations)
 
 - **M8-T7.** Every terminal job now records its executed cognitive trajectory:

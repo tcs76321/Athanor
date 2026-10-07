@@ -520,6 +520,7 @@ func (e *Engine) auditComputePlan(ctx context.Context, jobID, stage string, plan
 		"judge_count":          plan.JudgeCount,
 		"model_routing":        plan.ModelRouting,
 		"divergence_roles":     plan.DivergenceRoles,
+		"operations":           plan.Operations, // M8-T8: the eligible set
 	})
 	// F4-T7a: record the feedback→policy bias once, at the divergence stage
 	// (the profile-stage plan runs before insights are relevant to the run).

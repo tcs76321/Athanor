@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strconv"
 
+	"github.com/tcs76321/athanor/internal/cognitive"
 	"github.com/tcs76321/athanor/internal/job"
 	"github.com/tcs76321/athanor/internal/llm"
 	"github.com/tcs76321/athanor/internal/policy"
@@ -245,17 +246,17 @@ func (e *Engine) reflectionLoops(ctx context.Context, jobID string) int {
 // deterministic verifier) and `tests_ran` (real tests); research and commit
 // are recorded from their own audit events. The result is ordered by the
 // canonical operation sequence so trajectories are comparable across jobs.
-func (e *Engine) trajectory(ctx context.Context, jobID string) []strategy.Operation {
+func (e *Engine) trajectory(ctx context.Context, jobID string) []cognitive.Operation {
 	events, err := e.db.QueryEvents(ctx, store.EventFilter{JobID: jobID, Category: "jobs"})
 	if err != nil {
 		return nil
 	}
-	byName := map[string]*strategy.Operation{}
-	get := func(name string) *strategy.Operation {
+	byName := map[string]*cognitive.Operation{}
+	get := func(name string) *cognitive.Operation {
 		if op, ok := byName[name]; ok {
 			return op
 		}
-		op := &strategy.Operation{Name: name}
+		op := &cognitive.Operation{Name: name}
 		byName[name] = op
 		return op
 	}
@@ -294,7 +295,7 @@ func (e *Engine) trajectory(ctx context.Context, jobID string) []strategy.Operat
 			if !d.Applied {
 				continue
 			}
-			op := get(strategy.OpVerify)
+			op := get(cognitive.OpVerify)
 			op.Grounded = true
 			op.Passed = d.Passed
 			if op.Phase == "" {
@@ -304,31 +305,32 @@ func (e *Engine) trajectory(ctx context.Context, jobID string) []strategy.Operat
 			if !d.VerifierApplied {
 				continue
 			}
-			op := get(strategy.OpVerify)
+			op := get(cognitive.OpVerify)
 			op.Grounded = true
 			op.Passed = d.VerifierPassed
 		case "comparison":
-			get(strategy.OpCompare)
+			get(cognitive.OpCompare)
 		case "tests_ran":
-			get(strategy.OpVerify).Grounded = true
+			get(cognitive.OpVerify).Grounded = true
 		case "research_fetch":
 			if d.Outcome != "fetched" {
 				continue
 			}
-			get(strategy.OpResearch)
+			get(cognitive.OpResearch)
 		case "git_committed":
-			get(strategy.OpCommit)
+			get(cognitive.OpCommit)
 		}
 	}
-	out := make([]strategy.Operation, 0, len(byName))
-	for _, name := range trajectoryOrder {
+	out := make([]cognitive.Operation, 0, len(byName))
+	for _, name := range cognitive.ExecutionOrder {
 		if op, ok := byName[name]; ok {
 			out = append(out, *op)
 			delete(byName, name)
 		}
 	}
 	// Defensive: emit any operation not in the canonical order (a new
-	// vocabulary entry must also extend trajectoryOrder) deterministically.
+	// vocabulary entry must also extend cognitive.ExecutionOrder)
+	// deterministically.
 	if len(byName) > 0 {
 		rest := make([]string, 0, len(byName))
 		for name := range byName {
@@ -342,28 +344,22 @@ func (e *Engine) trajectory(ctx context.Context, jobID string) []strategy.Operat
 	return out
 }
 
-// trajectoryOrder is the canonical emission order for a job's operations.
-var trajectoryOrder = []string{
-	strategy.OpResearch, strategy.OpPlan, strategy.OpDiverge, strategy.OpVerify,
-	strategy.OpReflect, strategy.OpSynthesize, strategy.OpCompare, strategy.OpCommit,
-}
-
 // operationForPhase maps an engine phase to its cognitive operation ("" when
 // the phase has no operation, e.g. an unknown phase).
 func operationForPhase(phase string) string {
 	switch phase {
 	case llm.PhasePlanning:
-		return strategy.OpPlan
+		return cognitive.OpPlan
 	case llm.PhaseDiverging:
-		return strategy.OpDiverge
+		return cognitive.OpDiverge
 	case llm.PhaseEvaluating:
-		return strategy.OpVerify
+		return cognitive.OpVerify
 	case llm.PhaseReflecting:
-		return strategy.OpReflect
+		return cognitive.OpReflect
 	case llm.PhaseSynthesizing:
-		return strategy.OpSynthesize
+		return cognitive.OpSynthesize
 	case llm.PhaseComparing:
-		return strategy.OpCompare
+		return cognitive.OpCompare
 	default:
 		return ""
 	}

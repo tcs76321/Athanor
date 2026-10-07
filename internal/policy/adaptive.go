@@ -21,6 +21,10 @@ func (Adaptive) Decide(in Inputs) Plan {
 	if isEasy(in.Features) {
 		plan.Candidates = 1
 		plan.MaxReflectionLoops = 0
+		// Reflection cannot run without budget, so it leaves the eligible
+		// set (M8-T8). The selection seam is recomputed after the ceiling
+		// changes.
+		plan.Operations = eligibleOperations(plan)
 	}
 	return plan
 }

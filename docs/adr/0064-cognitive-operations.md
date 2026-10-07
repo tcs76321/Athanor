@@ -49,7 +49,10 @@ calibrate; the LLM judge never gates acceptance.
 **4. Selection extends the existing policy seam.** `internal/policy` already
 chooses compute and routing purely and deterministically. Its `Plan` gains an
 **eligibility/selection** surface over operations, biased by learned insights
-and bounded by budget.
+and bounded by budget. The operation vocabulary is a leaf package
+(`internal/cognitive`) shared by `policy` (selection) and `strategy`
+(capture), so the two cannot drift and the policy seam carries no storage
+dependency.
 
 **5. Novelty resets toward the default, not toward noise.** When a project or
 task class is new, selection resets prior specialisation toward the **shipped

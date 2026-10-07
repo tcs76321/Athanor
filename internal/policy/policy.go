@@ -9,6 +9,8 @@
 // touches security constraints, containment, the frozen judge, or HITL rules.
 package policy
 
+import "github.com/tcs76321/athanor/internal/cognitive"
+
 // JudgeMode selects how a job's candidates are adjudicated (F4-T3/T4).
 type JudgeMode string
 
@@ -86,6 +88,26 @@ type Plan struct {
 	// InsightBias names the F4-T7a active-insight persona that led
 	// DivergenceRoles ("" when no insight applied).
 	InsightBias string
+	// Operations is the eligible cognitive-operation set for this job, in
+	// canonical order (M8-T8; ADR-0064). It is the seam the selection layer
+	// learns into; Default returns the baseline set minus reflection when
+	// its budget is zero. Execution does not yet vary with it — that is the
+	// M8-T8b follow-up once the harder corpus can justify a selection.
+	Operations []string
+}
+
+// eligibleOperations derives the eligible operation set from a plan: the
+// canonical baseline, minus reflection when the plan grants it no budget.
+// Pure and total, so it stays unit-testable in isolation.
+func eligibleOperations(p Plan) []string {
+	out := make([]string, 0, len(cognitive.BaselineOperations))
+	for _, op := range cognitive.BaselineOperations {
+		if op == cognitive.OpReflect && p.MaxReflectionLoops == 0 {
+			continue
+		}
+		out = append(out, op)
+	}
+	return out
 }
 
 // Policy decides a job's plan. Implementations must be pure and total: no I/O,
@@ -111,7 +133,7 @@ func (Default) Decide(in Inputs) Plan {
 	if reflection < 0 {
 		reflection = 0
 	}
-	return Plan{
+	p := Plan{
 		Candidates:         candidates,
 		MaxReflectionLoops: reflection,
 		JudgeMode:          JudgeLLM,
@@ -121,4 +143,6 @@ func (Default) Decide(in Inputs) Plan {
 			PhaseComparing:  "security",
 		},
 	}
+	p.Operations = eligibleOperations(p)
+	return p
 }

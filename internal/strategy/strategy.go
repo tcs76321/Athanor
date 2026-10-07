@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/tcs76321/athanor/internal/cognitive"
 	"github.com/tcs76321/athanor/internal/ids"
 	"github.com/tcs76321/athanor/internal/store"
 )
@@ -79,7 +80,7 @@ type Outcome struct {
 	WallTime            time.Duration
 	// Operations is the executed cognitive trajectory (M8-T7): the ordered
 	// operations that ran, with attributed cost and grounded verdicts.
-	Operations []Operation
+	Operations []cognitive.Operation
 	CreatedAt  time.Time
 }
 

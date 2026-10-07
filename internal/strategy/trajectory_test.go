@@ -3,6 +3,8 @@ package strategy
 import (
 	"context"
 	"testing"
+
+	"github.com/tcs76321/athanor/internal/cognitive"
 )
 
 // TestOutcomeOperationsRoundTrip proves the M8-T7 trajectory column: the
@@ -16,10 +18,10 @@ func TestOutcomeOperationsRoundTrip(t *testing.T) {
 	if _, err := repo.CreateProfile(ctx, Profile{JobID: jobID, ProjectID: projectID, Archetype: "code"}); err != nil {
 		t.Fatal(err)
 	}
-	ops := []Operation{
-		{Name: OpPlan, Phase: "planning", Persona: "tall", Calls: 1, Tokens: 100},
-		{Name: OpDiverge, Phase: "diverging", Persona: "main", Calls: 3, Tokens: 900},
-		{Name: OpVerify, Phase: "evaluating", Persona: "security", Calls: 1, Tokens: 50, Grounded: true, Passed: true},
+	ops := []cognitive.Operation{
+		{Name: cognitive.OpPlan, Phase: "planning", Persona: "tall", Calls: 1, Tokens: 100},
+		{Name: cognitive.OpDiverge, Phase: "diverging", Persona: "main", Calls: 3, Tokens: 900},
+		{Name: cognitive.OpVerify, Phase: "evaluating", Persona: "security", Calls: 1, Tokens: 50, Grounded: true, Passed: true},
 	}
 	out, err := repo.CreateOutcome(ctx, Outcome{JobID: jobID, Result: ResultAcceptedNew, Operations: ops})
 	if err != nil {
@@ -34,7 +36,7 @@ func TestOutcomeOperationsRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 	last := got.Operations[2]
-	if last.Name != OpVerify || !last.Grounded || !last.Passed || last.Tokens != 50 {
+	if last.Name != cognitive.OpVerify || !last.Grounded || !last.Passed || last.Tokens != 50 {
 		t.Errorf("round-trip operations = %+v, want the verify op with grounded=true passed=true", got.Operations)
 	}
 	if got.Operations[1].Calls != 3 {
@@ -65,14 +67,5 @@ func TestOutcomeOperationsDefaultEmpty(t *testing.T) {
 	}
 	if out.Operations == nil || len(out.Operations) != 0 {
 		t.Errorf("operations = %#v, want empty non-nil", out.Operations)
-	}
-}
-
-func TestValidOperation(t *testing.T) {
-	if !ValidOperation(OpVerify) {
-		t.Error("OpVerify should be a valid operation")
-	}
-	if ValidOperation("nonsense") {
-		t.Error("nonsense should not be a valid operation")
 	}
 }
