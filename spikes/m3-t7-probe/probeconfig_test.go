@@ -164,6 +164,25 @@ func TestProbeConfigDeclaresFamilies(t *testing.T) {
 	}
 }
 
+// TestProbeConfigUnknownJudgeFamilyIsEmpty guards the cross-family correctness
+// bug: an out-of-matrix judge model must not inherit the generator's family
+// (which would silently satisfy the cross-family guard).
+func TestProbeConfigUnknownJudgeFamilyIsEmpty(t *testing.T) {
+	raw := probeConfigYAML(probeModels[0], arms[0], "off", "127.0.0.1:7420", false,
+		probePolicy{JudgeModel: "not-a-matrix-model:1b"})
+	if _, err := config.Parse([]byte(raw)); err != nil {
+		t.Fatalf("config rejected by internal/config: %v\n%s", err, raw)
+	}
+	var cfg map[string]any
+	if err := yaml.Unmarshal([]byte(raw), &cfg); err != nil {
+		t.Fatal(err)
+	}
+	sec := cfg["personas"].(map[string]any)["security"].(map[string]any)
+	if got := sec["family"]; got == probeModels[0].Family {
+		t.Errorf("security family = %v; an unknown judge must not inherit the generator's family %q", got, probeModels[0].Family)
+	}
+}
+
 // TestProbeConfigGatePolicy pins the F5 code-gate knob: the probe defaults
 // the gates OFF (isolating the headline loop from the F5 behavior change) and
 // -gates turns them on, and both renderings validate.

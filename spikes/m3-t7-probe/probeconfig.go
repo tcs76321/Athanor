@@ -51,16 +51,19 @@ func probeConfigYAML(m probeModel, a arm, seedPolicy, addr string, noReflect boo
 	}
 	// The security (judge) and alternative personas may be a different model
 	// than the generator; declare each one's true family so the engine's
-	// cross-family judge guard compares lineages, not tag strings.
+	// cross-family judge guard compares lineages, not tag strings. An
+	// out-of-matrix override gets its declared family, or "" to let the
+	// registry derive it from the model name — never the generator's family,
+	// which would silently satisfy the guard.
 	secModel := orDefault(p.JudgeModel, m.Model)
-	secFamily := familyForTag(secModel)
-	if secFamily == "" {
-		secFamily = m.Family
+	secFamily := m.Family
+	if secModel != m.Model {
+		secFamily = familyForTag(secModel)
 	}
 	altModel := orDefault(p.AltModel, m.Model)
-	altFamily := familyForTag(altModel)
-	if altFamily == "" {
-		altFamily = m.Family
+	altFamily := m.Family
+	if altModel != m.Model {
+		altFamily = familyForTag(altModel)
 	}
 	var b strings.Builder
 	fmt.Fprintf(&b, `version: 2

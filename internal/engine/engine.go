@@ -790,6 +790,11 @@ func (e *Engine) Run(ctx context.Context, jobID string) {
 				e.signalTerminal(ctx, jobID, job.StateFailed)
 				e.recordFailureCorrection(ctx, jobID, j.ProjectID, j.State, err)
 				e.captureOutcome(ctx, jobID)
+				// A failed job is terminal too; clear its §10.5 suppression
+				// row so `system_state` does not accumulate one row per
+				// failed job (the loop-top terminal branch clears the
+				// success/compare paths).
+				e.clearSuppressedTiers(ctx, jobID)
 				// M2-T4b.5 (ADR-0024 §2): a failed job is terminal too; stop
 				// its pod now. The failure path used to return without
 				// teardown, leaving the pod for the next boot's sweep.
