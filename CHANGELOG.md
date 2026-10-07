@@ -10,6 +10,14 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### M8-T16 — bench corpus loader in the probe
+
+- **M8-T16.** The M3-T7 probe gains `-corpus eval/bench/tasks.yaml`: it loads
+  the harder benchmark (ADR-0061) into the probe's goal shape so `run`,
+  `judge`, and `report` operate on the M/H tasks instead of the locked E set.
+  Fixtures, per-task check implementations, and anchor pairs are the
+  remaining enabling work (M8-T17..T20).
+
 ### M8-T12 — adversarial self-critique and tree search (deferred, documented)
 
 - **M8-T12.** Both operations are recorded as **deferred with rationale**, not

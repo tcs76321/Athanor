@@ -135,9 +135,9 @@ runnable matrix.
 The M3-T7 probe currently hardcodes its goals in `spikes/m3-t7-probe/matrix.go`.
 To consume this corpus:
 
-1. Add a loader that reads `eval/bench/tasks.yaml` into the probe's
-   `sampleGoal` shape (the fields map directly; `test_command` and `criteria`
-   already exist).
+1. ~~Add a loader that reads `eval/bench/tasks.yaml` into the probe's
+   `sampleGoal` shape.~~ **Done (M8-T16):** `spikes/m3-t7-probe/corpus.go`,
+   driven by `run -corpus eval/bench/tasks.yaml`.
 2. Drive `run`/`judge`/`report` over the corpus as today; the model-aware
    report and judge-outer scoring already handle multiple models.
 3. Add the anchor-pair check to `report` (within-task ordering per judge).

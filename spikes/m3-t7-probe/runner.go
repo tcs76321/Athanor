@@ -44,6 +44,11 @@ type runnerConfig struct {
 	// A cross-model panel runs 1 to bound wall time; the core generator keeps
 	// 3 for T-c stability.
 	dialecticalRuns int
+	// corpusPath, when set, loads eval/bench/tasks.yaml (M8-T16, ADR-0061)
+	// and runs it instead of the locked sampleGoals. corpus holds the loaded
+	// goals; empty means "use the locked M3-T7 set".
+	corpusPath string
+	corpus     []sampleGoal
 
 	// Run guards (M3-T7 soak hardening).
 	maxWall        time.Duration
@@ -78,7 +83,18 @@ func runMatrix(args []string) {
 	fs.StringVar(&r.altModel, "alt-model", "", "personas.alternative.model override (multi-model generation)")
 	fs.BoolVar(&r.gates, "gates", false, "enable the F5 code acceptance gates (require_tests_for_code, require_documentation_for_code); default off to isolate the loop")
 	fs.IntVar(&r.dialecticalRuns, "dialectical-runs", 3, "repetitions of the dialectical arm (panel runs 1; the core generator keeps 3 for T-c)")
+	fs.StringVar(&r.corpusPath, "corpus", "", "path to eval/bench/tasks.yaml; when set, run the harder corpus instead of the locked sampleGoals (M8-T16)")
 	_ = fs.Parse(args)
+
+	if r.corpusPath != "" {
+		goals, err := loadCorpus(r.corpusPath)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "m3-t7 run:", err)
+			os.Exit(1)
+		}
+		r.corpus = goals
+		fmt.Printf("corpus: %d tasks from %s\n", len(goals), r.corpusPath)
+	}
 
 	if err := r.run(); err != nil {
 		fmt.Fprintln(os.Stderr, "m3-t7 run:", err)
@@ -151,8 +167,14 @@ func (r *runnerConfig) armSet() []arm {
 	}
 }
 
-// goals resolves the -only / -goals selection.
+// goals resolves the -only / -goals selection against the active goal set:
+// the loaded bench corpus when -corpus was given (M8-T16), otherwise the
+// locked M3-T7 sampleGoals.
 func (r *runnerConfig) goals() []sampleGoal {
+	base := sampleGoals
+	if len(r.corpus) > 0 {
+		base = r.corpus
+	}
 	if r.onlyCSV != "" {
 		want := make(map[string]bool)
 		for _, n := range strings.Split(r.onlyCSV, ",") {
@@ -161,21 +183,21 @@ func (r *runnerConfig) goals() []sampleGoal {
 			}
 		}
 		var out []sampleGoal
-		for _, g := range sampleGoals {
+		for _, g := range base {
 			if want[g.Name] {
 				out = append(out, g)
 			}
 		}
 		if len(out) == 0 {
 			fmt.Fprintf(os.Stderr, "warning: -only %q matched no goal; running all\n", r.onlyCSV)
-			return sampleGoals
+			return base
 		}
 		return out
 	}
-	if r.goalLimit <= 0 || r.goalLimit >= len(sampleGoals) {
-		return sampleGoals
+	if r.goalLimit <= 0 || r.goalLimit >= len(base) {
+		return base
 	}
-	return sampleGoals[:r.goalLimit]
+	return base[:r.goalLimit]
 }
 
 func (r *runnerConfig) run() error {
