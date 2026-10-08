@@ -43,6 +43,16 @@ func TestRunChecksExactParagraphsAndHeadings(t *testing.T) {
 	}
 }
 
+func TestRunChecksMustContain(t *testing.T) {
+	checks := map[string]any{"must_contain": []any{"contradict"}}
+	if pass, _ := runChecks(checks, "This contradicts C1 and C2."); !pass {
+		t.Error("must_contain rejected a document containing the substring")
+	}
+	if pass, _ := runChecks(checks, "All good here."); pass {
+		t.Error("must_contain passed a document missing the substring")
+	}
+}
+
 func TestRunChecksAdvisoryDoesNotGate(t *testing.T) {
 	checks := map[string]any{"must_flag_contradiction": true}
 	pass, results := runChecks(checks, "anything")

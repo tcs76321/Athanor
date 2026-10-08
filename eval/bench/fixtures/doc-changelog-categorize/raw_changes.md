@@ -1,0 +1,11 @@
+- Fixed a crash when the config file was empty
+- Added per-project test command override
+- Bumped golang.org/x/net to the patched release
+- Changed the default judge mode to verifier
+- Removed the dormant compare_before_accept flag
+- Updated the README quickstart for the new CLI flags
+- Added a build tag so CI compiles FTS5
+- Fixed a race in the job state transition
+- Improved the doctor output for missing models
+- Removed an unused internal helper left over from M3
+- The Paris release train leaves at 09:12 (not a code change)

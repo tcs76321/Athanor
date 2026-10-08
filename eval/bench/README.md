@@ -126,9 +126,14 @@ The corpus is the specification; the enabling work is partly landed:
   candidate. A task that provides starter code (`code-refactor-provided`) ships
   `fixtures/<id>/`, read through `execution.fixture_path` and overlaid by the
   candidate. Multi-file candidates use `=== FILE: path ===` blocks.
+- **Non-code tasks are runnable.** Source material is authored under
+  `fixtures/`, injected for **every** archetype (not just `code`), and scored by
+  the probe's deterministic check engine (`required_sections`,
+  `strict_section_order`, `max_words`, `forbidden_phrases`, `json_schema`,
+  `must_contain`, …).
 - **Still needed:** `anchor pairs` (good + near-miss artifacts) for judge
-  calibration, and the non-code `checks` implementations (`json_schema`,
-  `required_sections`, …) for the document/text/data/adversarial tasks.
+  calibration (T20), and a **repo-backed** task that exercises the MCE working
+  set (repository indexing → Dormant Index → `context_swap`).
 
 ## Probe integration
 

@@ -10,6 +10,19 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### M8-T17/T14 — non-code source material, injection for all archetypes, JSON-schema check
+
+- **Source material (T17/T19).** Authored the corpus's missing non-code inputs
+  and wired `fixture:` in `tasks.yaml`: `doc-api-readme` (a module),
+  `doc-cited-brief` (a sectioned source), `text-level-rewrite` (a passage),
+  `doc-design-adr` (a problem), `doc-changelog-categorize` (raw changes),
+  `adversarial-ambiguous-spec` (an inconsistent requirement), and
+  `data-json-normalize` (events + schema). Those tasks are now answerable.
+- **Injection (engine).** See below — all archetypes receive their material.
+- **Validation (T14).** The probe gains a minimal JSON-schema validator
+  (`json_schema` is now a **gating** check) and a `must_contain` deterministic
+  check; `max_words` added to the rewrite and cited-brief tasks.
+
 ### Fix — task source material is injected for all archetypes, not just code
 
 - The fixture/source tree a task provides was only shown to the model for the

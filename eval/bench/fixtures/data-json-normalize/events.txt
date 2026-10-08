@@ -1,0 +1,6 @@
+2026-01-02 14:03:11 WARN disk almost full on /var
+2026-01-02 14:05:00 ERROR database connection refused
+2026-01-03 09:15:42 INFO nightly backup completed
+Jan 4 2026 07:00:00 warning certificate expires in 30 days
+2026-01-04 07:01:00 INFO certificate renewed for api.example.com
+2026-01-05 22:30:05 crit out of memory: killed worker 42

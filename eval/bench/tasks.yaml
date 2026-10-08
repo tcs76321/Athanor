@@ -233,6 +233,7 @@ tasks:
       - "every public function is listed with its real signature"
       - "no fabricated commands or dependencies"
       - "a one-line description at the top"
+    fixture: eval/bench/fixtures/doc-api-readme
     checks:
       required_sections: [Overview, Install, API, License]
       required_substrings_source: "public signatures extracted from the fixture"
@@ -258,6 +259,7 @@ tasks:
       - ">= 3 concrete alternatives"
       - ">= 2 concrete risks"
       - "the Decision names the chosen option explicitly"
+    fixture: eval/bench/fixtures/doc-design-adr
     checks:
       required_sections: [Context, Decision, Consequences, Alternatives]
       count_alternatives_min: 3
@@ -282,8 +284,10 @@ tasks:
       - "no external facts introduced"
       - "covers the source's main sections"
       - "the brief is under the stated word limit"
+    fixture: eval/bench/fixtures/doc-cited-brief
     checks:
       required_citations_from_fixture: true
+      must_contain: ["S1", "S2", "S3", "S4"]
       max_words: 300
     acceptance_floor: "every bullet cites a valid source section AND no uncited external fact is present"
     quality_rubric:
@@ -305,6 +309,7 @@ tasks:
       - "the four categories appear in the stated order"
       - "each change appears under exactly one category"
       - "non-changelog items are excluded"
+    fixture: eval/bench/fixtures/doc-changelog-categorize
     checks:
       strict_section_order: [Added, Changed, Fixed, Removed]
       every_item_once: true
@@ -378,9 +383,11 @@ tasks:
       - "preserves every named entity and number from the source"
       - "introduces no new factual claims"
       - "reading level lowered per the rubric"
+    fixture: eval/bench/fixtures/text-level-rewrite
     checks:
       preserve_entities_from_fixture: true
       max_new_claims: 0
+      max_words: 220
     acceptance_floor: "all source entities/numbers preserved AND no new factual claims"
     quality_rubric:
       - "5: facts intact and clearly simpler"
@@ -429,9 +436,11 @@ tasks:
       - "quotes both conflicting criteria"
       - "asks exactly one clarifying question"
       - "does not fabricate the artifact"
+    fixture: eval/bench/fixtures/adversarial-ambiguous-spec
     checks:
       must_flag_contradiction: true
       must_not_fabricate: true
+      must_contain: ["contradict"]
     acceptance_floor: "contradiction flagged AND no fabricated artifact"
     quality_rubric:
       - "5: precise contradiction and a sharp single question"

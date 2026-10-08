@@ -28,7 +28,7 @@ type checkResult struct {
 // by a parser. They are surfaced (not silently dropped) so the report is
 // honest, but they do not gate a deterministic pass.
 var advisoryChecks = []string{
-	"json_schema", "required_substrings_source", "preserve_entities_from_fixture",
+	"required_substrings_source", "preserve_entities_from_fixture",
 	"every_item_once", "must_flag_contradiction", "must_not_fabricate",
 	"no_fabricated_commands", "max_new_claims", "exactly_one_cta",
 	"required_citations_from_fixture",
@@ -92,6 +92,24 @@ func runChecks(checks map[string]any, content string) (bool, []checkResult) {
 	}
 	if v, ok := checks["min_distinct_arguments"]; ok {
 		add("min_distinct_arguments", countParagraphs(content) >= toInt(v), false, "")
+	}
+	if v, ok := checks["must_contain"]; ok {
+		low := strings.ToLower(content)
+		var missing []string
+		for _, s := range toStrings(v) {
+			if !strings.Contains(low, strings.ToLower(s)) {
+				missing = append(missing, s)
+			}
+		}
+		add("must_contain", len(missing) == 0, false, "missing: "+strings.Join(missing, ", "))
+	}
+	if v, ok := checks["json_schema"]; ok {
+		path, _ := v.(string)
+		if err := checkJSONSchema(path, content); err != nil {
+			add("json_schema", false, false, err.Error())
+		} else {
+			add("json_schema", true, false, "")
+		}
 	}
 
 	for _, key := range advisoryChecks {
