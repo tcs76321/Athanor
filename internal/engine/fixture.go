@@ -114,9 +114,13 @@ func isBinary(data []byte) bool {
 // the same `=== FILE: path ===` marker the code instruction asks the model to
 // emit, so the model sees the convention it should use and a round trip is
 // natural.
-func renderFixture(files []toolenvelope.File) string {
+func renderFixture(archetype string, files []toolenvelope.File) string {
+	header := "SOURCE MATERIAL (provided with the task — ground your work in it):\n"
+	if archetype == "code" {
+		header = "STARTER FILES (provided; modify them in place, keep the public API unless asked otherwise):\n"
+	}
 	var b strings.Builder
-	b.WriteString("STARTER FILES (the task provides these; modify them in place, keep the public API unless asked otherwise):\n")
+	b.WriteString(header)
 	for _, f := range files {
 		fmt.Fprintf(&b, "\n=== FILE: %s ===\n%s\n", f.Path, f.Content)
 	}

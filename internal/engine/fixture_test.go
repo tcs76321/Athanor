@@ -57,7 +57,7 @@ func TestOverlayFiles(t *testing.T) {
 }
 
 func TestRenderFixtureUsesMarkers(t *testing.T) {
-	out := renderFixture([]toolenvelope.File{{Path: "messy.py", Content: "x=1\n"}})
+	out := renderFixture("code", []toolenvelope.File{{Path: "messy.py", Content: "x=1\n"}})
 	if !strings.Contains(out, "=== FILE: messy.py ===") || !strings.Contains(out, "x=1") {
 		t.Errorf("render = %q, want the marker and content", out)
 	}

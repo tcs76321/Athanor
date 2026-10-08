@@ -10,6 +10,15 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Fix — task source material is injected for all archetypes, not just code
+
+- The fixture/source tree a task provides was only shown to the model for the
+  `code` archetype (`diverge.go`), so `document`/`text`/`data` tasks that
+  require provided material (a long source to summarize, a passage to rewrite,
+  an event list to normalize) received only the goal and criteria. The material
+  is now injected for every archetype, with an archetype-appropriate header
+  (`renderFixture`). This is the benchmark feeding the MCE's intended context.
+
 ### Fix — eval-verdict truncation on long test commands + arm-agnostic probe report
 
 - The code verifier echoed the **full** test command into its failure reason,
