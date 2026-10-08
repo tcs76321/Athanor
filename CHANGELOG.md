@@ -10,6 +10,19 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Fix — eval-verdict truncation on long test commands + arm-agnostic probe report
+
+- The code verifier echoed the **full** test command into its failure reason,
+  which the evaluation prompt passed to the judge; a long multi-line command
+  made the judge echo it and truncate its own JSON (`parsing security verdict:
+  unterminated JSON object`, seen in the M8 soak). The reason now carries a
+  one-line, 120-char excerpt (`internal/verify.shortCommand`).
+- The probe report keyed its headline / diversity / stability tables on the
+  hard-coded arm names `dialectical`/`single`, so the soak's `full` and the
+  ablation arms showed zeros. The report is now **arm-agnostic**: scores per
+  (model, goal, arm), diversity per (model, arm), stability per
+  (model, goal, arm).
+
 ### Fix — a hanging pod tool call stalled a job forever (found by the soak)
 
 - The per-phase wall-time budget was applied **only to LLM calls**

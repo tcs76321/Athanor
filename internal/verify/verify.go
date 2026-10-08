@@ -14,7 +14,11 @@
 // policy seam stays unit-testable in isolation.
 package verify
 
-import "github.com/tcs76321/athanor/internal/project"
+import (
+	"strings"
+
+	"github.com/tcs76321/athanor/internal/project"
+)
 
 // Input is everything a verifier may inspect about one candidate.
 type Input struct {
@@ -194,7 +198,24 @@ func (testsVerifier) Verify(in Input) Verdict {
 			Reasons: []string{"test command exited 0"}}
 	}
 	return Verdict{Verifier: "tests", Applied: true, Hard: true, Pass: false, Score: 0,
-		Reasons: []string{"test command failed: " + in.TestCommand}}
+		Reasons: []string{"test command failed: " + shortCommand(in.TestCommand)}}
+}
+
+// maxCommandInReason bounds the test command echoed into a verifier reason.
+// The reason is injected into the evaluation prompt; a long multi-line command
+// made the judge echo it and truncate its own JSON ("unterminated JSON object",
+// seen in the M8 soak). The operator already knows the command, so a bounded
+// one-line excerpt is enough.
+const maxCommandInReason = 120
+
+// shortCommand collapses whitespace (so a multi-line command becomes one line)
+// and truncates to maxCommandInReason.
+func shortCommand(cmd string) string {
+	s := strings.Join(strings.Fields(cmd), " ")
+	if len(s) > maxCommandInReason {
+		return s[:maxCommandInReason] + "…"
+	}
+	return s
 }
 
 // lintVerifier folds a linter run into a verdict. It applies only when the

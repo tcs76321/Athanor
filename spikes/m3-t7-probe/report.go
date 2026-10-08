@@ -6,126 +6,131 @@ import (
 	"strings"
 )
 
-// headlineRow pairs the single-shot and dialectical outcomes for one
-// (model, goal). Delta is dialectical minus single (positive = the loop
-// helped).
-type headlineRow struct {
-	Model             string
-	Family            string
-	Goal              string
-	Archetype         string
-	SingleScore       float64
-	DialecticalScore  float64
-	Delta             float64
-	SingleTokens      float64
-	DialecticalTokens float64
+// armRow is one (model, goal, arm) cell: the mean score and token cost across
+// the arm's runs. It is arm-agnostic so the soak's `full` / ablation arms read
+// the same as the default dialectical-vs-single pair.
+type armRow struct {
+	Model     string
+	Family    string
+	Goal      string
+	Archetype string
+	Arm       string
+	N         int
+	Score     float64
+	Tokens    float64
 }
 
-// armMeans returns the mean score and mean token cost for one
-// (model, goal, arm), ignoring errored rows. A missing arm yields zeroes.
-func armMeans(metrics []jobMetrics, model, goalName, armName string) (score, tokens float64) {
-	var scores, toks []float64
+// armTable groups the metrics by (model, goal, arm). Errored rows are ignored.
+func armTable(metrics []jobMetrics) []armRow {
+	type key struct{ model, goal, arm string }
+	agg := map[key]*armRow{}
+	var order []key
 	for _, m := range metrics {
-		if m.ModelLabel == model && m.GoalName == goalName && m.Arm == armName && m.State != "error" {
-			scores = append(scores, m.Score)
-			toks = append(toks, float64(m.TokenCost))
-		}
-	}
-	return mean(scores), mean(toks)
-}
-
-// headlineTable builds the per-(model, goal) paired comparison. Rows are
-// sorted by model then goal for a stable, self-describing report.
-func headlineTable(metrics []jobMetrics) []headlineRow {
-	type key struct{ model, goal string }
-	seen := map[key]bool{}
-	arch := map[key]string{}
-	family := map[string]string{}
-	var keys []key
-	for _, m := range metrics {
-		k := key{m.ModelLabel, m.GoalName}
-		if !seen[k] {
-			seen[k] = true
-			keys = append(keys, k)
-		}
-		arch[k] = m.Archetype
-		if m.Family != "" {
-			family[m.ModelLabel] = m.Family
-		}
-	}
-	sort.Slice(keys, func(i, j int) bool {
-		if keys[i].model != keys[j].model {
-			return keys[i].model < keys[j].model
-		}
-		return keys[i].goal < keys[j].goal
-	})
-	out := make([]headlineRow, 0, len(keys))
-	for _, k := range keys {
-		s, st := armMeans(metrics, k.model, k.goal, "single")
-		d, dt := armMeans(metrics, k.model, k.goal, "dialectical")
-		out = append(out, headlineRow{
-			Model: k.model, Family: family[k.model], Goal: k.goal, Archetype: arch[k],
-			SingleScore: s, DialecticalScore: d, Delta: d - s,
-			SingleTokens: st, DialecticalTokens: dt,
-		})
-	}
-	return out
-}
-
-// modelLabels returns the distinct model labels, sorted.
-func modelLabels(metrics []jobMetrics) []string {
-	seen := map[string]bool{}
-	var out []string
-	for _, m := range metrics {
-		if m.ModelLabel == "" || seen[m.ModelLabel] {
+		if m.State == "error" {
 			continue
 		}
-		seen[m.ModelLabel] = true
-		out = append(out, m.ModelLabel)
+		k := key{m.ModelLabel, m.GoalName, m.Arm}
+		if _, ok := agg[k]; !ok {
+			agg[k] = &armRow{
+				Model: m.ModelLabel, Family: m.Family, Goal: m.GoalName,
+				Archetype: m.Archetype, Arm: m.Arm,
+			}
+			order = append(order, k)
+		}
+		r := agg[k]
+		r.N++
+		r.Score += m.Score
+		r.Tokens += float64(m.TokenCost)
 	}
-	sort.Strings(out)
+	sort.Slice(order, func(i, j int) bool {
+		if order[i].model != order[j].model {
+			return order[i].model < order[j].model
+		}
+		if order[i].goal != order[j].goal {
+			return order[i].goal < order[j].goal
+		}
+		return order[i].arm < order[j].arm
+	})
+	out := make([]armRow, 0, len(order))
+	for _, k := range order {
+		r := agg[k]
+		r.Score /= float64(r.N)
+		r.Tokens /= float64(r.N)
+		out = append(out, *r)
+	}
 	return out
 }
 
-// calibrationPairs returns (comparison confidence, observed score) pairs
-// from the dialectical arm — the T-b reliability-diagram input.
+// divRow is one (model, arm) diversity cell.
+type divRow struct {
+	Model string
+	Arm   string
+	Mean  float64
+	N     int
+}
+
+// diversityTable groups the T-a candidate diversity by (model, arm).
+func diversityTable(metrics []jobMetrics) []divRow {
+	type key struct{ model, arm string }
+	agg := map[key]*divRow{}
+	var order []key
+	for _, m := range metrics {
+		if m.State == "error" {
+			continue
+		}
+		k := key{m.ModelLabel, m.Arm}
+		if _, ok := agg[k]; !ok {
+			agg[k] = &divRow{Model: m.ModelLabel, Arm: m.Arm}
+			order = append(order, k)
+		}
+		agg[k].Mean += m.Diversity
+		agg[k].N++
+	}
+	sort.Slice(order, func(i, j int) bool {
+		if order[i].model != order[j].model {
+			return order[i].model < order[j].model
+		}
+		return order[i].arm < order[j].arm
+	})
+	out := make([]divRow, 0, len(order))
+	for _, k := range order {
+		r := agg[k]
+		if r.N > 0 {
+			r.Mean /= float64(r.N)
+		}
+		out = append(out, *r)
+	}
+	return out
+}
+
+// calibrationPairs returns (comparison confidence, observed score) pairs across
+// all arms — the T-b reliability-diagram input.
 func calibrationPairs(metrics []jobMetrics) []confScore {
 	var out []confScore
 	for _, m := range metrics {
-		if m.Arm == "dialectical" && m.State != "error" {
+		if m.State != "error" {
 			out = append(out, confScore{Confidence: m.Confidence, Observed: m.Score})
 		}
 	}
 	return out
 }
 
-// stabilityTally classifies each (model, goal)'s dialectical winners across
-// its runs and tallies the class frequency — the T-c input.
+// stabilityTally classifies each (model, goal, arm)'s winners across its runs
+// and tallies the class frequency — the T-c input.
 func stabilityTally(metrics []jobMetrics) map[string]int {
-	byKey := make(map[string][]string)
+	byKey := map[string][]string{}
 	for _, m := range metrics {
-		if m.Arm == "dialectical" && m.State != "error" {
-			byKey[m.ModelLabel+"\x00"+m.GoalName] = append(byKey[m.ModelLabel+"\x00"+m.GoalName], m.Winner)
+		if m.State == "error" {
+			continue
 		}
+		k := m.ModelLabel + "\x00" + m.GoalName + "\x00" + m.Arm
+		byKey[k] = append(byKey[k], m.Winner)
 	}
 	tally := make(map[string]int)
 	for _, winners := range byKey {
 		tally[stabilityClass(winners)]++
 	}
 	return tally
-}
-
-// meanDiversity averages the candidate-set diversity across one model's
-// completed runs of an arm. The single arm has one candidate, so its
-// diversity is zero by construction.
-func meanDiversity(metrics []jobMetrics, model, armName string) float64 {
-	var ds []float64
-	for _, m := range metrics {
-		if m.ModelLabel == model && m.Arm == armName && m.State != "error" {
-			ds = append(ds, m.Diversity)
-		}
-	}
-	return mean(ds)
 }
 
 // verificationSummary counts completed code accepts and how many were decided
@@ -200,12 +205,12 @@ func renderReport(metrics []jobMetrics) string {
 	b.WriteString("# M3-T7 results\n\n")
 	fmt.Fprintf(&b, "Collected %d job rows.\n\n", len(metrics))
 
-	b.WriteString("## Headline — dialectical vs single-shot (per model)\n\n")
-	b.WriteString("| model | family | goal | archetype | single | dialectical | delta | single tok | dialectical tok |\n")
-	b.WriteString("|---|---|---|---|---|---|---|---|---|\n")
-	for _, r := range headlineTable(metrics) {
-		fmt.Fprintf(&b, "| %s | %s | %s | %s | %.2f | %.2f | %+.2f | %.0f | %.0f |\n",
-			r.Model, r.Family, r.Goal, r.Archetype, r.SingleScore, r.DialecticalScore, r.Delta, r.SingleTokens, r.DialecticalTokens)
+	b.WriteString("## Scores — per (model, goal, arm)\n\n")
+	b.WriteString("| model | family | goal | archetype | arm | n | mean score | mean tok |\n")
+	b.WriteString("|---|---|---|---|---|---|---|---|\n")
+	for _, r := range armTable(metrics) {
+		fmt.Fprintf(&b, "| %s | %s | %s | %s | %s | %d | %.2f | %.0f |\n",
+			r.Model, r.Family, r.Goal, r.Archetype, r.Arm, r.N, r.Score, r.Tokens)
 	}
 
 	b.WriteString("\n## Corpus — deterministic pass rate (tier × arm)\n\n")
@@ -218,13 +223,13 @@ func renderReport(metrics []jobMetrics) string {
 		fmt.Fprintf(&b, "| %s | %s | %d | %d | %.0f%% |\n", r.Tier, r.Arm, r.N, r.Pass, rate)
 	}
 
-	b.WriteString("\n## T-b — judge-confidence calibration (dialectical arm)\n\n")
+	b.WriteString("\n## T-b — judge-confidence calibration (all arms)\n\n")
 	b.WriteString("| confidence bin | n | mean observed score |\n|---|---|---|\n")
 	for _, row := range calibrationTable(calibrationPairs(metrics)) {
 		fmt.Fprintf(&b, "| %s | %d | %.2f |\n", row.Label, row.N, row.MeanObserved)
 	}
 
-	b.WriteString("\n## T-c — verdict stability (dialectical arm)\n\n")
+	b.WriteString("\n## T-c — verdict stability (per arm)\n\n")
 	tally := stabilityTally(metrics)
 	b.WriteString("| class | goals |\n|---|---|\n")
 	for _, class := range []string{"3-same", "2-1", "3-way", "all-same", "majority", "all-distinct", "insufficient"} {
@@ -233,11 +238,10 @@ func renderReport(metrics []jobMetrics) string {
 		}
 	}
 
-	b.WriteString("\n## T-a — candidate diversity (per model)\n\n")
-	b.WriteString("| model | dialectical | single |\n|---|---|---|\n")
-	for _, label := range modelLabels(metrics) {
-		fmt.Fprintf(&b, "| %s | %.3f | %.3f |\n",
-			label, meanDiversity(metrics, label, "dialectical"), meanDiversity(metrics, label, "single"))
+	b.WriteString("\n## T-a — candidate diversity (per model × arm)\n\n")
+	b.WriteString("| model | arm | mean diversity |\n|---|---|---|\n")
+	for _, r := range diversityTable(metrics) {
+		fmt.Fprintf(&b, "| %s | %s | %.3f |\n", r.Model, r.Arm, r.Mean)
 	}
 
 	b.WriteString("\n## F4 — verification decisions\n\n")
