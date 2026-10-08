@@ -11,6 +11,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io/fs"
 	"net/http"
 	"os"
 	"os/exec"
@@ -395,6 +396,17 @@ func (r *runnerConfig) runOne(g sampleGoal, m probeModel, a arm, run int, stateD
 	body := map[string]any{
 		"name": name, "archetype": g.Archetype, "goal": g.Goal, "acceptance_criteria": g.Criteria,
 	}
+	// M8-T19: a repo-backed task indexes a throwaway copy of its repository so
+	// the MCE's Dormant Index carries repository chunks (the working set), and
+	// git-as-undo commits into the copy — never the checked-in fixture.
+	if g.Repo != "" {
+		repoCopy := filepath.Join(r.outDir, "repos", name)
+		if cerr := copyDir(g.Repo, repoCopy); cerr != nil {
+			mx.Error = "copy repo: " + cerr.Error()
+			return mx
+		}
+		body["repository_path"] = repoCopy
+	}
 	if g.Archetype == "code" {
 		// F4-T0: the Job Pod now materializes the candidate to
 		// /tmp/solution.py and runs the test command with that as cwd, so
@@ -417,6 +429,17 @@ func (r *runnerConfig) runOne(g sampleGoal, m probeModel, a arm, run int, stateD
 	if err := apiCall("POST", r.baseURL()+"/projects", body, &pr); err != nil {
 		mx.Error = "create project: " + err.Error()
 		return mx
+	}
+
+	// M8-T19: index the repository before the goal so the job's Dormant Index
+	// is populated (best effort; a failure is a warning, not a job error).
+	if g.Repo != "" {
+		var isum indexSummary
+		if ierr := apiCall("POST", r.baseURL()+"/projects/"+pr.ID+"/index", map[string]any{}, &isum); ierr != nil {
+			fmt.Printf("  %-24s index warning: %v\n", g.Name, ierr)
+		} else {
+			fmt.Printf("  %-24s indexed %d chunk(s), %d summar(ies)\n", g.Name, isum.Chunks, isum.Summarized)
+		}
 	}
 
 	var gr struct {
@@ -487,6 +510,33 @@ func (r *runnerConfig) runOne(g sampleGoal, m probeModel, a arm, run int, stateD
 		}
 	}
 	return mx
+}
+
+// copyDir copies a repository tree to dst (creating it), skipping symlinks and
+// non-regular files. A repo-backed task indexes and commits into the copy, so
+// the checked-in fixture is never mutated.
+func copyDir(src, dst string) error {
+	return filepath.WalkDir(src, func(p string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, rerr := filepath.Rel(src, p)
+		if rerr != nil {
+			return rerr
+		}
+		target := filepath.Join(dst, rel)
+		if d.IsDir() {
+			return os.MkdirAll(target, 0o755)
+		}
+		if d.Type()&fs.ModeSymlink != 0 || !d.Type().IsRegular() {
+			return nil
+		}
+		data, rerr := os.ReadFile(p)
+		if rerr != nil {
+			return rerr
+		}
+		return os.WriteFile(target, data, 0o644)
+	})
 }
 
 // tierOf maps a goal's Source to a bench tier. A "bench:H" source is tier H;

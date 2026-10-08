@@ -172,6 +172,8 @@ tasks:
       - "classify_many(xs) returns a list of classifications"
       - "the nested branches are consolidated"
     fixture: eval/bench/fixtures/code-refactor-provided
+    # M8-T19: also index this repository so the MCE working set carries it.
+    repo: eval/bench/fixtures/code-refactor-provided
     test_command: |
       python -c 'import messy
       assert messy.classify(-1)=="neg" and messy.classify(0)=="zero" and messy.classify(5)=="pos"

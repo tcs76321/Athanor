@@ -148,6 +148,13 @@ execution:
     comparing: "600s"
     default: "900s"
 
+context_engine:
+  # F5 (ADR-0059): seed the top-ranked repository chunk into the full-fidelity
+  # working set (tier 3) so a repo-backed task actually sees its repository.
+  seed_active_chunk: true
+  seed_active_max_bytes: 16384
+  repository_index_limit: 20
+
 limits:
   max_concurrent_jobs: 1
 

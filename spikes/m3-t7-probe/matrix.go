@@ -24,6 +24,11 @@ type sampleGoal struct {
 	// Checks is the bench task's deterministic check map (M8-T18); nil for the
 	// locked M3-T7 set and for code tasks (whose test command is the check).
 	Checks map[string]any
+	// Repo, when set, is a repository root the probe indexes for the task
+	// (M8-T19): it sets the project's repository_path (a temp copy, so the
+	// fixture is never mutated) and runs an index pass so the MCE's Dormant
+	// Index carries repository chunks. Empty for the self-contained tasks.
+	Repo string
 }
 
 // sampleGoals is the 10-goal set: M1-T8's five then M3-T2's five, with no

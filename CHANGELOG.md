@@ -10,6 +10,15 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### M8-T19 — repo-backed task: exercise the MCE working set
+
+- A bench task can declare `repo:`; the probe copies it to a throwaway dir (so
+  the fixture is never mutated), sets the project's `repository_path`, and runs
+  an index pass before submitting the goal. The generated probe config enables
+  `context_engine.seed_active_chunk` so the top-ranked repository chunk enters
+  the full-fidelity working set (tier 3) — the MCE actually giving the model its
+  repository. `code-refactor-provided` is the first repo-backed task.
+
 ### M8-T17/T14 — non-code source material, injection for all archetypes, JSON-schema check
 
 - **Source material (T17/T19).** Authored the corpus's missing non-code inputs

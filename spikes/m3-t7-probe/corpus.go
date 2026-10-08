@@ -23,8 +23,20 @@ type corpusTask struct {
 	Goal        string         `yaml:"goal"`
 	Criteria    []string       `yaml:"criteria"`
 	Fixture     string         `yaml:"fixture"`
+	Repo        string         `yaml:"repo"`
 	TestCommand string         `yaml:"test_command"`
 	Checks      map[string]any `yaml:"checks"`
+}
+
+// indexSummary mirrors the daemon's IndexSummary JSON (M8-T19).
+type indexSummary struct {
+	Discovered int `json:"discovered"`
+	Indexed    int `json:"indexed"`
+	Skipped    int `json:"skipped"`
+	Chunks     int `json:"chunks"`
+	Summarized int `json:"summarized"`
+	Embedded   int `json:"embedded"`
+	Failed     int `json:"failed"`
 }
 
 // corpusFile is the top-level tasks.yaml shape.
@@ -61,6 +73,7 @@ func loadCorpus(path string) ([]sampleGoal, error) {
 			Goal:        t.Goal,
 			Criteria:    t.Criteria,
 			Fixture:     t.Fixture,
+			Repo:        t.Repo,
 			TestCommand: t.TestCommand,
 			Checks:      t.Checks,
 		})
