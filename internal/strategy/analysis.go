@@ -354,9 +354,12 @@ func (r *Repo) SetInsightStatus(ctx context.Context, id, status string) error {
 	return nil
 }
 
-// ActiveStatements returns the statements of *active* insights only — the
-// §13.4 prompt channel. Proposed insights are deliberately excluded, which is
-// what makes them provably inert until promoted.
+// ActiveStatements returns the *active* insights as prompt lines — the §13.4
+// prompt channel. Proposed insights are deliberately excluded, which is what
+// makes them provably inert until promoted. A technique insight is rendered as
+// an advisory guidance line (prefer/avoid the technique); every other insight
+// renders as its evidence statement. The rendering is advisory prose only: it
+// never changes the eligible operation set (M8-T27; ADR-0067).
 func (r *Repo) ActiveStatements(ctx context.Context) ([]string, error) {
 	list, err := r.ListInsights(ctx, InsightActive)
 	if err != nil {
@@ -364,9 +367,29 @@ func (r *Repo) ActiveStatements(ctx context.Context) ([]string, error) {
 	}
 	out := make([]string, 0, len(list))
 	for _, ins := range list {
-		out = append(out, ins.Statement)
+		out = append(out, guidanceLine(ins))
 	}
 	return out, nil
+}
+
+// guidanceLine renders one active insight as a prompt line. A technique insight
+// (a Pattern.Feature prefixed with TechniqueFeaturePrefix) becomes an advisory
+// recommendation grounded in its inline evidence — "prefer" a winning
+// technique, "avoid" a losing one; other insights keep their statement.
+func guidanceLine(ins Insight) string {
+	if !strings.HasPrefix(ins.Pattern.Feature, TechniqueFeaturePrefix) {
+		return ins.Statement
+	}
+	verb := "prefer"
+	if ins.Polarity == PolarityLosing {
+		verb = "avoid"
+	}
+	context := strings.TrimPrefix(ins.Pattern.Context, "archetype=")
+	if context == "" {
+		context = "similar"
+	}
+	return fmt.Sprintf("On %s tasks, %s the '%s' technique (accepted %.2f vs %.2f baseline, n=%d).",
+		context, verb, ins.Pattern.Value, ins.Evidence.AcceptRate, ins.Evidence.BaselineAcceptRate, ins.Evidence.CohortJobs)
 }
 
 // ActiveInsights returns the *active* insights themselves (F4-T7a), so the

@@ -3,6 +3,7 @@ package strategy
 import (
 	"context"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/tcs76321/athanor/internal/cognitive"
@@ -267,5 +268,61 @@ func TestMineTechniquesRequireGrounded(t *testing.T) {
 			ins.Pattern.Feature[:len(TechniqueFeaturePrefix)] == TechniqueFeaturePrefix {
 			t.Errorf("ungrounded cohort produced a technique insight: %+v", ins)
 		}
+	}
+}
+
+func TestActiveStatementsRendersTechniqueGuidance(t *testing.T) {
+	s, _, _ := mineCodeProject(t)
+	ctx := context.Background()
+	repo := NewRepo(s)
+
+	win, err := repo.CreateInsight(ctx, Insight{
+		Scope: ScopeGlobal, Polarity: PolarityWinning,
+		Pattern:   Pattern{Feature: TechniqueFeaturePrefix + cognitive.OpRefine, Value: cognitive.OpRefine, Context: "archetype=code"},
+		Evidence:  Evidence{CohortJobs: 12, AcceptRate: 0.83, BaselineAcceptRate: 0.60, GroundedJobs: 12},
+		Statement: "raw winning statement",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	lose, err := repo.CreateInsight(ctx, Insight{
+		Scope: ScopeGlobal, Polarity: PolarityLosing,
+		Pattern:   Pattern{Feature: TechniqueFeaturePrefix + cognitive.OpReflect, Value: cognitive.OpReflect, Context: "archetype=code"},
+		Evidence:  Evidence{CohortJobs: 10, AcceptRate: 0.20, BaselineAcceptRate: 0.50, GroundedJobs: 10},
+		Statement: "raw losing statement",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	persona, err := repo.CreateInsight(ctx, Insight{
+		Scope: ScopeGlobal, Polarity: PolarityWinning,
+		Pattern:   Pattern{Feature: "diverging.persona", Value: "alternative", Context: "archetype=code"},
+		Evidence:  Evidence{CohortJobs: 20, AcceptRate: 0.80, BaselineAcceptRate: 0.60},
+		Statement: "diverging.persona=alternative on code tasks: accept rate 0.80 vs 0.60 baseline (n=20).",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, ins := range []Insight{win, lose, persona} {
+		if err := repo.SetInsightStatus(ctx, ins.ID, InsightActive); err != nil {
+			t.Fatal(err)
+		}
+	}
+	stmts, err := repo.ActiveStatements(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	joined := strings.Join(stmts, "\n")
+	if !strings.Contains(joined, "prefer the 'refine' technique") {
+		t.Errorf("winning technique not rendered as guidance:\n%s", joined)
+	}
+	if !strings.Contains(joined, "avoid the 'reflect' technique") {
+		t.Errorf("losing technique not rendered as guidance:\n%s", joined)
+	}
+	if !strings.Contains(joined, "diverging.persona=alternative on code tasks") {
+		t.Errorf("persona insight statement was altered:\n%s", joined)
+	}
+	if strings.Contains(joined, "raw ") {
+		t.Errorf("raw statement leaked instead of guidance:\n%s", joined)
 	}
 }
