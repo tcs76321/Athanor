@@ -206,7 +206,7 @@ func (r *Report) checkOllama(ctx context.Context, cfg *config.Config, p Probes) 
 			Name:        "ollama",
 			Status:      StatusFail,
 			Detail:      fmt.Sprintf("unreachable at %s: %v", cfg.Inference.OllamaURL, err),
-			Remediation: "start Ollama and verify inference.ollama_url (default http://host.containers.internal:11434)",
+			Remediation: "start Ollama and verify inference.ollama_url (default http://127.0.0.1:11434)",
 		})
 		return
 	}

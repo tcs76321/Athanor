@@ -69,7 +69,11 @@ func applyDefaults(c *Config) {
 	setInt(&c.Power.DaydreamMaxWallTimeMinutes, 30)
 
 	setStr(&c.Inference.DefaultBackend, "ollama")
-	setStr(&c.Inference.OllamaURL, "http://host.containers.internal:11434")
+	// The Core runs as a host binary, so Ollama is reached on host loopback.
+	// A containerized Core would override this with the container→host alias
+	// `host.containers.internal`; the pod-side unreachability probe is
+	// unaffected (it runs *inside* a pod by design).
+	setStr(&c.Inference.OllamaURL, "http://127.0.0.1:11434")
 	setTrue(&c.Inference.CloudRequiresApproval)
 	// M3-T7.1 (ADR-0012): grammar-constrain the structured judgment
 	// phases by default; leave the sampler seed unseeded (production-

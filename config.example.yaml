@@ -31,7 +31,7 @@ power:
 
 inference:
   default_backend: ollama
-  ollama_url: "http://host.containers.internal:11434"
+  ollama_url: "http://127.0.0.1:11434"
   cloud_enabled: false
   cloud_requires_approval: true
   # json_format grammar-constrains the structured judgment phases

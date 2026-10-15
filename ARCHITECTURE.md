@@ -1684,7 +1684,7 @@ power:
 
 inference:
   default_backend: ollama
-  ollama_url: "http://host.containers.internal:11434"
+  ollama_url: "http://127.0.0.1:11434"
   cloud_enabled: false
   cloud_requires_approval: true
   # M3-T7.1 (ADR-0012): grammar-constrain the structured judgment
