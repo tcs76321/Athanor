@@ -8,8 +8,10 @@ import (
 	"fmt"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
+	"github.com/tcs76321/athanor/internal/cognitive"
 	"github.com/tcs76321/athanor/internal/ids"
 )
 
@@ -33,6 +35,11 @@ const (
 	ScopeProject = "project"
 )
 
+// TechniqueFeaturePrefix marks a §13.4 insight whose pattern is a cognitive
+// operation (a "technique") rather than a persona or candidate count (M8-T26;
+// ADR-0067). The Value is the operation name (see internal/cognitive).
+const TechniqueFeaturePrefix = "technique."
+
 // Pattern names the strategy feature an insight is about (§13.4).
 type Pattern struct {
 	Feature string `json:"feature"`
@@ -48,6 +55,10 @@ type Evidence struct {
 	MedianScore        float64 `json:"median_score"`
 	MedianRetries      int     `json:"median_retries"`
 	MedianTokenCost    int     `json:"median_token_cost"`
+	// GroundedJobs counts cohort members whose trajectory carried at least one
+	// deterministic (grounded) verdict — the evidence base for a technique
+	// insight (M8-T26). Zero for persona/candidate insights.
+	GroundedJobs int `json:"grounded_jobs,omitempty"`
 }
 
 // Insight is one persisted StrategyInsight.
@@ -79,6 +90,7 @@ type outcomeRow struct {
 	tokenCost  int
 	archetype  string
 	signature  []SignatureEntry
+	operations []cognitive.Operation
 }
 
 // isAccepted reports whether a §13.3 result counts as an acceptance.
@@ -87,8 +99,11 @@ func isAccepted(r string) bool {
 }
 
 // Mine runs §13.4's deterministic aggregation and returns the newly proposed
-// insights. It invents no numbers: every field comes from the outcomes, and
-// the statement is rendered from them.
+// insights. It groups outcomes by three axes — persona, candidate count, and
+// the executed cognitive operation ("technique", M8-T26). It invents no
+// numbers: every field comes from the outcomes, and the statement is rendered
+// from them. A technique insight additionally requires grounded evidence (a
+// deterministic verdict in the cohort's trajectory).
 func (r *Repo) Mine(ctx context.Context, opts MineOptions) ([]Insight, error) {
 	if opts.MinCohortSize <= 0 {
 		return nil, fmt.Errorf("strategy: min cohort size must be positive")
@@ -121,18 +136,21 @@ func (r *Repo) Mine(ctx context.Context, opts MineOptions) ([]Insight, error) {
 		}
 	}
 
-	// Group outcomes by (feature, value, archetype).
+	// Group outcomes by (feature, value, archetype): the persona and
+	// candidate-count axes (§13.4, M6-T11) plus the operation ("technique")
+	// axis (M8-T26; ADR-0067).
 	type key struct{ feature, value, archetype string }
 	cohorts := map[key][]outcomeRow{}
+	add := func(k key, o outcomeRow) { cohorts[k] = append(cohorts[k], o) }
 	for _, o := range rows {
 		for _, entry := range o.signature {
-			cohorts[key{entry.Phase + ".persona", entry.Persona, o.archetype}] = append(
-				cohorts[key{entry.Phase + ".persona", entry.Persona, o.archetype}], o)
+			add(key{entry.Phase + ".persona", entry.Persona, o.archetype}, o)
 			if entry.Candidates > 0 {
-				cv := strconv.Itoa(entry.Candidates)
-				cohorts[key{"diverging.candidates", cv, o.archetype}] = append(
-					cohorts[key{"diverging.candidates", cv, o.archetype}], o)
+				add(key{"diverging.candidates", strconv.Itoa(entry.Candidates), o.archetype}, o)
 			}
+		}
+		for _, op := range o.operations {
+			add(key{TechniqueFeaturePrefix + op.Name, op.Name, o.archetype}, o)
 		}
 	}
 
@@ -184,6 +202,14 @@ func (r *Repo) Mine(ctx context.Context, opts MineOptions) ([]Insight, error) {
 		if delta < 0 {
 			polarity = PolarityLosing
 		}
+		isTechnique := strings.HasPrefix(k.feature, TechniqueFeaturePrefix)
+		grounded := groundedCount(cohort)
+		// A technique insight must be anchored in a deterministic signal; a
+		// cohort with no grounded verdict is judge-advisory only and is not
+		// proposed as a technique (M8-T26; ADR-0067).
+		if isTechnique && grounded == 0 {
+			continue
+		}
 		pattern := Pattern{Feature: k.feature, Value: k.value, Context: "archetype=" + k.archetype}
 		// Dedup: skip an identical live insight.
 		if r.insightExists(ctx, ScopeGlobal, pattern) {
@@ -191,12 +217,17 @@ func (r *Repo) Mine(ctx context.Context, opts MineOptions) ([]Insight, error) {
 		}
 		statement := fmt.Sprintf("%s=%s on %s tasks: accept rate %.2f vs %.2f baseline (n=%d).",
 			k.feature, k.value, k.archetype, acceptRate, baseline, len(cohort))
+		if isTechnique {
+			statement = fmt.Sprintf("On %s tasks, running the '%s' technique was accepted %.2f vs %.2f baseline (n=%d, grounded=%d).",
+				k.archetype, k.value, acceptRate, baseline, len(cohort), grounded)
+		}
 		ins, err := r.CreateInsight(ctx, Insight{
 			Scope: ScopeGlobal, Polarity: polarity, Pattern: pattern,
 			Evidence: Evidence{
 				CohortJobs: len(cohort), AcceptRate: acceptRate, BaselineAcceptRate: baseline,
 				MedianScore: medianScore(cohort), MedianRetries: medianInt(cohort, func(o outcomeRow) int { return o.retries }),
 				MedianTokenCost: medianInt(cohort, func(o outcomeRow) int { return o.tokenCost }),
+				GroundedJobs:    grounded,
 			},
 			Statement: statement, Status: InsightProposed,
 		})
@@ -211,7 +242,7 @@ func (r *Repo) Mine(ctx context.Context, opts MineOptions) ([]Insight, error) {
 // outcomeRows loads outcomes joined with their profiles.
 func (r *Repo) outcomeRows(ctx context.Context) ([]outcomeRow, error) {
 	rows, err := r.store.DB().QueryContext(ctx,
-		`SELECT o.result, o.score, o.evaluator_confidence, o.retries, o.token_cost, p.archetype, p.signature_json
+		`SELECT o.result, o.score, o.evaluator_confidence, o.retries, o.token_cost, p.archetype, p.signature_json, o.operations_json
 		 FROM strategy_outcomes o JOIN strategy_profiles p ON p.id = o.strategy_profile_id`)
 	if err != nil {
 		return nil, fmt.Errorf("loading outcomes for mining: %w", err)
@@ -219,9 +250,9 @@ func (r *Repo) outcomeRows(ctx context.Context) ([]outcomeRow, error) {
 	defer func() { _ = rows.Close() }()
 	var out []outcomeRow
 	for rows.Next() {
-		var result, archetype, sigJSON string
+		var result, archetype, sigJSON, opsJSON string
 		var o outcomeRow
-		if err := rows.Scan(&result, &o.score, &o.confidence, &o.retries, &o.tokenCost, &archetype, &sigJSON); err != nil {
+		if err := rows.Scan(&result, &o.score, &o.confidence, &o.retries, &o.tokenCost, &archetype, &sigJSON, &opsJSON); err != nil {
 			return nil, err
 		}
 		o.result = result
@@ -229,6 +260,9 @@ func (r *Repo) outcomeRows(ctx context.Context) ([]outcomeRow, error) {
 		if err := json.Unmarshal([]byte(sigJSON), &o.signature); err != nil {
 			continue
 		}
+		// The executed trajectory carries the technique evidence (M8-T26); a
+		// legacy row without one simply contributes no technique cohorts.
+		_ = json.Unmarshal([]byte(opsJSON), &o.operations)
 		out = append(out, o)
 	}
 	return out, rows.Err()
@@ -394,4 +428,20 @@ func abs(f float64) float64 {
 		return -f
 	}
 	return f
+}
+
+// groundedCount returns how many cohort members carried at least one grounded
+// (deterministic-verifier) verdict in their trajectory — the evidence base for
+// a technique insight (M8-T26).
+func groundedCount(rows []outcomeRow) int {
+	n := 0
+	for _, o := range rows {
+		for _, op := range o.operations {
+			if op.Grounded {
+				n++
+				break
+			}
+		}
+	}
+	return n
 }

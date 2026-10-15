@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/tcs76321/athanor/internal/cognitive"
 	"github.com/tcs76321/athanor/internal/job"
 	"github.com/tcs76321/athanor/internal/project"
 	"github.com/tcs76321/athanor/internal/store"
@@ -135,5 +136,136 @@ func TestMineRespectsCohortFloor(t *testing.T) {
 	}
 	if _, err := NewRepo(s).Mine(ctx, MineOptions{MinCohortSize: 0}); err == nil {
 		t.Error("zero cohort floor accepted")
+	}
+}
+
+// seedTechniqueCorpus creates n code jobs whose single outcome carries the
+// given executed trajectory and accepted count, so technique mining has a
+// grounded signal. All confidences are equal so the consistency check passes.
+func seedTechniqueCorpus(t *testing.T, s *store.Store, p project.Project, taskID string, n, accepted int, ops []cognitive.Operation) {
+	t.Helper()
+	ctx := context.Background()
+	repo := NewRepo(s)
+	jobs := job.NewRepository(s)
+	for i := 0; i < n; i++ {
+		j, err := jobs.Create(ctx, taskID, p.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := repo.CreateProfile(ctx, Profile{
+			JobID: j.ID, ProjectID: p.ID, Archetype: p.Archetype,
+			Signature: []SignatureEntry{
+				{Phase: "diverging", Persona: "main", Temperature: 0.8, Candidates: 3},
+			},
+		}); err != nil {
+			t.Fatal(err)
+		}
+		result := ResultRejected
+		if i < accepted {
+			result = ResultAcceptedNew
+		}
+		if _, err := repo.CreateOutcome(ctx, Outcome{
+			JobID: j.ID, Result: result, EvaluatorConfidence: 0.8, Score: 0.5, Operations: ops,
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+// mineCodeProject is the shared project setup for the technique-mining tests.
+func mineCodeProject(t *testing.T) (*store.Store, project.Project, string) {
+	t.Helper()
+	s, err := store.Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+	if err := store.Migrate(s.DB(), migrations.FS, ""); err != nil {
+		t.Fatal(err)
+	}
+	p, task, err := project.NewRepo(s).Create(context.Background(), "demo", project.ArchetypeCode,
+		"Build a small REST endpoint with tests and documentation.", "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return s, p, task.ID
+}
+
+func TestMineTechniques(t *testing.T) {
+	s, p, taskID := mineCodeProject(t)
+	base := []cognitive.Operation{
+		{Name: cognitive.OpPlan},
+		{Name: cognitive.OpDiverge},
+		{Name: cognitive.OpVerify, Grounded: true, Passed: true},
+		{Name: cognitive.OpSynthesize},
+		{Name: cognitive.OpCompare},
+	}
+	// 10 jobs accepted without reflection; 10 mostly-rejected with a
+	// reflection pass. Baseline accept = 0.50; the reflection cohort = 0.20.
+	seedTechniqueCorpus(t, s, p, taskID, 10, 8, base)
+	withReflect := append(append([]cognitive.Operation{}, base...),
+		cognitive.Operation{Name: cognitive.OpReflect})
+	seedTechniqueCorpus(t, s, p, taskID, 10, 2, withReflect)
+
+	proposed, err := NewRepo(s).Mine(context.Background(), MineOptions{MinCohortSize: 10, MinAcceptRateDelta: 0.15})
+	if err != nil {
+		t.Fatalf("Mine: %v", err)
+	}
+	var reflect *Insight
+	for i := range proposed {
+		if proposed[i].Pattern.Feature == TechniqueFeaturePrefix+cognitive.OpReflect {
+			reflect = &proposed[i]
+		}
+	}
+	if reflect == nil {
+		t.Fatalf("no technique insight for the reflect operation; proposed=%+v", proposed)
+	}
+	if reflect.Pattern.Value != cognitive.OpReflect || reflect.Pattern.Context != "archetype="+p.Archetype {
+		t.Errorf("technique pattern = %+v", reflect.Pattern)
+	}
+	if reflect.Polarity != PolarityLosing {
+		t.Errorf("reflect polarity = %q, want %q", reflect.Polarity, PolarityLosing)
+	}
+	if reflect.Evidence.CohortJobs != 10 || reflect.Evidence.GroundedJobs == 0 {
+		t.Errorf("technique evidence = %+v, want cohort 10 with grounded > 0", reflect.Evidence)
+	}
+	// Trajectories that ran only the common operations sit at the baseline and
+	// produce no technique insight (no larger containing cohort contradicts).
+	for _, ins := range proposed {
+		if ins.Pattern.Feature == TechniqueFeaturePrefix+cognitive.OpPlan {
+			t.Errorf("baseline-frequency operation produced a technique insight: %+v", ins)
+		}
+	}
+}
+
+func TestMineTechniquesRequireGrounded(t *testing.T) {
+	s, p, taskID := mineCodeProject(t)
+	// A would-be winning technique cohort with no deterministic verdict in its
+	// trajectory must not be proposed as a technique (M8-T26; ADR-0067).
+	ungrounded := []cognitive.Operation{
+		{Name: cognitive.OpPlan},
+		{Name: cognitive.OpDiverge},
+		{Name: cognitive.OpReflect},
+		{Name: cognitive.OpSynthesize},
+		{Name: cognitive.OpCompare},
+	}
+	plain := []cognitive.Operation{
+		{Name: cognitive.OpPlan},
+		{Name: cognitive.OpDiverge},
+		{Name: cognitive.OpSynthesize},
+		{Name: cognitive.OpCompare},
+	}
+	seedTechniqueCorpus(t, s, p, taskID, 10, 9, ungrounded)
+	seedTechniqueCorpus(t, s, p, taskID, 10, 1, plain)
+
+	proposed, err := NewRepo(s).Mine(context.Background(), MineOptions{MinCohortSize: 10, MinAcceptRateDelta: 0.15})
+	if err != nil {
+		t.Fatalf("Mine: %v", err)
+	}
+	for _, ins := range proposed {
+		if len(ins.Pattern.Feature) >= len(TechniqueFeaturePrefix) &&
+			ins.Pattern.Feature[:len(TechniqueFeaturePrefix)] == TechniqueFeaturePrefix {
+			t.Errorf("ungrounded cohort produced a technique insight: %+v", ins)
+		}
 	}
 }
