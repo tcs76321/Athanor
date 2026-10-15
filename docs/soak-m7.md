@@ -1,8 +1,11 @@
-# M7-T9 — 24-hour soak runbook
+# M7-T9 — sustained-load soak runbook
 
-This is the **human-run** endurance checkpoint for Gate G7. The harness is
-`scripts/soak.sh` (`make soak`); the measurement itself takes ~24 hours of
-wall clock on AC-powered hardware with a live model.
+This is the **human-run** endurance checkpoint for Gate G7. The preferred
+harness is the M8-T23 `m3-t7-probe soak` subcommand (one long-lived daemon);
+`scripts/soak.sh` (`make soak`) is the legacy per-iteration runner. The run is
+bounded by a wall-clock deadline (`-until`), not a fixed duration, and is
+resumable and rolling so a short or interrupted run still yields a readout.
+Acceptance is by coverage ([ADR-0066](adr/0066-release-scope-soak.md)).
 
 ## Prerequisites
 

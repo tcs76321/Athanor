@@ -88,7 +88,7 @@ CREATE VIRTUAL TABLE fts_items USING fts5(content, title);
 SELECT * FROM fts_items WHERE fts_items MATCH 'search term' ORDER BY rank;
 ```
 
-Provides full-text search without vector similarity — sufficient for MVP text search.
+Provides full-text search without vector similarity — sufficient for baseline text search.
 
 ## CI/CD Matrix (GitHub Actions)
 

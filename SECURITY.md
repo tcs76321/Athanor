@@ -8,7 +8,7 @@ convention, so security reports are treated as first-class.
 
 ## Supported versions
 
-Athanor is pre-MVP; only the tip of `main` is supported. There are no
+Athanor is pre-1.0; only the tip of `main` is supported. There are no
 maintained release branches yet.
 
 ## Reporting a vulnerability

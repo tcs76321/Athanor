@@ -1,7 +1,9 @@
 # Gate G7 — release checklist
 
-Gate G7 (ROADMAP §3): *System survives sleep, power loss, and 24h soak with no
-state loss.* Below is the M7 close-out checklist. Items marked **automated**
+Gate G7 (ROADMAP §3): *System survives sleep, power loss, and a sustained-load
+soak with no state loss.* The soak acceptance is by coverage, not a fixed
+wall-clock figure ([ADR-0066](adr/0066-release-scope-soak.md)). Below is the M7
+close-out checklist. Items marked **automated**
 are enforced by `make check` / CI; items marked **human** are supervised
 checkpoints that cannot be fully automated.
 
@@ -33,11 +35,13 @@ result here. **Status: pending human sign-off.**
 The consolidated process/recovery matrix (each scenario, its test, and the
 deliberately-human checkpoints) is [m8-process-matrix.md](m8-process-matrix.md).
 
-## 24-hour soak (M7-T9)
+## Sustained-load soak (M7-T9)
 
-Run [`soak-m7.md`](soak-m7.md) on AC hardware; the results are the evidence.
-**Status: pending human run.** Acceptance: no orphan pods, no unrecovered
-crashes, bounded RSS/goroutine growth, bounded WAL/disk.
+Run the M8-T23 `soak` harness (see [`soak-m7.md`](soak-m7.md)) on AC hardware;
+the results are the evidence. **Status: pending human run.** Acceptance is by
+**coverage, not a fixed wall-clock figure** ([ADR-0066](adr/0066-release-scope-soak.md)):
+no orphan pods, no unrecovered `kill -9`, bounded RSS/**goroutine**/WAL/disk
+growth, one human sleep/wake cycle, and the time-triggered arms exercised.
 
 ## Fresh-install demo (<15 minutes)
 

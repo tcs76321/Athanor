@@ -127,7 +127,7 @@ Then watch it work in real time from the Watch View, or queue it and check the M
 
 ## Status
 
-### What works today (M0–M6 complete; M7 code-complete; F5 hardening)
+### What works today (M0–M8 code-complete; 0.0.0 candidate)
 
 - **Daemon on loopback** (`http://127.0.0.1:7420`). Config falls back to built-in defaults when `config.yaml` is absent; missing config is not an error on a fresh clone. `/healthz` reports status, version, uptime.
 - **CLI client.** `project create`, `goal submit`, `job watch`, `artifacts`, `freeze`, `unfreeze`, `doctor`. Talks to a running daemon over loopback, except `doctor` which inspects the local host directly.
@@ -176,7 +176,7 @@ M4 (Airlock & Gateway) is done — T1 through T8: path containment, ingress pipe
 
 ### What's deferred
 
-Gate G7 human checkpoints (the 24h soak, the fresh-install timing, and the §31.3 audit sign-off), the dormant `browser_mode_requires_approval` flag, the remainder of M6 Autonomy & Feedback beyond M6 (the T3b alternative-persona re-decomposition adapter, real OS watcher, cloud-credential broker for §21.7, Browser Mode runtime for §21.6, full §27 Statistics/Memory Browser views, live-model DAG/quality-probe runs). Items specifically deferred from M3 are listed in `ROADMAP.md` §7 (the M3-T7-b/c quality-probe measurement backlog). The M3-T5 Git-as-undo call site landed in F3-T5 ([ADR-0030](docs/adr/0030-git-as-undo.md)). See [ROADMAP.md](ROADMAP.md) for the full plan and exit gates.
+Gate G7 human checkpoints (the combined validation soak, the fresh-install timing, and the §31.3 audit sign-off; soak acceptance by coverage per [ADR-0066](docs/adr/0066-release-scope-soak.md)), the dormant `browser_mode_requires_approval` flag, the remainder of M6 Autonomy & Feedback beyond M6 (the T3b alternative-persona re-decomposition adapter, real OS watcher, cloud-credential broker for §21.7, Browser Mode runtime for §21.6, full §27 Statistics/Memory Browser views, live-model DAG/quality-probe runs). Items specifically deferred from M3 are listed in `ROADMAP.md` §7 (the M3-T7-b/c quality-probe measurement backlog). The M3-T5 Git-as-undo call site landed in F3-T5 ([ADR-0030](docs/adr/0030-git-as-undo.md)). See [ROADMAP.md](ROADMAP.md) for the full plan and exit gates.
 
 ## Documentation
 
