@@ -296,3 +296,33 @@ func TestCancelledJobFailsTaskWithoutRetry(t *testing.T) {
 		t.Errorf("jobs = %v, want no retry on cancellation", eng.jobs)
 	}
 }
+
+// H6: a duplicate terminal callback for a job that a retry has superseded
+// must be ignored. It used to re-process the failure (the task is `running`
+// again because of the retry), double-count the retry budget, and block the
+// in-flight retry.
+func TestStaleTerminalCallbackIgnored(t *testing.T) {
+	sched, projects, _, eng, goalID := harness(t)
+	sched.SetMaxTaskRetries(1)
+	esc := &fakeEscalator{}
+	sched.SetEscalator(esc)
+	ctx := context.Background()
+
+	started, _ := sched.Start(ctx, goalID)
+	sched.OnJobTerminal(ctx, started[0], job.StateFailed) // triggers the retry
+	if len(eng.jobs) != 2 {
+		t.Fatalf("jobs after retry = %v, want 2", eng.jobs)
+	}
+
+	// A stale duplicate of the original failure arrives after the retry was
+	// created. It must be a no-op: the retry stays running, the budget is
+	// not double-counted, and nothing escalates.
+	sched.OnJobTerminal(ctx, started[0], job.StateFailed)
+	assertStatus(t, statuses(t, projects, goalID), "A", project.TaskRunning)
+	if esc.calls != 0 {
+		t.Fatalf("escalations = %d, want 0 (a stale callback must not block the in-flight retry)", esc.calls)
+	}
+	if len(eng.jobs) != 2 {
+		t.Fatalf("jobs = %v, want 2 (no extra retry from a stale callback)", eng.jobs)
+	}
+}

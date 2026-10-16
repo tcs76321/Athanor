@@ -107,6 +107,18 @@ func (s *Scheduler) OnJobTerminal(ctx context.Context, jobID string, state job.S
 		return
 	}
 
+	// H6: only the task's LATEST job's terminal event is authoritative. A
+	// failed job's retry supersedes it (the task returns to running with a
+	// new job), so a duplicate delivery of the superseded job's terminal
+	// event must be ignored rather than re-processed — otherwise it would
+	// double-count the retry budget and block the in-flight retry.
+	if jobs, err := s.jobs.ByTask(ctx, t.ID); err != nil {
+		slog.Error("scheduler: listing task jobs for terminal idempotency", "task", t.ID, "err", err)
+		return
+	} else if len(jobs) == 0 || jobs[len(jobs)-1].ID != j.ID {
+		return
+	}
+
 	switch state {
 	case job.StateCompleted:
 		if err := s.projects.SetTaskStatus(ctx, t.ID, project.TaskCompleted); err != nil {
