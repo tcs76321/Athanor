@@ -113,6 +113,7 @@ var forbiddenImports = map[string]string{
 	"os/user":                                "host user enumeration",
 	"github.com/docker/docker/client":        "container control",
 	"github.com/containers/podman/v5/libpod": "container control",
+	"golang.org/x/sys/unix":                  "process spawn via unix.Exec/ForkExec",
 }
 
 // forbiddenInternalImports additionally applies to internal/ only: the
@@ -197,6 +198,36 @@ var allowedInternalSyscallFiles = map[string]bool{
 // constants) but applied to internal/ via the file allowlist above.
 var allowedInternalSyscallIdents = map[string]bool{
 	"O_NOFOLLOW": true,
+}
+
+// forbiddenProcessIdents are the process-spawn selectors over the `os`
+// package. `os/exec` is already a forbidden import (rule 1), but
+// `os.StartProcess` lives in `os` (imported nearly everywhere) and is a full
+// process-spawn primitive with no shell — it must be caught as a selector,
+// not an import. It has no allowlist.
+var forbiddenProcessIdents = map[string]bool{
+	"StartProcess": true,
+}
+
+// forbiddenNetIdents are the raw-socket primitives over the `net` package.
+// The §21.5 gateway is the only sanctioned outbound door, so a constructed
+// net.Dialer / net.Dial / net.Listen outside the gateway and the two loopback
+// sites is a bypass of that guarantee (rule 6 catches only the package-level
+// http.Get / http.Post / http.DefaultClient helpers, not the raw layer).
+var forbiddenNetIdents = map[string]bool{
+	"Dial":        true,
+	"Dialer":      true,
+	"DialContext": true,
+	"DialTimeout": true,
+	"Listen":      true,
+}
+
+// allowedNetSites are the files where a net dial/listen primitive may appear:
+// the daemon's own loopback listener and the Job Pod runner's loopback HTTP
+// client. (The gateway package is allowlisted wholesale below.)
+var allowedNetSites = map[string]bool{
+	"cmd/athanor/serve.go":                      true,
+	"internal/internalapi/runner/httpclient.go": true,
 }
 
 // TestGateG1NoToolExecution is the grep-level proof, upgraded to an AST
@@ -684,5 +715,68 @@ func f(m string) string {
 				t.Errorf("checkOutboundHTTP = %v, want %v", got, c.want)
 			}
 		})
+	}
+}
+
+// TestGateG1NoProcessOrRawNetSpawn closes the process-spawn and raw-socket
+// holes the import and http-helper rules leave open:
+//
+//   - os.StartProcess is a process-spawn primitive in the `os` package
+//     (imported everywhere), so it is caught as a selector, not an import.
+//   - net.Dial / net.Dialer / net.DialContext / net.DialTimeout / net.Listen
+//     are the raw-socket layer; a future contributor could reach the public
+//     internet from any internal package with them, bypassing the §21.5
+//     gateway that rule 6 pins. They are allowed only in the gateway and the
+//     two loopback sites (the daemon listener and the Job Pod runner).
+func TestGateG1NoProcessOrRawNetSpawn(t *testing.T) {
+	roots := []string{"../../internal", "../../cmd"}
+	violations := 0
+	for _, root := range roots {
+		err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+				return nil
+			}
+			fset := token.NewFileSet()
+			file, perr := parser.ParseFile(fset, path, nil, 0)
+			if perr != nil {
+				t.Errorf("parsing %s: %v", path, perr)
+				return nil
+			}
+			rel := relPath(path)
+			netAllowed := isUnderGatewayPackage(path) || allowedNetSites[rel]
+			ast.Inspect(file, func(n ast.Node) bool {
+				sel, ok := n.(*ast.SelectorExpr)
+				if !ok {
+					return true
+				}
+				id, ok := sel.X.(*ast.Ident)
+				if !ok {
+					return true
+				}
+				switch id.Name {
+				case "os":
+					if forbiddenProcessIdents[sel.Sel.Name] {
+						t.Errorf("%s references os.%s — process spawn must not exist outside the allowlisted cmd/ adapters (Gate G1)", path, sel.Sel.Name)
+						violations++
+					}
+				case "net":
+					if forbiddenNetIdents[sel.Sel.Name] && !netAllowed {
+						t.Errorf("%s references net.%s — raw sockets must go through internal/gateway (Gate G1)", path, sel.Sel.Name)
+						violations++
+					}
+				}
+				return true
+			})
+			return nil
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	if violations > 0 {
+		t.Fatalf("%d Gate G1 process/raw-net violations", violations)
 	}
 }
