@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -644,7 +645,22 @@ func (a *API) handleStrategyMine(w http.ResponseWriter, r *http.Request) {
 	for _, ins := range proposed {
 		out = append(out, toInsightResponse(ins))
 	}
-	writeJSON(w, http.StatusCreated, map[string]any{"proposed": out})
+	// M8-T28 (ADR-0067): auto-activate grounded winning techniques. The
+	// optional type-assertion keeps the Strategy surface stable for fakes.
+	activated := 0
+	if a.autoActivateTech {
+		if act, ok := a.strategy.(interface {
+			ActivateWinningTechniques(context.Context, strategy.AutoActivateOptions) ([]string, error)
+		}); ok {
+			ids, aerr := act.ActivateWinningTechniques(r.Context(), a.techBar)
+			if aerr != nil {
+				writeError(w, http.StatusInternalServerError, aerr.Error())
+				return
+			}
+			activated = len(ids)
+		}
+	}
+	writeJSON(w, http.StatusCreated, map[string]any{"proposed": out, "activated": activated})
 }
 
 // handleInsightPromote activates an insight, directly when auto_promote is on

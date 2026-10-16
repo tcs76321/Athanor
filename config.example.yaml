@@ -207,6 +207,12 @@ strategy_analysis:
   max_active_insights: 10
   insight_expiry_days: 90
   strategy_notes_in_prompts: true
+  # M8-T28 (ADR-0067): a winning technique (an execution operation) whose
+  # grounded evidence clears technique_min_accept_delta auto-activates, bounded
+  # by max_active_insights and reversible via mute. Persona/candidate insights
+  # keep the HITL gate; guidance is advisory and never narrows the repertoire.
+  auto_activate_techniques: true
+  technique_min_accept_delta: 0.20
 
 limits:
   max_concurrent_jobs: 2

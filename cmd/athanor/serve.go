@@ -298,6 +298,20 @@ func run(configPath, addr, stateDir string) error {
 	externalAPI.SetPusher(gitPusher{projects: projectRepo, hitl: hitlRepo})
 	externalAPI.SetCorrections(correctionsRepo)
 	externalAPI.SetStrategy(strategyRepo)
+	// M8-T28 (ADR-0067): the advisory technique loop. A grounded winning
+	// technique auto-activates on mine/in daydream; persona/candidate insights
+	// keep the HITL gate.
+	techDelta := cfg.StrategyAnalysis.TechniqueMinAcceptDelta
+	if techDelta <= 0 {
+		techDelta = 0.20
+	}
+	externalAPI.SetStrategyAutoActivate(
+		config.Val(cfg.StrategyAnalysis.AutoActivateTechniques, true),
+		strategy.AutoActivateOptions{
+			MinCohortSize:      cfg.StrategyAnalysis.MinCohortSize,
+			MinAcceptRateDelta: techDelta,
+			MaxActiveInsights:  cfg.StrategyAnalysis.MaxActiveInsights,
+		})
 	externalAPI.SetStrategyPromoter(insightPromoter{
 		strategy: strategyRepo, hitl: hitlRepo, autoPromote: cfg.StrategyAnalysis.AutoPromote,
 	})

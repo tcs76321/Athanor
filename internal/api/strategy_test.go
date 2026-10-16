@@ -11,11 +11,12 @@ import (
 )
 
 type fakeStrategy struct {
-	insights []strategy.Insight
-	mined    []strategy.Insight
-	err      error
-	status   string
-	lastOpts strategy.MineOptions
+	insights     []strategy.Insight
+	mined        []strategy.Insight
+	err          error
+	status       string
+	lastOpts     strategy.MineOptions
+	activatedIDs []string
 }
 
 func (f *fakeStrategy) Mine(_ context.Context, opts strategy.MineOptions) ([]strategy.Insight, error) {
@@ -36,6 +37,10 @@ func (f *fakeStrategy) GetInsight(_ context.Context, _ string) (strategy.Insight
 	return f.insights[0], f.err
 }
 
+func (f *fakeStrategy) ActivateWinningTechniques(_ context.Context, _ strategy.AutoActivateOptions) ([]string, error) {
+	return f.activatedIDs, f.err
+}
+
 type fakePromoter struct {
 	activated bool
 	requestID string
@@ -54,9 +59,10 @@ func TestStrategyRoutes(t *testing.T) {
 		Evidence:  strategy.Evidence{CohortJobs: 20, AcceptRate: 0.8, BaselineAcceptRate: 0.6},
 		Statement: "alternative wins on code tasks",
 	}
-	fake := &fakeStrategy{insights: []strategy.Insight{ins}, mined: []strategy.Insight{ins}}
+	fake := &fakeStrategy{insights: []strategy.Insight{ins}, mined: []strategy.Insight{ins}, activatedIDs: []string{"i1"}}
 	h.api.SetStrategy(fake)
 	h.api.SetStrategyPromoter(&fakePromoter{activated: false, requestID: "r1"})
+	h.api.SetStrategyAutoActivate(true, strategy.AutoActivateOptions{MinCohortSize: 10, MinAcceptRateDelta: 0.2, MaxActiveInsights: 5})
 
 	// List.
 	resp, err := http.Get(h.ts.URL + "/strategy/insights?status=proposed")
@@ -82,12 +88,22 @@ func TestStrategyRoutes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_ = mr.Body.Close()
+	defer func() { _ = mr.Body.Close() }()
 	if mr.StatusCode != http.StatusCreated {
 		t.Fatalf("mine status = %d, want 201", mr.StatusCode)
 	}
 	if fake.lastOpts.MinCohortSize != 20 || fake.lastOpts.MinAcceptRateDelta != 0.15 {
 		t.Errorf("mine opts = %+v, want defaults", fake.lastOpts)
+	}
+	// M8-T28: grounded winning techniques auto-activate; the count is reported.
+	var mineBody struct {
+		Activated int `json:"activated"`
+	}
+	if err := json.NewDecoder(mr.Body).Decode(&mineBody); err != nil {
+		t.Fatal(err)
+	}
+	if mineBody.Activated != 1 {
+		t.Errorf("mine activated = %d, want 1", mineBody.Activated)
 	}
 
 	// Promote files a HITL request (not activated, request id returned).

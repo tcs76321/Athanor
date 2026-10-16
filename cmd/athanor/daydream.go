@@ -53,6 +53,9 @@ const (
 	// strategy_analysis defaults when the operator left them unset.
 	defaultMineCohortSize  = 20
 	defaultMineAcceptDelta = 0.15
+	// defaultTechniqueMinAcceptDelta mirrors strategy_analysis
+	// .technique_min_accept_delta (M8-T28; ADR-0067).
+	defaultTechniqueMinAcceptDelta = 0.20
 	// proactiveDocMaxFiles bounds the repository listing sent to the model.
 	proactiveDocMaxFiles = 40
 )
@@ -382,7 +385,26 @@ func (r *daydreamRunner) strategyMining(ctx context.Context) error {
 	for _, ins := range proposed {
 		ids = append(ids, ins.ID)
 	}
-	if err := r.audit(ctx, "strategy_mining", map[string]any{"proposed": len(ids)}); err != nil {
+	// M8-T28 (ADR-0067): close the loop. A winning technique whose grounded
+	// evidence clears the strict bar auto-activates (bounded, reversible);
+	// persona/candidate insights stay proposed for HITL.
+	activated := 0
+	if config.Val(r.deps.cfg.StrategyAnalysis.AutoActivateTechniques, true) {
+		techDelta := r.deps.cfg.StrategyAnalysis.TechniqueMinAcceptDelta
+		if techDelta <= 0 {
+			techDelta = defaultTechniqueMinAcceptDelta
+		}
+		act, err := r.deps.strategy.ActivateWinningTechniques(ctx, strategy.AutoActivateOptions{
+			MinCohortSize:      opts.MinCohortSize,
+			MinAcceptRateDelta: techDelta,
+			MaxActiveInsights:  r.deps.cfg.StrategyAnalysis.MaxActiveInsights,
+		})
+		if err != nil {
+			return fmt.Errorf("daydream strategy_mining activate: %w", err)
+		}
+		activated = len(act)
+	}
+	if err := r.audit(ctx, "strategy_mining", map[string]any{"proposed": len(ids), "activated": activated}); err != nil {
 		return err
 	}
 	r.recordDaydream(ctx, daydream.ActionStrategyMining, "security", start, nil, nil, ids, 0, 0, 0)

@@ -245,6 +245,13 @@ func applyDefaults(c *Config) {
 	setInt(&c.StrategyAnalysis.MaxActiveInsights, 10)
 	setInt(&c.StrategyAnalysis.InsightExpiryDays, 90)
 	setTrue(&c.StrategyAnalysis.StrategyNotesInPrompts)
+	// M8-T28 (ADR-0067): the advisory technique loop. A grounded winning
+	// technique auto-activates above a stricter delta than a proposal;
+	// persona/candidate insights keep the HITL gate.
+	setTrue(&c.StrategyAnalysis.AutoActivateTechniques)
+	if c.StrategyAnalysis.TechniqueMinAcceptDelta == 0 {
+		c.StrategyAnalysis.TechniqueMinAcceptDelta = 0.20
+	}
 
 	setInt(&c.Limits.MaxConcurrentJobs, 2)
 	setInt(&c.Limits.MaxConcurrentLLMCalls, 1)

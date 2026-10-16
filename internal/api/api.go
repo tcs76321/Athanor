@@ -143,6 +143,11 @@ type API struct {
 	// dagScheduling mirrors execution.dag_decomposition: when true, goal
 	// submission decomposes and schedules instead of creating one task.
 	dagScheduling bool
+	// autoActivateTech enables the M8-T28 automatic activation of grounded
+	// winning technique insights on POST /strategy/mine; techBar is the strict
+	// activation threshold.
+	autoActivateTech bool
+	techBar          strategy.AutoActivateOptions
 }
 
 // New builds the API.
@@ -205,6 +210,14 @@ func (a *API) SetStrategy(s Strategy) { a.strategy = s }
 
 // SetStrategyPromoter wires the HITL-gated insight promoter (M6-T11).
 func (a *API) SetStrategyPromoter(p StrategyPromoter) { a.promoter = p }
+
+// SetStrategyAutoActivate enables automatic activation of grounded winning
+// technique insights on POST /strategy/mine (M8-T28; ADR-0067). When disabled,
+// every insight stays proposed for HITL.
+func (a *API) SetStrategyAutoActivate(enabled bool, opts strategy.AutoActivateOptions) {
+	a.autoActivateTech = enabled
+	a.techBar = opts
+}
 
 // SetAlarms wires the M7-T3 alarm service. A daemon without one answers 503
 // on the alarm routes.

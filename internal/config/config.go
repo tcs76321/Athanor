@@ -601,6 +601,16 @@ type StrategyAnalysis struct {
 	MaxActiveInsights      int     `yaml:"max_active_insights"`
 	InsightExpiryDays      int     `yaml:"insight_expiry_days"`
 	StrategyNotesInPrompts *bool   `yaml:"strategy_notes_in_prompts"`
+	// AutoActivateTechniques enables the M8-T28 advisory technique loop: a
+	// winning technique (an execution operation) whose grounded evidence clears
+	// TechniqueMinAcceptDelta auto-activates, bounded by MaxActiveInsights and
+	// reversible via mute. Persona/candidate insights keep the HITL gate.
+	// Defaults true (ADR-0067).
+	AutoActivateTechniques *bool `yaml:"auto_activate_techniques"`
+	// TechniqueMinAcceptDelta is the grounded accept-rate advantage a winning
+	// technique must clear to auto-activate; deliberately stricter than
+	// MinAcceptRateDelta. Defaults 0.20.
+	TechniqueMinAcceptDelta float64 `yaml:"technique_min_accept_delta"`
 }
 
 // Limits bounds concurrency and cost.

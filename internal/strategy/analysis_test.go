@@ -326,3 +326,83 @@ func TestActiveStatementsRendersTechniqueGuidance(t *testing.T) {
 		t.Errorf("raw statement leaked instead of guidance:\n%s", joined)
 	}
 }
+
+func TestActivateWinningTechniques(t *testing.T) {
+	s, _, _ := mineCodeProject(t)
+	ctx := context.Background()
+	repo := NewRepo(s)
+
+	mk := func(feature, value, polarity string, ev Evidence) Insight {
+		ins, err := repo.CreateInsight(ctx, Insight{
+			Scope: ScopeGlobal, Polarity: polarity,
+			Pattern:   Pattern{Feature: feature, Value: value, Context: "archetype=code"},
+			Evidence:  ev,
+			Statement: "s",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return ins
+	}
+	good := mk(TechniqueFeaturePrefix+cognitive.OpRefine, cognitive.OpRefine, PolarityWinning,
+		Evidence{CohortJobs: 12, AcceptRate: 0.85, BaselineAcceptRate: 0.55, GroundedJobs: 12})
+	weak := mk(TechniqueFeaturePrefix+cognitive.OpReflect, cognitive.OpReflect, PolarityWinning,
+		Evidence{CohortJobs: 12, AcceptRate: 0.85, BaselineAcceptRate: 0.55, GroundedJobs: 1})
+	lose := mk(TechniqueFeaturePrefix+cognitive.OpVerify, cognitive.OpVerify, PolarityLosing,
+		Evidence{CohortJobs: 12, AcceptRate: 0.20, BaselineAcceptRate: 0.55, GroundedJobs: 12})
+	persona := mk("diverging.persona", "alternative", PolarityWinning,
+		Evidence{CohortJobs: 20, AcceptRate: 0.85, BaselineAcceptRate: 0.55})
+
+	ids, err := repo.ActivateWinningTechniques(ctx, AutoActivateOptions{MinCohortSize: 10, MinAcceptRateDelta: 0.20, MaxActiveInsights: 5})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ids) != 1 || ids[0] != good.ID {
+		t.Fatalf("activated = %v, want [%s]", ids, good.ID)
+	}
+	status := func(id string) string {
+		ins, err := repo.GetInsight(ctx, id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return ins.Status
+	}
+	if status(good.ID) != InsightActive {
+		t.Errorf("grounded winning technique not activated: %q", status(good.ID))
+	}
+	for _, tc := range []struct {
+		id, why string
+	}{{weak.ID, "under-grounded"}, {lose.ID, "losing"}, {persona.ID, "persona (HITL-gated)"}} {
+		if got := status(tc.id); got != InsightProposed {
+			t.Errorf("%s insight activated (%q), want proposed", tc.why, got)
+		}
+	}
+
+	// Bounded: once MaxActiveInsights is reached, no further activation.
+	if _, err := repo.ActivateWinningTechniques(ctx, AutoActivateOptions{MinCohortSize: 0, MinAcceptRateDelta: 0, MaxActiveInsights: 1}); err != nil {
+		t.Fatal(err)
+	}
+	if got := status(weak.ID); got != InsightProposed {
+		t.Errorf("activation ignored the MaxActiveInsights bound: %q", got)
+	}
+}
+
+func TestInsightExistsTreatsMutedDurable(t *testing.T) {
+	s, _, _ := mineCodeProject(t)
+	ctx := context.Background()
+	repo := NewRepo(s)
+	ins, err := repo.CreateInsight(ctx, Insight{
+		Scope: ScopeGlobal, Polarity: PolarityWinning,
+		Pattern:   Pattern{Feature: TechniqueFeaturePrefix + cognitive.OpRefine, Value: cognitive.OpRefine, Context: "archetype=code"},
+		Statement: "x",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.SetInsightStatus(ctx, ins.ID, InsightMuted); err != nil {
+		t.Fatal(err)
+	}
+	if !repo.insightExists(ctx, ScopeGlobal, ins.Pattern) {
+		t.Error("a muted insight's pattern must count as existing (mute must survive re-mining)")
+	}
+}

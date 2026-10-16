@@ -271,8 +271,13 @@ func (r *Repo) outcomeRows(ctx context.Context) ([]outcomeRow, error) {
 func (r *Repo) insightExists(ctx context.Context, scope string, p Pattern) bool {
 	raw, _ := json.Marshal(p)
 	var n int
+	// 'muted' counts as existing so a user's mute is durable against re-mining
+	// (otherwise a muted pattern would be re-proposed, and for a technique
+	// insight re-activated — defeating the reversibility the auto-activation
+	// promise depends on; M8-T28). 'retired' is intentionally excluded: a
+	// retired insight may re-emerge from new evidence.
 	err := r.store.DB().QueryRowContext(ctx,
-		`SELECT COUNT(*) FROM strategy_insights WHERE scope = ? AND pattern_json = ? AND status IN ('proposed','active')`,
+		`SELECT COUNT(*) FROM strategy_insights WHERE scope = ? AND pattern_json = ? AND status IN ('proposed','active','muted')`,
 		scope, string(raw)).Scan(&n)
 	return err == nil && n > 0
 }
@@ -397,6 +402,62 @@ func guidanceLine(ins Insight) string {
 // retired insights are excluded.
 func (r *Repo) ActiveInsights(ctx context.Context) ([]Insight, error) {
 	return r.ListInsights(ctx, InsightActive)
+}
+
+// AutoActivateOptions bounds automatic activation of winning technique
+// insights (M8-T28; ADR-0067). The bar is deliberately stricter than the
+// proposal threshold: only a winning technique whose cohort carries at least
+// MinCohortSize grounded verdicts and whose grounded accept-rate advantage
+// clears MinAcceptRateDelta is activated without a human.
+type AutoActivateOptions struct {
+	MinCohortSize      int
+	MinAcceptRateDelta float64
+	MaxActiveInsights  int
+}
+
+// ActivateWinningTechniques promotes proposed winning technique insights that
+// clear the strict bar, up to MaxActiveInsights active insights. It returns the
+// ids activated. It never touches persona/candidate insights (those keep the
+// HITL gate), never activates a losing or under-grounded technique, and is
+// idempotent (an already-active insight is not proposed, so it is not
+// reconsidered).
+func (r *Repo) ActivateWinningTechniques(ctx context.Context, opts AutoActivateOptions) ([]string, error) {
+	if opts.MaxActiveInsights <= 0 {
+		return nil, nil
+	}
+	active, err := r.ListInsights(ctx, InsightActive)
+	if err != nil {
+		return nil, err
+	}
+	remaining := opts.MaxActiveInsights - len(active)
+	if remaining <= 0 {
+		return nil, nil
+	}
+	proposed, err := r.ListInsights(ctx, InsightProposed)
+	if err != nil {
+		return nil, err
+	}
+	var activated []string
+	for _, ins := range proposed {
+		if remaining <= 0 {
+			break
+		}
+		if ins.Polarity != PolarityWinning || !strings.HasPrefix(ins.Pattern.Feature, TechniqueFeaturePrefix) {
+			continue
+		}
+		if ins.Evidence.GroundedJobs < opts.MinCohortSize {
+			continue
+		}
+		if ins.Evidence.AcceptRate-ins.Evidence.BaselineAcceptRate < opts.MinAcceptRateDelta {
+			continue
+		}
+		if err := r.SetInsightStatus(ctx, ins.ID, InsightActive); err != nil {
+			return activated, err
+		}
+		activated = append(activated, ins.ID)
+		remaining--
+	}
+	return activated, nil
 }
 
 func scanInsight(row interface{ Scan(...any) error }) (Insight, error) {
