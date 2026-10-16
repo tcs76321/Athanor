@@ -64,6 +64,27 @@ Stopping the run by signalling the daemon mid-job raced the F5 stop-pods
 shutdown, leaving **1 orphan Job Pod**, removed by hand. The M2-T5 boot sweep also
 catches orphans on the next daemon start; normal operation tears pods down.
 
+## Follow-ups (from the M9 runs)
+
+- **Qualification must repeat runs.** The 6/6 → 0/2 swing means a single-pass
+  pass@k is not a routing signal on its own. The generator qualification should
+  use repeats (`-dialectical-runs` > 1) and record `Measurement.Samples`, so
+  `onboard.Route`'s `MinSamples` guard (M9-T2b-2) can act on it.
+- **Engine verifier vs benchmark checks.** The bench `checks:` are stricter than
+  the task `criteria:` the engine sees. The engine's structural verifier is a
+  heuristic over natural-language criteria — it now recognizes `>= N`
+  (M9-T2b-2), but it cannot verify a check the criteria do not state. Either the
+  corpus criteria should encode the structural constraints, or the engine should
+  gain *declared* document checks (generalize the `execution.data_schema`
+  pattern).
+- **Ship a surface for the routing table.** `internal/onboard` is a pure library
+  with no production caller yet; a `athanor models` command (or a `GET /models`
+  route) would present the inventory + proposal for HITL approval — the missing
+  piece of M9-T2's acceptance.
+- **Interrupt-time pod teardown.** Signalling the daemon mid-job can leave one
+  orphan Job Pod (the §F5 ~10 s shutdown raced a mid-exec pod); the M2-T5 boot
+  sweep catches it. A tighter exec-timeout at shutdown would close the gap.
+
 ## Caveats
 
 - Early-stopped; small n; one generator. Directional, not conclusive.
