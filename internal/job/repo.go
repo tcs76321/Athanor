@@ -49,25 +49,39 @@ func NewRepository(s *store.Store) *Repository {
 // Create inserts a new queued job for a task and appends its creation
 // event in the same transaction.
 func (r *Repository) Create(ctx context.Context, taskID, projectID string) (Job, error) {
-	id := ids.New()
 	tx, err := r.store.DB().BeginTx(ctx, nil)
 	if err != nil {
 		return Job{}, fmt.Errorf("beginning job create: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
-	if _, err := tx.ExecContext(ctx,
-		`INSERT INTO jobs (id, task_id, project_id, state) VALUES (?, ?, ?, ?)`,
-		id, taskID, projectID, string(StateQueued),
-	); err != nil {
-		return Job{}, fmt.Errorf("creating job: %w", err)
-	}
-	if err := r.appendEvent(ctx, tx, id, projectID, map[string]any{"event": "created"}); err != nil {
+	id, err := r.CreateTx(ctx, tx, taskID, projectID)
+	if err != nil {
 		return Job{}, err
 	}
 	if err := tx.Commit(); err != nil {
 		return Job{}, fmt.Errorf("committing job create: %w", err)
 	}
 	return r.Get(ctx, id)
+}
+
+// CreateTx inserts a queued job for a task and appends its creation event
+// using the caller's transaction, returning the generated job ID. It does not
+// commit or roll back, so a caller can span the job insert and another write
+// in one atomic unit — the scheduler uses it to create the job and mark its
+// task `running` together (known-issues H7), so a status-write failure can
+// no longer leave an orphan `queued` job behind.
+func (r *Repository) CreateTx(ctx context.Context, tx *sql.Tx, taskID, projectID string) (string, error) {
+	id := ids.New()
+	if _, err := tx.ExecContext(ctx,
+		`INSERT INTO jobs (id, task_id, project_id, state) VALUES (?, ?, ?, ?)`,
+		id, taskID, projectID, string(StateQueued),
+	); err != nil {
+		return "", fmt.Errorf("creating job: %w", err)
+	}
+	if err := r.appendEvent(ctx, tx, id, projectID, map[string]any{"event": "created"}); err != nil {
+		return "", err
+	}
+	return id, nil
 }
 
 // Get loads one job by ID.

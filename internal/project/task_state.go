@@ -2,6 +2,7 @@ package project
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 )
 
@@ -102,6 +103,27 @@ func (r *Repo) SetTaskStatus(ctx context.Context, id, to string) error {
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
 		return &ErrConcurrentTaskTransition{ID: id, From: t.Status}
+	}
+	return nil
+}
+
+// SetTaskStatusTx moves a task from → to inside the caller's transaction, so a
+// job insert and the task-status write commit together (known-issues H7). It
+// is narrower than SetTaskStatus (which reads and compare-and-swaps on this
+// package's pooled handle): the caller supplies the expected `from` status and
+// the target `to`, and a zero-row compare-and-swap reports
+// ErrConcurrentTaskTransition. A non-legal edge is reported before any write.
+func (r *Repo) SetTaskStatusTx(ctx context.Context, tx *sql.Tx, id, from, to string) error {
+	if !CanTaskTransition(from, to) {
+		return &ErrIllegalTaskTransition{From: from, To: to}
+	}
+	res, err := tx.ExecContext(ctx,
+		`UPDATE tasks SET status = ? WHERE id = ? AND status = ?`, to, id, from)
+	if err != nil {
+		return fmt.Errorf("setting task %s status: %w", id, err)
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return &ErrConcurrentTaskTransition{ID: id, From: from}
 	}
 	return nil
 }

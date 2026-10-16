@@ -10,6 +10,17 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### H7 — atomic job + task-status scheduling write — 2026-10-16
+
+- **`job.Repository.CreateTx` + `project.Repo.SetTaskStatusTx`.** `advance`
+  inserted a `queued` job and *then* marked the task `running`; a failure
+  between the two left the task `pending` with an orphan job that the next pass
+  duplicated. The two writes now commit in one transaction (the scheduler opens
+  it over the store), so a failed task-status compare-and-swap rolls the job
+  insert back and the pass skips the task. Test:
+  `internal/scheduler/orchestrator_test.go` (`TestAdvanceRollsBackOnStatusConflict`),
+  `internal/project/task_state_test.go` (`TestSetTaskStatusTx`).
+
 ### H8 — operator task-reset seam (blocked DAGs are recoverable) — 2026-10-16
 
 - **`Scheduler.Reset` + `POST /tasks/{id}/reset` + `athanor task reset -id ID`.**

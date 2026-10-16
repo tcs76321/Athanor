@@ -411,3 +411,36 @@ func TestResetRefusesNonBlockedTask(t *testing.T) {
 		t.Fatalf("Reset on a running task = %v, want ErrNotBlocked", err)
 	}
 }
+
+// known-issues H7: if the task-status compare-and-swap loses (the task moved
+// off `pending` between the scheduling snapshot and the write), the job insert
+// rolls back with it, so no orphan `queued` job is left behind.
+func TestAdvanceRollsBackOnStatusConflict(t *testing.T) {
+	sched, projects, jobs, _, goalID := harness(t)
+	ctx := context.Background()
+
+	// Snapshot with A pending, then move A to `running` out from under it.
+	tasks, err := projects.TasksByGoal(ctx, goalID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	aID := taskIDByTitle(t, projects, goalID, "A")
+	if err := projects.SetTaskStatus(ctx, aID, project.TaskRunning); err != nil {
+		t.Fatal(err)
+	}
+
+	started, err := sched.advance(ctx, tasks) // stale snapshot: A still reads pending
+	if err != nil {
+		t.Fatalf("advance: %v", err)
+	}
+	if len(started) != 0 {
+		t.Fatalf("started = %v, want none (the CAS must lose)", started)
+	}
+	js, err := jobs.ByTask(ctx, aID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(js) != 0 {
+		t.Fatalf("jobs for A = %d, want 0 (the job insert must roll back)", len(js))
+	}
+}

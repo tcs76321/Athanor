@@ -54,9 +54,10 @@ type Scheduler struct {
 }
 
 // New wires a Scheduler. engine may be nil (tests that drive terminal
-// callbacks directly and never execute a job); events may be nil (no audit).
-// Retries default to 0 until SetMaxTaskRetries is called; the seams are nil
-// until set.
+// callbacks directly and never execute a job). events is the store the
+// scheduler opens its atomic job+task-status transaction on and appends audit
+// events to; it must be non-nil for scheduling (known-issues H7). Retries
+// default to 0 until SetMaxTaskRetries is called; the seams are nil until set.
 func New(projects *project.Repo, jobs *job.Repository, engine Enqueuer, events *store.Store) *Scheduler {
 	return &Scheduler{projects: projects, jobs: jobs, engine: engine, events: events}
 }
@@ -352,22 +353,53 @@ func (s *Scheduler) advance(ctx context.Context, tasks []project.Task) ([]string
 	var started []string
 	for _, id := range Ready(tasks) {
 		t := byID[id]
-		j, err := s.jobs.Create(ctx, id, t.ProjectID)
+		jobID, err := s.createJobAndRun(ctx, id, t.ProjectID)
 		if err != nil {
-			return started, fmt.Errorf("creating job for task %s: %w", id, err)
+			// A zero-row task CAS means a concurrent pass already moved the
+			// task off `pending`; the transaction rolled back, so there is no
+			// orphan job. Skip it and let the winner proceed (known-issues H7).
+			var conc *project.ErrConcurrentTaskTransition
+			if errors.As(err, &conc) {
+				continue
+			}
+			return started, fmt.Errorf("scheduling task %s: %w", id, err)
 		}
-		if err := s.projects.SetTaskStatus(ctx, id, project.TaskRunning); err != nil {
-			return started, fmt.Errorf("marking task %s running: %w", id, err)
-		}
-		started = append(started, j.ID)
-		s.audit(ctx, t.ProjectID, j.ID, map[string]any{
+		started = append(started, jobID)
+		s.audit(ctx, t.ProjectID, jobID, map[string]any{
 			"event": "task_scheduled", "task_id": id, "goal_id": goalID,
 		})
 		if s.engine != nil {
-			s.engine.Enqueue(j.ID)
+			s.engine.Enqueue(jobID)
 		}
 	}
 	return started, nil
+}
+
+// createJobAndRun creates a queued job for a task and marks the task `running`
+// in one transaction (known-issues H7): the old two-step write could fail
+// after the job insert, leaving the task `pending` with an orphan job that the
+// next pass would duplicate. The task-status compare-and-swap inside the
+// transaction is the atomicity guard; the caller holds s.mu.
+func (s *Scheduler) createJobAndRun(ctx context.Context, taskID, projectID string) (string, error) {
+	if s.events == nil {
+		return "", fmt.Errorf("scheduler has no store for the atomic job+status write")
+	}
+	tx, err := s.events.DB().BeginTx(ctx, nil)
+	if err != nil {
+		return "", fmt.Errorf("beginning schedule transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	jobID, err := s.jobs.CreateTx(ctx, tx, taskID, projectID)
+	if err != nil {
+		return "", err
+	}
+	if err := s.projects.SetTaskStatusTx(ctx, tx, taskID, project.TaskPending, project.TaskRunning); err != nil {
+		return "", err
+	}
+	if err := tx.Commit(); err != nil {
+		return "", fmt.Errorf("committing schedule transaction: %w", err)
+	}
+	return jobID, nil
 }
 
 // audit appends a `jobs` event, nil-safe.

@@ -20,23 +20,8 @@ are under "Open (2026-10-16 review)".
 Deep review of every subsystem (`internal/` + `cmd/`), design and
 implementation. Findings below are **unfixed** as of 2026-10-16 and ordered by
 severity. Locations are the call sites that need attention; "suggested fix" is
-advisory, not a contract. The remaining high item is H7 (H8 is fixed; see
-"Fixed (2026-10-16 review)"); the rest are hardening.
-
-### High
-
-**H7 — scheduler `advance` has a partial write that can duplicate a job.**
-`advance` (`internal/scheduler/orchestrator.go:272`) inserts a `queued` job and
-*then* marks the task `running`. If the status write fails, the task stays
-`pending` with an orphan `queued` job, and the next pass creates a second job.
-With the stale-callback fix in place the worst case is wasted duplicate work,
-not corruption, but the write is not atomic. Suggested fix: a store-level
-transaction spanning job creation + status update (needs `Create`/`SetTaskStatus`
-variants that accept a `*sql.Tx`, or a scheduler-owned transaction over the
-same `store.Store`), or an explicit "reuse the orphan queued job" guard that is
-robust against the retry path (the test harness currently reports terminal
-states without transitioning jobs, which is why the obvious reuse-guard was
-reverted).
+advisory, not a contract. There are no open high items (H7 and H8 are fixed;
+see "Fixed (2026-10-16 review)"); the rest are hardening.
 
 ### Medium
 
@@ -111,6 +96,7 @@ A hardening sweep driven by the same review. Each item is a separate commit
 | Area | Fix |
 |---|---|
 | Scheduler · recovery (H8) | a blocked task (and its transitively blocked dependents) is now recoverable without manual DB edits: `Scheduler.Reset` (behind `POST /tasks/{id}/reset` / `athanor task reset`) returns them to `pending` and pins `retry_baseline` (migration 0026), so `handleFailure` grants a fresh §7.2 retry window instead of re-blocking on the next failure |
+| Scheduler · atomicity (H7) | `advance` now creates the queued job and marks its task `running` in one transaction (`job.Repository.CreateTx` + `project.Repo.SetTaskStatusTx`), so a failed status write rolls back the job insert and can no longer leave an orphan that the next pass duplicates |
 | Engine · acceptance | the comparison verifier now runs on the **full** hash-verified artifact, not the 4 KB judge head (was falsely rejecting any code artifact >4 KB) |
 | Engine · state machine | added the missing `paused → comparing` resume edge |
 | Engine · reflection | the reflection proposal is now persisted and injected into the next divergence pass, and `max_reflection_loops=N` yields N full retries (was N reflections but N−1 re-divergences) |

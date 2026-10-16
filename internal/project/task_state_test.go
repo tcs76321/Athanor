@@ -123,3 +123,54 @@ func TestResetTask(t *testing.T) {
 		t.Fatalf("reset completed err = %v, want ErrIllegalTaskTransition", err)
 	}
 }
+
+// TestSetTaskStatusTx covers the in-transaction status write the scheduler uses
+// to make a job insert and the task-going-running write atomic (known-issues
+// H7): success, a stale-`from` compare-and-swap conflict, and an illegal edge.
+func TestSetTaskStatusTx(t *testing.T) {
+	r, s := openRepo(t)
+	ctx := context.Background()
+	p, _, err := r.Create(ctx, "demo", ArchetypeCode, validGoal, "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, tasks, err := r.CreateDAG(ctx, p.ID, "Build a small REST endpoint with tests.", nil,
+		[]TaskSpec{{Key: "a", Title: "a", Criteria: []string{"c"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := tasks[0].ID
+
+	tx, err := s.DB().BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := r.SetTaskStatusTx(ctx, tx, id, TaskPending, TaskRunning); err != nil {
+		t.Fatalf("pending→running in tx: %v", err)
+	}
+	if err := tx.Commit(); err != nil {
+		t.Fatal(err)
+	}
+
+	// A stale `from` loses the compare-and-swap.
+	tx2, err := s.DB().BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var conc *ErrConcurrentTaskTransition
+	if err := r.SetTaskStatusTx(ctx, tx2, id, TaskPending, TaskRunning); !errors.As(err, &conc) {
+		t.Fatalf("stale from err = %v, want ErrConcurrentTaskTransition", err)
+	}
+	_ = tx2.Rollback()
+
+	// An illegal edge is rejected before any write.
+	tx3, err := s.DB().BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var illegal *ErrIllegalTaskTransition
+	if err := r.SetTaskStatusTx(ctx, tx3, id, TaskCompleted, TaskPending); !errors.As(err, &illegal) {
+		t.Fatalf("illegal edge err = %v, want ErrIllegalTaskTransition", err)
+	}
+	_ = tx3.Rollback()
+}
