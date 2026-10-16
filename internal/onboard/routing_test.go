@@ -67,3 +67,20 @@ func TestRouteNoDataKeepsConfigured(t *testing.T) {
 		t.Fatalf("no-data recommendation = %+v", recs)
 	}
 }
+
+// TestRouteJudgeUnknownFamilyExcluded: a judge candidate with an unknown family
+// is not recommended — Route matches the engine's conservative posture.
+func TestRouteJudgeUnknownFamilyExcluded(t *testing.T) {
+	roles := []Role{{Role: "main", Model: "gemma4:12b-mlx"}, {Role: "security", Model: "phi3:3.8b"}}
+	families := map[string]string{"gemma4:12b-mlx": "gemma", "granite4.2:3b": "granite"}
+	ms := []Measurement{
+		{Role: "security", Model: "mystery:7b", Score: 0.99}, // unknown family → excluded
+		{Role: "security", Model: "granite4.2:3b", Score: 0.81},
+	}
+	recs := Route(roles, families, ms, RoutingOptions{
+		JudgeRole: "security", GeneratorRoles: []string{"main"}, MinImprovement: 0.05,
+	})
+	if sec := recByRole(recs, "security"); sec.Recommended != "granite4.2:3b" {
+		t.Fatalf("security = %+v, want granite4.2:3b (unknown-family judge excluded)", sec)
+	}
+}

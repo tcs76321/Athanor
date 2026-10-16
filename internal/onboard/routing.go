@@ -42,8 +42,9 @@ type Recommendation struct {
 
 // Route produces a routing proposal from per-role measurements. `families` maps
 // a model name to its lineage and is consulted only for the judge cross-family
-// rule; a missing family is treated as "unknown" and never matches a generator
-// family, so an undeclared model cannot silently satisfy the rule.
+// rule; a judge candidate whose family is unknown or matches a generator family
+// is excluded, so Route never recommends a judge it cannot prove is
+// cross-family (the engine's conservative posture).
 func Route(roles []Role, families map[string]string, ms []Measurement, opts RoutingOptions) []Recommendation {
 	best := map[string]map[string]float64{}
 	for _, m := range ms {
@@ -82,8 +83,14 @@ func Route(roles []Role, families map[string]string, ms []Measurement, opts Rout
 		}
 		var cands []cand
 		for model, score := range scores {
-			if opts.JudgeRole != "" && role.Role == opts.JudgeRole && genFamilies[families[model]] {
-				continue // same family as a generator: a correlated judge
+			if opts.JudgeRole != "" && role.Role == opts.JudgeRole {
+				// A judge whose family is unknown or matches a generator's is
+				// not a *verifiable* cross-family judge; exclude it, matching the
+				// engine's conservative runtime posture.
+				fam := families[model]
+				if fam == "" || genFamilies[fam] {
+					continue
+				}
 			}
 			cands = append(cands, cand{model, score})
 		}

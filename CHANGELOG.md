@@ -46,8 +46,8 @@ New entries are appended at the top. Do not rewrite history.
   generator's deterministic pass rate; a judge's anchor agreement) into a routing
   proposal: per role, keep the configured model or recommend the best measured
   one above `MinImprovement`, with the judge role's cross-family rule enforced
-  (a same-family judge is never recommended). Advisory only — the proposal is for
-  HITL approval and never mutates config ([ADR-0049](docs/adr/0049-model-onboarding-qualification.md)).
+  (a same-family or unknown-family judge is never recommended). Advisory only —
+  the proposal is for HITL approval and never mutates config ([ADR-0049](docs/adr/0049-model-onboarding-qualification.md)).
   The measurement runs (generator pass@k; judge anchor agreement via
   `make probe-anchor`) remain the T2b-2 work.
 
