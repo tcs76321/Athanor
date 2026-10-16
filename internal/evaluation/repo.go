@@ -15,6 +15,7 @@ package evaluation
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -138,12 +139,22 @@ func (r *Repo) Create(ctx context.Context, rec Record) (Record, error) {
 	// append-only log. Ships in the same transaction so a crash
 	// between INSERT and audit append cannot leave a record without
 	// its footprint.
+	auditData, err := json.Marshal(map[string]any{
+		"event":                "evaluation_record_created",
+		"record_id":            rec.ID,
+		"artifact_id":          rec.ArtifactID,
+		"score":                rec.Score,
+		"passed_tests":         rec.PassedTests,
+		"better_than_previous": rec.BetterThanPrevious,
+		"confidence":           rec.Confidence,
+	})
+	if err != nil {
+		return Record{}, fmt.Errorf("evaluation: marshalling audit event: %w", err)
+	}
 	if _, err := tx.ExecContext(ctx, `
 		INSERT INTO events (ts, category, job_id, level, data_json)
 		VALUES (strftime('%Y-%m-%dT%H:%M:%fZ','now'), 'jobs', ?, 'info', ?)`,
-		rec.JobID,
-		fmt.Sprintf(`{"event":"evaluation_record_created","record_id":%q,"artifact_id":%q,"score":%g,"passed_tests":%t,"better_than_previous":%t,"confidence":%g}`,
-			rec.ID, rec.ArtifactID, rec.Score, rec.PassedTests, rec.BetterThanPrevious, rec.Confidence),
+		rec.JobID, string(auditData),
 	); err != nil {
 		return Record{}, fmt.Errorf("evaluation: appending audit event: %w", err)
 	}
