@@ -288,20 +288,29 @@ func (c *soakRunConfig) run() error {
 
 	// ADR-0073 §2: conformance scenarios against the live daemon, after the
 	// workload, so freezing cannot stall a job.
-	scenarios := runScenarios(r.baseURL())
-	if err := writeJSON(filepath.Join(c.outDir, "scenarios.json"), scenarios); err != nil {
-		return err
-	}
-	passed := 0
-	for _, s := range scenarios {
-		if s.Pass {
-			passed++
-		}
-	}
-	logEvent("conformance: %d/%d scenario(s) passed", passed, len(scenarios))
+	deps := scenarioDeps{baseURL: r.baseURL(), stateDir: stateDir, outDir: c.outDir, binary: c.binary}
+	scenarios := runScenarios(deps)
 
 	sampler.stopAndWait()
 	r.stopDaemon(proc)
+
+	// The restore scenario needs the daemon stopped: it replaces a database.
+	scenarios = append(scenarios, scenarioRestore(deps))
+
+	if err := writeJSON(filepath.Join(c.outDir, "scenarios.json"), scenarios); err != nil {
+		return err
+	}
+	passed, skipped := 0, 0
+	for _, s := range scenarios {
+		switch {
+		case s.Skipped:
+			skipped++
+		case s.Pass:
+			passed++
+		}
+	}
+	logEvent("conformance: %d passed, %d skipped, %d failed", passed, skipped, len(scenarios)-passed-skipped)
+
 	if err := writeRollingReport(c.outDir, prior); err != nil {
 		return err
 	}

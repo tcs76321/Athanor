@@ -4,6 +4,9 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -81,12 +84,53 @@ func TestScenarioFreezeFailsWhenNotFrozen(t *testing.T) {
 	}
 }
 
+// TestScenarioPushSkipsWithoutWorkload pins that push with no state dir is a
+// skip, not a failure — the run simply did not produce a committable artifact.
+func TestScenarioPushSkipsWithoutWorkload(t *testing.T) {
+	got := scenarioPush(scenarioDeps{})
+	if !got.Skipped || got.Pass {
+		t.Errorf("scenarioPush with no state dir = %+v, want skipped", got)
+	}
+}
+
+func TestGitInitBareAndBranchExists(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not installed")
+	}
+	remote := filepath.Join(t.TempDir(), "r.git")
+	if err := gitInitBare(remote); err != nil {
+		t.Fatalf("gitInitBare: %v", err)
+	}
+	if gitBranchExists(remote, "athanor/x") {
+		t.Error("an empty bare repo reports a branch that does not exist")
+	}
+}
+
+func TestNewestSnapshot(t *testing.T) {
+	dir := t.TempDir()
+	for _, n := range []string{"athanor-v0001-20260101T000000Z.db", "athanor-v0002-20260102T000000Z.db", "notes.txt"} {
+		if err := os.WriteFile(filepath.Join(dir, n), []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got, err := newestSnapshot(dir)
+	if err != nil {
+		t.Fatalf("newestSnapshot: %v", err)
+	}
+	if filepath.Base(got) != "athanor-v0002-20260102T000000Z.db" {
+		t.Errorf("newestSnapshot = %s, want the v0002 snapshot", got)
+	}
+	if _, err := newestSnapshot(t.TempDir()); err == nil {
+		t.Error("an empty dir must return an error, not an empty path")
+	}
+}
+
 func TestRenderConformance(t *testing.T) {
 	out := renderConformance([]scenarioResult{
 		{Name: "freeze-unfreeze", Pass: true, Detail: "ok"},
 		{Name: "ui-pages", Pass: false, Detail: "boom"},
 	})
-	for _, want := range []string{"Conformance", "PASS", "FAIL", "1/2"} {
+	for _, want := range []string{"Conformance", "PASS", "FAIL", "1 passed, 1 failed", "0 skipped"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("conformance render missing %q\n%s", want, out)
 		}

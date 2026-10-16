@@ -100,6 +100,25 @@ deadline is persisted to `<out>/deadline` so a resume does not slide it.
 `scripts/soak.sh` (`make soak`) is the **legacy** per-iteration runner; prefer
 the `soak` subcommand.
 
+## Conformance scenarios (ADR-0073)
+
+At the end of a run the harness drives a small set of end-to-end scenarios
+against the live daemon and folds a pass/fail matrix into `report.md`:
+
+- **freeze-unfreeze** — the §22 kill switch: freeze, a reasonless unfreeze is
+  rejected, a reasoned unfreeze clears it.
+- **ui-pages** — the dashboard, statistics, projects, and corrections pages
+  render.
+- **ui-sse** — the dashboard event stream opens (`text/event-stream`).
+- **push-local-remote** — an approved HITL push delivers the agent branch to a
+  **local bare repository** (a real push, no network).
+- **backup-restore** — the §23.4 cycle on the run's own state dir: snapshot,
+  restore into a scratch directory, read the database back.
+
+The set is offline (loopback only) and grows only when a scenario proves
+something no existing gate already proves. A run with no accepted repo-backed
+artifact reports `push-local-remote` as skipped, not failed.
+
 ## Model comparison (benchmark readout)
 
 One `soak` invocation is one model, so single-model residency is preserved
