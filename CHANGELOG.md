@@ -10,6 +10,15 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### M9-T4b — the hard-task raise keys on evidence, not just the hint
+
+- **M9-T4b.** Following the M9-T2b smoke (a weak planner labelled every H-tier
+  code task "easy"), the candidate raise now also fires on **evidence**: a task
+  class with at least `HardByEvidenceMinSamples` recorded outcomes and an accept
+  rate below `HardByEvidenceMaxAcceptRate` (0.5) is treated as hard, and
+  `Adaptive` will not narrow it. This closes the gap where the one hard-task
+  lever was gated on a signal a weak planner gets wrong.
+
 ### M9-T2b — qualification smoke (findings)
 
 - **M9-T2b (smoke).** A ~1-hour pre-qualification pass; findings in

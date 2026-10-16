@@ -67,12 +67,13 @@ verifier is the only real signal.
 - With the 9B generator, the repair loop (M9-T1) and the synthesis fix (ADR-0068)
   are live but cannot rescue a model that fails every candidate on a hard task.
   This is the model ceiling ADR-0063 named, not an engine defect.
-- **[Actionable]** The planner flagged every H-tier code task `DIFFICULTY: easy`
-  (`difficulty_hint: easy` in the event log), so **M9-T4's hard-task candidate
-  raise never fired** (`divergence_start candidates=3` on every cycle). The
-  hard-task lever is gated on the planner's self-assessment, which a weak planner
-  gets wrong. This is a design gap to revisit: the raise should also key on
-  *evidence* (a task class the model keeps failing) rather than the hint alone.
+- **[Actionable — fixed in M9-T4b]** The planner flagged every H-tier code task
+  `DIFFICULTY: easy` (`difficulty_hint: easy` in the event log), so **M9-T4's
+  hard-task candidate raise never fired** (`divergence_start candidates=3` on
+  every cycle). The hard-task lever was gated on the planner's self-assessment,
+  which a weak planner gets wrong. **M9-T4b** now also raises on *evidence* (a
+  task class with ≥ 5 outcomes and an accept rate below 0.5), and `Adaptive` will
+  not narrow it.
 - Diversity was real (0.57–0.78) except `code-refactor-provided` (0.00) — the
   candidates were identical there.
 

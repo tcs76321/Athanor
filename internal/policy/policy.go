@@ -150,6 +150,23 @@ func Novelty(f Features) float64 {
 // starve the repertoire.
 const ExplorationFloorSamples = 3
 
+// HardByEvidenceMinSamples and HardByEvidenceMaxAcceptRate define "hard by
+// evidence": a task class the model has repeatedly failed — enough recorded
+// outcomes and a low accept rate — is treated as hard regardless of the
+// planner's self-assessment. A weak planner labelled every H-tier code task
+// "easy" in the M9-T2b qualification smoke, so the hint alone is unreliable
+// (M9-T4; docs/qualification-smoke-m9.md).
+const (
+	HardByEvidenceMinSamples    = 5
+	HardByEvidenceMaxAcceptRate = 0.5
+)
+
+// isHardByEvidence reports whether prior outcomes mark this task class as hard.
+// Pure and total.
+func isHardByEvidence(f Features) bool {
+	return f.RecentSamples >= HardByEvidenceMinSamples && f.RecentAcceptRate < HardByEvidenceMaxAcceptRate
+}
+
 // eligibleOperations derives the runnable operation set from a plan (the
 // canonical baseline, minus reflection when the plan grants it no budget) and
 // applies the exploration floor. Pure and total.
@@ -211,9 +228,11 @@ func (Default) Decide(in Inputs) Plan {
 	if candidates < 1 {
 		candidates = 1
 	}
-	// §13.1: a task the planner flagged hard gets up to the hard-task ceiling,
-	// so the loop has more shots at the harder problems.
-	if in.Features.Difficulty == "hard" && in.Limits.HardCandidatesCeiling > candidates {
+	// §13.1: a hard task gets up to the hard-task ceiling, so the loop has more
+	// shots at the harder problems. "Hard" is the planner hint OR evidence (a
+	// task class the model keeps failing) — a weak planner calls hard tasks
+	// easy, so the hint alone is unreliable (M9-T4).
+	if (in.Features.Difficulty == "hard" || isHardByEvidence(in.Features)) && in.Limits.HardCandidatesCeiling > candidates {
 		candidates = in.Limits.HardCandidatesCeiling
 	}
 	reflection := in.Limits.ReflectionCeiling

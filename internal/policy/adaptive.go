@@ -30,9 +30,14 @@ func (Adaptive) Decide(in Inputs) Plan {
 }
 
 // isEasy reports whether a task class is easy enough to skip divergence and
-// reflection. The planner's hint is authoritative; absent one, a well-known
-// class (>= 5 samples at >= 90% accepted) or a task with <= 1 criterion is easy.
+// reflection. Evidence of repeated failure (isHardByEvidence) overrides an
+// "easy" self-assessment: a weak planner calls hard tasks easy (M9-T4). The
+// planner's hint is otherwise authoritative; absent one, a well-known class
+// (>= 5 samples at >= 90% accepted) or a task with <= 1 criterion is easy.
 func isEasy(f Features) bool {
+	if isHardByEvidence(f) {
+		return false
+	}
 	switch f.Difficulty {
 	case "easy":
 		return true

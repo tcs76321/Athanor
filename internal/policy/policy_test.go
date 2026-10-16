@@ -158,3 +158,32 @@ func TestDefault_RaisesCandidatesOnHardTask(t *testing.T) {
 		t.Errorf("adaptive hard candidates = %d, want 8 (the raise survives)", got.Candidates)
 	}
 }
+
+// TestDefault_RaisesCandidatesOnEvidenceOfFailure (M9-T4): a task class the
+// model keeps failing raises candidates even when the planner called it easy.
+func TestDefault_RaisesCandidatesOnEvidenceOfFailure(t *testing.T) {
+	lim := Limits{CandidatesCeiling: 3, HardCandidatesCeiling: 8, ReflectionCeiling: 2}
+	failing := Features{Difficulty: "easy", RecentSamples: 10, RecentAcceptRate: 0.2}
+	if got := (Default{}).Decide(Inputs{Features: failing, Limits: lim}); got.Candidates != 8 {
+		t.Errorf("evidence-hard candidates = %d, want 8", got.Candidates)
+	}
+	healthy := Features{Difficulty: "easy", RecentSamples: 10, RecentAcceptRate: 0.8}
+	if got := (Default{}).Decide(Inputs{Features: healthy, Limits: lim}); got.Candidates != 3 {
+		t.Errorf("healthy class candidates = %d, want 3", got.Candidates)
+	}
+}
+
+// TestAdaptive_EvidenceHardOverridesEasyHint (M9-T4): a failing class is not
+// narrowed even when the planner said easy.
+func TestAdaptive_EvidenceHardOverridesEasyHint(t *testing.T) {
+	got := Adaptive{}.Decide(Inputs{
+		Features: Features{Difficulty: "easy", RecentSamples: 10, RecentAcceptRate: 0.1},
+		Limits:   Limits{CandidatesCeiling: 3, HardCandidatesCeiling: 8, ReflectionCeiling: 2},
+	})
+	if got.Candidates != 8 {
+		t.Errorf("evidence-hard adaptive candidates = %d, want 8 (not narrowed)", got.Candidates)
+	}
+	if got.MaxReflectionLoops == 0 {
+		t.Error("evidence-hard task must keep its reflection budget")
+	}
+}
