@@ -227,11 +227,14 @@ linters:
 documentation_required: true
 ```
 
-> **Implementation status (F3-T4).** A subset is modeled as
+> **Implementation status (F3-T4; checks added M9).** A subset is modeled as
 > `projects.execution_json` ([ADR-0031](docs/adr/0031-project-execution-config.md)):
 > `test_command` (default `pytest -q` for `code`), `build_command`,
-> `linters`, `fixture_path`, and `data_schema` (the JSON Schema a `data`
-> candidate is verified against by `internal/verify`, M9-T3), settable via
+> `linters`, `fixture_path`, `data_schema` (the JSON Schema a `data`
+> candidate is verified against by `internal/verify`, M9-T3), and `checks`
+> (the declared machine-checkable constraints a `text`/`document` candidate is
+> verified against —
+> [ADR-0070](docs/adr/0070-declared-checks.md)), settable via
 > `athanor project create` and `POST /projects`.
 > The engine runs the resolved test command in the Job Pod. `language` is
 > still closed at `python` in the internal API; `run_command` and

@@ -319,6 +319,9 @@ type projectExecution struct {
 	FixturePath string `json:"fixture_path"`
 	// DataSchema is the JSON Schema a data task must validate against (M9-T3).
 	DataSchema string `json:"data_schema"`
+	// Checks is the operator-declared machine-checkable constraint set
+	// (M9, ADR-0070) enforced deterministically for a text/document task.
+	Checks *project.ExecutionChecks `json:"checks"`
 }
 
 type projectResponse struct {
@@ -350,6 +353,7 @@ func (a *API) handleProjectCreate(w http.ResponseWriter, r *http.Request) {
 			Linters:      req.Execution.Linters,
 			FixturePath:  req.Execution.FixturePath,
 			DataSchema:   req.Execution.DataSchema,
+			Checks:       req.Execution.Checks,
 		}
 		if err := a.projects.SetExecution(r.Context(), p.ID, ex); err != nil {
 			writeError(w, http.StatusInternalServerError, err.Error())

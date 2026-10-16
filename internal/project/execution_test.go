@@ -26,6 +26,12 @@ func TestExecutionOverrideRoundTrips(t *testing.T) {
 		BuildCommand: "go build ./...",
 		Linters:      []string{"golangci-lint"},
 		DataSchema:   `{"type":"object","required":["id"]}`,
+		Checks: &ExecutionChecks{
+			RequiredSections:   []string{"Context", "Decision"},
+			StrictSectionOrder: []string{"Context", "Decision"},
+			MaxWords:           300,
+			MinItems:           []ItemCount{{Noun: "risks", Min: 2}},
+		},
 	}
 	if err := r.SetExecution(ctx, p.ID, ex); err != nil {
 		t.Fatalf("SetExecution: %v", err)
@@ -45,6 +51,10 @@ func TestExecutionOverrideRoundTrips(t *testing.T) {
 	}
 	if got.Execution.DataSchema == "" {
 		t.Error("DataSchema did not round-trip through execution_json (M9-T3)")
+	}
+	if got.Execution.Checks == nil || len(got.Execution.Checks.RequiredSections) != 2 ||
+		got.Execution.Checks.MaxWords != 300 || len(got.Execution.Checks.MinItems) != 1 {
+		t.Errorf("Checks did not round-trip through execution_json (ADR-0070): %+v", got.Execution.Checks)
 	}
 }
 

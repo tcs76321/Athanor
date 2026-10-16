@@ -407,6 +407,11 @@ func (r *runnerConfig) runOne(g sampleGoal, m probeModel, a arm, run int, stateD
 		}
 		body["repository_path"] = repoCopy
 	}
+	// ADR-0070: send the bench task's deterministic checks (and, for `data`,
+	// its JSON Schema) to the project's execution config so the engine's
+	// *runtime* verifiers gate acceptance — not only the probe's independent
+	// offline scorer (runChecks, M8-T21).
+	exec := map[string]any{}
 	if g.Archetype == "code" {
 		// F4-T0: the Job Pod now materializes the candidate to
 		// /tmp/solution.py and runs the test command with that as cwd, so
@@ -416,7 +421,7 @@ func (r *runnerConfig) runOne(g sampleGoal, m probeModel, a arm, run int, stateD
 		if tc == "" {
 			tc = "true"
 		}
-		exec := map[string]any{"test_command": tc}
+		exec["test_command"] = tc
 		// ADR-0065: a bench code task with a starter tree passes its
 		// fixture_path (absolute, so the daemon reads it regardless of cwd).
 		if g.Fixture != "" {
@@ -424,6 +429,18 @@ func (r *runnerConfig) runOne(g sampleGoal, m probeModel, a arm, run int, stateD
 				exec["fixture_path"] = abs
 			}
 		}
+	}
+	if c := checksToExecution(g.Checks); c != nil {
+		exec["checks"] = c
+	}
+	if sp, ok := g.Checks["json_schema"].(string); ok && sp != "" {
+		if abs, err := filepath.Abs(sp); err == nil {
+			if b, rerr := os.ReadFile(abs); rerr == nil {
+				exec["data_schema"] = string(b)
+			}
+		}
+	}
+	if len(exec) > 0 {
 		body["execution"] = exec
 	}
 	if err := apiCall("POST", r.baseURL()+"/projects", body, &pr); err != nil {

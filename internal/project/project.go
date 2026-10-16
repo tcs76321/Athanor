@@ -81,6 +81,63 @@ type Execution struct {
 	// (M9-T3). Operator-supplied (never from the model); empty means the LLM
 	// judge decides, as before.
 	DataSchema string `json:"data_schema,omitempty"`
+	// Checks is the operator-declared, machine-checkable constraint set (M9
+	// verifier strengthening, ADR-0070). It is the deterministic counterpart
+	// to the free-text AcceptanceCriteria: a `text`/`document` candidate is
+	// gated by it exactly as a `code` candidate is gated by its test command
+	// or a `data` candidate by its schema. nil declares no checks.
+	Checks *ExecutionChecks `json:"checks,omitempty"`
+}
+
+// ExecutionChecks is the operator-declared, machine-checkable constraint set
+// (M9, ADR-0070). It mirrors the deterministic subset of eval/bench's
+// `checks:` block — previously the benchmark's offline scorer only — so the
+// engine can gate a text/document candidate at runtime instead of scoring it
+// after the fact. It rides projects.execution_json (ADR-0031); no migration.
+//
+// The zero value declares no checks and leaves acceptance to the other
+// verifiers and the LLM judge. A declared check is authoritative: the
+// declared-checks verifier is HARD, so a failure decides rejection.
+type ExecutionChecks struct {
+	// RequiredSections names markdown headings (case-insensitive, trimmed)
+	// that must each appear. Mirrors eval/bench required_sections.
+	RequiredSections []string `json:"required_sections,omitempty"`
+	// StrictSectionOrder names headings that must appear in this relative
+	// order (a subsequence of the document's headings). Mirrors
+	// strict_section_order.
+	StrictSectionOrder []string `json:"strict_section_order,omitempty"`
+	// ExactParagraphs requires exactly this many prose paragraphs (0 = unset).
+	ExactParagraphs int `json:"exact_paragraphs,omitempty"`
+	// MinWords / MaxWords bound the word count (0 = unset).
+	MinWords int `json:"min_words,omitempty"`
+	MaxWords int `json:"max_words,omitempty"`
+	// ForbiddenPhrases must not appear (case-insensitive substring).
+	ForbiddenPhrases []string `json:"forbidden_phrases,omitempty"`
+	// MustContain phrases must each appear (case-insensitive substring).
+	MustContain []string `json:"must_contain,omitempty"`
+	// NoHeadings forbids any markdown heading.
+	NoHeadings bool `json:"no_headings,omitempty"`
+	// NoPlaceholders forbids TODO/FIXME/lorem-ipsum markers.
+	NoPlaceholders bool `json:"no_placeholders,omitempty"`
+	// MinItems requires at least Min bullet items under a section whose
+	// heading contains Noun (or, failing that, in the document body). It
+	// generalizes eval/bench's count_alternatives_min / count_risks_min.
+	MinItems []ItemCount `json:"min_items,omitempty"`
+}
+
+// ItemCount is one named minimum-cardinality check, e.g.
+// {Noun: "risks", Min: 2} for eval/bench's count_risks_min: 2.
+type ItemCount struct {
+	Noun string `json:"noun"`
+	Min  int    `json:"min"`
+}
+
+// IsZero reports whether no check is declared.
+func (c ExecutionChecks) IsZero() bool {
+	return len(c.RequiredSections) == 0 && len(c.StrictSectionOrder) == 0 &&
+		c.ExactParagraphs == 0 && c.MinWords == 0 && c.MaxWords == 0 &&
+		len(c.ForbiddenPhrases) == 0 && len(c.MustContain) == 0 &&
+		!c.NoHeadings && !c.NoPlaceholders && len(c.MinItems) == 0
 }
 
 // DefaultCodeTestCommand is the built-in test command for a `code` project

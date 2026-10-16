@@ -63,3 +63,45 @@ func TestRunChecksAdvisoryDoesNotGate(t *testing.T) {
 		t.Errorf("advisory result missing: %+v", results)
 	}
 }
+
+// TestChecksToExecution pins the ADR-0070 translation: deterministic keys
+// carry, the two count_*_min keys become min_items, advisory/fixture keys do
+// not carry, and an advisory-only task yields nil (no execution block).
+func TestChecksToExecution(t *testing.T) {
+	checks := map[string]any{
+		"required_sections":      []any{"Context", "Decision"},
+		"strict_section_order":   []any{"Context", "Decision"},
+		"max_words":              300,
+		"forbidden_phrases":      []any{"click here"},
+		"must_contain":           []any{"choose"},
+		"no_headings":            true,
+		"count_alternatives_min": 3,
+		"count_risks_min":        2,
+		"no_fabricated_commands": true, // advisory: must not carry
+	}
+	got := checksToExecution(checks)
+	if got == nil {
+		t.Fatal("expected a translation, got nil")
+	}
+	if _, ok := got["no_fabricated_commands"]; ok {
+		t.Error("advisory key carried into the execution checks")
+	}
+	items, ok := got["min_items"].([]map[string]any)
+	if !ok || len(items) != 2 {
+		t.Fatalf("min_items = %v, want 2 entries", got["min_items"])
+	}
+	if items[0]["noun"] != "alternatives" || items[0]["min"] != 3 {
+		t.Errorf("min_items[0] = %v", items[0])
+	}
+	if _, ok := got["max_words"]; !ok {
+		t.Error("max_words did not carry")
+	}
+
+	// An advisory-only map produces no execution block.
+	if got := checksToExecution(map[string]any{"must_flag_contradiction": true}); got != nil {
+		t.Errorf("advisory-only translation = %v, want nil", got)
+	}
+	if got := checksToExecution(nil); got != nil {
+		t.Errorf("nil translation = %v, want nil", got)
+	}
+}

@@ -70,13 +70,14 @@ catches orphans on the next daemon start; normal operation tears pods down.
   pass@k is not a routing signal on its own. The generator qualification should
   use repeats (`-dialectical-runs` > 1) and record `Measurement.Samples`, so
   `onboard.Route`'s `MinSamples` guard (M9-T2b-2) can act on it.
-- **Engine verifier vs benchmark checks.** The bench `checks:` are stricter than
-  the task `criteria:` the engine sees. The engine's structural verifier is a
-  heuristic over natural-language criteria — it now recognizes `>= N`
-  (M9-T2b-2), but it cannot verify a check the criteria do not state. Either the
-  corpus criteria should encode the structural constraints, or the engine should
-  gain *declared* document checks (generalize the `execution.data_schema`
-  pattern).
+- **Engine verifier vs benchmark checks — FIXED (2026-10-16).** The bench
+  `checks:` are stricter than the task `criteria:` the engine sees, and the
+  engine's structural verifier is a heuristic over natural-language criteria —
+  it cannot verify a check the criteria do not state. The engine now gains
+  *declared* document checks (generalize the `execution.data_schema` pattern):
+  `execution.checks` ([ADR-0070](adr/0070-declared-checks.md)) feeds a hard
+  `checksVerifier`, and the probe sends each bench task's `checks:` (and, for
+  `data`, its schema) to the project so the engine gates at runtime.
 - **Ship a surface for the routing table.** `internal/onboard` is a pure library
   with no production caller yet; a `athanor models` command (or a `GET /models`
   route) would present the inventory + proposal for HITL approval — the missing

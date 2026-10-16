@@ -10,6 +10,22 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Declared deterministic checks for text/document (ADR-0070) — 2026-10-16
+
+- **The document/text acceptance edge.** `project.Execution` gains `Checks`
+  (riding `execution_json`, no migration) and `internal/verify` gains a hard
+  `checksVerifier` for the `text`/`document` archetypes, mirroring the
+  deterministic `checks:` the `eval/bench` corpus already scored offline
+  (`required_sections`, `strict_section_order`, `exact_paragraphs`,
+  `min_words`/`max_words`, `forbidden_phrases`, `must_contain`, `no_headings`,
+  `no_placeholders`, `min_items`). Exposed via `POST /projects` and
+  `athanor project create -checks <json>`; the probe now sends each bench
+  task's checks (and, for `data`, its schema) to the project so the engine
+  gates at runtime, not only after the fact. ADR:
+  [0070](docs/adr/0070-declared-checks.md). Tests:
+  `internal/verify/checks_test.go`, `internal/project/execution_test.go`,
+  `spikes/m3-t7-probe/checks_test.go`.
+
 ### Job Pod shutdown hardening (M9 soak) — 2026-10-16
 
 - **No orphan pods on interrupt.** Signalling the daemon mid-job could leave one

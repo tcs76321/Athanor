@@ -52,6 +52,10 @@ type Input struct {
 	// execution config (M9-T3). Empty means no deterministic data check — the
 	// LLM judge decides, as before.
 	DataSchema string
+	// Checks is the operator-declared, machine-checkable constraint set from
+	// the project's execution config (M9, ADR-0070). nil means no declared
+	// checks. `text`/`document` candidates are gated by it deterministically.
+	Checks *project.ExecutionChecks
 }
 
 // Verdict is one verifier's decision. Applied reports whether the verifier
@@ -106,9 +110,10 @@ type archetypeVerifier interface {
 
 // Default is the in-tree verifier set: code gets the real test run, the
 // linter, and (when required) the documentation-presence gate; text/document
-// get structural checks; data gets a JSON-Schema check when the project
-// declares one (M9-T3); media has no deterministic verifier yet (deferred), so
-// its candidates are decided by the LLM judge.
+// get structural checks and any operator-declared checks; data gets a
+// JSON-Schema check when the project declares one (M9-T3); media has no
+// deterministic verifier yet (deferred), so its candidates are decided by the
+// LLM judge.
 func Default() *Registry {
 	return NewRegistry(
 		testsVerifier{},
@@ -116,6 +121,7 @@ func Default() *Registry {
 		docsVerifier{},
 		structureVerifier{},
 		dataVerifier{},
+		checksVerifier{},
 	)
 }
 

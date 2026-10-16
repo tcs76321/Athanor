@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"net/http"
@@ -25,6 +26,7 @@ func runProject(args []string) error {
 	testCmd := fs.String("test-command", "", "override the code test command (default pytest -q)")
 	buildCmd := fs.String("build-command", "", "override the build command (optional)")
 	dataSchema := fs.String("data-schema", "", "JSON Schema a data candidate must validate against (optional)")
+	checksJSON := fs.String("checks", "", "declared structural checks for text/document, as a JSON object (optional)")
 	var criteria criteriaFlag
 	fs.Var(&criteria, "criteria", "acceptance criteria, separated by ';'")
 	addr := fs.String("addr", defaultAddr, "daemon address")
@@ -38,7 +40,7 @@ func runProject(args []string) error {
 		"name": *name, "archetype": *archetype, "goal": *goal,
 		"acceptance_criteria": criteria, "repository_path": *repo,
 	}
-	if *testCmd != "" || *buildCmd != "" || *dataSchema != "" {
+	if *testCmd != "" || *buildCmd != "" || *dataSchema != "" || *checksJSON != "" {
 		ex := map[string]any{}
 		if *testCmd != "" {
 			ex["test_command"] = *testCmd
@@ -48,6 +50,13 @@ func runProject(args []string) error {
 		}
 		if *dataSchema != "" {
 			ex["data_schema"] = *dataSchema
+		}
+		if *checksJSON != "" {
+			var c map[string]any
+			if err := json.Unmarshal([]byte(*checksJSON), &c); err != nil {
+				return fmt.Errorf("invalid -checks JSON: %w", err)
+			}
+			ex["checks"] = c
 		}
 		body["execution"] = ex
 	}

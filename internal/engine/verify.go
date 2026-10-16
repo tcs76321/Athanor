@@ -30,6 +30,7 @@ func (e *Engine) verifyCandidate(ctx context.Context, j job.Job, p project.Proje
 		Content:    content,
 		Criteria:   t.Criteria,
 		DataSchema: p.Execution.DataSchema,
+		Checks:     p.Execution.Checks,
 	}
 	// F5 (ADR-0058): the code acceptance gates. An explicit false restores
 	// the pre-F5 behavior; the config resolver applies the true default.

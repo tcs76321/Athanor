@@ -127,6 +127,44 @@ func runChecks(checks map[string]any, content string) (bool, []checkResult) {
 	return gating, results
 }
 
+// checksToExecution translates a bench task's `checks:` map into the engine's
+// declared-checks execution field (ADR-0070). It carries only the deterministic
+// keys the engine understands; an advisory or fixture-dependent check is left
+// to the probe's independent offline scorer (runChecks). count_alternatives_min
+// and count_risks_min become a general min_items list. Returns nil when nothing
+// carries, so the caller sends no execution block.
+func checksToExecution(checks map[string]any) map[string]any {
+	if len(checks) == 0 {
+		return nil
+	}
+	out := map[string]any{}
+	for _, k := range []string{
+		"required_sections", "strict_section_order", "must_contain", "forbidden_phrases",
+		"exact_paragraphs", "max_words", "min_words",
+	} {
+		if v, ok := checks[k]; ok {
+			out[k] = v
+		}
+	}
+	if v, ok := checks["no_headings"]; ok && toBool(v) {
+		out["no_headings"] = true
+	}
+	var items []map[string]any
+	if v, ok := checks["count_alternatives_min"]; ok {
+		items = append(items, map[string]any{"noun": "alternatives", "min": toInt(v)})
+	}
+	if v, ok := checks["count_risks_min"]; ok {
+		items = append(items, map[string]any{"noun": "risks", "min": toInt(v)})
+	}
+	if len(items) > 0 {
+		out["min_items"] = items
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
 var benchHeadingRe = regexp.MustCompile(`(?m)^[ \t]*#{1,6}[ \t]+(.+?)[ \t]*$`)
 
 func sectionNames(content string) map[string]bool {
