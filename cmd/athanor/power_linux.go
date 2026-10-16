@@ -27,11 +27,12 @@ func (linuxObserver) Observe(ctx context.Context) (power.Observation, error) {
 	const root = "/sys/class/power_supply"
 	entries, err := os.ReadDir(root)
 	if err == nil {
-		hasBattery := false
+		hasBattery, sawAC := false, false
 		for _, e := range entries {
 			name := e.Name()
 			switch {
 			case strings.HasPrefix(name, "AC"), strings.HasPrefix(name, "ADP"):
+				sawAC = true
 				if b, err := os.ReadFile(filepath.Join(root, name, "online")); err == nil {
 					obs.OnAC = strings.TrimSpace(string(b)) == "1"
 				}
@@ -44,9 +45,15 @@ func (linuxObserver) Observe(ctx context.Context) (power.Observation, error) {
 				}
 			}
 		}
-		// A desktop with no battery is always "on AC".
-		if !hasBattery {
+		switch {
+		case !hasBattery:
+			// A desktop with no battery is always "on AC".
 			obs.OnAC = true
+		case !sawAC:
+			// known-issues L22: a battery exists but no AC/ADP supply entry
+			// was found, so the online state is unknown. Fail closed (assume
+			// battery) rather than the previous fail-open (assume AC).
+			obs.OnAC = false
 		}
 	}
 

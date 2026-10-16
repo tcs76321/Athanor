@@ -775,6 +775,37 @@ func TestAirlock_RejectsZeroThresholds(t *testing.T) {
 	}
 }
 
+// TestParseRejectsNegativeNumericBounds (known-issues M2) pins that a typo'd
+// negative bound is rejected loudly rather than silently default-filled.
+func TestParseRejectsNegativeNumericBounds(t *testing.T) {
+	bad := []string{
+		"agent:\n  max_proactive_tasks_per_day: -1\n",
+		"limits:\n  max_concurrent_jobs: -3\n",
+		"limits:\n  max_concurrent_llm_calls: -1\n",
+		"recovery:\n  max_tool_call_retries: -1\n",
+		"recovery:\n  max_loop_interventions: -1\n",
+		"backup:\n  max_local_backups: -1\n",
+		"power:\n  daydream_max_concurrent: -1\n",
+		"power:\n  daydream_max_wall_time_minutes: -1\n",
+		"strategy_analysis:\n  min_cohort_size: -1\n",
+		"strategy_analysis:\n  insight_expiry_days: -1\n",
+		"job_pod:\n  pids_limit: -1\n",
+		"job_pod:\n  memory_mb: -1\n",
+		"job_pod:\n  cpus: -0.5\n",
+		"network:\n  rate_limit_per_minute: -1\n",
+	}
+	for _, y := range bad {
+		_, err := Parse([]byte(y))
+		if err == nil {
+			t.Errorf("Parse(%q) accepted a negative bound; want a validation error", strings.TrimSpace(y))
+			continue
+		}
+		if !strings.Contains(err.Error(), "must be") {
+			t.Errorf("Parse(%q) error %q does not name the bound", strings.TrimSpace(y), err.Error())
+		}
+	}
+}
+
 // TestAirlock_RejectsNegativeRatio (M4-T2/T3/T4) proves the
 // ratio floor is ≥ 1, not just positive. A negative ratio would
 // make the zipbomb scanner fail its `> ratio` check on every

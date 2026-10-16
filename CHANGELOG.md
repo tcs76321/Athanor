@@ -10,6 +10,23 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Config & power hardening (M2, M12, L22, L25) — 2026-10-16
+
+- **M2 — config bounds reject negatives.** `validateRaw` now range-checks
+  `agent`, `limits`, `recovery`, `backup`, `power.daydream_*`,
+  `strategy_analysis.*`, `job_pod.{pids_limit,memory_mb,cpus}`,
+  `network.{rate_limit_per_minute,max_response_bytes}`; a typo like
+  `max_concurrent_jobs: -3` fails loudly instead of loading silently.
+- **M12 — unknown battery level fails closed.** With `require_ac_for_deep_work`
+  on, an unknown battery reading (0) now pauses (conservative) instead of
+  treating it as above-threshold; `require_ac_for_deep_work: false` still
+  permits battery work outright.
+- **L22 — Linux AC detection fails closed.** A battery present with no
+  `AC`/`ADP` supply entry now reads as on-battery, not on-AC.
+- **L25 — documented the battery threshold.** `battery_pause_threshold_percent:
+  0` is "unset" (default 20); "never pause on battery" is expressed via
+  `require_ac_for_deep_work: false`.
+
 ### MCE hardening (M1, L1–L4) — 2026-10-16
 
 - **M1 — multi-owner chunk attribution.** Content-derived chunk ids mean

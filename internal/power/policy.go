@@ -84,10 +84,22 @@ func Decide(obs Observation, cfg Config) Decision {
 				Reason: "on battery (require_ac_for_deep_work; set allow_battery_override to permit)",
 			}
 		}
-		if cfg.RequireACForDeepWork && obs.BatteryPercent > 0 && obs.BatteryPercent <= cfg.BatteryPauseThresholdPercent {
-			return Decision{
-				Profile: ProfileInteractive, Pause: true,
-				Reason: fmt.Sprintf("battery %d%% at/below threshold %d%%", obs.BatteryPercent, cfg.BatteryPauseThresholdPercent),
+		if cfg.RequireACForDeepWork {
+			// known-issues M12: an unknown level (0) fails closed. The
+			// conservative choice when the reading is unavailable is to treat
+			// it as at/below the threshold and pause; an operator who wants
+			// battery work outright sets require_ac_for_deep_work false.
+			if obs.BatteryPercent == 0 {
+				return Decision{
+					Profile: ProfileInteractive, Pause: true,
+					Reason: "on battery with unknown level; pausing (conservative)",
+				}
+			}
+			if obs.BatteryPercent <= cfg.BatteryPauseThresholdPercent {
+				return Decision{
+					Profile: ProfileInteractive, Pause: true,
+					Reason: fmt.Sprintf("battery %d%% at/below threshold %d%%", obs.BatteryPercent, cfg.BatteryPauseThresholdPercent),
+				}
 			}
 		}
 		// Battery work permitted: either require_ac_for_deep_work is false,

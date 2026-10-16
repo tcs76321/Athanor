@@ -51,12 +51,15 @@ func TestDecideOnBatteryOverrideBelowThresholdPauses(t *testing.T) {
 	}
 }
 
-func TestDecideOnBatteryOverrideUnknownPercentRuns(t *testing.T) {
+// TestDecideOnBatteryOverrideUnknownPercentPauses is the M12 regression: an
+// unknown battery level (0) with the override active must fail closed (pause),
+// not fail open.
+func TestDecideOnBatteryOverrideUnknownPercentPauses(t *testing.T) {
 	cfg := baseCfg()
 	cfg.AllowBatteryOverride = true
 	d := Decide(Observation{OnAC: false, BatteryPercent: 0}, cfg)
-	if d.Pause {
-		t.Fatalf("unknown battery percent with override must not pause: %+v", d)
+	if !d.Pause {
+		t.Fatalf("unknown battery percent with override must pause (M12): %+v", d)
 	}
 }
 

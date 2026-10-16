@@ -59,6 +59,8 @@ func applyDefaults(c *Config) {
 
 	setTrue(&c.Power.RequireACForDeepWork)
 	if c.Power.BatteryPauseThresholdPercent == 0 {
+		// 0 is "unset" (known-issues L25): to never pause on battery, set
+		// power.require_ac_for_deep_work false rather than this to 0.
 		c.Power.BatteryPauseThresholdPercent = 20
 	}
 	setDur(&c.Power.IdleResumeAfter, Duration(5*minute))

@@ -86,7 +86,12 @@ type Agent struct {
 
 // Power configures endurance/idle policy (§24).
 type Power struct {
-	RequireACForDeepWork         *bool    `yaml:"require_ac_for_deep_work"`
+	RequireACForDeepWork *bool `yaml:"require_ac_for_deep_work"`
+	// BatteryPauseThresholdPercent pauses battery deep work (when
+	// require_ac_for_deep_work is on) at or below this level. 0 is treated as
+	// "unset" and defaulted to 20 by applyDefaults, so it cannot express
+	// "never pause"; to never pause on battery, set
+	// require_ac_for_deep_work false (known-issues L25).
 	BatteryPauseThresholdPercent int      `yaml:"battery_pause_threshold_percent"`
 	IdleResumeAfter              Duration `yaml:"idle_resume_after"`
 	AllowBatteryOverride         bool     `yaml:"allow_battery_override"`

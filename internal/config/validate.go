@@ -213,6 +213,50 @@ func validateRaw(c *Config) error {
 	if _, err := toolenvelope.Parse(c.JobPod.DefaultTools); err != nil {
 		return fmt.Errorf("job_pod.default_tools: %w", err)
 	}
+	// known-issues M2: bounded numeric fields must not accept negatives. A
+	// typo like `max_concurrent_jobs: -3` (only 0 is replaced by a default)
+	// previously loaded silently, violating the fail-loud contract.
+	for _, n := range []struct {
+		name string
+		val  int
+	}{
+		{"agent.max_proactive_tasks_per_day", c.Agent.MaxProactiveTasksPerDay},
+		{"limits.max_concurrent_jobs", c.Limits.MaxConcurrentJobs},
+		{"limits.max_concurrent_llm_calls", c.Limits.MaxConcurrentLLMCalls},
+		{"limits.max_concurrent_fetches", c.Limits.MaxConcurrentFetches},
+		{"limits.max_tasks_per_hour", c.Limits.MaxTasksPerHour},
+		{"limits.max_total_recoveries_per_job", c.Limits.MaxTotalRecoveriesPerJob},
+		{"recovery.max_tool_call_retries", c.Recovery.MaxToolCallRetries},
+		{"recovery.max_loop_interventions", c.Recovery.MaxLoopInterventions},
+		{"recovery.max_context_compactions", c.Recovery.MaxContextCompactions},
+		{"backup.max_local_backups", c.Backup.MaxLocalBackups},
+		{"power.daydream_max_concurrent", c.Power.DaydreamMaxConcurrent},
+		{"power.daydream_max_wall_time_minutes", c.Power.DaydreamMaxWallTimeMinutes},
+		{"strategy_analysis.min_cohort_size", c.StrategyAnalysis.MinCohortSize},
+		{"strategy_analysis.max_active_insights", c.StrategyAnalysis.MaxActiveInsights},
+		{"strategy_analysis.insight_expiry_days", c.StrategyAnalysis.InsightExpiryDays},
+		{"job_pod.pids_limit", c.JobPod.PidsLimit},
+		{"job_pod.memory_mb", c.JobPod.MemoryMB},
+		{"network.rate_limit_per_minute", c.Network.RateLimitPerMinute},
+	} {
+		if n.val < 0 {
+			return fmt.Errorf("%s must be >= 0, got %d", n.name, n.val)
+		}
+	}
+	if c.JobPod.CPUs < 0 {
+		return fmt.Errorf("job_pod.cpus must be >= 0, got %v", c.JobPod.CPUs)
+	}
+	if c.Network.MaxResponseBytes < 0 {
+		return fmt.Errorf("network.max_response_bytes must be >= 0, got %d", c.Network.MaxResponseBytes)
+	}
+	for name, v := range map[string]float64{
+		"strategy_analysis.min_accept_rate_delta":      c.StrategyAnalysis.MinAcceptRateDelta,
+		"strategy_analysis.technique_min_accept_delta": c.StrategyAnalysis.TechniqueMinAcceptDelta,
+	} {
+		if v < 0 || v > 1 {
+			return fmt.Errorf("%s must be within [0, 1], got %v", name, v)
+		}
+	}
 	// M4-T7 (ADR-0019 §4): the search_web engine template is validated
 	// at load so an operator typo fails at boot, not at first search.
 	// The template must parse as text/template, must reference `.Query`
