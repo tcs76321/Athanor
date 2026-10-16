@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
@@ -119,10 +118,15 @@ func (e *Engine) phaseCompare(ctx context.Context, j job.Job) error {
 		return fmt.Errorf("loading previous accepted artifact: %w", err)
 	}
 
-	// M5-T5: the candidate's bytes ride §11.2 §12 (tier 3, never evicted).
-	// ADR-0013's 4 KB comparison limit is applied before assembly because
-	// the assembler renders tier 3 verbatim and never truncates.
-	candidateContent, _ := osReadFileLimited(final.StoragePath, comparisonContentLimit)
+	// Read the final artifact's full content once, hash-verified. The
+	// deterministic verifier must run against the complete bytes — for a
+	// code archetype it writes them to the Job Pod and runs the real test
+	// command, so it must never see a truncated copy. The LLM judge gets a
+	// separately truncated head (ADR-0013's 4 KB limit) below.
+	fullContent, err := e.artifacts.ReadContent(ctx, final.ID)
+	if err != nil {
+		return fmt.Errorf("reading final artifact for comparison: %w", err)
+	}
 	plan := e.planFor(ctx, j, p, t)
 	judgeRole := e.roleFor(plan, llm.PhaseComparing, llm.RoleSecurity)
 
@@ -132,7 +136,7 @@ func (e *Engine) phaseCompare(ctx context.Context, j job.Job) error {
 	var ver verify.Result
 	{
 		var verr error
-		ver, _, verr = e.verifyCandidate(ctx, j, p, t, candidateContent, 0)
+		ver, _, verr = e.verifyCandidate(ctx, j, p, t, string(fullContent), 0)
 		if verr != nil {
 			return verr
 		}
@@ -175,7 +179,8 @@ func (e *Engine) phaseCompare(ctx context.Context, j job.Job) error {
 	}
 	if !decided {
 		instructions := buildComparisonInstructions(final, records, previousID, previousRecords, previousAvgScore, previousAvgConf)
-		v, err := e.runComparisonJudge(ctx, j, p, t, judgeRole, instructions, candidateContent, plan.JudgeCount)
+		judgeContent := truncateForLimit(string(fullContent), comparisonContentLimit)
+		v, err := e.runComparisonJudge(ctx, j, p, t, judgeRole, instructions, judgeContent, plan.JudgeCount)
 		if err != nil {
 			return err
 		}
@@ -476,24 +481,15 @@ func buildComparisonInstructions(
 	return b.String()
 }
 
-// osReadFileLimited reads up to `limit` bytes from path. Failures
-// are non-fatal: the comparison proceeds with an empty content
-// section rather than aborting the whole job.
-func osReadFileLimited(path string, limit int) (string, error) {
-	if path == "" {
-		return "", nil
+// truncateForLimit returns the first limit bytes of s. It is the in-memory
+// equivalent of the former osReadFileLimited now that the full artifact
+// content is read once (hash-verified) and shared between the verifier
+// (full) and the judge (truncated). limit <= 0 returns s unchanged.
+func truncateForLimit(s string, limit int) string {
+	if limit <= 0 || len(s) <= limit {
+		return s
 	}
-	f, err := os.Open(path)
-	if err != nil {
-		return "", err
-	}
-	defer func() { _ = f.Close() }()
-	buf := make([]byte, limit)
-	n, err := f.Read(buf)
-	if err != nil && n == 0 {
-		return "", err
-	}
-	return string(buf[:n]), nil
+	return s[:limit]
 }
 
 // errUnknownWinner is the sentinel parseComparisonVerdict

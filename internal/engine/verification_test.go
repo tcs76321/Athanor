@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/tcs76321/athanor/internal/config"
@@ -28,6 +29,42 @@ func eventField(t *testing.T, e *testEnv, jobID, event, field string) (any, bool
 		}
 	}
 	return nil, false
+}
+
+// TestPhaseCompareVerifiesFullContentNotTruncated is the C1 regression:
+// the acceptance-boundary verifier must run against the final artifact's full
+// bytes, not ADR-0013's 4 KB judge-prompt head. For a code archetype the
+// verifier writes the content to the Job Pod and runs the real test command,
+// so a truncated copy would falsely fail any artifact over 4 KB.
+func TestPhaseCompareVerifiesFullContentNotTruncated(t *testing.T) {
+	e := newEnvWithCfg(t, func(cfg *config.Config) {
+		cfg.Execution.Policy.JudgeMode = config.JudgeModeVerifier
+	})
+	// ~15 KB of valid Python (a comment block) — well over the 4 KB limit.
+	big := strings.Repeat("# comment line\n", 1000)
+	e.ollama.setGeneric(big)
+	jobID := e.submitCode(t)
+	e.eng.Run(context.Background(), jobID)
+
+	j, err := e.jobs.Get(context.Background(), jobID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if j.State != job.StateCompleted {
+		t.Fatalf("state = %s, want completed (full-content verifier accepted)", j.State)
+	}
+
+	// The last RunCode call is the acceptance-boundary verification. It must
+	// carry the full artifact, not the truncated comparison head.
+	var lastCode string
+	for _, c := range e.runner.Calls() {
+		if c.Tool == "RunCode" {
+			lastCode = c.Code
+		}
+	}
+	if len(lastCode) <= comparisonContentLimit {
+		t.Fatalf("final verification content length = %d, want > %d (full artifact, not the truncated judge head)", len(lastCode), comparisonContentLimit)
+	}
 }
 
 // TestVerifierFirst_CodeAcceptSkipsJudge is the F4-T3 acceptance bar: with
