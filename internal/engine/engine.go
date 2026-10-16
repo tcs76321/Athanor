@@ -405,6 +405,7 @@ func (e *Engine) planInputs(ctx context.Context, j job.Job, p project.Project, t
 			CriteriaCount: len(t.Criteria),
 			Difficulty:    e.difficultyHint(ctx, j.ID),
 			JobKey:        j.ID,
+			Attempt:       e.taskAttemptIndex(ctx, t.ID, j.ID),
 		},
 		Limits: policy.Limits{
 			CandidatesCeiling: 1,
@@ -443,6 +444,28 @@ func (e *Engine) planInputs(ctx context.Context, j job.Job, p project.Project, t
 	return in
 }
 
+// taskAttemptIndex returns the 1-based position of jobID among its task's jobs
+// in creation order — the attempt number (ADR-0074). It returns 0 when it
+// cannot be determined, which the escalation treats as a first attempt (no
+// escalation). The task's job set is stable for the life of a job (the
+// scheduler creates the next job only after the current one is terminal), so
+// the value is consistent across the phases that call planFor.
+func (e *Engine) taskAttemptIndex(ctx context.Context, taskID, jobID string) int {
+	if e.jobs == nil || taskID == "" {
+		return 0
+	}
+	js, err := e.jobs.ByTask(ctx, taskID)
+	if err != nil {
+		return 0
+	}
+	for i, j := range js {
+		if j.ID == jobID {
+			return i + 1
+		}
+	}
+	return 0
+}
+
 // decidePlan runs the configured policy and applies the operator-selected
 // judge persona as a bound on the judgment phases. The default
 // (execution.judge_persona: security) is a no-op.
@@ -453,6 +476,10 @@ func (e *Engine) decidePlan(in policy.Inputs) policy.Plan {
 	} else {
 		plan = e.policy.Decide(in)
 	}
+	// ADR-0074 §3: a retry escalates compute up the fixed ladder, bounded by
+	// the ceilings. The first attempt (Attempt <= 1) is never escalated, so a
+	// first-pass benchmark is unaffected.
+	plan = policy.Escalate(plan, in.Features.Attempt, in)
 	if e.cfg != nil {
 		// F4-T4 quorum: the operator's execution.policy.judge_count is
 		// authoritative over any policy-supplied value and applies to the

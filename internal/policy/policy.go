@@ -64,6 +64,10 @@ type Features struct {
 	// JobKey is the job id; the exploration blend hashes it so the same job
 	// explores the same way (M8-T29).
 	JobKey string
+	// Attempt is this job's 1-based attempt index for its task (1 = the first
+	// try). A retry raises it, and the engine escalates compute up the ladder
+	// (ADR-0074 §3). 0 means unknown and is treated as a first attempt.
+	Attempt int
 }
 
 // Limits are the operator-configured ceilings (ADR-0044 rule 4). A policy may
