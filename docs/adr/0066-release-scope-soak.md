@@ -1,6 +1,6 @@
 # ADR 0066 — 0.0.0 release scope and the soak re-specification
 
-**Status:** Accepted · **Date:** 2026-10-15 · **Refs:**
+**Status:** Accepted (scope amended — see [0.0.0 plan](../0.0.0-plan.md) and [ADR-0069](0069-core-pod-packaging.md)) · **Date:** 2026-10-15 · **Refs:**
 ROADMAP §3 (gates G7/G8); [m7-gate-g7.md](../m7-gate-g7.md);
 [soak-m7.md](../soak-m7.md); [m8-process-matrix.md](../m8-process-matrix.md);
 [ADR-0063](0063-f4-closeout.md); [ADR-0061](0061-harder-benchmark.md);
@@ -75,6 +75,13 @@ Statistics/Memory-Browser views.
 
 ## Consequences
 
+- **Scope amended (2026-10-15).** 0.0.0 grew to include two additional
+  deliverables — **capability** (a repair-on-test-failure loop, model
+  onboarding/qualification, and a deterministic `data` verifier) and the **Core
+  Pod OCI image** ([ADR-0069](0069-core-pod-packaging.md)) — and **statistical
+  validation moved to 0.0.x**. The coverage-based soak acceptance below is
+  unchanged; the soak now runs on the frozen 0.0.0 build. The bounded acceptance
+  set and freeze rule live in [0.0.0-plan.md](../0.0.0-plan.md).
 - The 24-hour figure is retired in favour of a coverage checklist. The residual
   risk — a run that does not cross a full day — is mitigated by exercising the
   time-triggered arms deliberately (compressed schedules + their unit tests)
