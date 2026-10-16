@@ -294,6 +294,8 @@ func run(configPath, addr, stateDir string) error {
 	// switches goal submission to decompose-then-schedule (ADR-0033 §5).
 	externalAPI.SetScheduler(sched)
 	externalAPI.SetDAGScheduling(cfg.Execution.DAGDecomposition)
+	// known-issues H8: the operator reset seam behind POST /tasks/{id}/reset.
+	externalAPI.SetTaskResetter(sched)
 	externalAPI.SetHITL(hitlSvc)
 	externalAPI.SetPusher(gitPusher{projects: projectRepo, hitl: hitlRepo})
 	externalAPI.SetCorrections(correctionsRepo)

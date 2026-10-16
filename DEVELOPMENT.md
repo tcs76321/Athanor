@@ -153,6 +153,7 @@ Client commands talk to a running daemon (default `http://127.0.0.1:7420`, overr
 athanor project create -name demo -archetype code -goal "..." [-criteria "a;b"] [-repo <dir>] [-test-command "go test ./..."] [-build-command "go build ./..."]
 athanor goal submit -project <id> -goal "..."
 athanor goal decompose -project <id> -goal "..." [-criteria "a;b"]  # M6-T1: validated task DAG, no execution yet
+athanor task reset -id <id>            # known-issues H8: unblock a stalled task (and its dependents)
 athanor job watch -job <id>            # prints each phase transition, then the artifact
 athanor artifacts -project <id>
 athanor index -project <id> [-path <dir>]  # index the project's repository (M5-T8, ADR-0028)

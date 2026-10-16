@@ -10,6 +10,20 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### H8 — operator task-reset seam (blocked DAGs are recoverable) — 2026-10-16
+
+- **`Scheduler.Reset` + `POST /tasks/{id}/reset` + `athanor task reset -id ID`.**
+  A task that exhausted its §7.2 retry/budget bound is set `blocked` and its
+  dependents are blocked with it, but nothing ever moved it back — a stalled DAG
+  needed manual database edits. Reset returns the blocked task and its
+  transitively blocked dependents to `pending`, and pins `retry_baseline`
+  (migration 0026) so `handleFailure` counts attempts from the reset point and
+  grants a fresh retry window rather than re-blocking on the very next failure.
+  A task that is not `blocked` is refused (409); dependents that still depend on
+  another failed/blocked task are re-blocked by the following scheduling pass.
+  Tests: `internal/scheduler/orchestrator_test.go` (unblock, fresh window,
+  refusal), `internal/project/task_state_test.go` (`ResetTask`).
+
 ### Hardening sweep (2026-10-16)
 
 - **Deep review of every subsystem** (design + implementation); high/medium

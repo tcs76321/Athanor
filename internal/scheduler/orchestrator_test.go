@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -324,5 +325,89 @@ func TestStaleTerminalCallbackIgnored(t *testing.T) {
 	}
 	if len(eng.jobs) != 2 {
 		t.Fatalf("jobs = %v, want 2 (no extra retry from a stale callback)", eng.jobs)
+	}
+}
+
+// taskIDByTitle resolves a task's generated ID by its title.
+func taskIDByTitle(t *testing.T, projects *project.Repo, goalID, title string) string {
+	t.Helper()
+	tasks, err := projects.TasksByGoal(context.Background(), goalID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, task := range tasks {
+		if task.Title == title {
+			return task.ID
+		}
+	}
+	t.Fatalf("task %q not found", title)
+	return ""
+}
+
+// known-issues H8: an operator reset returns the blocked task and its blocked
+// dependents to pending and re-schedules the task.
+func TestResetUnblocksTaskAndDependents(t *testing.T) {
+	sched, projects, _, eng, goalID := harness(t)
+	sched.SetMaxTaskRetries(0)
+	sched.SetEscalator(&fakeEscalator{})
+	ctx := context.Background()
+
+	started, _ := sched.Start(ctx, goalID)
+	sched.OnJobTerminal(ctx, started[0], job.StateFailed) // A blocked, B/C/D blocked
+	if st := statuses(t, projects, goalID); st["A"] != project.TaskBlocked {
+		t.Fatalf("precondition: A = %q, want blocked", st["A"])
+	}
+
+	aID := taskIDByTitle(t, projects, goalID, "A")
+	if _, err := sched.Reset(ctx, aID); err != nil {
+		t.Fatalf("Reset: %v", err)
+	}
+	st := statuses(t, projects, goalID)
+	assertStatus(t, st, "A", project.TaskRunning) // re-scheduled by the pass
+	assertStatus(t, st, "B", project.TaskPending)
+	assertStatus(t, st, "C", project.TaskPending)
+	assertStatus(t, st, "D", project.TaskPending)
+	if len(eng.jobs) != 2 {
+		t.Errorf("jobs = %v, want a fresh job for A", eng.jobs)
+	}
+}
+
+// known-issues H8: a reset grants a fresh retry window, so the task retries
+// after the reset rather than re-blocking on the very next failure.
+func TestResetGrantsFreshRetryWindow(t *testing.T) {
+	sched, projects, _, eng, goalID := harness(t)
+	sched.SetMaxTaskRetries(1) // allowed = 2
+	sched.SetEscalator(&fakeEscalator{})
+	ctx := context.Background()
+
+	started, _ := sched.Start(ctx, goalID)                 // job 0
+	sched.OnJobTerminal(ctx, started[0], job.StateFailed)  // retry -> job 1
+	sched.OnJobTerminal(ctx, eng.jobs[1], job.StateFailed) // exhaust -> blocked
+	assertStatus(t, statuses(t, projects, goalID), "A", project.TaskBlocked)
+
+	aID := taskIDByTitle(t, projects, goalID, "A")
+	if _, err := sched.Reset(ctx, aID); err != nil {
+		t.Fatalf("Reset: %v", err)
+	}
+	if len(eng.jobs) != 3 {
+		t.Fatalf("jobs after reset = %v, want a fresh attempt", eng.jobs)
+	}
+	// The reset task fails again: with a fresh window this must be a retry,
+	// not a re-block (without the baseline it would exhaust immediately).
+	sched.OnJobTerminal(ctx, eng.jobs[2], job.StateFailed)
+	assertStatus(t, statuses(t, projects, goalID), "A", project.TaskRunning)
+	if len(eng.jobs) != 4 {
+		t.Errorf("jobs = %v, want a retry after the reset", eng.jobs)
+	}
+}
+
+// known-issues H8: reset refuses a task that is not blocked.
+func TestResetRefusesNonBlockedTask(t *testing.T) {
+	sched, projects, _, _, goalID := harness(t)
+	ctx := context.Background()
+	_, _ = sched.Start(ctx, goalID)
+	aID := taskIDByTitle(t, projects, goalID, "A") // running now
+	if _, err := sched.Reset(ctx, aID); !errors.Is(err, ErrNotBlocked) {
+		t.Fatalf("Reset on a running task = %v, want ErrNotBlocked", err)
 	}
 }

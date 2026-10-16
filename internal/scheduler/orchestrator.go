@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"sync"
@@ -31,6 +32,11 @@ type ReDecomposer interface {
 type Escalator interface {
 	Escalate(ctx context.Context, t project.Task, reason string) error
 }
+
+// ErrNotBlocked reports that a reset was requested for a task that is not in
+// the `blocked` state (known-issues H8). Reset refuses any other status so an
+// operator action cannot disturb an in-flight or already-terminal task.
+var ErrNotBlocked = errors.New("task is not blocked")
 
 // Scheduler schedules a goal's DAG and advances it as jobs finish
 // (ARCHITECTURE §7.2; ADR-0033, ADR-0034). One mutex serializes every
@@ -156,6 +162,12 @@ func (s *Scheduler) handleFailure(ctx context.Context, t project.Task) {
 		return
 	}
 	attempts := len(jobs) // includes the job that just failed
+	// An operator reset (Reset) pins retry_baseline to the jobs recorded at
+	// reset time, granting a fresh §7.2 window (known-issues H8).
+	attempts -= t.RetryBaseline
+	if attempts < 0 {
+		attempts = 0
+	}
 	allowed := s.maxRetries + 1
 	cause := "retries_exhausted"
 	// A task's own job budget is a tighter bound (§7.3, §7.2 budget row).
@@ -209,6 +221,65 @@ func (s *Scheduler) escalate(ctx context.Context, t project.Task, cause string) 
 	s.audit(ctx, t.ProjectID, "", map[string]any{
 		"event": "task_escalated", "task_id": t.ID, "cause": cause, "reason": reason,
 	})
+}
+
+// Reset is the operator recovery seam (known-issues H8): it returns a
+// `blocked` task and its transitively-blocked dependents to `pending` and
+// grants the task a fresh §7.2 retry window, so a goal stalled by an
+// exhausted leaf is recoverable without manual database edits. It never
+// touches a terminal (`completed`/`failed`) task, and it re-blocks any
+// dependent whose other dependencies are still failed/blocked — Reset can
+// only un-stick a graph, never run a task prematurely. Returns the IDs of
+// jobs started by the resulting scheduling pass.
+func (s *Scheduler) Reset(ctx context.Context, taskID string) ([]string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	t, err := s.projects.Task(ctx, taskID)
+	if err != nil {
+		return nil, err
+	}
+	if t.Status != project.TaskBlocked {
+		return nil, fmt.Errorf("%w: task %s is %s", ErrNotBlocked, taskID, t.Status)
+	}
+	tasks, err := s.projects.TasksByGoal(ctx, t.GoalID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Fresh retry window: count the task's attempts from the jobs already
+	// recorded, then reset. handleFailure subtracts RetryBaseline.
+	baseline := 0
+	if js, err := s.jobs.ByTask(ctx, t.ID); err != nil {
+		return nil, err
+	} else {
+		baseline = len(js)
+	}
+	if err := s.projects.ResetTask(ctx, t.ID, baseline); err != nil {
+		return nil, err
+	}
+
+	// Return the blocked dependents to pending as well. advance re-blocks any
+	// that still depend on a failed/blocked task outside this chain.
+	byID := index(tasks)
+	for _, id := range dependents(tasks, t.ID) {
+		if byID[id].Status != project.TaskBlocked {
+			continue
+		}
+		if err := s.projects.SetTaskStatus(ctx, id, project.TaskPending); err != nil {
+			return nil, fmt.Errorf("unblocking dependent %s: %w", id, err)
+		}
+	}
+
+	s.audit(ctx, t.ProjectID, "", map[string]any{
+		"event": "task_reset", "task_id": t.ID, "goal_id": t.GoalID, "retry_baseline": baseline,
+	})
+
+	tasks, err = s.projects.TasksByGoal(ctx, t.GoalID)
+	if err != nil {
+		return nil, err
+	}
+	return s.advance(ctx, tasks)
 }
 
 // Reconcile applies terminal job outcomes that predate a restart and then

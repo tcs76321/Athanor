@@ -64,6 +64,14 @@ type Scheduler interface {
 	Start(ctx context.Context, goalID string) ([]string, error)
 }
 
+// TaskResetter is the operator recovery surface (known-issues H8): it returns
+// a `blocked` task and its blocked dependents to `pending` and grants a fresh
+// retry window. The concrete implementation is *scheduler.Scheduler. A
+// daemon that does not wire one answers 503 on the reset route.
+type TaskResetter interface {
+	Reset(ctx context.Context, taskID string) ([]string, error)
+}
+
 // HITL is the surface the M6-T4 queue routes use (ADR-0035). The concrete
 // implementation is *hitl.Service.
 type HITL interface {
@@ -134,6 +142,7 @@ type API struct {
 	indexer     IndexRunner
 	decomposer  Decomposer
 	scheduler   Scheduler
+	resetter    TaskResetter
 	hitl        HITL
 	pusher      Pusher
 	corrections Corrections
@@ -193,6 +202,11 @@ func (a *API) SetDAGScheduling(enabled bool) {
 	a.dagScheduling = enabled
 }
 
+// SetTaskResetter wires the operator task-reset seam (known-issues H8). The
+// concrete *scheduler.Scheduler is passed by the daemon; a daemon without one
+// answers 503 on POST /tasks/{id}/reset.
+func (a *API) SetTaskResetter(r TaskResetter) { a.resetter = r }
+
 // SetHITL wires the M6-T4 HITL queue (ADR-0035). A daemon that does not
 // wire one answers 503 on the queue routes.
 func (a *API) SetHITL(h HITL) { a.hitl = h }
@@ -238,6 +252,8 @@ func (a *API) Register(mux *http.ServeMux) {
 	// M6-T1: explicit DAG decomposition (ADR-0032).
 	mux.HandleFunc("POST /projects/{id}/decompose", a.handleDecompose)
 	mux.HandleFunc("GET /projects/{id}/tasks", a.handleProjectTasks)
+	// known-issues H8: operator recovery for a blocked task (and its subtree).
+	mux.HandleFunc("POST /tasks/{id}/reset", a.handleTaskReset)
 	// M6-T4: the §20 HITL queue (ADR-0035).
 	mux.HandleFunc("GET /hitl", a.handleHITLList)
 	mux.HandleFunc("POST /hitl/{id}/decision", a.handleHITLDecision)

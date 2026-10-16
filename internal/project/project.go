@@ -130,6 +130,12 @@ type Task struct {
 	// as a JSON array string in tasks.allowed_tools_json
 	// (migration 0005).
 	AllowedTools []string
+	// RetryBaseline is the number of jobs already recorded when an operator
+	// last reset the task (known-issues H8, migration 0026). The scheduler
+	// counts a task's §7.2 attempts as len(jobs) - RetryBaseline, so a reset
+	// grants a fresh retry window rather than re-blocking immediately. Zero
+	// for a task that has never been reset.
+	RetryBaseline int
 }
 
 // TaskSpec is one task the caller asks the repository to persist as part

@@ -105,3 +105,35 @@ func (r *Repo) SetTaskStatus(ctx context.Context, id, to string) error {
 	}
 	return nil
 }
+
+// ResetTask is the operator recovery write behind the scheduler's Reset seam
+// (known-issues H8): it returns a `blocked` task to `pending` and records the
+// retry baseline, so the task's §7.2 attempts restart from zero. The UPDATE
+// is a compare-and-swap on the `blocked` status — a task that left `blocked`
+// between the caller's read and this write (e.g. a concurrent reconcile)
+// reports a concurrency error rather than being clobbered. A task already
+// `pending` is a no-op so a repeated reset is idempotent.
+func (r *Repo) ResetTask(ctx context.Context, id string, baseline int) error {
+	if baseline < 0 {
+		baseline = 0
+	}
+	res, err := r.store.DB().ExecContext(ctx,
+		`UPDATE tasks SET status = ?, retry_baseline = ? WHERE id = ? AND status = ?`,
+		TaskPending, baseline, id, TaskBlocked)
+	if err != nil {
+		return fmt.Errorf("resetting task %s: %w", id, err)
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		// The row was not `blocked` at write time. Distinguish "already
+		// pending" (idempotent no-op) from "some other status" (refuse).
+		t, err := r.Task(ctx, id)
+		if err != nil {
+			return err
+		}
+		if t.Status == TaskPending {
+			return nil
+		}
+		return &ErrIllegalTaskTransition{From: t.Status, To: TaskPending}
+	}
+	return nil
+}

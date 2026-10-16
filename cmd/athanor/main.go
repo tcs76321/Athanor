@@ -83,6 +83,8 @@ func main() {
 		err = runProject(args[1:])
 	case "goal":
 		err = runGoal(args[1:])
+	case "task":
+		err = runTask(args[1:])
 	case "job":
 		err = runJob(args[1:])
 	case "artifacts":
@@ -134,6 +136,7 @@ commands:
   digest             print the Morning Digest [-hours 12] (§27.2)
   project create     -name -archetype -goal [-criteria] [-addr]
   goal submit        -project -goal [-criteria] [-addr]
+  task reset         -id ID [-addr]            (unblock a stalled task, known-issues H8)
   job watch          -job [-timeout] [-addr]   (streams progress, prints artifact)
   artifacts          -project [-addr]          (lists a project's artifacts)
   index              -project [-path] [-addr]  (index a project's repository)

@@ -20,26 +20,10 @@ are under "Open (2026-10-16 review)".
 Deep review of every subsystem (`internal/` + `cmd/`), design and
 implementation. Findings below are **unfixed** as of 2026-10-16 and ordered by
 severity. Locations are the call sites that need attention; "suggested fix" is
-advisory, not a contract. The two high items are the ones worth scheduling;
-the rest are hardening.
+advisory, not a contract. The remaining high item is H7 (H8 is fixed; see
+"Fixed (2026-10-16 review)"); the rest are hardening.
 
 ### High
-
-**H8 — a permanently-failing leaf stalls the whole DAG with no recovery short of
-manual DB edits.** When a leaf exhausts its budget, `blockAndEscalate`
-(`internal/scheduler/orchestrator.go:169`) sets it `blocked` and `advance`
-marks its transitive dependents `blocked` (`internal/scheduler/schedule.go:53`).
-Nothing ever transitions a task **out of** `blocked` — the
-`TaskBlocked → TaskPending` edge exists (`internal/project/task_state.go:28`)
-but has no writer — and `ReDecomposer` is interface-only with no production
-implementation (the concrete alternative-persona adapter is the deferred
-ROADMAP §7 M6-T3b). Even with a re-decomposer, the original blocked leaf is
-never marked `completed` nor its dependents re-parented, so `depsCompleted`
-stays false forever. Suggested fix: an explicit operator unblock/reset seam
-(a scheduler `Unblock`/`Reset` method exposed via API/CLI) that returns a
-blocked task (and its dependents) to `pending`, plus, when T3b lands, marking
-the exhausted leaf `completed` or re-wiring its dependents so re-decomposition
-actually unblocks the graph.
 
 **H7 — scheduler `advance` has a partial write that can duplicate a job.**
 `advance` (`internal/scheduler/orchestrator.go:272`) inserts a `queued` job and
@@ -126,6 +110,7 @@ A hardening sweep driven by the same review. Each item is a separate commit
 
 | Area | Fix |
 |---|---|
+| Scheduler · recovery (H8) | a blocked task (and its transitively blocked dependents) is now recoverable without manual DB edits: `Scheduler.Reset` (behind `POST /tasks/{id}/reset` / `athanor task reset`) returns them to `pending` and pins `retry_baseline` (migration 0026), so `handleFailure` grants a fresh §7.2 retry window instead of re-blocking on the next failure |
 | Engine · acceptance | the comparison verifier now runs on the **full** hash-verified artifact, not the 4 KB judge head (was falsely rejecting any code artifact >4 KB) |
 | Engine · state machine | added the missing `paused → comparing` resume edge |
 | Engine · reflection | the reflection proposal is now persisted and injected into the next divergence pass, and `max_reflection_loops=N` yields N full retries (was N reflections but N−1 re-divergences) |

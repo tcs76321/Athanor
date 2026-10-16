@@ -73,3 +73,53 @@ func TestSetTaskStatus(t *testing.T) {
 		t.Fatalf("missing task err = %v, want ErrNotFound", err)
 	}
 }
+
+// TestResetTask covers the known-issues H8 operator write: blocked → pending
+// with a recorded retry baseline, an idempotent no-op on an already-pending
+// task, and a refusal on a terminal task.
+func TestResetTask(t *testing.T) {
+	r, _ := openRepo(t)
+	ctx := context.Background()
+	p, _, err := r.Create(ctx, "demo", ArchetypeCode, validGoal, "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, tasks, err := r.CreateDAG(ctx, p.ID, "Build a small REST endpoint with tests.", nil,
+		[]TaskSpec{{Key: "a", Title: "a", Criteria: []string{"c"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := tasks[0].ID
+
+	if err := r.SetTaskStatus(ctx, id, TaskBlocked); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.ResetTask(ctx, id, 3); err != nil {
+		t.Fatalf("reset blocked: %v", err)
+	}
+	got, err := r.Task(ctx, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Status != TaskPending || got.RetryBaseline != 3 {
+		t.Fatalf("after reset status=%q baseline=%d, want pending/3", got.Status, got.RetryBaseline)
+	}
+	// Already pending: a no-op that must not rewrite the baseline.
+	if err := r.ResetTask(ctx, id, 5); err != nil {
+		t.Fatalf("reset pending: %v", err)
+	}
+	if got, _ := r.Task(ctx, id); got.RetryBaseline != 3 {
+		t.Fatalf("idempotent reset changed baseline to %d, want 3", got.RetryBaseline)
+	}
+	// Terminal: refuse.
+	if err := r.SetTaskStatus(ctx, id, TaskRunning); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.SetTaskStatus(ctx, id, TaskCompleted); err != nil {
+		t.Fatal(err)
+	}
+	var illegal *ErrIllegalTaskTransition
+	if err := r.ResetTask(ctx, id, 0); !errors.As(err, &illegal) {
+		t.Fatalf("reset completed err = %v, want ErrIllegalTaskTransition", err)
+	}
+}

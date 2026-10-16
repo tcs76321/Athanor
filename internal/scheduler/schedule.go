@@ -80,6 +80,37 @@ func Blocked(tasks []project.Task) []string {
 	return out
 }
 
+// dependents returns the sorted IDs of tasks that depend on root, directly
+// or transitively (the reverse of the dependency edges, to a fixpoint). It
+// excludes root itself. Used by the operator Reset seam (known-issues H8) to
+// find the subtree to return to `pending`.
+func dependents(tasks []project.Task, root string) []string {
+	inSubtree := map[string]bool{root: true}
+	for changed := true; changed; {
+		changed = false
+		for _, t := range tasks {
+			if inSubtree[t.ID] {
+				continue
+			}
+			for _, dep := range t.DependsOn {
+				if inSubtree[dep] {
+					inSubtree[t.ID] = true
+					changed = true
+					break
+				}
+			}
+		}
+	}
+	out := make([]string, 0, len(inSubtree)-1)
+	for id := range inSubtree {
+		if id != root {
+			out = append(out, id)
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
 // depsCompleted reports whether every dependency of t exists and is
 // completed.
 func depsCompleted(t project.Task, byID map[string]project.Task) bool {
