@@ -191,8 +191,16 @@ func (e *Engine) phaseCompare(ctx context.Context, j job.Job) error {
 	// §19.3 deterministic guard (unchanged contract): applies to the LLM
 	// verdict and to the deterministic ones alike. A "new" verdict with no
 	// record backing is downgraded.
+	//
+	// known-issues D1: the guard now consults an EvaluationRecord describing
+	// the synthesized FINAL artifact (not just the pre-synthesis proposals),
+	// so §19.3 reads the bytes actually being compared. The record is
+	// persisted after the cost-aware block below so the proposal-based
+	// max-score there is unchanged.
 	threshold := e.cfg.Execution.MinJudge()
-	verdict = DecideWinner(verdict, records, threshold, previousID != "")
+	finalRecord := buildFinalEvaluation(j, final, previousID, ver)
+	guardRecords := append(append([]evaluation.Record(nil), records...), finalRecord)
+	verdict = DecideWinner(verdict, guardRecords, threshold, previousID != "")
 
 	// F4-T4 reward-hacking guard: a decisive verifier failure overrides an
 	// LLM "new". A judge that accepts a candidate the parser rejected is
@@ -237,6 +245,11 @@ func (e *Engine) phaseCompare(ctx context.Context, j job.Job) error {
 		"judge_family":     judgeFamily,
 		"cross_family_ok":  crossOK,
 	})
+	// known-issues D1: persist the final artifact's EvaluationRecord now that
+	// the cost-aware max-score above was computed from the proposal records.
+	if err := e.persistEvaluationRecord(ctx, finalRecord); err != nil {
+		return err
+	}
 	tokenCost, _ := e.eventStats(ctx, j.ID)
 	wallMS := int64(0)
 	if j.StartedAt != nil {
@@ -301,6 +314,43 @@ func loserWinner(hasPrevious bool) string {
 		return "previous"
 	}
 	return "none"
+}
+
+// buildFinalEvaluation constructs the EvaluationRecord for the synthesized
+// final artifact from the deterministic verifier result (known-issues D1).
+// BetterThanPrevious is deliberately left false: a verifier cannot judge
+// "better than the previous artifact" — that is the judge's role, and the
+// §19.3 no-previous branch backs "new" on PassedTests alone. Confidence is 1
+// when an objective verifier applied (the deterministic edge), else 0.
+func buildFinalEvaluation(j job.Job, final artifact.Artifact, previousID string, ver verify.Result) evaluation.Record {
+	rec := evaluation.NewRecord(j.ID, final.ID)
+	rec.ComparedAgainst = previousID
+	rec.Score = ver.Score
+	if rec.Score > 1 {
+		rec.Score = 1
+	}
+	rec.PassedTests = ver.Passed
+	if !ver.Passed {
+		rec.MissingCriteria = ver.Reasons
+	}
+	if ver.HardDecisive() {
+		rec.Confidence = 1
+	}
+	rec.Summary = "deterministic verifier on the synthesized final artifact"
+	return rec
+}
+
+// persistEvaluationRecord writes one EvaluationRecord (nil-safe on the repo
+// seam). Each record is paired with an audit event in the same transaction
+// (evaluation.Repo.Create).
+func (e *Engine) persistEvaluationRecord(ctx context.Context, rec evaluation.Record) error {
+	if e.eval == nil {
+		return nil
+	}
+	if _, err := e.eval.Create(ctx, rec); err != nil {
+		return fmt.Errorf("persisting final evaluation record: %w", err)
+	}
+	return nil
 }
 
 // resolveRewardHack applies the F4-T4 reward-hacking guard: when an

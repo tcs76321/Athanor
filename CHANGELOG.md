@@ -10,6 +10,19 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### D1 — §19.3 guard reads a record for the final artifact — 2026-10-16
+
+- **`phaseCompare` persists an `EvaluationRecord` for the synthesized final.**
+  `DecideWinner` (the §19.3 guard) consulted only the pre-synthesis proposal
+  records, so the record backing the accept/reject decision never described the
+  bytes being compared — and `ListByArtifact(previousID)` returned proposal
+  records rather than one for the accepted artifact the next job compares
+  against. The comparison phase now builds a record for the final artifact
+  (verifier pass/score, `ComparedAgainst` = previous accepted) and consults it
+  in the guard; it is persisted after the cost-aware max-score so
+  proposal-based scoring is unchanged. Test:
+  `internal/engine/multicandidate_test.go`.
+
 ### C4 — Gate G2 blind spots closed (M4, M5) — 2026-10-16
 
 - **Route auth is parsed, not string-counted.** The "every internal API route is

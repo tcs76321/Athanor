@@ -80,13 +80,14 @@ func TestRun_FullDialecticalChain_ThreeCandidates_CodeArchetype(t *testing.T) {
 		}
 	}
 
-	// Three EvaluationRecords persisted, all for this job.
+	// Three proposal EvaluationRecords plus one for the synthesized final
+	// (known-issues D1), all for this job.
 	records, err := eval.ListByJob(context.Background(), jobID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(records) != 3 {
-		t.Errorf("EvaluationRecord count = %d, want 3", len(records))
+	if len(records) != 4 {
+		t.Errorf("EvaluationRecord count = %d, want 4 (3 proposals + 1 final)", len(records))
 	}
 	for i, r := range records {
 		if r.JobID != jobID {
@@ -95,6 +96,22 @@ func TestRun_FullDialecticalChain_ThreeCandidates_CodeArchetype(t *testing.T) {
 		if r.ArtifactID == "" {
 			t.Errorf("record[%d].ArtifactID empty", i)
 		}
+	}
+
+	// known-issues D1: the synthesized final artifact has its own record, so
+	// §19.3 reads a record describing the compared bytes.
+	finalArt, err := env.artifacts.LatestForJob(context.Background(), jobID, artifact.KindCode)
+	if err != nil {
+		t.Fatalf("LatestForJob(final): %v", err)
+	}
+	finalRecorded := false
+	for _, r := range records {
+		if r.ArtifactID == finalArt.ID {
+			finalRecorded = true
+		}
+	}
+	if !finalRecorded {
+		t.Errorf("no EvaluationRecord for the final artifact %s (known-issues D1)", finalArt.ID)
 	}
 
 	// Three candidate proposal artifacts persisted as `draft`.
