@@ -16,6 +16,14 @@ import (
 // "one line" instruction (§10.1).
 const maxSummaryRunes = 200
 
+// maxSummaryTokens caps the summarizer's generation (Ollama's num_predict).
+// The call previously left num_predict unset, so a model that did not emit EOS
+// produced thousands of tokens per chunk — 13k tokens over ~3.5 min was
+// observed during the 0.0.0 soak — making repository indexing take minutes per
+// file and stalling the job loop between tasks. A one-line summary needs well
+// under this bound.
+const maxSummaryTokens = 256
+
 // mceSummarizer adapts the `wide` persona to mce.Summarizer (ADR-0021 §7). It
 // is the only place the MCE's Dormant Index summaries touch a model — the MCE
 // package itself stays free of internal/llm, preserving Gate G2 rule 1's
@@ -45,6 +53,7 @@ func (s *mceSummarizer) Summarize(ctx context.Context, chunk division.Chunk) (st
 		),
 		Temperature:   0.0,
 		ContextTarget: persona.ContextTarget,
+		MaxTokens:     maxSummaryTokens,
 	})
 	if err != nil {
 		return "", err

@@ -28,6 +28,7 @@ func TestMCESummarizerUsesWideAtZeroTemperature(t *testing.T) {
 		Options struct {
 			Temperature float64 `json:"temperature"`
 			NumCtx      int     `json:"num_ctx"`
+			NumPredict  int     `json:"num_predict"`
 		} `json:"options"`
 	}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -65,6 +66,9 @@ func TestMCESummarizerUsesWideAtZeroTemperature(t *testing.T) {
 	}
 	if captured.Options.Temperature != 0.0 {
 		t.Errorf("temperature = %v, want 0.0 (ADR-0021 §7)", captured.Options.Temperature)
+	}
+	if captured.Options.NumPredict != maxSummaryTokens {
+		t.Errorf("num_predict = %d, want %d (summary output must be bounded)", captured.Options.NumPredict, maxSummaryTokens)
 	}
 	if len(captured.Messages) != 2 {
 		t.Fatalf("messages = %d, want 2", len(captured.Messages))

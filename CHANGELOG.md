@@ -10,6 +10,17 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Fix: bounded MCE summarizer output (soak stall) — 2026-10-16
+
+- **Repository indexing no longer runs away.** The `wide`-persona summarizer
+  (`cmd/athanor/mce_adapter.go`) called `llm.Chat` without `MaxTokens`, so
+  Ollama's `num_predict` was unset and an unstopped model produced thousands of
+  tokens per chunk — 13k tokens over ~3.5 min observed during the 0.0.0 soak —
+  making `POST /projects/{id}/index` take minutes per file and stalling the soak
+  job loop between tasks. The request now caps output at `maxSummaryTokens`
+  (256); a one-line Dormant Index summary needs far less. Test:
+  `cmd/athanor/mce_adapter_test.go`.
+
 ### Probe: non-code fixture injection (soak data quality) — 2026-10-16
 
 - **Document/text/data fixtures reach the model.** The probe consumed a bench
