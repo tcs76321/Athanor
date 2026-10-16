@@ -1,6 +1,8 @@
 # ADR 0074 — Attempt-level escalation and search
 
-**Status:** Accepted · **Date:** 2026-10-16 · **Refs:**
+**Status:** Accepted — the ladder (§3) and the engine knobs are implemented; the
+learned selector (§4) and the soak per-attempt curves are follow-ups ·
+**Date:** 2026-10-16 · **Refs:**
 ARCHITECTURE §7 (DAG), §13 (engine), §13.4 / [ADR-0067](0067-technique-guidance-loop.md)
 (technique guidance), §24; [ADR-0044](0044-compute-policy-seam.md) (compute &
 model policy); [ADR-0072](0072-single-slot-execution.md) (single-slot);

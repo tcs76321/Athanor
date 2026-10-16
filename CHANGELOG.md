@@ -10,18 +10,25 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
-### Attempt-level compute escalation (ADR-0074 §3) — 2026-10-16
+### Attempt-level escalation (ADR-0074) — 2026-10-16
 
-- **A retry of a failed task tries harder instead of re-rolling.** The compute
-  plan gains an attempt dimension: `policy.Features.Attempt` is a job's 1-based
-  index among its task's jobs, and `policy.Escalate` applies the shipped ladder —
-  attempt 2 raises candidates to the hard ceiling, attempt 3 also raises the
-  reflection budget — each rung only raising *toward* a configured ceiling, so
-  the plan never exceeds its limits. The first attempt is untouched, so
-  first-pass corpus/soak benchmarks are unaffected. Tests:
-  `internal/policy/escalate_test.go`, `internal/engine/attempt_test.go`. Decision:
-  `docs/adr/0074-attempt-escalation.md`. The budget/model/temperature/prompt
-  rungs and the learned selector land next.
+- **A retry of a failed task climbs a fixed escalation ladder instead of
+  re-rolling the same configuration.** The compute plan gains an attempt
+  dimension: `policy.Features.Attempt` is a job's 1-based index among its task's
+  jobs, and `policy.Escalate` applies the shipped ladder — attempt 2 raises the
+  phase wall-time budget (1.5×, capped 2.5×), attempt 3 candidates to the hard
+  ceiling, attempt 4 the reflection budget, attempt 5 swaps generation/synthesis
+  to the `alternative` persona, attempt 6 nudges the generation temperature,
+  attempt 7 appends a retry prompt directive — each rung only raising *toward* a
+  configured bound. The engine honors the new knobs in `call`: `planBudget`
+  scales each phase's budget, `planTemperature` adds the delta to generation
+  phases only (judgment phases keep their determinism), and `planInstructions`
+  appends the directive. The **first attempt is never escalated**, so first-pass
+  corpus/soak benchmarks are unaffected, and the scheduler's existing retry loop
+  drives the ladder automatically with no new seam. Tests:
+  `internal/policy/escalate_test.go`, `internal/engine/attempt_test.go`; decision:
+  `docs/adr/0074-attempt-escalation.md`. The learned selector over the ladder
+  (ADR §4) and soak per-attempt curves are follow-ups.
 
 ### Soak: combined validation harness — telemetry, leaderboard, conformance (ADR-0073) — 2026-10-16
 
