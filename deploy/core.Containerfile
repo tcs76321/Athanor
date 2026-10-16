@@ -63,5 +63,5 @@ EXPOSE 7420
 #   -v /run/podman/podman.sock:/run/podman/podman.sock
 # Job Pods are separate containers and never receive this mount.
 
-ENTRYPOINT ["/usr/sbin/tini", "--", "/usr/local/bin/athanor"]
+ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/athanor"]
 CMD ["serve", "-config", "/etc/athanor/config.yaml", "-state-dir", "/var/lib/athanor/state"]

@@ -17,6 +17,14 @@ New entries are appended at the top. Do not rewrite history.
   them, so `system_state` no longer grows one set per job. Only the suppression
   row was cleared before, and M9-T1b's default-on refinement widened the gap.
 
+### Fix — Core Pod image details
+
+- `deploy/core.Containerfile` uses `/usr/bin/tini` (Debian's path; the Debian
+  `tini` package installs `/usr/bin/tini`, not `/usr/sbin/tini`). Added
+  `.containerignore` so the Core image build context excludes VCS metadata, the
+  compiled binary, runtime state, and the probe/soak result trees (SQLite
+  databases).
+
 ### M9-T7 — packaging-aware doctor
 
 - **M9-T7.** `athanor doctor` reports the deployment shape (host binary vs Core

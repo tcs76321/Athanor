@@ -1,0 +1,18 @@
+# Build-context excludes for the Core Pod image (deploy/core.Containerfile).
+# Podman reads `.containerignore` (Docker-compatible syntax). The build context
+# is the repo root, so keep it small: no VCS metadata, no compiled binary, no
+# runtime state, and — importantly — no probe/soak result trees (they carry
+# SQLite databases).
+.git
+.gitignore
+bin
+state
+state-*/
+backups
+workspace
+spikes/**/results
+*.db
+*.db-wal
+*.db-shm
+cover.out
+.DS_Store
