@@ -10,6 +10,23 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Fix: git-as-undo containment (ADR-0071) — 2026-10-16
+
+- **Git-as-undo no longer escapes to a parent repo, moves the operator's HEAD,
+  or hangs on a GPG prompt.** A 0.0.0 soak staged fixture copies (no `.git`)
+  inside the developer's worktree, so the adapter's `git checkout -b athanor/<id>`
+  resolved the nearest ancestor `.git` — creating and checking out agent branches
+  **in the athanor repo itself** and forcing a `main` reset to recover. The
+  adapter now requires `repository_path` to be a git worktree root
+  (`ErrNotRepoRoot`, fail closed), commits through an **ephemeral worktree**
+  (`git worktree add`/`remove`) so the checked-out branch and working tree are
+  never disturbed, and disables signing and terminal prompts on every git call.
+  The probe roots each staged fixture copy as its own git repository, and its
+  fixture commit passes `--no-gpg-sign` / `commit.gpgsign=false` — a global
+  `commit.gpgsign=true` previously blocked the run on a pinentry prompt. Tests:
+  `cmd/athanor/git_client_test.go`, `spikes/m3-t7-probe/repo_source_test.go`;
+  decision: `docs/adr/0071-git-as-undo-containment.md`.
+
 ### Probe: heterogeneous per-role models + DAG mode (soak) — 2026-10-16
 
 - **A run can mirror a real deployment.** The soak accepts `-roles
