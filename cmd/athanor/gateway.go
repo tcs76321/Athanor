@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/tcs76321/athanor/cmd/athanor/scanners"
 	"github.com/tcs76321/athanor/internal/airlock/scanner"
 	"github.com/tcs76321/athanor/internal/config"
 	"github.com/tcs76321/athanor/internal/gateway"
@@ -38,11 +39,11 @@ type GatewayParts struct {
 //
 // The function does *not* start any goroutines; the gateway's
 // runtime is a per-Fetch call, and T7 (gateway-backed tools) is the
-// first caller. The Reader is constructed with the in-tree
-// prompt-injection heuristic (the same scanner the ingress pipeline
-// uses, `cmd/athanor/ingress.go`), always-on with MinLength=1, so
-// extraction is fail-closed from day one.
-func startGateway(stateDir string, st *store.Store, netCfg config.Network, logger *slog.Logger) (GatewayParts, error) {
+// first caller. The Reader is constructed with the scanner set
+// `readScanners` (the in-tree prompt-injection heuristic plus YARA /
+// ClamAV when installed; see newReaderScanners), so extraction is
+// fail-closed from day one and known-issues M3 is closed.
+func startGateway(stateDir string, st *store.Store, netCfg config.Network, readScanners []scanner.Scanner, logger *slog.Logger) (GatewayParts, error) {
 	// The §21.5 gateway is the only outbound HTTP
 	// door. Construction is the operator's
 	// structural proof that a daemon boot
@@ -69,10 +70,10 @@ func startGateway(stateDir string, st *store.Store, netCfg config.Network, logge
 		return GatewayParts{}, fmt.Errorf("gateway: building client: %w", err)
 	}
 	reader, err := gateway.NewReader(gateway.ReaderOptions{
-		Enabled:   netCfg.ReaderMode(),
-		Heuristic: scanner.NewPromptInjectionHeuristic(1),
-		Events:    st,
-		Logger:    logger,
+		Enabled:  netCfg.ReaderMode(),
+		Scanners: readScanners,
+		Events:   st,
+		Logger:   logger,
 	})
 	if err != nil {
 		return GatewayParts{}, fmt.Errorf("gateway: building reader: %w", err)
@@ -102,4 +103,25 @@ func startGateway(stateDir string, st *store.Store, netCfg config.Network, logge
 			return gateway.NewClient(opts)
 		},
 	}, nil
+}
+
+// newReaderScanners builds the scanner set the Reader Mode pipeline runs over
+// extracted web content (known-issues M3). The in-tree prompt-injection
+// heuristic is always present; YARA (with the resolved in-tree rule set) and
+// ClamAV join when their binaries are installed. Unlike the ingress registry —
+// which wires an absent external scanner as fail-closed VerdictUncertain — an
+// absent scanner here is simply omitted: otherwise every fetched page would be
+// refused on a host without ClamAV/YARA, which would break legitimate research.
+func newReaderScanners(stateDir string, ac ingressConfig, logger *slog.Logger) []scanner.Scanner {
+	out := []scanner.Scanner{scanner.NewPromptInjectionHeuristic(1)}
+	if rules, err := resolveYARARuleSet(stateDir, ac.YaraRuleSet); err != nil {
+		logger.Warn("gateway: yara rule set unavailable; fetched content is scanned by the injection heuristic only", "err", err)
+	} else if y := (&scanners.YARA{RuleSet: rules}); y.Available() {
+		out = append(out, newDriverAdapter(y))
+	}
+	if c := (&scanners.ClamAV{}); c.Available() {
+		out = append(out, newDriverAdapter(c))
+	}
+	logger.Info("gateway: reader scanners constructed", "count", len(out))
+	return out
 }

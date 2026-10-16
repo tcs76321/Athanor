@@ -81,10 +81,13 @@ type ReaderOptions struct {
 	// Extract returns ErrReaderDisabled without touching the body.
 	// Required.
 	Enabled bool
-	// Heuristic is the prompt-injection scanner. Required; a nil
-	// heuristic means "do not scan", which this package deliberately
-	// does not support (fail-closed, ADR-0018 §3 step 5).
-	Heuristic scanner.Scanner
+	// Scanners is the scanner set run over the extracted content,
+	// worst-wins (known-issues M3). The in-tree prompt-injection
+	// heuristic is always one of them; YARA / ClamAV join when their
+	// binaries are installed. At least one scanner is required: with
+	// none, injection defense is absent, which this package
+	// deliberately does not support (fail-closed, ADR-0018 §3 step 5).
+	Scanners []scanner.Scanner
 	// Events is the audit-log surface (same seam as Client). A nil
 	// Events means "no audit".
 	Events EventLogger
@@ -93,26 +96,31 @@ type ReaderOptions struct {
 }
 
 // NewReader constructs the production Reader from ReaderOptions.
-// It validates that the heuristic is present.
+// It validates that at least one scanner is present.
 func NewReader(opts ReaderOptions) (Reader, error) {
-	if opts.Heuristic == nil {
-		return nil, errors.New("gateway: ReaderOptions.Heuristic is required (fail-closed)")
+	if len(opts.Scanners) == 0 {
+		return nil, errors.New("gateway: ReaderOptions.Scanners must have at least one scanner (fail-closed)")
+	}
+	for _, s := range opts.Scanners {
+		if s == nil {
+			return nil, errors.New("gateway: ReaderOptions.Scanners contains a nil scanner")
+		}
 	}
 	return &reader{
-		enabled:   opts.Enabled,
-		heuristic: opts.Heuristic,
-		events:    opts.Events,
-		logger:    opts.Logger,
+		enabled:  opts.Enabled,
+		scanners: opts.Scanners,
+		events:   opts.Events,
+		logger:   opts.Logger,
 	}, nil
 }
 
 // reader is the production Reader. It is stateless apart from the
 // injected dependencies, so it is safe for concurrent Extract calls.
 type reader struct {
-	enabled   bool
-	heuristic scanner.Scanner
-	events    EventLogger
-	logger    *slog.Logger
+	enabled  bool
+	scanners []scanner.Scanner
+	events   EventLogger
+	logger   *slog.Logger
 }
 
 // Extract implements the Reader Mode pipeline (ADR-0018 §3). See
@@ -219,23 +227,24 @@ func (r *reader) extractHTML(ctx context.Context, resp *Response) (*ReaderResult
 	}, nil
 }
 
-// scanAndReject runs the injection heuristic over `md`. A non-clean
-// verdict audits reader_mode_rejected and returns ErrPromptInjection.
-// The scanner may return an error (treated as fail-closed, matching
-// the registry's error → VerdictUncertain rule).
+// scanAndReject runs the scanner set over `md`, worst-wins. Any non-clean
+// verdict — Rejected or Uncertain — audits reader_mode_rejected and returns
+// ErrPromptInjection; a scanner error is also fail-closed (matching the
+// registry's error → VerdictUncertain rule). With a single in-tree heuristic
+// this is the ADR-0018 §3 step 5 behavior; with YARA/ClamAV wired in
+// (known-issues M3) their verdicts join the same worst-wins decision.
 func (r *reader) scanAndReject(ctx context.Context, rawURL, md string) error {
-	res, err := r.heuristic.Scan(ctx, scanner.ScanInput{
-		Path:  "",
-		Bytes: []byte(md),
-		Size:  int64(len(md)),
-	})
-	if err != nil {
-		r.auditRejectedURL(ctx, rawURL, "scan_error")
-		return fmt.Errorf("gateway: injection scan failed: %w", err)
-	}
-	if res.Verdict != scanner.VerdictClean {
-		r.auditRejectedURL(ctx, rawURL, "prompt_injection")
-		return ErrPromptInjection
+	in := scanner.ScanInput{Bytes: []byte(md), Size: int64(len(md))}
+	for _, s := range r.scanners {
+		res, err := s.Scan(ctx, in)
+		if err != nil {
+			r.auditRejectedURL(ctx, rawURL, "scan_error")
+			return fmt.Errorf("gateway: %s scan failed: %w", s.Name(), err)
+		}
+		if res.Verdict != scanner.VerdictClean {
+			r.auditRejectedURL(ctx, rawURL, "prompt_injection")
+			return ErrPromptInjection
+		}
 	}
 	return nil
 }

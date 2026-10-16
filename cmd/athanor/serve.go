@@ -350,7 +350,18 @@ func run(configPath, addr, stateDir string) error {
 	// The Reader half of the bundle is constructed (and its
 	// injection heuristic validated) here so a reader-mode
 	// misconfiguration fails at boot, not at first fetch.
-	gw, err := startGateway(stateDir, st, cfg.Network, slog.Default())
+	// M4-T2/T3: the airlock scanner config is read once and shared by the
+	// gateway Reader (which scans extracted web content, known-issues M3)
+	// and the ingress watcher below.
+	airlockCfg := ingressConfig{
+		AirlockEnabled:       config.Val(cfg.Airlock.Enabled, true),
+		MaxIngressBytes:      cfg.Airlock.MaxIngressBytes,
+		MaxUncompressedRatio: cfg.Airlock.MaxUncompressedRatio,
+		MaxZipEntries:        cfg.Airlock.MaxZipEntries,
+		YaraRuleSet:          cfg.Airlock.YaraRuleSet,
+	}
+	gw, err := startGateway(stateDir, st, cfg.Network,
+		newReaderScanners(stateDir, airlockCfg, slog.Default()), slog.Default())
 	if err != nil {
 		return fmt.Errorf("starting gateway: %w", err)
 	}
@@ -385,13 +396,7 @@ func run(configPath, addr, stateDir string) error {
 	// scanner registry is reused for the egress pipeline
 	// below (M4-T4) — one registry, two pipelines.
 	ingWatcher, scannerReg, err := startIngress(context.Background(), stateDir, st, killSwitch,
-		ingressConfig{
-			AirlockEnabled:       config.Val(cfg.Airlock.Enabled, true),
-			MaxIngressBytes:      cfg.Airlock.MaxIngressBytes,
-			MaxUncompressedRatio: cfg.Airlock.MaxUncompressedRatio,
-			MaxZipEntries:        cfg.Airlock.MaxZipEntries,
-			YaraRuleSet:          cfg.Airlock.YaraRuleSet,
-		},
+		airlockCfg,
 		slog.Default(),
 	)
 	if err != nil {

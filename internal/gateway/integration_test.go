@@ -103,9 +103,9 @@ func TestIntegration_GatewayFetchesAllowlistedRealDomain(t *testing.T) {
 		t.Fatal(err)
 	}
 	r, err := NewReader(ReaderOptions{
-		Enabled:   true,
-		Heuristic: scanner.NewPromptInjectionHeuristic(1),
-		Events:    events,
+		Enabled:  true,
+		Scanners: []scanner.Scanner{scanner.NewPromptInjectionHeuristic(1)},
+		Events:   events,
 	})
 	if err != nil {
 		t.Fatal(err)

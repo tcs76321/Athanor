@@ -19,9 +19,9 @@ func newTestReader(t *testing.T, enabled bool) (Reader, *recordingEvents) {
 	t.Helper()
 	events := &recordingEvents{}
 	r, err := NewReader(ReaderOptions{
-		Enabled:   enabled,
-		Heuristic: scanner.NewPromptInjectionHeuristic(1),
-		Events:    events,
+		Enabled:  enabled,
+		Scanners: []scanner.Scanner{scanner.NewPromptInjectionHeuristic(1)},
+		Events:   events,
 	})
 	if err != nil {
 		t.Fatalf("NewReader: %v", err)
@@ -278,5 +278,50 @@ func TestReader_EndToEndThroughClient(t *testing.T) {
 	applied := readEvents.recordedByName("reader_mode_applied")
 	if len(applied) != 1 {
 		t.Fatalf("reader_mode_applied events = %d, want 1", len(applied))
+	}
+}
+
+// fixedVerdictScanner is a Scanner stub for the reader's worst-wins tests.
+type fixedVerdictScanner struct {
+	name    string
+	verdict scanner.Verdict
+}
+
+func (f fixedVerdictScanner) Name() string { return f.name }
+
+func (f fixedVerdictScanner) Scan(context.Context, scanner.ScanInput) (scanner.ScanResult, error) {
+	return scanner.ScanResult{Verdict: f.verdict, Reason: "test"}, nil
+}
+
+// TestReader_RequiresScanners pins the fail-closed construction contract: a
+// reader with no scanner (or a nil scanner) must not be constructible
+// (known-issues M3).
+func TestReader_RequiresScanners(t *testing.T) {
+	if _, err := NewReader(ReaderOptions{Enabled: true}); err == nil {
+		t.Error("NewReader with no scanners returned nil error; want fail-closed rejection")
+	}
+	if _, err := NewReader(ReaderOptions{Enabled: true, Scanners: []scanner.Scanner{nil}}); err == nil {
+		t.Error("NewReader with a nil scanner returned nil error; want rejection")
+	}
+}
+
+// TestReader_MultiScannerWorstWins proves the reader runs the whole scanner set
+// worst-wins: a single Uncertain scanner refuses content the heuristic alone
+// would pass (known-issues M3).
+func TestReader_MultiScannerWorstWins(t *testing.T) {
+	events := &recordingEvents{}
+	r, err := NewReader(ReaderOptions{
+		Enabled: true,
+		Scanners: []scanner.Scanner{
+			scanner.NewPromptInjectionHeuristic(1),
+			fixedVerdictScanner{name: "uncertain", verdict: scanner.VerdictUncertain},
+		},
+		Events: events,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.Extract(context.Background(), newResponse(t, "text/plain", "benign text")); !errors.Is(err, ErrPromptInjection) {
+		t.Fatalf("Extract err = %v, want ErrPromptInjection (Uncertain must fail closed)", err)
 	}
 }

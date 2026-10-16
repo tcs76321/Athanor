@@ -10,6 +10,19 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### C3 — Reader Mode runs a scanner set (M3) — 2026-10-16
+
+- **`gateway.ReaderOptions.Scanners` replaces `Heuristic`.** Fetched web content
+  was guarded only by the ~10-regex prompt-injection heuristic. The Reader Mode
+  pipeline now runs a scanner set worst-wins: the in-tree heuristic always, plus
+  YARA (with the resolved in-tree rule set) and ClamAV when their binaries are
+  installed (`cmd/athanor/gateway.go:newReaderScanners`). Unlike the ingress
+  registry — which treats an absent external scanner as fail-closed `Uncertain`
+  — an absent scanner here is omitted, so a host without ClamAV/YARA does not
+  refuse every fetched page; any non-clean verdict still fails closed. Tests:
+  `internal/gateway/reader_test.go` (`TestReader_RequiresScanners`,
+  `TestReader_MultiScannerWorstWins`).
+
 ### C2 — ingress reads bounded before load — 2026-10-16
 
 - **Pre-read size cap in `airlock/ingress`.** The watcher `io.ReadAll`'d an
