@@ -74,6 +74,11 @@ type Watcher struct {
 	quarantine_ *store.QuarantineRepo
 	freezer     Freezer
 	logger      *slog.Logger
+	// maxIngressBytes is the pre-read size cap (airlock.max_ingress_bytes).
+	// A file larger than this is rejected before it is read into memory
+	// (known-issues C2); the registry's `size` scanner would otherwise only
+	// see it after io.ReadAll had already buffered the whole file.
+	maxIngressBytes int64
 
 	watcher   *fsnotify.Watcher
 	pending   chan pendingFile
@@ -82,15 +87,19 @@ type Watcher struct {
 }
 
 // Options configures a Watcher. Required fields: Root,
-// Registry, Store, Quarantine, Freezer. Logger is optional
-// (nil → slog.Default()).
+// Registry, Store, Quarantine, Freezer, MaxIngressBytes.
+// Logger is optional (nil → slog.Default()).
 type Options struct {
 	Root       string
 	Registry   *scanner.Registry
 	Store      *store.Store
 	Quarantine *store.QuarantineRepo
 	Freezer    Freezer
-	Logger     *slog.Logger
+	// MaxIngressBytes bounds the file size the watcher will read. It must be
+	// positive; the value is the same one the `size` scanner enforces, so the
+	// pre-read rejection and the scanner agree.
+	MaxIngressBytes int64
+	Logger          *slog.Logger
 }
 
 // New constructs and starts a Watcher. The Watcher's
@@ -113,6 +122,9 @@ func New(ctx context.Context, opts Options) (*Watcher, error) {
 	if opts.Freezer == nil {
 		return nil, fmt.Errorf("ingress: Freezer is required")
 	}
+	if opts.MaxIngressBytes <= 0 {
+		return nil, fmt.Errorf("ingress: MaxIngressBytes must be positive, got %d", opts.MaxIngressBytes)
+	}
 	if opts.Logger == nil {
 		opts.Logger = slog.Default()
 	}
@@ -132,17 +144,18 @@ func New(ctx context.Context, opts Options) (*Watcher, error) {
 		return nil, fmt.Errorf("ingress: watch %s: %w", opts.Root, err)
 	}
 	w := &Watcher{
-		root:        opts.Root,
-		processed:   processed,
-		quarantine:  quarantine,
-		registry:    opts.Registry,
-		store:       opts.Store,
-		quarantine_: opts.Quarantine,
-		freezer:     opts.Freezer,
-		logger:      opts.Logger,
-		watcher:     fw,
-		pending:     make(chan pendingFile, 256),
-		closed:      make(chan struct{}),
+		root:            opts.Root,
+		processed:       processed,
+		quarantine:      quarantine,
+		registry:        opts.Registry,
+		store:           opts.Store,
+		quarantine_:     opts.Quarantine,
+		freezer:         opts.Freezer,
+		logger:          opts.Logger,
+		maxIngressBytes: opts.MaxIngressBytes,
+		watcher:         fw,
+		pending:         make(chan pendingFile, 256),
+		closed:          make(chan struct{}),
 	}
 	go w.loop(ctx)
 	go w.processor(ctx)
@@ -279,6 +292,17 @@ func (w *Watcher) process(ctx context.Context, pf pendingFile) {
 	info, err := f.Stat()
 	if err != nil {
 		w.logger.Warn("ingress: stat failed", "relpath", pf.relPath, "err", err)
+		return
+	}
+	// Known-issues C2: reject an oversize file BEFORE reading it. The `size`
+	// scanner enforces the same cap, but only after io.ReadAll has buffered
+	// the whole file, so a multi-GB drop would exhaust memory first. The
+	// original file is left in place (originals-untouched) and the rejection
+	// is audited.
+	if info.Size() > w.maxIngressBytes {
+		w.logger.Warn("ingress: file exceeds max_ingress_bytes; not read",
+			"relpath", pf.relPath, "size", info.Size(), "max", w.maxIngressBytes)
+		w.auditRejected(ctx, pf, fmt.Sprintf("scanner:size:exceeds_max:%d>%d", info.Size(), w.maxIngressBytes))
 		return
 	}
 	bytes, err := io.ReadAll(f)

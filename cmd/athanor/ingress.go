@@ -131,12 +131,13 @@ func startIngress(
 	}
 	qr := store.NewQuarantineRepo(store_)
 	w, err := ingress.New(ctx, ingress.Options{
-		Root:       root,
-		Registry:   reg,
-		Store:      store_,
-		Quarantine: qr,
-		Freezer:    killSwitch,
-		Logger:     logger,
+		Root:            root,
+		Registry:        reg,
+		Store:           store_,
+		Quarantine:      qr,
+		Freezer:         killSwitch,
+		MaxIngressBytes: cfg.MaxIngressBytes,
+		Logger:          logger,
 	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("starting ingress watcher: %w", err)

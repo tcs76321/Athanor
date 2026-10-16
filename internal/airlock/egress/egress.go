@@ -340,6 +340,19 @@ func (e *Exporter) ExportOne(ctx context.Context, artifactID string) (path strin
 	if err := e.writeArtifact(dst, art, content); err != nil {
 		return "", false, fmt.Errorf("write export %s: %w", dst, err)
 	}
+	// Known-issues C1: the package doc promised an export-tree validation that
+	// nothing called. Today the export is a single regular file, so this guard
+	// is normally a no-op; it exists so a future multi-file export cannot land
+	// a symlink escape, device/FIFO node, or setuid/setgid binary in the tree.
+	// A failure fails the export closed and removes the written tree.
+	if verr := ValidateTree(dst); verr != nil {
+		_ = os.RemoveAll(dst)
+		e.auditExportBlocked(ctx, art, scanner.PipelineResult{
+			Verdict: scanner.VerdictRejected,
+			Reason:  "egress:tree:" + verr.Error(),
+		})
+		return dst, false, fmt.Errorf("validating export tree %s: %w", dst, verr)
+	}
 	e.auditExportComplete(ctx, art, dst, result)
 	return dst, true, nil
 }

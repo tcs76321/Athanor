@@ -108,8 +108,9 @@ func (f *fixedScanner) Scan(ctx context.Context, in scanner.ScanInput) (scanner.
 // workspace with the given scanner list (one entry per
 // pipeline list; see Option for details).
 type watcherOption struct {
-	clean    bool // include the "clean" scanner in the ingress list
-	rejected bool // include the "rejected" scanner in the ingress list
+	clean    bool  // include the "clean" scanner in the ingress list
+	rejected bool  // include the "rejected" scanner in the ingress list
+	maxBytes int64 // pre-read size cap; 0 → 1 GiB
 }
 
 // newTestWatcher builds a Watcher in a fresh temp
@@ -146,13 +147,18 @@ func newTestWatcher(t *testing.T, st *store.Store, opt watcherOption) (*Watcher,
 		t.Fatalf("registry: %v", err)
 	}
 	fr := &fakeFreezer{}
+	maxBytes := opt.maxBytes
+	if maxBytes <= 0 {
+		maxBytes = 1 << 30
+	}
 	w, err := New(context.Background(), Options{
-		Root:       root,
-		Registry:   reg,
-		Store:      st,
-		Quarantine: store.NewQuarantineRepo(st),
-		Freezer:    fr,
-		Logger:     slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError})),
+		Root:            root,
+		Registry:        reg,
+		Store:           st,
+		Quarantine:      store.NewQuarantineRepo(st),
+		Freezer:         fr,
+		MaxIngressBytes: maxBytes,
+		Logger:          slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError})),
 	})
 	if err != nil {
 		t.Fatalf("ingress.New: %v", err)
@@ -300,4 +306,35 @@ func TestIngress_FrozenKillSwitchPausesProcessor(t *testing.T) {
 		_, err := store.NewQuarantineRepo(st).Get(context.Background(), wantSHA)
 		return err == nil
 	})
+}
+
+// known-issues C2: a file larger than max_ingress_bytes is rejected BEFORE it
+// is read into memory, so a huge drop cannot exhaust RAM before the `size`
+// scanner ever runs. The original is left in place and the rejection audited.
+func TestIngressRejectsOversizeBeforeRead(t *testing.T) {
+	st := openTestStore(t)
+	w, _ := newTestWatcher(t, st, watcherOption{clean: true, maxBytes: 16})
+	name := writeFile(t, w.root, "big.bin", []byte(strings.Repeat("x", 64)))
+
+	waitFor(t, 3*time.Second, func() bool {
+		evs, err := st.QueryEvents(context.Background(), store.EventFilter{Category: "airlock"})
+		return err == nil && len(evs) >= 1
+	})
+
+	// The original is untouched and nothing was copied to .processed/.
+	if _, err := os.Stat(filepath.Join(w.root, name)); err != nil {
+		t.Fatalf("original removed: %v", err)
+	}
+	if processed, _ := os.ReadDir(w.processed); len(processed) != 0 {
+		t.Errorf(".processed has %d entries, want none", len(processed))
+	}
+	evs, err := st.QueryEvents(context.Background(), store.EventFilter{Category: "airlock"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, ev := range evs {
+		if !strings.Contains(ev.DataJSON, "rejected") {
+			t.Fatalf("audit event = %q, want a rejection", ev.DataJSON)
+		}
+	}
 }

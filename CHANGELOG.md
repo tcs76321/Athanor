@@ -10,6 +10,24 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### C2 — ingress reads bounded before load — 2026-10-16
+
+- **Pre-read size cap in `airlock/ingress`.** The watcher `io.ReadAll`'d an
+  inbox file before the `size` scanner saw it, so a multi-GB drop was buffered
+  into memory before being rejected. It now checks `Stat().Size()` against
+  `airlock.max_ingress_bytes` (the same cap the scanner enforces) and rejects an
+  oversize file without reading it, leaving the original in place and auditing
+  the rejection. `ingress.Options` gained the required `MaxIngressBytes` field.
+
+### C1 — egress export-tree validation wired — 2026-10-16
+
+- **`airlock/egress.ValidateTree` is now called.** The package doc promised an
+  export-tree path-containment walk, but nothing invoked it (dead code). The
+  exporter now validates the written tree and fails the export closed — removing
+  it and auditing `egress_blocked` — if any entry is a symlink escape, device,
+  FIFO, or setuid/setgid node. Today's single-file export makes this a guard
+  against a future multi-file export.
+
 ### B1 — goal lifecycle (status advances with the graph) — 2026-10-16
 
 - **`project.Repo.RecomputeGoalStatus` + `GoalStatus`.** A decomposed goal's
