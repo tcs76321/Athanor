@@ -22,6 +22,7 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"path/filepath"
 	"strings"
 
 	"github.com/tcs76321/athanor/internal/config"
@@ -279,16 +280,30 @@ func (r *Report) checkOllama(ctx context.Context, cfg *config.Config, p Probes) 
 	r.add(Check{Name: "models", Status: StatusOK, Detail: "all persona models present"})
 }
 
-// modelPresent reports whether want is installed, tolerating Ollama's
-// implicit ":latest" tag.
+// modelPresent reports whether want is installed. An exact match (modulo
+// Ollama's implicit ":latest") wins; a config that names a bare base with no
+// tag also matches any tag of the same base, aligning with onboard's
+// base-name matching (known-issues L23).
 func modelPresent(want string, available []string) bool {
 	w := stripLatest(want)
+	tagged := strings.ContainsAny(want, ":@")
 	for _, a := range available {
 		if stripLatest(a) == w {
 			return true
 		}
+		if !tagged && baseName(a) == w {
+			return true
+		}
 	}
 	return false
+}
+
+// baseName strips an Ollama tag (":" or "@") — mirrors onboard.baseName.
+func baseName(s string) string {
+	if i := strings.IndexAny(s, ":@"); i >= 0 {
+		return s[:i]
+	}
+	return s
 }
 
 func stripLatest(s string) string { return strings.TrimSuffix(strings.TrimSpace(s), ":latest") }
@@ -329,6 +344,15 @@ func (r *Report) checkDisk(ctx context.Context, opts Options, p Probes) {
 		dir = "."
 	}
 	free, ok := p.FreeDiskBytes(ctx, dir)
+	if !ok {
+		// known-issues M18: on a fresh clone the state directory may not exist
+		// yet; fall back to the nearest existing ancestor.
+		for d := filepath.Dir(dir); d != filepath.Dir(d); d = filepath.Dir(d) {
+			if free, ok = p.FreeDiskBytes(ctx, d); ok {
+				break
+			}
+		}
+	}
 	if !ok {
 		r.add(Check{Name: "disk", Status: StatusWarn, Detail: "could not determine free disk space"})
 		return

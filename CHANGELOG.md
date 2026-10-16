@@ -10,6 +10,15 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Doctor hardening (M18, L23) — 2026-10-16
+
+- **M18 — disk check falls back to an ancestor.** On a fresh clone the state
+  dir may not exist yet; `checkDisk` now walks up to the nearest existing
+  ancestor instead of warning "could not determine free disk space".
+- **L23 — model matching aligned with onboarding.** `modelPresent` matches a
+  bare base-name config against any installed tag (mirroring `onboard.baseName`)
+  while still requiring an exact tag match for a tagged config.
+
 ### DAG, scheduler & HITL hardening (M19–M23) — 2026-10-16
 
 - **M19 — `Ready`/`Blocked` agree on `ready`.** Both now treat a `ready` leaf as

@@ -22,6 +22,7 @@ type fakeProbes struct {
 	memOK       bool
 	disk        uint64
 	diskOK      bool
+	diskFailFor string // if set, FreeDiskBytes reports !ok for exactly this dir
 	writableErr error
 	inContainer bool
 }
@@ -54,7 +55,12 @@ func (f *fakeProbes) OllamaModels(context.Context, string) ([]string, error) {
 
 func (f *fakeProbes) TotalMemoryBytes(context.Context) (uint64, bool) { return f.mem, f.memOK }
 
-func (f *fakeProbes) FreeDiskBytes(context.Context, string) (uint64, bool) { return f.disk, f.diskOK }
+func (f *fakeProbes) FreeDiskBytes(_ context.Context, dir string) (uint64, bool) {
+	if f.diskFailFor != "" && dir == f.diskFailFor {
+		return 0, false
+	}
+	return f.disk, f.diskOK
+}
 
 func (f *fakeProbes) DirWritable(string) error { return f.writableErr }
 
@@ -279,11 +285,28 @@ func TestModelPresent(t *testing.T) {
 		{"llama3.1:latest", []string{"llama3.1"}, true},
 		{"phi3:3.8b", []string{"qwen2.5:7b"}, false},
 		{"qwen2.5:7b", nil, false},
+		// known-issues L23: a bare base-name config matches any tag.
+		{"qwen2.5", []string{"qwen2.5:7b"}, true},
+		{"qwen2.5", []string{"qwen2.5:14b"}, true},
+		{"qwen2.5:7b", []string{"qwen2.5"}, false},
 	}
 	for _, c := range cases {
 		if got := modelPresent(c.want, c.have); got != c.present {
 			t.Errorf("modelPresent(%q, %v) = %v, want %v", c.want, c.have, got, c.present)
 		}
+	}
+}
+
+// TestRunDiskFallsBackToAncestor (known-issues M18): when the configured state
+// dir does not exist yet, the disk check falls back to an existing ancestor
+// instead of reporting "could not determine free disk space".
+func TestRunDiskFallsBackToAncestor(t *testing.T) {
+	p := goodProbes()
+	p.diskFailFor = "/nonexistent/athanor-state"
+	rep := Run(context.Background(), goodConfig(t), Options{StateDir: "/nonexistent/athanor-state"}, p)
+	c := findCheck(rep, "disk")
+	if c == nil || c.Status != StatusOK {
+		t.Fatalf("disk check = %+v, want ok via ancestor fallback (known-issues M18)", c)
 	}
 }
 
