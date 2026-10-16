@@ -10,6 +10,18 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### M9-T2b — qualification smoke (findings)
+
+- **M9-T2b (smoke).** A ~1-hour pre-qualification pass; findings in
+  [docs/qualification-smoke-m9.md](docs/qualification-smoke-m9.md). **Judge:**
+  `granite4.2:3b` is the best local judge (Spearman 0.81, cross-family);
+  `gemma4:e4b` (0.48) is below the floor. **Generator:** 1/6 H-tier code tasks
+  accepted with the 9B generator — the model ceiling (the repair loop and
+  synthesis fix are live but cannot rescue a failing model). Two actionable
+  findings: the planner labelled H-tier tasks `easy`, so M9-T4's raise did not
+  fire (the lever must also key on evidence), and the run aborted on the
+  `OLLAMA_MAX_LOADED_MODELS=1` operator precondition.
+
 ### M9-T8 (part) — Core Pod deploy guide
 
 - **M9-T8 (part).** [`docs/deploy-core-pod.md`](docs/deploy-core-pod.md): build
