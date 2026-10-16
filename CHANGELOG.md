@@ -10,6 +10,18 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Model onboarding surface: `athanor models` (M9-T2) — 2026-10-16
+
+- **`internal/onboard` gets a production caller.** `onboard.Assess` composes the
+  inventory (`Inventory`) and the routing proposal (`Route`) into one value, and
+  the new `athanor models` command presents the per-role picture: whether each
+  configured persona's model is installed, which installed models also fit in
+  memory, and — with `-qualification <file>` (per-role `onboard.Measurement`
+  JSON, e.g. from the probe's anchor/generator runs) — the advisory routing
+  proposal. Applying it is a config edit; the output never mutates config
+  (ADR-0049). Tests: `internal/onboard/assess_test.go`,
+  `cmd/athanor/cli_models_test.go`.
+
 ### Declared deterministic checks for text/document (ADR-0070) — 2026-10-16
 
 - **The document/text acceptance edge.** `project.Execution` gains `Checks`

@@ -14,34 +14,34 @@ import "sort"
 
 // Model is one installed backend model.
 type Model struct {
-	Name      string
-	SizeBytes int64
-	Family    string
+	Name      string `json:"name"`
+	SizeBytes int64  `json:"size_bytes"`
+	Family    string `json:"family,omitempty"`
 }
 
 // Role is one configured persona's model expectation.
 type Role struct {
-	Role          string // wide | tall | main | security | alternative
-	Model         string // the model name in config
-	ContextTarget int
+	Role          string `json:"role"` // wide | tall | main | security | alternative
+	Model         string `json:"model"`
+	ContextTarget int    `json:"context_target,omitempty"`
 }
 
 // PersonaReport is the inventory for one role. Installed reports the configured
 // model; Alternatives are the installed models that fit in memory, largest
 // first (a rough "most capable that fits" proxy).
 type PersonaReport struct {
-	Role          string
-	Configured    string
-	Installed     bool
-	ContextTarget int
-	Alternatives  []Model
+	Role          string  `json:"role"`
+	Configured    string  `json:"configured"`
+	Installed     bool    `json:"installed"`
+	ContextTarget int     `json:"context_target,omitempty"`
+	Alternatives  []Model `json:"alternatives,omitempty"`
 }
 
 // Report is the onboarding inventory.
 type Report struct {
-	AvailableBytes int64
-	ReserveBytes   int64
-	Personas       []PersonaReport
+	AvailableBytes int64           `json:"available_bytes"`
+	ReserveBytes   int64           `json:"reserve_bytes"`
+	Personas       []PersonaReport `json:"personas"`
 }
 
 // Fit reports whether a model fits in memory given a reserve. Unknown memory

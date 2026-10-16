@@ -139,7 +139,7 @@ Then watch it work in real time from the Watch View, or queue it and check the M
   [docs/qualification-smoke-m9.md](docs/qualification-smoke-m9.md); plan in
   [docs/0.0.0-plan.md](docs/0.0.0-plan.md).
 - **Daemon on loopback** (`http://127.0.0.1:7420`). Config falls back to built-in defaults when `config.yaml` is absent; missing config is not an error on a fresh clone. `/healthz` reports status, version, uptime.
-- **CLI client.** `project create`, `goal submit`, `job watch`, `artifacts`, `freeze`, `unfreeze`, `doctor`. Talks to a running daemon over loopback, except `doctor` which inspects the local host directly.
+- **CLI client.** `project create`, `goal submit`, `job watch`, `artifacts`, `freeze`, `unfreeze`, `doctor`, `models`. Talks to a running daemon over loopback, except `doctor` and `models`, which inspect the local host directly.
 - **Doctor (M7-T5).** `athanor doctor` checks rootless Podman, Git, Ollama reachability, every persona model (with `ollama pull` remediation), memory, disk, state-dir writability, the Job Pod image, §12.6 context feasibility, and the network posture — failing loudly on hard prerequisites and warning on advisories. [ADR-0050](docs/adr/0050-doctor.md).
 - **Power/idle policy (M7-T1).** A pure §24 policy + poll supervisor drives the profile from real AC/battery/idle (macOS `pmset`/`ioreg`, Linux `sysfs`/`xprintidle`), pauses deep work on battery/sleep, re-drives it on AC restore/wake, and holds `caffeinate`/`systemd-inhibit` while autonomous work runs. Daydreaming activates only on AC + idle. [ADR-0051](docs/adr/0051-power-supervisor.md).
 - **Daydreaming engine (M7-T2).** All five in-scope §17.1 idle actions run

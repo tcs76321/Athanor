@@ -9,10 +9,10 @@ import (
 // is better for both role classes: the deterministic pass rate for a generator
 // role, the anchor agreement (Spearman) for the judge role.
 type Measurement struct {
-	Model   string
-	Role    string
-	Score   float64
-	Samples int
+	Model   string  `json:"model"`
+	Role    string  `json:"role"`
+	Score   float64 `json:"score"`
+	Samples int     `json:"samples,omitempty"`
 }
 
 // RoutingOptions parameterise Route.
@@ -36,13 +36,13 @@ type RoutingOptions struct {
 // Recommendation is the routing proposal for one role. It is advisory: Route
 // never mutates config (ADR-0049; the proposal is for HITL approval).
 type Recommendation struct {
-	Role        string
-	Configured  string
-	Recommended string
-	Replace     bool
+	Role        string `json:"role"`
+	Configured  string `json:"configured"`
+	Recommended string `json:"recommended"`
+	Replace     bool   `json:"replace"`
 	// Score is the recommended model's measured score (0 when unmeasured).
-	Score  float64
-	Reason string
+	Score  float64 `json:"score,omitempty"`
+	Reason string  `json:"reason"`
 }
 
 // Route produces a routing proposal from per-role measurements. `families` maps

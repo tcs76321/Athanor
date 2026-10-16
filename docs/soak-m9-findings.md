@@ -78,10 +78,12 @@ catches orphans on the next daemon start; normal operation tears pods down.
   `execution.checks` ([ADR-0070](adr/0070-declared-checks.md)) feeds a hard
   `checksVerifier`, and the probe sends each bench task's `checks:` (and, for
   `data`, its schema) to the project so the engine gates at runtime.
-- **Ship a surface for the routing table.** `internal/onboard` is a pure library
-  with no production caller yet; a `athanor models` command (or a `GET /models`
-  route) would present the inventory + proposal for HITL approval — the missing
-  piece of M9-T2's acceptance.
+- **Ship a surface for the routing table — FIXED (2026-10-16).** `internal/onboard`
+  was a pure library with no production caller. `athanor models` now presents the
+  per-role inventory (configured vs installed, fitting alternatives) and, with a
+  `-qualification <file>`, the advisory `onboard.Route` proposal — the surface
+  M9-T2's acceptance wanted (applying it is a config edit; the human is the gate,
+  ADR-0049). `onboard.Assess` composes the two.
 - **Interrupt-time pod teardown — FIXED (2026-10-16).** Signalling the daemon
   mid-job could leave one orphan Job Pod (the §F5 ~10 s shutdown raced a
   mid-exec pod); the M2-T5 boot sweep caught it. The engine now sets a drain
