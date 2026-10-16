@@ -10,6 +10,41 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### 0.0.0-rc — technique-guidance loop, soak deadline, release scope (2026-10-15)
+
+- **M8-T26.** Technique mining over grounded trajectories: `strategy.Mine` now
+  also groups outcomes by executed cognitive operation (a "technique") and emits
+  winning/losing technique insights per archetype, anchored in a grounded
+  (deterministic-verifier) verdict. Numbers are rendered from the data; no LLM.
+- **M8-T27.** Advisory technique-guidance channel: `ActiveStatements` renders a
+  technique insight as a prefer/avoid line grounded in its inline evidence,
+  injected at the existing §11.2 position 14. Advisory only — the eligible
+  operation set is never narrowed ([ADR-0067](docs/adr/0067-technique-guidance-loop.md)).
+- **M8-T28.** Auto-activation of grounded winning techniques on the daydream
+  Strategy Mining action and `POST /strategy/mine`, above a strict bar
+  (`strategy_analysis.technique_min_accept_delta`), bounded by
+  `max_active_insights`, reversible via mute (now durable against re-mining).
+  Persona/candidate insights keep the HITL gate.
+- **M8-T29.** Exploration blend: `policy.Explore` drops the learned persona bias
+  on a deterministic per-job basis (epsilon on familiar classes, proportional on
+  novel ones), gated by `novelty_reset` (keep/reset/auto) alongside the M8-T9
+  reset.
+- **M8-T30.** Guidance A/B in the probe: `m3-t7-probe compare -baseline <dir>`
+  renders the per-tier deterministic pass-rate delta between a guidance-off and a
+  guidance-on run.
+- **M8-T31.** Soak deadline + instrumentation: `m3-t7-probe soak -until
+  midnight|HH:MM|RFC3339` (persisted so a resume does not slide it); `/healthz`
+  exports the live goroutine count and `soak.csv` samples it; the soak config
+  compresses the time-triggered schedules.
+- **ADR-0066** (0.0.0 scope + soak re-specification, coverage over wall-clock),
+  **ADR-0067** (advisory technique-guidance loop, superseding M8-T8b-as-narrowing),
+  and **[docs/m8-plan.md](docs/m8-plan.md)** (the finite 0.0.0 acceptance set).
+- **fix(config).** Default `inference.ollama_url` is now `http://127.0.0.1:11434`
+  — the shipped Core is a host binary, and `host.containers.internal` (the
+  container→host alias) did not resolve on the host.
+- **docs.** Living docs de-MVP'd (`SECURITY.md`, `ROADMAP.md`,
+  `docs/sqlite-setup.md`); M7/M8 status and the soak runbook updated.
+
 ### M8-T19 — repo-backed task: exercise the MCE working set
 
 - A bench task can declare `repo:`; the probe copies it to a throwaway dir (so
