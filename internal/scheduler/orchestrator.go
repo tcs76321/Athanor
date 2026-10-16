@@ -150,6 +150,12 @@ func (s *Scheduler) OnJobTerminal(ctx context.Context, jobID string, state job.S
 	if _, err := s.advance(ctx, tasks); err != nil {
 		slog.Error("scheduler: advancing graph", "goal", t.GoalID, "err", err)
 	}
+	// known-issues B1: advance the goal's own status so a fully-completed
+	// graph is reported honestly (the Morning Digest) and a stalled one stops
+	// being re-walked at every boot.
+	if err := s.projects.RecomputeGoalStatus(ctx, t.GoalID); err != nil {
+		slog.Error("scheduler: recomputing goal status", "goal", t.GoalID, "err", err)
+	}
 }
 
 // handleFailure applies the §7.2 leaf-failure policy (ADR-0034 §1): retry
@@ -280,7 +286,14 @@ func (s *Scheduler) Reset(ctx context.Context, taskID string) ([]string, error) 
 	if err != nil {
 		return nil, err
 	}
-	return s.advance(ctx, tasks)
+	started, err := s.advance(ctx, tasks)
+	if err != nil {
+		return started, err
+	}
+	if err := s.projects.RecomputeGoalStatus(ctx, t.GoalID); err != nil {
+		return started, err
+	}
+	return started, nil
 }
 
 // Reconcile applies terminal job outcomes that predate a restart and then
@@ -325,8 +338,10 @@ func (s *Scheduler) Reconcile(ctx context.Context, goalID string) error {
 	if err != nil {
 		return err
 	}
-	_, err = s.advance(ctx, tasks)
-	return err
+	if _, err = s.advance(ctx, tasks); err != nil {
+		return err
+	}
+	return s.projects.RecomputeGoalStatus(ctx, goalID)
 }
 
 // advance applies the §7.2 blocked closure and starts every ready leaf. The

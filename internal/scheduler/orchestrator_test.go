@@ -444,3 +444,34 @@ func TestAdvanceRollsBackOnStatusConflict(t *testing.T) {
 		t.Fatalf("jobs for A = %d, want 0 (the job insert must roll back)", len(js))
 	}
 }
+
+// known-issues B1: the owning goal's status advances with its task graph, so a
+// fully-completed goal is reported honestly (the Morning Digest).
+func TestGoalStatusAdvancesWithGraph(t *testing.T) {
+	sched, projects, _, eng, goalID := harness(t)
+	ctx := context.Background()
+	started, err := sched.Start(ctx, goalID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	goalStatus := func() string {
+		t.Helper()
+		s, err := projects.GoalStatus(ctx, goalID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return s
+	}
+	if got := goalStatus(); got != "decomposed" {
+		t.Fatalf("goal after start = %q, want decomposed", got)
+	}
+
+	// Complete the diamond: A, then B and C, then D.
+	sched.OnJobTerminal(ctx, started[0], job.StateCompleted)
+	sched.OnJobTerminal(ctx, eng.jobs[1], job.StateCompleted)
+	sched.OnJobTerminal(ctx, eng.jobs[2], job.StateCompleted)
+	sched.OnJobTerminal(ctx, eng.jobs[3], job.StateCompleted)
+	if got := goalStatus(); got != "completed" {
+		t.Fatalf("goal after all tasks complete = %q, want completed", got)
+	}
+}

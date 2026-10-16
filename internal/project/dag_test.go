@@ -103,3 +103,67 @@ func TestTasksByGoalUnknownIsEmpty(t *testing.T) {
 		t.Fatalf("tasks = %v, want none", tasks)
 	}
 }
+
+// TestRecomputeGoalStatus covers the known-issues B1 goal lifecycle: the goal
+// follows its task graph (in flight → completed / failed), and a blocked leaf
+// keeps it in flight rather than failing it.
+func TestRecomputeGoalStatus(t *testing.T) {
+	r, _ := openRepo(t)
+	ctx := context.Background()
+	p, _, err := r.Create(ctx, "demo", ArchetypeCode, validGoal, "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	newGoal := func() (string, string) {
+		goalID, tasks, err := r.CreateDAG(ctx, p.ID, "Build a small REST endpoint with tests.", nil,
+			[]TaskSpec{{Key: "a", Title: "a", Criteria: []string{"x"}}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return goalID, tasks[0].ID
+	}
+	recompute := func(goalID string) string {
+		if err := r.RecomputeGoalStatus(ctx, goalID); err != nil {
+			t.Fatal(err)
+		}
+		got, err := r.GoalStatus(ctx, goalID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return got
+	}
+
+	// Pending → running → completed.
+	g1, id1 := newGoal()
+	set := func(id, to string) {
+		if err := r.SetTaskStatus(ctx, id, to); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := recompute(g1); got != "decomposed" {
+		t.Fatalf("pending goal = %q, want decomposed", got)
+	}
+	set(id1, TaskRunning)
+	if got := recompute(g1); got != "decomposed" {
+		t.Fatalf("running goal = %q, want decomposed", got)
+	}
+	set(id1, TaskCompleted)
+	if got := recompute(g1); got != "completed" {
+		t.Fatalf("completed goal = %q, want completed", got)
+	}
+
+	// A blocked leaf is recoverable, so the goal stays in flight.
+	g2, id2 := newGoal()
+	set(id2, TaskBlocked)
+	if got := recompute(g2); got != "decomposed" {
+		t.Fatalf("blocked goal = %q, want decomposed", got)
+	}
+
+	// A terminal failure with nothing in flight fails the goal.
+	set(id2, TaskPending)
+	set(id2, TaskRunning)
+	set(id2, TaskFailed)
+	if got := recompute(g2); got != "failed" {
+		t.Fatalf("failed goal = %q, want failed", got)
+	}
+}

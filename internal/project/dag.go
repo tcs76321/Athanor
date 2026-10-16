@@ -2,7 +2,9 @@ package project
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/tcs76321/athanor/internal/ids"
@@ -155,15 +157,19 @@ func scanTasks(rows interface {
 	return out, nil
 }
 
-// NonTerminalGoalIDs returns the distinct goal IDs that still have a task in
-// a non-terminal status — the M6-T2 boot reconcile work list.
-func (r *Repo) NonTerminalGoalIDs(ctx context.Context) ([]string, error) {
+// ReconcilableGoalIDs returns the distinct goal IDs that still have a task in
+// a status the scheduler may act on — `pending` (a crash before the first
+// schedule), `ready`, or `running`. A goal that is fully terminal
+// (completed/failed) or stalled on a `blocked` leaf (which only an operator
+// Reset can unstick) is excluded, so the boot reconcile walks each goal once
+// rather than re-walking every permanently-stalled graph (known-issues B1).
+func (r *Repo) ReconcilableGoalIDs(ctx context.Context) ([]string, error) {
 	rows, err := r.store.DB().QueryContext(ctx,
 		`SELECT DISTINCT goal_id FROM tasks
-		 WHERE goal_id IS NOT NULL AND status NOT IN ('completed','failed')
+		 WHERE goal_id IS NOT NULL AND status IN ('pending','ready','running')
 		 ORDER BY goal_id`)
 	if err != nil {
-		return nil, fmt.Errorf("listing non-terminal goals: %w", err)
+		return nil, fmt.Errorf("listing reconcilable goals: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 	var out []string
@@ -178,4 +184,62 @@ func (r *Repo) NonTerminalGoalIDs(ctx context.Context) ([]string, error) {
 		return nil, fmt.Errorf("iterating goal ids: %w", err)
 	}
 	return out, nil
+}
+
+// RecomputeGoalStatus advances a goal's status to match its task graph:
+// `completed` once every task is completed; `decomposed` (in flight) while any
+// task is pending/ready/running/paused, and also when only `blocked` tasks
+// remain (a blocked leaf is recoverable via Reset, so the goal is not failed);
+// `failed` once a task has terminally failed and nothing is in flight. It is
+// idempotent and a no-op when the status is unchanged, so it never churns
+// `updated_at` — which is what the Morning Digest completion window keys on.
+func (r *Repo) RecomputeGoalStatus(ctx context.Context, goalID string) error {
+	tasks, err := r.TasksByGoal(ctx, goalID)
+	if err != nil {
+		return err
+	}
+	if len(tasks) == 0 {
+		return nil
+	}
+	allCompleted, inFlight, anyFailed := true, false, false
+	for _, t := range tasks {
+		switch t.Status {
+		case TaskCompleted:
+		case TaskPending, TaskReady, TaskRunning, TaskPaused:
+			allCompleted, inFlight = false, true
+		case TaskFailed:
+			allCompleted, anyFailed = false, true
+		default: // blocked
+			allCompleted = false
+		}
+	}
+	status := "decomposed"
+	switch {
+	case allCompleted:
+		status = "completed"
+	case inFlight:
+		status = "decomposed"
+	case anyFailed:
+		status = "failed"
+	}
+	if _, err := r.store.DB().ExecContext(ctx,
+		`UPDATE goals SET status = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
+		 WHERE id = ? AND status != ?`, status, goalID, status); err != nil {
+		return fmt.Errorf("recomputing goal %s status: %w", goalID, err)
+	}
+	return nil
+}
+
+// GoalStatus returns a goal's persisted status (§5; migration 0001 set).
+func (r *Repo) GoalStatus(ctx context.Context, goalID string) (string, error) {
+	var status string
+	err := r.store.DB().QueryRowContext(ctx,
+		`SELECT status FROM goals WHERE id = ?`, goalID).Scan(&status)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", fmt.Errorf("%w (goal): %s", ErrNotFound, goalID)
+	}
+	if err != nil {
+		return "", fmt.Errorf("loading goal %s status: %w", goalID, err)
+	}
+	return status, nil
 }

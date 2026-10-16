@@ -511,7 +511,7 @@ func run(configPath, addr, stateDir string) error {
 	// M6-T2 (ADR-0033 §4): reconcile decomposed graphs after a restart.
 	// Recover restarts in-flight jobs; this pass applies any terminal job
 	// outcomes recorded before the crash and schedules newly-ready leaves.
-	if goals, err := projectRepo.NonTerminalGoalIDs(context.Background()); err != nil {
+	if goals, err := projectRepo.ReconcilableGoalIDs(context.Background()); err != nil {
 		slog.Error("scheduler: listing goals to reconcile", "err", err)
 	} else {
 		for _, goalID := range goals {

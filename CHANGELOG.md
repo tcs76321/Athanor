@@ -10,6 +10,22 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### B1 — goal lifecycle (status advances with the graph) — 2026-10-16
+
+- **`project.Repo.RecomputeGoalStatus` + `GoalStatus`.** A decomposed goal's
+  status was written once (`decomposed`) and never advanced, so every goal read
+  as in-flight forever, `digest.GoalsCompleted` was always 0, and the boot
+  reconcile re-walked stalled graphs on every start. The scheduler now
+  recomputes the owning goal's status after each terminal callback, reconcile,
+  and task reset: `completed` when every task is completed, `decomposed` while
+  anything is in flight or a blocked leaf awaits an operator Reset, and
+  `failed` once a task has terminally failed with nothing in flight.
+  `NonTerminalGoalIDs` became `ReconcilableGoalIDs` (`pending`/`ready`/
+  `running` tasks only), so a permanently-blocked goal is no longer re-walked
+  at every boot. Tests: `internal/project/dag_test.go`
+  (`TestRecomputeGoalStatus`), `internal/scheduler/orchestrator_test.go`
+  (`TestGoalStatusAdvancesWithGraph`).
+
 ### M9 — bounded event-log scans (delta + batch) — 2026-10-16
 
 - **`store.EventFilter.AfterID` + `store.LatestEventID`.** `QueryEvents` had no
