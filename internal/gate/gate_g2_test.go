@@ -47,10 +47,15 @@
 package gate
 
 import (
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/tcs76321/athanor/internal/toolenvelope"
 )
 
 // internalapiDir is the package whose surface Gate G2
@@ -128,35 +133,62 @@ func TestGateG2ConstantTimeComparePresent(t *testing.T) {
 // the prefix; counting Handle calls is unambiguous.
 //
 // M2-T4: the count grows from 3 to 5 (execute_code, run_tests).
-// This test was deliberately written to scale with the route
-// table — adding a new route without the middleware wrap fails
-// the structural check.
+// This test parses the registration AST rather than string-counting
+// `mux.Handle(`, so a route registered through `mux.HandleFunc` or a wrapped
+// sub-mux cannot slip past the proof (known-issues M5).
 func TestGateG2InternalAPIRoutesGoThroughMiddleware(t *testing.T) {
 	handlers := filepath.Join(internalapiDir, "handlers.go")
-	raw, err := os.ReadFile(handlers)
+	routes, wrapped, handleFunc := countInternalAPIRoutes(t, handlers)
+	if routes == 0 {
+		t.Fatalf("%s registers no mux.Handle routes; the API registers nothing (Gate G2)", handlers)
+	}
+	if handleFunc != 0 {
+		t.Errorf("%s registers %d mux.HandleFunc call(s); internal API routes must use mux.Handle wrapped in authMiddleware (Gate G2)", handlers, handleFunc)
+	}
+	if wrapped != routes {
+		t.Errorf("%s: %d mux.Handle routes but %d wrapped in authMiddleware; every route must be wrapped (Gate G2)", handlers, routes, wrapped)
+	}
+}
+
+// countInternalAPIRoutes parses path and counts `mux.Handle` route
+// registrations, how many have their second argument wrapped in
+// `authMiddleware(...)`, and any `mux.HandleFunc` call. Parsing the AST (rather
+// than counting a substring) is what catches the M5 blind spot.
+func countInternalAPIRoutes(t *testing.T, path string) (routes, wrapped, handleFunc int) {
+	t.Helper()
+	f, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("parse %s: %v", path, err)
 	}
-	body := string(raw)
-
-	// The file must reference authMiddleware at all.
-	if !strings.Contains(body, "authMiddleware(") {
-		t.Errorf("%s does not reference authMiddleware; every /internal/v1/ route must be wrapped (Gate G2)", handlers)
-		return
-	}
-
-	// Count every mux.Handle call (each line is one route
-	// registration in this file's style).
-	handleCount := strings.Count(body, "mux.Handle(")
-	wrapCount := strings.Count(body, "authMiddleware(a.tokens,")
-	if handleCount == 0 {
-		t.Errorf("%s has no mux.Handle calls; the API registers no routes (Gate G2)", handlers)
-		return
-	}
-	if wrapCount != handleCount {
-		t.Errorf("%s: %d mux.Handle calls but %d authMiddleware wraps; every route must be wrapped (Gate G2)",
-			handlers, handleCount, wrapCount)
-	}
+	ast.Inspect(f, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		sel, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok {
+			return true
+		}
+		recv, ok := sel.X.(*ast.Ident)
+		if !ok || recv.Name != "mux" {
+			return true
+		}
+		switch sel.Sel.Name {
+		case "Handle":
+			routes++
+			if len(call.Args) >= 2 {
+				if inner, ok := call.Args[1].(*ast.CallExpr); ok {
+					if id, ok := inner.Fun.(*ast.Ident); ok && id.Name == "authMiddleware" {
+						wrapped++
+					}
+				}
+			}
+		case "HandleFunc":
+			handleFunc++
+		}
+		return true
+	})
+	return routes, wrapped, handleFunc
 }
 
 // TestGateG2ToolEnvelopeBypassImpossible is the M2-T4 structural
@@ -206,6 +238,28 @@ func TestGateG2ToolEnvelopeBypassImpossible(t *testing.T) {
 		"search_web":   "handleSearchWeb",
 		"context_swap": "handleContextSwap",
 		"query_memory": "handleQueryMemory",
+	}
+	// The closed set is the source of truth (known-issues M4): every tool in
+	// toolenvelope.AllTools() must either have a handler here or be explicitly
+	// listed as unrouted. A tool added to the closed set without either entry
+	// fails the gate instead of silently drifting.
+	all := toolenvelope.AllTools()
+	unrouted := map[string]bool{
+		string(toolenvelope.ToolGitOperation): true,
+	}
+	for _, tool := range all {
+		_, handled := toolHandlers[string(tool)]
+		if !handled && !unrouted[string(tool)] {
+			t.Errorf("closed-set tool %q has neither a handler nor an unrouted entry; the gate cannot prove its envelope check (Gate G2)", tool)
+		}
+		if handled && unrouted[string(tool)] {
+			t.Errorf("tool %q is both handled and marked unrouted (Gate G2)", tool)
+		}
+	}
+	for tool := range toolHandlers {
+		if !containsTool(all, tool) {
+			t.Errorf("toolHandlers has %q, which is not in toolenvelope.AllTools() (stale gate row, Gate G2)", tool)
+		}
 	}
 	for tool, handler := range toolHandlers {
 		needle := "func (a *API) " + handler
@@ -430,4 +484,14 @@ func TestGateG2ExecArgvCannotEscape(t *testing.T) {
 		t.Fatalf("no exec-argv source found (prefix %q) in %s; the arm would "+
 			"silently no-op", execArgvFilePrefix, jobpodArgsDir)
 	}
+}
+
+// containsTool reports whether name is one of tools.
+func containsTool(tools []toolenvelope.Tool, name string) bool {
+	for _, t := range tools {
+		if string(t) == name {
+			return true
+		}
+	}
+	return false
 }

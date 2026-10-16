@@ -10,6 +10,21 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### C4 — Gate G2 blind spots closed (M4, M5) — 2026-10-16
+
+- **Route auth is parsed, not string-counted.** The "every internal API route is
+  auth-wrapped" proof counted `mux.Handle(` occurrences, which missed
+  `mux.HandleFunc` and wrapped sub-muxes. It now parses `handlers.go`'s AST,
+  requires every `mux.Handle` route's handler to be `authMiddleware(...)`, and
+  fails on any `mux.HandleFunc`.
+- **The envelope-bypass proof derives its tool set from the closed set.**
+  `toolenvelope.AllTools()` is now the source of truth; the gate fails if a
+  closed-set tool is neither in the handler map nor explicitly unrouted (or if
+  the map carries a stale row). `toolenvelope.ToolGitOperation` is the one
+  explicitly unrouted entry (Git-as-undo is Core-side, ADR-0030). Tests:
+  `internal/gate/gate_g2_test.go`, `internal/toolenvelope/allowlist_test.go`
+  (`TestAllToolsMatchesIsKnown`).
+
 ### C3 — Reader Mode runs a scanner set (M3) — 2026-10-16
 
 - **`gateway.ReaderOptions.Scanners` replaces `Heuristic`.** Fetched web content

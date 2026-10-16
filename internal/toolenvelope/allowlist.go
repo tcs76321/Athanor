@@ -164,3 +164,16 @@ func isKnown(t Tool) bool {
 		return false
 	}
 }
+
+// AllTools returns the §25 closed set in declaration order. It is the single
+// source of truth the structural gates read (Gate G2's envelope-bypass and
+// route-auth proofs), so a tool added to the closed set cannot silently skip
+// its handler or route — the gate fails until the tool is accounted for
+// (known-issues M4). isKnown and AllTools list the same set; a test pins their
+// agreement.
+func AllTools() []Tool {
+	return []Tool{
+		ToolExecuteCode, ToolRunTests, ToolLint, ToolGitOperation,
+		ToolFetchURL, ToolSearchWeb, ToolContextSwap, ToolQueryMemory,
+	}
+}

@@ -133,3 +133,22 @@ func TestTools_SortedDeterministic(t *testing.T) {
 		t.Errorf("Tools() = %v, want %v (sorted by string value)", got, want)
 	}
 }
+
+// TestAllToolsMatchesIsKnown pins the closed-set exporter the structural gates
+// read (known-issues M4): every tool AllTools lists is known to Parse, and
+// there are no duplicates.
+func TestAllToolsMatchesIsKnown(t *testing.T) {
+	seen := map[Tool]bool{}
+	for _, tool := range AllTools() {
+		if seen[tool] {
+			t.Errorf("AllTools lists %q twice", tool)
+		}
+		seen[tool] = true
+		if !isKnown(tool) {
+			t.Errorf("AllTools lists %q but isKnown rejects it", tool)
+		}
+		if _, err := Parse([]string{string(tool)}); err != nil {
+			t.Errorf("Parse rejects closed-set tool %q: %v", tool, err)
+		}
+	}
+}
