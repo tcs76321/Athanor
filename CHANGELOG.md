@@ -10,6 +10,17 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Probe: non-code fixture injection (soak data quality) — 2026-10-16
+
+- **Document/text/data fixtures reach the model.** The probe consumed a bench
+  task's `fixture:` only for `code` (staged into the Job Pod via
+  `fixture_path`). A non-code fixture — the "provided module/source" a
+  document/text/data goal refers to — was never shown to the model, so those
+  tasks (7 of the 15-task bench set) could only fail, wasting soak cycles and
+  skewing the quality readout. The probe now indexes a non-code fixture as the
+  project repository (`repoSourceFor`), so it reaches the prompt through the
+  MCE working set. Test: `spikes/m3-t7-probe/repo_source_test.go`.
+
 ### Qualification measurements: probe `measure` (M9-T2b) — 2026-10-16
 
 - **The probe records `Measurement.Samples`.** A new `m3-t7-probe measure`

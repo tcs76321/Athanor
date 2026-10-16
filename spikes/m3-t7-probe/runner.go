@@ -396,12 +396,16 @@ func (r *runnerConfig) runOne(g sampleGoal, m probeModel, a arm, run int, stateD
 	body := map[string]any{
 		"name": name, "archetype": g.Archetype, "goal": g.Goal, "acceptance_criteria": g.Criteria,
 	}
-	// M8-T19: a repo-backed task indexes a throwaway copy of its repository so
-	// the MCE's Dormant Index carries repository chunks (the working set), and
-	// git-as-undo commits into the copy — never the checked-in fixture.
-	if g.Repo != "" {
+	// M8-T19 / M9: a repo-backed task indexes a throwaway copy of its source so
+	// the MCE working set (Dormant Index + seeded active chunk, F5/ADR-0059)
+	// carries it into the prompt, and git-as-undo commits into the copy — never
+	// the checked-in fixture. A non-code fixture (the "provided module/source"
+	// a document/text/data goal refers to) is indexed the same way; without
+	// this the model never sees the source and the task can only fail.
+	repoSource := repoSourceFor(g)
+	if repoSource != "" {
 		repoCopy := filepath.Join(r.outDir, "repos", name)
-		if cerr := copyDir(g.Repo, repoCopy); cerr != nil {
+		if cerr := copyDir(repoSource, repoCopy); cerr != nil {
 			mx.Error = "copy repo: " + cerr.Error()
 			return mx
 		}
@@ -450,7 +454,7 @@ func (r *runnerConfig) runOne(g sampleGoal, m probeModel, a arm, run int, stateD
 
 	// M8-T19: index the repository before the goal so the job's Dormant Index
 	// is populated (best effort; a failure is a warning, not a job error).
-	if g.Repo != "" {
+	if repoSource != "" {
 		var isum indexSummary
 		if ierr := apiCall("POST", r.baseURL()+"/projects/"+pr.ID+"/index", map[string]any{}, &isum); ierr != nil {
 			fmt.Printf("  %-24s index warning: %v\n", g.Name, ierr)
@@ -680,6 +684,21 @@ func writePackets(dir string, metrics []jobMetrics) error {
 		index = append(index, indexRow{PacketID: pid, Goal: m.GoalName, Model: m.ModelLabel, Arm: m.Arm, Run: m.Run, JobID: m.JobID})
 	}
 	return writeJSON(filepath.Join(dir, "index.json"), index)
+}
+
+// repoSourceFor returns the directory the probe indexes as the project
+// repository for a task. A task with an explicit repo uses it. A non-code task
+// with a fixture uses the fixture, so the corpus's "provided module/source"
+// reaches the model through the MCE working set (M9). A code fixture is staged
+// into the Job Pod via fixture_path (ADR-0065) and is not indexed.
+func repoSourceFor(g sampleGoal) string {
+	if g.Repo != "" {
+		return g.Repo
+	}
+	if g.Archetype != "code" && g.Fixture != "" {
+		return g.Fixture
+	}
+	return ""
 }
 
 // goalByName looks up a sample goal.

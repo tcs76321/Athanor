@@ -16,8 +16,52 @@ Acceptance is by coverage ([ADR-0066](adr/0066-release-scope-soak.md)).
 - Podman rootless available and the Job Pod image built
   (`make jobpod-image`) with `job_pod.image` set.
 - `make build` (the probe starts the daemon itself).
-- A real `config.yaml` (or `config-probe.yaml`) with phase budgets sized for
-  the chosen model.
+- Phase budgets sized for the chosen model. The `soak` subcommand **generates
+  its own `config.yaml`** under the output dir (900 s phase budgets, see
+  `probeconfig.go`); the legacy `scripts/soak.sh` uses the checked-in config.
+
+## Preflight (verify before the run)
+
+1. **Single model residency.** `OLLAMA_MAX_LOADED_MODELS=1` and
+   `OLLAMA_NUM_PARALLEL=1` must be set on the Ollama **server** (restart Ollama
+   after setting them). The Core can only *verify* this, not set it; the probe
+   aborts with "model residency violated" when two models are resident. The M9
+   qualification run aborted on exactly this — see
+   [`soak-m9-findings.md`](soak-m9-findings.md).
+2. **Job Pod image.** `podman images | grep python:3.12-alpine` (the generated
+   config sets `job_pod.image: python:3.12-alpine`). Pull with
+   `make integration-images`.
+3. **Binary current.** `make build` (the probe starts `bin/athanor` itself).
+4. **Disk.** A few GB free: the run writes a result tree plus state per pass.
+5. **AC power**, and plan the one human sleep/wake cycle.
+
+## Recommended 8-hour run
+
+```bash
+make build
+make integration-images        # once, only if python:3.12-alpine is absent
+go run -tags sqlite_fts5 ./spikes/m3-t7-probe soak \
+  -model gemma12b -arm full \
+  -corpus eval/bench/tasks.yaml \
+  -judge-model granite4.2:3b \
+  -hours 8 -kill-after 2h \
+  -out spikes/m3-t7-probe/results/soak-0.0.0
+```
+
+- `-model gemma12b` is the routed `main` (best generator on the H-tier code
+  tasks; [qualification smoke](qualification-smoke-m9.md)); `-judge-model
+  granite4.2:3b` is the best cross-family (`security`) judge.
+- `-corpus eval/bench/tasks.yaml` is the 15-task bench set. Non-code fixtures
+  are indexed as the project repository (M9), so a "provided source" task
+  actually sees its source; without that, those tasks can only fail.
+- `-kill-after 2h` injects one SIGKILL + restart to exercise crash recovery.
+- Leave `-gates` **off** for a clean capability readout: the F5
+  `require_documentation_for_code` gate rejects valid code whose corpus criteria
+  omit docstrings, confounding the quality numbers. Run a separate `-gates` arm
+  for production-faithful acceptance.
+
+Do the sleep/wake cycle by hand mid-run and record it (the harness cannot sleep
+the host safely).
 
 ## Run
 
@@ -74,3 +118,17 @@ Coverage-based ([ADR-0066](adr/0066-release-scope-soak.md)):
 Record the outcome (date, hardware, Ollama version, model, pass/fail per
 item, `soak.csv` location) alongside the results. This runbook and the
 aggregated `report.md` are the evidence for the Gate G7 soak arm.
+
+## After the run
+
+```bash
+make probe-report  PROBE_OUT=spikes/m3-t7-probe/results/soak-0.0.0
+make probe-measure PROBE_OUT=spikes/m3-t7-probe/results/soak-0.0.0
+./bin/athanor models -qualification spikes/m3-t7-probe/results/soak-0.0.0/measurements.json
+```
+
+`probe-report` re-aggregates the rolling `report.md`; `probe-measure` reduces
+the run into `onboard.Measurement` JSON (with `Samples`); `athanor models`
+turns that into an advisory routing proposal. The soak writes a rolling
+`report.md`/`results.json`/`results.csv` after every pass, so stopping early
+still yields a readout.
