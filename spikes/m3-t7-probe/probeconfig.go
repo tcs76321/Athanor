@@ -14,6 +14,15 @@ type probePolicy struct {
 	JudgeModel string // personas.security.model override
 	AltModel   string // personas.alternative.model override
 	OllamaURL  string // inference.ollama_url override ("" = localhost:11434)
+	// RoleModels assigns a model per persona role ("main", "tall",
+	// "security", "alternative", "wide"). It is how a heterogeneous run
+	// mirrors a real deployment, where a user runs different models per role.
+	// An unset role falls back to JudgeModel/AltModel, then to the run model.
+	RoleModels map[string]string
+	// DAG enables execution.dag_decomposition: every submitted goal is
+	// decomposed by the tall persona into a task DAG and executed through the
+	// M6 dependency scheduler (exercises the DAG/scheduler subsystem).
+	DAG bool
 	// CodeGates enables execution.require_tests_for_code and
 	// require_documentation_for_code (F5). The probe defaults them OFF so the
 	// headline dialectical-vs-single-shot comparison isolates the loop: the
@@ -69,16 +78,38 @@ func probeConfigYAML(m probeModel, a arm, seedPolicy, addr string, noReflect boo
 	// out-of-matrix override gets its declared family, or "" to let the
 	// registry derive it from the model name — never the generator's family,
 	// which would silently satisfy the guard.
-	secModel := orDefault(p.JudgeModel, m.Model)
-	secFamily := m.Family
-	if secModel != m.Model {
-		secFamily = familyForTag(secModel)
+	// Per-role model resolution: RoleModels (a heterogeneous run) > the
+	// judge/alt overrides (the single-model arms) > the run model m. Each
+	// role's family is declared so the engine's cross-family judge guard
+	// compares lineages, not tag strings.
+	roleModel := func(role string) string {
+		if v := p.RoleModels[role]; v != "" {
+			return v
+		}
+		switch role {
+		case "security":
+			if p.JudgeModel != "" {
+				return p.JudgeModel
+			}
+		case "alternative":
+			if p.AltModel != "" {
+				return p.AltModel
+			}
+		}
+		return m.Model
 	}
-	altModel := orDefault(p.AltModel, m.Model)
-	altFamily := m.Family
-	if altModel != m.Model {
-		altFamily = familyForTag(altModel)
+	roleFamily := func(role string) string {
+		rm := roleModel(role)
+		if rm == m.Model {
+			return m.Family
+		}
+		return familyForTag(rm)
 	}
+	wideModel, wideFamily := roleModel("wide"), roleFamily("wide")
+	tallModel, tallFamily := roleModel("tall"), roleFamily("tall")
+	mainModel, mainFamily := roleModel("main"), roleFamily("main")
+	secModel, secFamily := roleModel("security"), roleFamily("security")
+	altModel, altFamily := roleModel("alternative"), roleFamily("alternative")
 	var b strings.Builder
 	fmt.Fprintf(&b, `version: 2
 
@@ -126,15 +157,17 @@ execution:
   divergence_candidates: %d
   require_tests_for_code: %t
   require_documentation_for_code: %t
+  dag_decomposition: %t
 `,
 		orDefault(p.OllamaURL, "http://localhost:11434"), seedPolicy, addr,
-		m.Model, m.Family, m.ContextTarget,
-		m.Model, m.Family,
-		m.Model, m.Family, m.ContextTarget,
+		wideModel, wideFamily, m.ContextTarget,
+		tallModel, tallFamily,
+		mainModel, mainFamily, m.ContextTarget,
 		secModel, secFamily, m.ContextTarget,
 		altModel, altFamily, m.ContextTarget,
 		a.Candidates,
 		p.CodeGates, p.CodeGates,
+		p.DAG,
 	)
 	if p.JudgeMode != "" {
 		fmt.Fprintf(&b, "  policy:\n    judge_mode: %q\n", p.JudgeMode)

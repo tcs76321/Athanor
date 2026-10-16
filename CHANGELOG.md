@@ -10,6 +10,18 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Probe: heterogeneous per-role models + DAG mode (soak) — 2026-10-16
+
+- **A run can mirror a real deployment.** The soak accepts `-roles
+  main=…,tall=…,security=…,alternative=…,wide=…` so a user's different models
+  per role are exercised (generation, planning, summarizer, and the cross-family
+  judge), and `-dag` enables `execution.dag_decomposition`: each goal is
+  decomposed by the `tall` persona and run through the M6 dependency scheduler.
+  `probeConfigYAML` resolves each role's model and declared family;
+  `parseRoleModels` errors on a typo rather than silently falling back to
+  `-model`; the probe now waits for every scheduled job of a decomposed goal and
+  aggregates. Tests: `spikes/m3-t7-probe/rolemodels_test.go`.
+
 ### Fix: bounded MCE summarizer output (soak stall) — 2026-10-16
 
 - **Repository indexing no longer runs away.** The `wide`-persona summarizer

@@ -464,7 +464,8 @@ func (r *runnerConfig) runOne(g sampleGoal, m probeModel, a arm, run int, stateD
 	}
 
 	var gr struct {
-		JobID string `json:"job_id"`
+		JobID  string   `json:"job_id"`
+		JobIDs []string `json:"job_ids"`
 	}
 	if err := apiCall("POST", r.baseURL()+"/projects/"+pr.ID+"/goals", map[string]any{
 		"goal": g.Goal, "acceptance_criteria": g.Criteria,
@@ -472,9 +473,19 @@ func (r *runnerConfig) runOne(g sampleGoal, m probeModel, a arm, run int, stateD
 		mx.Error = "submit goal: " + err.Error()
 		return mx
 	}
-	mx.JobID = gr.JobID
+	// Single-task submit returns job_id; DAG mode (M6-T2, -dag) returns the
+	// scheduled ready leaves in job_ids.
+	jobIDs := gr.JobIDs
+	if len(jobIDs) == 0 && gr.JobID != "" {
+		jobIDs = []string{gr.JobID}
+	}
+	if len(jobIDs) == 0 {
+		mx.Error = "submit goal: no jobs returned"
+		return mx
+	}
+	mx.JobID = strings.Join(jobIDs, ",")
 
-	state, artifactID, err := waitJob(r.baseURL(), gr.JobID, r.timeout)
+	state, artifactID, err := waitJobs(r.baseURL(), jobIDs, r.timeout)
 	if err != nil {
 		mx.Error = "wait job: " + err.Error()
 		return mx
@@ -499,7 +510,7 @@ func (r *runnerConfig) runOne(g sampleGoal, m probeModel, a arm, run int, stateD
 	// reconcile at arm end as a backstop (reconcileMetrics).
 	deadline := time.Now().Add(30 * time.Second)
 	for time.Now().Before(deadline) {
-		o, ok, err := loadOutcome(db, gr.JobID)
+		o, ok, err := loadOutcome(db, jobIDs[0])
 		if err == nil && ok {
 			mx.Winner = winnerFromResult(o.Result)
 			mx.Score = o.Score
@@ -569,25 +580,53 @@ func tierOf(source string) string {
 	return "E"
 }
 
-// waitJob polls a job until it reaches a terminal state or the timeout
-// expires.
-func waitJob(baseURL, jobID string, timeout time.Duration) (state, artifactID string, err error) {
+// waitJobs waits for every job in ids to reach a terminal state, polling until
+// all are done. It returns "completed" only when all completed, else "failed"
+// (any failure/cancellation). artifactID is the last non-empty artifact among
+// the jobs (DAG mode produces several).
+func waitJobs(baseURL string, ids []string, timeout time.Duration) (state, artifactID string, err error) {
 	deadline := time.Now().Add(timeout)
+	pending := make(map[string]bool, len(ids))
+	for _, id := range ids {
+		pending[id] = true
+	}
+	states := make(map[string]string, len(ids))
+	arts := make(map[string]string, len(ids))
 	for time.Now().Before(deadline) {
-		var jr struct {
-			State      string `json:"state"`
-			ArtifactID string `json:"artifact_id"`
+		for id := range pending {
+			var jr struct {
+				State      string `json:"state"`
+				ArtifactID string `json:"artifact_id"`
+			}
+			if err := apiCall("GET", baseURL+"/jobs/"+id, nil, &jr); err != nil {
+				return "", "", err
+			}
+			switch jr.State {
+			case "completed", "failed", "cancelled":
+				states[id] = jr.State
+				arts[id] = jr.ArtifactID
+				delete(pending, id)
+			}
 		}
-		if err := apiCall("GET", baseURL+"/jobs/"+jobID, nil, &jr); err != nil {
-			return "", "", err
-		}
-		switch jr.State {
-		case "completed", "failed", "cancelled":
-			return jr.State, jr.ArtifactID, nil
+		if len(pending) == 0 {
+			allCompleted := true
+			last := ""
+			for _, id := range ids {
+				if states[id] != "completed" {
+					allCompleted = false
+				}
+				if arts[id] != "" {
+					last = arts[id]
+				}
+			}
+			if allCompleted {
+				return "completed", last, nil
+			}
+			return "failed", last, nil
 		}
 		time.Sleep(5 * time.Second)
 	}
-	return "", "", fmt.Errorf("job %s timed out after %s", jobID, timeout)
+	return "", "", fmt.Errorf("jobs %v timed out after %s", ids, timeout)
 }
 
 // waitHealthy polls /healthz until the daemon answers 200 or the timeout

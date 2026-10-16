@@ -51,10 +51,49 @@ type soakRunConfig struct {
 	// runs), reusing the `run` command's semantics.
 	onlyCSV   string
 	goalLimit int
+	// rolesCSV is the heterogeneous per-role model map (M9): "main=tag,
+	// tall=tag, security=tag, alternative=tag, wide=tag". Empty means every
+	// generation role uses the -model, judge uses -judge-model.
+	rolesCSV string
+	// dag enables execution.dag_decomposition (M6-T2): each goal is decomposed
+	// by the tall persona and run through the dependency scheduler.
+	dag bool
 	// until is a wall-clock deadline spec (M8-T31): "midnight", "HH:MM", or
 	// RFC3339. When set it overrides -hours and is persisted so a resume keeps
 	// the original target.
 	until string
+}
+
+// parseRoleModels parses the -roles CSV ("main=tag,tall=tag,…") into a
+// role→model map (M9). Empty input returns nil (single-model behavior). An
+// unknown role or a missing "=" is an error, so a typo cannot silently fall
+// back to the run model and corrupt the experiment.
+func parseRoleModels(csv string) (map[string]string, error) {
+	csv = strings.TrimSpace(csv)
+	if csv == "" {
+		return nil, nil
+	}
+	valid := map[string]bool{"main": true, "tall": true, "security": true, "alternative": true, "wide": true}
+	out := map[string]string{}
+	for _, part := range strings.Split(csv, ",") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		role, tag, ok := strings.Cut(part, "=")
+		role, tag = strings.TrimSpace(role), strings.TrimSpace(tag)
+		if !ok || role == "" || tag == "" {
+			return nil, fmt.Errorf("bad -roles entry %q (want role=model)", part)
+		}
+		if !valid[role] {
+			return nil, fmt.Errorf("unknown role %q in -roles (want main|tall|security|alternative|wide)", role)
+		}
+		out[role] = tag
+	}
+	if len(out) == 0 {
+		return nil, nil
+	}
+	return out, nil
 }
 
 func runSoak(args []string) {
@@ -75,6 +114,8 @@ func runSoak(args []string) {
 	fs.BoolVar(&c.gates, "gates", false, "enable the F5 code acceptance gates")
 	fs.StringVar(&c.ollamaURL, "ollama", "http://localhost:11434", "Ollama base URL for the /api/ps residency check")
 	fs.StringVar(&c.judgeModel, "judge-model", "", "personas.security.model override (use a cross-family judge)")
+	fs.StringVar(&c.rolesCSV, "roles", "", "heterogeneous per-role models: main=tag,tall=tag,security=tag,alternative=tag,wide=tag (overrides -model per role)")
+	fs.BoolVar(&c.dag, "dag", false, "enable execution.dag_decomposition: decompose each goal and run the M6 scheduler")
 	fs.StringVar(&c.onlyCSV, "only", "", "comma-separated goal names to soak (empty = all)")
 	fs.IntVar(&c.goalLimit, "goals", 0, "limit to the first N goals after loading (0 = all)")
 	_ = fs.Parse(args)
@@ -116,8 +157,15 @@ func (c *soakRunConfig) run() error {
 	if err := os.MkdirAll(stateDir, 0o755); err != nil {
 		return err
 	}
+	roleModels, err := parseRoleModels(c.rolesCSV)
+	if err != nil {
+		return err
+	}
 	cfgPath := filepath.Join(c.outDir, "config.yaml")
-	pol := probePolicy{OllamaURL: c.ollamaURL, CodeGates: c.gates, JudgeModel: c.judgeModel, Soak: true}
+	pol := probePolicy{
+		OllamaURL: c.ollamaURL, CodeGates: c.gates, JudgeModel: c.judgeModel,
+		RoleModels: roleModels, DAG: c.dag, Soak: true,
+	}
 	if err := os.WriteFile(cfgPath, []byte(probeConfigYAML(m, a, c.seedPolicy, c.addr, false, pol)), 0o644); err != nil {
 		return err
 	}
