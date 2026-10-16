@@ -12,6 +12,13 @@ New entries are appended at the top. Do not rewrite history.
 
 ### 0.0.0-rc — technique-guidance loop, soak deadline, release scope (2026-10-15)
 
+- **M8-T26b.** Synthesis no longer discards a verified candidate: it draws from
+  the highest-scoring candidate that passed deterministic verification and, for
+  `code`, falls back to that candidate's bytes if the rewrite fails the real
+  tests (audited `synthesis_fallback_to_candidate`).
+  [ADR-0068](docs/adr/0068-synthesis-keeps-passing-candidate.md). Found by the
+  0.0.0 soak: code jobs failed with `winner: none` while passing candidates sat
+  in the evaluation records.
 - **M8-T26.** Technique mining over grounded trajectories: `strategy.Mine` now
   also groups outcomes by executed cognitive operation (a "technique") and emits
   winning/losing technique insights per archetype, anchored in a grounded
