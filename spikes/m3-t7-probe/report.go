@@ -205,6 +205,11 @@ func renderReport(metrics []jobMetrics) string {
 	b.WriteString("# M3-T7 results\n\n")
 	fmt.Fprintf(&b, "Collected %d job rows.\n\n", len(metrics))
 
+	if lb := renderLeaderboard(metrics); lb != "" {
+		b.WriteString(lb)
+		b.WriteString("\n")
+	}
+
 	b.WriteString("## Scores — per (model, goal, arm)\n\n")
 	b.WriteString("| model | family | goal | archetype | arm | n | mean score | mean tok |\n")
 	b.WriteString("|---|---|---|---|---|---|---|---|\n")

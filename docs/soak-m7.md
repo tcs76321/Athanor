@@ -100,6 +100,32 @@ deadline is persisted to `<out>/deadline` so a resume does not slide it.
 `scripts/soak.sh` (`make soak`) is the **legacy** per-iteration runner; prefer
 the `soak` subcommand.
 
+## Model comparison (benchmark readout)
+
+One `soak` invocation is one model, so single-model residency is preserved
+across a comparison ([ADR-0072](adr/0072-single-slot-execution.md)). To compare
+the ladder, run the soak once per model into a subdirectory of a common tree,
+then aggregate the whole tree:
+
+```bash
+for m in granite3b gemmae4b granite8b ornith9b gemma12b \
+         qwen27b granite30b nemotron30b muse30b ornith35b; do
+  go run -tags sqlite_fts5 ./spikes/m3-t7-probe soak \
+    -model "$m" -arm full -corpus eval/bench/tasks.yaml \
+    -judge-model granite4.2:3b -hours 8 \
+    -out spikes/m3-t7-probe/results/ladder/"$m"
+done
+go run -tags sqlite_fts5 ./spikes/m3-t7-probe report -out spikes/m3-t7-probe/results/ladder
+```
+
+`report` walks the tree and merges every `results.json`. The rolling
+`report.md` gains a **Model leaderboard** (grounded pass rate, tokens per
+passing job, wall-time p50/p95) and **Telemetry** tables (per-model calls and
+tokens, and calls by phase) reduced from each job's event log
+([ADR-0073](adr/0073-soak-validation-harness.md) §3) — the model-comparison and
+engine-attribution data the soak previously discarded. Then `probe-measure` +
+`athanor models -qualification` turn the same tree into a routing proposal.
+
 ## Acceptance (Gate G7)
 
 Coverage-based ([ADR-0066](adr/0066-release-scope-soak.md)):
