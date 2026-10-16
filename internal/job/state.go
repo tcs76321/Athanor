@@ -88,7 +88,7 @@ var transitions = map[State][]State{
 	StateSynthesizing:     {StateComparing, StatePaused, StateAwaitingApproval, StateFailed, StateCancelled},
 	StateComparing:        {StateCompleted, StateFailed, StatePaused, StateAwaitingApproval, StateCancelled},
 	StateAwaitingApproval: {StateContextBuilding, StatePlanning, StateDiverging, StateEvaluating, StateReflecting, StateSynthesizing, StateComparing, StateFailed, StateCancelled},
-	StatePaused:           {StateContextBuilding, StatePlanning, StateDiverging, StateEvaluating, StateReflecting, StateSynthesizing, StateCancelled},
+	StatePaused:           {StateContextBuilding, StatePlanning, StateDiverging, StateEvaluating, StateReflecting, StateSynthesizing, StateComparing, StateCancelled},
 	// Terminal states have no outgoing edges by construction (absent map
 	// entries).
 }

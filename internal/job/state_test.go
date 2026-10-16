@@ -49,6 +49,7 @@ func TestLegalTransitions(t *testing.T) {
 		{StatePaused, StateEvaluating},
 		{StatePaused, StateReflecting},
 		{StatePaused, StateSynthesizing},
+		{StatePaused, StateComparing},
 		{StatePaused, StateCancelled},
 		// M6-T4: awaiting_approval is reachable from every active working
 		// state and resumes to the state it left (awaiting_from).
