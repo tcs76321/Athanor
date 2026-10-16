@@ -468,6 +468,11 @@ func run(configPath, addr, stateDir string) error {
 	// unanswered request is denied on schedule.
 	hitlCtx, cancelHITL := context.WithCancel(context.Background())
 	defer cancelHITL()
+	// M6-T4 (ADR-0035): reconcile any request that was decided but whose job
+	// transition a crash interrupted, then run the expiry sweep.
+	if err := hitlSvc.Reconcile(context.Background()); err != nil {
+		slog.Error("hitl: boot reconcile", "err", err)
+	}
 	startHITLExpiry(hitlCtx, hitlSvc, cfg.HITL.ExpiryInterval.D(), slog.Default())
 
 	eng.Recover(context.Background())

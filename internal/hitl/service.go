@@ -141,6 +141,26 @@ func (s *Service) Expire(ctx context.Context) (int, error) {
 	return len(expired), nil
 }
 
+// Reconcile re-applies a resolved request's outcome to its job if a crash
+// happened between the decision commit (repo.Decide) and the job transition
+// (applyOutcome). Decide is not atomic with the transition, so a crash in
+// that window leaves a request already approved/rejected/expired while its
+// job is still awaiting_approval. Reconcile is idempotent (applyOutcome
+// no-ops on a job that is no longer awaiting) and safe to run at boot.
+func (s *Service) Reconcile(ctx context.Context) error {
+	reqs, err := s.repo.List(ctx, 0)
+	if err != nil {
+		return err
+	}
+	for _, req := range reqs {
+		if req.Status == StatusPending || req.JobID == "" {
+			continue
+		}
+		s.applyOutcome(ctx, req)
+	}
+	return nil
+}
+
 // applyOutcome transitions the linked job for a resolved request.
 func (s *Service) applyOutcome(ctx context.Context, req Request) {
 	if req.JobID == "" {

@@ -229,6 +229,38 @@ func TestServiceExpiryDeniesByDefault(t *testing.T) {
 	}
 }
 
+// TestServiceReconcileAppliesDecidedOutcome proves the boot-reconcile fix:
+// a request decided at the repo layer (the crash window between repo.Decide
+// and applyOutcome) leaves its job awaiting_approval; Reconcile re-applies the
+// decision and resumes it.
+func TestServiceReconcileAppliesDecidedOutcome(t *testing.T) {
+	svc, jobs, eng, jobID := serviceFixture(t)
+	ctx := context.Background()
+
+	req, err := svc.Await(ctx, jobID, TypeTaskEscalation, SeverityHigh, "s", nil, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Decide at the repo layer only, simulating a crash before applyOutcome.
+	if _, err := svc.repo.Decide(ctx, req.ID, ActionApprove, "ok", 0, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if j, _ := jobs.Get(ctx, jobID); j.State != job.StateAwaitingApproval {
+		t.Fatalf("job = %s, want still awaiting (crash window)", j.State)
+	}
+
+	if err := svc.Reconcile(ctx); err != nil {
+		t.Fatalf("Reconcile: %v", err)
+	}
+	j, _ := jobs.Get(ctx, jobID)
+	if j.State != job.StateContextBuilding {
+		t.Errorf("job state = %s, want context_building (resumed by reconcile)", j.State)
+	}
+	if len(eng.jobs) != 1 || eng.jobs[0] != jobID {
+		t.Errorf("enqueued = %v, want [%s]", eng.jobs, jobID)
+	}
+}
+
 func TestServiceApproverRunsOnlyOnApprove(t *testing.T) {
 	svc, _, _, _ := serviceFixture(t)
 	ctx := context.Background()
