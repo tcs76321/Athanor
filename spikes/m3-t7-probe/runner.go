@@ -819,6 +819,9 @@ func runReport(args []string) {
 		os.Exit(1)
 	}
 	report := renderReport(metrics)
+	if sc := loadConformance(filepath.Join(*outDir, "scenarios.json")); len(sc) > 0 {
+		report += "\n" + renderConformance(sc)
+	}
 	fmt.Print(report)
 	if err := os.WriteFile(filepath.Join(*outDir, "report.md"), []byte(report), 0o644); err != nil {
 		fmt.Fprintln(os.Stderr, "m3-t7 report:", err)

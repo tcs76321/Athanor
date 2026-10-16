@@ -286,6 +286,20 @@ func (c *soakRunConfig) run() error {
 		}
 	}
 
+	// ADR-0073 §2: conformance scenarios against the live daemon, after the
+	// workload, so freezing cannot stall a job.
+	scenarios := runScenarios(r.baseURL())
+	if err := writeJSON(filepath.Join(c.outDir, "scenarios.json"), scenarios); err != nil {
+		return err
+	}
+	passed := 0
+	for _, s := range scenarios {
+		if s.Pass {
+			passed++
+		}
+	}
+	logEvent("conformance: %d/%d scenario(s) passed", passed, len(scenarios))
+
 	sampler.stopAndWait()
 	r.stopDaemon(proc)
 	if err := writeRollingReport(c.outDir, prior); err != nil {
@@ -357,7 +371,12 @@ func writeRollingReport(outDir string, metrics []jobMetrics) error {
 	if err := writeCSV(filepath.Join(outDir, "results.csv"), metrics); err != nil {
 		return err
 	}
-	return os.WriteFile(filepath.Join(outDir, "report.md"), []byte(renderReport(metrics)), 0o644)
+	report := renderReport(metrics)
+	// ADR-0073 §2: fold the conformance matrix in when a soak wrote one.
+	if sc := loadConformance(filepath.Join(outDir, "scenarios.json")); len(sc) > 0 {
+		report += "\n" + renderConformance(sc)
+	}
+	return os.WriteFile(filepath.Join(outDir, "report.md"), []byte(report), 0o644)
 }
 
 // resolveDeadline parses the -until spec into an absolute local-time deadline
