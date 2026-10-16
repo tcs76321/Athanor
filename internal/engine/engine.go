@@ -400,6 +400,7 @@ func (e *Engine) planInputs(ctx context.Context, j job.Job, p project.Project, t
 			Archetype:     p.Archetype,
 			CriteriaCount: len(t.Criteria),
 			Difficulty:    e.difficultyHint(ctx, j.ID),
+			JobKey:        j.ID,
 		},
 		Limits: policy.Limits{
 			CandidatesCeiling: 1,
@@ -479,9 +480,26 @@ func (e *Engine) decidePlan(in policy.Inputs) policy.Plan {
 	// the learned persona bias so specialisation does not steer a genuinely
 	// new problem; the plan stays on the shipped default path. Controlled
 	// by execution.policy.novelty_reset (auto|reset|keep).
-	if e.shouldResetNovelty(plan) {
+	// M8-T9 / M8-T29: the anti-rut reset and the exploration blend share one
+	// novelty_reset mode. `keep` never drops learned bias; `reset` always
+	// does; `auto` drops it when the class is novel (the reset) and, even on a
+	// familiar class, occasionally (the exploration blend — deterministic per
+	// job) so evidence keeps accruing. This is G8's "exploration randomness".
+	switch e.noveltyMode() {
+	case config.NoveltyResetKeep:
+		// keep the learned bias; no reset, no exploration
+	case config.NoveltyResetReset:
 		plan.NoveltyReset = true
 		return plan
+	default: // auto
+		if plan.Novelty >= policy.NoveltyThreshold {
+			plan.NoveltyReset = true
+			return plan
+		}
+		if policy.Explore(in.Features.JobKey, plan.Novelty) {
+			plan.Exploration = true
+			return plan
+		}
 	}
 	// F4-T7a: an active insight's preferred persona leads divergence. Applied
 	// after the heterogeneity default so the insight always wins position 0.
@@ -496,22 +514,14 @@ func (e *Engine) decidePlan(in policy.Inputs) policy.Plan {
 	return plan
 }
 
-// shouldResetNovelty reports whether the anti-rut reset applies to this plan
-// (M8-T9). "keep" never resets, "reset" always resets, and "auto" (the
-// default) resets when the task class is novel. Pure over the plan and config.
-func (e *Engine) shouldResetNovelty(plan policy.Plan) bool {
-	mode := config.NoveltyResetAuto
+// noveltyMode resolves the novelty_reset selection ("auto" | "reset" |
+// "keep"), defaulting to auto. It gates both the anti-rut reset (M8-T9) and
+// the exploration blend (M8-T29).
+func (e *Engine) noveltyMode() string {
 	if e.cfg != nil {
-		mode = e.cfg.Execution.NoveltyResetSelection()
+		return e.cfg.Execution.NoveltyResetSelection()
 	}
-	switch mode {
-	case config.NoveltyResetKeep:
-		return false
-	case config.NoveltyResetReset:
-		return true
-	default: // auto
-		return plan.Novelty >= policy.NoveltyThreshold
-	}
+	return config.NoveltyResetAuto
 }
 
 // roleFor resolves the persona serving a phase through the plan's
@@ -577,6 +587,12 @@ func (e *Engine) auditComputePlan(ctx context.Context, jobID, stage string, plan
 	if stage == "divergence" && plan.NoveltyReset {
 		e.audit(ctx, jobID, map[string]any{
 			"event": "novelty_reset", "novelty": plan.Novelty,
+		})
+	}
+	// M8-T29: record that the exploration blend dropped the learned bias.
+	if stage == "divergence" && plan.Exploration {
+		e.audit(ctx, jobID, map[string]any{
+			"event": "exploration", "novelty": plan.Novelty,
 		})
 	}
 }

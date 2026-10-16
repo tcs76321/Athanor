@@ -61,6 +61,9 @@ type Features struct {
 	// ExplorationFloorSamples is unproven, and the exploration floor keeps it
 	// eligible so a learned selection cannot starve it.
 	OperationSamples map[string]int
+	// JobKey is the job id; the exploration blend hashes it so the same job
+	// explores the same way (M8-T29).
+	JobKey string
 }
 
 // Limits are the operator-configured ceilings (ADR-0044 rule 4). A policy may
@@ -106,6 +109,10 @@ type Plan struct {
 	// NoveltyReset reports that learned bias was dropped for this plan
 	// (set by the engine; the anti-rut reset, ADR-0064 §5).
 	NoveltyReset bool
+	// Exploration reports that the learned bias was dropped for this job to
+	// gather fresh evidence (M8-T29; ADR-0067 §5), as opposed to the novelty
+	// reset.
+	Exploration bool
 }
 
 // NoveltyFullSamples is the sample count at which a task class counts as
