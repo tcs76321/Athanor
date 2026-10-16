@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 
 	"github.com/tcs76321/athanor/internal/ids"
 	"github.com/tcs76321/athanor/internal/store"
@@ -37,6 +39,9 @@ func NewStore(s *store.Store, dir string) *Store {
 	return &Store{db: s, dir: dir}
 }
 
+// contentPath is the on-disk path for an artifact's bytes.
+func (a *Store) contentPath(id string) string { return filepath.Join(a.dir, id) }
+
 // CreateDraft writes a new version-1 draft artifact: content to disk
 // (0600), row in SQLite with its SHA-256 hash, and an audit event.
 func (a *Store) CreateDraft(ctx context.Context, projectID string, kind Kind, content []byte) (Artifact, error) {
@@ -57,6 +62,15 @@ func (a *Store) CreateDraftFor(ctx context.Context, projectID, taskID, jobID str
 		return Artifact{}, fmt.Errorf("beginning artifact create: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
+	// known-issues M11: persistTx writes the content file before the row
+	// commits; if any later step (audit / commit) fails, remove the file so a
+	// rolled-back create cannot leave an orphan.
+	committed := false
+	defer func() {
+		if !committed {
+			_ = os.Remove(a.contentPath(id))
+		}
+	}()
 	art, err := a.persistTx(ctx, tx, artifactRow{
 		ID: id, ProjectID: projectID, TaskID: taskID, JobID: jobID, Kind: kind,
 		Version: 1, Status: StatusDraft,
@@ -72,6 +86,7 @@ func (a *Store) CreateDraftFor(ctx context.Context, projectID, taskID, jobID str
 	if err := tx.Commit(); err != nil {
 		return Artifact{}, fmt.Errorf("committing artifact create: %w", err)
 	}
+	committed = true
 	return art, nil
 }
 
@@ -106,6 +121,15 @@ func (a *Store) NewVersion(ctx context.Context, supersedesID string, content []b
 		return Artifact{}, fmt.Errorf("beginning artifact version: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
+	// known-issues M11: remove the just-written content file on any rollback
+	// path (supersede CAS, audit, commit), so a retried version does not leak
+	// an orphan file.
+	committed := false
+	defer func() {
+		if !committed {
+			_ = os.Remove(a.contentPath(id))
+		}
+	}()
 
 	art, err := a.persistTx(ctx, tx, artifactRow{
 		ID: id, ProjectID: old.ProjectID, TaskID: old.TaskID, JobID: old.JobID,
@@ -132,6 +156,7 @@ func (a *Store) NewVersion(ctx context.Context, supersedesID string, content []b
 	if err := tx.Commit(); err != nil {
 		return Artifact{}, fmt.Errorf("committing artifact version: %w", err)
 	}
+	committed = true
 	return art, nil
 }
 

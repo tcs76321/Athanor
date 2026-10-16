@@ -272,3 +272,45 @@ func TestHubFanout(t *testing.T) {
 	}
 	h.Publish("j2", "other") // no subscriber; must not block
 }
+
+// TestLineDiffBuildsValidEditScript (known-issues M10): the Hirschberg diff
+// reconstructs the new text from old + the edit script, and an oversized input
+// is summarized rather than diffed in full.
+func TestLineDiffBuildsValidEditScript(t *testing.T) {
+	cases := [][2]string{
+		{"", ""},
+		{"a\nb\nc", "a\nb\nc"},
+		{"a\nb\nc", "a\nx\nc"},
+		{"only old", ""},
+		{"", "only new"},
+		{"1\n2\n3\n4\n5", "1\n3\n5\n6"},
+	}
+	for _, c := range cases {
+		d := lineDiff(c[0], c[1])
+		var rebuilt strings.Builder
+		for _, l := range d {
+			if l.Kind == "+" || l.Kind == " " {
+				rebuilt.WriteString(l.Text)
+				rebuilt.WriteByte('\n')
+			}
+		}
+		want := c[1]
+		if want != "" {
+			want += "\n"
+		}
+		if got := rebuilt.String(); got != want {
+			t.Errorf("lineDiff(%q,%q) rebuilt %q, want %q", c[0], c[1], got, want)
+		}
+	}
+
+	big := strings.Repeat("line\n", maxDiffLines+10)
+	summarized := false
+	for _, l := range lineDiff(big, big+"extra\n") {
+		if l.Kind == "@" {
+			summarized = true
+		}
+	}
+	if !summarized {
+		t.Error("oversized input was not summarized (known-issues M10)")
+	}
+}

@@ -21,6 +21,11 @@ const (
 // the closed §28.1 set; membership is enforced where the set is owned
 // (config validation, logging.Manager) — the store accepts any non-empty
 // category so it never needs to depend on configuration.
+//
+// The project_id/job_id columns are deliberately NOT foreign keys
+// (known-issues L14): the audit log must outlive the entities it references —
+// a pruned project's or deleted job's history is still evidence — so unknown
+// ids are accepted. See TestAppendEventReferencesAreLoose.
 type Event struct {
 	Category  string
 	Level     EventLevel // "" defaults to EventInfo

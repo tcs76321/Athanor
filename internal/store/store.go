@@ -11,6 +11,7 @@ package store
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -21,13 +22,22 @@ type Store struct {
 	path string
 }
 
+// escapeDSNPath percent-encodes the characters that terminate or confuse a
+// `file:` SQLite DSN (known-issues L16), leaving path separators intact. `%`
+// is encoded first so an existing escape is not double-decoded.
+func escapeDSNPath(p string) string {
+	return strings.NewReplacer(
+		"%", "%25", "?", "%3F", "#", "%23", " ", "%20",
+	).Replace(p)
+}
+
 // Open opens (creating if needed) the database at path and applies the
 // pragmas mandated by ARCHITECTURE §23.1. The pool is capped at one
 // connection per the spike findings.
 func Open(path string) (*Store, error) {
 	dsn := fmt.Sprintf(
 		"file:%s?_journal_mode=WAL&_synchronous=NORMAL&_busy_timeout=5000&_foreign_keys=ON",
-		path,
+		escapeDSNPath(path),
 	)
 	db, err := sql.Open("sqlite3", dsn)
 	if err != nil {

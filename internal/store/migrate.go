@@ -43,7 +43,10 @@ func Migrate(db *sql.DB, fsys fs.FS, backupDir string) error {
 		return nil // rerun is a no-op
 	}
 
-	current := currentVersion(db)
+	current, err := currentVersion(db)
+	if err != nil {
+		return err
+	}
 	if backupDir != "" {
 		backupPath, err := Backup(db, backupDir, current)
 		if err != nil {
@@ -54,26 +57,41 @@ func Migrate(db *sql.DB, fsys fs.FS, backupDir string) error {
 
 	for _, m := range pending {
 		if err := applyOne(db, m); err != nil {
+			// Re-read the current version for the message; fall back to the
+			// pre-loop value if the read itself fails (known-issues L15).
+			applied, verr := currentVersion(db)
+			if verr != nil {
+				applied = current
+			}
 			return fmt.Errorf("migration %04d_%s failed (database remains at version %d): %w",
-				m.version, m.name, currentVersion(db), err)
+				m.version, m.name, applied, err)
 		}
 		slog.Info("migration applied", "version", m.version, "name", m.name)
 	}
 	return nil
 }
 
-// CurrentVersion reports the highest applied schema version (0 if none).
-func currentVersion(db *sql.DB) int {
+// currentVersion reports the highest applied schema version (0 if none). It
+// propagates a query error (known-issues L15) so a broken database surfaces as
+// a real error rather than a misleading "version 0".
+func currentVersion(db *sql.DB) (int, error) {
 	var v int
-	err := db.QueryRow(`SELECT COALESCE(MAX(version), 0) FROM schema_migrations`).Scan(&v)
+	if err := db.QueryRow(`SELECT COALESCE(MAX(version), 0) FROM schema_migrations`).Scan(&v); err != nil {
+		return 0, fmt.Errorf("reading schema version: %w", err)
+	}
+	return v, nil
+}
+
+// Version returns the schema version of the store's database. The convenience
+// accessor reads 0 on a query error; callers that must distinguish a broken
+// database use currentVersion through Migrate.
+func (s *Store) Version() int {
+	v, err := currentVersion(s.db)
 	if err != nil {
 		return 0
 	}
 	return v
 }
-
-// Version returns the schema version of the store's database.
-func (s *Store) Version() int { return currentVersion(s.db) }
 
 // migration is one parsed .sql file.
 type migration struct {

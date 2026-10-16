@@ -7,7 +7,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"os"
-	"path/filepath"
 	"time"
 )
 
@@ -28,7 +27,7 @@ func (a *Store) persistTx(ctx context.Context, tx *sql.Tx, row artifactRow, cont
 	if err := os.MkdirAll(a.dir, 0o700); err != nil {
 		return Artifact{}, fmt.Errorf("creating artifact dir: %w", err)
 	}
-	path := filepath.Join(a.dir, row.ID)
+	path := a.contentPath(row.ID)
 	if err := os.WriteFile(path, content, 0o600); err != nil {
 		return Artifact{}, fmt.Errorf("writing artifact content: %w", err)
 	}

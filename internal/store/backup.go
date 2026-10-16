@@ -16,15 +16,18 @@ func Backup(db *sql.DB, backupDir string, version int) (string, error) {
 	if err := os.MkdirAll(backupDir, 0o700); err != nil {
 		return "", fmt.Errorf("creating backup dir: %w", err)
 	}
-	name := fmt.Sprintf("athanor-v%04d-%s.db", version, time.Now().UTC().Format("20060102T150405Z"))
-	dest := filepath.Join(backupDir, name)
+	// Capture the timestamp once (known-issues L24): re-evaluating time.Now()
+	// inside the collision loop gave later collisions a fresh timestamp, which
+	// is sloppy and non-deterministic.
+	base := fmt.Sprintf("athanor-v%04d-%s", version, time.Now().UTC().Format("20060102T150405Z"))
+	dest := filepath.Join(backupDir, base+".db")
 	// VACUUM INTO refuses an existing destination, and two snapshots within the
-	// same second share a name; make the path unique deterministically.
+	// same second share a name; suffix the path deterministically.
 	for i := 1; ; i++ {
 		if _, statErr := os.Stat(dest); os.IsNotExist(statErr) {
 			break
 		}
-		dest = filepath.Join(backupDir, fmt.Sprintf("athanor-v%04d-%s-%d.db", version, time.Now().UTC().Format("20060102T150405Z"), i))
+		dest = filepath.Join(backupDir, fmt.Sprintf("%s-%d.db", base, i))
 	}
 	// VACUUM INTO takes a literal expression; bind parameters are not
 	// reliably supported for it, so quote the path defensively.

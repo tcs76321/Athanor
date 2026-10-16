@@ -148,3 +148,33 @@ func TestCreateDraft(t *testing.T) {
 		t.Error("unknown project accepted, want FK rejection")
 	}
 }
+
+// TestNewVersionRollbackRemovesOrphanContent (known-issues M11): when a version
+// fails after its content file is written (here, a broken audit table), the
+// rolled-back file is removed rather than leaked.
+func TestNewVersionRollbackRemovesOrphanContent(t *testing.T) {
+	a, s, artDir := openStore(t)
+	ctx := context.Background()
+	v1, err := a.CreateDraft(ctx, "p1", KindDocument, []byte("v1 content"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Break the audit path so NewVersion fails AFTER persistTx writes the file.
+	if _, err := s.DB().Exec(`DROP TABLE events`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.NewVersion(ctx, v1.ID, []byte("v2 content")); err == nil {
+		t.Fatal("NewVersion succeeded despite a broken audit table; want an error")
+	}
+	// The orphan v2 content file must not exist. v2's id is generated inside
+	// NewVersion, so scan the dir for anything other than v1.
+	entries, err := os.ReadDir(artDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range entries {
+		if e.Name() != v1.ID {
+			t.Errorf("orphan content file %q leaked after a rolled-back NewVersion (known-issues M11)", e.Name())
+		}
+	}
+}

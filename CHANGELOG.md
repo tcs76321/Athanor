@@ -10,6 +10,22 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Store, artifact & UI hardening (M10, M11, L14–L16, L24) — 2026-10-16
+
+- **M11 — no orphan artifact files.** `CreateDraft`/`NewVersion` remove the
+  content file on any rollback path (audit / supersede CAS / commit), so a
+  retried version cannot leak a file.
+- **M10 — memory-linear diff.** The UI's `lineDiff` is now Hirschberg
+  (O(min(n,m)) space) with a `maxDiffLines` cap, replacing the O(n·m) matrix
+  that allocated gigabytes for a large artifact pair.
+- **L15 — schema-version errors propagate.** `currentVersion` returns an error
+  (used by `Migrate`); `Store.Version` keeps the convenience int.
+- **L16 — DSN path escaping.** `store.Open` percent-encodes `% ? # space` in the
+  database path, so a path containing them no longer breaks the DSN.
+- **L24 — stable backup name.** `store.Backup` captures the timestamp once.
+- **L14 — documented by design.** The `events` audit columns are deliberately
+  not foreign keys so the log outlives pruned entities.
+
 ### Engine hardening (M7, M8, L26–L30) — 2026-10-16
 
 - **M7 — quorum votes decorrelated.** `runComparisonJudge` salts the derived
