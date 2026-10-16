@@ -61,6 +61,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"time"
 )
 
 // dialecticalResult is one row of the probe's
@@ -107,6 +108,13 @@ func daemonURL() string {
 	return "http://127.0.0.1:7420"
 }
 
+// apiClient bounds every daemon API call. Without a timeout a wedged handler —
+// e.g. a repository index stuck on an unbounded LLM call — hung the soak loop
+// indefinitely: the 0.0.0 run stalled 15+ minutes on POST /projects/{id}/index.
+// The bound is generous so a legitimately slow index still completes; a timeout
+// surfaces as an error row and the loop moves on.
+var apiClient = &http.Client{Timeout: 20 * time.Minute}
+
 func apiCall(method, url string, body, out any) error {
 	var reqBody io.Reader
 	if body != nil {
@@ -123,7 +131,7 @@ func apiCall(method, url string, body, out any) error {
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := apiClient.Do(req)
 	if err != nil {
 		return err
 	}

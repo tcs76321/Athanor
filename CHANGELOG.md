@@ -20,6 +20,9 @@ New entries are appended at the top. Do not rewrite history.
   job loop between tasks. The request now caps output at `maxSummaryTokens`
   (256); a one-line Dormant Index summary needs far less. Test:
   `cmd/athanor/mce_adapter_test.go`.
+- **The probe bounds its API calls.** `spikes/m3-t7-probe`'s `apiCall` now uses
+  a client with a 20-minute timeout, so a wedged handler surfaces as an error
+  row instead of hanging the soak loop forever.
 
 ### Probe: non-code fixture injection (soak data quality) — 2026-10-16
 
