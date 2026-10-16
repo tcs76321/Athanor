@@ -15,72 +15,11 @@ are under "Open (2026-10-16 review)".
 
 ---
 
-## Open (2026-10-16 review)
+## Open
 
-Deep review of every subsystem (`internal/` + `cmd/`), design and
-implementation. Findings below are **unfixed** as of 2026-10-16 and ordered by
-severity. Locations are the call sites that need attention; "suggested fix" is
-advisory, not a contract. There are no open high items (H7 and H8 are fixed;
-see "Fixed (2026-10-16 review)"); the rest are hardening.
-
-### Medium
-
-| # | Finding (location) | Why it matters / suggested fix |
-|---|---|---|
-| M1 | `PutSource` upsert does not update `job_id`/`project_id` on conflict (`internal/mce/store.go:130`) | content-derived chunk IDs mean re-ingesting the same bytes under a different scope keeps the first-writer attribution, so `IndexForJob`/`IndexForProject` completeness depends on ingestion order. Latent today (production only ingests project-scoped chunks). Correct fix is a multi-owner (join-table) model; a minimal fix is `job_id = excluded.job_id, project_id = excluded.project_id` with last-writer-wins documented. |
-| M2 | Config validation accepts negative values for many bounded numeric fields (`internal/config/validate.go`; `limits.*`, `recovery.*`, `backup.max_local_backups`, `power.daydream_*`, `strategy_analysis.*`, `job_pod.pids_limit/memory_mb/cpus`, `network.rate_limit_per_minute`, `agent.max_proactive_tasks_per_day`) | a typo like `max_concurrent_jobs: -3` loads silently (only `0` is replaced by a default), violating the fail-loud contract. Add per-field range checks. |
-| M6 | `O_NOFOLLOW` only closes the final-component symlink race; intermediate directory components are still followed between `Validate`'s `EvalSymlinks` and `open(2)` (`internal/airlock/paths/paths.go`) | defense-in-depth for a local single-user tool, but the doc comment overstates the guarantee. Use `openat2`/`RESOLVE_BENEATH` or walk-and-open component-wise; at minimum correct the comment. |
-| M7 | Judge quorum votes share one seed/persona/prompt, so `judge_count > 1` aggregates near-identical outputs and provides no decorrelation (`internal/engine/phases.go:323`, `compare.go:344`) | undermines F4-T4's stated purpose. Vary the seed per vote (fold the vote index into `judgmentSeed`) or route each vote to a distinct model. |
-| M8 | `decidePlan` overwrites a custom policy's `JudgeCount`, and the evaluation judge is always called exactly once (quorum applies only to comparison) (`internal/engine/engine.go:445`) | undocumented precedence; the "quorum applies in either mode" comment is only half true. Document or honor the policy's count for evaluation too. |
-| M10 | `lineDiff` is an O(n·m) LCS matrix (`internal/ui/ui.go:614`) | a ~1 MB artifact diff (~20k lines) allocates ~3 GB and OOMs on a loopback GET. Use a memory-linear diff and cap input size. |
-| M11 | `NewVersion` writes the content file inside the transaction; a rollback after the write (supersede CAS or audit failure) leaves an orphan file (`internal/artifact/store.go:100`, `persist.go:44`) | each retried version leaks a file. Write to a temp name and `os.Rename` after commit, or remove on rollback. |
-| M12 | Power policy treats unknown battery % (`0`) as "above threshold", so deep work proceeds on battery when the reading is unavailable and override is on (`internal/power/policy.go:84`) | fail-open where pause is the conservative choice. Treat unknown as at/below threshold unless the operator opts into "assume AC". |
-| M13 | Core Pod image boots with no config and the host-binary `ollama_url` default (`deploy/core.Containerfile:55,67`); the shape mismatch is only a doctor *warning* | a fresh Core Pod points Ollama at `127.0.0.1` inside the container where none exists. Bake a Core-Pod config (`host.containers.internal`) or make the shape mismatch a hard fail in the container context. |
-| M14 | Strategy confidence-consistency baseline includes the cohort's own members (`internal/strategy/analysis.go:120`) | a large cohort is compared against a baseline dominated by itself. Compute the archetype baseline leave-one-cohort-out. |
-| M15 | `Backfill` fabricates a `"legacy"` archetype for pre-capture jobs (`internal/strategy/strategy.go:313`) | a synthetic archetype distorts per-archetype baselines and can mint spurious insights. Exclude backfilled rows from mining or derive the real archetype. |
-| M16 | `strategy_insights` lacks a UNIQUE constraint on `pattern_json` (`migrations/0021_strategy.sql`); `insightExists` SELECT-then-INSERT is TOCTOU | the daydream loop and the API handler can both insert the same pattern. Add `UNIQUE(scope, pattern_json)` and treat conflict as a no-op. |
-| M17 | Digest `DaydreamSummary.Actions` is overwritten, not accumulated (`internal/digest/digest.go:155`) | with more than one JSON group, the Morning Digest reports the last group's count. Scan into a local and `+=`. |
-| M18 | Doctor disk check runs before the state dir exists → false "could not determine free disk space" on fresh clone (`internal/doctor/doctor.go:142`) | reorder so the dir is created first, or fall back to the parent dir. |
-| M19 | Scheduler `Ready` ignores `ready` while `Blocked` treats it schedulable (`internal/scheduler/schedule.go:39,59`) | latent stuck-task hazard. Make the two functions agree on the status's meaning. |
-| M20 | DAG depth bound counts only dependency chains, not parent (phase) nesting (`internal/dag/validate.go:188`) | unbounded phase nesting passes any `MaxDepth`. Bound parent chains or document the scope. |
-| M21 | DAG validator accepts duplicate dependency entries (`internal/dag/validate.go:83`) | a malformed graph is persisted. Reject duplicate keys. |
-| M22 | `hitl.Repo.Create` doesn't validate severity in Go (unlike corrections) (`internal/hitl/hitl.go:130`) | an invalid severity surfaces as an opaque SQLite CHECK error. Add a `validSeverity` check. |
-| M23 | `Await` records a wrong `resume_state` on a second call for an already-awaiting job (`internal/hitl/service.go:66`) | informational only (resume uses `awaiting_from`), but the payload is misleading in an audit. Reload `j` after transition. |
-
-### Low
-
-| # | Finding (location) | Note / suggested fix |
-|---|---|---|
-| L1 | Chunk ID truncated to 64 bits; a collision silently overwrites a chunk (`internal/mce/division/division.go:181`) | widen to 128-bit (as `compactionID` does) and/or verify `source_hash`/`byte_start` on conflict. |
-| L2 | Incremental index skip keys on mtime+size, not content (`internal/mce/index.go:140`) | same-second / same-size edits are skipped and stale content served. Store a sampled fingerprint, or document the tradeoff. |
-| L3 | Index model-call bound is per-file soft (`internal/mce/index.go:137`) | one large file can exceed `MaxChunks` by an order of magnitude. Pass a per-source budget. |
-| L4 | Embedding dimension pin is a read-then-write outside a transaction (`internal/mce/embed.go:123`) | two first-embeddings can leave mixed dimensions. Enforce via a unique constraint. |
-| L5 | Prompt `TotalToken` excludes the `\n\n` section joins (`internal/prompt/assemble.go:113`) | under-reports KV pressure by a handful of tokens. Compute from the joined text. |
-| L6 | `run_tests`/`lint` interpolate the agent's `command` into `sh -c` (`cmd/athanor/pod_executor.go:102`) | contained by the pod, but blurs "task-defined test command" into arbitrary shell. Restrict to the task's configured command or document the equivalence. |
-| L7 | base64 smuggling heuristic checks only the leftmost match (`internal/airlock/scanner/heuristic.go:138`) | `FindStringIndex` misses later long blobs. Use `FindAllStringIndex` and normalize whitespace. |
-| L8 | Scanner `runCommand` treats exit 0 as Clean even with detection output (`cmd/athanor/scanners/scanners.go:93`) | comment says the opposite. Require empty stdout for Clean. |
-| L9 | Re-fetch cap is a hardcoded 10 MiB, not `network.max_response_bytes` (`cmd/athanor/gateway_tool_adapter.go:215`) | thread the configured cap through. |
-| L10 | `ExportPath` doesn't sanitize `projectID`/`artifactID` (`internal/airlock/egress/exports.go:27`) | currently unreachable (IDs resolve through the store first); defense-in-depth via `paths.Resolve`. |
-| L11 | `validateSpec` doesn't reject a flag-like image name (`internal/jobpod/args_common.go:27`) | a name beginning `-` becomes a podman flag. Reject `-`/whitespace and pass `--`. |
-| L12 | Gateway header sanitization is a 6-name denylist (`internal/gateway/sanitize.go:26`) | prefer an allowlist (build from an empty header map). |
-| L13 | Auth middleware leaks job-ID existence via timing (`internal/internalapi/middleware.go:47`) | perform a dummy constant-time compare on a miss. |
-| L14 | `events` table has no FK on `project_id`/`job_id` (`migrations/0001_execution_spine.sql:96`) | append-only with no deletes, so low impact; inconsistent with the FK discipline. |
-| L15 | `migrate.currentVersion` swallows the query error → "version 0" (`internal/store/migrate.go:66`) | misleading failure message on an unhealthy DB. Propagate the error. |
-| L16 | `store.Open` doesn't URL-escape the DSN path (`internal/store/store.go:28`) | a path with `?`/`#`/space breaks the DSN. Use URL-safe encoding. |
-| L17 | Cron matcher ANDs day-of-month with day-of-week and rejects `7`=Sunday (`internal/backup/cron.go:54`) | diverges from Vixie cron semantics; only affects custom schedules. |
-| L18 | Kill switch gates new work but doesn't tear down in-flight pods/LLM calls (`internal/control/killswitch.go:76`) | in-flight work runs to its phase boundary. Document, or cancel inference + pods on freeze. |
-| L19 | `Freeze` returns an error even when the freeze succeeded (audit failure) (`internal/control/killswitch.go:82`) | fail-safe direction, but the error contract is misleading. |
-| L20 | `Manager.Logger` accepts unknown categories when the configured set is empty (`internal/logging/logging.go:71`) | a typo'd category silently creates a new log file. Reject when a non-empty set is configured. |
-| L21 | Rotation drops the log entry if rename fails (`internal/logging/rotate.go:44`) | lose one event on a transient FS error. Best-effort re-open. |
-| L22 | Linux AC detection fails open when no `AC`/`ADP`-prefixed supply entry exists (`cmd/athanor/power_linux.go:33`) | treated as on-AC while on battery. |
-| L23 | `doctor.modelPresent` is stricter than `onboard.baseName` (tag-stripping) (`internal/doctor/doctor.go:284`) | a base-name persona reads "missing" in doctor but "installed" in onboard. Align the tag-stripping. |
-| L24 | `store.Backup` re-evaluates `time.Now()` inside the collision loop (`internal/store/backup.go:23`) | a second-and-later collision gets a fresh timestamp + suffix; sloppy but harmless single-daemon. |
-| L25 | `battery_pause_threshold_percent: 0` is silently coerced to 20 (`internal/config/defaults.go:61`) | "never pause on battery" cannot be expressed. |
-| L26 | Engine nil-guard inconsistency: `call()` derefs `e.registry` and `audit` derefs `e.db` without the guards `crossFamily`/`difficultyHint` use (`internal/engine/phases.go:166`, `engine.go:807`) | not reachable in production wiring, but the codebase advertises nil-safety unevenly. |
-| L27 | `PassedTests` is misnamed (stores the overall pass flag, not "test command exited 0") (`internal/engine/evaluate.go:310`) | the name/comment invite future misuse; rename or correct the doc. |
-| L28 | Divergence re-roll swallows `SetStatus` errors (`internal/engine/diverge.go:147`) | a failed discard can leave a below-floor candidate as `draft` and re-evaluate it. |
-| L29 | `captureOutcome` is not idempotent (`internal/engine/strategy.go:122`) | an external re-Enqueue of a terminal job duplicates the outcome row (profiles/outcomes have `UNIQUE(job_id)`; `captureOutcome` doesn't use it). |
-| L30 | Dead `reflecting → synthesizing` edge has no engine path (`internal/job/state.go:87`) | the comment describes a feature that doesn't exist; remove or implement. |
+No findings are open as of 2026-10-16. The high/medium/low items from that
+review are all resolved — most by code, a few by an explicit design decision or
+a documented trade-off recorded below. New findings resume here.
 
 ---
 
@@ -110,6 +49,64 @@ A hardening sweep driven by the same review. Each item is a separate commit
 | Strategy | `Mine` dedups cohort membership (a repeated operation no longer double-counts) and gates the candidate-count axis on the divergence phase |
 | Daydream | feedback review respects muted/expired global corrections |
 | Gate | the structural gates now also forbid `os.StartProcess`, `golang.org/x/sys/unix`, and raw `net.Dial/Dialer/Listen` outside the gateway and loopback sites |
+
+## Fixed (2026-10-16 medium/low sweep)
+
+Every medium and low finding from the 2026-10-16 review, resolved. Grouped by
+subsystem; the CHANGELOG section titles carry the detail and each change has a
+regression test.
+
+| Findings | Resolution |
+|---|---|
+| M1 | multi-owner chunk attribution (`context_chunk_owners`, migration 0027) so identical content in two scopes is indexed for both |
+| M2 | `validateRaw` range-checks every bounded numeric config field; a negative is rejected loudly |
+| M6 | corrected the `OpenNoFollow` doc: the guarantee is final-component only (`openat2`/`RESOLVE_BENEATH` would close the intermediate race) |
+| M7 | quorum votes are decorrelated by folding the vote index into the derived judgment seed |
+| M8 | documented that `judge_count` is authoritative and quorum applies to comparison (the evaluation judge is a single advisory call) |
+| M10 | `lineDiff` is Hirschberg (linear space) with a `maxDiffLines` cap |
+| M11 | `CreateDraft`/`NewVersion` remove the content file on any rollback |
+| M12 | unknown battery level fails closed (pause); `require_ac_for_deep_work: false` still permits battery work |
+| M13 | baked `deploy/core-config.yaml` into the Core Pod image (`host.containers.internal`) |
+| M14 | `Mine` uses a leave-one-cohort-out baseline |
+| M15 | `Backfill` derives the real project archetype (no synthetic `legacy` bucket) |
+| M16 | `UNIQUE(scope, pattern_json)` (migration 0028) + upsert; a retired insight re-emerges |
+| M17 | Morning Digest sums the daydream action count across groups |
+| M18 | doctor's disk check falls back to an existing ancestor directory |
+| M19 | `Ready` and `Blocked` both treat `ready` as schedulable |
+| M20 | the DAG validator bounds parent (phase) nesting, not only dependency chains |
+| M21 | duplicate `DependsOn` entries are rejected (`KindDuplicateRef`) |
+| M22 | `hitl.Repo.Create` validates severity in Go |
+| M23 | `Await` records `awaiting_from` as the resume state on repeated calls |
+| L1 | chunk ids widened to 128 bits |
+| L2 | incremental-index skip keys on nanosecond mtime |
+| L3 | per-file model-call budget in `RunOnce`/`Enrich`/`embedSource` |
+| L4 | embedding dimension pin read+write in one transaction |
+| L5 | prompt `TotalToken` counts the section joins |
+| L6 | documented the `run_tests`/`lint` shell containment (task-defined command, pod boundary) |
+| L7 | the base64 heuristic scans every run |
+| L8 | `scanners.runCommand` requires empty stdout for a clean verdict |
+| L9 | the re-fetch cap threads `network.max_response_bytes` |
+| L10 | `egress.ExportPath` validates components through `paths.Resolve` |
+| L11 | flag-like / whitespace image names rejected; `--` precedes the image |
+| L12 | gateway request headers are an allow-list (was a 6-name deny-list) |
+| L13 | the auth middleware performs a dummy constant-time compare on a token miss |
+| L14 | resolved by design: the audit columns are intentionally not foreign keys (the log outlives pruned entities); documented |
+| L15 | `currentVersion` propagates its query error through `Migrate` |
+| L16 | `store.Open` percent-escapes the DSN path |
+| L17 | cron accepts `7` as Sunday and ORs dom/dow when both are restricted |
+| L18 | resolved by documentation: freeze gates new work; in-flight work runs to its phase boundary |
+| L19 | `Freeze`/`Unfreeze` report success once persisted (a failed audit is logged) |
+| L20 | unknown log categories are rejected against the closed §28.1 set |
+| L21 | rotation reopens the original and still writes the entry on a rename failure |
+| L22 | Linux AC detection fails closed when no AC/ADP supply entry exists |
+| L23 | `doctor.modelPresent` matches a bare base name against any tag |
+| L24 | `store.Backup` captures the timestamp once |
+| L25 | resolved by documentation: `battery_pause_threshold_percent: 0` is "unset"; use `require_ac_for_deep_work: false` to never pause |
+| L26 | `call` guards a nil registry; `auditCat` guards a nil store |
+| L27 | corrected the `PassedTests` doc (overall pass flag, not the test exit alone) |
+| L28 | the divergence re-roll audits failed discards |
+| L29 | verified already fixed: `strategy.Repo.CreateOutcome` is idempotent (`ON CONFLICT(job_id) DO NOTHING`) |
+| L30 | removed the dead `reflecting → synthesizing` edge |
 
 ## Fixed (2026-10-07)
 
