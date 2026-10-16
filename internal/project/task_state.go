@@ -65,6 +65,19 @@ func (e *ErrIllegalTaskTransition) Error() string {
 	return fmt.Sprintf("illegal task transition %s → %s", e.From, e.To)
 }
 
+// ErrConcurrentTaskTransition reports that a task's status changed between a
+// read and a compare-and-swap update (another writer won the race). It mirrors
+// job.ErrConcurrentTransition: the loser reports the conflict rather than
+// silently overwriting.
+type ErrConcurrentTaskTransition struct {
+	ID   string
+	From string
+}
+
+func (e *ErrConcurrentTaskTransition) Error() string {
+	return fmt.Sprintf("task %s left status %q before the update committed", e.ID, e.From)
+}
+
 // SetTaskStatus moves a task to `to`, enforcing the transition table. A
 // task already at `to` is a no-op returning nil, so scheduling and recovery
 // replays are idempotent.
@@ -79,8 +92,16 @@ func (r *Repo) SetTaskStatus(ctx context.Context, id, to string) error {
 	if !CanTaskTransition(t.Status, to) {
 		return &ErrIllegalTaskTransition{From: t.Status, To: to}
 	}
-	if _, err := r.store.DB().ExecContext(ctx, `UPDATE tasks SET status = ? WHERE id = ?`, to, id); err != nil {
+	// Compare-and-swap against the status read at call time: two concurrent
+	// writers (a scheduler replay and a recovery reconcile are separate pool
+	// acquisitions) must not both pass validation and silently overwrite.
+	res, err := r.store.DB().ExecContext(ctx,
+		`UPDATE tasks SET status = ? WHERE id = ? AND status = ?`, to, id, t.Status)
+	if err != nil {
 		return fmt.Errorf("setting task %s status: %w", id, err)
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return &ErrConcurrentTaskTransition{ID: id, From: t.Status}
 	}
 	return nil
 }
