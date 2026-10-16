@@ -23,6 +23,14 @@ const (
 	JudgeVerifier JudgeMode = "verifier"
 )
 
+// Role names the engine's registry knows. Kept as plain strings here, like the
+// phase keys below, so the policy package stays free of an LLM-registry
+// dependency.
+const (
+	RoleMain        = "main"
+	RoleAlternative = "alternative"
+)
+
 // Phase keys for ModelRouting. Plain strings keep the policy package free of an
 // LLM-registry dependency; the engine maps them to personas.
 const (
@@ -122,6 +130,15 @@ type Plan struct {
 	// gather fresh evidence (M8-T29; ADR-0067 §5), as opposed to the novelty
 	// reset.
 	Exploration bool
+	// BudgetScale multiplies each phase's wall-time budget for this attempt
+	// (ADR-0074 §3). <= 1 means unchanged — a plan may not shrink a budget.
+	BudgetScale float64
+	// TemperatureDelta is added to the resolved phase temperature for
+	// generation phases; judgment phases keep their determinism. 0 = none.
+	TemperatureDelta float64
+	// Directive is an extra instruction appended to a generation phase's prompt
+	// for this attempt (ADR-0074 §3). Empty = none.
+	Directive string
 }
 
 // NoveltyFullSamples is the sample count at which a task class counts as

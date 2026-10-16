@@ -15,6 +15,7 @@ import (
 	"github.com/tcs76321/athanor/internal/job"
 	"github.com/tcs76321/athanor/internal/llm"
 	"github.com/tcs76321/athanor/internal/mce"
+	"github.com/tcs76321/athanor/internal/policy"
 	"github.com/tcs76321/athanor/internal/project"
 	"github.com/tcs76321/athanor/internal/prompt"
 )
@@ -185,6 +186,46 @@ func applyCallOptions(opts []callOption) callParams {
 	return p
 }
 
+// planBudget applies an attempt's budget scale to a resolved phase budget
+// (ADR-0074 §3). A scale <= 1 leaves the budget unchanged, so a plan can never
+// shrink a call's wall-time.
+func planBudget(budget time.Duration, plan policy.Plan) time.Duration {
+	if plan.BudgetScale <= 1 {
+		return budget
+	}
+	return time.Duration(float64(budget) * plan.BudgetScale)
+}
+
+// planTemperature applies an attempt's temperature delta to a resolved phase
+// temperature. Judgment phases keep their resolved temperature — determinism is
+// a security constraint, not a river. The result is clamped to [0, 1].
+func planTemperature(resolved float64, plan policy.Plan, judgment bool) float64 {
+	if judgment || plan.TemperatureDelta == 0 {
+		return resolved
+	}
+	t := resolved + plan.TemperatureDelta
+	if t < 0 {
+		t = 0
+	}
+	if t > 1 {
+		t = 1
+	}
+	return t
+}
+
+// planInstructions appends an attempt's retry directive to a phase's
+// instructions for generation phases (ADR-0074 §3). A judgment phase's
+// instructions (the rubric) are left untouched.
+func planInstructions(base string, plan policy.Plan, judgment bool) string {
+	if judgment || plan.Directive == "" {
+		return base
+	}
+	if base == "" {
+		return plan.Directive
+	}
+	return base + "\n" + plan.Directive
+}
+
 func (e *Engine) call(ctx context.Context, j job.Job, p project.Project, t project.Task,
 	phase, role, extraInstructions string, candidates []prompt.CandidateArtifact,
 	opts ...callOption) (llm.Response, error) {
@@ -204,6 +245,10 @@ func (e *Engine) call(ctx context.Context, j job.Job, p project.Project, t proje
 	if !ok {
 		return llm.Response{}, fmt.Errorf("persona %q missing from registry", role)
 	}
+	// ADR-0074 §3: an attempt's escalation knobs (budget scale, temperature
+	// delta, retry directive) apply to every call the job makes. They come from
+	// the same pure plan the phase used, so they are consistent across phases.
+	plan := e.planFor(ctx, j, p, t)
 
 	// M1-T2: feasibility before every call — never silently reduce.
 	// M5-T4: this is the §12.6 pre-assembly gate (what the *window*
@@ -250,7 +295,7 @@ func (e *Engine) call(ctx context.Context, j job.Job, p project.Project, t proje
 		Project:                prompt.Project{Name: p.Name, Archetype: p.Archetype, Goal: p.Goal},
 		Task:                   prompt.Task{Title: t.Title, Description: t.Description},
 		Criteria:               t.Criteria,
-		EvaluationInstructions: extraInstructions,
+		EvaluationInstructions: planInstructions(extraInstructions, plan, isJudgmentPhase(phase)),
 		Tools:                  tiers.Tools,
 		ActiveChunk:            tiers.ActiveChunk,
 		Corrections:            tiers.Corrections,
@@ -337,7 +382,7 @@ func (e *Engine) call(ctx context.Context, j job.Job, p project.Project, t proje
 			res.TotalToken, persona.ContextTarget, assessment)
 	}
 
-	temperature := llm.ResolveTemperature(phase, persona.Temperature, nil)
+	temperature := planTemperature(llm.ResolveTemperature(phase, persona.Temperature, nil), plan, isJudgmentPhase(phase))
 
 	// M3-T7.5b (ADR-0012 §D6 upgrade): bind the judgment phases to a JSON
 	// schema, not just `format: "json"`. The schema grammar-constrains
@@ -367,6 +412,7 @@ func (e *Engine) call(ctx context.Context, j job.Job, p project.Project, t proje
 	if !hasBudget || budget <= 0 {
 		budget = 10 * 60 * 1e9 // 10m guard for unbudgeted phases; every §13.1 phase has one
 	}
+	budget = planBudget(budget, plan)
 	callCtx, cancel := context.WithTimeout(ctx, budget)
 	defer cancel()
 
