@@ -10,6 +10,16 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Toolchain bump: Go 1.27.2 + golangci-lint v2.15.0 — 2026-10-16
+
+- **Go toolchain → 1.27.2** (`go.mod` `toolchain` directive and every CI job).
+  go1.27.1's standard library carries vulnerabilities fixed in 1.27.2 (notably in
+  `html/template`, used by the UI), so the `vuln` job now scans — and builds
+  with — the patched toolchain.
+- **golangci-lint → v2.15.0.** The formerly pinned v2.13 reads export-data
+  version 4 and cannot decode go1.27.2's version 5; v2.15.0's bundled `x/tools`
+  can. The tree lints clean (0 issues) under the new linter.
+
 ### Core Pod packaging (M13) — 2026-10-16
 
 - **Baked Core Pod config.** `deploy/core-config.yaml` now ships in the image at

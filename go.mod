@@ -2,7 +2,7 @@ module github.com/tcs76321/athanor
 
 go 1.27
 
-toolchain go1.27.1
+toolchain go1.27.2
 
 require (
 	codeberg.org/readeck/go-readability/v2 v2.1.2
