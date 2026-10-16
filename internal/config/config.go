@@ -337,11 +337,10 @@ type Execution struct {
 	// (default 2) from an explicit 0 (retries disabled); a task's own
 	// budget.max_jobs, when set, is a tighter bound.
 	MaxTaskRetries *int `yaml:"max_task_retries"`
-	// SelfRefine enables the M8-T11 self-refine operation: when a cycle
-	// yields no passing candidate, the best-scoring candidate is critiqued
-	// and rewritten in place, then re-verified deterministically. Default
-	// false — the operation ships (the repertoire is whole) but is opt-in
-	// until the harder corpus shows it earns its keep.
+	// SelfRefine enables the M8-T11/M9-T1 self-refine operation: when a
+	// cycle yields no passing candidate, the best-scoring candidate is
+	// critiqued and rewritten in place, then re-verified deterministically.
+	// Default true (M9-T1, on by default); set false to disable.
 	SelfRefine *bool `yaml:"self_refine"`
 	// MaxSelfRefineLoops bounds self-refine repair attempts per job
 	// (M8-T11). Default 1; 0 disables it even when SelfRefine is true.
@@ -365,28 +364,38 @@ type PolicyConfig struct {
 	// easy or familiar tasks (F4-T2). It can only lower spend, never
 	// exceed execution.divergence_candidates / max_reflection_loops.
 	ComputePolicy string `yaml:"compute_policy"`
-	// JudgeMode selects how accept/reject is decided: "llm" is today's
-	// security-persona judge; "verifier" runs deterministic per-archetype
-	// verifiers first and consults the LLM judge only on ties or when no
-	// verifier exists (F4-T3).
+	// JudgeMode selects how accept/reject is decided: "verifier" (the
+	// default) runs deterministic per-archetype verifiers first and consults
+	// the LLM judge only on ties or when no verifier exists (F4-T3); "llm"
+	// routes acceptance through the security-persona judge. (JudgeModeSelection
+	// falls back to "llm" only for a Config built without defaults.)
 	JudgeMode string `yaml:"judge_mode"`
 	// JudgeCount is the number of independent judge calls for a
 	// high-stakes accept; >1 means quorum (F4-T4). 1 is a single call.
 	JudgeCount int `yaml:"judge_count"`
 	// VerifierMinFraction is the fraction of code accepts that must be
-	// decided by deterministic verifiers when JudgeMode=verifier
-	// (F4-T3 acceptance).
+	// decided by deterministic verifiers when JudgeMode=verifier (F4-T3
+	// acceptance). It is a corpus-level acceptance threshold recorded for
+	// the F4/probe measurements, NOT a per-job runtime gate: the engine
+	// cannot observe a fleet-wide fraction from one comparison, so it does
+	// not read this field.
 	VerifierMinFraction *float64 `yaml:"verifier_min_fraction"`
 	// MinAnchorAgreement is the ranking agreement a judge must reach on
-	// the eval/anchor set before it may decide (F4-T4).
+	// the eval/anchor set before it may decide (F4-T4). It is NOT enforced
+	// by the engine: enforcing it needs a stored per-model calibration
+	// measurement (an anchor run) that the daemon does not yet maintain, so
+	// the field records the F4-T4 target only. F4 closed inconclusive on the
+	// judge arm (ADR-0063); the judge is advisory and verifier-first is the
+	// default.
 	MinAnchorAgreement *float64 `yaml:"min_anchor_agreement"`
 	// JaccardFloor is the minimum mean pairwise Jaccard distance a
 	// divergence set must reach before it is accepted; a below-floor set
 	// is re-rolled at most MaxDiversityRerolls times (F4-T5).
 	JaccardFloor *float64 `yaml:"jaccard_floor"`
 	// MaxDiversityRerolls bounds the below-floor re-roll loop (F4-T5).
-	// The pointer distinguishes "unset" (default 1) from an explicit 0
-	// (never re-roll).
+	// The pointer distinguishes "unset" (default 0 — the Jaccard metric is
+	// measured and audited but nothing is re-rolled) from an explicit
+	// positive value (re-roll at most that many times).
 	MaxDiversityRerolls *int `yaml:"max_diversity_rerolls"`
 	// CostAware lets a quality tie break toward the lower-cost artifact
 	// (F4-T6). When false, comparison ignores cost.

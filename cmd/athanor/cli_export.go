@@ -4,11 +4,13 @@
 // Returns the daemon's structured response; the
 // caller (the CLI) prints it.
 //
-// The HTTP path is `/internal/v1/exports/<id>`. The
-// route is wired in the daemon's internalapi; it
-// returns 200 with the export path on success,
-// 403/404/409/422 with a JSON error otherwise. The
-// CLI surfaces the error verbatim.
+// The HTTP path is the daemon's external loopback route
+// `POST /exports/<id>` (internal/api). (An earlier
+// revision posted to a non-existent `/internal/v1/exports/`
+// path, so the subcommand always 404'd.) The route returns
+// 200 with the export path on success, 409 when frozen
+// (and 503 when no exporter is wired), or a JSON error.
+// The CLI surfaces the error verbatim.
 package main
 
 import (
@@ -33,7 +35,7 @@ func runExport(args []string) error {
 	if *artifactID == "" {
 		return fmt.Errorf("-artifact is required")
 	}
-	url := fmt.Sprintf("%s/internal/v1/exports/%s", *addr, *artifactID)
+	url := fmt.Sprintf("%s/exports/%s", *addr, *artifactID)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(*timeoutSec)*time.Second)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, nil)

@@ -162,11 +162,12 @@ func Build(ctx context.Context, st *store.Store, since, until time.Time) (Digest
 	}
 	for rows.Next() {
 		var artifacts, corrections, insights string
-		var chunks, saved int
-		if err := rows.Scan(&d.Daydream.Actions, &chunks, &saved, &artifacts, &corrections, &insights); err != nil {
+		var chunks, saved, actions int
+		if err := rows.Scan(&actions, &chunks, &saved, &artifacts, &corrections, &insights); err != nil {
 			_ = rows.Close()
 			return Digest{}, err
 		}
+		d.Daydream.Actions += actions
 		d.Daydream.ChunksProcessed += chunks
 		d.Daydream.TokensSaved += saved
 		d.Daydream.ArtifactsProduced += jsonLen(artifacts)

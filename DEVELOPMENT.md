@@ -74,10 +74,9 @@ macOS / podman 6.0.2 / libkrun) — see
 The structural tests (the M2 argv + envelope gates, and the M4-T8 SSRF /
 bypass / content corpora) still run in `make check`; the integration
 probes are the behavioral double-check, now executed on Ubuntu in CI as
-well as on a developer's machine. The `integration` job starts
-`continue-on-error` (non-blocking) so it cannot break `main` while the
-runner's rootless-Podman setup is proven; it is promoted to a required
-check once it has been observed green on `main`.
+well as on a developer's machine. The `integration` job is a **required**
+check (F3-T7): it carries no `continue-on-error`, so a red probe fails
+`main`.
 
 FTS5 is compiled into the build via the `sqlite_fts5` build tag, which the
 Makefile exports as `GO_TAGS` for every build and test target and which CI

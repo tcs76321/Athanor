@@ -10,6 +10,24 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### D2/E1/E2/E3/E4 — housekeeping sweep — 2026-10-16
+
+- **`athanor export` was a dead route (E1).** The CLI posted to a non-existent
+  `/internal/v1/exports/<id>` path; it now posts to the daemon's real
+  `POST /exports/<id>` route.
+- **Morning Digest daydream-action count (E2).** `Daydream.Actions` scanned
+  `COUNT(*)` into the aggregate field inside a `GROUP BY` loop, so it reported
+  only the last group's count; it now sums across groups. Test:
+  `internal/digest/digest_test.go` (`TestBuildAccumulatesDaydreamActions`).
+- **Config-knob accuracy (D2/E3).** `verifier_min_fraction` and
+  `min_anchor_agreement` are now documented as corpus-level F4 acceptance
+  thresholds the engine does **not** enforce (the anchor floor needs a stored
+  per-model calibration the daemon does not maintain); `self_refine`'s comment
+  says default true (M9-T1), `max_diversity_rerolls`' comment says default 0,
+  and `judge_mode`'s comment notes verifier is the default.
+- **CI doc (E4).** DEVELOPMENT.md now describes the `integration` job as the
+  required check it is, not a `continue-on-error` job.
+
 ### D1 — §19.3 guard reads a record for the final artifact — 2026-10-16
 
 - **`phaseCompare` persists an `EvaluationRecord` for the synthesized final.**

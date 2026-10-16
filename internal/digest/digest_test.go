@@ -90,3 +90,33 @@ func TestBuildEmptyWindowIsQuiet(t *testing.T) {
 		t.Fatalf("empty window = %+v, want zeros", d)
 	}
 }
+
+// TestBuildAccumulatesDaydreamActions pins known-issues E2: the daydream action
+// count is summed across the GROUP BY groups, not overwritten by the last one.
+func TestBuildAccumulatesDaydreamActions(t *testing.T) {
+	st := testStore(t)
+	ctx := context.Background()
+	exec := func(q string, args ...any) {
+		t.Helper()
+		if _, err := st.DB().ExecContext(ctx, q, args...); err != nil {
+			t.Fatalf("%s: %v", q, err)
+		}
+	}
+	now := time.Now().UTC().Format(time.RFC3339)
+	// Two rows with distinct artifacts_json → two GROUP BY groups.
+	exec(`INSERT INTO daydream_logs (id, action, started_at, finished_at, artifacts_json, corrections_json, insights_json, chunks_processed, tokens_saved)
+	      VALUES ('d1','memory_consolidation',?,?, '["a"]','[]','[]',2,10)`, now, now)
+	exec(`INSERT INTO daydream_logs (id, action, started_at, finished_at, artifacts_json, corrections_json, insights_json, chunks_processed, tokens_saved)
+	      VALUES ('d2','strategy_mining',?,?, '["b"]','[]','[]',3,20)`, now, now)
+
+	d, err := Build(ctx, st, time.Now().Add(-time.Hour), time.Now().Add(time.Hour))
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	if d.Daydream.Actions != 2 {
+		t.Fatalf("daydream actions = %d, want 2 (summed over groups, known-issues E2)", d.Daydream.Actions)
+	}
+	if d.Daydream.ChunksProcessed != 5 || d.Daydream.TokensSaved != 30 {
+		t.Fatalf("daydream counters = %+v, want chunks 5 tokens 30", d.Daydream)
+	}
+}
