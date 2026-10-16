@@ -10,6 +10,17 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### M9-T2b-1 — routing decision layer
+
+- **M9-T2b-1.** `internal/onboard.Route` turns per-role measurements (a
+  generator's deterministic pass rate; a judge's anchor agreement) into a routing
+  proposal: per role, keep the configured model or recommend the best measured
+  one above `MinImprovement`, with the judge role's cross-family rule enforced
+  (a same-family judge is never recommended). Advisory only — the proposal is for
+  HITL approval and never mutates config ([ADR-0049](docs/adr/0049-model-onboarding-qualification.md)).
+  The measurement runs (generator pass@k; judge anchor agreement via
+  `make probe-anchor`) remain the T2b-2 work.
+
 ### Fix — per-job `system_state` scratch is cleared at terminal
 
 - The planner difficulty hint, the reflection and self-refine counters, and the

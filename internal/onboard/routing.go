@@ -1,0 +1,124 @@
+package onboard
+
+import (
+	"fmt"
+	"sort"
+)
+
+// Measurement is one model's measured result for a role (M9-T2b). Higher Score
+// is better for both role classes: the deterministic pass rate for a generator
+// role, the anchor agreement (Spearman) for the judge role.
+type Measurement struct {
+	Model   string
+	Role    string
+	Score   float64
+	Samples int
+}
+
+// RoutingOptions parameterise Route.
+type RoutingOptions struct {
+	// JudgeRole is the role the cross-family rule applies to (typically
+	// "security"). Empty disables the rule.
+	JudgeRole string
+	// GeneratorRoles are the roles the judge must differ from in family, so a
+	// correlated judge (same lineage as a generator) is never recommended.
+	GeneratorRoles []string
+	// MinImprovement is how far a candidate must beat the configured model to
+	// replace it. Probe noise is real, so a small positive floor is expected.
+	MinImprovement float64
+}
+
+// Recommendation is the routing proposal for one role. It is advisory: Route
+// never mutates config (ADR-0049; the proposal is for HITL approval).
+type Recommendation struct {
+	Role        string
+	Configured  string
+	Recommended string
+	Replace     bool
+	// Score is the recommended model's measured score (0 when unmeasured).
+	Score  float64
+	Reason string
+}
+
+// Route produces a routing proposal from per-role measurements. `families` maps
+// a model name to its lineage and is consulted only for the judge cross-family
+// rule; a missing family is treated as "unknown" and never matches a generator
+// family, so an undeclared model cannot silently satisfy the rule.
+func Route(roles []Role, families map[string]string, ms []Measurement, opts RoutingOptions) []Recommendation {
+	best := map[string]map[string]float64{}
+	for _, m := range ms {
+		if best[m.Role] == nil {
+			best[m.Role] = map[string]float64{}
+		}
+		if cur, ok := best[m.Role][m.Model]; !ok || m.Score > cur {
+			best[m.Role][m.Model] = m.Score
+		}
+	}
+
+	genFamilies := map[string]bool{}
+	for _, role := range roles {
+		for _, gr := range opts.GeneratorRoles {
+			if role.Role == gr {
+				if f := families[role.Model]; f != "" {
+					genFamilies[f] = true
+				}
+			}
+		}
+	}
+
+	out := make([]Recommendation, 0, len(roles))
+	for _, role := range roles {
+		rec := Recommendation{Role: role.Role, Configured: role.Model, Recommended: role.Model}
+		scores := best[role.Role]
+		if len(scores) == 0 {
+			rec.Reason = "no qualification data; keeping the configured model"
+			out = append(out, rec)
+			continue
+		}
+
+		type cand struct {
+			model string
+			score float64
+		}
+		var cands []cand
+		for model, score := range scores {
+			if opts.JudgeRole != "" && role.Role == opts.JudgeRole && genFamilies[families[model]] {
+				continue // same family as a generator: a correlated judge
+			}
+			cands = append(cands, cand{model, score})
+		}
+		sort.Slice(cands, func(i, j int) bool {
+			if cands[i].score != cands[j].score {
+				return cands[i].score > cands[j].score
+			}
+			return cands[i].model < cands[j].model
+		})
+		if len(cands) == 0 {
+			rec.Reason = "no cross-family candidate measured; keeping the configured model"
+			out = append(out, rec)
+			continue
+		}
+
+		top := cands[0]
+		rec.Score = top.score
+		configuredScore, configuredMeasured := scores[role.Model]
+		switch {
+		case top.model == role.Model:
+			rec.Reason = fmt.Sprintf("configured model is the best measured (%.2f)", top.score)
+		case !configuredMeasured:
+			rec.Recommended = top.model
+			rec.Replace = true
+			rec.Reason = fmt.Sprintf("%s scored %.2f; the configured %s is unmeasured", top.model, top.score, role.Model)
+		case top.score >= configuredScore+opts.MinImprovement:
+			rec.Recommended = top.model
+			rec.Replace = true
+			rec.Reason = fmt.Sprintf("%s scored %.2f vs configured %s %.2f (margin %.2f)",
+				top.model, top.score, role.Model, configuredScore, opts.MinImprovement)
+		default:
+			rec.Reason = fmt.Sprintf("configured %s %.2f within %.2f of the best measured %s %.2f",
+				role.Model, configuredScore, opts.MinImprovement, top.model, top.score)
+		}
+		out = append(out, rec)
+	}
+	return out
+}
