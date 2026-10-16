@@ -81,9 +81,14 @@ catches orphans on the next daemon start; normal operation tears pods down.
   with no production caller yet; a `athanor models` command (or a `GET /models`
   route) would present the inventory + proposal for HITL approval — the missing
   piece of M9-T2's acceptance.
-- **Interrupt-time pod teardown.** Signalling the daemon mid-job can leave one
-  orphan Job Pod (the §F5 ~10 s shutdown raced a mid-exec pod); the M2-T5 boot
-  sweep catches it. A tighter exec-timeout at shutdown would close the gap.
+- **Interrupt-time pod teardown — FIXED (2026-10-16).** Signalling the daemon
+  mid-job could leave one orphan Job Pod (the §F5 ~10 s shutdown raced a
+  mid-exec pod); the M2-T5 boot sweep caught it. The engine now sets a drain
+  flag in `StopPods` (a phase still in flight cannot start a new pod once
+  shutdown begins) and `jobpod.Manager.Shutdown` seals the manager
+  (`Start` → `ErrSealed`) and force-removes every `athanor-job-*` container
+  regardless of the in-memory map; `serve.go` calls it right after `StopPods`.
+  The M2-T5 boot sweep remains the backstop.
 
 ## Caveats
 

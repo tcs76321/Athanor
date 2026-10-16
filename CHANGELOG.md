@@ -10,6 +10,17 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Job Pod shutdown hardening (M9 soak) — 2026-10-16
+
+- **No orphan pods on interrupt.** Signalling the daemon mid-job could leave one
+  orphan Job Pod (the F5 shutdown raced a mid-exec pod). `engine.StopPods` now
+  sets a drain flag first, so a phase still in flight cannot start a new pod;
+  `jobpod.Manager.Shutdown` then seals the manager (`Start` → `ErrSealed`) and
+  force-removes every `athanor-job-*` container regardless of the in-memory
+  map, called from `serve.go` right after `StopPods`. The M2-T5 boot sweep
+  remains the backstop. Tests: `internal/jobpod/shutdown_test.go`,
+  `internal/engine/pod_lifecycle_test.go`.
+
 ### Toolchain bump: Go 1.27.2 + golangci-lint v2.15.0 — 2026-10-16
 
 - **Go toolchain → 1.27.2** (`go.mod` `toolchain` directive, every CI job, and

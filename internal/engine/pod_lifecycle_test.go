@@ -183,3 +183,25 @@ func TestPodLifecycle_StopsPodOnFailure(t *testing.T) {
 		t.Fatalf("stopped = %v, want the failed job %s torn down", stopped, jobID)
 	}
 }
+
+// TestStopPods_SetsDrainFlagNoFurtherEnsures pins the M9 soak hardening: once
+// StopPods runs, a later ensurePod is a no-op, so a phase still in flight
+// cannot start a pod after shutdown began.
+func TestStopPods_SetsDrainFlagNoFurtherEnsures(t *testing.T) {
+	env := newEnv(t)
+	lc := &fakeLifecycle{}
+	env.eng.podLifecycle = lc
+
+	env.eng.StopPods(context.Background())
+	if !env.eng.draining.Load() {
+		t.Fatal("StopPods did not set the drain flag")
+	}
+
+	// A code job would normally call Ensure; after draining it must not.
+	jobID := env.submitCode(t)
+	env.eng.ensurePod(context.Background(), job.Job{ID: jobID})
+
+	if ensured, _, _ := lc.snapshot(); len(ensured) != 0 {
+		t.Errorf("Ensure called after StopPods: %v", ensured)
+	}
+}

@@ -627,6 +627,16 @@ func run(configPath, addr, stateDir string) error {
 	// for the next boot's M2-T5 sweep. In-flight phases are not drained;
 	// state is committed per transition and Recover resumes them.
 	eng.StopPods(ctx)
+	// M9 soak hardening: seal the Job Pod manager and force-remove every
+	// athanor container. StopPods stops the pods of the active jobs it can
+	// list; this closes the race where a phase still in flight starts a new
+	// pod after that enumeration. Best-effort: a podman failure is logged,
+	// and the next boot's M2-T5 sweep remains the backstop.
+	if res, err := podMgr.Shutdown(ctx); err != nil {
+		fmt.Fprintf(os.Stderr, "athanor: job pod shutdown: %v\n", err)
+	} else if res.Removed > 0 {
+		fmt.Printf("athanor: removed %d Job Pod(s) at shutdown\n", res.Removed)
+	}
 	if err := httpSrv.Shutdown(ctx); err != nil {
 		return fmt.Errorf("shutting down http server: %w", err)
 	}

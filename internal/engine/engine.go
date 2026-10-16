@@ -230,6 +230,10 @@ type Engine struct {
 	// We use a counter (not a channel) so the cap can change without
 	// reallocating the semaphore mid-flight.
 	inFlight int64
+	// draining is set by StopPods at graceful shutdown. Once true, ensurePod
+	// is a no-op so a phase still in flight cannot start a new pod that
+	// outlives the process (M9 soak). It is never reset.
+	draining atomic.Bool
 	mu       sync.Mutex // guards running set to avoid double-running a job
 	running  map[string]bool
 	// onTerminal is invoked when a job reaches a terminal state, so the

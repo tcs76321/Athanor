@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -27,8 +28,11 @@ type manager struct {
 	client    Client
 	freezer   Freezer
 	tokenBase string // base dir for per-job token dirs; <state-dir>/tokens
-	mu        sync.RWMutex
-	pods      map[string]*podEntry
+	// sealed is set by Shutdown. Once true, Start refuses with ErrSealed so
+	// a racing ensure cannot create a pod that outlives the process (M9 soak).
+	sealed atomic.Bool
+	mu     sync.RWMutex
+	pods   map[string]*podEntry
 }
 
 type podEntry struct {
@@ -101,6 +105,11 @@ func (m *manager) validateSpec(spec Spec) error {
 // On any failure between step 4 and step 7 the token dir is removed
 // so it doesn't leak to disk.
 func (m *manager) Start(ctx context.Context, spec Spec) (*Pod, error) {
+	if m.sealed.Load() {
+		// Shutdown has begun: refuse before validating or touching podman, so
+		// a racing ensure cannot create a pod that outlives the process.
+		return nil, ErrSealed
+	}
 	if err := m.validateSpec(spec); err != nil {
 		return nil, err
 	}

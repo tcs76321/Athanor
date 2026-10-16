@@ -147,4 +147,10 @@ type Manager interface {
 	// did not start itself. Called once at daemon boot (M2-T5
 	// expands the test).
 	Sweep(ctx context.Context) (SweepResult, error)
+	// Shutdown seals the manager against new starts and force-removes
+	// every athanor-managed container, regardless of the in-memory map.
+	// It is the graceful-exit counterpart to Sweep: Sweep keeps the pods
+	// the manager knows about; Shutdown removes them all. Called once at
+	// daemon exit (M9 soak hardening).
+	Shutdown(ctx context.Context) (SweepResult, error)
 }

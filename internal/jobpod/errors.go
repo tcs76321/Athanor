@@ -21,3 +21,9 @@ var ErrAlreadyExists = errors.New("jobpod: pod with that ID already exists")
 // ErrNotRunning reports an Exec against a pod that cannot accept
 // commands (stopped or failed).
 var ErrNotRunning = errors.New("jobpod: pod is not running")
+
+// ErrSealed reports a Start on a manager that has begun shutdown. Once
+// Shutdown is called no new pod may start: a racing ensure at shutdown
+// would otherwise create a pod that outlives the process (the M9 soak
+// left one such orphan). This is terminal, not transient.
+var ErrSealed = errors.New("jobpod: manager is shut down")

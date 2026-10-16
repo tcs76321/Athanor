@@ -32,7 +32,7 @@ type PodLifecycle interface {
 // fatal: the sub-step that follows surfaces its own error if the pod is
 // genuinely required.
 func (e *Engine) ensurePod(ctx context.Context, j job.Job) {
-	if e.podLifecycle == nil {
+	if e.podLifecycle == nil || e.draining.Load() {
 		return
 	}
 	if err := e.podLifecycle.Ensure(ctx, j.ID); err != nil {
@@ -65,6 +65,11 @@ func (e *Engine) stopPod(ctx context.Context, jobID string) {
 // A nil seam or a listing error is a logged no-op — the startup sweep is the
 // backstop.
 func (e *Engine) StopPods(ctx context.Context) {
+	// Set the drain flag first: a phase goroutine still running must not
+	// start a new pod after we tear the known ones down, or it survives to
+	// the next boot's sweep (the M9 soak left exactly one such orphan). The
+	// manager's Shutdown is the hard backstop behind this.
+	e.draining.Store(true)
 	if e.podLifecycle == nil || e.jobs == nil {
 		return
 	}
