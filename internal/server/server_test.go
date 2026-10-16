@@ -48,6 +48,7 @@ func TestHealthz(t *testing.T) {
 		Version       string  `json:"version"`
 		Uptime        string  `json:"uptime"`
 		UptimeSeconds float64 `json:"uptime_seconds"`
+		Goroutines    int     `json:"goroutines"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
 		t.Fatalf("decoding response: %v", err)
@@ -60,6 +61,9 @@ func TestHealthz(t *testing.T) {
 	}
 	if body.Uptime == "" || body.UptimeSeconds < 0 {
 		t.Errorf("uptime missing or invalid: %q / %v", body.Uptime, body.UptimeSeconds)
+	}
+	if body.Goroutines <= 0 {
+		t.Errorf("goroutines = %d, want > 0 (M8-T31 soak sampling)", body.Goroutines)
 	}
 }
 

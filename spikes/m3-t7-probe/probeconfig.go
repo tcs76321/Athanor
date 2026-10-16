@@ -22,6 +22,9 @@ type probePolicy struct {
 	// always-reverse) whose criteria do not mention docstrings. Run the
 	// gates as a separate arm (-gates) to measure their effect.
 	CodeGates bool
+	// Soak compresses the time-triggered subsystem schedules (backup, HITL
+	// TTL) so a short deadline run still exercises them (M8-T31).
+	Soak bool
 }
 
 func orDefault(v, def string) string {
@@ -165,5 +168,20 @@ job_pod:
     - run_tests
     - lint
 `)
+	// M8-T31: a soak run must exercise the time-triggered subsystems within a
+	// short window, so their schedules are compressed. The production
+	// backup.schedule (`0 3 * * *`) stays pinned by internal/backup's cron test.
+	if p.Soak {
+		b.WriteString(`
+backup:
+  auto: true
+  schedule: "*/15 * * * *"
+  max_local_backups: 5
+
+hitl:
+  default_ttl: "5m"
+  expiry_interval: "30s"
+`)
+	}
 	return b.String()
 }

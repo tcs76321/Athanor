@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"runtime"
 	"time"
 )
 
@@ -121,6 +122,10 @@ type healthResponse struct {
 	Version       string  `json:"version"`
 	Uptime        string  `json:"uptime"`
 	UptimeSeconds float64 `json:"uptime_seconds"`
+	// Goroutines is the live goroutine count. It is exported for the soak
+	// harness (M7-T9 / M8-T31), which samples it to prove goroutine growth is
+	// bounded across a long run.
+	Goroutines int `json:"goroutines"`
 }
 
 // handleHealthz reports status, version, and uptime (M0-T7 acceptance).
@@ -137,6 +142,7 @@ func (s *Server) handleHealthz(w http.ResponseWriter, r *http.Request) {
 		Version:       s.version,
 		Uptime:        uptime.Round(time.Second).String(),
 		UptimeSeconds: uptime.Seconds(),
+		Goroutines:    runtime.NumGoroutine(),
 	})
 }
 

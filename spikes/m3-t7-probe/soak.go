@@ -2,8 +2,11 @@ package main
 
 import (
 	"encoding/csv"
+	"encoding/json"
 	"fmt"
+	"io"
 	"math"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -44,6 +47,25 @@ func rssKB(pid int) (int64, error) {
 	return strconv.ParseInt(strings.TrimSpace(string(out)), 10, 64)
 }
 
+// goroutinesAt reads the daemon's live goroutine count from /healthz (M8-T31).
+// It returns -1 when the daemon is unreachable (e.g. a restart gap), so the
+// sample is explicit about a missing reading rather than a fake zero.
+func goroutinesAt(url string) int {
+	client := &http.Client{Timeout: 3 * time.Second}
+	resp, err := client.Get(url)
+	if err != nil {
+		return -1
+	}
+	defer func() { _ = resp.Body.Close() }()
+	var body struct {
+		Goroutines int `json:"goroutines"`
+	}
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<16)).Decode(&body); err != nil {
+		return -1
+	}
+	return body.Goroutines
+}
+
 // soakSampler periodically records the daemon's RSS, the SQLite file
 // sizes, and free disk while an arm runs. The samples append to
 // <runDir>/soak.csv so a long run leaves evidence of whether memory or
@@ -54,8 +76,10 @@ type soakSampler struct {
 	once sync.Once
 }
 
-// startSoak samples every interval until stopAndWait is called.
-func startSoak(runDir string, interval time.Duration, pid int, stateDir string) *soakSampler {
+// startSoak samples every interval until stopAndWait is called. It records the
+// daemon's RSS (via ps), SQLite sizes, free disk, and the live goroutine count
+// (via /healthz, M8-T31) so a long run proves growth is bounded.
+func startSoak(runDir string, interval time.Duration, pid int, stateDir, healthURL string) *soakSampler {
 	s := &soakSampler{stop: make(chan struct{}), done: make(chan struct{})}
 	go func() {
 		defer close(s.done)
@@ -66,15 +90,17 @@ func startSoak(runDir string, interval time.Duration, pid int, stateDir string) 
 		defer func() { _ = f.Close() }()
 		w := csv.NewWriter(f)
 		defer w.Flush()
-		_ = w.Write([]string{"ts", "rss_kb", "db_bytes", "free_gb"})
+		_ = w.Write([]string{"ts", "rss_kb", "db_bytes", "free_gb", "goroutines"})
 		sample := func() {
 			rss, _ := rssKB(pid)
 			free, _ := freeBytes(stateDir)
+			g := goroutinesAt(healthURL)
 			_ = w.Write([]string{
 				time.Now().UTC().Format(time.RFC3339),
 				strconv.FormatInt(rss, 10),
 				strconv.FormatInt(dbBytes(stateDir), 10),
 				fmt.Sprintf("%.1f", float64(free)/(1<<30)),
+				strconv.Itoa(g),
 			})
 			w.Flush()
 		}
@@ -127,17 +153,22 @@ func soakSummary(path string) string {
 		return row[i]
 	}
 	var maxRSS, maxDB int64
+	maxG := 0
 	minFree := math.MaxFloat64
 	n := 0
 	for _, row := range rows[1:] {
 		rss, _ := strconv.ParseInt(col(row, "rss_kb"), 10, 64)
 		db, _ := strconv.ParseInt(col(row, "db_bytes"), 10, 64)
 		free, _ := strconv.ParseFloat(col(row, "free_gb"), 64)
+		g, _ := strconv.Atoi(col(row, "goroutines"))
 		if rss > maxRSS {
 			maxRSS = rss
 		}
 		if db > maxDB {
 			maxDB = db
+		}
+		if g > maxG {
+			maxG = g
 		}
 		if free > 0 && free < minFree {
 			minFree = free
@@ -147,8 +178,8 @@ func soakSummary(path string) string {
 	if n == 0 {
 		return ""
 	}
-	return fmt.Sprintf("samples=%d peak_rss=%.0fMB max_db=%.1fMB min_free=%.1fGB",
-		n, float64(maxRSS)/1024, float64(maxDB)/(1<<20), minFree)
+	return fmt.Sprintf("samples=%d peak_rss=%.0fMB max_db=%.1fMB max_goroutines=%d min_free=%.1fGB",
+		n, float64(maxRSS)/1024, float64(maxDB)/(1<<20), maxG, minFree)
 }
 
 // settleOrphanPods waits up to timeout for Job Pod teardown to finish before

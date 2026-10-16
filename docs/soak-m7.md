@@ -22,27 +22,21 @@ Acceptance is by coverage ([ADR-0066](adr/0066-release-scope-soak.md)).
 ## Run
 
 ```bash
-make soak                     # SOAK_HOURS=24 by default
-SOAK_HOURS=1 make soak        # a smoke-length variant
-SOAK_OUT=/tmp/soak make soak  # override the results directory
-```
-
-`scripts/soak.sh` repeats the quality-probe workload; each iteration writes
-its packets and `soak.csv` under `$SOAK_OUT/iter-N/`, and the script runs a
-final `report`. The probe runner manages the daemon lifecycle and enforces
-per-job wall-time, disk, and consecutive-error budgets, so a wedged iteration
-aborts rather than hanging the soak.
-
-## Combined endurance + quality soak (M8-T23)
-
-The probe adds a `soak` subcommand: one long-lived daemon over the bench
-corpus, resumable and early-stoppable.
-
-```bash
+make build
+# deadline mode (preferred): run until tonight's local midnight, then stop
 go run ./spikes/m3-t7-probe soak \
-  -model ornith9b -corpus eval/bench/tasks.yaml -hours 24 -kill-after 6h \
-  -out spikes/m3-t7-probe/results/soak
+  -model ornith9b -corpus eval/bench/tasks.yaml -until midnight \
+  -kill-after 2h -gates -judge-model granite4.2:3b \
+  -out spikes/m3-t7-probe/results/soak-0.0.0
+
+# fixed-duration variant
+go run ./spikes/m3-t7-probe soak -model ornith9b -corpus eval/bench/tasks.yaml -hours 4
 ```
+
+The `soak` subcommand holds **one long-lived daemon** over the bench corpus.
+`-until` accepts `midnight` (the upcoming local 00:00), `HH:MM` (the next
+occurrence), or an RFC3339 timestamp; it overrides `-hours`, and the resolved
+deadline is persisted to `<out>/deadline` so a resume does not slide it.
 
 - Results accumulate in `<out>/metrics.jsonl` (append-only); re-running resumes
   without resetting.
@@ -51,19 +45,29 @@ go run ./spikes/m3-t7-probe soak \
 - `SIGINT`/`SIGTERM` finalizes cleanly (flush + report + stop daemon).
 - `-kill-after` injects one `kill -9` + restart, exercising crash recovery; the
   event lands in `<out>/soak-events.log`.
+- `<out>/soak.csv` samples RSS, SQLite size, free disk **and the live goroutine
+  count** (read from `/healthz`, M8-T31) every `-soak-interval`.
+- The soak config **compresses the time-triggered schedules** (backup every
+  15m, HITL TTL 5m) so a deadline run still exercises them; the production
+  `0 3 * * *` spec stays pinned by `internal/backup`'s cron test.
 - The sleep/wake checkpoint remains a human step (the host cannot be slept
   safely by the harness); record it alongside the run.
 
+`scripts/soak.sh` (`make soak`) is the **legacy** per-iteration runner; prefer
+the `soak` subcommand.
+
 ## Acceptance (Gate G7)
+
+Coverage-based ([ADR-0066](adr/0066-release-scope-soak.md)):
 
 - Zero orphan Job Pods after the run (`podman ps -a`) and after a `kill -9`
   mid-run.
-- No unrecovered crashes: every iteration that dies is recovered on restart
+- No unrecovered crashes: a process killed mid-run is recovered on restart
   (§23.6), or the failure is captured with a reason in the event log.
-- Memory and goroutine counts bounded: RSS does not grow monotonically across
-  iterations (inspect `soak.csv`).
-- Disk usage stable: WAL growth bounded; SQLite file size plateaus after
-  checkpointing.
+- Bounded growth: RSS **and goroutine count** do not grow monotonically across
+  the run (inspect `soak.csv`); SQLite/WAL size plateaus.
+- The time-triggered arms fired: at least one scheduled backup and one HITL
+  expiry appear in the event log / `<out>/soak-events.log`.
 - The system survives at least one sleep/wake cycle mid-run (macOS/lab):
   jobs pause and resume per §24.
 

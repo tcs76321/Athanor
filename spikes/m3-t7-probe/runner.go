@@ -279,7 +279,7 @@ func (r *runnerConfig) runArm(m probeModel, a arm) error {
 	if err := waitHealthy(r.baseURL(), 90*time.Second); err != nil {
 		return fmt.Errorf("daemon not healthy (see %s): %w", logPath, err)
 	}
-	sampler := startSoak(runDir, r.soakInterval, proc.Process.Pid, stateDir)
+	sampler := startSoak(runDir, r.soakInterval, proc.Process.Pid, stateDir, r.baseURL()+"/healthz")
 	defer sampler.stopAndWait()
 
 	consecutiveErrors := 0

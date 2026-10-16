@@ -51,6 +51,10 @@ type soakRunConfig struct {
 	// runs), reusing the `run` command's semantics.
 	onlyCSV   string
 	goalLimit int
+	// until is a wall-clock deadline spec (M8-T31): "midnight", "HH:MM", or
+	// RFC3339. When set it overrides -hours and is persisted so a resume keeps
+	// the original target.
+	until string
 }
 
 func runSoak(args []string) {
@@ -63,6 +67,7 @@ func runSoak(args []string) {
 	fs.StringVar(&c.modelLabel, "model", "", "model label to soak (required; see matrix.go)")
 	fs.StringVar(&c.armName, "arm", "full", "arm: single | dialectical | bestof3 | reflect | full")
 	fs.Float64Var(&c.hours, "hours", 24, "target wall time in hours")
+	fs.StringVar(&c.until, "until", "", "run until a wall-clock deadline: midnight | HH:MM | RFC3339 (overrides -hours; persisted for resume)")
 	fs.StringVar(&c.seedPolicy, "seed", "off", "judgment_seed policy: off|derived")
 	fs.DurationVar(&c.timeout, "timeout", 45*time.Minute, "per-job wall-clock timeout")
 	fs.DurationVar(&c.soakInterval, "soak-interval", 30*time.Second, "RSS/DB/disk sampling interval")
@@ -112,7 +117,7 @@ func (c *soakRunConfig) run() error {
 		return err
 	}
 	cfgPath := filepath.Join(c.outDir, "config.yaml")
-	pol := probePolicy{OllamaURL: c.ollamaURL, CodeGates: c.gates, JudgeModel: c.judgeModel}
+	pol := probePolicy{OllamaURL: c.ollamaURL, CodeGates: c.gates, JudgeModel: c.judgeModel, Soak: true}
 	if err := os.WriteFile(cfgPath, []byte(probeConfigYAML(m, a, c.seedPolicy, c.addr, false, pol)), 0o644); err != nil {
 		return err
 	}
@@ -154,6 +159,35 @@ func (c *soakRunConfig) run() error {
 	}
 
 	start := time.Now()
+	// M8-T31: resolve the wall-clock deadline. -until wins over -hours; a
+	// persisted deadline (written on the first start) wins over both so a
+	// restart never slides the target.
+	deadline := start.Add(time.Duration(c.hours * float64(time.Hour)))
+	if c.until != "" {
+		d, derr := resolveDeadline(c.until, start)
+		if derr != nil {
+			return derr
+		}
+		deadline = d
+	}
+	deadlinePath := filepath.Join(c.outDir, "deadline")
+	if raw, rerr := os.ReadFile(deadlinePath); rerr == nil {
+		if t, perr := time.Parse(time.RFC3339, strings.TrimSpace(string(raw))); perr == nil {
+			deadline = t
+			fmt.Printf("soak: resuming to persisted deadline %s\n", deadline.Local().Format(time.RFC3339))
+		}
+	} else if c.until != "" {
+		_ = os.WriteFile(deadlinePath, []byte(deadline.UTC().Format(time.RFC3339)), 0o644)
+	}
+	if remaining := time.Until(deadline); remaining <= 0 {
+		return fmt.Errorf("deadline %s is already in the past", deadline.Local().Format(time.RFC3339))
+	} else if remaining < 15*time.Minute {
+		fmt.Printf("soak: WARNING only %s until the deadline %s\n",
+			remaining.Round(time.Minute), deadline.Local().Format(time.RFC3339))
+	} else {
+		fmt.Printf("soak: running until %s (%s)\n", deadline.Local().Format(time.RFC3339), remaining.Round(time.Minute))
+	}
+
 	proc, logPath, err := r.startDaemon(cfgPath, stateDir)
 	if err != nil {
 		return err
@@ -161,10 +195,8 @@ func (c *soakRunConfig) run() error {
 	if err := waitHealthy(r.baseURL(), 90*time.Second); err != nil {
 		return fmt.Errorf("daemon not healthy (see %s): %w", logPath, err)
 	}
-	logEvent("soak start: model=%s arm=%s goals=%d hours=%.2f", m.Label, a.Name, len(goals), c.hours)
-	sampler := startSoak(c.outDir, c.soakInterval, proc.Process.Pid, stateDir)
-
-	deadline := start.Add(time.Duration(c.hours * float64(time.Hour)))
+	logEvent("soak start: model=%s arm=%s goals=%d until=%s", m.Label, a.Name, len(goals), deadline.Local().Format(time.RFC3339))
+	sampler := startSoak(c.outDir, c.soakInterval, proc.Process.Pid, stateDir, r.baseURL()+"/healthz")
 	killed := false
 	pass := 0
 	for time.Now().Before(deadline) && !interrupted.Load() {
@@ -186,7 +218,7 @@ func (c *soakRunConfig) run() error {
 				if err := waitHealthy(r.baseURL(), 120*time.Second); err != nil {
 					return fmt.Errorf("daemon not healthy after kill/restart (see %s): %w", logPath, err)
 				}
-				sampler = startSoak(c.outDir, c.soakInterval, proc.Process.Pid, stateDir)
+				sampler = startSoak(c.outDir, c.soakInterval, proc.Process.Pid, stateDir, r.baseURL()+"/healthz")
 				logEvent("daemon restarted; state recovered")
 				killed = true
 			}
@@ -278,4 +310,27 @@ func writeRollingReport(outDir string, metrics []jobMetrics) error {
 		return err
 	}
 	return os.WriteFile(filepath.Join(outDir, "report.md"), []byte(renderReport(metrics)), 0o644)
+}
+
+// resolveDeadline parses the -until spec into an absolute local-time deadline
+// (M8-T31). "midnight" is the upcoming 00:00 (the end of today when run in the
+// evening); "HH:MM" is the next occurrence of that local time; an RFC3339
+// timestamp is used verbatim.
+func resolveDeadline(spec string, now time.Time) (time.Time, error) {
+	switch strings.TrimSpace(strings.ToLower(spec)) {
+	case "midnight", "tonight":
+		y, mo, d := now.Date()
+		return time.Date(y, mo, d, 0, 0, 0, 0, now.Location()).AddDate(0, 0, 1), nil
+	}
+	if t, err := time.ParseInLocation("15:04", strings.TrimSpace(spec), now.Location()); err == nil {
+		d := time.Date(now.Year(), now.Month(), now.Day(), t.Hour(), t.Minute(), 0, 0, now.Location())
+		if !d.After(now) {
+			d = d.AddDate(0, 0, 1)
+		}
+		return d, nil
+	}
+	if t, err := time.Parse(time.RFC3339, strings.TrimSpace(spec)); err == nil {
+		return t, nil
+	}
+	return time.Time{}, fmt.Errorf("unrecognized -until %q (use midnight, HH:MM, or RFC3339)", spec)
 }
