@@ -10,6 +10,37 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Hardening sweep (2026-10-16)
+
+- **Deep review of every subsystem** (design + implementation); high/medium
+  findings fixed in commits `7bf9ca7`..`9c65b3b`, the rest recorded in
+  [docs/known-issues.md](docs/known-issues.md) "Open (2026-10-16 review)" and
+  the design-level deferrals in [ROADMAP.md](ROADMAP.md) §7.
+- **Acceptance & state machine.** The comparison verifier now runs on the full
+  hash-verified artifact (was the 4 KB judge head, falsely rejecting code
+  artifacts >4 KB); added the missing `paused → comparing` resume edge.
+- **Reflection loop (the dialectical retry was inert).** The reflector's
+  proposal is now persisted and injected into the next divergence pass, and
+  `max_reflection_loops=N` yields N full retries (was N reflections but N−1
+  re-divergences).
+- **Safety.** A routine network denial no longer freezes the daemon (security
+  alarms are now alert-level; only self-modification/drift stay critical); the
+  UI page title is escaped template data (was an XSS/template-injection vector);
+  MCE `Owns` no longer leaks chunks across jobs; the structural gates now also
+  forbid `os.StartProcess`, `golang.org/x/sys/unix`, and raw `net.Dial` family
+  outside the gateway/loopback sites.
+- **Autonomy/ops.** `require_ac_for_deep_work` is honored (was dead); a stale
+  terminal callback is ignored by the scheduler (was double-counting retries);
+  row+audit writes are atomic across job/project/artifact; `SetTaskStatus` and
+  artifact status gained CAS guards; HITL escalation requests carry a TTL and a
+  boot reconcile re-applies decided-but-unapplied outcomes; feedback review
+  respects muted/expired global corrections; strategy `Mine` dedups cohort
+  membership.
+- **I/O robustness.** Research fetches are bounded by the diverging-phase
+  budget; `llm.Stream` fails loud on a truncated/aborted stream; the evaluation
+  audit event uses `json.Marshal` (not `fmt.Sprintf %q`); migration 0025 adds
+  indexes on `events(project_id)` and `artifacts(job_id, kind)`.
+
 ### M9-T2b-2 — routing variance guard + `>=` structure recognition
 
 - **`onboard.Route` MinSamples guard.** A candidate measurement below
