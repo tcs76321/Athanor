@@ -564,6 +564,33 @@ func (e *Engine) setDifficultyHint(ctx context.Context, jobID, hint string) {
 	}
 }
 
+// jobScratchKeys are the per-job `system_state` keys the engine writes during a
+// run and must clear at terminal state: the planning difficulty hint, the
+// reflection and self-refine counters, and the §10.5 suppression row. They are
+// per-job scratch, not durable state; leaving them behind grows `system_state`
+// without bound (one or more rows per job).
+func jobScratchKeys(jobID string) []string {
+	return []string{
+		difficultyStateKey(jobID),
+		reflectCounterPrefix + jobID,
+		refineCounterPrefix + jobID,
+		evictionStateKey(jobID),
+	}
+}
+
+// clearJobScratch deletes a terminal job's per-job `system_state` rows so the
+// table does not accumulate one set per finished job.
+func (e *Engine) clearJobScratch(ctx context.Context, jobID string) {
+	if e.db == nil {
+		return
+	}
+	for _, k := range jobScratchKeys(jobID) {
+		if _, err := e.db.DB().ExecContext(ctx, `DELETE FROM system_state WHERE key = ?`, k); err != nil {
+			slog.Error("engine: clearing job state", "job", jobID, "key", k, "err", err)
+		}
+	}
+}
+
 // auditComputePlan records the resolved plan (ADR-0044: the decision is
 // audited so outcomes can be attributed to it). `stage` distinguishes the
 // pre-planning profile resolution from the post-planning divergence
@@ -810,7 +837,7 @@ func (e *Engine) Run(ctx context.Context, jobID string) {
 				// history, not state. Clearing here (and only here)
 				// keeps `system_state` bounded while a paused job keeps
 				// its suppression for the resume.
-				e.clearSuppressedTiers(ctx, jobID)
+				e.clearJobScratch(ctx, jobID)
 				// M6-T10 (§13.3): capture the immutable outcome before any
 				// teardown that can block. stopPod can take seconds on a real
 				// pod, and an offline collector must never observe a terminal
@@ -865,7 +892,7 @@ func (e *Engine) Run(ctx context.Context, jobID string) {
 				// row so `system_state` does not accumulate one row per
 				// failed job (the loop-top terminal branch clears the
 				// success/compare paths).
-				e.clearSuppressedTiers(ctx, jobID)
+				e.clearJobScratch(ctx, jobID)
 				// M2-T4b.5 (ADR-0024 §2): a failed job is terminal too; stop
 				// its pod now. The failure path used to return without
 				// teardown, leaving the pod for the next boot's sweep.

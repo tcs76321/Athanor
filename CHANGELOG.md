@@ -10,6 +10,13 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Fix — per-job `system_state` scratch is cleared at terminal
+
+- The planner difficulty hint, the reflection and self-refine counters, and the
+  §10.5 suppression row are per-job scratch; a finished job now clears all of
+  them, so `system_state` no longer grows one set per job. Only the suppression
+  row was cleared before, and M9-T1b's default-on refinement widened the gap.
+
 ### M9-T7 — packaging-aware doctor
 
 - **M9-T7.** `athanor doctor` reports the deployment shape (host binary vs Core
