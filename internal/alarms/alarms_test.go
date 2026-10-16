@@ -45,8 +45,11 @@ func TestValidCategoryAndLevel(t *testing.T) {
 	if ValidCategory("bogus") || ValidLevel("bogus") {
 		t.Error("unknown category/level accepted")
 	}
-	if DefaultLevel(CategorySecurity) != LevelCritical || DefaultLevel(CategoryQuality) != LevelWarning {
+	if DefaultLevel(CategorySecurity) != LevelAlert || DefaultLevel(CategoryQuality) != LevelWarning {
 		t.Error("default levels wrong")
+	}
+	if DefaultLevel(CategorySelfModification) != LevelCritical || DefaultLevel(CategoryDrift) != LevelCritical {
+		t.Error("self-modification/drift must stay critical")
 	}
 }
 
@@ -80,11 +83,29 @@ func TestRaiseCriticalFreezes(t *testing.T) {
 	frz := &fakeFreezer{}
 	svc := NewService(testStore(t), frz)
 	ctx := context.Background()
-	if _, err := svc.Raise(ctx, Alarm{Category: CategorySecurity, Message: "prompt injection detected"}); err != nil {
+	// Only self-modification / drift are critical (freeze); a plain security
+	// event is alert-level (pause, not freeze).
+	if _, err := svc.Raise(ctx, Alarm{Category: CategorySelfModification, Message: "static prompt modified"}); err != nil {
 		t.Fatal(err)
 	}
 	if !frz.frozen || frz.freezes != 1 {
 		t.Fatalf("critical alarm did not freeze exactly once: %+v", frz)
+	}
+}
+
+func TestRaiseSecurityDoesNotFreeze(t *testing.T) {
+	frz := &fakeFreezer{}
+	svc := NewService(testStore(t), frz)
+	ctx := context.Background()
+	a, err := svc.Raise(ctx, Alarm{Category: CategorySecurity, Message: "quarantined file"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if a.Level != LevelAlert {
+		t.Fatalf("security alarm level = %s, want alert", a.Level)
+	}
+	if frz.frozen {
+		t.Fatal("a security (alert-level) alarm must not freeze the system")
 	}
 }
 
@@ -113,7 +134,9 @@ func TestResolve(t *testing.T) {
 func TestActiveOrdersBySeverity(t *testing.T) {
 	svc := NewService(testStore(t), nil)
 	ctx := context.Background()
-	for _, c := range []Category{CategoryQuality, CategorySecurity, CategoryStuck} {
+	// Distinct levels: warning (quality), alert (security), critical
+	// (self-modification). Critical must sort first, then alert, then warning.
+	for _, c := range []Category{CategoryQuality, CategorySecurity, CategorySelfModification} {
 		if _, err := svc.Raise(ctx, Alarm{Category: c, Message: "x:" + string(c)}); err != nil {
 			t.Fatal(err)
 		}
@@ -122,8 +145,14 @@ func TestActiveOrdersBySeverity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(active) != 3 || active[0].Category != CategorySecurity {
-		t.Fatalf("active order = %+v, want security first", active)
+	if len(active) != 3 || active[0].Category != CategorySelfModification {
+		t.Fatalf("active order = %+v, want self-modification (critical) first", active)
+	}
+	if active[1].Category != CategorySecurity {
+		t.Fatalf("active[1] = %s, want security (alert)", active[1].Category)
+	}
+	if active[2].Category != CategoryQuality {
+		t.Fatalf("active[2] = %s, want quality (warning)", active[2].Category)
 	}
 }
 
@@ -242,5 +271,42 @@ func TestStoreLoaderReadsEventFlags(t *testing.T) {
 	}
 	if snap.EventFlags["hallucinated_path"] != 1 {
 		t.Fatalf("EventFlags = %+v, want one hallucinated_path", snap.EventFlags)
+	}
+}
+
+// TestStoreLoaderSecurityIgnoresRoutineDenials proves the H3 fix: a routine
+// gateway policy denial under deny-by-default must NOT count as a security
+// event (it used to freeze the whole daemon on the first off-list fetch).
+func TestStoreLoaderSecurityIgnoresRoutineDenials(t *testing.T) {
+	st := testStore(t)
+	ctx := context.Background()
+	if _, err := st.AppendEvent(ctx, store.Event{Category: "network",
+		Data: map[string]any{"event": "denied", "data": map[string]any{"url": "https://offlist.example/"}}}); err != nil {
+		t.Fatal(err)
+	}
+	snap, err := NewStoreLoader(st, DefaultThresholds()).Load(ctx, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if snap.SecurityEvents != 0 {
+		t.Fatalf("SecurityEvents = %d, want 0 (routine policy denials are not security incidents)", snap.SecurityEvents)
+	}
+}
+
+// TestStoreLoaderSecurityCountsQuarantine proves a genuine airlock quarantine
+// IS still a security signal after the narrowing.
+func TestStoreLoaderSecurityCountsQuarantine(t *testing.T) {
+	st := testStore(t)
+	ctx := context.Background()
+	if _, err := st.AppendEvent(ctx, store.Event{Category: "airlock",
+		Data: map[string]any{"event": "quarantined"}}); err != nil {
+		t.Fatal(err)
+	}
+	snap, err := NewStoreLoader(st, DefaultThresholds()).Load(ctx, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if snap.SecurityEvents != 1 {
+		t.Fatalf("SecurityEvents = %d, want 1 (a quarantine is a genuine security signal)", snap.SecurityEvents)
 	}
 }

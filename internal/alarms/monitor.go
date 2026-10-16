@@ -204,14 +204,23 @@ func (l *StoreLoader) Load(ctx context.Context, now time.Time) (Snapshot, error)
 		return Snapshot{}, err
 	}
 
-	// Security events in the window.
+	// Security events in the window: genuine signals only, not routine
+	// policy decisions. A network `denied` / `rate_limited` under
+	// deny-by-default is expected behavior, so it is deliberately NOT counted
+	// (a single off-list fetch used to freeze the whole daemon). The counted
+	// set is the fail-closed airlock outcomes (quarantined, path-layer
+	// rejected) and the network signals that indicate a real attack (an SSRF
+	// attempt, an injection hit in fetched content).
 	if l.th.SecurityWindowMins > 0 {
 		since := now.Add(-time.Duration(l.th.SecurityWindowMins) * time.Minute).UTC().Format(time.RFC3339)
 		var n int
 		if err := l.store.DB().QueryRowContext(ctx,
 			`SELECT COUNT(*) FROM events
-			 WHERE category IN ('airlock','network') AND ts >= ?
-			 AND (data_json LIKE '%rejected%' OR data_json LIKE '%denied%')`, since).Scan(&n); err != nil {
+			 WHERE ts >= ? AND (
+			   (category = 'airlock' AND (data_json LIKE '%"event":"quarantined"%' OR data_json LIKE '%"event":"rejected"%'))
+			   OR
+			   (category = 'network' AND (data_json LIKE '%"event":"private_ip"%' OR data_json LIKE '%"event":"reader_mode_rejected"%'))
+			 )`, since).Scan(&n); err != nil {
 			return Snapshot{}, err
 		}
 		snap.SecurityEvents = n

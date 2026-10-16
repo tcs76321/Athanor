@@ -75,10 +75,19 @@ func ValidLevel(l Level) bool {
 }
 
 // DefaultLevel returns the §22.3 default level for a category.
+//
+// Security events (a quarantined file, an SSRF attempt, an injection hit)
+// pause the current job but do NOT freeze the system: under deny-by-default
+// networking a routine policy denial is expected, not an incident, and even a
+// genuine scan hit is a single-job concern. Only self-modification and drift
+// (the agent attempting to alter its own protections) warrant freezing the
+// whole daemon.
 func DefaultLevel(c Category) Level {
 	switch c {
-	case CategorySecurity, CategorySelfModification, CategoryDrift:
+	case CategorySelfModification, CategoryDrift:
 		return LevelCritical
+	case CategorySecurity:
+		return LevelAlert
 	case CategoryQuality, CategoryHallucination:
 		return LevelWarning
 	default:
