@@ -45,7 +45,7 @@ jobs:
         with:
           go-version: '1.27.2'
       - name: Lint
-        uses: golangci/golangci-lint-action@v7
+        uses: golangci/golangci-lint-action@v9
         with:
           # v2.15 bundles an x/tools that decodes go1.27.2 export data; the
           # earlier pinned v2.13 could not (it reads export-data version 4,
