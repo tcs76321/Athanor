@@ -1,0 +1,14 @@
+# Core Pod runtime config (baked into the image at /etc/athanor/config.yaml;
+# ADR-0069 §3, known-issues M13).
+#
+# The daemon fills every other value from its built-in defaults, so this file
+# only overrides the one setting that must differ from the host-binary default:
+# a Core Pod reaches a host Ollama at host.containers.internal, whereas the
+# host-binary default (127.0.0.1) points at nothing inside the container. Before
+# this file was baked, a fresh `podman run` booted on the host default, so every
+# inference call failed to reach Ollama.
+#
+# An operator can mount their own config over /etc/athanor/config.yaml to
+# override anything else.
+inference:
+  ollama_url: "http://host.containers.internal:11434"

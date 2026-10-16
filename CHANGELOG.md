@@ -10,6 +10,16 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Core Pod packaging (M13) — 2026-10-16
+
+- **Baked Core Pod config.** `deploy/core-config.yaml` now ships in the image at
+  `/etc/athanor/config.yaml` (the path the image CMD loads), so a fresh
+  `podman run` points Ollama at `host.containers.internal:11434` instead of the
+  host-binary default `127.0.0.1`, which is unreachable inside the container.
+  Previously the CMD pointed at a config that was never baked, so the daemon
+  booted on defaults. Test: `internal/config/config_test.go`
+  (`TestCorePodConfigParses`), `internal/deploy/deploy_test.go`.
+
 ### Prompt, logging, cron & kill-switch hardening (L5, L17–L21) — 2026-10-16
 
 - **L5 — `TotalToken` counts joins.** Prompt assembly derives the total from the

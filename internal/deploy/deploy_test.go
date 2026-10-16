@@ -37,7 +37,8 @@ func TestPackagingArtifactsExist(t *testing.T) {
 		contains []string
 	}{
 		{"deploy/jobpod.Containerfile", []string{"FROM", "USER", "pytest"}},
-		{"deploy/core.Containerfile", []string{"FROM", "athanor", "podman", "tini", "EXPOSE"}},
+		{"deploy/core.Containerfile", []string{"FROM", "athanor", "podman", "tini", "EXPOSE", "deploy/core-config.yaml"}},
+		{"deploy/core-config.yaml", []string{"host.containers.internal", "ollama_url"}},
 		{"deploy/athanor.service", []string{"ExecStart=__BINARY__", "WantedBy=default.target"}},
 		{"deploy/com.athanor.agent.plist", []string{"com.athanor.agent", "__BINARY__", "RunAtLoad"}},
 		{"scripts/install.sh", []string{"--service", "deploy/athanor.service", "deploy/com.athanor.agent.plist", "__STATE__"}},

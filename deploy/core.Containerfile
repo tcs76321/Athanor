@@ -53,6 +53,10 @@ RUN apt-get update \
 
 COPY --from=build /out/athanor /usr/local/bin/athanor
 COPY config.example.yaml /etc/athanor/config.example.yaml
+# known-issues M13: bake the Core-Pod runtime config the CMD loads, so a fresh
+# container points Ollama at host.containers.internal instead of the host-binary
+# default (127.0.0.1, unreachable inside the container).
+COPY deploy/core-config.yaml /etc/athanor/config.yaml
 
 # State and workspace are volumes (never baked into the image). The daemon binds
 # loopback inside the container (§21.8); publish 7420 on the host loopback.

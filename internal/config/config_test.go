@@ -775,6 +775,26 @@ func TestAirlock_RejectsZeroThresholds(t *testing.T) {
 	}
 }
 
+// TestCorePodConfigParses (known-issues M13): the config baked into the Core
+// Pod image parses and points Ollama at host.containers.internal, so a fresh
+// `podman run` does not boot on the unreachable host-binary default.
+func TestCorePodConfigParses(t *testing.T) {
+	raw, err := os.ReadFile("../../deploy/core-config.yaml")
+	if err != nil {
+		t.Fatalf("read deploy/core-config.yaml: %v", err)
+	}
+	cfg, err := Parse(raw)
+	if err != nil {
+		t.Fatalf("Parse(deploy/core-config.yaml): %v", err)
+	}
+	if cfg.Inference.OllamaURL != "http://host.containers.internal:11434" {
+		t.Errorf("ollama_url = %q, want http://host.containers.internal:11434", cfg.Inference.OllamaURL)
+	}
+	if cfg.Version != CurrentVersion {
+		t.Errorf("defaults not applied: version = %d, want %d", cfg.Version, CurrentVersion)
+	}
+}
+
 // TestParseRejectsNegativeNumericBounds (known-issues M2) pins that a typo'd
 // negative bound is rejected loudly rather than silently default-filled.
 func TestParseRejectsNegativeNumericBounds(t *testing.T) {
