@@ -410,6 +410,10 @@ func (e *Engine) planInputs(ctx context.Context, j job.Job, p project.Project, t
 	if e.cfg != nil {
 		in.Limits.CandidatesCeiling = e.cfg.Execution.DivergenceCandidates
 		in.Limits.ReflectionCeiling = e.cfg.Execution.MaxReflectionLoopsValue()
+		// §13.1: a hard task may raise candidates up to this ceiling (M9-T4).
+		if h := e.cfg.Execution.MaxHardTaskVariations; h > 0 {
+			in.Limits.HardCandidatesCeiling = h
+		}
 	}
 	if e.history != nil {
 		if samples, rate, err := e.history.RecentStats(ctx, p.Archetype, 20); err == nil {

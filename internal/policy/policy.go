@@ -71,6 +71,11 @@ type Features struct {
 type Limits struct {
 	CandidatesCeiling int
 	ReflectionCeiling int
+	// HardCandidatesCeiling is the candidate count for a task the planner flags
+	// hard (§13.1 "for hard tasks: up to 10"). It is an upper bound; the
+	// divergence phase re-clamps to execution.max_hard_task_variations. Zero
+	// means "no raise".
+	HardCandidatesCeiling int
 }
 
 // Inputs is the complete, pure input to Decide.
@@ -205,6 +210,11 @@ func (Default) Decide(in Inputs) Plan {
 	candidates := in.Limits.CandidatesCeiling
 	if candidates < 1 {
 		candidates = 1
+	}
+	// §13.1: a task the planner flagged hard gets up to the hard-task ceiling,
+	// so the loop has more shots at the harder problems.
+	if in.Features.Difficulty == "hard" && in.Limits.HardCandidatesCeiling > candidates {
+		candidates = in.Limits.HardCandidatesCeiling
 	}
 	reflection := in.Limits.ReflectionCeiling
 	if reflection < 0 {

@@ -139,3 +139,22 @@ func TestAdaptive_DropsReflectionOnEasy(t *testing.T) {
 		}
 	}
 }
+
+// TestDefault_RaisesCandidatesOnHardTask pins M9-T4: a task the planner flagged
+// hard raises candidates up to the hard ceiling (§13.1); easy or unknown do not.
+func TestDefault_RaisesCandidatesOnHardTask(t *testing.T) {
+	lim := Limits{CandidatesCeiling: 3, HardCandidatesCeiling: 8, ReflectionCeiling: 2}
+	if got := (Default{}).Decide(Inputs{Features: Features{Difficulty: "hard"}, Limits: lim}); got.Candidates != 8 {
+		t.Errorf("hard candidates = %d, want 8", got.Candidates)
+	}
+	if got := (Default{}).Decide(Inputs{Features: Features{Difficulty: "easy"}, Limits: lim}); got.Candidates != 3 {
+		t.Errorf("easy candidates = %d, want 3", got.Candidates)
+	}
+	if got := (Default{}).Decide(Inputs{Features: Features{Difficulty: "hard"},
+		Limits: Limits{CandidatesCeiling: 3, ReflectionCeiling: 2}}); got.Candidates != 3 {
+		t.Errorf("candidates = %d, want 3 without a hard ceiling", got.Candidates)
+	}
+	if got := (Adaptive{}).Decide(Inputs{Features: Features{Difficulty: "hard"}, Limits: lim}); got.Candidates != 8 {
+		t.Errorf("adaptive hard candidates = %d, want 8 (the raise survives)", got.Candidates)
+	}
+}

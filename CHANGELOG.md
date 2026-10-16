@@ -10,6 +10,17 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### M9-T4 — harder tasks get more candidates
+
+- **M9-T4.** A task the planner flags `DIFFICULTY: hard` now raises the
+  divergence candidate count to `execution.max_hard_task_variations`
+  (default 10) per §13.1 ("for hard tasks: up to 10"), instead of always running
+  `divergence_candidates` (3). The divergence phase still re-clamps to the same
+  ceiling, and `Adaptive` keeps the raise (it only lowers compute on easy tasks).
+  Bounded re-rolls remain opt-in: the F4 probes measured diversity at 0.6–0.88,
+  above the 0.30 floor, so enabling them by default would add cost for little
+  benefit.
+
 ### M9-T2a — model onboarding inventory
 
 - **M9-T2a.** `internal/onboard` maps the configured personas to the installed

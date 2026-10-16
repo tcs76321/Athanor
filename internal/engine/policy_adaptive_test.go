@@ -79,9 +79,10 @@ func TestAdaptivePolicy_EasyHintRunsSingleCandidate(t *testing.T) {
 	}
 }
 
-// TestAdaptivePolicy_HardHintKeepsCeiling is the converse: a hard hint leaves
-// the configured ceiling intact (Adaptive may only lower compute).
-func TestAdaptivePolicy_HardHintKeepsCeiling(t *testing.T) {
+// TestAdaptivePolicy_HardHintRaisesToHardCeiling (M9-T4): a hard hint raises
+// candidates to execution.max_hard_task_variations (§13.1 "up to 10"), and
+// Adaptive keeps the raise — it may only lower compute on easy tasks.
+func TestAdaptivePolicy_HardHintRaisesToHardCeiling(t *testing.T) {
 	e := newEnvWithCfg(t, func(cfg *config.Config) {
 		cfg.Execution.Policy.ComputePolicy = config.ComputePolicyAdaptive
 	})
@@ -93,8 +94,8 @@ func TestAdaptivePolicy_HardHintKeepsCeiling(t *testing.T) {
 		[]string{"one", "two", "three"})
 	e.eng.Run(context.Background(), jobID)
 
-	if got := proposalCount(t, e, jobID); got != 3 {
-		t.Fatalf("proposal candidates = %d, want 3 (hard hint keeps the ceiling)", got)
+	if got := proposalCount(t, e, jobID); got != 10 {
+		t.Fatalf("proposal candidates = %d, want 10 (hard hint raises to max_hard_task_variations)", got)
 	}
 }
 

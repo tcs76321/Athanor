@@ -19,10 +19,10 @@ import (
 const codeOnlyInstruction = "Output ONLY raw Python source, no markdown code fences, no prose, no commentary. A single-file task outputs just the file contents. A multi-file task emits each file as a block beginning with a line `=== FILE: <relative path> ===` followed by that file's raw contents; emit every file the task requires."
 
 // phaseDivergeN (§13.1 Phase 2): generates N candidate artifacts, each
-// persisted as a draft `proposal` artifact (§9.1). The number of
-// candidates is `cfg.Execution.DivergenceCandidates`, defaulting to 3.
-// The planner's "difficulty_hint" is not yet consumed; wiring it to the
-// candidate count is M6 work.
+// persisted as a draft `proposal` artifact (§9.1). N comes from the resolved
+// plan: `cfg.Execution.DivergenceCandidates` (default 3), raised toward
+// `cfg.Execution.MaxHardTaskVariations` when the planner flagged the task hard
+// (§13.1 "for hard tasks: up to 10"; M9-T4), and re-clamped to that ceiling.
 //
 // All candidates use the `main` persona at the phase's high temperature
 // (0.7–1.1) so they actually differ; the LLM is told to "explore

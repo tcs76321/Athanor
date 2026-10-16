@@ -1752,6 +1752,8 @@ context_engine:
 
 execution:
   divergence_candidates: 3
+  # M9-T4 (§13.1): a task the planner flags hard raises candidates to this
+  # ceiling ("for hard tasks: up to 10").
   max_hard_task_variations: 10
   judge_persona: security
   # F5 code acceptance gates (ADR-0058): a code-archetype candidate cannot
