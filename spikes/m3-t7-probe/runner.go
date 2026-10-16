@@ -409,6 +409,14 @@ func (r *runnerConfig) runOne(g sampleGoal, m probeModel, a arm, run int, stateD
 			mx.Error = "copy repo: " + cerr.Error()
 			return mx
 		}
+		// Make the copy its OWN git repo. outDir lives inside the developer's
+		// worktree, so a copy without .git makes git resolve the nearest
+		// ancestor .git — the developer's repo — and Git-as-undo would branch
+		// and check out there. Rooting the copy keeps the test meaningful and
+		// contained. A failure is non-fatal: Git-as-undo then soft-fails.
+		if ierr := initRepoCopy(repoCopy); ierr != nil {
+			fmt.Printf("  %-24s git-init warning: %v\n", g.Name, ierr)
+		}
 		body["repository_path"] = repoCopy
 	}
 	// ADR-0070: send the bench task's deterministic checks (and, for `data`,
@@ -738,6 +746,43 @@ func repoSourceFor(g sampleGoal) string {
 		return g.Fixture
 	}
 	return ""
+}
+
+// initRepoCopy turns a staged fixture/repo copy into its own git repository
+// with an initial commit, so the engine's Git-as-undo operates on the copy
+// rather than resolving the nearest ancestor .git (the developer's repo, since
+// outDir is inside the worktree). The engine independently refuses a
+// repository_path that is not a worktree root (ErrNotRepoRoot); this is the
+// probe-side half. A failure is non-fatal — Git-as-undo then soft-fails.
+func initRepoCopy(dir string) error {
+	// No call here may sign or prompt. The operator's global config may set
+	// commit.gpgsign=true; unattended, a pinentry prompt hangs the whole soak
+	// (and hijacks the terminal). commit.gpgsign=false + --no-gpg-sign make the
+	// fixture commit fail loudly instead; GIT_TERMINAL_PROMPT=0 does the same
+	// for any credential prompt. The copy is throwaway, never the operator's
+	// history, so signing it has no value.
+	env := append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
+	run := func(args ...string) error {
+		cmd := exec.Command("git", append([]string{"-c", "commit.gpgsign=false", "-C", dir}, args...)...)
+		cmd.Env = env
+		var stderr strings.Builder
+		cmd.Stderr = &stderr
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("git %s: %w: %s", strings.Join(args, " "), err, strings.TrimSpace(stderr.String()))
+		}
+		return nil
+	}
+	if err := run("init", "-q"); err != nil {
+		return err
+	}
+	if err := run("add", "-A"); err != nil {
+		return err
+	}
+	// A fixture with no files makes the commit fail; tolerate it — the repo is
+	// still rooted at dir, which is all the containment guard needs.
+	_ = run("-c", "user.email=probe@athanor.invalid", "-c", "user.name=athanor-probe",
+		"commit", "--no-gpg-sign", "-q", "-m", "fixture")
+	return nil
 }
 
 // goalByName looks up a sample goal.
