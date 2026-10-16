@@ -10,6 +10,28 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Soak: combined validation harness — telemetry, leaderboard, conformance (ADR-0073) — 2026-10-16
+
+- **The soak reduces the event log instead of discarding it.** The engine
+  already emits per-call `phase`/`persona`/`model`/token counts and its lever
+  counters; the probe read only one aggregate row per job. It now reduces each
+  job's events into per-phase/per-persona calls and tokens plus repairs,
+  reflections, divergence re-rolls, candidate raises, KV pressure, context-floor
+  violations, corrections/notes injected, and the git-as-undo outcome — carried
+  in `results.json`, new `results.csv` columns, and report tables.
+  `spikes/m3-t7-probe/telemetry.go`.
+- **A per-model leaderboard.** `report.md` gains a grounded leaderboard — pass
+  rate, tokens per passing job, wall-time p50/p95, calls/job — so a results tree
+  from `soak` or `run` answers "which model should I run". The soak runbook
+  documents the full-ladder benchmark (one soak per model under a common tree,
+  then `report` + `measure`). `spikes/m3-t7-probe/leaderboard.go`.
+- **Conformance scenarios.** The soak drives end-to-end scenarios against the
+  live daemon and folds a pass/fail matrix into the report: the §22 freeze
+  switch, the UI pages + SSE stream, an approved push to a **local bare remote**,
+  and the §23.4 **backup → restore** cycle — all offline, each added only when it
+  proves something no existing gate proves. `spikes/m3-t7-probe/scenarios.go`;
+  decision: `docs/adr/0073-soak-validation-harness.md`.
+
 ### Fix: single-slot execution (ADR-0072) — 2026-10-16
 
 - **One job, one model, one pod at a time.** Job concurrency was configurable
