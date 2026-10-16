@@ -154,6 +154,8 @@ func main() {
 		runSoak(os.Args[2:])
 	case "report":
 		runReport(os.Args[2:])
+	case "compare":
+		runCompare(os.Args[2:])
 	case "config":
 		printConfig(os.Args[2:])
 	case "judge":
@@ -177,6 +179,7 @@ commands:
   run       run the measurement matrix (manages the daemon lifecycle)
   soak      combined endurance + quality soak: one daemon, resumable, early-stop (M8-T23)
   report    aggregate collected results into report.md
+  compare   render the guidance A/B delta between a baseline and current tree (M8-T30)
   config    print the generated daemon config for one model/arm
   judge     score the collected packets with the third-party judge models
   anchor    score the human-anchor set and report judge agreement

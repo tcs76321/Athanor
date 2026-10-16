@@ -272,3 +272,73 @@ func renderReport(metrics []jobMetrics) string {
 	b.WriteString("- T-c across fresh jobs confounds model nondeterminism with input nondeterminism; note it.\n")
 	return b.String()
 }
+
+// guidanceTierRow is one tier's deterministic pass rate across all arms.
+type guidanceTierRow struct {
+	Tier string
+	N    int
+	Pass int
+}
+
+// passRate is pass/n, guarding the n == 0 case.
+func passRate(pass, n int) float64 {
+	if n <= 0 {
+		return 0
+	}
+	return float64(pass) / float64(n)
+}
+
+// tierPassRate aggregates the corpus deterministic pass rate over arms into one
+// row per tier (ascending).
+func tierPassRate(metrics []jobMetrics) []guidanceTierRow {
+	agg := map[string]*guidanceTierRow{}
+	var order []string
+	for _, m := range metrics {
+		r, ok := agg[m.Tier]
+		if !ok {
+			r = &guidanceTierRow{Tier: m.Tier}
+			agg[m.Tier] = r
+			order = append(order, m.Tier)
+		}
+		r.N++
+		if jobPassed(m) {
+			r.Pass++
+		}
+	}
+	sort.Strings(order)
+	out := make([]guidanceTierRow, 0, len(order))
+	for _, t := range order {
+		out = append(out, *agg[t])
+	}
+	return out
+}
+
+// renderGuidanceDelta renders the M8-T30 guidance A/B read: the deterministic
+// (grounded) pass rate per tier for a baseline run (guidance OFF) and the
+// current run (guidance ON), with the delta. It reports the observed delta and
+// deliberately makes no significance claim (ADR-0066/0067): a short corpus run
+// has no power to prove an improvement, only to show the loop moved a grounded
+// metric.
+func renderGuidanceDelta(baseline, current []jobMetrics) string {
+	base := map[string]guidanceTierRow{}
+	for _, r := range tierPassRate(baseline) {
+		base[r.Tier] = r
+	}
+	cur := tierPassRate(current)
+
+	var b strings.Builder
+	b.WriteString("# Guidance A/B — deterministic pass rate (M8-T30)\n\n")
+	b.WriteString("Baseline = guidance OFF (no active technique insights); current = guidance ON.\n")
+	b.WriteString("Per-tier rate over all arms. A positive delta is the advisory technique\n")
+	b.WriteString("loop's observed effect; small-n runs are not a significance claim.\n\n")
+	b.WriteString("| tier | baseline n | baseline rate | current n | current rate | delta |\n")
+	b.WriteString("|---|---|---|---|---|---|\n")
+	for _, c := range cur {
+		br := base[c.Tier]
+		baseRate := passRate(br.Pass, br.N)
+		curRate := passRate(c.Pass, c.N)
+		fmt.Fprintf(&b, "| %s | %d | %.0f%% | %d | %.0f%% | %+.0f pp |\n",
+			c.Tier, br.N, baseRate*100, c.N, curRate*100, (curRate-baseRate)*100)
+	}
+	return b.String()
+}

@@ -723,6 +723,40 @@ func loadAllMetrics(dir string) ([]jobMetrics, error) {
 	return all, err
 }
 
+// runCompare is the `compare` subcommand (M8-T30): it renders the guidance A/B
+// delta between a baseline results tree (guidance off) and the current one
+// (guidance on), writing guidance-delta.md into the current tree.
+func runCompare(args []string) {
+	fs := flag.NewFlagSet("compare", flag.ExitOnError)
+	baseline := fs.String("baseline", "", "baseline results dir (guidance off)")
+	outDir := fs.String("out", filepath.Join("spikes", "m3-t7-probe", "results"), "current results dir (guidance on)")
+	_ = fs.Parse(args)
+	if *baseline == "" {
+		fmt.Fprintln(os.Stderr, "m3-t7 compare: -baseline is required")
+		os.Exit(1)
+	}
+	base, err := loadAllMetrics(*baseline)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "m3-t7 compare:", err)
+		os.Exit(1)
+	}
+	cur, err := loadAllMetrics(*outDir)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "m3-t7 compare:", err)
+		os.Exit(1)
+	}
+	if len(base) == 0 || len(cur) == 0 {
+		fmt.Fprintln(os.Stderr, "m3-t7 compare: need rows in both the baseline and current trees")
+		os.Exit(1)
+	}
+	delta := renderGuidanceDelta(base, cur)
+	fmt.Print(delta)
+	if err := os.WriteFile(filepath.Join(*outDir, "guidance-delta.md"), []byte(delta), 0o644); err != nil {
+		fmt.Fprintln(os.Stderr, "m3-t7 compare:", err)
+		os.Exit(1)
+	}
+}
+
 // printConfig is the `config` subcommand: it prints the generated config
 // for one (model, arm) so an operator can inspect it or boot the daemon
 // by hand for a pre-flight. It is also the pre-flight validity check —
