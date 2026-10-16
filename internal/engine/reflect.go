@@ -80,6 +80,45 @@ func (e *Engine) setReflectCounter(ctx context.Context, jobID string, n int) err
 	return nil
 }
 
+// reflectProposalPrefix is the `system_state` key prefix for the last
+// reflection proposal (`reflect:proposal:<job-id>`). The proposal is the
+// reflector's prose recommendation for the next divergence pass; phaseDivergeN
+// reads it back and injects it so a retry is a genuine second attempt rather
+// than a re-roll of the identical prompt.
+const reflectProposalPrefix = "reflect:proposal:"
+
+// getReflectionProposal reads the last reflection proposal for `jobID` ("" when
+// absent — the first divergence pass has no prior reflection). A read error is
+// logged and treated as empty, matching getReflectCounter.
+func (e *Engine) getReflectionProposal(ctx context.Context, jobID string) string {
+	var value string
+	err := e.db.DB().QueryRowContext(ctx,
+		`SELECT value FROM system_state WHERE key = ?`,
+		reflectProposalPrefix+jobID,
+	).Scan(&value)
+	if err != nil {
+		if !errors.Is(err, sql.ErrNoRows) {
+			slog.Warn("engine: reading reflection proposal", "job", jobID, "err", err)
+		}
+		return ""
+	}
+	return value
+}
+
+// setReflectionProposal upserts the last reflection proposal for `jobID`,
+// mirroring setReflectCounter (INSERT ... ON CONFLICT DO UPDATE).
+func (e *Engine) setReflectionProposal(ctx context.Context, jobID, proposal string) error {
+	_, err := e.db.DB().ExecContext(ctx,
+		`INSERT INTO system_state (key, value) VALUES (?, ?)
+		 ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+		reflectProposalPrefix+jobID, proposal,
+	)
+	if err != nil {
+		return fmt.Errorf("setting reflection proposal for %s: %w", jobID, err)
+	}
+	return nil
+}
+
 // refineCounterPrefix is the `system_state` key prefix for the M8-T11
 // self-refine counter (`refine:counter:<job-id>`). It mirrors the reflection
 // counter: a separate bound so repair attempts and re-divergence retries are
@@ -179,25 +218,22 @@ func (e *Engine) phaseReflect(ctx context.Context, j job.Job) error {
 		"proposal":   truncateForEvent(resp.Content, 1024),
 	})
 
-	// Bump the typed counter. The check below enforces the
-	// budget BEFORE re-entering divergence: if the upcoming
-	// iteration would exceed `max`, we transition to
-	// `failed` now rather than waste another divergence +
-	// evaluation cycle that we already know will not count
-	// toward a passing job.
+	// H1: persist the proposal so phaseDivergeN can inject it into the next
+	// divergence pass. The doc comment's "persists the proposed improvements"
+	// contract is now actually honored.
+	if serr := e.setReflectionProposal(ctx, j.ID, resp.Content); serr != nil {
+		slog.Warn("engine: persisting reflection proposal", "err", serr)
+	}
+
+	// H2: bump the counter, then always re-enter divergence. The budget is
+	// enforced on the next reflection entry (`iter >= max` fails there), so
+	// `max=N` yields N full reflect → diverge → evaluate retries. Previously
+	// the check here failed as soon as `nextIter` reached `max`, so the Nth
+	// reflection was computed and then discarded without ever driving a
+	// retry.
 	nextIter := iter + 1
 	if serr := e.setReflectCounter(ctx, j.ID, nextIter); serr != nil {
 		slog.Warn("engine: bumping reflection counter", "err", serr)
-	}
-	if nextIter >= max {
-		e.audit(ctx, j.ID, map[string]any{
-			"event":     "reflection_budget_exhausted",
-			"iter":      nextIter,
-			"max":       max,
-			"archetype": p.Archetype,
-		})
-		_, err = e.jobs.Transition(ctx, j.ID, job.StateFailed)
-		return err
 	}
 
 	_, err = e.jobs.Transition(ctx, j.ID, job.StateDiverging)

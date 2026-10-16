@@ -51,6 +51,10 @@ type countingOllama struct {
 	// chat request (M5-T5: tests assert on the assembled prompt — the
 	// active chunk, the Dormant Index, the tool manifest).
 	lastPrompt string
+	// prompts holds every request's concatenated message content in call
+	// order, so tests can assert on any prompt (e.g. that a reflection
+	// proposal reached a later divergence prompt), not just the last.
+	prompts []string
 	// delay is the artificial latency the fake introduces per
 	// request. Tests for the per-phase wall-time budget
 	// (M3-T2 commit 2.4) set this to a value larger than the
@@ -113,6 +117,7 @@ func newCountingOllama(t *testing.T) *countingOllama {
 			sb.WriteString("\n")
 		}
 		o.lastPrompt = sb.String()
+		o.prompts = append(o.prompts, sb.String())
 		_ = req
 
 		content := "A thoughtful result."
@@ -192,6 +197,16 @@ func (o *countingOllama) lastPromptText() string {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	return o.lastPrompt
+}
+
+// promptTexts returns every request's concatenated message content in call
+// order (mutex-guarded).
+func (o *countingOllama) promptTexts() []string {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	out := make([]string, len(o.prompts))
+	copy(out, o.prompts)
+	return out
 }
 
 // callCount returns the number of chat requests served.

@@ -155,23 +155,25 @@ func TestRun_CodeArchetype_VerifierFirstByDefault(t *testing.T) {
 // TestRun_AllCandidatesFail_ReflectsThenFails (E2) exercises the
 // reflection loop: every candidate fails evaluation, the engine
 // enters reflection, the main persona produces an improvement
-// proposal, the loop runs again, and on the second failed pass
-// the budget (2 iterations) is exhausted and the job ends in
+// proposal, the loop runs again, and after `max_reflection_loops`
+// (default 2) full reflect → re-diverge retries the job ends in
 // `failed`.
 //
-// E3 (budget exhausted at 1 iteration) is structurally covered:
-// maxReflectionIterations is the constant 2, and E2 exercises
-// exactly two failed reflection iterations to land in `failed`.
+// With max_reflection_loops = 2 the engine performs 2 full retry
+// cycles (H2: each reflection now actually drives a re-divergence,
+// instead of the last one being computed and discarded), so there
+// are 3 divergence passes (the initial pass + 2 retries) × 3
+// candidates = 9 evaluations.
 func TestRun_AllCandidatesFail_ReflectsThenFails(t *testing.T) {
 	env := newEnv(t)
 	no := false
 	env.cfg.Execution.SelfRefine = &no // isolate the reflection path (M9-T1 default-on)
 	jobID := env.submit(t)
-	// 2 reflection iterations × 3 candidates = 6 evaluation
-	// verdicts, all "failed" with low confidence. The default
-	// passing verdict is overridden by this queue; the first 6
+	// 3 divergence passes (1 initial + 2 retries) × 3 candidates = 9
+	// evaluation verdicts, all "failed" with low confidence. The default
+	// passing verdict is overridden by this queue; the first 9
 	// EVALUATION calls pop from it.
-	for i := 0; i < 6; i++ {
+	for i := 0; i < 9; i++ {
 		env.ollama.evalVerdicts = append(env.ollama.evalVerdicts,
 			`{"passed":false,"score":0.1,"failed_tests":[],"missing_criteria":["unspecified"],"security_issues":[],"style_issues":[],"better_than_previous":false,"confidence":0.1,"summary":"candidate fails all criteria"}`)
 	}
@@ -188,11 +190,11 @@ func TestRun_AllCandidatesFail_ReflectsThenFails(t *testing.T) {
 	if calls["REFLECTION"] != 2 {
 		t.Errorf("REFLECTION calls = %d, want 2 (one per budget iteration)", calls["REFLECTION"])
 	}
-	if calls["DIVERGENCE"] != 6 {
-		t.Errorf("DIVERGENCE calls = %d, want 6 (2 iterations × 3 candidates)", calls["DIVERGENCE"])
+	if calls["DIVERGENCE"] != 9 {
+		t.Errorf("DIVERGENCE calls = %d, want 9 (3 passes × 3 candidates)", calls["DIVERGENCE"])
 	}
-	if calls["EVALUATION"] != 6 {
-		t.Errorf("EVALUATION calls = %d, want 6 (2 iterations × 3 candidates)", calls["EVALUATION"])
+	if calls["EVALUATION"] != 9 {
+		t.Errorf("EVALUATION calls = %d, want 9 (3 passes × 3 candidates)", calls["EVALUATION"])
 	}
 	if calls["COMPARISON"] != 0 {
 		t.Errorf("COMPARISON calls = %d, want 0 (never reached)", calls["COMPARISON"])
@@ -284,7 +286,7 @@ func TestRun_ComparisonPicksNoneWhenAllFail(t *testing.T) {
 	no := false
 	env.cfg.Execution.SelfRefine = &no // isolate the comparison path (M9-T1 default-on)
 	jobID := env.submit(t)
-	for i := 0; i < 6; i++ {
+	for i := 0; i < 9; i++ {
 		env.ollama.evalVerdicts = append(env.ollama.evalVerdicts,
 			`{"passed":false,"score":0.1,"failed_tests":["pytest"],"missing_criteria":["everything"],"security_issues":[],"style_issues":[],"better_than_previous":false,"confidence":0.1,"summary":"fails"}`)
 	}

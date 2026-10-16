@@ -76,6 +76,11 @@ func (e *Engine) phaseDivergeN(ctx context.Context, j job.Job) error {
 		return fmt.Errorf("research sub-step: %w", err)
 	}
 
+	// H1: a prior reflection's proposal guides the retry so it is a real
+	// second attempt, not a re-roll of the identical prompt. Empty on the
+	// first pass (no prior reflection has run).
+	proposal := e.getReflectionProposal(ctx, j.ID)
+
 	// F4-T5: enforce a Jaccard floor with a bounded re-roll. A below-floor
 	// batch is discarded (draft → candidate → rejected) so it is never
 	// evaluated, and the next attempt runs with a fresh seed. Diversity is
@@ -107,6 +112,9 @@ func (e *Engine) phaseDivergeN(ctx context.Context, j job.Job) error {
 			}
 			if research != "" {
 				seed += "\n\n" + research
+			}
+			if proposal != "" {
+				seed += "\n\nApply this prior reflection when generating your solution:\n" + proposal
 			}
 			resp, err := e.call(ctx, j, p, t, llm.PhaseDiverging, candRole, seed, nil)
 			if err != nil {

@@ -8,6 +8,7 @@ package engine
 
 import (
 	"context"
+	"strings"
 	"testing"
 )
 
@@ -82,5 +83,60 @@ func TestReflectCounter_MalformedValueReturnsZero(t *testing.T) {
 
 	if got := e.eng.getReflectCounter(ctx, jobID); got != 0 {
 		t.Errorf("corrupt counter = %d, want 0 (default)", got)
+	}
+}
+
+// TestReflectionProposal_RoundTrip exercises the
+// getReflectionProposal / setReflectionProposal pair (H1): an unset key
+// reads as empty, a written value reads back, and an upsert overwrites.
+func TestReflectionProposal_RoundTrip(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	jobID := "test-proposal-rt-1"
+
+	if got := e.eng.getReflectionProposal(ctx, jobID); got != "" {
+		t.Errorf("unset proposal = %q, want empty", got)
+	}
+	if err := e.eng.setReflectionProposal(ctx, jobID, "try a hybrid approach"); err != nil {
+		t.Fatalf("setReflectionProposal: %v", err)
+	}
+	if got := e.eng.getReflectionProposal(ctx, jobID); got != "try a hybrid approach" {
+		t.Errorf("proposal after set = %q, want %q", got, "try a hybrid approach")
+	}
+	if err := e.eng.setReflectionProposal(ctx, jobID, "rethink the data model"); err != nil {
+		t.Fatalf("setReflectionProposal (overwrite): %v", err)
+	}
+	if got := e.eng.getReflectionProposal(ctx, jobID); got != "rethink the data model" {
+		t.Errorf("proposal after overwrite = %q, want %q", got, "rethink the data model")
+	}
+}
+
+// TestReflectionProposalInjectedIntoDivergence proves H1 end-to-end: a
+// persisted reflection proposal reaches the next divergence prompt. The engine
+// reads the proposal in phaseDivergeN and appends it to the candidate seed, so
+// a retry is a genuine second attempt rather than a re-roll of the identical
+// prompt.
+func TestReflectionProposalInjectedIntoDivergence(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+
+	// Pre-seed a proposal as if a prior reflection had persisted it.
+	proposal := "UNIQUE_PROPOSAL_MARKER_use_dependency_injection"
+	jobID := e.submit(t)
+	if err := e.eng.setReflectionProposal(ctx, jobID, proposal); err != nil {
+		t.Fatal(err)
+	}
+
+	e.eng.Run(ctx, jobID)
+
+	found := false
+	for _, p := range e.ollama.promptTexts() {
+		if strings.Contains(p, proposal) {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatal("reflection proposal was not injected into any divergence prompt")
 	}
 }

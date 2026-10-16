@@ -573,6 +573,7 @@ func jobScratchKeys(jobID string) []string {
 	return []string{
 		difficultyStateKey(jobID),
 		reflectCounterPrefix + jobID,
+		reflectProposalPrefix + jobID,
 		refineCounterPrefix + jobID,
 		evictionStateKey(jobID),
 	}
