@@ -238,7 +238,7 @@ func run(configPath, addr, stateDir string) error {
 	// fails on rejection, and denies on expiry.
 	hitlRepo := hitl.NewRepo(st)
 	hitlSvc := hitl.NewService(hitlRepo, job.NewRepository(st), eng, cfg.HITL.DefaultTTL.D())
-	sched.SetEscalator(hitlEscalator{repo: hitlRepo})
+	sched.SetEscalator(hitlEscalator{repo: hitlRepo, ttl: cfg.HITL.DefaultTTL.D()})
 	// M6-T5 (ADR-0036): approval of a git_push request runs the push.
 	hitlSvc.SetApprover(hitl.TypeGitPush,
 		gitPushApprover{git: gitAdapter, projects: projectRepo, events: st}.Approve)

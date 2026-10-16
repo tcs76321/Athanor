@@ -12,7 +12,12 @@ import (
 
 // hitlEscalator implements the M6-T3 scheduler.Escalator seam: an exhausted
 // task becomes a high-severity `task_escalation` request (M6-T4, ADR-0035).
-type hitlEscalator struct{ repo *hitl.Repo }
+// The request carries the default TTL so an ignored escalation still expires
+// (deny by default) instead of accumulating in the queue forever.
+type hitlEscalator struct {
+	repo *hitl.Repo
+	ttl  time.Duration
+}
 
 func (e hitlEscalator) Escalate(ctx context.Context, t project.Task, reason string) error {
 	raw, err := json.Marshal(map[string]any{
@@ -21,9 +26,14 @@ func (e hitlEscalator) Escalate(ctx context.Context, t project.Task, reason stri
 	if err != nil {
 		return err
 	}
+	ttl := e.ttl
+	if ttl <= 0 {
+		ttl = 24 * time.Hour
+	}
+	expires := time.Now().Add(ttl)
 	_, err = e.repo.Create(ctx, hitl.Request{
 		ProjectID: t.ProjectID, Type: hitl.TypeTaskEscalation, Severity: hitl.SeverityHigh,
-		PayloadJSON: string(raw),
+		PayloadJSON: string(raw), ExpiresAt: &expires,
 	})
 	return err
 }
