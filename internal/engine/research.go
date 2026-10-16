@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/tcs76321/athanor/internal/job"
+	"github.com/tcs76321/athanor/internal/llm"
 	"github.com/tcs76321/athanor/internal/project"
 	"github.com/tcs76321/athanor/internal/toolenvelope"
 )
@@ -109,9 +111,23 @@ func (e *Engine) researchContext(ctx context.Context, j job.Job, p project.Proje
 		return "", nil
 	}
 
+	// Bound the whole sequential fetch loop by the diverging phase budget.
+	// The LLM calls are bounded in phases.go and the pod tool calls in
+	// toolContext; the fetches were the one unbounded surface — a slow or
+	// hanging source stalled the entire divergence phase (and job)
+	// indefinitely.
+	fctx, cancel := e.researchBudget(ctx)
+	defer cancel()
+
 	var b strings.Builder
 	for _, u := range urls {
-		res, err := e.runner.FetchURL(ctx, j.ID, toolenvelope.FetchURLRequest{URL: u})
+		if fctx.Err() != nil {
+			e.audit(ctx, j.ID, map[string]any{
+				"event": "research_fetch", "url": u, "outcome": "deadline_exceeded",
+			})
+			break
+		}
+		res, err := e.runner.FetchURL(fctx, j.ID, toolenvelope.FetchURLRequest{URL: u})
 		switch {
 		case errors.Is(err, toolenvelope.ErrToolDisallowed):
 			e.audit(ctx, j.ID, map[string]any{
@@ -153,4 +169,17 @@ func (e *Engine) researchContext(ctx context.Context, j job.Job, p project.Proje
 		return "", nil
 	}
 	return "RESEARCH SOURCES (fetched through the gateway — ground claims in these and cite them):\n" + b.String(), nil
+}
+
+// researchBudget bounds the sequential research fetch loop by the diverging
+// phase's wall-time budget (5-minute cap, mirroring toolContext). The
+// returned cancel must be deferred by the caller.
+func (e *Engine) researchBudget(parent context.Context) (context.Context, context.CancelFunc) {
+	budget := 5 * time.Minute
+	if e.cfg != nil {
+		if b, ok := e.cfg.Execution.PhaseBudget(string(llm.PhaseDiverging)); ok && b > 0 && b < budget {
+			budget = b
+		}
+	}
+	return context.WithTimeout(parent, budget)
 }
