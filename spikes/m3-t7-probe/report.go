@@ -244,6 +244,8 @@ func renderReport(metrics []jobMetrics) string {
 		fmt.Fprintf(&b, "| %s | %s | %.3f |\n", r.Model, r.Arm, r.Mean)
 	}
 
+	b.WriteString(renderTelemetryTables(metrics))
+
 	b.WriteString("\n## F4 — verification decisions\n\n")
 	accepts, det := verificationSummary(metrics)
 	if accepts == 0 {

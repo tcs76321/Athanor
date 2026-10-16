@@ -55,6 +55,10 @@ type jobMetrics struct {
 	// semantic checks reported but never gating. M8-T18/T21.
 	CheckFailures []string `json:"check_failures,omitempty"`
 	CheckAdvisory []string `json:"check_advisory,omitempty"`
+	// Telemetry is the event-log reduction (ADR-0073 §3): per-phase/per-persona
+	// calls and tokens plus the engine's lever counters. Nil when the job
+	// produced no events (e.g. it errored before execution).
+	Telemetry *jobTelemetry `json:"telemetry,omitempty"`
 }
 
 // openResultsDB opens the daemon's SQLite database read-only so the probe

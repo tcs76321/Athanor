@@ -533,6 +533,7 @@ func (r *runnerConfig) runOne(g sampleGoal, m probeModel, a arm, run int, stateD
 	}
 	_ = mx.fillCandidateMetrics(db, stateDir)
 	mx.fillVerification(db)
+	mx.fillTelemetry(db)
 	if txt, err := readArtifact(stateDir, mx.ArtifactID); err == nil {
 		mx.ArtifactText = txt
 	}
@@ -674,6 +675,7 @@ func writeCSV(path string, metrics []jobMetrics) error {
 	defer w.Flush()
 	header := []string{"goal", "archetype", "model_label", "arm", "run", "state", "winner",
 		"confidence", "score", "token_cost", "wall_ms", "retries", "diversity", "candidates",
+		"llm_calls", "prompt_tokens", "completion_tokens",
 		"judge_called", "verifier_applied", "verifier_passed", "job_id", "error"}
 	if err := w.Write(header); err != nil {
 		return err
@@ -683,11 +685,16 @@ func writeCSV(path string, metrics []jobMetrics) error {
 		if m.JudgeCalled != nil {
 			judgeCalled = strconv.FormatBool(*m.JudgeCalled)
 		}
+		calls, promptTok, completionTok := 0, 0, 0
+		if m.Telemetry != nil {
+			calls, promptTok, completionTok = m.Telemetry.Calls, m.Telemetry.PromptTokens, m.Telemetry.CompletionTokens
+		}
 		if err := w.Write([]string{
 			m.GoalName, m.Archetype, m.ModelLabel, m.Arm, strconv.Itoa(m.Run), m.State, m.Winner,
 			strconv.FormatFloat(m.Confidence, 'f', 4, 64), strconv.FormatFloat(m.Score, 'f', 4, 64),
 			strconv.Itoa(m.TokenCost), strconv.Itoa(m.WallMS), strconv.Itoa(m.Retries),
 			strconv.FormatFloat(m.Diversity, 'f', 4, 64), strconv.Itoa(m.Candidates),
+			strconv.Itoa(calls), strconv.Itoa(promptTok), strconv.Itoa(completionTok),
 			judgeCalled, strconv.Itoa(m.VerifierApplied), strconv.FormatBool(m.VerifierPassed),
 			m.JobID, m.Error,
 		}); err != nil {
