@@ -60,6 +60,22 @@ func TestDecideOnBatteryOverrideUnknownPercentRuns(t *testing.T) {
 	}
 }
 
+// TestDecideRequireACForDeepWorkFalseAllowsBattery is the H5 regression: the
+// require_ac_for_deep_work knob was declared and wired but never read, so an
+// operator who set it false (to permit battery work) got no change. With it
+// false, deep work runs on battery even without allow_battery_override.
+func TestDecideRequireACForDeepWorkFalseAllowsBattery(t *testing.T) {
+	cfg := baseCfg()
+	cfg.RequireACForDeepWork = false
+	d := Decide(Observation{OnAC: false, BatteryPercent: 80}, cfg)
+	if d.Pause {
+		t.Fatalf("require_ac_for_deep_work=false must permit battery work: %+v", d)
+	}
+	if d.AllowDaydreaming {
+		t.Errorf("battery work must never daydream: %+v", d)
+	}
+}
+
 func TestDecideSleepingPausesWhenConfigured(t *testing.T) {
 	d := Decide(Observation{Sleeping: true, OnAC: true}, baseCfg())
 	if !d.Pause || d.Profile != ProfileInteractive {

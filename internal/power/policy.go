@@ -71,27 +71,31 @@ func Decide(obs Observation, cfg Config) Decision {
 		return Decision{Profile: ProfileInteractive, Pause: true, Reason: "system sleeping (pause_on_sleep)"}
 	}
 
-	// Battery arms. Without override, any battery use pauses deep work.
-	// With override, deep work runs at reduced concurrency above the
-	// threshold and pauses below/at it.
+	// Battery arms. require_ac_for_deep_work (default true) is the master
+	// battery control: deep work requires AC unless the operator opts out.
+	// allow_battery_override (default false) relaxes it — battery work is
+	// then permitted above the threshold. Setting require_ac_for_deep_work
+	// false permits battery work outright (the operator has said deep work
+	// does not require AC).
 	if !obs.OnAC {
-		if !cfg.AllowBatteryOverride {
+		if cfg.RequireACForDeepWork && !cfg.AllowBatteryOverride {
 			return Decision{
 				Profile: ProfileInteractive, Pause: true,
 				Reason: "on battery (require_ac_for_deep_work; set allow_battery_override to permit)",
 			}
 		}
-		if obs.BatteryPercent > 0 && obs.BatteryPercent <= cfg.BatteryPauseThresholdPercent {
+		if cfg.RequireACForDeepWork && obs.BatteryPercent > 0 && obs.BatteryPercent <= cfg.BatteryPauseThresholdPercent {
 			return Decision{
 				Profile: ProfileInteractive, Pause: true,
 				Reason: fmt.Sprintf("battery %d%% at/below threshold %d%%", obs.BatteryPercent, cfg.BatteryPauseThresholdPercent),
 			}
 		}
-		// Override active above threshold: deep work, but never autonomous
+		// Battery work permitted: either require_ac_for_deep_work is false,
+		// or the override is active above the threshold. Never autonomous
 		// background work on battery (§17.2 disables daydreaming on battery).
 		return Decision{
 			Profile: ProfileInteractive, AllowDaydreaming: false,
-			Reason: "battery override: deep work at reduced concurrency, no daydreaming",
+			Reason: "battery: deep work permitted (no daydreaming)",
 		}
 	}
 
