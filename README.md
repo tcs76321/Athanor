@@ -127,8 +127,17 @@ Then watch it work in real time from the Watch View, or queue it and check the M
 
 ## Status
 
-### What works today (M0–M8 code-complete; 0.0.0 candidate)
+### What works today (M0–M8 complete; M9 — 0.0.0 — in progress)
 
+- **0.0.0 capability + packaging (M9).** The self-refine repair loop
+  (`execution.self_refine`, on by default) feeds the failing test's output back
+  into a re-verified repair; the `data` archetype has a deterministic JSON-Schema
+  verifier (`execution.data_schema`); a task the planner flags hard — *or* one the
+  model keeps failing — raises divergence candidates; and `make core-image` builds
+  the **Core Pod** OCI image ([ADR-0069](docs/adr/0069-core-pod-packaging.md)).
+  Model qualification + the routing recommendation are in
+  [docs/qualification-smoke-m9.md](docs/qualification-smoke-m9.md); plan in
+  [docs/0.0.0-plan.md](docs/0.0.0-plan.md).
 - **Daemon on loopback** (`http://127.0.0.1:7420`). Config falls back to built-in defaults when `config.yaml` is absent; missing config is not an error on a fresh clone. `/healthz` reports status, version, uptime.
 - **CLI client.** `project create`, `goal submit`, `job watch`, `artifacts`, `freeze`, `unfreeze`, `doctor`. Talks to a running daemon over loopback, except `doctor` which inspects the local host directly.
 - **Doctor (M7-T5).** `athanor doctor` checks rootless Podman, Git, Ollama reachability, every persona model (with `ollama pull` remediation), memory, disk, state-dir writability, the Job Pod image, §12.6 context feasibility, and the network posture — failing loudly on hard prerequisites and warning on advisories. [ADR-0050](docs/adr/0050-doctor.md).
