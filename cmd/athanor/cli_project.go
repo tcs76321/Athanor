@@ -24,6 +24,7 @@ func runProject(args []string) error {
 	repo := fs.String("repo", "", "repository root the indexer walks (optional)")
 	testCmd := fs.String("test-command", "", "override the code test command (default pytest -q)")
 	buildCmd := fs.String("build-command", "", "override the build command (optional)")
+	dataSchema := fs.String("data-schema", "", "JSON Schema a data candidate must validate against (optional)")
 	var criteria criteriaFlag
 	fs.Var(&criteria, "criteria", "acceptance criteria, separated by ';'")
 	addr := fs.String("addr", defaultAddr, "daemon address")
@@ -37,13 +38,16 @@ func runProject(args []string) error {
 		"name": *name, "archetype": *archetype, "goal": *goal,
 		"acceptance_criteria": criteria, "repository_path": *repo,
 	}
-	if *testCmd != "" || *buildCmd != "" {
+	if *testCmd != "" || *buildCmd != "" || *dataSchema != "" {
 		ex := map[string]any{}
 		if *testCmd != "" {
 			ex["test_command"] = *testCmd
 		}
 		if *buildCmd != "" {
 			ex["build_command"] = *buildCmd
+		}
+		if *dataSchema != "" {
+			ex["data_schema"] = *dataSchema
 		}
 		body["execution"] = ex
 	}

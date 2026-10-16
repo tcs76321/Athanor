@@ -301,6 +301,8 @@ type projectExecution struct {
 	Linters      []string `json:"linters"`
 	// FixturePath is the immutable starter tree for a code task (ADR-0065).
 	FixturePath string `json:"fixture_path"`
+	// DataSchema is the JSON Schema a data task must validate against (M9-T3).
+	DataSchema string `json:"data_schema"`
 }
 
 type projectResponse struct {
@@ -331,6 +333,7 @@ func (a *API) handleProjectCreate(w http.ResponseWriter, r *http.Request) {
 			BuildCommand: req.Execution.BuildCommand,
 			Linters:      req.Execution.Linters,
 			FixturePath:  req.Execution.FixturePath,
+			DataSchema:   req.Execution.DataSchema,
 		}
 		if err := a.projects.SetExecution(r.Context(), p.ID, ex); err != nil {
 			writeError(w, http.StatusInternalServerError, err.Error())

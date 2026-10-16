@@ -48,6 +48,10 @@ type Input struct {
 	// Input level; the engine resolves the config defaults (true).
 	RequireTests bool
 	RequireDocs  bool
+	// DataSchema is the JSON Schema for a `data` candidate, from the project's
+	// execution config (M9-T3). Empty means no deterministic data check — the
+	// LLM judge decides, as before.
+	DataSchema string
 }
 
 // Verdict is one verifier's decision. Applied reports whether the verifier
@@ -102,14 +106,16 @@ type archetypeVerifier interface {
 
 // Default is the in-tree verifier set: code gets the real test run, the
 // linter, and (when required) the documentation-presence gate; text/document
-// get structural checks; data/media have no deterministic verifier yet
-// (deferred), so their candidates are decided by the LLM judge.
+// get structural checks; data gets a JSON-Schema check when the project
+// declares one (M9-T3); media has no deterministic verifier yet (deferred), so
+// its candidates are decided by the LLM judge.
 func Default() *Registry {
 	return NewRegistry(
 		testsVerifier{},
 		lintVerifier{},
 		docsVerifier{},
 		structureVerifier{},
+		dataVerifier{},
 	)
 }
 

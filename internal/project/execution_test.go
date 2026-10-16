@@ -25,6 +25,7 @@ func TestExecutionOverrideRoundTrips(t *testing.T) {
 		TestCommand:  "go test ./...",
 		BuildCommand: "go build ./...",
 		Linters:      []string{"golangci-lint"},
+		DataSchema:   `{"type":"object","required":["id"]}`,
 	}
 	if err := r.SetExecution(ctx, p.ID, ex); err != nil {
 		t.Fatalf("SetExecution: %v", err)
@@ -41,6 +42,9 @@ func TestExecutionOverrideRoundTrips(t *testing.T) {
 	}
 	if len(got.Execution.Linters) != 1 || got.Execution.Linters[0] != "golangci-lint" {
 		t.Errorf("Linters = %v, want [golangci-lint]", got.Execution.Linters)
+	}
+	if got.Execution.DataSchema == "" {
+		t.Error("DataSchema did not round-trip through execution_json (M9-T3)")
 	}
 }
 

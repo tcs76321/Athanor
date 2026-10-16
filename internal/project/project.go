@@ -77,6 +77,10 @@ type Execution struct {
 	// Distinct from RepositoryPath, which is the evolving git-as-undo output
 	// target. Empty means no fixture. Read only through airlock containment.
 	FixturePath string `json:"fixture_path,omitempty"`
+	// DataSchema is the JSON Schema a `data` candidate must validate against
+	// (M9-T3). Operator-supplied (never from the model); empty means the LLM
+	// judge decides, as before.
+	DataSchema string `json:"data_schema,omitempty"`
 }
 
 // DefaultCodeTestCommand is the built-in test command for a `code` project

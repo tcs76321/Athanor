@@ -10,6 +10,16 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### M9-T3 — deterministic `data` verifier
+
+- **M9-T3.** The `data` archetype gains a deterministic verification edge: a
+  candidate is validated against a JSON Schema (`execution.data_schema`,
+  operator-supplied) in `internal/verify`, so `data` acceptance is decided by a
+  parser rather than the advisory LLM judge — the verifier-less archetype the F4
+  closeout flagged (ADR-0063). A missing schema degrades to the judge; a
+  violation is a hard fail. Settable via `athanor project create -data-schema`
+  and `POST /projects` (`execution.data_schema`).
+
 ### M9-T1 — repair-on-test-failure (capability)
 
 - **M9-T1a.** The engine captures a failing test run's stderr (bounded tail) and
