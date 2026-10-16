@@ -52,8 +52,11 @@ func (c *ChunkStore) activeChunkID(ctx context.Context, scope string) (string, b
 // Owns reports whether chunkID is reachable by (jobID, projectID) — the
 // containment check the context_swap route applies before rotating a
 // working set (M3-T7 finding B). A chunk is owned when it was ingested for
-// this job, or for this job's project (repository chunks carry a project
-// but no job). An unknown chunk is not owned, not an error.
+// this job, or for this job's project as a job-less repository chunk
+// (repository chunks carry a project but no job). A job-scoped chunk from a
+// *different* job in the same project is NOT owned — one job must not be able
+// to context_swap into another job's working set. An unknown chunk is not
+// owned, not an error.
 func (c *ChunkStore) Owns(ctx context.Context, chunkID, jobID, projectID string) (bool, error) {
 	if chunkID == "" {
 		return false, nil
@@ -70,7 +73,10 @@ func (c *ChunkStore) Owns(ctx context.Context, chunkID, jobID, projectID string)
 	if job.Valid && jobID != "" && job.String == jobID {
 		return true, nil
 	}
-	if project.Valid && projectID != "" && project.String == projectID {
+	// Project ownership admits only job-less repository chunks; a chunk that
+	// carries both a project and a (different) job id is another job's
+	// working set and is out of scope here.
+	if project.Valid && !job.Valid && projectID != "" && project.String == projectID {
 		return true, nil
 	}
 	return false, nil

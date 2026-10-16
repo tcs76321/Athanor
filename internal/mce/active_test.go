@@ -150,6 +150,41 @@ func TestActiveAbsentForFreshScope(t *testing.T) {
 	}
 }
 
+// TestOwnsRejectsForeignJobChunk proves the M3-T7 finding-B containment fix: a
+// job-scoped chunk (which carries both project_id and job_id) is owned by its
+// own job but NOT by a different job in the same project. Only job-less
+// repository chunks are project-owned.
+func TestOwnsRejectsForeignJobChunk(t *testing.T) {
+	cs, _ := newStore(t)
+	ctx := context.Background()
+
+	repo := divide(t, "repo.go", "go", []byte("package repo\n\nfunc R() {}\n"))
+	job1 := divide(t, "job1.go", "go", []byte("package job1\n\nfunc A() {}\n"))
+	if _, err := cs.PutSource(ctx, SourceRef{RelPath: "repo.go", ProjectID: "p1"}, repo); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := cs.PutSource(ctx, SourceRef{RelPath: "job1.go", ProjectID: "p1", JobID: "j1"}, job1); err != nil {
+		t.Fatal(err)
+	}
+
+	// The repository chunk is owned by any job in the project.
+	if ok, err := cs.Owns(ctx, repo[0].ID, "j2", "p1"); err != nil || !ok {
+		t.Fatalf("Owns(repo chunk, j2) = (%v, %v), want (true, nil)", ok, err)
+	}
+	// The job chunk is owned by its own job.
+	if ok, err := cs.Owns(ctx, job1[0].ID, "j1", "p1"); err != nil || !ok {
+		t.Fatalf("Owns(job1 chunk, j1) = (%v, %v), want (true, nil)", ok, err)
+	}
+	// A different job in the same project must NOT own job1's chunk.
+	if ok, err := cs.Owns(ctx, job1[0].ID, "j2", "p1"); err != nil || ok {
+		t.Fatalf("Owns(job1 chunk, j2) = (%v, %v), want (false, nil)", ok, err)
+	}
+	// An unknown chunk is not owned.
+	if ok, err := cs.Owns(ctx, "does-not-exist", "j1", "p1"); err != nil || ok {
+		t.Fatalf("Owns(unknown) = (%v, %v), want (false, nil)", ok, err)
+	}
+}
+
 func TestSwapRejectsBadInput(t *testing.T) {
 	cs, _ := newStore(t)
 	ctx := context.Background()
