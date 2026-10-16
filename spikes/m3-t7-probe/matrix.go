@@ -176,13 +176,3 @@ func namedArm(name string) (arm, bool) {
 	}
 	return arm{}, false
 }
-
-// armByName resolves a matrix arm by name.
-func armByName(name string) (arm, bool) {
-	for _, a := range arms {
-		if a.Name == name {
-			return a, true
-		}
-	}
-	return arm{}, false
-}

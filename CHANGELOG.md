@@ -10,6 +10,17 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Tooling: one-hour mini soak + `config` preflight fix — 2026-10-16
+
+- **`make soak-mini`** runs a 1-hour validation soak — the fast 9B model, the
+  `full` arm, the bench corpus, one `kill -9` at 20m — exercising the whole
+  ADR-0073 harness end to end (quality, telemetry, leaderboard, conformance
+  scenarios). Overridable via `MINI_SOAK_*`; documented in `docs/soak-m7.md`.
+- **`probe config -arm full` works.** The generated-config preflight used the
+  headline-pair arm lookup and rejected the ablation/soak arms
+  (`bestof3|reflect|full`) that `run`/`soak` accept; it now resolves the full
+  arm set.
+
 ### Attempt-level escalation (ADR-0074) — 2026-10-16
 
 - **A retry of a failed task climbs a fixed escalation ladder instead of

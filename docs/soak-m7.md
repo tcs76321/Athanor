@@ -63,6 +63,35 @@ go run -tags sqlite_fts5 ./spikes/m3-t7-probe soak \
 Do the sleep/wake cycle by hand mid-run and record it (the harness cannot sleep
 the host safely).
 
+## Mini validation run (1 hour)
+
+Before committing to a long run, validate the harness end to end in an hour.
+The `soak` subcommand drives the full arm over the bench corpus, samples
+endurance, injects one crash, and also reduces the event log (telemetry), writes
+the per-model leaderboard, and runs the conformance scenarios — all offline:
+
+```bash
+make build
+make soak-mini            # ornith9b, full arm, 1h, one kill -9 at 20m
+```
+
+which is:
+
+```bash
+go run -tags sqlite_fts5 ./spikes/m3-t7-probe soak \
+  -model ornith9b -arm full -corpus eval/bench/tasks.yaml \
+  -judge-model granite4.2:3b -hours 1 -kill-after 20m \
+  -out spikes/m3-t7-probe/results/mini-soak
+```
+
+Override `MINI_SOAK_MODEL`, `MINI_SOAK_JUDGE`, `MINI_SOAK_HOURS`,
+`MINI_SOAK_KILL`, or `MINI_SOAK_OUT`. Use a **fresh** output dir for a clean
+run; a reused one resumes from its persisted deadline and metrics. Read the
+rolling `report.md` (written after every pass): an hour rarely completes a full
+pass over all 15 tasks at the `full` arm, so a partial readout is expected, and
+`push-local-remote` reports PASS (or SKIP when no artifact was committed), never
+FAIL.
+
 ## Run
 
 ```bash

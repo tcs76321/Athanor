@@ -895,7 +895,7 @@ func runCompare(args []string) {
 func printConfig(args []string) {
 	fs := flag.NewFlagSet("config", flag.ExitOnError)
 	modelLabel := fs.String("model", probeModels[0].Label, "model label")
-	armName := fs.String("arm", arms[0].Name, "arm name (dialectical|single)")
+	armName := fs.String("arm", arms[0].Name, "arm name (single|dialectical|bestof3|reflect|full)")
 	seed := fs.String("seed", "off", "judgment_seed policy: off|derived")
 	addr := fs.String("addr", strings.TrimPrefix(daemonURL(), "http://"), "daemon listen address (must match the Host-header allowlist)")
 	noReflect := fs.Bool("no-reflect", false, "disable reflection loops")
@@ -911,9 +911,12 @@ func printConfig(args []string) {
 		fmt.Fprintf(os.Stderr, "unknown model label %q\n", *modelLabel)
 		os.Exit(2)
 	}
-	a, ok := armByName(*armName)
+	// namedArm covers the ablation/soak arms (bestof3|reflect|full) as well as
+	// the headline pair, so the preflight accepts every arm the run/soak
+	// subcommands do.
+	a, ok := namedArm(*armName)
 	if !ok {
-		fmt.Fprintf(os.Stderr, "unknown arm %q\n", *armName)
+		fmt.Fprintf(os.Stderr, "unknown arm %q (single|dialectical|bestof3|reflect|full)\n", *armName)
 		os.Exit(2)
 	}
 	fmt.Print(probeConfigYAML(m, a, *seed, *addr, *noReflect,

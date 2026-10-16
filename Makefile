@@ -15,7 +15,7 @@ export CGO_ENABLED
 # tag-less binary can never silently run.
 GO_TAGS = -tags sqlite_fts5
 
-.PHONY: build test test-race test-integration integration-images vet lint check vuln tidy tidy-check fuzz cover cover-check run clean hooks bench probe-micro probe probe-judge probe-anchor probe-report probe-bundle probe-reconcile probe-measure jobpod-image core-image install soak
+.PHONY: build test test-race test-integration integration-images vet lint check vuln tidy tidy-check fuzz cover cover-check run clean hooks bench probe-micro probe probe-judge probe-anchor probe-report probe-bundle probe-reconcile probe-measure jobpod-image core-image install soak soak-mini
 
 build:
 	go build $(GO_TAGS) -o bin/athanor ./cmd/athanor
@@ -45,6 +45,23 @@ install:
 SOAK_OUT ?= spikes/m3-t7-probe/results/soak
 soak:
 	SOAK_OUT=$(SOAK_OUT) sh scripts/soak.sh
+
+# ADR-0073 mini soak: a 1-hour validation run on the frozen build. It exercises
+# the whole harness end to end — the quality workload plus the telemetry,
+# leaderboard, and conformance-scenario readouts — with one crash-recovery
+# injection. The model is the fast 9B by default; the judge is cross-family.
+# Use a FRESH MINI_SOAK_OUT for a clean run (a reused dir resumes from its
+# deadline + metrics). See docs/soak-m7.md.
+MINI_SOAK_OUT   ?= spikes/m3-t7-probe/results/mini-soak
+MINI_SOAK_MODEL ?= ornith9b
+MINI_SOAK_JUDGE ?= granite4.2:3b
+MINI_SOAK_HOURS ?= 1
+MINI_SOAK_KILL  ?= 20m
+soak-mini:
+	go run $(GO_TAGS) ./spikes/m3-t7-probe soak \
+		-model $(MINI_SOAK_MODEL) -arm full -corpus eval/bench/tasks.yaml \
+		-judge-model $(MINI_SOAK_JUDGE) -hours $(MINI_SOAK_HOURS) \
+		-kill-after $(MINI_SOAK_KILL) -out $(MINI_SOAK_OUT)
 
 run:
 	go run $(GO_TAGS) ./cmd/athanor
