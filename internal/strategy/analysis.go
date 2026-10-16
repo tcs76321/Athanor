@@ -138,19 +138,25 @@ func (r *Repo) Mine(ctx context.Context, opts MineOptions) ([]Insight, error) {
 
 	// Group outcomes by (feature, value, archetype): the persona and
 	// candidate-count axes (§13.4, M6-T11) plus the operation ("technique")
-	// axis (M8-T26; ADR-0067).
+	// axis (M8-T26; ADR-0067). Each outcome is added to a cohort at most once
+	// per distinct key: a trajectory that runs an operation twice (e.g. two
+	// verify passes in a reflection loop) must not double-count the outcome,
+	// and the candidate-count key must fire only for the divergence phase.
 	type key struct{ feature, value, archetype string }
 	cohorts := map[key][]outcomeRow{}
-	add := func(k key, o outcomeRow) { cohorts[k] = append(cohorts[k], o) }
 	for _, o := range rows {
+		seen := map[key]bool{}
 		for _, entry := range o.signature {
-			add(key{entry.Phase + ".persona", entry.Persona, o.archetype}, o)
-			if entry.Candidates > 0 {
-				add(key{"diverging.candidates", strconv.Itoa(entry.Candidates), o.archetype}, o)
+			seen[key{entry.Phase + ".persona", entry.Persona, o.archetype}] = true
+			if entry.Phase == "diverging" && entry.Candidates > 0 {
+				seen[key{"diverging.candidates", strconv.Itoa(entry.Candidates), o.archetype}] = true
 			}
 		}
 		for _, op := range o.operations {
-			add(key{TechniqueFeaturePrefix + op.Name, op.Name, o.archetype}, o)
+			seen[key{TechniqueFeaturePrefix + op.Name, op.Name, o.archetype}] = true
+		}
+		for k := range seen {
+			cohorts[k] = append(cohorts[k], o)
 		}
 	}
 

@@ -239,6 +239,42 @@ func TestMineTechniques(t *testing.T) {
 	}
 }
 
+// TestMineDoesNotDoubleCountRepeatedOperation proves the cohort-dedup fix: a
+// trajectory that runs the same operation twice (e.g. two verify passes in a
+// reflection loop) must contribute one cohort member, not two — otherwise the
+// reported CohortJobs inflates and the "invent no numbers" promise breaks.
+func TestMineDoesNotDoubleCountRepeatedOperation(t *testing.T) {
+	s, p, taskID := mineCodeProject(t)
+	// 20 accepted jobs, each trajectory running verify twice; 20 rejected
+	// jobs with no verify. Baseline accept = 0.50; verify = 18/20 = 0.90.
+	doubled := []cognitive.Operation{
+		{Name: cognitive.OpVerify, Grounded: true, Passed: true},
+		{Name: cognitive.OpVerify, Grounded: true, Passed: true},
+	}
+	seedTechniqueCorpus(t, s, p, taskID, 20, 18, doubled)
+	plain := []cognitive.Operation{
+		{Name: cognitive.OpPlan}, {Name: cognitive.OpDiverge}, {Name: cognitive.OpSynthesize}, {Name: cognitive.OpCompare},
+	}
+	seedTechniqueCorpus(t, s, p, taskID, 20, 2, plain)
+
+	proposed, err := NewRepo(s).Mine(context.Background(), MineOptions{MinCohortSize: 10, MinAcceptRateDelta: 0.15})
+	if err != nil {
+		t.Fatalf("Mine: %v", err)
+	}
+	var verify *Insight
+	for i := range proposed {
+		if proposed[i].Pattern.Feature == TechniqueFeaturePrefix+cognitive.OpVerify {
+			verify = &proposed[i]
+		}
+	}
+	if verify == nil {
+		t.Fatalf("no technique insight for verify; proposed=%+v", proposed)
+	}
+	if verify.Evidence.CohortJobs != 20 {
+		t.Errorf("verify CohortJobs = %d, want 20 (a doubled operation must not double-count)", verify.Evidence.CohortJobs)
+	}
+}
+
 func TestMineTechniquesRequireGrounded(t *testing.T) {
 	s, p, taskID := mineCodeProject(t)
 	// A would-be winning technique cohort with no deterministic verdict in its
