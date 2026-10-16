@@ -10,6 +10,16 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### M9 soak — data run findings (2026-10-16)
+
+- **M9 soak.** A data-gathering soak; findings in
+  [docs/soak-m9-findings.md](docs/soak-m9-findings.md). Pass 1 (`gemma4:12b-mlx`,
+  `full` arm): **all six code tasks accepted**, 60% deterministic pass rate (the
+  failures are non-code structural checks). Pass 2 was partial and failed 2 code
+  tasks — **variance**: the same model passed 6/6 then 0/2, so single-pass pass@k
+  on H-tier code is noisy. `kill -9` recovery was clean (~8 s); M9-T4b's
+  evidence-based raise fired (candidates 3 → 10); no guidance was injected.
+
 ### M9-T4b — the hard-task raise keys on evidence, not just the hint
 
 - **M9-T4b.** Following the M9-T2b smoke (a weak planner labelled every H-tier
