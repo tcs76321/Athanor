@@ -131,3 +131,40 @@ func TestBackfillTerminalJobs(t *testing.T) {
 	}
 	_ = projectID
 }
+
+// TestCreateInsightIdempotentAndReemerges (known-issues M16): a repeated
+// (scope, pattern) insert is a no-op, and a retired row is revived rather than
+// duplicated.
+func TestCreateInsightIdempotentAndReemerges(t *testing.T) {
+	r, _ := openStrategy(t)
+	ctx := context.Background()
+	in := Insight{
+		Scope: ScopeGlobal, Polarity: PolarityWinning,
+		Pattern:   Pattern{Feature: "diverging.persona", Value: "main", Context: "archetype=code"},
+		Statement: "test",
+	}
+	a, err := r.CreateInsight(ctx, in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := r.CreateInsight(ctx, in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if a.ID != b.ID {
+		t.Fatalf("duplicate insight created: %s vs %s (known-issues M16)", a.ID, b.ID)
+	}
+	if list, _ := r.ListInsights(ctx, ""); len(list) != 1 {
+		t.Fatalf("insights = %d, want 1 (known-issues M16)", len(list))
+	}
+	if err := r.SetInsightStatus(ctx, a.ID, InsightRetired); err != nil {
+		t.Fatal(err)
+	}
+	c, err := r.CreateInsight(ctx, in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.ID != a.ID || c.Status != InsightProposed {
+		t.Fatalf("retired insight did not re-emerge: id=%s status=%s (known-issues M16)", c.ID, c.Status)
+	}
+}

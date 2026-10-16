@@ -285,18 +285,19 @@ func (r *Repo) RecentStats(ctx context.Context, archetype string, limit int) (in
 // insert.
 func (r *Repo) Backfill(ctx context.Context) (int, error) {
 	rows, err := r.store.DB().QueryContext(ctx,
-		`SELECT j.id, j.project_id, j.state FROM jobs j
+		`SELECT j.id, j.project_id, j.state, p.archetype
+		 FROM jobs j JOIN projects p ON p.id = j.project_id
 		 WHERE j.state IN ('completed','failed','cancelled')
-		   AND NOT EXISTS (SELECT 1 FROM strategy_profiles p WHERE p.job_id = j.id)
+		   AND NOT EXISTS (SELECT 1 FROM strategy_profiles p2 WHERE p2.job_id = j.id)
 		 ORDER BY j.created_at ASC, j.id ASC`)
 	if err != nil {
 		return 0, fmt.Errorf("listing backfill jobs: %w", err)
 	}
-	type legacy struct{ id, projectID, state string }
+	type legacy struct{ id, projectID, state, archetype string }
 	var pending []legacy
 	for rows.Next() {
 		var l legacy
-		if err := rows.Scan(&l.id, &l.projectID, &l.state); err != nil {
+		if err := rows.Scan(&l.id, &l.projectID, &l.state, &l.archetype); err != nil {
 			_ = rows.Close()
 			return 0, err
 		}
@@ -310,7 +311,9 @@ func (r *Repo) Backfill(ctx context.Context) (int, error) {
 
 	created := 0
 	for _, l := range pending {
-		if _, err := r.CreateProfile(ctx, Profile{JobID: l.id, ProjectID: l.projectID, Archetype: "legacy"}); err != nil {
+		// known-issues M15: use the project's real archetype, not a synthetic
+		// "legacy" bucket that would distort per-archetype baselines.
+		if _, err := r.CreateProfile(ctx, Profile{JobID: l.id, ProjectID: l.projectID, Archetype: l.archetype}); err != nil {
 			return created, err
 		}
 		result := ResultRejected

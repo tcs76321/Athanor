@@ -116,24 +116,19 @@ func (r *Repo) Mine(ctx context.Context, opts MineOptions) ([]Insight, error) {
 		return nil, nil
 	}
 
-	// Baseline accept rate per archetype.
-	baselineByArch := map[string]float64{}
-	confByArch := map[string]float64{}
-	{
-		sum := map[string]int{}
-		acc := map[string]int{}
-		conf := map[string]float64{}
-		for _, o := range rows {
-			sum[o.archetype]++
-			if isAccepted(o.result) {
-				acc[o.archetype]++
-			}
-			conf[o.archetype] += o.confidence
+	// Per-archetype totals. The cohort baseline is computed
+	// leave-one-cohort-out below (known-issues M14): including the cohort's own
+	// members let a large cohort be compared against a baseline dominated by
+	// itself.
+	archSum := map[string]int{}
+	archAcc := map[string]int{}
+	archConf := map[string]float64{}
+	for _, o := range rows {
+		archSum[o.archetype]++
+		if isAccepted(o.result) {
+			archAcc[o.archetype]++
 		}
-		for arch, n := range sum {
-			baselineByArch[arch] = float64(acc[arch]) / float64(n)
-			confByArch[arch] = conf[arch] / float64(n)
-		}
+		archConf[o.archetype] += o.confidence
 	}
 
 	// Group outcomes by (feature, value, archetype): the persona and
@@ -192,7 +187,14 @@ func (r *Repo) Mine(ctx context.Context, opts MineOptions) ([]Insight, error) {
 			conf += o.confidence
 		}
 		acceptRate := float64(acc) / float64(len(cohort))
-		baseline := baselineByArch[k.archetype]
+		// Leave-one-cohort-out baseline (known-issues M14): the archetype
+		// totals minus this cohort. With nothing left to compare against, skip.
+		restN := archSum[k.archetype] - len(cohort)
+		if restN <= 0 {
+			continue
+		}
+		baseline := float64(archAcc[k.archetype]-acc) / float64(restN)
+		confBase := (archConf[k.archetype] - conf) / float64(restN)
 		delta := acceptRate - baseline
 		if abs(delta) < opts.MinAcceptRateDelta {
 			continue
@@ -200,8 +202,8 @@ func (r *Repo) Mine(ctx context.Context, opts MineOptions) ([]Insight, error) {
 		// Directionally-consistent confidence: a winning cohort must not be
 		// less confident than the baseline, and vice versa.
 		meanConf := conf / float64(len(cohort))
-		if (delta > 0 && meanConf+1e-9 < confByArch[k.archetype]) ||
-			(delta < 0 && meanConf-1e-9 > confByArch[k.archetype]) {
+		if (delta > 0 && meanConf+1e-9 < confBase) ||
+			(delta < 0 && meanConf-1e-9 > confBase) {
 			continue
 		}
 		polarity := PolarityWinning
@@ -288,22 +290,44 @@ func (r *Repo) insightExists(ctx context.Context, scope string, p Pattern) bool 
 	return err == nil && n > 0
 }
 
-// CreateInsight inserts a proposed insight.
+// CreateInsight inserts a proposed insight, or re-emerges a retired one with
+// the same (scope, pattern). It is idempotent and race-safe (known-issues M16):
+// a UNIQUE(scope, pattern_json) index makes the write atomic, so the daydream
+// loop and the API cannot both insert the same pattern. An existing
+// proposed/active/muted row is left untouched; a retired row is revived.
 func (r *Repo) CreateInsight(ctx context.Context, in Insight) (Insight, error) {
 	if in.Status == "" {
 		in.Status = InsightProposed
 	}
 	patternJSON, _ := json.Marshal(in.Pattern)
 	evidenceJSON, _ := json.Marshal(in.Evidence)
-	id := ids.New()
-	if _, err := r.store.DB().ExecContext(ctx,
-		`INSERT INTO strategy_insights (id, scope, polarity, pattern_json, evidence_json, statement, status)
-		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		id, in.Scope, in.Polarity, string(patternJSON), string(evidenceJSON), in.Statement, in.Status,
+	if _, err := r.store.DB().ExecContext(ctx, `
+		INSERT INTO strategy_insights (id, scope, polarity, pattern_json, evidence_json, statement, status)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(scope, pattern_json) DO UPDATE SET
+		    polarity      = excluded.polarity,
+		    evidence_json = excluded.evidence_json,
+		    statement     = excluded.statement,
+		    status        = excluded.status,
+		    updated_at    = strftime('%Y-%m-%dT%H:%M:%fZ','now')
+		WHERE strategy_insights.status = 'retired'`,
+		ids.New(), in.Scope, in.Polarity, string(patternJSON), string(evidenceJSON), in.Statement, in.Status,
 	); err != nil {
 		return Insight{}, fmt.Errorf("inserting strategy insight: %w", err)
 	}
-	return r.GetInsight(ctx, id)
+	return r.insightByPattern(ctx, in.Scope, string(patternJSON))
+}
+
+// insightByPattern loads the insight for (scope, pattern_json).
+func (r *Repo) insightByPattern(ctx context.Context, scope, patternJSON string) (Insight, error) {
+	row := r.store.DB().QueryRowContext(ctx,
+		`SELECT id, scope, polarity, pattern_json, evidence_json, statement, status, created_at, updated_at
+		 FROM strategy_insights WHERE scope = ? AND pattern_json = ?`, scope, patternJSON)
+	ins, err := scanInsight(row)
+	if errors.Is(err, sql.ErrNoRows) {
+		return Insight{}, fmt.Errorf("%w: no insight for pattern", ErrNotFound)
+	}
+	return ins, err
 }
 
 // GetInsight loads one insight.

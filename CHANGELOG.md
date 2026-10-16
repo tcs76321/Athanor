@@ -10,6 +10,18 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Strategy analysis hardening (M14, M15, M16) — 2026-10-16
+
+- **M14 — leave-one-cohort-out baseline.** `Mine` now compares a cohort's
+  accept rate against the archetype baseline *excluding that cohort*, instead of
+  a baseline a large cohort dominated.
+- **M15 — real archetype on backfill.** `Backfill` derives each job's archetype
+  from its project rather than stamping a synthetic `"legacy"` bucket that
+  distorted per-archetype baselines.
+- **M16 — unique insight per pattern.** A `UNIQUE(scope, pattern_json)` index
+  (migration 0028) plus an upsert in `CreateInsight` make mining race-safe; a
+  retired insight re-emerges rather than duplicating.
+
 ### Store, artifact & UI hardening (M10, M11, L14–L16, L24) — 2026-10-16
 
 - **M11 — no orphan artifact files.** `CreateDraft`/`NewVersion` remove the
