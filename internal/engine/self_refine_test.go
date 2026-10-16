@@ -41,14 +41,17 @@ func TestSelfRefineRepairsAndPasses(t *testing.T) {
 	}
 }
 
-// TestSelfRefineDisabledByDefault proves the operation is inert unless
-// enabled: a failing cycle reflects (and, with no reflection budget, fails)
-// without a self_refine row.
-func TestSelfRefineDisabledByDefault(t *testing.T) {
+// TestSelfRefineExplicitlyDisabled proves the operation is inert when an
+// operator sets self_refine: false (M9-T1 made the default on): a failing
+// cycle reflects (and, with no reflection budget, fails) without a self_refine
+// row.
+func TestSelfRefineExplicitlyDisabled(t *testing.T) {
 	e := newEnvWithCfg(t, func(c *config.Config) {
 		c.Execution.DivergenceCandidates = 1
 		zero := 0
 		c.Execution.MaxReflectionLoops = &zero
+		no := false
+		c.Execution.SelfRefine = &no
 	})
 	e.ollama.setGeneric("A result that fails.")
 	e.ollama.evalVerdicts = []string{

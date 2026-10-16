@@ -177,10 +177,10 @@ func applyDefaults(c *Config) {
 		n := 2
 		c.Execution.MaxTaskRetries = &n
 	}
-	// M8-T11: self-refine ships opt-in (default off) with a one-attempt
-	// budget, so the operation is available but changes no behavior until
-	// enabled.
-	setFalse(&c.Execution.SelfRefine)
+	// M9-T1: repair-on-test-failure is on by default — it is the highest-
+	// leverage lever on hard tasks, it re-verifies through the deterministic
+	// verifier (Gate G3 intact), and it is bounded by max_self_refine_loops.
+	setTrue(&c.Execution.SelfRefine)
 	if c.Execution.MaxSelfRefineLoops == nil {
 		n := 1
 		c.Execution.MaxSelfRefineLoops = &n

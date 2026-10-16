@@ -10,6 +10,19 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### M9-T1 — repair-on-test-failure (capability)
+
+- **M9-T1a.** The engine captures a failing test run's stderr (bounded tail) and
+  feeds it to the self-refine repair and the reflection prompt, so a candidate is
+  fixed from the *real* failure rather than a truncated reason. The judge never
+  sees the output (it reads the short verifier reason only).
+- **M9-T1b.** `execution.self_refine` now defaults **on** (bounded by
+  `max_self_refine_loops`, default 1): a failed cycle repairs the best candidate
+  and re-verifies it through the deterministic verifier (Gate G3 intact); set
+  `self_refine: false` to disable.
+- Milestone **M9 Productization (0.0.0)** opened: capability + Core Pod OCI
+  image ([docs/0.0.0-plan.md](docs/0.0.0-plan.md)).
+
 ### 0.0.0-rc — technique-guidance loop, soak deadline, release scope (2026-10-15)
 
 - **M8-T26b.** Synthesis no longer discards a verified candidate: it draws from

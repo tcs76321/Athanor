@@ -21,7 +21,7 @@ import (
 // phase), persists the rewrite as a new candidate, and re-verifies it through
 // the ordinary deterministic verifier — the operation's verification edge.
 //
-// It is opt-in (execution.self_refine, default false) and bounded by
+// It is on by default (execution.self_refine, M9-T1) and bounded by
 // execution.max_self_refine_loops. Unlike reflection (which proposes a change
 // and re-diverges the whole set), self-refine repairs one candidate in place
 // and re-evaluates only the repair. Returns (passed, err): passed is true when

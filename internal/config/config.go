@@ -537,10 +537,11 @@ func (e *Execution) MaxReflectionLoopsValue() int {
 	return *e.MaxReflectionLoops
 }
 
-// SelfRefineEnabled resolves execution.self_refine (default false). When true,
-// a cycle with no passing candidate triggers the M8-T11 self-refine repair.
+// SelfRefineEnabled resolves execution.self_refine (default true, M9-T1). When
+// enabled, a cycle with no passing candidate triggers a bounded repair of the
+// best candidate, re-verified through the deterministic verifier.
 func (e *Execution) SelfRefineEnabled() bool {
-	return Val(e.SelfRefine, false)
+	return Val(e.SelfRefine, true)
 }
 
 // MaxSelfRefineLoopsValue resolves execution.max_self_refine_loops (default 1).

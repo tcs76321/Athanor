@@ -164,6 +164,8 @@ func TestRun_CodeArchetype_VerifierFirstByDefault(t *testing.T) {
 // exactly two failed reflection iterations to land in `failed`.
 func TestRun_AllCandidatesFail_ReflectsThenFails(t *testing.T) {
 	env := newEnv(t)
+	no := false
+	env.cfg.Execution.SelfRefine = &no // isolate the reflection path (M9-T1 default-on)
 	jobID := env.submit(t)
 	// 2 reflection iterations × 3 candidates = 6 evaluation
 	// verdicts, all "failed" with low confidence. The default
@@ -279,6 +281,8 @@ func TestRun_ComparisonPicksPreviousWhenNewIsWorse(t *testing.T) {
 // the "none" branch.
 func TestRun_ComparisonPicksNoneWhenAllFail(t *testing.T) {
 	env := newEnv(t)
+	no := false
+	env.cfg.Execution.SelfRefine = &no // isolate the comparison path (M9-T1 default-on)
 	jobID := env.submit(t)
 	for i := 0; i < 6; i++ {
 		env.ollama.evalVerdicts = append(env.ollama.evalVerdicts,

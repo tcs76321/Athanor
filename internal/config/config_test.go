@@ -470,14 +470,14 @@ func TestNoveltyReset(t *testing.T) {
 	}
 }
 
-// TestSelfRefineConfig pins M8-T11's opt-in default and validation.
+// TestSelfRefineConfig pins M9-T1's default (on) and validation.
 func TestSelfRefineConfig(t *testing.T) {
 	def, err := Default()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if def.Execution.SelfRefineEnabled() {
-		t.Error("self_refine default = true, want false (opt-in)")
+	if !def.Execution.SelfRefineEnabled() {
+		t.Error("self_refine default = false, want true (M9-T1 repair-on-failure)")
 	}
 	if got := def.Execution.MaxSelfRefineLoopsValue(); got != 1 {
 		t.Errorf("max_self_refine_loops default = %d, want 1", got)

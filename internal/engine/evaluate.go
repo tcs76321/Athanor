@@ -148,7 +148,7 @@ func (e *Engine) phaseEvaluate(ctx context.Context, j job.Job) error {
 	// M8-T11 self-refine: when nothing passed, repair the best candidate in
 	// place and re-verify it (the deterministic edge). A passing repair moves
 	// the job forward without a re-divergence; a failing one falls through to
-	// reflection as before. Off by default (execution.self_refine).
+	// reflection as before. On by default (execution.self_refine, M9-T1).
 	if passCount == 0 {
 		refined, rerr := e.selfRefine(ctx, j, p, t, previousID)
 		if rerr != nil {
