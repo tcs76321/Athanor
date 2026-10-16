@@ -26,7 +26,7 @@
 # (set inference.ollama_url accordingly; the host-binary default is 127.0.0.1).
 
 # --- build stage ---
-FROM golang:1.27-bookworm AS build
+FROM golang:1.27.2-bookworm AS build
 WORKDIR /src
 # CGO is required (mattn/go-sqlite3) and FTS5 is a build tag, so a C toolchain
 # and the sqlite_fts5 tag are mandatory (see DEVELOPMENT.md).

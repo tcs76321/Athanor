@@ -12,7 +12,8 @@ New entries are appended at the top. Do not rewrite history.
 
 ### Toolchain bump: Go 1.27.2 + golangci-lint v2.15.0 — 2026-10-16
 
-- **Go toolchain → 1.27.2** (`go.mod` `toolchain` directive and every CI job).
+- **Go toolchain → 1.27.2** (`go.mod` `toolchain` directive, every CI job, and
+  the Core Pod build stage `golang:1.27.2-bookworm`).
   go1.27.1's standard library carries vulnerabilities fixed in 1.27.2 (notably in
   `html/template`, used by the UI), so the `vuln` job now scans — and builds
   with — the patched toolchain.
