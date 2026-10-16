@@ -69,8 +69,11 @@ var (
 	wordLimitRE    = regexp.MustCompile(`(?i)\b(under|at most|no more than|fewer than|less than)\s+(\d+)\s+words?\b`)
 	paraCountRE    = regexp.MustCompile(`(?i)\bexactly\s+(one|two|three|four|five|six|seven|eight|nine|ten|\d+)\s+paragraphs?\b`)
 	sectionNamesRE = regexp.MustCompile(`(?i)\bsections?\s+named\s+([^.;]+)`)
-	minItemsRE     = regexp.MustCompile(`(?i)\bat least\s+(one|two|three|four|five|six|seven|eight|nine|ten|\d+)\s+([a-z]+)`)
-	placeholderRE  = regexp.MustCompile(`(?i)\bno\s+(todo|fixme|placeholders?)\b`)
+	// minItemsRE recognizes "at least N x", ">= N x" (and the ≥ glyph), and
+	// "N or more x"; the >= form is common in acceptance criteria and was
+	// previously missed.
+	minItemsRE    = regexp.MustCompile(`(?i)(?:\bat least|>=|≥)\s*(one|two|three|four|five|six|seven|eight|nine|ten|\d+)\s+([a-z]+)`)
+	placeholderRE = regexp.MustCompile(`(?i)\bno\s+(todo|fixme|placeholders?)\b`)
 )
 
 // parseConstraints extracts every structural check the criteria state.

@@ -98,19 +98,35 @@ func TestRouteFromM9Smoke(t *testing.T) {
 		"ornith-1.5:9b": "qwen35", "gemma4:12b-mlx": "gemma", "granite4.2:3b": "granite",
 	}
 	ms := []Measurement{
-		{Role: "main", Model: "ornith-1.5:9b", Score: 0.33},
-		{Role: "main", Model: "gemma4:12b-mlx", Score: 0.80},
-		{Role: "security", Model: "granite4.2:3b", Score: 0.81},
-		{Role: "security", Model: "ornith-1.5:9b", Score: 0.77}, // same family as main → excluded
-		{Role: "security", Model: "gemma4:12b-mlx", Score: 0.69},
+		{Role: "main", Model: "ornith-1.5:9b", Score: 0.33, Samples: 6},
+		{Role: "main", Model: "gemma4:12b-mlx", Score: 0.80, Samples: 5},
+		{Role: "security", Model: "granite4.2:3b", Score: 0.81, Samples: 16},
+		{Role: "security", Model: "ornith-1.5:9b", Score: 0.77, Samples: 16}, // same family as main → excluded
+		{Role: "security", Model: "gemma4:12b-mlx", Score: 0.69, Samples: 16},
 	}
 	recs := Route(roles, families, ms, RoutingOptions{
-		JudgeRole: "security", GeneratorRoles: []string{"main", "tall"}, MinImprovement: 0.10,
+		JudgeRole: "security", GeneratorRoles: []string{"main", "tall"}, MinImprovement: 0.10, MinSamples: 3,
 	})
 	if got := recByRole(recs, "main"); got.Recommended != "gemma4:12b-mlx" || !got.Replace {
 		t.Errorf("main = %+v, want gemma4:12b-mlx (0.80 vs 0.33)", got)
 	}
 	if got := recByRole(recs, "security"); got.Recommended != "granite4.2:3b" || !got.Replace {
 		t.Errorf("security = %+v, want granite4.2:3b (0.81 cross-family; qwen35 self-judge excluded)", got)
+	}
+}
+
+// TestRouteMinSamplesGuard: a candidate below the sample floor cannot replace the
+// configured model — a single-pass pass@k is noisy (the M9 soak passed 6/6 then
+// 0/2 on the same tasks).
+func TestRouteMinSamplesGuard(t *testing.T) {
+	roles := []Role{{Role: "main", Model: "ornith-1.5:9b"}}
+	fams := map[string]string{"ornith-1.5:9b": "qwen35", "gemma4:12b-mlx": "gemma"}
+	ms := []Measurement{
+		{Role: "main", Model: "ornith-1.5:9b", Score: 0.30, Samples: 6},
+		{Role: "main", Model: "gemma4:12b-mlx", Score: 0.90, Samples: 1}, // 1 sample → too noisy
+	}
+	recs := Route(roles, fams, ms, RoutingOptions{MinImprovement: 0.10, MinSamples: 3})
+	if recs[0].Replace {
+		t.Fatalf("replaced the configured model on a 1-sample measurement: %+v", recs[0])
 	}
 }

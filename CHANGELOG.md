@@ -10,6 +10,16 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### M9-T2b-2 — routing variance guard + `>=` structure recognition
+
+- **`onboard.Route` MinSamples guard.** A candidate measurement below
+  `RoutingOptions.MinSamples` is reported but never replaces the configured
+  model — the M9 soak passed 6/6 then 0/2 on the same tasks, so a single-pass
+  pass@k is too noisy to drive a swap.
+- **`internal/verify` structure parser.** Now recognizes the `>= N x` (and the
+  `≥` glyph) min-items phrasing — the bench acceptance criteria use
+  `>= 3 concrete alternatives`, which the parser previously missed.
+
 ### M9 soak — data run findings (2026-10-16)
 
 - **M9 soak.** A data-gathering soak; findings in

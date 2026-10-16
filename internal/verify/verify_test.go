@@ -90,6 +90,23 @@ func TestStructureMinItems(t *testing.T) {
 	}
 }
 
+// TestStructureMinItemsGEPhrasing: the ">= N x" phrasing is recognized (the M9
+// bench criteria use it; it was previously missed).
+func TestStructureMinItemsGEPhrasing(t *testing.T) {
+	r := Default()
+	in := Input{Archetype: project.ArchetypeDocument,
+		Criteria: []string{">= 3 concrete alternatives"},
+		Content:  "## Alternatives\n\n- a\n- b\n- c",
+	}
+	if got := r.Run(in); !got.Decisive() || !got.Passed {
+		t.Fatalf("'>= 3' with three bullets should pass: %+v", got)
+	}
+	in.Content = "## Alternatives\n\n- a\n- b"
+	if got := r.Run(in); got.Passed {
+		t.Fatalf("'>= 3' with two bullets should fail: %+v", got)
+	}
+}
+
 func TestFindPlaceholder(t *testing.T) {
 	if findPlaceholder("all clean") != "" {
 		t.Fatal("false positive")
