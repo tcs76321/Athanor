@@ -125,7 +125,12 @@ func (a *Store) SetStatus(ctx context.Context, id string, to Status) error {
 	if err := ValidateTransition(art.Status, to); err != nil {
 		return err
 	}
-	res, err := a.db.DB().ExecContext(ctx,
+	tx, err := a.db.DB().BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("beginning artifact status: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	res, err := tx.ExecContext(ctx,
 		`UPDATE artifacts SET status = ? WHERE id = ? AND status = ?`,
 		string(to), id, string(art.Status))
 	if err != nil {
@@ -134,29 +139,46 @@ func (a *Store) SetStatus(ctx context.Context, id string, to Status) error {
 	if n, _ := res.RowsAffected(); n == 0 {
 		return fmt.Errorf("artifact %s changed status concurrently; retry", id)
 	}
-	return a.audit(ctx, nil, art, map[string]any{
+	if err := a.audit(ctx, tx, art, map[string]any{
 		"event": "status", "from": string(art.Status), "to": string(to),
-	})
+	}); err != nil {
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("committing artifact status: %w", err)
+	}
+	return nil
 }
 
 // SetGitCommit records the SHA of the commit an accepted artifact was
 // recorded to on an agent branch (§9.2, §14; ADR-0030). It is a recording
 // operation, not a §9.3 status change: acceptance already happened, and
 // this attaches the Git identity that makes it undoable. The audit event
-// is appended separately from the update; the engine's caller treats a
-// missing commit as "skip + audit", never as a failed acceptance.
+// is appended in the same transaction as the update; the engine's caller
+// treats a missing commit as "skip + audit", never as a failed acceptance.
 func (a *Store) SetGitCommit(ctx context.Context, id, commit string) error {
 	art, err := a.Get(ctx, id)
 	if err != nil {
 		return err
 	}
-	if _, err := a.db.DB().ExecContext(ctx,
+	tx, err := a.db.DB().BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("beginning git commit record: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	if _, err := tx.ExecContext(ctx,
 		`UPDATE artifacts SET git_commit = ? WHERE id = ?`, nullIfEmpty(commit), id); err != nil {
 		return fmt.Errorf("recording artifact git commit: %w", err)
 	}
-	return a.audit(ctx, nil, art, map[string]any{
+	if err := a.audit(ctx, tx, art, map[string]any{
 		"event": "git_commit", "commit": commit,
-	})
+	}); err != nil {
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("committing git commit record: %w", err)
+	}
+	return nil
 }
 
 // SupersedeAndAccept is M3-T3 commit 3.2: the §9.3 status

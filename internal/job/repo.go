@@ -50,14 +50,22 @@ func NewRepository(s *store.Store) *Repository {
 // event in the same transaction.
 func (r *Repository) Create(ctx context.Context, taskID, projectID string) (Job, error) {
 	id := ids.New()
-	if _, err := r.store.DB().ExecContext(ctx,
+	tx, err := r.store.DB().BeginTx(ctx, nil)
+	if err != nil {
+		return Job{}, fmt.Errorf("beginning job create: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	if _, err := tx.ExecContext(ctx,
 		`INSERT INTO jobs (id, task_id, project_id, state) VALUES (?, ?, ?, ?)`,
 		id, taskID, projectID, string(StateQueued),
 	); err != nil {
 		return Job{}, fmt.Errorf("creating job: %w", err)
 	}
-	if err := r.appendEvent(ctx, nil, id, projectID, map[string]any{"event": "created"}); err != nil {
+	if err := r.appendEvent(ctx, tx, id, projectID, map[string]any{"event": "created"}); err != nil {
 		return Job{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return Job{}, fmt.Errorf("committing job create: %w", err)
 	}
 	return r.Get(ctx, id)
 }

@@ -50,17 +50,27 @@ func (a *Store) CreateDraftFor(ctx context.Context, projectID, taskID, jobID str
 		return Artifact{}, fmt.Errorf("invalid artifact kind %q (§9.1)", kind)
 	}
 	id := ids.New()
-	art, err := a.persist(ctx, artifactRow{
+	// The row and its audit event commit together (ADR-0006): a crash must
+	// not leave a committed draft with no `created` audit row.
+	tx, err := a.db.DB().BeginTx(ctx, nil)
+	if err != nil {
+		return Artifact{}, fmt.Errorf("beginning artifact create: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	art, err := a.persistTx(ctx, tx, artifactRow{
 		ID: id, ProjectID: projectID, TaskID: taskID, JobID: jobID, Kind: kind,
 		Version: 1, Status: StatusDraft,
 	}, content)
 	if err != nil {
 		return Artifact{}, err
 	}
-	if err := a.audit(ctx, nil, art, map[string]any{
+	if err := a.audit(ctx, tx, art, map[string]any{
 		"event": "created", "kind": string(kind), "hash": art.ContentHash,
 	}); err != nil {
 		return Artifact{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return Artifact{}, fmt.Errorf("committing artifact create: %w", err)
 	}
 	return art, nil
 }

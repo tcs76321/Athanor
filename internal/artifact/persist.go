@@ -23,23 +23,6 @@ type artifactRow struct {
 	Status       Status
 }
 
-// persist writes content + row in its own transaction (CreateDraft).
-func (a *Store) persist(ctx context.Context, row artifactRow, content []byte) (Artifact, error) {
-	tx, err := a.db.DB().BeginTx(ctx, nil)
-	if err != nil {
-		return Artifact{}, fmt.Errorf("beginning artifact create: %w", err)
-	}
-	defer func() { _ = tx.Rollback() }()
-	art, err := a.persistTx(ctx, tx, row, content)
-	if err != nil {
-		return Artifact{}, err
-	}
-	if err := tx.Commit(); err != nil {
-		return Artifact{}, fmt.Errorf("committing artifact create: %w", err)
-	}
-	return art, nil
-}
-
 // persistTx writes the content file and the row inside tx.
 func (a *Store) persistTx(ctx context.Context, tx *sql.Tx, row artifactRow, content []byte) (Artifact, error) {
 	if err := os.MkdirAll(a.dir, 0o700); err != nil {

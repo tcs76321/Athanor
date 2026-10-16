@@ -87,7 +87,12 @@ func (r *Repo) SubmitGoal(ctx context.Context, projectID, goalText string, crite
 	if err != nil {
 		return Task{}, err
 	}
-	if _, err := r.store.DB().ExecContext(ctx,
+	tx, err := r.store.DB().BeginTx(ctx, nil)
+	if err != nil {
+		return Task{}, fmt.Errorf("beginning goal submit: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	if _, err := tx.ExecContext(ctx,
 		`INSERT INTO goals (id, project_id, text) VALUES (?, ?, ?)`,
 		goalID, projectID, goalText,
 	); err != nil {
@@ -95,11 +100,14 @@ func (r *Repo) SubmitGoal(ctx context.Context, projectID, goalText string, crite
 	}
 	// allowed_tools_json defaults to '[]' (migration 0005). See Create
 	// above for the M2-T4 commit 4 widening rationale.
-	if _, err := r.store.DB().ExecContext(ctx,
+	if _, err := tx.ExecContext(ctx,
 		`INSERT INTO tasks (id, project_id, goal_id, title, acceptance_criteria_json) VALUES (?, ?, ?, ?, ?)`,
 		taskID, projectID, goalID, goalText, criteriaJSON,
 	); err != nil {
 		return Task{}, fmt.Errorf("inserting task: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return Task{}, fmt.Errorf("committing goal submit: %w", err)
 	}
 	return r.Task(ctx, taskID)
 }
