@@ -114,6 +114,7 @@ type chatResponse struct {
 	Done            bool    `json:"done"`
 	PromptEvalCount int     `json:"prompt_eval_count"`
 	EvalCount       int     `json:"eval_count"`
+	Error           string  `json:"error,omitempty"`
 }
 
 // Chat performs one non-streaming chat completion. The context bounds the
@@ -163,6 +164,9 @@ func (c *Client) Chat(ctx context.Context, req Request) (Response, error) {
 	var cr chatResponse
 	if err := json.Unmarshal(raw, &cr); err != nil {
 		return Response{}, fmt.Errorf("llm: decoding response: %w", err)
+	}
+	if cr.Error != "" {
+		return Response{}, fmt.Errorf("llm: ollama returned error: %s", snippet([]byte(cr.Error)))
 	}
 	if !cr.Done {
 		return Response{}, fmt.Errorf("llm: incomplete response (done=false) from %s", c.baseURL)
@@ -215,6 +219,7 @@ func (c *Client) Stream(ctx context.Context, req Request, onToken func(string)) 
 
 	var content strings.Builder
 	var last chatResponse
+	sawDone := false
 	dec := json.NewDecoder(resp.Body)
 	for {
 		var cr chatResponse
@@ -224,6 +229,9 @@ func (c *Client) Stream(ctx context.Context, req Request, onToken func(string)) 
 			}
 			return Response{}, fmt.Errorf("llm: decoding stream: %w", err)
 		}
+		if cr.Error != "" {
+			return Response{}, fmt.Errorf("llm: ollama stream error: %s", snippet([]byte(cr.Error)))
+		}
 		if cr.Message.Content != "" {
 			content.WriteString(cr.Message.Content)
 			if onToken != nil {
@@ -232,8 +240,17 @@ func (c *Client) Stream(ctx context.Context, req Request, onToken func(string)) 
 		}
 		last = cr
 		if cr.Done {
+			sawDone = true
 			break
 		}
+	}
+	// A stream that ends without a done:true chunk is a truncated/aborted
+	// response (server drop, model unload, connection close). Unlike Chat,
+	// the streaming path previously returned success on io.EOF, silently
+	// truncating the answer. Fail loudly so the caller never treats a
+	// partial reply as complete.
+	if !sawDone {
+		return Response{}, fmt.Errorf("llm: incomplete stream (no done=true chunk) from %s", c.baseURL)
 	}
 	return Response{
 		Content:          content.String(),
