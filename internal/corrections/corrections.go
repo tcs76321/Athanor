@@ -280,6 +280,14 @@ func (r *Repo) Active(ctx context.Context) ([]Record, error) {
 		created_at DESC`)
 }
 
+// Global returns every global-scoped record regardless of status. The
+// feedback-review daydream action uses it to suppress re-proposing a rule the
+// operator already muted or that has expired — Active alone would hide those
+// and re-propose the identical rule on the next idle pass.
+func (r *Repo) Global(ctx context.Context) ([]Record, error) {
+	return r.query(ctx, `WHERE scope = 'global' ORDER BY created_at DESC`)
+}
+
 // ListByProject returns a project's records, newest first.
 func (r *Repo) ListByProject(ctx context.Context, projectID string) ([]Record, error) {
 	return r.query(ctx, `WHERE project_id = ? ORDER BY created_at DESC`, projectID)

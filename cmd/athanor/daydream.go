@@ -309,9 +309,22 @@ func (r *daydreamRunner) feedbackReview(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("daydream feedback_review: %w", err)
 	}
+	// Global rules in ANY status (including muted/expired) suppress
+	// re-proposal: re-proposing a rule the operator muted, or one that
+	// lapsed, would silently undo that decision on the next idle pass.
+	globals, err := r.deps.corrections.Global(ctx)
+	if err != nil {
+		return fmt.Errorf("daydream feedback_review: %w", err)
+	}
 	type key struct{ rule, category string }
 	byRule := map[key]map[string]bool{}
 	existingGlobal := map[key]bool{}
+	for _, rec := range globals {
+		if rec.DerivedRule == "" {
+			continue
+		}
+		existingGlobal[key{rec.DerivedRule, rec.Category}] = true
+	}
 	for _, rec := range recs {
 		if rec.DerivedRule == "" {
 			continue

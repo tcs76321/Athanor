@@ -335,6 +335,54 @@ func TestDaydreamFeedbackReviewProposesGlobal(t *testing.T) {
 	}
 }
 
+// TestDaydreamFeedbackReviewRespectsMute proves the muted-correction fix: a
+// muted global rule must not be re-proposed by the next idle pass.
+func TestDaydreamFeedbackReviewRespectsMute(t *testing.T) {
+	st := migratedStore(t)
+	seedProject(t, st, "p1")
+	seedProject(t, st, "p2")
+	corrRepo := corrections.NewRepo(st)
+	ctx := context.Background()
+	const rule = "Prefer dependency injection over package-level state."
+	for _, pid := range []string{"p1", "p2"} {
+		if _, err := corrRepo.Capture(ctx, corrections.CaptureInput{
+			Source: corrections.SourceUserRejection, ProjectID: pid, Scope: corrections.ScopeProject,
+			Category: corrections.CategoryArchitecture, Severity: corrections.SeverityHigh,
+			UserFeedback: "no package-level state", DerivedRule: rule,
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// Propose once, then mute the resulting global rule.
+	r := newDaydreamRunner(t, st, &fakeDaydreamCompactor{}, true, false)
+	r.deps.corrections = corrRepo
+	if err := r.pass(ctx); err != nil {
+		t.Fatalf("first pass: %v", err)
+	}
+	globals, err := corrRepo.Global(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(globals) != 1 {
+		t.Fatalf("global corrections = %d, want 1", len(globals))
+	}
+	if err := corrRepo.SetStatus(ctx, globals[0].ID, corrections.StatusMuted); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := r.pass(ctx); err != nil {
+		t.Fatalf("pass after mute: %v", err)
+	}
+	after, err := corrRepo.Global(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(after) != 1 {
+		t.Fatalf("a muted global rule was re-proposed: %d globals, want 1", len(after))
+	}
+}
+
 // fakeGenerator is a cmd-local daydream generator.
 type fakeGenerator struct {
 	content string
