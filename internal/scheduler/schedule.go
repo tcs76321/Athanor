@@ -28,15 +28,17 @@ func Leaves(tasks []project.Task) []string {
 	return out
 }
 
-// Ready returns the sorted IDs of leaf tasks that are `pending` and whose
-// every dependency is `completed`. Missing dependencies (which the M6-T1
-// validator rejects before persistence) leave a task not-ready.
+// Ready returns the sorted IDs of leaf tasks that are `pending` or `ready` and
+// whose every dependency is `completed`. Missing dependencies (which the M6-T1
+// validator rejects before persistence) leave a task not-ready. `ready` is
+// accepted for parity with `Blocked` (known-issues M19): both treat it as a
+// schedulable, non-terminal status even though nothing writes it today.
 func Ready(tasks []project.Task) []string {
 	byID := index(tasks)
 	parents := parentSet(tasks)
 	var out []string
 	for _, t := range tasks {
-		if parents[t.ID] || t.Status != project.TaskPending {
+		if parents[t.ID] || (t.Status != project.TaskPending && t.Status != project.TaskReady) {
 			continue
 		}
 		if depsCompleted(t, byID) {

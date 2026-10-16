@@ -57,6 +57,12 @@ func TestValidateRejections(t *testing.T) {
 		{"empty", Graph{}, Limits{}, KindEmpty},
 		{"too many", Graph{Nodes: []Node{node("a"), node("b")}}, Limits{MaxTasks: 1}, KindTooMany},
 		{"duplicate key", Graph{Nodes: []Node{node("a"), node("a")}}, Limits{}, KindDuplicateKey},
+		{"duplicate dep", Graph{Nodes: []Node{node("a"), node("b", "a", "a")}}, Limits{}, KindDuplicateRef},
+		{"parent depth", Graph{Nodes: []Node{
+			{Key: "a", Title: "a", Criteria: []string{"c"}},
+			{Key: "b", ParentKey: "a", Title: "b", Criteria: []string{"c"}},
+			{Key: "c", ParentKey: "b", Title: "c", Criteria: []string{"c"}},
+		}}, Limits{MaxDepth: 1}, KindDepth},
 		{"unknown dep", Graph{Nodes: []Node{node("a", "ghost")}}, Limits{}, KindUnknownRef},
 		{"self dep", Graph{Nodes: []Node{node("a", "a")}}, Limits{}, KindSelfRef},
 		{"unknown parent", Graph{Nodes: []Node{{Key: "a", ParentKey: "ghost", Criteria: []string{"c"}}}}, Limits{}, KindUnknownRef},

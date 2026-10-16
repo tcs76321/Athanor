@@ -68,11 +68,17 @@ func (s *Service) Await(ctx context.Context, jobID, typ, severity, summary strin
 			return Request{}, err
 		}
 	}
+	// known-issues M23: reload so resume_state reflects awaiting_from (the state
+	// the job will resume to), not the pre-transition or already-awaiting state.
+	j, err = s.jobs.Get(ctx, jobID)
+	if err != nil {
+		return Request{}, err
+	}
 	if ttl <= 0 {
 		ttl = s.DefaultTTL
 	}
 	expires := s.Now().Add(ttl)
-	payload := map[string]any{"summary": summary, "resume_state": string(j.State)}
+	payload := map[string]any{"summary": summary, "resume_state": string(j.AwaitingFrom)}
 	for k, v := range details {
 		payload[k] = v
 	}

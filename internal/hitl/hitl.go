@@ -126,6 +126,16 @@ func parseTS(s string) (time.Time, error) {
 	return t, nil
 }
 
+// validSeverity reports whether s is a §20.2 severity.
+func validSeverity(s string) bool {
+	switch s {
+	case SeverityLow, SeverityMedium, SeverityHigh, SeverityCritical:
+		return true
+	default:
+		return false
+	}
+}
+
 // Create inserts a pending request and audits it.
 func (r *Repo) Create(ctx context.Context, req Request) (Request, error) {
 	if req.Type == "" {
@@ -133,6 +143,11 @@ func (r *Repo) Create(ctx context.Context, req Request) (Request, error) {
 	}
 	if req.Severity == "" {
 		req.Severity = SeverityMedium
+	}
+	// known-issues M22: validate severity in Go (like corrections) so an
+	// invalid value is a clear error, not an opaque SQLite CHECK failure.
+	if !validSeverity(req.Severity) {
+		return Request{}, fmt.Errorf("hitl: invalid severity %q (want low|medium|high|critical)", req.Severity)
 	}
 	id := ids.New()
 	var expiresAt any

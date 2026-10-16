@@ -2,6 +2,7 @@ package hitl
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"path/filepath"
 	"testing"
@@ -301,5 +302,44 @@ func TestServiceApproverRunsOnlyOnApprove(t *testing.T) {
 	}
 	if calls != 1 {
 		t.Errorf("git_push approver ran for an unregistered type")
+	}
+}
+
+// TestCreateRejectsInvalidSeverity (known-issues M22): an invalid severity is a
+// clear Go error, not an opaque SQLite CHECK failure.
+func TestCreateRejectsInvalidSeverity(t *testing.T) {
+	repo, _ := openHitl(t)
+	if _, err := repo.Create(context.Background(), Request{Type: TypeTaskEscalation, Severity: "urgent"}); err == nil {
+		t.Fatal("Create accepted an invalid severity; want an error (known-issues M22)")
+	}
+}
+
+// TestAwaitResumeStateStableOnSecondCall (known-issues M23): a second Await on
+// an already-awaiting job records the ORIGINAL resume state, not
+// "awaiting_approval".
+func TestAwaitResumeStateStableOnSecondCall(t *testing.T) {
+	svc, _, _, jobID := serviceFixture(t)
+	ctx := context.Background()
+	resumeOf := func(req Request) string {
+		var p map[string]any
+		if err := json.Unmarshal([]byte(req.PayloadJSON), &p); err != nil {
+			t.Fatalf("payload: %v", err)
+		}
+		s, _ := p["resume_state"].(string)
+		return s
+	}
+	req1, err := svc.Await(ctx, jobID, TypeTaskEscalation, SeverityHigh, "first", nil, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := resumeOf(req1); got != string(job.StateContextBuilding) {
+		t.Fatalf("first resume_state = %q, want context_building", got)
+	}
+	req2, err := svc.Await(ctx, jobID, TypeTaskEscalation, SeverityHigh, "second", nil, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := resumeOf(req2); got != string(job.StateContextBuilding) {
+		t.Fatalf("second resume_state = %q, want context_building (known-issues M23)", got)
 	}
 }

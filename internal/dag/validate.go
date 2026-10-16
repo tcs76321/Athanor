@@ -12,6 +12,7 @@ type ErrorKind string
 const (
 	KindEmpty        ErrorKind = "empty"
 	KindDuplicateKey ErrorKind = "duplicate_key"
+	KindDuplicateRef ErrorKind = "duplicate_reference"
 	KindUnknownRef   ErrorKind = "unknown_reference"
 	KindSelfRef      ErrorKind = "self_reference"
 	KindCycle        ErrorKind = "cycle"
@@ -80,7 +81,18 @@ func Validate(g Graph, limits Limits) ([]string, error) {
 				}
 			}
 		}
+		seenDeps := make(map[string]bool, len(n.DependsOn))
 		for _, dep := range n.DependsOn {
+			// known-issues M21: a duplicate dependency is a malformed graph;
+			// reject it rather than persisting it.
+			if seenDeps[dep] {
+				return nil, &ValidationError{
+					Kind:    KindDuplicateRef,
+					NodeKey: n.Key,
+					Detail:  fmt.Sprintf("dependency %q listed more than once", dep),
+				}
+			}
+			seenDeps[dep] = true
 			if dep == n.Key {
 				return nil, &ValidationError{Kind: KindSelfRef, NodeKey: n.Key, Detail: "task depends on itself"}
 			}
@@ -118,6 +130,11 @@ func Validate(g Graph, limits Limits) ([]string, error) {
 	}
 
 	if err := checkDepth(order, byKey, limits.MaxDepth); err != nil {
+		return nil, err
+	}
+	// known-issues M20: checkDepth bounds only dependency chains; bound the
+	// parent (phase) nesting too so an unbounded phase tree cannot slip past.
+	if err := checkParentDepth(order, byKey, limits.MaxDepth); err != nil {
 		return nil, err
 	}
 	if err := checkCoverage(nodes, byKey); err != nil {
@@ -203,6 +220,39 @@ func checkDepth(order []string, byKey map[string]Node, maxDepth int) error {
 				Kind:    KindDepth,
 				NodeKey: key,
 				Detail:  fmt.Sprintf("dependency depth %d exceeds limit %d", d, maxDepth),
+			}
+		}
+	}
+	return nil
+}
+
+// checkParentDepth bounds parent (phase) nesting: a node's parent-chain length
+// must not exceed maxDepth (known-issues M20). Parent cycles are already
+// rejected, so the memoized walk terminates; a non-positive maxDepth disables
+// the bound.
+func checkParentDepth(order []string, byKey map[string]Node, maxDepth int) error {
+	if maxDepth <= 0 {
+		return nil
+	}
+	depth := make(map[string]int, len(order))
+	var depthOf func(key string) int
+	depthOf = func(key string) int {
+		if d, ok := depth[key]; ok {
+			return d
+		}
+		d := 1
+		if p := byKey[key].ParentKey; p != "" {
+			d = depthOf(p) + 1
+		}
+		depth[key] = d
+		return d
+	}
+	for _, key := range order {
+		if d := depthOf(key); d > maxDepth {
+			return &ValidationError{
+				Kind:    KindDepth,
+				NodeKey: key,
+				Detail:  fmt.Sprintf("phase nesting depth %d exceeds limit %d", d, maxDepth),
 			}
 		}
 	}

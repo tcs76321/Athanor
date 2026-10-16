@@ -10,6 +10,20 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### DAG, scheduler & HITL hardening (M19–M23) — 2026-10-16
+
+- **M19 — `Ready`/`Blocked` agree on `ready`.** Both now treat a `ready` leaf as
+  schedulable, removing the latent stuck-task hazard.
+- **M20 — bounded phase nesting.** The DAG validator bounds the parent (phase)
+  chain, not just the dependency chain, so unbounded nesting cannot pass
+  `MaxDepth`.
+- **M21 — duplicate dependencies rejected.** A malformed graph with a repeated
+  `DependsOn` entry is refused (`KindDuplicateRef`).
+- **M22 — HITL severity validated in Go.** `hitl.Repo.Create` rejects an invalid
+  severity with a clear error instead of a SQLite CHECK failure.
+- **M23 — stable `resume_state`.** A second `Await` on an already-awaiting job
+  records the original resume state (`awaiting_from`), not `awaiting_approval`.
+
 ### Strategy analysis hardening (M14, M15, M16) — 2026-10-16
 
 - **M14 — leave-one-cohort-out baseline.** `Mine` now compares a cohort's
