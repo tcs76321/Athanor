@@ -560,7 +560,7 @@ func (u *UI) render(w http.ResponseWriter, title, body string, data map[string]a
 		data = map[string]any{}
 	}
 	data["Title"] = title
-	t := template.Must(template.New("page").Funcs(funcs).Parse(document(title, body)))
+	t := template.Must(template.New("page").Funcs(funcs).Parse(document(body)))
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := t.Execute(w, data); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)

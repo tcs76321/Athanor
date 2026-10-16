@@ -47,9 +47,15 @@ streams.addEventListener('event',e=>{
 });
 `
 
-func document(title, body string) string {
+// document wraps a server-rendered body in the shared page shell. The page
+// title is NOT folded into the template source: it is interpolated as
+// {{.Title}} data so html/template escapes it. Folding a dynamic title (e.g.
+// a project name the LLM generated) into the source would (a) inject it
+// unescaped into <title>, and (b) let a name containing "{{" panic
+// template.Must or evaluate as an action — both closed by keeping it in data.
+func document(body string) string {
 	return `<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><title>` + title + ` — Athanor</title>
+<html lang="en"><head><meta charset="utf-8"><title>{{.Title}} — Athanor</title>
 <style>` + css + `</style></head>
 <body>
 <header><b>Athanor</b><nav><a href="/ui">Dashboard</a><a href="/ui/projects">Projects</a><a href="/ui/corrections">Corrections</a><a href="/ui/statistics">Statistics</a></nav></header>

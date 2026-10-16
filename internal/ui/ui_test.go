@@ -132,6 +132,33 @@ func postForm(t *testing.T, url string, form url.Values) *http.Response {
 	return resp
 }
 
+// TestProjectTitleEscaped proves the H4 fix: a project name (which the LLM can
+// produce during autonomous work) is rendered through {{.Title}} data, so it is
+// HTML-escaped and never folded into the template source. A name containing
+// both an XSS payload and a template action must not inject markup or panic the
+// template (previously a name with "{{" made template.Must panic → a permanent
+// 500, and one with "<script>" injected unescaped into <title>).
+func TestProjectTitleEscaped(t *testing.T) {
+	fx := setup(t)
+	ctx := context.Background()
+	name := `"><script>alert(1)</script>{{.Title}}`
+	p, _, err := fx.ui.deps.Projects.Create(ctx, name, project.ArchetypeText,
+		"Build a small thing that does a useful job for me.", "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	status, body := get(t, fx.ts.URL+"/ui/projects/"+p.ID)
+	if status != http.StatusOK {
+		t.Fatalf("status = %d, want 200 (a malicious name must not panic the template)", status)
+	}
+	if strings.Contains(body, "<script>alert(1)</script>") {
+		t.Fatal("project name was injected unescaped into the page")
+	}
+	if !strings.Contains(body, "&lt;script&gt;") {
+		t.Fatal("project name was not HTML-escaped in the rendered title")
+	}
+}
+
 func TestPagesRender(t *testing.T) {
 	fx := setup(t)
 	for _, tc := range []struct {
