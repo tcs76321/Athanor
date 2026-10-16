@@ -167,6 +167,9 @@ func run(configPath, addr, stateDir string) error {
 	// One LLM client shared by the engine and the MCE summarizer, so both
 	// talk to the same Ollama endpoint through the same connection pool.
 	llmClient := llm.NewClient(cfg.Inference.OllamaURL, nil)
+	// Single-slot inference (ADR-0072 §2): bound concurrent model calls so the
+	// documented limit is enforced, not merely declared.
+	llmClient.SetMaxConcurrent(cfg.Limits.MaxConcurrentLLMCalls)
 	// M5-T2.7: MCE dormant chunk store + wide-persona summarizer. Built
 	// before the engine (M5-T5.6) because the engine's §10.5 assembling
 	// reads the MCE working set through the ContextProvider adapter.

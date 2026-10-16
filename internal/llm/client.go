@@ -79,6 +79,10 @@ type Response struct {
 type Client struct {
 	baseURL string
 	http    *http.Client
+	// limiter, when non-nil, is a semaphore bounding concurrent chat calls
+	// process-wide (ADR-0072 §2). It is nil (unlimited) until SetMaxConcurrent
+	// is called.
+	limiter chan struct{}
 }
 
 // NewClient returns a client for the Ollama server at baseURL (e.g.
@@ -88,6 +92,32 @@ func NewClient(baseURL string, httpClient *http.Client) *Client {
 		httpClient = &http.Client{Timeout: defaultTimeout}
 	}
 	return &Client{baseURL: strings.TrimRight(baseURL, "/"), http: httpClient}
+}
+
+// SetMaxConcurrent bounds concurrent chat calls to n. n < 1 leaves the client
+// unlimited; the daemon passes limits.max_concurrent_llm_calls so that "one
+// model call at a time" is enforced, not merely documented (ADR-0072 §2). It
+// must be called before the client is used concurrently.
+func (c *Client) SetMaxConcurrent(n int) {
+	if n < 1 {
+		c.limiter = nil
+		return
+	}
+	c.limiter = make(chan struct{}, n)
+}
+
+// acquire takes a call slot, returning a release function. When no limiter is
+// configured it is a no-op. A canceled context aborts the wait.
+func (c *Client) acquire(ctx context.Context) (func(), error) {
+	if c.limiter == nil {
+		return func() {}, nil
+	}
+	select {
+	case c.limiter <- struct{}{}:
+		return func() { <-c.limiter }, nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
 }
 
 // chatRequest/chatResponse mirror Ollama's /api/chat schema. Options
@@ -141,6 +171,12 @@ func (c *Client) Chat(ctx context.Context, req Request) (Response, error) {
 		return Response{}, fmt.Errorf("llm: building request: %w", err)
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
+
+	release, err := c.acquire(ctx)
+	if err != nil {
+		return Response{}, fmt.Errorf("llm: acquiring call slot: %w", err)
+	}
+	defer release()
 
 	resp, err := c.http.Do(httpReq)
 	if err != nil {
@@ -203,6 +239,12 @@ func (c *Client) Stream(ctx context.Context, req Request, onToken func(string)) 
 		return Response{}, fmt.Errorf("llm: building request: %w", err)
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
+
+	release, err := c.acquire(ctx)
+	if err != nil {
+		return Response{}, fmt.Errorf("llm: acquiring call slot: %w", err)
+	}
+	defer release()
 
 	resp, err := c.http.Do(httpReq)
 	if err != nil {

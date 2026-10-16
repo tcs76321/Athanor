@@ -26,7 +26,7 @@ func TestProfileLimits(t *testing.T) {
 		profile Profile
 		want    Limits
 	}{
-		{ProfileAutonomous, Limits{MaxConcurrentJobs: 4, AllowDaydreaming: true, CPUQuota: 1.0}},
+		{ProfileAutonomous, Limits{MaxConcurrentJobs: 1, AllowDaydreaming: true, CPUQuota: 1.0}},
 		{ProfileInteractive, Limits{MaxConcurrentJobs: 1, AllowDaydreaming: false, CPUQuota: 0.3}},
 		{Profile("nonsense"), safeLimits()},
 		{Profile(""), safeLimits()},
@@ -38,13 +38,28 @@ func TestProfileLimits(t *testing.T) {
 	}
 }
 
+// TestSingleSlotInvariant pins ADR-0072: no profile may raise job concurrency
+// above 1, however idle or AC-powered the machine is.
+func TestSingleSlotInvariant(t *testing.T) {
+	for _, p := range []Profile{ProfileAutonomous, ProfileInteractive, Profile("nonsense"), Profile("")} {
+		if got := profileLimits(p).MaxConcurrentJobs; got != 1 {
+			t.Errorf("profileLimits(%q).MaxConcurrentJobs = %d, want 1 (ADR-0072)", p, got)
+		}
+	}
+	pm := NewPowerManager(nil)
+	pm.SetProfile(ProfileAutonomous)
+	if got := pm.MaxConcurrentJobs(); got != 1 {
+		t.Errorf("autonomous MaxConcurrentJobs = %d, want 1", got)
+	}
+}
+
 func TestSetProfileUpdatesLimits(t *testing.T) {
 	pm := NewPowerManager(nil)
 	pm.SetProfile(ProfileAutonomous)
 	if pm.CurrentProfile() != ProfileAutonomous {
 		t.Fatalf("profile = %q, want autonomous", pm.CurrentProfile())
 	}
-	want := Limits{MaxConcurrentJobs: 4, AllowDaydreaming: true, CPUQuota: 1.0}
+	want := Limits{MaxConcurrentJobs: 1, AllowDaydreaming: true, CPUQuota: 1.0}
 	if got := pm.GetLimits(); got != want {
 		t.Errorf("limits after SetProfile(autonomous) = %+v, want %+v", got, want)
 	}

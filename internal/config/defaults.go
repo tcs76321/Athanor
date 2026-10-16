@@ -255,7 +255,9 @@ func applyDefaults(c *Config) {
 		c.StrategyAnalysis.TechniqueMinAcceptDelta = 0.20
 	}
 
-	setInt(&c.Limits.MaxConcurrentJobs, 2)
+	// Single-slot execution (ADR-0072): one job at a time, so at most one
+	// model call (and one resident model) is in flight.
+	setInt(&c.Limits.MaxConcurrentJobs, 1)
 	setInt(&c.Limits.MaxConcurrentLLMCalls, 1)
 	setInt(&c.Limits.MaxConcurrentFetches, 5)
 	setInt(&c.Limits.MaxTasksPerHour, 20)

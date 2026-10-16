@@ -18,19 +18,19 @@ import (
 type Profile string
 
 const (
-	// ProfileAutonomous - High resource utilization.
-	// Multiple concurrent jobs allowed; Daydreaming (memory
-	// consolidation/indexing, §17) is ACTIVE.
+	// ProfileAutonomous - High resource utilization. Daydreaming (memory
+	// consolidation/indexing, §17) is ACTIVE and the CPU quota is full.
+	// Job concurrency is 1 for every profile (ADR-0072).
 	ProfileAutonomous Profile = "autonomous"
 
 	// ProfileInteractive - Deferential resource utilization.
-	// Max 1 concurrent job. Daydreaming is PAUSED. CPU quota is reduced.
+	// Daydreaming is PAUSED and the CPU quota is reduced. Job concurrency is 1.
 	ProfileInteractive Profile = "interactive"
 )
 
 // Limits defines the resource limits for a given profile.
 type Limits struct {
-	MaxConcurrentJobs int     // Maximum number of concurrent jobs allowed
+	MaxConcurrentJobs int     // Concurrent jobs allowed; always 1 (ADR-0072)
 	AllowDaydreaming  bool    // Whether Daydreaming (§17) is enabled
 	CPUQuota          float64 // CPU quota as fraction of total (0.0-1.0)
 }
@@ -91,11 +91,15 @@ func NewPowerManager(watcher OSWatcher) *PowerManager {
 // profileLimits returns the Limits for a given profile. Unknown profiles
 // resolve to the conservative interactive-equivalent limits — the package
 // fails toward less background work, never more (§24 spirit).
+//
+// MaxConcurrentJobs is 1 for every profile: single-slot execution is an
+// invariant (ADR-0072), not a profile knob. The profiles differ only in
+// daydreaming and CPU quota.
 func profileLimits(p Profile) Limits {
 	switch p {
 	case ProfileAutonomous:
 		return Limits{
-			MaxConcurrentJobs: 4,
+			MaxConcurrentJobs: 1,
 			AllowDaydreaming:  true,
 			CPUQuota:          1.0,
 		}

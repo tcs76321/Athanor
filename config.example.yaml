@@ -215,7 +215,7 @@ strategy_analysis:
   technique_min_accept_delta: 0.20
 
 limits:
-  max_concurrent_jobs: 2
+  max_concurrent_jobs: 1
   max_concurrent_llm_calls: 1
   max_concurrent_fetches: 5
   max_tasks_per_hour: 20

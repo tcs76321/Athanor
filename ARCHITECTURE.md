@@ -629,7 +629,7 @@ If `effective_context < task_context_minimum`:
 | RAM pressure above 85% | Pause background/Daydreaming jobs |
 | RAM pressure above 95% | Save state, pause all jobs |
 | Battery below threshold | Pause jobs, flush state |
-| Thermal throttling | Reduce concurrency |
+| Thermal throttling | Throttle / pause background work (job concurrency is fixed at 1, ADR-0072) |
 | System sleep | Flush state and pause gracefully |
 | System wake | Resume from checkpoint |
 
@@ -1467,6 +1467,12 @@ power:
 | System sleep | Flush state and pause containers gracefully |
 | System wake | Resume from checkpoint |
 
+> **Single-slot (ADR-0072).** Job concurrency is fixed at **1** for every
+> profile: one job, one model call, one Job Pod at a time, so the intended
+> operating mode (one large model resident at the largest context) is a
+> guarantee, not a hope delegated to the inference server. The `autonomous`
+> profile raises daydreaming and CPU quota, not job count.
+
 ---
 
 > **Implementation status (M7-T1).** The §24 table is enforced by a pure
@@ -1802,7 +1808,7 @@ strategy_analysis:
   technique_min_accept_delta: 0.20
 
 limits:
-  max_concurrent_jobs: 2
+  max_concurrent_jobs: 1
   max_concurrent_llm_calls: 1
   max_concurrent_fetches: 5
   max_tasks_per_hour: 20

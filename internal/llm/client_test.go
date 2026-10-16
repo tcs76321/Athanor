@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -230,5 +231,43 @@ func TestNewClientTrimsTrailingSlash(t *testing.T) {
 	c := NewClient(ts.URL+"/", nil)
 	if _, err := c.Chat(context.Background(), Request{Model: "m", Messages: []Message{{Role: "user", Content: "x"}}}); err != nil {
 		t.Fatalf("Chat() with trailing-slash URL err = %v", err)
+	}
+}
+
+// TestSetMaxConcurrentSerializesCalls pins ADR-0072 §2: a limit of 1 holds
+// concurrent chat calls to one in flight at a time, so the documented
+// max_concurrent_llm_calls is enforced rather than merely declared.
+func TestSetMaxConcurrentSerializesCalls(t *testing.T) {
+	var mu sync.Mutex
+	inFlight, maxInFlight := 0, 0
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		inFlight++
+		if inFlight > maxInFlight {
+			maxInFlight = inFlight
+		}
+		mu.Unlock()
+		time.Sleep(20 * time.Millisecond)
+		mu.Lock()
+		inFlight--
+		mu.Unlock()
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(okChatResponse())
+	}))
+	t.Cleanup(ts.Close)
+
+	c := NewClient(ts.URL, nil)
+	c.SetMaxConcurrent(1)
+	var wg sync.WaitGroup
+	for i := 0; i < 5; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, _ = c.Chat(context.Background(), Request{Model: "m", Messages: []Message{{Role: "user", Content: "x"}}})
+		}()
+	}
+	wg.Wait()
+	if maxInFlight != 1 {
+		t.Errorf("max in-flight calls = %d, want 1", maxInFlight)
 	}
 }
