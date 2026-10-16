@@ -15,7 +15,7 @@ export CGO_ENABLED
 # tag-less binary can never silently run.
 GO_TAGS = -tags sqlite_fts5
 
-.PHONY: build test test-race test-integration integration-images vet lint check vuln tidy tidy-check fuzz cover cover-check run clean hooks bench probe-micro probe probe-judge probe-anchor probe-report probe-bundle probe-reconcile jobpod-image core-image install soak
+.PHONY: build test test-race test-integration integration-images vet lint check vuln tidy tidy-check fuzz cover cover-check run clean hooks bench probe-micro probe probe-judge probe-anchor probe-report probe-bundle probe-reconcile probe-measure jobpod-image core-image install soak
 
 build:
 	go build $(GO_TAGS) -o bin/athanor ./cmd/athanor
@@ -117,6 +117,11 @@ probe-judge:
 # agreement. Needs the judge models pulled locally.
 probe-anchor:
 	go run $(GO_TAGS) ./spikes/m3-t7-probe anchor -out $(PROBE_OUT)/anchor
+
+# M9-T2b: reduce a results tree + anchor run into onboard measurements.json
+# (with Samples), consumable by `athanor models -qualification`.
+probe-measure:
+	go run $(GO_TAGS) ./spikes/m3-t7-probe measure -out $(PROBE_OUT)
 
 probe-report:
 	go run $(GO_TAGS) ./spikes/m3-t7-probe report -out $(PROBE_OUT)

@@ -10,6 +10,17 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Qualification measurements: probe `measure` (M9-T2b) — 2026-10-16
+
+- **The probe records `Measurement.Samples`.** A new `m3-t7-probe measure`
+  subcommand reduces a results tree (generator accept rate over collected jobs)
+  and an anchor run (judge Spearman over rated cases) into `measurements.json`
+  in the `onboard.Measurement` shape, so `onboard.Route`'s `MinSamples` guard
+  can act on how many samples back a score and `athanor models -qualification`
+  consumes it directly. The M9 soak's 6/6 → 0/2 swing is why a single-pass
+  pass@k must not swap a model on its own. Tests:
+  `spikes/m3-t7-probe/measure_test.go`.
+
 ### Model onboarding surface: `athanor models` (M9-T2) — 2026-10-16
 
 - **`internal/onboard` gets a production caller.** `onboard.Assess` composes the

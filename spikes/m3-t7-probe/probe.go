@@ -166,6 +166,8 @@ func main() {
 		runBundle(os.Args[2:])
 	case "reconcile":
 		runReconcile(os.Args[2:])
+	case "measure":
+		runMeasure(os.Args[2:])
 	default:
 		usage()
 		os.Exit(2)
@@ -185,6 +187,7 @@ commands:
   anchor    score the human-anchor set and report judge agreement
   bundle    write a labeled, human-readable artifact bundle (artifacts.md)
   reconcile re-read outcomes from the state DB to repair missed rows, then re-run report
+  measure   write onboard measurements.json from a results tree + anchor (M9-T2b)
 
 Run each command with -h for its flags. Protocol:
 docs/probes/m3-t7-quality-probe.md

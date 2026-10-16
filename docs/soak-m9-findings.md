@@ -66,10 +66,14 @@ catches orphans on the next daemon start; normal operation tears pods down.
 
 ## Follow-ups (from the M9 runs)
 
-- **Qualification must repeat runs.** The 6/6 → 0/2 swing means a single-pass
-  pass@k is not a routing signal on its own. The generator qualification should
-  use repeats (`-dialectical-runs` > 1) and record `Measurement.Samples`, so
-  `onboard.Route`'s `MinSamples` guard (M9-T2b-2) can act on it.
+- **Qualification must repeat runs — mechanism landed (2026-10-16).** The 6/6 →
+  0/2 swing means a single-pass pass@k is not a routing signal on its own. The
+  probe now has a `measure` subcommand that turns a results tree + anchor run
+  into `onboard.Measurement` JSON with `Samples` set (generator accept rate over
+  the collected jobs; judge Spearman over rated cases), so `onboard.Route`'s
+  `MinSamples` guard can act and `athanor models -qualification` consumes it.
+  The operator still must *run* repeats (`-dialectical-runs` > 1); the probe now
+  records how many samples back each score.
 - **Engine verifier vs benchmark checks — FIXED (2026-10-16).** The bench
   `checks:` are stricter than the task `criteria:` the engine sees, and the
   engine's structural verifier is a heuristic over natural-language criteria —

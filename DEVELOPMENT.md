@@ -189,6 +189,7 @@ make probe-micro     # fast: 3 goals (text/document/code), both arms
 make probe           # full: 10 goals, both arms (~3-5 h on a 9B model)
 make probe-judge     # score the collected packets with gemma + granite
 make probe-anchor    # F4-T4: score eval/anchor, report judge reliability + agreement
+make probe-measure   # M9-T2b: reduce results + anchor into onboard measurements.json
 make probe-report    # aggregate into results/report.md
 ```
 
