@@ -252,10 +252,11 @@ func TestFetch_HappyPath(t *testing.T) {
 }
 
 // TestFetch_StripsDenyListedHeaders pins the §21.5 §6
-// behavior: Cookie / Authorization / etc. on the
-// request are stripped before the wire send. The
+// behavior: every header not on the allow-list is
+// stripped before the wire send, so Cookie / Authorization
+// and any unknown header never leave the gateway. The
 // `httptest` server's handler echoes the headers it
-// received, and the test asserts the deny-listed
+// received, and the test asserts the non-allowlisted
 // names are absent.
 func TestFetch_StripsDenyListedHeaders(t *testing.T) {
 	var gotHeaders http.Header
@@ -283,8 +284,8 @@ func TestFetch_StripsDenyListedHeaders(t *testing.T) {
 			t.Errorf("header %q survived sanitization: %q", name, v)
 		}
 	}
-	if v := gotHeaders.Get("X-Custom"); v != "keep-me" {
-		t.Errorf("X-Custom stripped: %q", v)
+	if v := gotHeaders.Get("X-Custom"); v != "" {
+		t.Errorf("non-allowlisted X-Custom survived sanitization: %q", v)
 	}
 }
 

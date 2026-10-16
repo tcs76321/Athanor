@@ -75,22 +75,22 @@ func TestSanitizeRequestHeaders_EmptyInput(t *testing.T) {
 	}
 }
 
-// TestSanitizeRequestHeaders_PreservesCustomValues pins
-// the "values are not inspected" property: a header named
-// `X-Safe-Custom` whose value is `Bearer <secret>` passes
-// through verbatim. The §21.5 gateway is a transport
-// policy layer, not a content scanner; the prompt-injection
-// `Scanner` runs on response bodies, not on request
-// header values.
-func TestSanitizeRequestHeaders_PreservesCustomValues(t *testing.T) {
+// TestSanitizeRequestHeaders_AllowList pins the allow-list contract
+// (known-issues L12): a non-allowlisted header is stripped, an allowlisted one
+// passes through verbatim.
+func TestSanitizeRequestHeaders_AllowList(t *testing.T) {
 	h := http.Header{}
 	h.Set("X-Safe-Custom", "Bearer look-at-me-im-a-secret")
+	h.Set("Accept", "text/html")
 	removed := sanitizeRequestHeaders(h)
-	if len(removed) != 0 {
-		t.Errorf("removed = %v, want nil", removed)
+	if len(removed) != 1 || removed[0] != "X-Safe-Custom" {
+		t.Errorf("removed = %v, want [X-Safe-Custom]", removed)
 	}
-	if got := h.Get("X-Safe-Custom"); got != "Bearer look-at-me-im-a-secret" {
-		t.Errorf("X-Safe-Custom value altered: %q", got)
+	if got := h.Get("X-Safe-Custom"); got != "" {
+		t.Errorf("non-allowlisted header survived: %q", got)
+	}
+	if got := h.Get("Accept"); got != "text/html" {
+		t.Errorf("allowlisted Accept altered/stripped: %q", got)
 	}
 }
 

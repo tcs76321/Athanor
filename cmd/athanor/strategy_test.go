@@ -24,11 +24,11 @@ func TestInsightActivatorAndPromoter(t *testing.T) {
 	ctx := context.Background()
 	repo := strategy.NewRepo(s)
 
-	mk := func() strategy.Insight {
+	mk := func(value string) strategy.Insight {
 		t.Helper()
 		ins, err := repo.CreateInsight(ctx, strategy.Insight{
 			Scope: strategy.ScopeGlobal, Polarity: strategy.PolarityWinning,
-			Pattern:   strategy.Pattern{Feature: "diverging.persona", Value: "alternative", Context: "archetype=code"},
+			Pattern:   strategy.Pattern{Feature: "diverging.persona", Value: value, Context: "archetype=code"},
 			Statement: "s", Status: strategy.InsightProposed,
 		})
 		if err != nil {
@@ -38,7 +38,7 @@ func TestInsightActivatorAndPromoter(t *testing.T) {
 	}
 
 	// The HITL-approved side effect activates the insight.
-	ins := mk()
+	ins := mk("alternative")
 	payload := fmt.Sprintf(`{"insight_id":%q}`, ins.ID)
 	if err := (insightActivator{repo: repo}).Approve(ctx, hitl.Request{ID: "r1", PayloadJSON: payload}); err != nil {
 		t.Fatalf("Approve: %v", err)
@@ -48,7 +48,7 @@ func TestInsightActivatorAndPromoter(t *testing.T) {
 	}
 
 	// Without auto-promote, Promote files a request and leaves it proposed.
-	ins2 := mk()
+	ins2 := mk("main")
 	promoter := insightPromoter{strategy: repo, hitl: hitl.NewRepo(s), autoPromote: false}
 	activated, requestID, err := promoter.Promote(ctx, ins2.ID)
 	if err != nil {

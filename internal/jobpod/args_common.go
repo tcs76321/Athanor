@@ -24,6 +24,9 @@ func buildArgs(spec Spec) []string {
 	}
 	args = append(args, platformHardening()...)
 	args = append(args, mountFlags(spec.TokenDir)...)
+	// known-issues L11: `--` ends option parsing so the image is always the
+	// first positional argument, even if it begins with '-'.
+	args = append(args, "--")
 	args = append(args, spec.Image)
 	args = append(args, spec.Command...)
 	return args

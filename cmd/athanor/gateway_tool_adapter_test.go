@@ -50,7 +50,7 @@ func (f *fakeReader) Extract(_ context.Context, resp *gateway.Response) (*gatewa
 }
 
 func newAdapter(parts GatewayParts, template string) *gatewayToolAdapter {
-	return newGatewayToolAdapter(parts, template)
+	return newGatewayToolAdapter(parts, template, 10<<20)
 }
 
 func TestAdapterFetchURL_HappyPath(t *testing.T) {

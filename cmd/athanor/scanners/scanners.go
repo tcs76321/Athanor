@@ -31,6 +31,7 @@ import (
 	"context"
 	"fmt"
 	"os/exec"
+	"strings"
 	"time"
 
 	"github.com/tcs76321/athanor/internal/airlock/scanner"
@@ -95,7 +96,16 @@ func runCommand(ctx context.Context, name string, bin string, args []string, in 
 	// (some scanners return exit 1 with the signature
 	// in stdout; we treat both as rejection signals).
 	if err == nil {
-		return scanner.ScanResult{Verdict: scanner.VerdictClean}, nil
+		// known-issues L8: require EMPTY stdout for a clean verdict. YARA exits
+		// 0 and prints matches to stdout, so exit status alone is not a verdict.
+		if strings.TrimSpace(stdout.String()) == "" {
+			return scanner.ScanResult{Verdict: scanner.VerdictClean}, nil
+		}
+		return scanner.ScanResult{
+			Verdict: scanner.VerdictRejected,
+			Reason:  fmt.Sprintf("scanner:%s:rejected", name),
+			Details: map[string]any{"stdout": stdout.String(), "stderr": stderr.String()},
+		}, nil
 	}
 	// Distinguish timeout from a real scanner verdict.
 	if tctx.Err() == context.DeadlineExceeded {

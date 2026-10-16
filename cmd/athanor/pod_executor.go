@@ -95,16 +95,20 @@ func (a *podExecutorAdapter) RunCode(ctx context.Context, jobID string, req tool
 	})
 }
 
-// RunTests runs the command through `sh -c` in the scratch dir so a command
-// line like `pytest -q` (or `python -c "import solution; ..."`) sees the file
-// RunCode wrote. The base image must provide a POSIX shell (ADR-0024 §6); that
-// is an operator precondition until M7-T7 ships a Job Pod image.
+// RunTests runs the task's configured test command through `sh -c` in the
+// scratch dir so a command line like `pytest -q` (or `python -c "import
+// solution; ..."`) sees the file RunCode wrote. `req.Command` is the
+// task-defined command the Core resolved — not pod-supplied input — so a shell
+// line is the intended shape; the Job Pod (no network, read-only rootfs,
+// cap-drop all) is the containment boundary, and the Core has already
+// validated the run_tests envelope (known-issues L6). The base image must
+// provide a POSIX shell (ADR-0024 §6).
 func (a *podExecutorAdapter) RunTests(ctx context.Context, jobID string, req toolenvelope.ExecuteRequest) (toolenvelope.ExecuteResult, error) {
 	return a.exec(ctx, jobID, jobpod.ExecSpec{Command: []string{"sh", "-c", "cd " + podScratch + " && " + req.Command}})
 }
 
 // Lint is RunTests with the linter command (the default `ruff check .` is
-// resolved server-side before the call).
+// resolved server-side before the call); the same containment note applies.
 func (a *podExecutorAdapter) Lint(ctx context.Context, jobID string, req toolenvelope.ExecuteRequest) (toolenvelope.ExecuteResult, error) {
 	return a.exec(ctx, jobID, jobpod.ExecSpec{Command: []string{"sh", "-c", "cd " + podScratch + " && " + req.Command}})
 }

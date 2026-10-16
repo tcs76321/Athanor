@@ -129,6 +129,8 @@ func TestStart_ValidatesSpec(t *testing.T) {
 		{"non-uuid id", func(s *Spec) { s.ID = "not-a-uuid" }},
 		{"v1 uuid", func(s *Spec) { s.ID = "3b241101-e2bb-1255-8caf-4136c566a962" }},
 		{"empty image", func(s *Spec) { s.Image = "" }},
+		{"flag-like image", func(s *Spec) { s.Image = "--privileged" }},
+		{"whitespace image", func(s *Spec) { s.Image = "alpine:3.20 /bin/sh" }},
 		{"empty command", func(s *Spec) { s.Command = nil }},
 	}
 	for _, tc := range cases {

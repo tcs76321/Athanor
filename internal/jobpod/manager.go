@@ -75,6 +75,12 @@ func (m *manager) validateSpec(spec Spec) error {
 	if spec.Image == "" {
 		return fmt.Errorf("%w: image is required", ErrInvalidSpec)
 	}
+	// known-issues L11: an image beginning with '-' would be parsed as a podman
+	// option; whitespace would split it. Reject both (buildArgs also passes
+	// `--` before the image as defense in depth).
+	if strings.HasPrefix(spec.Image, "-") || strings.ContainsAny(spec.Image, " \t\r\n") {
+		return fmt.Errorf("%w: image %q must not begin with '-' or contain whitespace", ErrInvalidSpec, spec.Image)
+	}
 	if len(spec.Command) == 0 {
 		return fmt.Errorf("%w: command is required", ErrInvalidSpec)
 	}

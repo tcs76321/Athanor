@@ -372,7 +372,7 @@ func run(configPath, addr, stateDir string) error {
 	}
 	internalapi.New(tokenStoreAdapter{podMgr}, project.NewRepo(st), st,
 		project.NewRepo(st), defaultEnv,
-		newGatewayToolAdapter(gw, cfg.Network.SearchEngineURLTemplate),
+		newGatewayToolAdapter(gw, cfg.Network.SearchEngineURLTemplate, cfg.Network.MaxResponseBytes),
 		// M5-T3.3: the context_swap adapter over the MCE chunk store built
 		// above. A daemon with lossless swapping disabled still constructs
 		// it; every swap then returns ErrSwapDisabled (501).

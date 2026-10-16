@@ -6,30 +6,27 @@ import (
 	"strings"
 )
 
-// sanitizedRequestHeaders is the §21.5 fixed deny-list of
-// header names (ADR-0017 §6). The list is on names only;
-// header values are not inspected. A header named
-// `X-Safe-Custom` carrying `Bearer <secret>` passes through;
-// a header named `Cookie` is stripped regardless of value.
+// allowedRequestHeaders is the §21.5 fixed ALLOW-list of header names
+// (known-issues L12 replaced the earlier 6-name deny-list). An allow-list
+// cannot be defeated by a credential header the author did not think of: any
+// name not listed here is stripped before the request leaves the gateway.
+// Values are not inspected, so a listed name carrying a secret still passes —
+// callers must not put credentials in them.
 //
-// The set is closed and small on purpose. Adding a new
-// entry is a deliberate policy change: each entry's blast
-// radius is "every outbound request the gateway makes,"
-// and the cost of a typo is a silent credential leak.
+// The set is closed and small on purpose. Adding an entry is a deliberate
+// policy change: each entry's blast radius is "every outbound request the
+// gateway makes."
 //
 // Keys are stored in canonical MIME form
-// (`textproto.CanonicalMIMEHeaderKey`) so the
-// `http.Header` lookup, which canonicalizes on Set/Get, is
-// direct. A header added via `h[name] = ...` with a
-// non-canonical key is matched in `sanitizeRequestHeaders`
-// via the same canonicalization; see the comment there.
-var sanitizedRequestHeaders = map[string]bool{
-	"Cookie":              true,
-	"Authorization":       true,
-	"Proxy-Authorization": true,
-	"X-Api-Key":           true,
-	"X-Auth-Token":        true,
-	"X-Secret":            true,
+// (`textproto.CanonicalMIMEHeaderKey`) so the `http.Header` lookup, which
+// canonicalizes on Set/Get, is direct.
+var allowedRequestHeaders = map[string]bool{
+	"User-Agent":        true,
+	"Accept":            true,
+	"Accept-Language":   true,
+	"Accept-Encoding":   true,
+	"If-None-Match":     true,
+	"If-Modified-Since": true,
 }
 
 // gatewayUserAgent is the fixed User-Agent the gateway sets
@@ -38,29 +35,27 @@ var sanitizedRequestHeaders = map[string]bool{
 // Athanor in their access logs.
 const gatewayUserAgent = "Athanor/0.1 (+local agent)"
 
-// sanitizeRequestHeaders strips the deny-listed headers
-// from `h` and returns the list of names that were removed.
-// The returned slice is for the `network` event's
-// `sanitized_headers` field; the caller logs it.
+// sanitizeRequestHeaders strips every header not in
+// allowedRequestHeaders from `h` and returns the list of names
+// that were removed. The returned slice is for the `network`
+// event's `sanitized_headers` field; the caller logs it.
 //
-// The function mutates `h` in place and returns the
-// removed names sorted for stable log output. The
-// comparison is on the canonical MIME form so a header
-// added with any case (`"cookie"`, `"Cookie"`,
-// `"COOKIE"`) is matched uniformly.
+// The function mutates `h` in place and returns the removed
+// names sorted for stable log output.
 func sanitizeRequestHeaders(h http.Header) []string {
-	var removed []string
+	var removed, toDelete []string
 	for name := range h {
 		canonical := textproto.CanonicalMIMEHeaderKey(name)
-		if sanitizedRequestHeaders[canonical] {
+		if !allowedRequestHeaders[canonical] {
 			removed = append(removed, canonical)
+			toDelete = append(toDelete, name)
 		}
 	}
 	// Stable order for log output.
 	if len(removed) > 0 {
 		sortStrings(removed)
-		for _, name := range removed {
-			h.Del(name)
+		for _, name := range toDelete {
+			delete(h, name) // delete by the exact map key
 		}
 	}
 	return removed

@@ -49,6 +49,13 @@ func authMiddleware(tokens TokenStore, next http.Handler) http.Handler {
 			// Uniform 401 — don't reveal whether the job ID
 			// exists. ErrTokenNotFound is the common case
 			// (job not running, token already removed).
+			//
+			// known-issues L13: perform a dummy constant-time compare so a
+			// miss costs roughly the same as a wrong-token hit; otherwise the
+			// timing of the token-store lookup itself leaks whether the job
+			// id exists.
+			_ = constantTimeLengthEq(len(bearer), len(bearer))
+			_ = subtle.ConstantTimeCompare([]byte(bearer), []byte(bearer))
 			writeError(w, http.StatusUnauthorized, "invalid token")
 			return
 		}

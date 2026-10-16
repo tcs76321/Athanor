@@ -122,4 +122,16 @@ func TestRunCommand_PropagatesVerdict(t *testing.T) {
 	if res.Reason != "scanner:rej:rejected" {
 		t.Errorf("Reason = %q, want scanner:rej:rejected", res.Reason)
 	}
+	// known-issues L8: exit 0 with detection output is not clean (YARA exits 0
+	// and prints matches to stdout).
+	if _, err := os.Stat("/bin/echo"); err != nil {
+		t.Skipf("no /bin/echo: %v", err)
+	}
+	res, err = runCommand(context.Background(), "noisy", "/bin/echo", []string{"match"}, scanner.ScanInput{Bytes: []byte("x")})
+	if err != nil {
+		t.Fatalf("runCommand echo: %v", err)
+	}
+	if res.Verdict != scanner.VerdictRejected {
+		t.Errorf("exit-0 with stdout: Verdict = %v, want VerdictRejected (known-issues L8)", res.Verdict)
+	}
 }

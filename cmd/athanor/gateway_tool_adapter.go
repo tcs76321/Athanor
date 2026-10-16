@@ -35,14 +35,21 @@ type gatewayToolAdapter struct {
 	// maxSearchResults bounds ExtractSearchHits. A fixed constant:
 	// result pages carry 10–20 organic links; more is chrome.
 	maxSearchResults int
+	// responseCap is the configured network.max_response_bytes, the base for
+	// the halved re-fetch (known-issues L9); zero falls back to the 10 MiB
+	// §21.5 default.
+	responseCap int64
 }
 
 // newGatewayToolAdapter returns the internalapi.ToolGateway for the
 // daemon's GatewayParts. searchTemplate is the raw config value
 // (validated at config load); an empty value leaves search_web
-// inert.
-func newGatewayToolAdapter(parts GatewayParts, searchTemplate string) *gatewayToolAdapter {
-	return &gatewayToolAdapter{parts: parts, searchTemplate: searchTemplate, maxSearchResults: 10}
+// inert. responseCap is network.max_response_bytes.
+func newGatewayToolAdapter(parts GatewayParts, searchTemplate string, responseCap int64) *gatewayToolAdapter {
+	if responseCap <= 0 {
+		responseCap = 10485760
+	}
+	return &gatewayToolAdapter{parts: parts, searchTemplate: searchTemplate, maxSearchResults: 10, responseCap: responseCap}
 }
 
 // FetchURL implements internalapi.ToolGateway. Flow: build the
@@ -206,13 +213,9 @@ type extraction struct {
 	contentType string
 }
 
-// capBytes reports the primary client's response cap, used as the
-// base for the halved re-fetch. The adapter cannot read the concrete
-// client's cap through the interface; the §21.5 default (10 MiB,
-// also the shipped config default) is the documented value. The
-// factory closure in startGateway knows the real configured cap; the
-// adapter uses the conservative default as the divisor seed.
-func (a *gatewayToolAdapter) capBytes() int64 { return 10485760 }
+// capBytes reports the configured response cap, used as the base for the
+// halved re-fetch (known-issues L9; previously a hardcoded 10 MiB).
+func (a *gatewayToolAdapter) capBytes() int64 { return a.responseCap }
 
 // fetchResponse assembles the tool response from the fetch + the
 // winning extraction.

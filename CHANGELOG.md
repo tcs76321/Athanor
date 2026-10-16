@@ -10,6 +10,25 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Pod, gateway & API hardening (L6, L8, L9, L11–L13) — 2026-10-16
+
+- **L11 — flag-like image rejected.** `jobpod.validateSpec` refuses an image
+  beginning with `-` or containing whitespace, and `buildArgs` emits `--` before
+  the image so it is always the first positional argument.
+- **L12 — gateway header allowlist.** Request header sanitization is now an
+  allow-list (User-Agent, Accept, Accept-Language, Accept-Encoding,
+  If-None-Match, If-Modified-Since); anything else is stripped, so an unlisted
+  credential header can never leave the gateway.
+- **L13 — auth timing.** The internal-API middleware performs a dummy
+  constant-time compare on a token-store miss so a miss does not leak job-ID
+  existence via timing.
+- **L8 — scanner exit-0 with output is a rejection.** `scanners.runCommand`
+  requires empty stdout for a clean verdict (YARA exits 0 and prints matches).
+- **L9 — configured re-fetch cap.** `gatewayToolAdapter` takes
+  `network.max_response_bytes` instead of a hardcoded 10 MiB.
+- **L6 — documented shell containment.** `run_tests`/`lint` comments state that
+  the task-defined command is Core-resolved and the Job Pod is the boundary.
+
 ### Doctor hardening (M18, L23) — 2026-10-16
 
 - **M18 — disk check falls back to an ancestor.** On a fresh clone the state
