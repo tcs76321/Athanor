@@ -478,6 +478,56 @@ func finalKindFor(archetype string) artifact.Kind {
 	}
 }
 
+// bestPassingCandidate selects the job's evaluated candidate to synthesize
+// from: the highest-scoring candidate that passed deterministic verification
+// (real tests, no missing criteria, no security issues). When no candidate
+// passed — or the evaluation repo is not wired — it falls back to the latest
+// proposal and reports ok=false. This prevents synthesis from refining an
+// arbitrary (possibly failing) proposal and discarding a candidate that
+// already passed the real tests (M8-T26b).
+func (e *Engine) bestPassingCandidate(ctx context.Context, j job.Job) (artifact.Artifact, bool, error) {
+	candidates, err := e.listCandidateArtifacts(ctx, j)
+	if err != nil {
+		return artifact.Artifact{}, false, fmt.Errorf("listing candidates: %w", err)
+	}
+	if len(candidates) == 0 {
+		return artifact.Artifact{}, false, fmt.Errorf("no divergence candidates for job %s", j.ID)
+	}
+	if e.eval == nil {
+		return candidates[len(candidates)-1], false, nil
+	}
+	records, err := e.eval.ListByJob(ctx, j.ID)
+	if err != nil {
+		return artifact.Artifact{}, false, fmt.Errorf("listing evaluation records: %w", err)
+	}
+	passing := map[string]bool{}
+	score := map[string]float64{}
+	for _, r := range records {
+		if r.PassedTests && len(r.MissingCriteria) == 0 && len(r.SecurityIssues) == 0 {
+			passing[r.ArtifactID] = true
+		}
+		if cur, seen := score[r.ArtifactID]; !seen || r.Score > cur {
+			score[r.ArtifactID] = r.Score
+		}
+	}
+	var chosen *artifact.Artifact
+	var chosenScore float64
+	for i := range candidates {
+		if !passing[candidates[i].ID] {
+			continue
+		}
+		if chosen == nil || score[candidates[i].ID] > chosenScore {
+			c := candidates[i]
+			chosen = &c
+			chosenScore = score[candidates[i].ID]
+		}
+	}
+	if chosen != nil {
+		return *chosen, true, nil
+	}
+	return candidates[len(candidates)-1], false, nil
+}
+
 // phaseSynthesize (§13.1 Phase 5): main persona refines the persisted
 // proposal into the final draft artifact. Re-runs after a crash version
 // the existing artifact instead of piling up drafts.
@@ -494,9 +544,9 @@ func (e *Engine) phaseSynthesize(ctx context.Context, j job.Job) error {
 	if err != nil {
 		return err
 	}
-	candidate, err := e.artifacts.LatestForJob(ctx, j.ID, artifact.KindProposal)
+	candidate, passed, err := e.bestPassingCandidate(ctx, j)
 	if err != nil {
-		return fmt.Errorf("loading divergence candidate: %w", err)
+		return err
 	}
 	candidateContent, err := e.artifacts.ReadContent(ctx, candidate.ID)
 	if err != nil {
@@ -522,6 +572,22 @@ func (e *Engine) phaseSynthesize(ctx context.Context, j job.Job) error {
 	content := resp.Content
 	if p.Archetype == project.ArchetypeCode {
 		content = normalizeCode(content)
+		// M8-T26b: never discard a verified candidate. If the rewrite fails
+		// the deterministic verifier while the source candidate passed the real
+		// tests, keep the candidate's bytes as the final artifact. A candidate
+		// that passed real tests is valid by Gate G3, so this can only ever
+		// make acceptance more honest, never weaker.
+		if passed {
+			if ver, _, verr := e.verifyCandidate(ctx, j, p, t, content, 0); verr == nil {
+				e.auditVerification(ctx, j.ID, "final", ver)
+				if ver.HardDecisive() && !ver.HardPassed {
+					content = string(candidateContent)
+					e.audit(ctx, j.ID, map[string]any{
+						"event": "synthesis_fallback_to_candidate", "candidate_id": candidate.ID,
+					})
+				}
+			}
+		}
 	}
 
 	kind := finalKindFor(p.Archetype)

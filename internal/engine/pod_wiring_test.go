@@ -166,24 +166,24 @@ func (f *fakeRunner) run(_ context.Context, jobID string, req toolenvelope.Execu
 //
 // M3-T2 (ADR-0014) moved both RunCode and RunTests from the
 // synthesis phase into the per-candidate `evaluating` phase.
-// After Run completes, the log has 3 RunCode calls + 3
-// RunTests calls, all in `evaluating`. `synthesizing` no longer
-// touches the runner.
+// After Run completes, `evaluating` has 3 RunCode + 3 RunTests; `synthesizing`
+// adds the M8-T26b fallback verification (1+1) and `comparing` the F4-T3 final
+// verification (1+1).
 func TestRun_CodeArchetypeCallsRunner(t *testing.T) {
 	env := newEnv(t)
 	codeJobID := env.submitCode(t)
 
 	env.eng.Run(context.Background(), codeJobID)
 
-	// M3-T2 (ADR-0014): 3 candidates × (RunCode + RunTests) in
-	// `evaluating` = 6 runner calls, plus F4-T3's final-artifact
-	// verification in `comparing` = 8 total.
-	if got := env.runner.CallCount(); got != 8 {
-		t.Errorf("runner calls = %d, want 8 (3*evaluating RunCode + 3*evaluating RunTests + 1 final RunCode + 1 final RunTests)", got)
+	// M3-T2 (ADR-0014): 3 candidates × (RunCode + RunTests) in `evaluating`
+	// = 6 runner calls, plus M8-T26b's synthesis-fallback verification = 2,
+	// plus F4-T3's final-artifact verification in `comparing` = 2 → 10 total.
+	if got := env.runner.CallCount(); got != 10 {
+		t.Errorf("runner calls = %d, want 10 (3*RunCode + 3*RunTests evaluating + 1+1 synthesis fallback + 1+1 comparison)", got)
 	}
 	calls := env.runner.Calls()
-	if len(calls) != 8 {
-		t.Fatalf("calls = %d, want 8", len(calls))
+	if len(calls) != 10 {
+		t.Fatalf("calls = %d, want 10", len(calls))
 	}
 	codeCount, testCount := 0, 0
 	var codeCall, testCall fakeCall
@@ -197,14 +197,14 @@ func TestRun_CodeArchetypeCallsRunner(t *testing.T) {
 			testCall = c
 		}
 	}
-	if codeCount != 4 {
-		t.Errorf("RunCode calls = %d, want 4 (3 candidates + 1 final artifact)", codeCount)
+	if codeCount != 5 {
+		t.Errorf("RunCode calls = %d, want 5 (3 candidates + 1 synthesis fallback + 1 comparison final)", codeCount)
 	}
 	if codeCall.Lang != "python" {
 		t.Errorf("RunCode language = %q, want python", codeCall.Lang)
 	}
-	if testCount != 4 {
-		t.Errorf("RunTests calls = %d, want 4 (3 candidates + 1 final artifact)", testCount)
+	if testCount != 5 {
+		t.Errorf("RunTests calls = %d, want 5 (3 candidates + 1 synthesis fallback + 1 comparison final)", testCount)
 	}
 	if testCall.Cmd != "pytest -q" {
 		t.Errorf("RunTests command = %q, want pytest -q", testCall.Cmd)
