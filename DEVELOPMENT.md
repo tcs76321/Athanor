@@ -16,6 +16,8 @@ make run          # run the daemon locally
 
 Don't run bare `go build` / `go test` — they silently drop CGO and fail on the sqlite3 driver. The Makefile sets the flag for you, and CI enforces the same targets.
 
+**Toolchain.** The module pins `toolchain go1.27.2` (CI installs 1.27.2). Run `make lint` with **golangci-lint v2.15.0 or newer** — older releases read Go export-data version 4 and cannot load the version 5 that go1.27.2 emits (you'll see `cannot decode ... export data version 5`). CI builds/downloads v2.15.0 via the lint action.
+
 ### Dependencies
 
 The project stays deliberately lean. Every direct dependency is pinned
