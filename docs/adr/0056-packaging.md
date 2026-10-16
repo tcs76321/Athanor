@@ -1,6 +1,6 @@
 # ADR 0056 — Packaging and headless install
 
-**Status:** Accepted · **Date:** 2026-10-05 · **Refs:** ARCHITECTURE §21.2
+**Status:** Accepted (amended by [ADR-0069](0069-core-pod-packaging.md)) · **Date:** 2026-10-05 · **Refs:** ARCHITECTURE §21.2
 (Job Pod hardening), §30.2 (doctor), §32 (deployment); ROADMAP M7-T7, M7-T8
 
 ## Context
@@ -38,7 +38,9 @@ those markers, so a rename cannot silently break the installer.
 ## Consequences
 
 - No Core Pod OCI image is published in this milestone. The daemon runs as a
-  host binary under systemd/launchd; Job Pods still ship as OCI images. A
-  Core-image deployment can be layered on later without changing the daemon.
+  host binary under systemd/launchd; Job Pods still ship as OCI images.
+  **Amended by [ADR-0069](0069-core-pod-packaging.md):** the Core Pod image is
+  now built, and the host-binary shape remains supported as the
+  development/alternative deployment.
 - The fresh-install demo (<15 min) and the §31.3 security-audit sign-off are
   human checkpoints (ROADMAP Gate G7), not automated by this ADR.
