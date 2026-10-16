@@ -133,6 +133,23 @@ func TestHeuristic_LargeBase64Blob(t *testing.T) {
 	}
 }
 
+// TestHeuristic_LaterBase64BlobDetected (known-issues L7): a short leading
+// base64-shaped run must not mask a long blob later in the input. The earlier
+// leftmost-only check stopped at the first (short) match.
+func TestHeuristic_LaterBase64BlobDetected(t *testing.T) {
+	p := NewPromptInjectionHeuristic(1)
+	short := strings.Repeat("Q", 300)                     // >= 256, < base64MinLen
+	long := strings.Repeat("Z", base64MinLenForTest()+64) // >= base64MinLen
+	text := "prefix " + short + " middle " + long + " suffix"
+	res, err := p.Scan(context.Background(), ScanInput{Bytes: []byte(text)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Verdict != VerdictRejected {
+		t.Errorf("later base64 blob: Verdict = %v, want VerdictRejected (known-issues L7)", res.Verdict)
+	}
+}
+
 // TestHeuristic_RoleReassignmentAfterPrefix (M4-T8): the
 // "you are now" pattern anchors at line start (deliberately — a
 // mid-line "the file you are now reading" is benign prose), and with

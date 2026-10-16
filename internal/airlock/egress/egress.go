@@ -301,7 +301,10 @@ func (e *Exporter) ExportOne(ctx context.Context, artifactID string) (path strin
 	if err != nil {
 		return "", false, fmt.Errorf("get project %s: %w", art.ProjectID, err)
 	}
-	dst := ExportPath(e.workspaceRoot, proj.ID, art.ID, art.ContentHash)
+	dst, err := ExportPath(e.workspaceRoot, proj.ID, art.ID, art.ContentHash)
+	if err != nil {
+		return "", false, err
+	}
 	// Idempotency: if the export already exists
 	// with the expected content, the export is a
 	// no-op. The check is a single os.Stat + a

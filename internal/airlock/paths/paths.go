@@ -162,9 +162,21 @@ func Validate(root, rel string, opts ValidateOptions) (string, error) {
 // OpenNoFollow resolves the path, validates it, and opens it
 // with O_NOFOLLOW. The kernel-level no-follow closes the
 // TOCTOU window between Validate's Lstat and the open(2)
-// syscall: if a symlink appeared at the final component
-// after the Lstat, open returns ELOOP instead of following
-// the symlink to an attacker-controlled target.
+// syscall for the FINAL component: if a symlink appeared at the
+// final component after the Lstat, open returns ELOOP instead
+// of following the symlink to an attacker-controlled target.
+//
+// known-issues M6: this does NOT close the equivalent race for
+// intermediate directory components. Validate's EvalSymlinks
+// canonicalizes the whole path, but an intermediate directory
+// could still be swapped for a symlink in the window between
+// that check and this open(2). Fully closing it would need
+// openat2/RESOLVE_BENEATH (Linux-only) or a component-wise
+// walk-and-open; the threat model is a local single-user
+// workspace, and Validate still rejects a path that is *already*
+// a symlink escape. The guarantee here is deliberately stated as
+// "the final component is no-follow", not "no symlink is ever
+// followed".
 //
 // The O_NOFOLLOW constant is reached through noFollowFlag(),
 // which is defined in a build-tag-gated file (paths_linux.go

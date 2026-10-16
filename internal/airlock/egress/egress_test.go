@@ -154,7 +154,10 @@ func TestExportOne_CleanArtifactLandsInExports(t *testing.T) {
 	if _, _, err := h.exporter.ExportOne(context.Background(), art.ID); err != nil {
 		t.Fatalf("ExportOne: %v", err)
 	}
-	dst := ExportPath(h.workspace, p.ID, art.ID, art.ContentHash)
+	dst, perr := ExportPath(h.workspace, p.ID, art.ID, art.ContentHash)
+	if perr != nil {
+		t.Fatal(perr)
+	}
 	matches, err := filepath.Glob(filepath.Join(dst, "*"))
 	if err != nil {
 		t.Fatal(err)
@@ -192,7 +195,10 @@ func TestExportOne_Idempotent(t *testing.T) {
 			t.Fatalf("ExportOne #%d: %v", i, err)
 		}
 	}
-	dst := ExportPath(h.workspace, p.ID, art.ID, art.ContentHash)
+	dst, perr := ExportPath(h.workspace, p.ID, art.ID, art.ContentHash)
+	if perr != nil {
+		t.Fatal(perr)
+	}
 	matches, _ := filepath.Glob(filepath.Join(dst, "*"))
 	nonTmp := 0
 	for _, m := range matches {
@@ -223,7 +229,10 @@ func TestExportOne_PoisonedTreeBlocked(t *testing.T) {
 	if _, _, err := h.exporter.ExportOne(context.Background(), art.ID); err != nil {
 		t.Fatalf("ExportOne: %v (a blocked export should not error)", err)
 	}
-	dst := ExportPath(h.workspace, p.ID, art.ID, art.ContentHash)
+	dst, perr := ExportPath(h.workspace, p.ID, art.ID, art.ContentHash)
+	if perr != nil {
+		t.Fatal(perr)
+	}
 	matches, _ := filepath.Glob(filepath.Join(dst, "*"))
 	nonTmp := 0
 	for _, m := range matches {
@@ -275,7 +284,10 @@ func TestExportOne_NotAcceptedArtifact(t *testing.T) {
 	if _, _, err := h.exporter.ExportOne(context.Background(), art.ID); err != nil {
 		t.Fatalf("ExportOne: %v", err)
 	}
-	dst := ExportPath(h.workspace, p.ID, art.ID, art.ContentHash)
+	dst, perr := ExportPath(h.workspace, p.ID, art.ID, art.ContentHash)
+	if perr != nil {
+		t.Fatal(perr)
+	}
 	if _, err := os.Stat(dst); err == nil {
 		t.Errorf("export directory was created for a non-accepted artifact: %s", dst)
 	}
@@ -356,7 +368,10 @@ func TestExtractAcceptedArtifactID(t *testing.T) {
 
 // TestExportPath pins the directory layout.
 func TestExportPath(t *testing.T) {
-	got := ExportPath("/state/workspace", "proj-id", "art-id", "abcdef1234567890...")
+	got, err := ExportPath("/state/workspace", "proj-id", "art-id", "abcdef1234567890...")
+	if err != nil {
+		t.Fatal(err)
+	}
 	want := filepath.Join("/state/workspace", "exports", "proj-id", "art-id-abcdef123456")
 	if got != want {
 		t.Errorf("ExportPath = %q, want %q", got, want)
@@ -372,5 +387,20 @@ func TestExportPath(t *testing.T) {
 	}
 	if _, err := hex.DecodeString(suffix); err != nil {
 		t.Errorf("hash suffix %q is not hex: %v", suffix, err)
+	}
+}
+
+// TestExportPathRejectsTraversal (known-issues L10): an unsafe project/artifact
+// component is an error, never a path outside the exports tree.
+func TestExportPathRejectsTraversal(t *testing.T) {
+	cases := [][2]string{
+		{"../evil", "art"},
+		{"proj", "../../etc"},
+		{"/abs", "art"},
+	}
+	for _, c := range cases {
+		if got, err := ExportPath("/state/workspace", c[0], c[1], "abc"); err == nil {
+			t.Errorf("ExportPath(%q, %q) = %q, want an error", c[0], c[1], got)
+		}
 	}
 }

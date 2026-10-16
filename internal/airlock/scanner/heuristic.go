@@ -135,22 +135,27 @@ func (p *PromptInjectionHeuristic) Scan(ctx context.Context, in ScanInput) (Scan
 	// attacker evade the check by chaining padded blobs into one long
 	// run (the mid-stream "==" breaks the decode). Shape + size is the
 	// gate now; decodability is recorded when it works, not required.
-	if loc := base64Re.FindStringIndex(text); loc != nil {
+	//
+	// known-issues L7: scan EVERY run, not just the leftmost. The
+	// earlier FindStringIndex stopped at the first match, so a short
+	// leading run could mask a long blob later in the input.
+	for _, loc := range base64Re.FindAllStringIndex(text, -1) {
 		matchLen := loc[1] - loc[0]
-		if matchLen >= base64MinLen {
-			details := map[string]any{
-				"blob_offset": loc[0],
-				"blob_size":   matchLen,
-			}
-			if blob, err := base64.StdEncoding.DecodeString(text[loc[0]:loc[1]]); err == nil && len(blob) > 0 {
-				details["decoded_size"] = len(blob)
-			}
-			return ScanResult{
-				Verdict: VerdictRejected,
-				Reason:  "scanner:prompt-injection-heuristic:base64_blob",
-				Details: details,
-			}, nil
+		if matchLen < base64MinLen {
+			continue
 		}
+		details := map[string]any{
+			"blob_offset": loc[0],
+			"blob_size":   matchLen,
+		}
+		if blob, err := base64.StdEncoding.DecodeString(text[loc[0]:loc[1]]); err == nil && len(blob) > 0 {
+			details["decoded_size"] = len(blob)
+		}
+		return ScanResult{
+			Verdict: VerdictRejected,
+			Reason:  "scanner:prompt-injection-heuristic:base64_blob",
+			Details: details,
+		}, nil
 	}
 	return ScanResult{
 		Verdict: VerdictClean,

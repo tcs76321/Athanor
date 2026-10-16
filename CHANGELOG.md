@@ -10,6 +10,18 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Airlock hardening (M6, L7, L10) — 2026-10-16
+
+- **L7 — base64 heuristic scans every run.** `PromptInjectionHeuristic` used
+  the leftmost regex match, so a short leading run could mask a long blob later
+  in the input; it now iterates all matches.
+- **L10 — export path containment.** `egress.ExportPath` now routes the
+  project/artifact components through `airlock/paths.Resolve`, so an unsafe id
+  is an error (not a silently rewritten path); it returns `(string, error)`.
+- **M6 — accurate O_NOFOLLOW doc.** Corrected the `paths.OpenNoFollow` comment
+  to state that it closes the final-component TOCTOU race only, not the
+  intermediate-directory race (which would need `openat2`/`RESOLVE_BENEATH`).
+
 ### Config & power hardening (M2, M12, L22, L25) — 2026-10-16
 
 - **M2 — config bounds reject negatives.** `validateRaw` now range-checks
