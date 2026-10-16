@@ -37,6 +37,7 @@ func (c *ChunkStore) PruneSource(ctx context.Context, sourceHash string) (int, e
 		`DELETE FROM context_active   WHERE chunk_id IN (SELECT id FROM context_chunks WHERE source_hash = ?)`,
 		`DELETE FROM memory_embeddings WHERE owner_id IN (SELECT id FROM context_chunks WHERE source_hash = ?)`,
 		`DELETE FROM dormant_index    WHERE chunk_id IN (SELECT id FROM context_chunks WHERE source_hash = ?)`,
+		`DELETE FROM context_chunk_owners WHERE chunk_id IN (SELECT id FROM context_chunks WHERE source_hash = ?)`,
 	} {
 		if _, err := tx.ExecContext(ctx, stmt, sourceHash); err != nil {
 			return 0, fmt.Errorf("mce: prune source %s: %w", sourceHash, err)

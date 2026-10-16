@@ -34,7 +34,7 @@ func TestEnrichFillsSummariesAndIsIdempotent(t *testing.T) {
 	hash := chunks[0].SourceHash
 
 	f := &fakeSummarizer{summary: "declares a function"}
-	res, err := cs.Enrich(ctx, hash, f)
+	res, err := cs.Enrich(ctx, hash, f, -1)
 	if err != nil {
 		t.Fatalf("Enrich: %v", err)
 	}
@@ -52,7 +52,7 @@ func TestEnrichFillsSummariesAndIsIdempotent(t *testing.T) {
 	}
 
 	before := f.calls
-	res2, err := cs.Enrich(ctx, hash, f)
+	res2, err := cs.Enrich(ctx, hash, f, -1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -74,7 +74,7 @@ func TestEnrichDegradesOnSummarizerError(t *testing.T) {
 	hash := chunks[0].SourceHash
 
 	f := &fakeSummarizer{err: errors.New("ollama unreachable")}
-	res, err := cs.Enrich(ctx, hash, f)
+	res, err := cs.Enrich(ctx, hash, f, -1)
 	if err != nil {
 		t.Fatalf("Enrich must not fail on a summarizer error: %v", err)
 	}
@@ -101,7 +101,7 @@ func TestEnrichDegradesOnSummarizerError(t *testing.T) {
 
 func TestEnrichRequiresSummarizer(t *testing.T) {
 	cs, _ := newStore(t)
-	if _, err := cs.Enrich(context.Background(), "whatever", nil); err == nil {
+	if _, err := cs.Enrich(context.Background(), "whatever", nil, -1); err == nil {
 		t.Error("Enrich(nil summarizer) returned a nil error")
 	}
 }

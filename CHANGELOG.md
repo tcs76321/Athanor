@@ -10,6 +10,26 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### MCE hardening (M1, L1–L4) — 2026-10-16
+
+- **M1 — multi-owner chunk attribution.** Content-derived chunk ids mean
+  identical bytes divided for two projects resolve to one id; the single
+  `(project_id, job_id)` columns on `context_chunks` could only record one
+  owner, so the second project's index was incomplete. A new
+  `context_chunk_owners` table (migration 0027, backfilled) records every
+  `(chunk, scope)` pair; `IndexForJob`/`IndexForProject`/`Owns`/`PruneSource`
+  read and prune it.
+- **L1 — 128-bit chunk ids.** `division.chunkID` widened from 16 to 32 hex
+  chars (matching `compactionID`), removing the 64-bit birthday-collision risk.
+- **L2 — nanosecond mtime.** The incremental-index skip now compares
+  `ModTime().UnixNano()`, so a same-second, same-size edit is no longer skipped.
+- **L3 — per-file model budget.** `RunOnce` hands each file the remaining
+  model-call budget; `Enrich`/`embedSource` cap their calls, so one large file
+  cannot exceed `MaxChunks` by an order of magnitude.
+- **L4 — atomic dimension pin.** `SQLVectorIndex.Put` reads the pinned dimension
+  and writes the vector in one transaction (atomic under the single-connection
+  discipline), so two first-embeddings cannot leave mixed dimensions.
+
 ### D2/E1/E2/E3/E4 — housekeeping sweep — 2026-10-16
 
 - **`athanor export` was a dead route (E1).** The CLI posted to a non-existent

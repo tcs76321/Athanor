@@ -61,25 +61,18 @@ func (c *ChunkStore) Owns(ctx context.Context, chunkID, jobID, projectID string)
 	if chunkID == "" {
 		return false, nil
 	}
-	var job, project sql.NullString
-	err := c.db.DB().QueryRowContext(ctx,
-		`SELECT job_id, project_id FROM context_chunks WHERE id = ?`, chunkID).Scan(&job, &project)
-	if errors.Is(err, sql.ErrNoRows) {
-		return false, nil
-	}
+	var owned int
+	// known-issues M1: ownership is many-to-many in context_chunk_owners.
+	err := c.db.DB().QueryRowContext(ctx, `
+		SELECT COUNT(*) FROM context_chunk_owners
+		WHERE chunk_id = ?
+		  AND ((job_id != '' AND job_id = ?)
+		       OR (job_id = '' AND project_id != '' AND project_id = ?))`,
+		chunkID, jobID, projectID).Scan(&owned)
 	if err != nil {
 		return false, fmt.Errorf("mce: read chunk ownership for %s: %w", chunkID, err)
 	}
-	if job.Valid && jobID != "" && job.String == jobID {
-		return true, nil
-	}
-	// Project ownership admits only job-less repository chunks; a chunk that
-	// carries both a project and a (different) job id is another job's
-	// working set and is out of scope here.
-	if project.Valid && !job.Valid && projectID != "" && project.String == projectID {
-		return true, nil
-	}
-	return false, nil
+	return owned > 0, nil
 }
 
 // Swap makes targetChunkID the active chunk for scope (§10.1; M5-T3).

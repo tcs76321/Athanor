@@ -13,9 +13,10 @@ import (
 //
 // `indexed_sources` (migration 0014) records what the M5-T8 indexer has seen:
 // one row per (project, workspace-relative path) carrying the file's size,
-// mtime, and content hash plus the chunk count it produced. A pass skips a
-// file whose size and mtime match its row without reading it; a changed hash
-// means the superseded source is pruned and the row is rewritten.
+// nanosecond mtime (known-issues L2), and content hash plus the chunk count it
+// produced. A pass skips a file whose size and mtime match its row without
+// reading it; a changed hash means the superseded source is pruned and the row
+// is rewritten.
 
 // SourceRow is one manifest row.
 type SourceRow struct {
@@ -23,7 +24,7 @@ type SourceRow struct {
 	RelPath    string
 	Lang       string
 	Size       int64
-	MTimeUnix  int64
+	MTimeUnix  int64 // modification time in Unix nanoseconds (known-issues L2)
 	SourceHash string
 	Chunks     int
 	// Status is "ok" after a successful index, or "failed" with Error set;

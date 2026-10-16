@@ -48,6 +48,42 @@ func A() { fmt.Println("a") }
 func B() { return }
 `
 
+// TestPutSourceMultiOwner (known-issues M1): identical content ingested for two
+// projects is attributed to both, so neither project's index is incomplete, and
+// a later job-scoped ingest of the same bytes does not steal the project's
+// attribution.
+func TestPutSourceMultiOwner(t *testing.T) {
+	cs, _ := newStore(t)
+	ctx := context.Background()
+	chunks := divide(t, "shared.go", "go", []byte(goSource))
+
+	if _, err := cs.PutSource(ctx, SourceRef{RelPath: "shared.go", ProjectID: "p1"}, chunks); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := cs.PutSource(ctx, SourceRef{RelPath: "shared.go", ProjectID: "p2"}, chunks); err != nil {
+		t.Fatal(err)
+	}
+	for _, pid := range []string{"p1", "p2"} {
+		entries, err := cs.IndexForProject(ctx, pid, "", 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(entries) == 0 {
+			t.Errorf("project %s index is empty; the chunk must be owned by both (M1)", pid)
+		}
+	}
+
+	if _, err := cs.PutSource(ctx, SourceRef{RelPath: "shared.go", ProjectID: "p1", JobID: "j1"}, chunks); err != nil {
+		t.Fatal(err)
+	}
+	if entries, _ := cs.IndexForProject(ctx, "p1", "", 0); len(entries) == 0 {
+		t.Errorf("p1 lost project ownership after a job-scoped ingest of the same content")
+	}
+	if entries, _ := cs.IndexForJob(ctx, "j1"); len(entries) == 0 {
+		t.Errorf("j1 index is empty after a job-scoped ingest")
+	}
+}
+
 // TestPutSourceRoundTripByteExact is the store half of M5-T2's acceptance:
 // chunks persisted to SQLite reassemble byte-for-byte.
 func TestPutSourceRoundTripByteExact(t *testing.T) {

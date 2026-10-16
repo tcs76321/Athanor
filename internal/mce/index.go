@@ -142,7 +142,9 @@ func (ix *Indexer) RunOnce(ctx context.Context, opts IndexOptions) (IndexResult,
 			continue
 		}
 		attempted++
-		out, ierr := ix.indexFile(ctx, f, opts)
+		// known-issues L3: hand each file the remaining model-call budget so
+		// one large file cannot blow past maxChunks by an order of magnitude.
+		out, ierr := ix.indexFile(ctx, f, opts, maxChunks-modelCalls)
 		res.Chunks += out.chunks
 		res.Summarized += out.summarized
 		res.Embedded += out.embedded
@@ -221,8 +223,10 @@ type fileOutcome struct {
 }
 
 // indexFile divides and stores one file, supersedes its previous revision,
-// fills summaries, and embeds ready chunks.
-func (ix *Indexer) indexFile(ctx context.Context, f FileRef, opts IndexOptions) (fileOutcome, error) {
+// fills summaries, and embeds ready chunks. budget is the remaining model-call
+// allowance for this pass (known-issues L3); summarization and embedding never
+// exceed it, so unsummarized chunks stay pending for the next pass.
+func (ix *Indexer) indexFile(ctx context.Context, f FileRef, opts IndexOptions, budget int) (fileOutcome, error) {
 	ingest, err := ix.chunks.IngestFile(ctx, opts.Root, f.RelPath, IngestOptions{
 		MaxSourceBytes:   opts.MaxSourceBytes,
 		MaxChunkBytes:    opts.MaxChunkBytes,
@@ -248,8 +252,9 @@ func (ix *Indexer) indexFile(ctx context.Context, f FileRef, opts IndexOptions) 
 		}
 	}
 
+	embedBudget := budget
 	if ix.summarizer != nil {
-		enr, err := ix.chunks.Enrich(ctx, out.sourceHash, ix.summarizer)
+		enr, err := ix.chunks.Enrich(ctx, out.sourceHash, ix.summarizer, budget)
 		if err != nil {
 			return out, err
 		}
@@ -257,9 +262,10 @@ func (ix *Indexer) indexFile(ctx context.Context, f FileRef, opts IndexOptions) 
 		if enr.Failed > 0 {
 			return out, fmt.Errorf("summarizer failed for %d chunk(s)", enr.Failed)
 		}
+		embedBudget = budget - (enr.Enriched + enr.Failed)
 	}
 
-	embedded, err := ix.embedSource(ctx, out.sourceHash, opts)
+	embedded, err := ix.embedSource(ctx, out.sourceHash, opts, embedBudget)
 	out.embedded = embedded
 	if err != nil {
 		return out, err
@@ -298,10 +304,11 @@ func (ix *Indexer) pruneUnshared(ctx context.Context, projectID, sourceHash stri
 	return err
 }
 
-// embedSource embeds a digest of every summarized chunk of a source. Chunks
+// embedSource embeds a digest of every summarized chunk of a source, making at
+// most `limit` embeddings (limit < 0 means unlimited; 0 makes none). Chunks
 // whose stored digest is unchanged are skipped, so a re-pass makes no model
 // call for them.
-func (ix *Indexer) embedSource(ctx context.Context, sourceHash string, opts IndexOptions) (int, error) {
+func (ix *Indexer) embedSource(ctx context.Context, sourceHash string, opts IndexOptions, limit int) (int, error) {
 	if !ix.vectorEnabled() {
 		return 0, nil
 	}
@@ -315,6 +322,9 @@ func (ix *Indexer) embedSource(ctx context.Context, sourceHash string, opts Inde
 	}
 	var ids, texts, hashes []string
 	for _, e := range entries {
+		if limit >= 0 && len(texts) >= limit {
+			break
+		}
 		if e.SummaryStatus != "ready" {
 			continue
 		}

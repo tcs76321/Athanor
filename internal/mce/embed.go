@@ -110,6 +110,11 @@ func NewSQLVectorIndex(s *store.Store) *SQLVectorIndex { return &SQLVectorIndex{
 // the owner's bytes changed. The dimension is pinned by the rows already
 // stored for a model: a later vector of a different length is
 // ErrEmbeddingDimMismatch, never a silent overwrite.
+//
+// known-issues L4: the pin read and the write run in one transaction. Under
+// the single-connection discipline (ADR-0003/0027) a transaction holds the one
+// connection, so two "first embeddings" for a model cannot both observe an
+// empty table and then store different dimensions.
 func (v *SQLVectorIndex) Put(ctx context.Context, rec EmbeddingRecord) error {
 	if rec.OwnerID == "" || rec.Model == "" {
 		return errors.New("mce: embedding requires owner_id and model")
@@ -120,8 +125,14 @@ func (v *SQLVectorIndex) Put(ctx context.Context, rec EmbeddingRecord) error {
 	if len(rec.Vector) == 0 {
 		return errors.New("mce: embedding has an empty vector")
 	}
+	tx, err := v.db.DB().BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("mce: begin embedding put: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
 	var dim int
-	err := v.db.DB().QueryRowContext(ctx,
+	err = tx.QueryRowContext(ctx,
 		`SELECT dim FROM memory_embeddings WHERE model = ? LIMIT 1`, rec.Model).Scan(&dim)
 	switch {
 	case err == nil && dim != len(rec.Vector):
@@ -131,7 +142,7 @@ func (v *SQLVectorIndex) Put(ctx context.Context, rec EmbeddingRecord) error {
 		return fmt.Errorf("mce: reading embedding dimension: %w", err)
 	}
 
-	if _, err := v.db.DB().ExecContext(ctx, `
+	if _, err := tx.ExecContext(ctx, `
 		INSERT INTO memory_embeddings
 		    (owner_id, source_kind, model, dim, vector, content_hash, project_id, job_id)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -145,6 +156,9 @@ func (v *SQLVectorIndex) Put(ctx context.Context, rec EmbeddingRecord) error {
 		encodeVector(rec.Vector), rec.ContentHash,
 		nullIfEmpty(rec.Scope.ProjectID), nullIfEmpty(rec.Scope.JobID)); err != nil {
 		return fmt.Errorf("mce: store embedding for %s: %w", rec.OwnerID, err)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("mce: commit embedding for %s: %w", rec.OwnerID, err)
 	}
 	return nil
 }

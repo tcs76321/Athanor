@@ -29,7 +29,11 @@ type EnrichResult struct {
 	Failed int
 }
 
-// Enrich fills dormant_index.summary for every chunk of a source hash.
+// Enrich fills dormant_index.summary for every chunk of a source hash, making
+// at most `limit` summarizer calls (limit < 0 means unlimited; 0 makes none).
+// known-issues L3: a single large file can carry far more chunks than a pass's
+// total budget, so the indexer passes the remaining budget here and any
+// unsummarized chunks stay 'pending' for the next pass.
 //
 // It is idempotent: a chunk whose summary is already 'ready' is skipped, so a
 // second pass over an unchanged source does no work. A summarizer failure is
@@ -39,7 +43,7 @@ type EnrichResult struct {
 // The dormant_index CHECK set also admits 'failed'; that status is reserved
 // for a future permanent-failure policy and is not written here, so a
 // transient summarizer outage is retryable.
-func (c *ChunkStore) Enrich(ctx context.Context, sourceHash string, s Summarizer) (EnrichResult, error) {
+func (c *ChunkStore) Enrich(ctx context.Context, sourceHash string, s Summarizer, limit int) (EnrichResult, error) {
 	if s == nil {
 		return EnrichResult{}, errors.New("mce: Enrich requires a Summarizer")
 	}
@@ -49,6 +53,9 @@ func (c *ChunkStore) Enrich(ctx context.Context, sourceHash string, s Summarizer
 	}
 	var res EnrichResult
 	for _, r := range recs {
+		if limit > 0 && res.Enriched+res.Failed >= limit {
+			break
+		}
 		status, err := c.indexStatus(ctx, r.ID)
 		if err != nil {
 			return EnrichResult{}, err

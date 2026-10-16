@@ -176,11 +176,14 @@ func sourceHash(src []byte) string {
 }
 
 // chunkID is the deterministic content-derived chunk handle (ADR-0021 §5):
-// sha256(source_hash || start-end), truncated to 16 hex chars. Stable
-// across re-division of unchanged content.
+// sha256(source_hash || start-end), truncated to 32 hex chars (128 bits).
+// known-issues L1: the earlier 16-hex (64-bit) truncation left a (remote)
+// birthday-collision risk in which two distinct chunks could share an id and
+// silently overwrite; 128 bits matches compactionID's width. Stable across
+// re-division of unchanged content.
 func chunkID(hash string, start, end int) string {
 	sum := sha256.Sum256([]byte(fmt.Sprintf("%s|%d-%d", hash, start, end)))
-	return hex.EncodeToString(sum[:])[:16]
+	return hex.EncodeToString(sum[:])[:32]
 }
 
 // lineOf returns the 1-based line number containing byte offset off.

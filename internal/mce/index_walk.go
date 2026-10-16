@@ -26,9 +26,13 @@ const binarySniffBytes = 512
 
 // FileRef is one repository file considered for indexing.
 type FileRef struct {
-	RelPath   string
-	Lang      string
-	Size      int64
+	RelPath string
+	Lang    string
+	Size    int64
+	// MTimeUnix is the modification time in Unix nanoseconds. Nanosecond
+	// resolution (known-issues L2) means a same-second, same-size edit is not
+	// mistaken for an unchanged file by the incremental skip. A deliberate
+	// mtime restoration (touch -r) can still fool it; that is out of scope.
 	MTimeUnix int64
 }
 
@@ -114,7 +118,7 @@ func Discover(root string, opts WalkOptions) ([]FileRef, error) {
 			RelPath:   rel,
 			Lang:      lang,
 			Size:      info.Size(),
-			MTimeUnix: info.ModTime().Unix(),
+			MTimeUnix: info.ModTime().UnixNano(),
 		})
 		return nil
 	})

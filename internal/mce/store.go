@@ -184,6 +184,17 @@ func (c *ChunkStore) PutSource(ctx context.Context, ref SourceRef, chunks []divi
 		); err != nil {
 			return 0, fmt.Errorf("mce: upsert chunk %s: %w", ch.ID, err)
 		}
+		// known-issues M1: record every (chunk, scope) pair. A content-derived
+		// chunk id can legitimately belong to several projects (identical
+		// files), so ownership is many-to-many; the single columns above keep
+		// the first writer's value for compatibility only.
+		if _, err := tx.ExecContext(ctx,
+			`INSERT INTO context_chunk_owners (chunk_id, project_id, job_id) VALUES (?, ?, ?)
+			 ON CONFLICT(chunk_id, project_id, job_id) DO NOTHING`,
+			ch.ID, ref.ProjectID, ref.JobID,
+		); err != nil {
+			return 0, fmt.Errorf("mce: record chunk owner %s: %w", ch.ID, err)
+		}
 		if _, err := tx.ExecContext(ctx, upsertIndexSQL, ch.ID); err != nil {
 			return 0, fmt.Errorf("mce: ensure dormant index row %s: %w", ch.ID, err)
 		}
@@ -317,7 +328,9 @@ func (c *ChunkStore) IndexForJob(ctx context.Context, jobID string) ([]IndexEntr
 		return nil, nil
 	}
 	rows, err := c.db.DB().QueryContext(ctx,
-		indexSelect+` WHERE c.job_id = ? ORDER BY c.source_relpath, c.byte_start`, jobID)
+		indexSelect+`
+		JOIN context_chunk_owners o ON o.chunk_id = c.id
+		WHERE o.job_id = ? ORDER BY c.source_relpath, c.byte_start`, jobID)
 	if err != nil {
 		return nil, fmt.Errorf("mce: list dormant index for job: %w", err)
 	}
@@ -356,9 +369,10 @@ func (c *ChunkStore) IndexForProject(ctx context.Context, projectID, query strin
 			FROM dormant_index_fts
 			JOIN dormant_index d ON d.rowid = dormant_index_fts.rowid
 			JOIN context_chunks c ON c.id = d.chunk_id
+			JOIN context_chunk_owners o ON o.chunk_id = c.id
 			WHERE dormant_index_fts MATCH ?
-			  AND c.project_id = ?
-			  AND c.job_id IS NULL
+			  AND o.project_id = ?
+			  AND o.job_id = ''
 			ORDER BY bm25(dormant_index_fts), c.source_relpath, c.byte_start
 			LIMIT ?`, match, projectID, limit)
 		if err != nil {
@@ -368,9 +382,11 @@ func (c *ChunkStore) IndexForProject(ctx context.Context, projectID, query strin
 		return scanIndex(rows)
 	}
 	rows, err := c.db.DB().QueryContext(ctx,
-		indexSelect+` WHERE c.project_id = ? AND c.job_id IS NULL
-			ORDER BY c.updated_at DESC, c.source_relpath, c.byte_start
-			LIMIT ?`, projectID, limit)
+		indexSelect+`
+		JOIN context_chunk_owners o ON o.chunk_id = c.id
+		WHERE o.project_id = ? AND o.job_id = ''
+		ORDER BY c.updated_at DESC, c.source_relpath, c.byte_start
+		LIMIT ?`, projectID, limit)
 	if err != nil {
 		return nil, fmt.Errorf("mce: list project dormant index: %w", err)
 	}
