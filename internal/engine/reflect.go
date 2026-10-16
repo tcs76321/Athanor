@@ -226,6 +226,9 @@ func buildReflectionInstructions(records []evaluation.Record) string {
 	for i, r := range records {
 		fmt.Fprintf(&b, "  candidate %d (artifact %s): score=%.2f, passed=%v, missing=%v, security=%v, summary=%q\n",
 			i+1, r.ArtifactID, r.Score, r.PassedTests, r.MissingCriteria, r.SecurityIssues, r.Summary)
+		if len(r.FailedTests) > 0 {
+			fmt.Fprintf(&b, "    failure output: %s\n", truncateForEvent(strings.Join(r.FailedTests, "\n"), 600))
+		}
 	}
 	b.WriteString("\nPropose ONE specific change (a different approach, a missing context, or a hybrid) that the next divergence pass should try. Output prose, not JSON.")
 	return b.String()

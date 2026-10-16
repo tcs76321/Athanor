@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/tcs76321/athanor/internal/artifact"
 	"github.com/tcs76321/athanor/internal/evaluation"
@@ -281,7 +282,13 @@ func (e *Engine) evaluateCandidate(ctx context.Context, j job.Job, p project.Pro
 		if ver.HardPassed {
 			verdict.FailedTests = nil
 		} else {
-			verdict.FailedTests = nil
+			// M9-T1: keep the real failure output so the repair loop can fix
+			// it; the judge still only sees the short reason in MissingCriteria.
+			if out := strings.TrimSpace(vin.TestOutput); out != "" {
+				verdict.FailedTests = []string{out}
+			} else {
+				verdict.FailedTests = nil
+			}
 			verdict.MissingCriteria = append(verdict.MissingCriteria, ver.Reasons...)
 		}
 	}

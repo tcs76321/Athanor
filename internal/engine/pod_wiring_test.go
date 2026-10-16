@@ -23,6 +23,7 @@ type fakeRunner struct {
 	mu       sync.Mutex
 	calls    []fakeCall
 	exitCode int
+	stderr   string
 	duration time.Duration
 	withErr  error
 	disallow map[string]bool
@@ -76,6 +77,16 @@ func (f *fakeRunner) WithExit(code int) *fakeRunner {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.exitCode = code
+	return f
+}
+
+// WithResult sets both the exit code and the stderr a fake tool call returns
+// (M9-T1: the repair loop reads the failure output).
+func (f *fakeRunner) WithResult(code int, stderr string) *fakeRunner {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.exitCode = code
+	f.stderr = stderr
 	return f
 }
 
@@ -154,7 +165,7 @@ func (f *fakeRunner) run(_ context.Context, jobID string, req toolenvelope.Execu
 	return toolenvelope.ExecuteResult{
 		ExitCode:   f.exitCode,
 		Stdout:     "fake stdout",
-		Stderr:     "",
+		Stderr:     f.stderr,
 		DurationMS: f.duration.Milliseconds(),
 	}, nil
 }

@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/tcs76321/athanor/internal/job"
@@ -74,6 +75,9 @@ func (e *Engine) verifyCandidate(ctx context.Context, j job.Job, p project.Proje
 	case runErr == nil:
 		exitCode = res.ExitCode
 		in.TestsPassed = res.ExitCode == 0
+		// M9-T1: keep the real failure output for the repair loop. The judge
+		// never sees it (it reads ver.Reasons, which stays short).
+		in.TestOutput = boundedTestOutput(res.Stdout, res.Stderr)
 	case errors.Is(runErr, context.DeadlineExceeded):
 		// The test command hung; reject this candidate, keep the job alive.
 		e.audit(ctx, j.ID, map[string]any{
@@ -141,4 +145,22 @@ func (e *Engine) auditVerification(ctx context.Context, jobID, where string, r v
 		"verifiers": r.Verifiers,
 		"reasons":   r.Reasons,
 	})
+}
+
+// maxTestOutputChars bounds the test output kept for the repair loop. The tail
+// is kept because a traceback ends with the actual error (M9-T1).
+const maxTestOutputChars = 2000
+
+// boundedTestOutput returns the tail of a failing run's stderr (or stdout when
+// stderr is empty), trimmed and bounded. It drives the repair loop and the
+// reflection prompt; it is never shown to the judge.
+func boundedTestOutput(stdout, stderr string) string {
+	s := strings.TrimSpace(stderr)
+	if s == "" {
+		s = strings.TrimSpace(stdout)
+	}
+	if len(s) > maxTestOutputChars {
+		s = "…" + s[len(s)-maxTestOutputChars:]
+	}
+	return s
 }

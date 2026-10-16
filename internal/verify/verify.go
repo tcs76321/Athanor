@@ -35,6 +35,12 @@ type Input struct {
 	// LintRan/LintPassed describe the linter run (optional).
 	LintRan    bool
 	LintPassed bool
+	// TestOutput is the bounded tail of the failing test run's stderr (or
+	// stdout when stderr is empty). The engine's repair loop (self-refine) and
+	// the reflection prompt use it to fix the real failure (M9-T1); it is
+	// deliberately NOT shown to the LLM judge, which only sees the short
+	// failure reason.
+	TestOutput string
 	// RequireTests and RequireDocs are the execution.require_*_for_code
 	// gates (F5). RequireTests: a code candidate fails unless the test
 	// command actually ran and passed. RequireDocs: a code candidate fails
