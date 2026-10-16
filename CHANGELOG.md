@@ -10,6 +10,17 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### M9-T5 — Core Pod OCI image
+
+- **M9-T5.** `deploy/core.Containerfile` + `make core-image` build the **Core
+  Pod** image ([ADR-0069](docs/adr/0069-core-pod-packaging.md)): a multi-stage
+  build compiles the single `athanor` daemon (CGO + `sqlite_fts5`) into a
+  `debian-slim` runtime with the Podman client and `tini`. At run time the Core
+  holds the Podman socket (mounted) to spawn Job Pods and exposes the loopback
+  UI on 7420; Job Pods never receive that mount. Multi-arch via a manifest
+  (`linux/arm64` + `linux/amd64`, Apple Silicon first). `internal/deploy` asserts
+  the artifact and the Makefile target.
+
 ### M9-T4 — harder tasks get more candidates
 
 - **M9-T4.** A task the planner flags `DIFFICULTY: hard` now raises the

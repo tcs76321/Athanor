@@ -218,6 +218,7 @@ keep the machine awake on AC (no in-tree power guard until M7).
 
 ```bash
 make jobpod-image                  # build the Job Pod base image (podman)
+make core-image                    # build the Core Pod OCI image (ADR-0069)
 sh scripts/install.sh               # install the binary; writes a default config
 sh scripts/install.sh --service     # also install a systemd user unit / launchd agent
 /usr/local/bin/athanor start        # doctor, then serve

@@ -15,7 +15,7 @@ export CGO_ENABLED
 # tag-less binary can never silently run.
 GO_TAGS = -tags sqlite_fts5
 
-.PHONY: build test test-race test-integration integration-images vet lint check vuln tidy tidy-check fuzz cover cover-check run clean hooks bench probe-micro probe probe-judge probe-anchor probe-report probe-bundle probe-reconcile jobpod-image install soak
+.PHONY: build test test-race test-integration integration-images vet lint check vuln tidy tidy-check fuzz cover cover-check run clean hooks bench probe-micro probe probe-judge probe-anchor probe-report probe-bundle probe-reconcile jobpod-image core-image install soak
 
 build:
 	go build $(GO_TAGS) -o bin/athanor ./cmd/athanor
@@ -25,6 +25,15 @@ build:
 JOBPOD_IMAGE ?= athanor-jobpod:latest
 jobpod-image:
 	podman build -t $(JOBPOD_IMAGE) -f deploy/jobpod.Containerfile deploy
+
+# Core Pod image (ADR-0069; M9-T5). The build context is the repo root (a
+# multi-stage build compiles the daemon inside the image). At run time the image
+# holds the Podman socket to spawn Job Pods and exposes the loopback UI on 7420;
+# multi-arch is assembled with a manifest (see deploy/core.Containerfile).
+CORE_IMAGE ?= athanor-core:latest
+VERSION ?= 0.0.0-dev
+core-image:
+	podman build -t $(CORE_IMAGE) --build-arg VERSION=$(VERSION) -f deploy/core.Containerfile .
 
 # Install the binary (and, optionally, a headless service unit): `make install`
 # or `sh scripts/install.sh --service` (M7-T7/T8).
