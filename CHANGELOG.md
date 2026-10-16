@@ -10,6 +10,15 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### M9-T2a — model onboarding inventory
+
+- **M9-T2a.** `internal/onboard` maps the configured personas to the installed
+  backend models and reports, per role, whether the configured model is present
+  and which installed models fit as alternatives (largest-first). It is the
+  inventory plumbing for [ADR-0049](docs/adr/0049-model-onboarding-qualification.md),
+  not qualification: it narrows the field and never claims a model is best — that
+  is M9-T2b's bounded qualification run (generator pass@k; judge agreement).
+
 ### M9-T3 — deterministic `data` verifier
 
 - **M9-T3.** The `data` archetype gains a deterministic verification edge: a
