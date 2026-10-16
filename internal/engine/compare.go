@@ -400,7 +400,7 @@ func (e *Engine) runComparisonJudge(ctx context.Context, j job.Job, p project.Pr
 	judgeRole, instructions, content string, count int) (comparisonVerdict, error) {
 
 	if count <= 1 {
-		return e.comparisonCall(ctx, j, p, t, judgeRole, instructions, content)
+		return e.comparisonCall(ctx, j, p, t, judgeRole, instructions, content, 0)
 	}
 	var (
 		best    comparisonVerdict
@@ -408,7 +408,7 @@ func (e *Engine) runComparisonJudge(ctx context.Context, j job.Job, p project.Pr
 		votes   []string
 	)
 	for i := 0; i < count; i++ {
-		v, err := e.comparisonCall(ctx, j, p, t, judgeRole, instructions, content)
+		v, err := e.comparisonCall(ctx, j, p, t, judgeRole, instructions, content, i)
 		if err != nil {
 			continue // abstention
 		}
@@ -431,12 +431,14 @@ func (e *Engine) runComparisonJudge(ctx context.Context, j job.Job, p project.Pr
 }
 
 // comparisonCall is one LLM comparison invocation plus its parse and
-// coercion audit.
+// coercion audit. voteIndex salts the derived judgment seed so a quorum's
+// votes are decorrelated (known-issues M7); it is 0 for a single call.
 func (e *Engine) comparisonCall(ctx context.Context, j job.Job, p project.Project, t project.Task,
-	judgeRole, instructions, content string) (comparisonVerdict, error) {
+	judgeRole, instructions, content string, voteIndex int) (comparisonVerdict, error) {
 
 	resp, err := e.call(ctx, j, p, t, llm.PhaseComparing, judgeRole, instructions,
-		[]prompt.CandidateArtifact{{Kind: "candidate", Content: content}})
+		[]prompt.CandidateArtifact{{Kind: "candidate", Content: content}},
+		withSeedSalt(voteIndex))
 	if err != nil {
 		return comparisonVerdict{}, err
 	}

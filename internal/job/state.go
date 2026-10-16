@@ -66,9 +66,10 @@ func (s State) Valid() bool {
 //   - `diverging → evaluating` is mandatory (no skipping evaluation).
 //   - `evaluating → synthesizing` is the happy path (≥1 candidate passed).
 //   - `evaluating → reflecting` is the failure path (no candidate passed).
-//   - `reflecting → diverging` is the budgeted retry loop.
-//   - `reflecting → synthesizing` lets reflection produce a final artifact
-//     without another divergence pass (e.g. "hybrid of the two best").
+//   - `reflecting → diverging` is the budgeted retry loop. The engine always
+//     re-diverges after reflection (`phaseReflect`), so there is deliberately
+//     no `reflecting → synthesizing` edge (known-issues L30 removed the
+//     unused one a prior comment described).
 //   - `synthesizing → comparing` is mandatory.
 //   - Pausing is legal from every active working state; a paused job
 //     resumes to the state recorded in paused_from (enforced by the
@@ -84,7 +85,7 @@ var transitions = map[State][]State{
 	StatePlanning:         {StateDiverging, StatePaused, StateAwaitingApproval, StateFailed, StateCancelled},
 	StateDiverging:        {StateEvaluating, StatePaused, StateAwaitingApproval, StateFailed, StateCancelled},
 	StateEvaluating:       {StateSynthesizing, StateReflecting, StatePaused, StateAwaitingApproval, StateFailed, StateCancelled},
-	StateReflecting:       {StateDiverging, StateSynthesizing, StatePaused, StateAwaitingApproval, StateFailed, StateCancelled},
+	StateReflecting:       {StateDiverging, StatePaused, StateAwaitingApproval, StateFailed, StateCancelled},
 	StateSynthesizing:     {StateComparing, StatePaused, StateAwaitingApproval, StateFailed, StateCancelled},
 	StateComparing:        {StateCompleted, StateFailed, StatePaused, StateAwaitingApproval, StateCancelled},
 	StateAwaitingApproval: {StateContextBuilding, StatePlanning, StateDiverging, StateEvaluating, StateReflecting, StateSynthesizing, StateComparing, StateFailed, StateCancelled},

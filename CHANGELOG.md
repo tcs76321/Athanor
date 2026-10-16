@@ -10,6 +10,26 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Engine hardening (M7, M8, L26–L30) — 2026-10-16
+
+- **M7 — quorum votes decorrelated.** `runComparisonJudge` salts the derived
+  judgment seed with the vote index, so `judge_count > 1` produces independent
+  votes instead of near-identical ones.
+- **M8 — documented precedence.** The `decidePlan` comment now states that
+  `execution.policy.judge_count` is authoritative and that quorum applies to
+  the comparison phase (the evaluation judge is a single advisory call).
+- **L26 — nil-safe engine seams.** `call` guards a nil registry; `auditCat`
+  guards a nil store.
+- **L27 — corrected the `PassedTests` doc** (it is the evaluator's overall pass
+  flag, not specifically "the test command exited 0").
+- **L28 — re-roll discard failures audited.** The divergence re-roll no longer
+  swallows `SetStatus` errors, so a below-floor candidate cannot silently stay
+  `draft`.
+- **L30 — removed the dead `reflecting → synthesizing` edge.** The engine always
+  re-diverges after reflection; the transition table and its comment now match.
+- **L29 — verified already fixed.** `strategy.Repo.CreateOutcome` is idempotent
+  (`ON CONFLICT(job_id) DO NOTHING`), so `captureOutcome` cannot duplicate a row.
+
 ### Airlock hardening (M6, L7, L10) — 2026-10-16
 
 - **L7 — base64 heuristic scans every run.** `PromptInjectionHeuristic` used

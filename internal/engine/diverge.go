@@ -153,8 +153,21 @@ func (e *Engine) phaseDivergeN(ctx context.Context, j job.Job) error {
 			break
 		}
 		for _, art := range batch {
-			_ = e.artifacts.SetStatus(ctx, art.ID, artifact.StatusCandidate)
-			_ = e.artifacts.SetStatus(ctx, art.ID, artifact.StatusRejected)
+			// known-issues L28: surface a failed discard rather than
+			// swallowing it. The old code ignored both SetStatus errors, so a
+			// below-floor candidate could stay `draft` and be re-evaluated on
+			// the next pass with no audit trail.
+			if err := e.artifacts.SetStatus(ctx, art.ID, artifact.StatusCandidate); err != nil {
+				e.audit(ctx, j.ID, map[string]any{
+					"event": "reroll_discard_failed", "artifact": art.ID, "to": "candidate", "err": err.Error(),
+				})
+				continue
+			}
+			if err := e.artifacts.SetStatus(ctx, art.ID, artifact.StatusRejected); err != nil {
+				e.audit(ctx, j.ID, map[string]any{
+					"event": "reroll_discard_failed", "artifact": art.ID, "to": "rejected", "err": err.Error(),
+				})
+			}
 		}
 		e.audit(ctx, j.ID, map[string]any{
 			"event": "divergence_reroll", "attempt": attempt,

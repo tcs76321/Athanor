@@ -450,8 +450,12 @@ func (e *Engine) decidePlan(in policy.Inputs) policy.Plan {
 		plan = e.policy.Decide(in)
 	}
 	if e.cfg != nil {
-		// F4-T4 quorum applies to the LLM judge in either mode; the
-		// operator sets execution.policy.judge_count.
+		// F4-T4 quorum: the operator's execution.policy.judge_count is
+		// authoritative over any policy-supplied value and applies to the
+		// COMPARISON phase's LLM judge, in either judge_mode (llm or
+		// verifier). The evaluation phase makes a single advisory judge call
+		// (verifier-first selection decides there), so count > 1 decorrelates
+		// the accept/reject decision only (known-issues M8).
 		plan.JudgeCount = e.cfg.Execution.JudgeCountValue()
 		// The operator-selected judge mode is a bound on the plan (F4-T3).
 		if e.cfg.Execution.JudgeModeSelection() == config.JudgeModeVerifier {
@@ -805,6 +809,11 @@ func (e *Engine) audit(ctx context.Context, jobID string, data map[string]any) {
 // future non-`jobs` engine events use; the plain audit above keeps
 // every pre-M5-T4 call site unchanged.
 func (e *Engine) auditCat(ctx context.Context, jobID, category string, data map[string]any) {
+	// known-issues L26: nil-safe like the other seams. A mis-wired Engine
+	// drops the audit row rather than panicking; audit is best-effort.
+	if e.db == nil {
+		return
+	}
 	if _, err := e.db.AppendEvent(ctx, store.Event{Category: category, JobID: jobID, Data: data}); err != nil {
 		slog.Error("engine: appending event", "job", jobID, "category", category, "err", err)
 	}

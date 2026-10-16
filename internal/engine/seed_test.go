@@ -14,11 +14,11 @@ import (
 func TestJudgmentSeed(t *testing.T) {
 	cands := []prompt.CandidateArtifact{{Kind: "candidate", Content: "print('hi')"}}
 
-	base := judgmentSeed("job-1", llm.PhaseEvaluating, cands)
+	base := judgmentSeed("job-1", llm.PhaseEvaluating, cands, 0)
 	if base < 0 {
 		t.Fatalf("judgmentSeed returned a negative value %d; the sign bit must be masked", base)
 	}
-	if again := judgmentSeed("job-1", llm.PhaseEvaluating, cands); again != base {
+	if again := judgmentSeed("job-1", llm.PhaseEvaluating, cands, 0); again != base {
 		t.Errorf("judgmentSeed is not deterministic: %d then %d", base, again)
 	}
 
@@ -26,16 +26,20 @@ func TestJudgmentSeed(t *testing.T) {
 		name string
 		got  int64
 	}{
-		{"different job", judgmentSeed("job-2", llm.PhaseEvaluating, cands)},
-		{"different phase", judgmentSeed("job-1", llm.PhaseComparing, cands)},
+		{"different job", judgmentSeed("job-2", llm.PhaseEvaluating, cands, 0)},
+		{"different phase", judgmentSeed("job-1", llm.PhaseComparing, cands, 0)},
 		{"different candidate", judgmentSeed("job-1", llm.PhaseEvaluating,
-			[]prompt.CandidateArtifact{{Kind: "candidate", Content: "print('bye')"}})},
-		{"no candidates", judgmentSeed("job-1", llm.PhaseEvaluating, nil)},
+			[]prompt.CandidateArtifact{{Kind: "candidate", Content: "print('bye')"}}, 0)},
+		{"no candidates", judgmentSeed("job-1", llm.PhaseEvaluating, nil, 0)},
 	}
 	for _, c := range cases {
 		if c.got == base {
 			t.Errorf("%s collided with the baseline seed %d", c.name, base)
 		}
+	}
+	// known-issues M7: a per-vote salt decorrelates a judge quorum.
+	if judgmentSeed("job-1", llm.PhaseComparing, cands, 0) == judgmentSeed("job-1", llm.PhaseComparing, cands, 1) {
+		t.Error("salt did not change the seed (known-issues M7)")
 	}
 }
 

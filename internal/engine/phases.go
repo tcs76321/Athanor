@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"hash/fnv"
@@ -131,11 +132,21 @@ func phaseProducesJSON(phase string) bool {
 // has a new ID, so a fresh run samples a different point. T-c measures
 // that residual instability rather than assuming it away. FNV-1a is
 // sufficient: this is a sampling key, not a security boundary.
-func judgmentSeed(jobID, phase string, candidates []prompt.CandidateArtifact) int64 {
+func judgmentSeed(jobID, phase string, candidates []prompt.CandidateArtifact, salt int) int64 {
 	h := fnv.New64a()
 	_, _ = h.Write([]byte(jobID))
 	_, _ = h.Write([]byte{0})
 	_, _ = h.Write([]byte(phase))
+	// known-issues M7: `salt` decorrelates the votes of a judge quorum. With a
+	// derived (pinned) seed, N votes at the same seed would be near-identical
+	// and the quorum would add no independent signal; folding the vote index
+	// in gives each vote its own reproducible seed.
+	if salt != 0 {
+		_, _ = h.Write([]byte{0})
+		var b [8]byte
+		binary.LittleEndian.PutUint64(b[:], uint64(salt))
+		_, _ = h.Write(b[:])
+	}
 	for _, c := range candidates {
 		_, _ = h.Write([]byte{0})
 		_, _ = h.Write([]byte(c.Kind))
@@ -156,11 +167,37 @@ func judgmentSeed(jobID, phase string, candidates []prompt.CandidateArtifact) in
 // (§11.2 §12, tier 3): they are never concatenated into instructions, so a
 // phase that must refine or judge a candidate cannot have it evicted out
 // from under it (ADR-0023 §2).
+// callOption tunes one engine LLM call. It exists so the many call sites stay
+// readable; currently only the judge quorum needs it (a per-vote seed salt,
+// known-issues M7).
+type callOption func(*callParams)
+
+type callParams struct{ seedSalt int }
+
+// withSeedSalt folds a per-vote salt into the derived judgment seed.
+func withSeedSalt(n int) callOption { return func(p *callParams) { p.seedSalt = n } }
+
+func applyCallOptions(opts []callOption) callParams {
+	var p callParams
+	for _, o := range opts {
+		o(&p)
+	}
+	return p
+}
+
 func (e *Engine) call(ctx context.Context, j job.Job, p project.Project, t project.Task,
-	phase, role, extraInstructions string, candidates []prompt.CandidateArtifact) (llm.Response, error) {
+	phase, role, extraInstructions string, candidates []prompt.CandidateArtifact,
+	opts ...callOption) (llm.Response, error) {
+
+	params := applyCallOptions(opts)
 
 	if e.cfg == nil {
 		return llm.Response{}, errors.New("engine: cfg is nil (call requires config)")
+	}
+	// known-issues L26: guard the registry like crossFamily/difficultyHint do,
+	// so a mis-wired Engine fails loudly instead of panicking.
+	if e.registry == nil {
+		return llm.Response{}, errors.New("engine: registry is nil (call requires personas)")
 	}
 
 	persona, ok := e.registry.Persona(role)
@@ -321,7 +358,7 @@ func (e *Engine) call(ctx context.Context, j job.Job, p project.Project, t proje
 	}
 	var resolvedSeed *int64
 	if e.cfg.Inference.JudgmentSeed == config.JudgmentSeedDerived && temperature == 0 {
-		s := judgmentSeed(j.ID, phase, candidates)
+		s := judgmentSeed(j.ID, phase, candidates, params.seedSalt)
 		resolvedSeed = &s
 	}
 

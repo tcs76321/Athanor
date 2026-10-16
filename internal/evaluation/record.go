@@ -56,11 +56,13 @@ type Record struct {
 	// persona. §13.1 leaves the exact formula to T2; the record just
 	// stores whatever the evaluator produced.
 	Score float64
-	// PassedTests is true when the Job Pod's test command exited 0
-	// for this candidate (code archetype only). Other archetypes
-	// leave it false; a missing test run does not by itself make
-	// the record "fail" — the security persona decides via the
-	// missing_criteria list.
+	// PassedTests is the evaluator's OVERALL pass flag for the candidate
+	// (the evaluation verdict's `passed`), not specifically "the test command
+	// exited 0" — the name is historical (known-issues L27). For a code
+	// candidate the engine's deterministic verifier additionally records the
+	// real test outcome, and a hard verifier failure overrides the verdict. A
+	// missing test run does not by itself fail the record; the security
+	// persona decides via the missing_criteria list.
 	PassedTests bool
 	// FailedTests is the list of named tests that failed (code
 	// archetype; empty otherwise).

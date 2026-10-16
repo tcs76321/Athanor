@@ -31,7 +31,6 @@ func TestLegalTransitions(t *testing.T) {
 		{StateEvaluating, StateFailed},
 		{StateEvaluating, StateCancelled},
 		{StateReflecting, StateDiverging}, // §13.1 budgeted retry loop
-		{StateReflecting, StateSynthesizing},
 		{StateReflecting, StatePaused},
 		{StateReflecting, StateFailed},
 		{StateReflecting, StateCancelled},
@@ -98,6 +97,7 @@ func TestIllegalTransitions(t *testing.T) {
 		{StateDiverging, StateComparing},     // skip evaluating + synthesizing
 		{StateDiverging, StateSynthesizing},  // skip evaluating
 		{StateDiverging, StateReflecting},    // reflection is post-evaluating
+		{StateReflecting, StateSynthesizing}, // known-issues L30: no such engine path
 		{StateEvaluating, StateDiverging},    // no backwards edges
 		{StateEvaluating, StateComparing},    // skip synthesizing
 		{StateSynthesizing, StateCompleted},  // comparing is mandatory
