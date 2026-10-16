@@ -10,6 +10,22 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Fix: single-slot execution (ADR-0072) — 2026-10-16
+
+- **One job, one model, one pod at a time.** Job concurrency was configurable
+  (default 2) and the `autonomous` power profile raised it to **4**, while
+  nothing in Athanor serialized inference — `limits.max_concurrent_llm_calls`
+  was documented but never read — and single-model residency was left entirely
+  to Ollama's `OLLAMA_MAX_LOADED_MODELS=1`. An idle-on-AC daemon could therefore
+  run four jobs against one resident model, thrashing it.
+  `PowerManager.MaxConcurrentJobs` is now **1** for every profile,
+  `limits.max_concurrent_jobs` defaults to **1**, and the Ollama client enforces
+  `max_concurrent_llm_calls` as a real process-wide limiter (default 1). The
+  intended mode — the largest model resident at the largest context, one request
+  at a time — is now a guarantee. Tests: `internal/power/manager_test.go`
+  (single-slot invariant), `internal/llm/client_test.go` (call serialization);
+  decision: `docs/adr/0072-single-slot-execution.md`.
+
 ### Fix: git-as-undo containment (ADR-0071) — 2026-10-16
 
 - **Git-as-undo no longer escapes to a parent repo, moves the operator's HEAD,
