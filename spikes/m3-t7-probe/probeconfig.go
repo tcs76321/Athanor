@@ -181,6 +181,14 @@ backup:
 hitl:
   default_ttl: "5m"
   expiry_interval: "30s"
+
+# M8-T30: a short corpus run cannot reach the production cohort floor (20), so
+# the soak lowers it enough to mine technique insights from a single session.
+strategy_analysis:
+  min_cohort_size: 8
+  min_accept_rate_delta: 0.15
+  technique_min_accept_delta: 0.15
+  auto_activate_techniques: true
 `)
 	}
 	return b.String()

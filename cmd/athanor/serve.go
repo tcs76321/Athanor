@@ -479,6 +479,27 @@ func run(configPath, addr, stateDir string) error {
 	} else if n > 0 {
 		slog.Info("strategy: backfilled legacy jobs", "count", n)
 	}
+	// M8-T28b: mine technique wins and auto-activate the grounded ones at boot,
+	// so the advisory loop is live from the first job. A continuous soak is
+	// never idle, so the daydream Strategy Mining action may not run; this is
+	// the reliable path. Non-fatal on error.
+	if config.Val(cfg.StrategyAnalysis.Enabled, true) && config.Val(cfg.StrategyAnalysis.AutoActivateTechniques, true) {
+		ctx := context.Background()
+		if _, err := strategyRepo.Mine(ctx, strategy.MineOptions{
+			MinCohortSize:      cfg.StrategyAnalysis.MinCohortSize,
+			MinAcceptRateDelta: cfg.StrategyAnalysis.MinAcceptRateDelta,
+		}); err != nil {
+			slog.Error("strategy: boot mine", "err", err)
+		} else if ids, err := strategyRepo.ActivateWinningTechniques(ctx, strategy.AutoActivateOptions{
+			MinCohortSize:      cfg.StrategyAnalysis.MinCohortSize,
+			MinAcceptRateDelta: techDelta,
+			MaxActiveInsights:  cfg.StrategyAnalysis.MaxActiveInsights,
+		}); err != nil {
+			slog.Error("strategy: boot activate", "err", err)
+		} else if len(ids) > 0 {
+			slog.Info("strategy: activated winning techniques at boot", "count", len(ids))
+		}
+	}
 
 	// M6-T2 (ADR-0033 §4): reconcile decomposed graphs after a restart.
 	// Recover restarts in-flight jobs; this pass applies any terminal job
