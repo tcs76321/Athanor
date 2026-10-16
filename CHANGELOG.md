@@ -113,7 +113,8 @@ New entries are appended at the top. Do not rewrite history.
   parser rather than the advisory LLM judge — the verifier-less archetype the F4
   closeout flagged (ADR-0063). A missing schema degrades to the judge; a
   violation is a hard fail. Settable via `athanor project create -data-schema`
-  and `POST /projects` (`execution.data_schema`).
+  and `POST /projects` (`execution.data_schema`). `additionalProperties: false`
+  is enforced even when no `properties` are declared.
 
 ### M9-T1 — repair-on-test-failure (capability)
 

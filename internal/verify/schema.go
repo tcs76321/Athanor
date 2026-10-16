@@ -99,23 +99,24 @@ func validateNode(schema map[string]any, v any, path string) error {
 			}
 		}
 		props, _ := schema["properties"].(map[string]any)
-		if props != nil {
-			for k, sub := range props {
-				cv, ok := val[k]
-				if !ok {
-					continue
-				}
-				if sm, ok := sub.(map[string]any); ok {
-					if err := validateNode(sm, cv, path+"."+k); err != nil {
-						return err
-					}
+		for k, sub := range props {
+			cv, ok := val[k]
+			if !ok {
+				continue
+			}
+			if sm, ok := sub.(map[string]any); ok {
+				if err := validateNode(sm, cv, path+"."+k); err != nil {
+					return err
 				}
 			}
-			if ap, ok := schema["additionalProperties"].(bool); ok && !ap {
-				for k := range val {
-					if _, ok := props[k]; !ok {
-						return fmt.Errorf("%s: unexpected property %q", path, k)
-					}
+		}
+		// additionalProperties applies regardless of whether `properties` is
+		// declared: with no properties and additionalProperties:false, every
+		// key is unexpected (JSON Schema semantics).
+		if ap, ok := schema["additionalProperties"].(bool); ok && !ap {
+			for k := range val {
+				if _, ok := props[k]; !ok {
+					return fmt.Errorf("%s: unexpected property %q", path, k)
 				}
 			}
 		}

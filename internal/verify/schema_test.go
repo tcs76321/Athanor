@@ -66,3 +66,13 @@ func TestDataVerifierUnappliedWithoutSchema(t *testing.T) {
 		t.Errorf("data verifier applied without a schema: %+v", res)
 	}
 }
+
+func TestDataVerifierAdditionalPropertiesWithoutProperties(t *testing.T) {
+	const closed = `{"type":"object","additionalProperties":false}`
+	if res := Default().Run(Input{Archetype: project.ArchetypeData, Content: `{"a":1}`, DataSchema: closed}); res.HardPassed {
+		t.Errorf("key allowed under additionalProperties:false with no properties declared: %+v", res)
+	}
+	if res := Default().Run(Input{Archetype: project.ArchetypeData, Content: `{}`, DataSchema: closed}); !res.HardPassed {
+		t.Errorf("empty object rejected under a closed schema: %+v", res)
+	}
+}
