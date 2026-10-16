@@ -102,7 +102,6 @@ func Assemble(in Input) (Result, error) {
 	report := applyLadder(weights, in.Ceiling, in.Suppressed)
 
 	var sections []Section
-	total := 0
 	var b strings.Builder
 	systemText := &strings.Builder{}
 	userText := &strings.Builder{}
@@ -116,7 +115,6 @@ func Assemble(in Input) (Result, error) {
 			b.WriteString("\n\n")
 		}
 		b.WriteString(sec.Text)
-		total += sec.Tokens
 		// §11.2 sections 1–3 form the system message; the rest the user
 		// message. The split point is fixed, so output is deterministic.
 		switch sec.Name {
@@ -132,6 +130,10 @@ func Assemble(in Input) (Result, error) {
 			userText.WriteString(sec.Text)
 		}
 	}
+
+	// known-issues L5: count the "\n\n" section joins. Derive the total from
+	// the two assembled messages rather than summing per-section estimates.
+	total := EstimateTokens(systemText.String()) + EstimateTokens(userText.String())
 
 	return Result{
 		Text:        b.String(),

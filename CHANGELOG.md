@@ -10,6 +10,24 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Prompt, logging, cron & kill-switch hardening (L5, L17–L21) — 2026-10-16
+
+- **L5 — `TotalToken` counts joins.** Prompt assembly derives the total from the
+  two assembled messages (including the `\n\n` section joins), not a sum of
+  per-section estimates.
+- **L20 — categories validated against the closed set.** `logging.Manager`
+  rejects an unknown category even when no explicit `logging.categories` set is
+  configured, so a typo cannot create a stray log file.
+- **L21 — rotation does not drop an entry.** On a failed rotation rename,
+  `rotatingWriter` reopens the original and still writes the entry.
+- **L17 — Vixie cron day semantics.** The backup matcher accepts `7` as Sunday
+  and ORs day-of-month with day-of-week when both are restricted.
+- **L19 — accurate kill-switch contract.** `Freeze`/`Unfreeze` report success
+  once the state is persisted (a failed audit is logged, not returned); a no-op
+  `Unfreeze` on a running daemon returns nil.
+- **L18 — documented freeze scope.** `Freeze` now documents that in-flight pods
+  and inference run to their next phase boundary.
+
 ### Pod, gateway & API hardening (L6, L8, L9, L11–L13) — 2026-10-16
 
 - **L11 — flag-like image rejected.** `jobpod.validateSpec` refuses an image

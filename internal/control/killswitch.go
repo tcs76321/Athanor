@@ -15,6 +15,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log/slog"
 	"sync"
 
 	"github.com/tcs76321/athanor/internal/store"
@@ -73,6 +74,12 @@ func (k *KillSwitch) Frozen() bool {
 
 // Freeze enters frozen mode. Idempotent: freezing an already-frozen
 // daemon is a no-op. The transition is persisted and audited.
+//
+// Freezing gates NEW work only: in-flight Job Pods and LLM calls run to their
+// next phase boundary (known-issues L18). Cancelling them mid-phase is not
+// safe; every job commits state after each transition, so a frozen daemon
+// simply stops starting new work and resumes from the last committed phase on
+// unfreeze.
 func (k *KillSwitch) Freeze(ctx context.Context) error {
 	k.mu.Lock()
 	defer k.mu.Unlock()
@@ -83,26 +90,38 @@ func (k *KillSwitch) Freeze(ctx context.Context) error {
 		return err
 	}
 	k.frozen = true
-	return k.audit(ctx, map[string]any{"event": "freeze"})
+	// known-issues L19: once the state is persisted the freeze is in effect; a
+	// failed audit row must not report the freeze as failed. Log it.
+	if err := k.audit(ctx, map[string]any{"event": "freeze"}); err != nil {
+		slog.Error("kill switch: freeze audit failed (freeze is in effect)", "err", err)
+	}
+	return nil
 }
 
 // Unfreeze exits frozen mode. Requires a non-empty reason that is
 // recorded in the EventLog (§22.2: explicit user acknowledgment).
 // Unfreezing a running daemon is a no-op.
 func (k *KillSwitch) Unfreeze(ctx context.Context, reason string) error {
-	if reason == "" {
-		return ErrReasonRequired
-	}
 	k.mu.Lock()
 	defer k.mu.Unlock()
+	// A no-op unfreeze returns before the reason requirement, so a DELETE
+	// /freeze on a running daemon is a no-op, not a 400 (matches the doc).
 	if !k.frozen {
 		return nil
+	}
+	if reason == "" {
+		return ErrReasonRequired
 	}
 	if err := k.setFrozen(ctx, ValueRunning); err != nil {
 		return err
 	}
 	k.frozen = false
-	return k.audit(ctx, map[string]any{"event": "unfreeze", "reason": reason})
+	// known-issues L19: the unfreeze is in effect once persisted; log a failed
+	// audit rather than reporting the unfreeze as failed.
+	if err := k.audit(ctx, map[string]any{"event": "unfreeze", "reason": reason}); err != nil {
+		slog.Error("kill switch: unfreeze audit failed (unfreeze is in effect)", "err", err)
+	}
+	return nil
 }
 
 // setFrozen persists the frozen value; caller holds the write lock.

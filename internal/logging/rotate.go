@@ -56,13 +56,15 @@ func (w *rotatingWriter) rotateLocked() error {
 		return fmt.Errorf("closing during rotation: %w", err)
 	}
 	if err := os.Rename(w.path, rotated); err != nil && !os.IsNotExist(err) {
-		// Rename failed: reopen the original so logging keeps working
-		// instead of leaving w.f nil (which would make every later Write
-		// fail with os.ErrClosed permanently).
-		if f, rerr := os.OpenFile(w.path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, filePerm); rerr == nil {
-			w.f = f
+		// known-issues L21: the entry being written must not be dropped. Reopen
+		// the original and return nil so Write appends to it; only a failed
+		// reopen is fatal (which would otherwise leave w.f nil and silent).
+		f, rerr := os.OpenFile(w.path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, filePerm)
+		if rerr != nil {
+			return fmt.Errorf("rotating log (reopen failed): %w", rerr)
 		}
-		return fmt.Errorf("rotating log: %w", err)
+		w.f = f
+		return nil
 	}
 	f, err := os.OpenFile(w.path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, filePerm)
 	if err != nil {

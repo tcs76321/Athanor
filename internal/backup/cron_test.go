@@ -67,3 +67,29 @@ func TestSchedulerTickFiresOncePerMinute(t *testing.T) {
 		t.Fatalf("backup events = %d, want 2", got)
 	}
 }
+
+// TestCronSundaySevenAndDomDowOr pins known-issues L17: 7 is Sunday, and
+// day-of-month ORs with day-of-week when both are restricted (Vixie cron).
+func TestCronSundaySevenAndDomDowOr(t *testing.T) {
+	seven, err := ParseCron("0 3 * * 7")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !seven.Matches(time.Date(2026, 1, 4, 3, 0, 0, 0, time.UTC)) { // 2026-01-04 is a Sunday
+		t.Error("day-of-week 7 did not match Sunday (known-issues L17)")
+	}
+
+	both, err := ParseCron("0 3 1 * 1") // the 1st OR Monday
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !both.Matches(time.Date(2026, 1, 1, 3, 0, 0, 0, time.UTC)) { // the 1st (Thursday)
+		t.Error("dom/dow OR: the 1st did not match")
+	}
+	if !both.Matches(time.Date(2026, 1, 5, 3, 0, 0, 0, time.UTC)) { // a Monday
+		t.Error("dom/dow OR: Monday did not match")
+	}
+	if both.Matches(time.Date(2026, 1, 6, 3, 0, 0, 0, time.UTC)) { // Tuesday, not the 1st
+		t.Error("dom/dow OR matched a non-1st non-Monday")
+	}
+}

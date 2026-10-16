@@ -67,8 +67,22 @@ func New(opts Options) (*Manager, error) {
 	return m, nil
 }
 
+// knownCategories is the closed §28.1 event-log category set (mirrors
+// config.Categories). known-issues L20: a code typo that names an unknown
+// category is rejected even when no explicit logging.categories set is
+// configured, instead of silently creating a new log file.
+var knownCategories = map[string]bool{
+	"jobs": true, "recovery": true, "alarms": true, "airlock": true,
+	"network": true, "podman": true, "inference": true, "feedback": true,
+	"strategy": true, "context": true, "daydream": true, "power": true,
+	"backup": true,
+}
+
 // categoryEnabled reports whether cat may emit events.
 func (m *Manager) categoryEnabled(cat string) bool {
+	if !knownCategories[cat] {
+		return false
+	}
 	if len(m.opts.Categories) == 0 {
 		return true
 	}

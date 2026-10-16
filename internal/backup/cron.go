@@ -44,19 +44,31 @@ func ParseCron(spec string) (Schedule, error) {
 	if s.month, err = parseField(fields[3], 1, 12); err != nil {
 		return Schedule{}, fmt.Errorf("month: %w", err)
 	}
-	if s.dow, err = parseField(fields[4], 0, 6); err != nil {
+	if s.dow, err = parseField(fields[4], 0, 7); err != nil {
 		return Schedule{}, fmt.Errorf("day-of-week: %w", err)
+	}
+	// known-issues L17: cron accepts 7 as Sunday; normalize it to 0.
+	if s.dow.values[7] {
+		delete(s.dow.values, 7)
+		s.dow.values[0] = true
 	}
 	return s, nil
 }
 
 // Matches reports whether t is within the schedule (to the minute).
 func (s Schedule) Matches(t time.Time) bool {
-	return s.minute.has(t.Minute()) &&
-		s.hour.has(t.Hour()) &&
-		s.dom.has(t.Day()) &&
-		s.month.has(int(t.Month())) &&
-		s.dow.has(int(t.Weekday()))
+	if !s.minute.has(t.Minute()) || !s.hour.has(t.Hour()) || !s.month.has(int(t.Month())) {
+		return false
+	}
+	// known-issues L17: Vixie cron ORs day-of-month and day-of-week when BOTH
+	// are restricted (neither is "*"), and ANDs them otherwise. The previous
+	// always-AND diverged from cron for a spec like "0 3 1 * 1".
+	domMatch := s.dom.has(t.Day())
+	dowMatch := s.dow.has(int(t.Weekday()))
+	if !s.dom.any && !s.dow.any {
+		return domMatch || dowMatch
+	}
+	return domMatch && dowMatch
 }
 
 func parseField(spec string, min, max int) (fieldSet, error) {
