@@ -191,3 +191,71 @@ func TestQueryEventsFilters(t *testing.T) {
 		t.Errorf("limit/order wrong: %+v", limited)
 	}
 }
+
+// TestQueryEventsAfterIDAndLatest pins the streaming delta cursor
+// (known-issues M9): AfterID selects strictly-newer events, and LatestEventID
+// returns the tail without loading the table.
+func TestQueryEventsAfterIDAndLatest(t *testing.T) {
+	s, _ := openTemp(t)
+	requireMigrated(t, s)
+	ctx := context.Background()
+
+	var ids []int64
+	for i := 0; i < 5; i++ {
+		id, err := s.AppendEvent(ctx, Event{Category: "jobs", Data: map[string]any{"i": i}})
+		if err != nil {
+			t.Fatalf("append: %v", err)
+		}
+		ids = append(ids, id)
+	}
+
+	delta, err := s.QueryEvents(ctx, EventFilter{Category: "jobs", AfterID: ids[1]})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(delta) != 3 || delta[0].ID != ids[2] {
+		t.Fatalf("delta = %d events, want 3 starting at %d", len(delta), ids[2])
+	}
+
+	got, err := s.LatestEventID(ctx, EventFilter{Category: "jobs"})
+	if err != nil || got != ids[4] {
+		t.Fatalf("LatestEventID = %d (err %v), want %d", got, err, ids[4])
+	}
+	if got, _ := s.LatestEventID(ctx, EventFilter{Category: "nope"}); got != 0 {
+		t.Fatalf("LatestEventID(no match) = %d, want 0", got)
+	}
+}
+
+// TestQueryEventsAfterIDDrainsInBatches proves a bounded scan can catch up:
+// reading AfterID+Limit repeatedly terminates and yields every row exactly
+// once (the egress poll and UI stream rely on this, known-issues M9).
+func TestQueryEventsAfterIDDrainsInBatches(t *testing.T) {
+	s, _ := openTemp(t)
+	requireMigrated(t, s)
+	ctx := context.Background()
+	const total, batch = 7, 3
+	for i := 0; i < total; i++ {
+		if _, err := s.AppendEvent(ctx, Event{Category: "jobs"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	seen := 0
+	var cursor int64
+	for {
+		rows, err := s.QueryEvents(ctx, EventFilter{Category: "jobs", AfterID: cursor, Limit: batch})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(rows) == 0 {
+			break
+		}
+		seen += len(rows)
+		cursor = rows[len(rows)-1].ID
+		if len(rows) < batch {
+			break
+		}
+	}
+	if seen != total {
+		t.Fatalf("drained %d events, want %d", seen, total)
+	}
+}

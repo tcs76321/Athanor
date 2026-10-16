@@ -266,10 +266,9 @@ func (u *UI) handleJobStream(w http.ResponseWriter, r *http.Request) {
 	defer ticker.Stop()
 
 	var lastID int64
-	// Seed lastID so the initial page's events are not re-sent.
-	if events, err := u.deps.Store.QueryEvents(r.Context(), store.EventFilter{JobID: jobID}); err == nil && len(events) > 0 {
-		lastID = events[len(events)-1].ID
-	}
+	// Seed lastID so the initial page's events are not re-sent; LatestEventID
+	// is an index lookup, not a scan of the job's event history (M9).
+	lastID, _ = u.deps.Store.LatestEventID(r.Context(), store.EventFilter{JobID: jobID})
 	for {
 		select {
 		case <-r.Context().Done():
@@ -302,10 +301,9 @@ func (u *UI) handleDashboardStream(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	flusher.Flush()
 
-	var lastID int64
-	if events, err := u.deps.Store.QueryEvents(r.Context(), store.EventFilter{}); err == nil && len(events) > 0 {
-		lastID = events[len(events)-1].ID
-	}
+	// Seed lastID with the current tail so the backlog is not replayed; it is
+	// an index lookup, not a scan of the unbounded events table (M9).
+	lastID, _ := u.deps.Store.LatestEventID(r.Context(), store.EventFilter{})
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
 	for {
@@ -323,21 +321,28 @@ func (u *UI) handleDashboardStream(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// newEvents returns events with id > *lastID (optionally for one job) and
-// advances *lastID. A query error yields nothing (the next tick retries).
+// uiEventBatch bounds how many events the SSE loops fetch per tick: a large
+// backlog drains over several ticks instead of one unbounded scan of the
+// append-only events table (known-issues M9).
+const uiEventBatch = 500
+
+// newEvents returns events newer than *lastID (optionally for one job) and
+// advances *lastID to the newest returned id. The store applies the
+// `id > lastID` delta and a batch limit, so the work per tick is bounded. A
+// query error yields nothing (the next tick retries).
 func (u *UI) newEvents(ctx context.Context, jobID string, lastID *int64) []store.EventRecord {
-	events, err := u.deps.Store.QueryEvents(ctx, store.EventFilter{JobID: jobID})
+	events, err := u.deps.Store.QueryEvents(ctx, store.EventFilter{
+		JobID:   jobID,
+		AfterID: *lastID,
+		Limit:   uiEventBatch,
+	})
 	if err != nil {
 		return nil
 	}
-	var out []store.EventRecord
-	for _, ev := range events {
-		if ev.ID > *lastID {
-			out = append(out, ev)
-			*lastID = ev.ID
-		}
+	if len(events) > 0 {
+		*lastID = events[len(events)-1].ID
 	}
-	return out
+	return events
 }
 
 func (u *UI) handleApproval(w http.ResponseWriter, r *http.Request) {

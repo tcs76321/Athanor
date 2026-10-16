@@ -152,48 +152,56 @@ func (e *Exporter) Start(ctx context.Context) {
 // that produced the accepted artifact; the artifact is
 // resolved by listing the job's artifacts and picking
 // the accepted one.
+// egressPollBatch bounds how many job events a single read returns. A backlog
+// larger than the batch drains over repeated reads inside the same poll, so a
+// long event history never becomes one unbounded scan (known-issues M9).
+const egressPollBatch = 500
+
 func (e *Exporter) poll(ctx context.Context) error {
-	rows, err := e.store.QueryEvents(ctx, store.EventFilter{
-		Category: "jobs",
-	})
-	if err != nil {
-		return fmt.Errorf("query events: %w", err)
-	}
-	for _, r := range rows {
-		if r.ID <= e.lastSeenID {
-			continue
-		}
-		_, ok := extractAcceptedArtifactID(r.DataJSON, r.JobID)
-		if !ok {
-			// Not an accepted status event;
-			// advance lastSeenID and move on.
-			e.lastSeenID = r.ID
-			continue
-		}
-		// Find the accepted artifact for this job
-		// and export it.
-		artifactID, err := e.findAcceptedArtifactForJob(ctx, r.JobID)
+	for {
+		rows, err := e.store.QueryEvents(ctx, store.EventFilter{
+			Category: "jobs",
+			AfterID:  e.lastSeenID,
+			Limit:    egressPollBatch,
+		})
 		if err != nil {
-			e.logger.Warn("egress: find artifact for job failed",
-				"job", r.JobID, "err", err)
+			return fmt.Errorf("query events: %w", err)
+		}
+		for _, r := range rows {
+			_, ok := extractAcceptedArtifactID(r.DataJSON, r.JobID)
+			if !ok {
+				// Not an accepted status event;
+				// advance lastSeenID and move on.
+				e.lastSeenID = r.ID
+				continue
+			}
+			// Find the accepted artifact for this job
+			// and export it.
+			artifactID, err := e.findAcceptedArtifactForJob(ctx, r.JobID)
+			if err != nil {
+				e.logger.Warn("egress: find artifact for job failed",
+					"job", r.JobID, "err", err)
+				e.lastSeenID = r.ID
+				continue
+			}
+			if artifactID == "" {
+				// Job produced no accepted artifact
+				// (the event might be an artifact store
+				// internal transition). Advance and
+				// move on.
+				e.lastSeenID = r.ID
+				continue
+			}
+			if _, _, err := e.ExportOne(ctx, artifactID); err != nil {
+				e.logger.Warn("egress: export failed",
+					"artifact", artifactID, "err", err)
+			}
 			e.lastSeenID = r.ID
-			continue
 		}
-		if artifactID == "" {
-			// Job produced no accepted artifact
-			// (the event might be an artifact store
-			// internal transition). Advance and
-			// move on.
-			e.lastSeenID = r.ID
-			continue
+		if len(rows) < egressPollBatch {
+			return nil
 		}
-		if _, _, err := e.ExportOne(ctx, artifactID); err != nil {
-			e.logger.Warn("egress: export failed",
-				"artifact", artifactID, "err", err)
-		}
-		e.lastSeenID = r.ID
 	}
-	return nil
 }
 
 // findAcceptedArtifactForJob returns the artifact_id

@@ -10,6 +10,18 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### M9 — bounded event-log scans (delta + batch) — 2026-10-16
+
+- **`store.EventFilter.AfterID` + `store.LatestEventID`.** `QueryEvents` had no
+  `id > lastID` delta, so the dashboard/watch SSE loops re-read the entire
+  append-only `events` table every 500 ms per client, and the egress exporter
+  re-scanned every job event every 5 s. The filter now supports a delta cursor
+  and `LatestEventID` reads the tail (a `MAX(id)` index lookup); the two SSE
+  loops seed from it and fetch only new events in 500-row batches, and the
+  egress poll drains the log in 500-row batches until caught up. Tests:
+  `internal/store/eventlog_test.go` (`TestQueryEventsAfterIDAndLatest`,
+  `TestQueryEventsAfterIDDrainsInBatches`).
+
 ### H7 — atomic job + task-status scheduling write — 2026-10-16
 
 - **`job.Repository.CreateTx` + `project.Repo.SetTaskStatusTx`.** `advance`

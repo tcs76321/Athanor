@@ -83,11 +83,13 @@ func (s *Store) AppendEvent(ctx context.Context, e Event) (int64, error) {
 }
 
 // EventFilter selects events for QueryEvents. Empty fields match anything;
-// Limit <= 0 means no limit.
+// AfterID, when positive, selects only events with id greater than it — the
+// streaming delta cursor (known-issues M9); Limit <= 0 means no limit.
 type EventFilter struct {
 	Category  string
 	ProjectID string
 	JobID     string
+	AfterID   int64
 	Limit     int
 }
 
@@ -107,6 +109,10 @@ func (s *Store) QueryEvents(ctx context.Context, f EventFilter) ([]EventRecord, 
 	if f.JobID != "" {
 		q += ` AND job_id = ?`
 		args = append(args, f.JobID)
+	}
+	if f.AfterID > 0 {
+		q += ` AND id > ?`
+		args = append(args, f.AfterID)
 	}
 	q += ` ORDER BY id ASC`
 	if f.Limit > 0 {
@@ -135,6 +141,32 @@ func (s *Store) QueryEvents(ctx context.Context, f EventFilter) ([]EventRecord, 
 		out = append(out, r)
 	}
 	return out, rows.Err()
+}
+
+// LatestEventID returns the largest event id matching f, or 0 when none
+// match. A streaming client seeds its delta cursor with this instead of
+// loading and scanning the whole table (known-issues M9). MAX(id) on the
+// primary key is an index lookup, not a scan.
+func (s *Store) LatestEventID(ctx context.Context, f EventFilter) (int64, error) {
+	q := `SELECT COALESCE(MAX(id), 0) FROM events WHERE 1=1`
+	args := []any{}
+	if f.Category != "" {
+		q += ` AND category = ?`
+		args = append(args, f.Category)
+	}
+	if f.ProjectID != "" {
+		q += ` AND project_id = ?`
+		args = append(args, f.ProjectID)
+	}
+	if f.JobID != "" {
+		q += ` AND job_id = ?`
+		args = append(args, f.JobID)
+	}
+	var id int64
+	if err := s.db.QueryRowContext(ctx, q, args...).Scan(&id); err != nil {
+		return 0, fmt.Errorf("reading latest event id: %w", err)
+	}
+	return id, nil
 }
 
 // nullIfEmpty maps Go empty strings to SQL NULL for optional columns.
