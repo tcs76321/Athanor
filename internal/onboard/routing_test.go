@@ -84,3 +84,33 @@ func TestRouteJudgeUnknownFamilyExcluded(t *testing.T) {
 		t.Fatalf("security = %+v, want granite4.2:3b (unknown-family judge excluded)", sec)
 	}
 }
+
+// TestRouteFromM9Smoke encodes the numbers measured on the M2 Max (M9-T2b, see
+// docs/qualification-smoke-m9.md) and pins what Route concludes:
+//   - generator pass rate (dialectical): ornith-1.5:9b 0.33, gemma4:12b-mlx 0.80
+//   - judge anchor agreement: granite4.2:3b 0.81, ornith-1.5:9b 0.77, gemma4:12b-mlx 0.69
+func TestRouteFromM9Smoke(t *testing.T) {
+	roles := []Role{
+		{Role: "main", Model: "ornith-1.5:9b"},
+		{Role: "security", Model: "phi3:3.8b"}, // unmeasured shipped default
+	}
+	families := map[string]string{
+		"ornith-1.5:9b": "qwen35", "gemma4:12b-mlx": "gemma", "granite4.2:3b": "granite",
+	}
+	ms := []Measurement{
+		{Role: "main", Model: "ornith-1.5:9b", Score: 0.33},
+		{Role: "main", Model: "gemma4:12b-mlx", Score: 0.80},
+		{Role: "security", Model: "granite4.2:3b", Score: 0.81},
+		{Role: "security", Model: "ornith-1.5:9b", Score: 0.77}, // same family as main → excluded
+		{Role: "security", Model: "gemma4:12b-mlx", Score: 0.69},
+	}
+	recs := Route(roles, families, ms, RoutingOptions{
+		JudgeRole: "security", GeneratorRoles: []string{"main", "tall"}, MinImprovement: 0.10,
+	})
+	if got := recByRole(recs, "main"); got.Recommended != "gemma4:12b-mlx" || !got.Replace {
+		t.Errorf("main = %+v, want gemma4:12b-mlx (0.80 vs 0.33)", got)
+	}
+	if got := recByRole(recs, "security"); got.Recommended != "granite4.2:3b" || !got.Replace {
+		t.Errorf("security = %+v, want granite4.2:3b (0.81 cross-family; qwen35 self-judge excluded)", got)
+	}
+}

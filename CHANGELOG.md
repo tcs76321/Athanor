@@ -19,16 +19,16 @@ New entries are appended at the top. Do not rewrite history.
   `Adaptive` will not narrow it. This closes the gap where the one hard-task
   lever was gated on a signal a weak planner gets wrong.
 
-### M9-T2b — qualification smoke (findings)
+### M9-T2b — qualification smoke (findings + routing)
 
-- **M9-T2b (smoke).** A ~1-hour pre-qualification pass; findings in
+- **M9-T2b (smoke).** A pre-qualification pass; findings in
   [docs/qualification-smoke-m9.md](docs/qualification-smoke-m9.md). **Judge:**
   `granite4.2:3b` is the best local judge (Spearman 0.81, cross-family);
-  `gemma4:e4b` (0.48) is below the floor. **Generator:** 1/6 H-tier code tasks
-  accepted with the 9B generator — the model ceiling (the repair loop and
-  synthesis fix are live but cannot rescue a failing model). Two actionable
-  findings: the planner labelled H-tier tasks `easy`, so M9-T4's raise did not
-  fire (the lever must also key on evidence), and the run aborted on the
+  `gemma4:e4b` (0.48) is below the floor. **Generator:** on the H-tier code
+  suite `gemma4:12b-mlx` passed 4/5 vs `ornith-1.5:9b`'s 2/6 — a ~2.4×
+  generator. **Routing (`onboard.Route`):** `main` → `gemma4:12b-mlx`,
+  `security` → `granite4.2:3b` (the cross-family rule excludes the gemma judge).
+  The smoke also surfaced the difficulty-hint gap (fixed in M9-T4b) and the
   `OLLAMA_MAX_LOADED_MODELS=1` operator precondition.
 
 ### M9-T8 (part) — Core Pod deploy guide

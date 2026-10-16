@@ -77,6 +77,40 @@ verifier is the only real signal.
 - Diversity was real (0.57–0.78) except `code-refactor-provided` (0.00) — the
   candidates were identical there.
 
+## Generator smoke #2 (residency fixed)
+
+The same 6 code tasks, after setting `OLLAMA_MAX_LOADED_MODELS=1`; the M9-T1
+repair loop live; cross-family judge `granite4.2:3b`:
+
+| generator | arm | accepted | pass rate |
+|---|---|---|---|
+| `ornith-1.5:9b` | dialectical (N=3) | code-unified-diff, code-parse-duration | 2/6 |
+| `ornith-1.5:9b` | single (N=1) | code-unified-diff, code-parse-duration | 2/6 |
+| `gemma4:12b-mlx` | dialectical (N=3) | bank-atomic, expr-eval, lru-ttl, unified-diff | 4/5 † |
+
+† the run hit the 45-minute wall guard before the 6th task, so the gemma pass
+rate is 4/5 of what ran.
+
+**`gemma4:12b-mlx` is ~2.4× the generator** of `ornith-1.5:9b` on the H-tier code
+tasks (0.80 vs 0.33). For the 9B, the `single` arm (N=1) matched the dialectical
+arm (2/6) — on this tiny n the N-candidate loop added no value, consistent with
+the F4 finding that the loop has no advantage on bounded code.
+
+## Routing recommendation (advisory; `onboard.Route`)
+
+| role | configured | recommended | evidence |
+|---|---|---|---|
+| `main` | `ornith-1.5:9b` | **`gemma4:12b-mlx`** | 0.80 vs 0.33 generator pass rate |
+| `security` | `phi3:3.8b` | **`granite4.2:3b`** | 0.81 anchor agreement, cross-family |
+
+The cross-family rule is load-bearing: with a gemma generator, the gemma judge
+(0.69) is excluded as correlated, which leaves `granite4.2:3b` (0.81) — the same
+conclusion the anchor reached alone. `onboard.Route` reproduces this decision
+(`internal/onboard/routing_test.go::TestRouteFromM9Smoke`).
+
+**Advisory only:** applying the table is a config edit an operator approves
+(ADR-0049); it never overrides the frozen judge, verifiers, containment, or HITL.
+
 ## Blocker for the soak
 
 The run **aborted** at the residency guard:
