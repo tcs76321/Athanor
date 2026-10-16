@@ -79,8 +79,8 @@ func (e *Engine) step(ctx context.Context, j job.Job) error {
 		_, err := e.jobs.Transition(ctx, j.ID, job.StateContextBuilding)
 		return err
 	case job.StateContextBuilding:
-		// M1: context is assembled per-phase inside call(); nothing to
-		// build ahead of time (the MCE arrives in M5).
+		// Context is assembled per phase inside call() (the MCE tier ladder,
+		// §10.5); there is nothing to build ahead of time.
 		_, err := e.jobs.Transition(ctx, j.ID, job.StatePlanning)
 		return err
 	case job.StatePlanning:
