@@ -21,6 +21,7 @@ package doctor
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"strings"
 
 	"github.com/tcs76321/athanor/internal/config"
@@ -137,6 +138,7 @@ func Run(ctx context.Context, cfg *config.Config, opts Options, p Probes) Report
 	r.checkPodman(ctx, p)
 	r.checkGit(p)
 	r.checkOllama(ctx, cfg, p)
+	r.checkRuntime(cfg, p)
 	r.checkMemory(ctx, p)
 	r.checkDisk(ctx, opts, p)
 	r.checkStateDir(opts, p)
@@ -145,6 +147,48 @@ func Run(ctx context.Context, cfg *config.Config, opts Options, p Probes) Report
 	r.checkNetwork(cfg)
 	r.checkPower(cfg)
 	return r
+}
+
+// containerDetector is an optional Probes extension: it reports whether the
+// process runs inside a container (a Core Pod). A Probes without it is treated
+// as the host-binary shape, so the doctor's interface stays stable for fakes.
+type containerDetector interface{ InContainer() bool }
+
+// checkRuntime reports the deployment shape (host binary vs Core Pod) and warns
+// when inference.ollama_url does not match it (ADR-0069 §3): a Core Pod reaches
+// a host Ollama at host.containers.internal; a host binary at 127.0.0.1.
+func (r *Report) checkRuntime(cfg *config.Config, p Probes) {
+	inContainer := false
+	if cd, ok := p.(containerDetector); ok {
+		inContainer = cd.InContainer()
+	}
+	shape := "host binary"
+	if inContainer {
+		shape = "Core Pod (container)"
+	}
+	host := ollamaHost(cfg.Inference.OllamaURL)
+	switch {
+	case inContainer && (host == "127.0.0.1" || host == "localhost"):
+		r.add(Check{Name: "runtime", Status: StatusWarn,
+			Detail:      fmt.Sprintf("running as %s but inference.ollama_url points at %q; a Core Pod reaches a host Ollama at host.containers.internal", shape, host),
+			Remediation: "set inference.ollama_url: \"http://host.containers.internal:11434\" for the Core Pod shape"})
+	case !inContainer && host == "host.containers.internal":
+		r.add(Check{Name: "runtime", Status: StatusWarn,
+			Detail:      fmt.Sprintf("running as %s but inference.ollama_url points at host.containers.internal (a container-only alias)", shape),
+			Remediation: "use \"http://127.0.0.1:11434\" for the host-binary shape"})
+	default:
+		r.add(Check{Name: "runtime", Status: StatusOK,
+			Detail: fmt.Sprintf("running as %s; inference.ollama_url host %q matches the shape", shape, host)})
+	}
+}
+
+// ollamaHost extracts the host from the Ollama URL ("" when unparseable).
+func ollamaHost(raw string) string {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return ""
+	}
+	return u.Hostname()
 }
 
 // checkPodman verifies Podman is installed and running rootless (§21.1).

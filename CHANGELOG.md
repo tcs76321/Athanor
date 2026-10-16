@@ -10,6 +10,14 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### M9-T7 — packaging-aware doctor
+
+- **M9-T7.** `athanor doctor` reports the deployment shape (host binary vs Core
+  Pod, detected via `/run/.containerenv` / `/.dockerenv`) and warns when
+  `inference.ollama_url` does not match it — a Core Pod pointed at `127.0.0.1`,
+  or a host binary pointed at `host.containers.internal` (ADR-0069 §3). The
+  detection is an optional `Probes` extension, so the doctor surface stays stable.
+
 ### M9-T5 — Core Pod OCI image
 
 - **M9-T5.** `deploy/core.Containerfile` + `make core-image` build the **Core

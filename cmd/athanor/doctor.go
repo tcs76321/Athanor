@@ -208,3 +208,14 @@ func (osProbes) DirWritable(dir string) error {
 	_ = os.Remove(name)
 	return nil
 }
+
+// InContainer reports whether the daemon runs inside a Core Pod. Podman writes
+// /run/.containerenv and Docker writes /.dockerenv (M9-T7; ADR-0069).
+func (osProbes) InContainer() bool {
+	for _, marker := range []string{"/run/.containerenv", "/.dockerenv"} {
+		if _, err := os.Stat(marker); err == nil {
+			return true
+		}
+	}
+	return false
+}

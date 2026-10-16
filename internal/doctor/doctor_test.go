@@ -23,6 +23,7 @@ type fakeProbes struct {
 	disk        uint64
 	diskOK      bool
 	writableErr error
+	inContainer bool
 }
 
 func (f *fakeProbes) LookPath(name string) (string, error) {
@@ -56,6 +57,8 @@ func (f *fakeProbes) TotalMemoryBytes(context.Context) (uint64, bool) { return f
 func (f *fakeProbes) FreeDiskBytes(context.Context, string) (uint64, bool) { return f.disk, f.diskOK }
 
 func (f *fakeProbes) DirWritable(string) error { return f.writableErr }
+
+func (f *fakeProbes) InContainer() bool { return f.inContainer }
 
 // goodProbes returns a healthy host with all persona models installed.
 func goodProbes() *fakeProbes {
@@ -248,6 +251,20 @@ func TestRunNilConfig(t *testing.T) {
 	}
 	if c := findCheck(rep, "config"); c == nil || c.Status != StatusFail {
 		t.Fatalf("config check = %+v", c)
+	}
+}
+
+// TestRunRuntimeShapeMismatch: a Core Pod pointed at host loopback is a warn
+// with remediation (M9-T7; ADR-0069 §3).
+func TestRunRuntimeShapeMismatch(t *testing.T) {
+	cfg := goodConfig(t)
+	cfg.Inference.OllamaURL = "http://127.0.0.1:11434" // the host-binary default
+	p := goodProbes()
+	p.inContainer = true
+	rep := runAll(t, cfg, p)
+	c := findCheck(rep, "runtime")
+	if c == nil || c.Status != StatusWarn || !strings.Contains(c.Remediation, "host.containers.internal") {
+		t.Fatalf("runtime check = %+v, want a warn with host.containers.internal remediation", c)
 	}
 }
 
