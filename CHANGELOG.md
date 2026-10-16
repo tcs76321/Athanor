@@ -10,6 +10,19 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Attempt-level compute escalation (ADR-0074 §3) — 2026-10-16
+
+- **A retry of a failed task tries harder instead of re-rolling.** The compute
+  plan gains an attempt dimension: `policy.Features.Attempt` is a job's 1-based
+  index among its task's jobs, and `policy.Escalate` applies the shipped ladder —
+  attempt 2 raises candidates to the hard ceiling, attempt 3 also raises the
+  reflection budget — each rung only raising *toward* a configured ceiling, so
+  the plan never exceeds its limits. The first attempt is untouched, so
+  first-pass corpus/soak benchmarks are unaffected. Tests:
+  `internal/policy/escalate_test.go`, `internal/engine/attempt_test.go`. Decision:
+  `docs/adr/0074-attempt-escalation.md`. The budget/model/temperature/prompt
+  rungs and the learned selector land next.
+
 ### Soak: combined validation harness — telemetry, leaderboard, conformance (ADR-0073) — 2026-10-16
 
 - **The soak reduces the event log instead of discarding it.** The engine
