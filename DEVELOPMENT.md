@@ -229,7 +229,8 @@ On Linux the unit lands at `~/.config/systemd/user/athanor.service`
 `~/Library/LaunchAgents/com.athanor.agent.plist`. The daemon binds loopback
 only; for a remote host, reach the UI through SSH port forwarding
 (`ssh -L 7420:127.0.0.1:7420 host`). Templates and the installer are pinned by
-`internal/deploy`'s test.
+`internal/deploy`'s test. The container-native **Core Pod** shape has its own
+guide: [`docs/deploy-core-pod.md`](docs/deploy-core-pod.md).
 
 ## Backups & restore
 

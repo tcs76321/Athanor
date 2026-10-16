@@ -10,6 +10,15 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### M9-T8 (part) — Core Pod deploy guide
+
+- **M9-T8 (part).** [`docs/deploy-core-pod.md`](docs/deploy-core-pod.md): build
+  (`make core-image`), the multi-arch manifest, the container config
+  (`ollama_url: host.containers.internal`), the `podman run` invocation with the
+  Podman socket and state/workspace volumes, platform notes (the Linux socket
+  path; the macOS VM-crossing volume caveat), and the verification + security
+  boundary. The fresh-install demo on Linux and macOS remains a human checkpoint.
+
 ### M9-T2b-1 — routing decision layer
 
 - **M9-T2b-1.** `internal/onboard.Route` turns per-role measurements (a

@@ -4,7 +4,8 @@
 ARCHITECTURE §3 (topology), §21.2 (Job Pod hardening), §21.8 (loopback), §32
 (deployment); [ADR-0056](0056-packaging.md) (host-binary packaging, amended);
 [ADR-0066](0066-release-scope-soak.md) (0.0.0 scope); ROADMAP M7-T7/T8;
-`SECURITY.md`; Gate G1 (`internal/gate/gate_test.go`)
+[deploy-core-pod.md](../deploy-core-pod.md); `SECURITY.md`; Gate G1
+(`internal/gate/gate_test.go`)
 
 ## Context
 
