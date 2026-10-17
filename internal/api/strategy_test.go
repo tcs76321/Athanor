@@ -37,6 +37,11 @@ func (f *fakeStrategy) GetInsight(_ context.Context, _ string) (strategy.Insight
 	return f.insights[0], f.err
 }
 
+func (f *fakeStrategy) CreateInsight(_ context.Context, in strategy.Insight) (strategy.Insight, error) {
+	f.insights = append(f.insights, in)
+	return in, f.err
+}
+
 func (f *fakeStrategy) ActivateWinningTechniques(_ context.Context, _ strategy.AutoActivateOptions) ([]string, error) {
 	return f.activatedIDs, f.err
 }
@@ -49,6 +54,43 @@ type fakePromoter struct {
 
 func (f *fakePromoter) Promote(_ context.Context, _ string) (bool, string, error) {
 	return f.activated, f.requestID, f.err
+}
+
+func TestInsightCreate(t *testing.T) {
+	h := newHarness(t)
+	t.Cleanup(h.ts.Close)
+	fake := &fakeStrategy{}
+	h.api.SetStrategy(fake)
+
+	body := `{"statement": "Validate every field before converting.", "scope": "global"}`
+	resp, err := http.Post(h.ts.URL+"/strategy/insights", "application/json", strings.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("create status = %d, want 201", resp.StatusCode)
+	}
+	if len(fake.insights) != 1 {
+		t.Fatalf("created insights = %d, want 1", len(fake.insights))
+	}
+	got := fake.insights[0]
+	if got.Status != strategy.InsightActive || got.Scope != strategy.ScopeGlobal ||
+		got.Statement != "Validate every field before converting." {
+		t.Errorf("created insight = %+v", got)
+	}
+	if got.Pattern.Feature != "manual.memory" {
+		t.Errorf("pattern = %+v, want manual.memory", got.Pattern)
+	}
+
+	empty, err := http.Post(h.ts.URL+"/strategy/insights", "application/json", strings.NewReader(`{}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = empty.Body.Close() }()
+	if empty.StatusCode != http.StatusBadRequest {
+		t.Errorf("empty statement status = %d, want 400", empty.StatusCode)
+	}
 }
 
 func TestStrategyRoutes(t *testing.T) {

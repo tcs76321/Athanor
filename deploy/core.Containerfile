@@ -47,9 +47,13 @@ RUN CGO_ENABLED=1 go build -tags sqlite_fts5 \
 # to (over the mounted socket) to create Job Pods; `tini` is the init.
 FROM debian:bookworm-slim
 
+# clamav + yara are the airlock's fail-closed scanners. Without them every
+# workspace egress is blocked (`scanner:clamav:absent`); `freshclam` bakes the
+# signature DB at build time so a fresh Core Pod can scan without a network.
 RUN apt-get update \
- && apt-get install -y --no-install-recommends ca-certificates tini podman git \
- && rm -rf /var/lib/apt/lists/*
+ && apt-get install -y --no-install-recommends ca-certificates tini podman git clamav yara \
+ && rm -rf /var/lib/apt/lists/* \
+ && freshclam --quiet
 
 # The Core Pod's podman client must talk to the mounted machine socket, not to
 # a local (container) store. Without this the client tries overlay-over-overlayfs

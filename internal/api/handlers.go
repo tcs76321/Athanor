@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/tcs76321/athanor/internal/artifact"
@@ -590,6 +591,49 @@ func toInsightResponse(i strategy.Insight) insightResponse {
 		MedianRetries: i.Evidence.MedianRetries, MedianTokenCost: i.Evidence.MedianTokenCost,
 		CreatedAt: i.CreatedAt,
 	}
+}
+
+// handleInsightCreate records an operator-authored insight. The benchmark's
+// memory sequence uses it to inject a specific lesson; the active-insight
+// prompt channel is the same one the miner uses. The statement is advisory.
+func (a *API) handleInsightCreate(w http.ResponseWriter, r *http.Request) {
+	if a.strategy == nil {
+		writeError(w, http.StatusServiceUnavailable, "strategy analysis is not configured")
+		return
+	}
+	var req struct {
+		Statement string `json:"statement"`
+		Scope     string `json:"scope"`
+		Polarity  string `json:"polarity"`
+	}
+	if !decodeBody(w, r, &req) {
+		return
+	}
+	statement := strings.TrimSpace(req.Statement)
+	if statement == "" {
+		writeError(w, http.StatusBadRequest, "statement is required")
+		return
+	}
+	scope := req.Scope
+	if scope == "" {
+		scope = strategy.ScopeGlobal
+	}
+	polarity := req.Polarity
+	if polarity == "" {
+		polarity = strategy.PolarityWinning
+	}
+	ins, err := a.strategy.CreateInsight(r.Context(), strategy.Insight{
+		Scope:     scope,
+		Polarity:  polarity,
+		Pattern:   strategy.Pattern{Feature: "manual.memory", Value: statement, Context: "operator"},
+		Statement: statement,
+		Status:    strategy.InsightActive,
+	})
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusCreated, toInsightResponse(ins))
 }
 
 // handleInsightList lists insights, optionally filtered by ?status=.

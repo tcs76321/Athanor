@@ -10,6 +10,20 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Memory sequences + airlock scanners — 2026-10-17
+
+- **`probe memory` + `make bench-memory`**: the three correction/insight scripts
+  run end-to-end (project → correction/insight → later job → injection check
+  from the event log). The compaction script is **partial**: the multi-turn
+  filler driver is pending, so the later task runs but is never marked pass.
+- **New internal surfaces the sequence needs:** `PATCH /projects/{id}/execution`
+  (a different test command per step; the engine reads it per job) and
+  `POST /strategy/insights` (an operator-authored active insight on the same
+  prompt channel as mined insights).
+- **ClamAV 1.4.3 + YARA 4.2.3 are in the Core image**, with a baked 108 MB
+  ClamAV signature DB. The `scanner:clamav:absent` egress block is resolved on
+  the next Core Pod start; Job Pods remain scanner-free and isolated.
+
 ### F1: the benchmark runs on the Core Pod — 2026-10-17
 
 - **Rootless Podman is verified** on the reference macOS host; `jobpod`,

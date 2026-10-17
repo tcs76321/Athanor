@@ -177,6 +177,13 @@ bench-core-stop:
 bench-core-status:
 	@BENCH_OUT=$(BENCH_OUT) ./scripts/bench-core.sh status
 
+# The four memory sequences. The three correction/insight scripts are runnable;
+# the compaction script is reported as partial until the filler driver lands.
+# The Core Pod must already be up (do not run `start` during a full slice).
+bench-memory:
+	@BENCH_OUT=$(BENCH_OUT) BENCH_PROBE_OUT=/bench/out-memory \
+		./scripts/bench-core.sh memory
+
 # Host-binary development path. Unsupported as a measurement runtime (ADR-0078);
 # use it for harness work only.
 bench-full-host: bench-verify

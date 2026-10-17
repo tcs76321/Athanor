@@ -60,7 +60,9 @@ and **6 human-review tasks** (below).
 A memory script is a **sequence**, not a single job: job 1 → a correction or
 insight → job 2, scored on whether job 2 recalls and applies the earlier input.
 These are the only tasks that can show a multi-session memory change. Three are
-held out.
+held out. **Status:** the three correction/insight scripts run via
+`make bench-memory`; the compaction script is partial (the multi-turn filler
+driver is pending).
 
 ### Human-review tier (6, outside the 70)
 
@@ -225,9 +227,9 @@ Run it with `make soak-smoke` (it sets `MINI_SOAK_ONLY` and a fresh output dir).
   (`CORPUS.digest`, `make corpus-check`).
 - ~~Validate the code checks against reference solutions.~~ **Done**
   (`reference.yaml`, `TestBenchCodeReferences`).
-- **Memory-script sequence runner** (spec frozen; the runner must create one
-  project, submit the correction/insight, run the later job, and read the
-  injection from the event log).
+- **Memory-script sequence runner:** `probe memory` runs the three
+  correction/insight scripts (one project, correction/insight, later job,
+  injection check). The compaction script's multi-turn filler driver is pending.
 - **Human-review queue** (the 6 rubric tasks are specified; the operator UI is
   runner work).
 - **Anchor pairs** (good + near-miss artifacts) for judge-discrimination, using

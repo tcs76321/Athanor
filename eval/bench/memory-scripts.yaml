@@ -6,9 +6,11 @@
 # the mechanism metrics (was the correction/insight in the prompt?) come from the
 # event log.
 #
-# STATUS: the probe's sequence runner is not wired yet (docs/benchmark-v1.md,
-# "Memory scripts"). This file is the frozen specification the runner executes;
-# the steps are written so a runner can drive them without interpretation.
+# STATUS: `probe memory` (make bench-memory) drives the three correction/insight
+# scripts: one project, the correction/insight, the later job, and the injection
+# check from the event log. The compaction script is PARTIAL: the engine compacts
+# within a job's message window and the multi-turn filler driver is pending, so
+# the later task runs but the script is never marked pass.
 #
 # held_out: true means the script is never used for tuning. 3 of 4 are held out.
 version: 1

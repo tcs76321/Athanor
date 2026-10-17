@@ -103,6 +103,7 @@ type Strategy interface {
 	ListInsights(ctx context.Context, status string) ([]strategy.Insight, error)
 	SetInsightStatus(ctx context.Context, id, status string) error
 	GetInsight(ctx context.Context, id string) (strategy.Insight, error)
+	CreateInsight(ctx context.Context, in strategy.Insight) (strategy.Insight, error)
 }
 
 // StrategyPromoter is the HITL-gated promotion surface (M6-T11). The
@@ -263,8 +264,12 @@ func (a *API) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /projects/{id}/corrections", a.handleCorrectionCreate)
 	mux.HandleFunc("GET /projects/{id}/corrections", a.handleCorrectionList)
 	mux.HandleFunc("PATCH /corrections/{id}", a.handleCorrectionStatus)
+	// A project's §6.2 execution override can be replaced between steps of a
+	// multi-job sequence (the memory benchmark); the engine reads it per job.
+	mux.HandleFunc("PATCH /projects/{id}/execution", a.handleProjectExecution)
 	// M6-T11: strategy analysis (ADR-0041).
 	mux.HandleFunc("GET /strategy/insights", a.handleInsightList)
+	mux.HandleFunc("POST /strategy/insights", a.handleInsightCreate)
 	mux.HandleFunc("POST /strategy/mine", a.handleStrategyMine)
 	mux.HandleFunc("POST /strategy/insights/{id}/promote", a.handleInsightPromote)
 	mux.HandleFunc("POST /strategy/insights/{id}/mute", a.handleInsightMute)
@@ -347,14 +352,7 @@ func (a *API) handleProjectCreate(w http.ResponseWriter, r *http.Request) {
 	// transaction. Setting it is a separate write so the common path
 	// (no override) stays one transaction.
 	if req.Execution != nil {
-		ex := project.Execution{
-			TestCommand:  req.Execution.TestCommand,
-			BuildCommand: req.Execution.BuildCommand,
-			Linters:      req.Execution.Linters,
-			FixturePath:  req.Execution.FixturePath,
-			DataSchema:   req.Execution.DataSchema,
-			Checks:       req.Execution.Checks,
-		}
+		ex := executionFromRequest(req.Execution)
 		if err := a.projects.SetExecution(r.Context(), p.ID, ex); err != nil {
 			writeError(w, http.StatusInternalServerError, err.Error())
 			return
@@ -365,6 +363,42 @@ func (a *API) handleProjectCreate(w http.ResponseWriter, r *http.Request) {
 		ID: p.ID, Name: p.Name, Archetype: p.Archetype, Goal: p.Goal,
 		RepositoryPath: p.RepositoryPath, TaskID: task.ID,
 	})
+}
+
+// executionFromRequest maps the wire shape to the project's execution override.
+func executionFromRequest(req *projectExecution) project.Execution {
+	if req == nil {
+		return project.Execution{}
+	}
+	return project.Execution{
+		TestCommand:  req.TestCommand,
+		BuildCommand: req.BuildCommand,
+		Linters:      req.Linters,
+		FixturePath:  req.FixturePath,
+		DataSchema:   req.DataSchema,
+		Checks:       req.Checks,
+	}
+}
+
+// handleProjectExecution replaces a project's §6.2 execution override. A
+// multi-step sequence (the memory benchmark) needs a different test command per
+// step; the project is the execution unit the engine reads at job start.
+func (a *API) handleProjectExecution(w http.ResponseWriter, r *http.Request) {
+	var req projectExecution
+	if !decodeBody(w, r, &req) {
+		return
+	}
+	p, err := a.projects.Get(r.Context(), r.PathValue("id"))
+	if err != nil {
+		writeError(w, http.StatusNotFound, err.Error())
+		return
+	}
+	ex := executionFromRequest(&req)
+	if err := a.projects.SetExecution(r.Context(), p.ID, ex); err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"id": p.ID})
 }
 
 func (a *API) handleProjectGet(w http.ResponseWriter, r *http.Request) {

@@ -112,6 +112,10 @@ podman exec athanor-core athanor doctor -config /etc/athanor/config.yaml
 Watch that Job Pods come and go without orphans (`podman ps -a | grep athanor-job-`),
 and confirm a Job Pod has no access to `/run/podman/podman.sock`.
 
+The image also ships the airlock scanners: **ClamAV** (with the signature
+database baked at build time) and **YARA**. Without them, workspace egress is
+fail-closed (`scanner:clamav:absent`) even when the job itself succeeds.
+
 For the benchmark, build the probe image and run it **inside** the Core Pod
 (the state volume is not host-readable on macOS):
 

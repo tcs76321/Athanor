@@ -274,10 +274,12 @@ whether the item was actually in the prompt. The four scripts:
 | `mem-cross-project-secrets` | a global security correction reaches another project | yes |
 | `mem-compaction-fact` | a fact survives compaction | yes |
 
-**Status:** the steps are fully specified; the probe's sequence runner is the
-remaining implementation (it must create one project, submit the correction/
-insight, run the later job in the same project, and read the injection from the
-event log). The scripts are frozen now so the runner has a target.
+**Status:** `probe memory` (with `make bench-memory` inside the Core Pod) drives
+the three correction/insight scripts: it creates one project, applies the
+correction or operator insight, runs the later job, and checks injection from
+the event log. The **compaction** script is **partial**: the engine compacts
+within a job's message window, and the multi-turn filler driver is still
+pending, so its later task runs but the script is never marked pass.
 
 ## Human review
 

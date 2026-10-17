@@ -74,6 +74,12 @@ probe)
 		-external -addr 127.0.0.1:7420 -state-dir /var/lib/athanor/state \
 		-out "$probe_out" "$@"
 	;;
+memory)
+	shift
+	podman exec -w /bench/repo "$name" /usr/local/bin/athanor-probe memory \
+		-scripts eval/bench/memory-scripts.yaml -addr 127.0.0.1:7420 \
+		-state-dir /var/lib/athanor/state -out "$probe_out" "$@"
+	;;
 stop)
 	podman stop --time 20 "$name"
 	;;
