@@ -10,6 +10,23 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Fix: soak robustness — duplicate file blocks and truncated verdicts — 2026-10-17
+
+- **A model that restates a file no longer fails the candidate.**
+  `toolenvelope.ParseFileMarkers` merges duplicate `=== FILE: path ===` blocks
+  **last-wins** (`mergeLastWins`) instead of returning `ErrDuplicatePath`;
+  stored manifests (`DecodeFiles`/`EncodeFiles`) stay strict, so a corrupt blob
+  is still rejected. Found by the 0.0.0 ladder's `granite3b` run, where a
+  repeated `solution.py` block hard-failed evaluation. Test:
+  `TestParseFileMarkersDuplicateLastWins`.
+- **A truncated verdict is salvaged, not fatal.** `extractVerdictObject` now
+  repairs a JSON object cut off at `max_output_tokens` — close an open string,
+  drop a dangling separator, close open containers (and drop the last top-level
+  member if needed) — and reports `json (truncated→salvaged)` as a coercion, so
+  a degenerate repetition loop yields a normal rejection instead of failing the
+  job. An unrecoverable truncation still errors, and the error message is
+  bounded. Test: `TestParseVerdictJSON_TruncatedSalvaged`.
+
 ### Tooling: one-hour mini soak + `config` preflight fix — 2026-10-16
 
 - **`make soak-mini`** runs a 1-hour validation soak — the fast 9B model, the

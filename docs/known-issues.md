@@ -23,6 +23,23 @@ a documented trade-off recorded below. New findings resume here.
 
 ---
 
+## Fixed (2026-10-17 soak)
+
+Two parser-robustness defects found by the 0.0.0 soak ladder (`granite3b`):
+
+- **Duplicate `=== FILE ===` blocks failed the candidate.** A model that
+  restated a file (`solution.py` twice) hit `toolenvelope: duplicate file path`
+  and the whole evaluation failed. `ParseFileMarkers` now merges duplicates
+  last-wins; stored manifests stay strict. (`internal/toolenvelope/files.go`,
+  `TestParseFileMarkersDuplicateLastWins`.)
+- **A truncated verdict failed the job.** A degenerate repetition loop generated
+  a verdict until `max_output_tokens`, leaving `unterminated JSON object`. The
+  parser now salvages a truncated object (bounded, audited as
+  `json (truncated→salvaged)`); only an unrecoverable truncation errors.
+  (`internal/engine/parse_verdict.go`, `TestParseVerdictJSON_TruncatedSalvaged`.)
+
+---
+
 ## Fixed (2026-10-16 review)
 
 A hardening sweep driven by the same review. Each item is a separate commit
