@@ -1,0 +1,137 @@
+# Athanor benchmark v1 — run protocol (part of the freeze)
+#
+# This file is the run contract, not documentation. Changing a model, digest,
+# persona, context target, inference parameter, run shape, or scoring rule is a
+# NEW benchmark version (v2), not an edit to v1 (ADR-0075).
+#
+# Two run shapes share one frozen task set:
+#   - full:   the headline. ONE canonical persona set, ONE pass over all 70
+#             deterministic tasks, budgeted at <= 12h of machine time.
+#   - anchor: the onboarding/leaderboard screen. 12 non-held-out tasks over the
+#             pinned model roster, one pass per model, <= 12h total.
+#
+# The full run does NOT sweep models. The leaderboard is an aggregation of
+# anchor runs, not a second benchmark.
+version: 1
+benchmark: v1
+cut: 2026-10-17
+status: frozen
+task_digest: eval/bench/CORPUS.digest
+
+canonical_persona_set:
+  name: canonical-v1
+  description: >
+    One fixed persona set for the headline run. The leaderboard varies only the
+    generator model; the role temperatures, context targets, and judge stay
+    identical so a delta is attributable to the model, not to a persona change.
+  roles:
+    wide:
+      model: ornith-1.5:9b
+      family: qwen35
+      context_target: 32768
+      temperature: 0.7
+    tall:
+      model: ornith-1.5:9b
+      family: qwen35
+      context_target: 16384
+      temperature: 0.2
+    main:
+      model: ornith-1.5:9b
+      family: qwen35
+      context_target: 32768
+      temperature: 0.4
+    security:
+      model: granite4.2:3b
+      family: granite
+      context_target: 32768
+      temperature: 0.0
+    alternative:
+      model: ornith-1.5:9b
+      family: qwen35
+      context_target: 32768
+      temperature: 0.8
+
+  inference:
+    backend: ollama
+    engine_version: "0.40.6"
+    ollama_url: "http://localhost:11434"
+    json_format: true
+    max_output_tokens: 4096
+    think: false
+    keep_alive: "5m"
+    judgment_seed: off
+
+  execution:
+    divergence_candidates: 3
+    max_reflection_loops: 2
+    engine_code_gates: false
+    dag_decomposition: false
+
+  context:
+    seed_active_chunk: true
+    seed_active_max_bytes: 16384
+    repository_index_limit: 20
+    # The vector half must be on for the MCE to be measured at all. Leaving
+    # this empty silently degrades retrieval to FTS-only.
+    memory_embedding_model: nomic-embed-text:latest
+    memory_search_top_k: 8
+    phase_wall_time_budgets:
+      planning: "900s"
+      diverging: "900s"
+      evaluating: "900s"
+      synthesizing: "900s"
+      comparing: "600s"
+      default: "900s"
+
+  job_pod:
+    image: "python:3.12-alpine"
+    default_tools: [execute_code, run_tests, lint]
+
+  runtime:
+    # The Core Pod is the only supported runtime (ADR-0078). The digest is
+    # filled at tag time; the image tag is pinned now so a local run cannot
+    # silently use a different runtime.
+    core_pod_image: athanor-core:0.0.0
+    core_pod_image_digest: null
+    # The host class is part of the comparability claim; the exact host,
+    # memory, and load are recorded per run.
+    host_class: "Apple Silicon arm64 (reference host)"
+
+run_shape:
+  full:
+    tasks: eval/bench/tasks.yaml
+    passes: 1
+    arm: full
+    machine_budget_hours: 12
+    per_job_timeout: 45m
+    includes: [deterministic, human_review_async]
+    memory_scripts: pending_runner
+  anchor:
+    tasks: eval/bench/anchor.yaml
+    passes: 1
+    arm: full
+    per_model_timeout: 1h
+    machine_budget_hours: 12
+
+# The leaderboard/onboarding roster. The full run uses only the canonical
+# generator + judge; the anchor runs each roster entry with the same judge.
+roster:
+  - {label: granite3b, model: "granite4.2:3b", family: granite, digest: "40577dc168a3a9ad34e9a1234e0c2570be86097fa75a236d4574ae985705d3c4"}
+  - {label: gemmae4b, model: "gemma4:e4b-mlx", family: gemma, digest: "5a08735df03c348ab10d56e8ad758098ff1960ab6030605c95fde7d90fc9de18"}
+  - {label: granite8b, model: "granite4.2:8b", family: granite, digest: "f586c02fdecdf151b656207c339aa003997345774a41768bac1fd6d2fb85913b"}
+  - {label: ornith9b, model: "ornith-1.5:9b", family: qwen35, digest: "e5df7dcdd8a263994df62d610317e07be0d6af23f96fcbd8543273058fce575e"}
+  - {label: gemma12b, model: "gemma4:12b-mlx", family: gemma, digest: "117d0d84cf2ab865feb59afc2cd30ff5d55f0035e05eb8d1b814f9688e3f3671"}
+  - {label: qwen27b, model: "qwen3.8:27b-mlx", family: qwen3.8, digest: "5642e97495e1a088883805981563dcdc4a040c2f53388b7a41d1f24d3622cf7e"}
+  - {label: granite30b, model: "granite4.2:30b", family: granite, digest: "be22829aa92aad40153c3b2cfd628269ac9281967e74c44d96750568a5af8ed4"}
+  - {label: nemotron30b, model: "nemotron-3.5-lightning:30b-mlx", family: nemotron, digest: "8b1474be6e54dc19eb7aa08bebfb9bda147c4b9ef9796a726131ad29ad15645a"}
+  - {label: muse30b, model: "muse-glimmer:30b-mlx", family: muse, digest: "015fa21845bead56096c2f8773aff7a2047063507fe82897e662ad544c5b2fa6"}
+  - {label: ornith35b, model: "ornith-1.5:35b", family: qwen35, digest: "9f3b89b2521908dd2e6f7a11fa368e62c8f89e1075f22604e4d1a76dd1240fcc"}
+
+embeddings:
+  model: nomic-embed-text:latest
+  digest: "0a109f422b47e3a30ba2b10eca18548e944e8a23073ee3f3e947efcf3c45e59f"
+
+scoring:
+  headline: deterministic_checks
+  judge: advisory
+  report: held_out_vs_tuning

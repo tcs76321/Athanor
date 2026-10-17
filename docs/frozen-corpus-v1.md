@@ -69,20 +69,67 @@ tradeoff, an incident update, a code review) scored by the operator review
 queue, not deterministic checks. Reported separately as a calibration set; three
 are held out.
 
+## 2a. Canonical run protocol (part of the freeze)
+
+The task set is only half the freeze. `eval/bench/protocol.yaml` pins the **run
+contract**:
+
+- **One canonical persona set** for the full run: the five roles (`wide`,
+  `tall`, `main`, `security`, `alternative`), their models and families, role
+  temperatures, context targets (32768; `tall` 16384), inference parameters,
+  embedding model, job-pod image, and runtime image. The full run does **not**
+  sweep models or persona variants.
+- **Full slice = one pass.** The full run is one complete pass over the 70
+  deterministic tasks on the canonical set, budgeted at **≤ 12 h** of machine
+  time (one pass is ~3–5 h on the 9B reference, so the budget is a cap, not a
+  target). `-passes 1` makes this explicit; the wall-time deadline is only a
+  safety net.
+- **Anchor = the short onboarding/leaderboard screen.** Twelve tuning-only tasks
+  (`eval/bench/anchor.yaml`), one pass per pinned roster model, **≤ 12 h total**.
+  The anchor is not the headline; it selects models for onboarding and orders
+  the leaderboard.
+- **The leaderboard is an aggregation, not a second benchmark.** It merges the
+  anchor runs into one row per model using the same deterministic checks. The
+  full benchmark is then run on the chosen canonical persona set.
+- **Models are pinned by digest.** The roster in `protocol.yaml` records the
+  Ollama digest of every model; `make bench-verify` refuses a run when a tag has
+  moved. The embedding model (`nomic-embed-text`) is pinned too — leaving
+  `memory_embedding_model` empty would silently make retrieval FTS-only and
+  hollow out the MCE measurement.
+- **Changing any pinned field is a new benchmark version (v2), not an edit.**
+  This includes a model digest, a role temperature, a context target, the
+  embedding model, the inference engine version, the host class, the arm, the
+  pass count, or the scoring rule. The task digest and the protocol are verified
+  together by `make corpus-check`.
+
+The initial full slice is the **70 deterministic tasks**; the 4 memory scripts
+join it when the sequence runner lands, and the 6 human-review tasks run
+asynchronously (operator time, not machine time). Both are part of the frozen
+set, not edits to it.
+
 ## 3. Procedure (part of the freeze)
 
-- **Run shape.** A capability **matrix**: tasks × model variants × selected
-  approach variants × repeats. Screen every model/variant on an **anchor**
-  (8–12 stratified tasks, 1–2 repeats); confirm the top few on the full set
-  (3 repeats). Never full-cross every dimension.
+- **Run shape.** Two shapes share one frozen task set. **Full:** the canonical
+  persona set from `protocol.yaml`, one pass over all 70 deterministic tasks,
+  **≤ 12 h** (typically 3–5 h on the 9B reference). **Anchor:** the 12-task
+  tuning-only subset, one pass per pinned roster model, **≤ 12 h total**; this is
+  the onboarding/leaderboard screen. A full matrix (multiple arms × repeats) is
+  a pre-tag confirmation, not the initial slice and not the leaderboard.
+- **One persona set.** The full run uses the five roles, models, temperatures,
+  context targets, inference parameters, embedding model, and runtime image
+  pinned in `protocol.yaml`. The leaderboard varies only the generator model;
+  the role shape and judge stay identical so a delta is attributable.
 - **Model order.** Model-outer for throughput (one load per model), with a
   randomized task order and a **daily reference-model control** to detect drift.
   A small anchor may be run paired (A/B back-to-back) for tight comparisons.
 - **Runtime.** The **Core Pod** (ADR-0078). Record load/switch time and
-  cold-start latency.
+  cold-start latency. The probe's host-binary mode is a development path, not
+  the benchmark runtime.
 - **A/B within a version.** The same frozen tasks run under config toggles (e.g.
   `seed_active_chunk`, index limits, compaction on/off, prompt/context policy)
-  so a change is attributable, not only a version-to-version delta.
+  so a change is attributable, not only a version-to-version delta. A/B
+  toggles are reported separately from the headline and never change the
+  pinned protocol for the headline run.
 
 ## 4. Scoring (part of the freeze)
 
@@ -121,7 +168,8 @@ a win to bank.
   human), stratified by archetype, tier, and context demand. They run like any
   other task but are **never used to tune prompts, routing, thresholds, or the
   escalation ladder**. They exist so a reported improvement has an
-  uncontaminated check.
+  uncontaminated check. The onboarding/leaderboard anchor is drawn **only from
+  the tuning slice**; a held-out task in the anchor would contaminate it.
 
 ## 7. Per-item requirements (authoring checklist)
 
@@ -181,5 +229,8 @@ Run it with `make soak-smoke` (it sets `MINI_SOAK_ONLY` and a fresh output dir).
 - **Anchor pairs** (good + near-miss artifacts) for judge-discrimination, using
   each task's `quality_rubric` and `expected_failure_modes` as the brief.
 - Implement the mechanism-metric reducer over the run's event log.
-- Validate the runtime budget on the reference host before the first full
-  matrix.
+- Run the first **≤12 h full slice** on the reference host (`make bench-full`)
+  and confirm the wall time, the per-job distribution, and the 12 h cap.
+- Add the **Core Pod run mode** to the probe: the protocol pins
+  `athanor-core:0.0.0`, but the probe still starts the host binary. The benchmark
+  runtime is the Core Pod (ADR-0078); the host path is a development mode.

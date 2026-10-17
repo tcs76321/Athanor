@@ -77,6 +77,36 @@ changes between runs cannot be compared across versions.
    evidence ([ADR-0076](0076-continuous-evidence.md)) must **improve**. Neither
    number alone is a claim.
 
+## Amendment — 2026-10-17: one persona set, a 12-hour slice, and a pinned protocol
+
+The first authoring pass exposed two ambiguities that would have made the
+benchmark both unaffordable and under-specified: whether the full run sweeps
+models/personas, and what exactly is held constant. This amendment resolves
+them.
+
+- **One persona set for the full benchmark.** The headline run uses the five
+  canonical roles and their pinned models, temperatures, and context targets. It
+  does **not** sweep models or persona variants. The leaderboard/onboarding is a
+  separate, short **anchor** screen (12 tuning-only tasks × the pinned model
+  roster); it is an aggregation of runs, not a second benchmark.
+- **A full slice is one pass, ≤ 12 h.** The 70 deterministic tasks run once on
+  the canonical set. `-passes 1` makes "one pass" explicit; the wall-time budget
+  is a safety cap. The earlier "full matrix" (arms × repeats × 10 models) is a
+  pre-tag confirmation, not the initial slice.
+- **The freeze includes the run contract.** `eval/bench/protocol.yaml` pins the
+  model tags **and Ollama digests**, persona roles/families/temperatures,
+  context targets, inference parameters, embedding model, job-pod and Core Pod
+  images, and the run shape. Changing any of them is a new benchmark version.
+  `make bench-verify` refuses a run when a digest moves.
+- **The vector half is on.** The canonical config sets
+  `memory_embedding_model`; leaving it empty would degrade retrieval to FTS-only
+  and make the MCE measurement hollow.
+- **Anchor tasks are tuning-only.** No held-out task may appear in the anchor;
+  otherwise model selection contaminates the held-out slice.
+
+This keeps the controlled study constant across 0.x while making the initial
+slice and the onboarding screen fit in a day.
+
 ## Consequences
 
 - The current 15-task corpus is **insufficient**: it lacks long-context,

@@ -1,0 +1,60 @@
+# Athanor benchmark v1 — the onboarding/leaderboard anchor
+#
+# A 12-task stratified screen used to rank models for onboarding and the
+# leaderboard. It is NOT the headline: the headline is the single-persona full
+# run. The anchor is drawn ONLY from the tuning slice; using a held-out task
+# here would contaminate the held-out measurement.
+#
+# 12 tasks: 4 code, 3 document, 2 text, 1 data, 2 adversarial.
+# E3 / M5 / H4; one repo-backed and two long-source tasks keep it MCE-sensitive.
+version: 1
+benchmark: v1
+tasks:
+  - id: code-e-fizzbuzz
+    tier: E
+    archetype: code
+    why: sanity; catches a broken harness before any model comparison
+  - id: code-refactor-provided
+    tier: M
+    archetype: code
+    why: repo-backed; exercises indexing and the MCE working set
+  - id: code-semver
+    tier: M
+    archetype: code
+    why: numeric comparison trap; discriminates careful implementations
+  - id: code-json-patch
+    tier: H
+    archetype: code
+    why: non-mutating multi-op state; headroom
+  - id: doc-e-readme
+    tier: E
+    archetype: document
+    why: section-order sanity
+  - id: doc-runbook
+    tier: M
+    archetype: document
+    why: ordered operational structure
+  - id: doc-cited-brief
+    tier: H
+    archetype: document
+    why: long source; citation fidelity and context retention
+  - id: text-e-summary
+    tier: E
+    archetype: text
+    why: bounded prose sanity
+  - id: text-level-rewrite
+    tier: H
+    archetype: text
+    why: long-source rewrite; preserves entities under simplification
+  - id: data-m-filter
+    tier: M
+    archetype: data
+    why: schema + filter + order in one check
+  - id: adv-m-missing-info
+    tier: M
+    archetype: adversarial
+    why: refuses to fabricate under under-specification
+  - id: adv-h-false-premise
+    tier: H
+    archetype: adversarial
+    why: corrects a false premise instead of building on it

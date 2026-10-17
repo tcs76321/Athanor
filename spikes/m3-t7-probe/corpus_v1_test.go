@@ -292,6 +292,189 @@ func TestBenchDataChecks(t *testing.T) {
 	}
 }
 
+// TestBenchProtocol pins the run contract: one canonical persona set, the
+// pinned model digests, the exact role/context/inference values, a one-pass
+// full slice, and a short anchor drawn only from the tuning slice.
+func TestBenchProtocol(t *testing.T) {
+	p, err := loadProtocol("../../eval/bench/protocol.yaml")
+	if err != nil {
+		t.Fatalf("loadProtocol: %v", err)
+	}
+	if p.Benchmark != "v1" || p.Status != "frozen" {
+		t.Errorf("benchmark=%q status=%q, want v1/frozen", p.Benchmark, p.Status)
+	}
+
+	wantRoles := map[string]protocolRole{
+		"wide":        {Model: "ornith-1.5:9b", Family: "qwen35", ContextTarget: 32768, Temperature: 0.7},
+		"tall":        {Model: "ornith-1.5:9b", Family: "qwen35", ContextTarget: 16384, Temperature: 0.2},
+		"main":        {Model: "ornith-1.5:9b", Family: "qwen35", ContextTarget: 32768, Temperature: 0.4},
+		"security":    {Model: "granite4.2:3b", Family: "granite", ContextTarget: 32768, Temperature: 0.0},
+		"alternative": {Model: "ornith-1.5:9b", Family: "qwen35", ContextTarget: 32768, Temperature: 0.8},
+	}
+	for role, want := range wantRoles {
+		if got := p.CanonicalPersonaSet.Roles[role]; got != want {
+			t.Errorf("role %s = %+v, want %+v", role, got, want)
+		}
+	}
+	if p.CanonicalPersonaSet.Inference.MaxOutputTokens != 4096 ||
+		p.CanonicalPersonaSet.Inference.Think ||
+		p.CanonicalPersonaSet.Inference.JudgmentSeed != "off" ||
+		p.CanonicalPersonaSet.Inference.EngineVersion == "" {
+		t.Errorf("inference drift: %+v", p.CanonicalPersonaSet.Inference)
+	}
+	if p.CanonicalPersonaSet.Runtime.CorePodImage == "" ||
+		p.CanonicalPersonaSet.Runtime.HostClass == "" {
+		t.Errorf("runtime drift: %+v", p.CanonicalPersonaSet.Runtime)
+	}
+	if p.CanonicalPersonaSet.Execution.DivergenceCandidates != 3 ||
+		p.CanonicalPersonaSet.Execution.MaxReflectionLoops != 2 {
+		t.Errorf("execution drift: %+v", p.CanonicalPersonaSet.Execution)
+	}
+	if !p.CanonicalPersonaSet.Context.SeedActiveChunk ||
+		p.CanonicalPersonaSet.Context.MemoryEmbeddingModel == "" ||
+		p.CanonicalPersonaSet.Context.MemorySearchTopK == 0 {
+		t.Errorf("context/embedding drift: %+v", p.CanonicalPersonaSet.Context)
+	}
+	if p.RunShape.Full.Passes != 1 || p.RunShape.Full.Arm != "full" ||
+		p.RunShape.Full.MachineBudgetHours > 12 || p.RunShape.Full.PerJobTimeout != "45m" {
+		t.Errorf("full run shape drift: %+v", p.RunShape.Full)
+	}
+	if p.RunShape.Anchor.Passes != 1 || p.RunShape.Anchor.MachineBudgetHours > 12 ||
+		p.RunShape.Anchor.Tasks != "eval/bench/anchor.yaml" {
+		t.Errorf("anchor run shape drift: %+v", p.RunShape.Anchor)
+	}
+
+	// The protocol roster must be the probe's roster, with a digest for each.
+	if len(p.Roster) != len(probeModels) {
+		t.Fatalf("protocol roster = %d, probeModels = %d", len(p.Roster), len(probeModels))
+	}
+	for i, m := range probeModels {
+		e := p.Roster[i]
+		if e.Label != m.Label || e.Model != m.Model || e.Family != m.Family {
+			t.Errorf("roster[%d] = %+v, want label/model/family %s/%s/%s",
+				i, e, m.Label, m.Model, m.Family)
+		}
+		if e.Digest == "" {
+			t.Errorf("roster[%d] %s has no digest", i, e.Label)
+		}
+	}
+	if p.Embeddings.Model == "" || p.Embeddings.Digest == "" {
+		t.Error("embedding model/digest is not pinned")
+	}
+
+	// The generated canonical config must agree with the protocol. This is the
+	// guard against a code change silently altering the frozen run.
+	m, ok := modelByLabel("ornith9b")
+	if !ok {
+		t.Fatal("ornith9b missing from probeModels")
+	}
+	a, ok := namedArm("full")
+	if !ok {
+		t.Fatal("full arm missing")
+	}
+	raw := probeConfigYAML(m, a, "off", "127.0.0.1:7420", false, probePolicy{JudgeModel: "granite4.2:3b"})
+	var cfg struct {
+		Personas  map[string]protocolRole `yaml:"personas"`
+		Inference struct {
+			MaxOutputTokens int    `yaml:"max_output_tokens"`
+			Think           bool   `yaml:"think"`
+			JudgmentSeed    string `yaml:"judgment_seed"`
+		} `yaml:"inference"`
+		Execution struct {
+			DivergenceCandidates int `yaml:"divergence_candidates"`
+		} `yaml:"execution"`
+		ContextEngine struct {
+			MemoryEmbeddingModel string `yaml:"memory_embedding_model"`
+			MemorySearchTopK     int    `yaml:"memory_search_top_k"`
+		} `yaml:"context_engine"`
+		Limits struct {
+			MaxConcurrentJobs int `yaml:"max_concurrent_jobs"`
+		} `yaml:"limits"`
+	}
+	if err := yaml.Unmarshal([]byte(raw), &cfg); err != nil {
+		t.Fatalf("parse canonical config: %v", err)
+	}
+	for role, want := range wantRoles {
+		if got := cfg.Personas[role]; got != want {
+			t.Errorf("config role %s = %+v, want %+v", role, got, want)
+		}
+	}
+	if cfg.Execution.DivergenceCandidates != 3 {
+		t.Errorf("config divergence_candidates = %d, want 3", cfg.Execution.DivergenceCandidates)
+	}
+	if cfg.Limits.MaxConcurrentJobs != 1 {
+		t.Errorf("config max_concurrent_jobs = %d, want 1", cfg.Limits.MaxConcurrentJobs)
+	}
+	if cfg.ContextEngine.MemoryEmbeddingModel != p.Embeddings.Model ||
+		cfg.ContextEngine.MemorySearchTopK != p.CanonicalPersonaSet.Context.MemorySearchTopK {
+		t.Errorf("config embedding drift: %+v", cfg.ContextEngine)
+	}
+
+	// The anchor is 12 non-held-out tasks, stratified, and every id exists.
+	goals, err := loadCorpus(benchTasksPath)
+	if err != nil {
+		t.Fatalf("load corpus: %v", err)
+	}
+	byName := map[string]sampleGoal{}
+	for _, g := range goals {
+		byName[g.Name] = g
+	}
+	anchored, err := filterByAnchor(goals, "../../eval/bench/anchor.yaml")
+	if err != nil {
+		t.Fatalf("filterByAnchor: %v", err)
+	}
+	if len(anchored) != 12 {
+		t.Fatalf("anchor tasks = %d, want 12", len(anchored))
+	}
+	tiers := map[string]int{}
+	for _, g := range anchored {
+		if g.HeldOut {
+			t.Errorf("anchor uses held-out task %s", g.Name)
+		}
+		tiers[tierOf(g.Source)]++
+	}
+	wantTiers := map[string]int{"E": 3, "M": 5, "H": 4}
+	for k, want := range wantTiers {
+		if tiers[k] != want {
+			t.Errorf("anchor tier %s = %d, want %d", k, tiers[k], want)
+		}
+	}
+	if _, ok := byName["code-refactor-provided"]; !ok {
+		t.Error("anchor repo-backed task is missing from the corpus")
+	}
+}
+
+// TestCheckRoster pins the digest comparison: a missing model and a changed
+// digest are both loud, not silently accepted.
+func TestCheckRoster(t *testing.T) {
+	roster := []protocolRosterEntry{
+		{Label: "a", Model: "m1", Digest: "d1"},
+		{Label: "b", Model: "m2", Digest: "d2"},
+	}
+	if issues := checkRoster(roster, map[string]string{"m1": "d1", "m2": "d2"}); len(issues) != 0 {
+		t.Errorf("matching roster reported %v", issues)
+	}
+	issues := checkRoster(roster, map[string]string{"m1": "d1", "m2": "other"})
+	if len(issues) != 1 || !strings.Contains(issues[0], "digest") {
+		t.Errorf("digest mismatch issues = %v", issues)
+	}
+	if issues := checkRoster(roster, map[string]string{}); len(issues) != 2 {
+		t.Errorf("missing-model issues = %v, want 2", issues)
+	}
+}
+
+// TestFilterByAnchorUnknownID proves a typo in the anchor is loud, not a
+// silently smaller onboarding signal.
+func TestFilterByAnchorUnknownID(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "anchor.yaml")
+	if err := os.WriteFile(path, []byte("version: 1\ntasks:\n  - id: not-a-task\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := filterByAnchor([]sampleGoal{{Name: "real"}}, path); err == nil {
+		t.Error("unknown anchor id was accepted")
+	}
+}
+
 // TestBenchCodeReferences runs every code task's test_command against the
 // corresponding reference solution. It is the proof that each deterministic
 // check is satisfiable and correctly written. Skipped when python3 is absent

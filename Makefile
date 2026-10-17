@@ -62,12 +62,18 @@ MINI_SOAK_KILL  ?= 20m
 MINI_SOAK_TIMEOUT ?= 45m
 # MINI_SOAK_ONLY narrows the corpus to a comma-separated task list (empty = all).
 MINI_SOAK_ONLY  ?=
+# MINI_SOAK_PASSES caps full corpus passes (empty = until the deadline);
+# 1 = one full slice. MINI_SOAK_ANCHOR narrows to an anchor YAML.
+MINI_SOAK_PASSES ?=
+MINI_SOAK_ANCHOR ?=
 soak-mini:
 	go run $(GO_TAGS) ./spikes/m3-t7-probe soak \
 		-model $(MINI_SOAK_MODEL) -arm full -corpus eval/bench/tasks.yaml \
 		-judge-model $(MINI_SOAK_JUDGE) -hours $(MINI_SOAK_HOURS) \
 		-timeout $(MINI_SOAK_TIMEOUT) \
 		-kill-after $(MINI_SOAK_KILL) $(if $(MINI_SOAK_ONLY),-only $(MINI_SOAK_ONLY)) \
+		$(if $(MINI_SOAK_PASSES),-passes $(MINI_SOAK_PASSES)) \
+		$(if $(MINI_SOAK_ANCHOR),-anchor-tasks $(MINI_SOAK_ANCHOR)) \
 		-out $(MINI_SOAK_OUT)
 
 # A time-boxed ladder across every matrix model: one soak per model (single-slot
@@ -112,6 +118,51 @@ SOAK_SMOKE_OUT  ?= spikes/m3-t7-probe/results/smoke
 SOAK_SMOKE_ONLY ?= code-csv-rfc4180,code-refactor-provided,doc-cited-brief,text-level-rewrite,data-json-normalize,adv-h-contradictory-requirements
 soak-smoke:
 	$(MAKE) soak-mini MINI_SOAK_ONLY=$(SOAK_SMOKE_ONLY) MINI_SOAK_OUT=$(SOAK_SMOKE_OUT)
+
+# Benchmark run shapes (eval/bench/protocol.yaml). The full run is ONE canonical
+# persona set, one pass, <=12h. The anchor is the short onboarding/leaderboard
+# screen (12 tasks x pinned roster), also <=12h. The leaderboard is an
+# aggregation of anchor runs, not the headline. Both verify the model digests
+# first; a changed model is a changed benchmark, not a sloppy run.
+BENCH_MODEL        ?= ornith9b
+BENCH_JUDGE        ?= granite4.2:3b
+BENCH_OUT          ?= spikes/m3-t7-probe/results/bench-v1
+BENCH_HOURS        ?= 12
+BENCH_TIMEOUT      ?= 45m
+BENCH_ANCHOR_HOURS ?= 1
+BENCH_ANCHOR_MODELS ?= granite3b gemmae4b granite8b ornith9b gemma12b qwen27b granite30b nemotron30b muse30b ornith35b
+
+bench-verify:
+	go run $(GO_TAGS) ./spikes/m3-t7-probe verify-models -protocol eval/bench/protocol.yaml
+
+bench-full: bench-verify
+	@if [ -f "$(BENCH_OUT)/full/complete" ]; then \
+		echo "=== full benchmark already complete: $(BENCH_OUT)/full ==="; exit 0; \
+	fi
+	@if [ -d "$(BENCH_OUT)/full" ]; then \
+		echo "=== incomplete full run at $(BENCH_OUT)/full; remove it to restart ===" >&2; exit 1; \
+	fi
+	$(MAKE) soak-mini MINI_SOAK_MODEL=$(BENCH_MODEL) MINI_SOAK_JUDGE=$(BENCH_JUDGE) \
+		MINI_SOAK_HOURS=$(BENCH_HOURS) MINI_SOAK_KILL=0 \
+		MINI_SOAK_TIMEOUT=$(BENCH_TIMEOUT) MINI_SOAK_PASSES=1 \
+		MINI_SOAK_OUT=$(BENCH_OUT)/full
+
+bench-anchor: bench-verify
+	@for m in $(BENCH_ANCHOR_MODELS); do \
+		if [ -f "$(BENCH_OUT)/anchor/$$m/complete" ]; then \
+			echo "=== anchor $$m: already complete, skipping ==="; continue; \
+		fi; \
+		if [ -d "$(BENCH_OUT)/anchor/$$m" ]; then \
+			echo "=== incomplete anchor $$m; remove $(BENCH_OUT)/anchor/$$m to restart ===" >&2; exit 1; \
+		fi; \
+		echo "=== anchor $$m (one pass, $(BENCH_ANCHOR_HOURS)h cap) ==="; \
+		$(MAKE) soak-mini MINI_SOAK_MODEL=$$m MINI_SOAK_JUDGE=$(BENCH_JUDGE) \
+			MINI_SOAK_HOURS=$(BENCH_ANCHOR_HOURS) MINI_SOAK_KILL=0 \
+			MINI_SOAK_TIMEOUT=$(BENCH_TIMEOUT) MINI_SOAK_PASSES=1 \
+			MINI_SOAK_ANCHOR=eval/bench/anchor.yaml \
+			MINI_SOAK_OUT=$(BENCH_OUT)/anchor/$$m || exit 1; \
+	done
+	$(MAKE) probe-report PROBE_OUT=$(BENCH_OUT)/anchor
 
 run:
 	go run $(GO_TAGS) ./cmd/athanor

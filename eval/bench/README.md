@@ -68,6 +68,32 @@ Every task declares `context_demand: short | long | repo | memory`:
 This is a *what it stresses* label, orthogonal to difficulty. A task can be M
 and long, or H and short.
 
+## Run shapes and the frozen protocol
+
+The task set is half the freeze. [`protocol.yaml`](protocol.yaml) pins the run
+contract: one canonical persona set (five roles, model families, temperatures,
+context targets), the inference parameters and engine version, the embedding
+model, the job-pod and Core Pod images, the host class, the model roster with
+Ollama digests, and the run shape.
+
+| shape | what runs | budget | command |
+|---|---|---|---|
+| **full** (headline) | one canonical persona set, one pass over all 70 deterministic tasks | ≤ 12 h | `make bench-full` |
+| **anchor** (onboarding/leaderboard) | 12 tuning-only tasks, one pass per pinned roster model | ≤ 12 h total | `make bench-anchor` |
+| **smoke** | 6 engine-surface tasks | ~30–60 min | `make soak-smoke` |
+
+- The full run does **not** sweep models or persona variants. The leaderboard is
+  an aggregation of anchor runs, not a second benchmark.
+- `make bench-verify` refuses a run when a model tag's digest has moved. The
+  embedding model is pinned too; leaving `memory_embedding_model` empty would
+  make retrieval FTS-only and hollow out the MCE measurement.
+- The anchor is drawn only from the **tuning slice** — no held-out tasks.
+- `-passes 1` is the full-slice shape: one complete pass, then stop. The
+  wall-time budget is a safety cap, not a mid-pass cutoff (the deadline is
+  checked between passes; each job is bounded by `per_job_timeout`).
+- Changing a model, digest, role temperature, context target, embedding model,
+  arm, pass count, or scoring rule is a **new benchmark version**, not an edit.
+
 ## Design principles
 
 1. **Deterministic ground truth.** Every task has machine checks — a real test
@@ -139,6 +165,8 @@ human anchor is the fallback for those qualities.
 | [`tasks.yaml`](tasks.yaml) | 70 deterministic tasks |
 | [`memory-scripts.yaml`](memory-scripts.yaml) | 4 multi-job memory scripts |
 | [`human-review.yaml`](human-review.yaml) | 6 rubric-scored tasks |
+| [`protocol.yaml`](protocol.yaml) | the frozen run contract: personas, models/digests, context, inference, run shape |
+| [`anchor.yaml`](anchor.yaml) | the 12-task onboarding/leaderboard screen (tuning-only) |
 | [`reference.yaml`](reference.yaml) | reference solutions for the 30 code tasks (validation only) |
 | `fixtures/<id>/` | starter code, long sources, JSON schemas, the review diff |
 
@@ -152,6 +180,11 @@ The corpus is guarded by `spikes/m3-t7-probe/corpus_v1_test.go`:
   fixture/repo/JSON-schema path exists.
 - **Extras:** 4 memory scripts with task → correction/insight → task steps, 6
   human tasks with a 5/3/1 rubric, and exactly 20 held-out items.
+- **Protocol:** `TestBenchProtocol` pins the canonical five roles, contexts,
+  temperatures, model roster/digests, embedding model, the one-pass full slice,
+  the ≤12 h budget, and the 12-task anchor (all non-held-out, E3/M5/H4). It also
+  renders the canonical daemon config and compares it field by field, so code
+  drift cannot silently change the run.
 - **Reference execution:** every code task's real `test_command` is run against
   its reference solution. This is the proof that no code check is
   unsatisfiable or simply wrong. It skips only when `python3` is absent (the
@@ -260,8 +293,12 @@ pass rate. Three are held out.
    metrics and the CSV, and the report has a held-out vs tuning table.
 3. **Done:** code tests and non-code checks are both deterministic gates; the
    reference test proves the code gates are satisfiable.
-4. **Next:** the memory-script sequence runner and the human-review queue. The
-   corpus is frozen; only the runner changes.
+4. **Done:** `protocol.yaml` pins the run; `make bench-verify` checks model
+   digests, `-passes 1` is the full slice, and `-anchor-tasks` runs the 12-task
+   onboarding/leaderboard anchor.
+5. **Next:** the memory-script sequence runner, the human-review queue, and the
+   Core Pod run mode. The corpus and protocol are frozen; only the runner
+   changes.
 
 ## Required assets and known gaps
 

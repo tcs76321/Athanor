@@ -10,6 +10,26 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Benchmark protocol: one persona set, a ≤12 h slice, pinned models — 2026-10-17
+
+- **The full benchmark runs on ONE canonical persona set**, not a model sweep.
+  [`eval/bench/protocol.yaml`](eval/bench/protocol.yaml) pins the five roles,
+  model tags **and Ollama digests**, temperatures, context targets, inference
+  parameters, embedding model, job-pod/Core Pod images, and the run shape.
+  Changing any of them is a new benchmark version
+  ([ADR-0075 amendment](docs/adr/0075-frozen-corpus-compass.md)).
+- **Full slice = one pass, ≤ 12 h.** `-passes 1` plus a 12 h safety cap; the
+  expected time on the 9B reference is ~3–5 h, not weeks.
+- **Onboarding/leaderboard = a 12-task anchor**, one pass per pinned model,
+  ≤ 12 h total (`make bench-anchor`). The leaderboard aggregates anchor runs; it
+  is not a second benchmark.
+- **Model digests are enforced:** `make bench-verify` refuses a run when a tag
+  has moved. The MCE's vector half is now enabled in the probe config
+  (`memory_embedding_model: nomic-embed-text`), so retrieval is hybrid rather
+  than silently FTS-only.
+- New: `eval/bench/anchor.yaml`, `protocol.yaml`, the `verify-models` command,
+  `-passes`, `-anchor-tasks`, and `make bench-full|bench-anchor|bench-verify`.
+
 ### Benchmark v1 authored — 80 items — 2026-10-17
 
 - **Frozen benchmark v1** ([ADR-0075](docs/adr/0075-frozen-corpus-compass.md),

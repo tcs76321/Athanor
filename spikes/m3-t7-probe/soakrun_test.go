@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 // TestMetricRowsRoundTrip proves the M8-T23 resume substrate: metrics.jsonl is
@@ -37,6 +38,33 @@ func TestNamedArm(t *testing.T) {
 	}
 	if _, ok := namedArm("nope"); ok {
 		t.Error("namedArm(\"nope\") found, want miss")
+	}
+}
+
+// TestPassAllowed pins the full-slice contract: -passes 1 starts exactly one
+// pass even when the wall-time budget has room, and a positive cap wins over a
+// passed deadline (the pass itself is bounded by the per-job timeout).
+func TestPassAllowed(t *testing.T) {
+	now := time.Now()
+	future, past := now.Add(time.Hour), now.Add(-time.Hour)
+	cases := []struct {
+		name        string
+		pass, max   int
+		deadline    time.Time
+		interrupted bool
+		want        bool
+	}{
+		{"first of one", 0, 1, future, false, true},
+		{"second of one", 1, 1, future, false, false},
+		{"deadline open", 0, 0, future, false, true},
+		{"deadline passed", 0, 0, past, false, false},
+		{"interrupted", 0, 0, future, true, false},
+		{"cap beats deadline", 0, 2, past, false, true},
+	}
+	for _, c := range cases {
+		if got := passAllowed(c.pass, c.max, c.deadline, now, c.interrupted); got != c.want {
+			t.Errorf("%s: passAllowed = %v, want %v", c.name, got, c.want)
+		}
 	}
 }
 

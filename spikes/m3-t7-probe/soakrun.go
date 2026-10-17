@@ -51,6 +51,13 @@ type soakRunConfig struct {
 	// runs), reusing the `run` command's semantics.
 	onlyCSV   string
 	goalLimit int
+	// anchorPath, when set, narrows the corpus to the ids in that file (the
+	// 12-task onboarding/leaderboard anchor). It composes with -only.
+	anchorPath string
+	// passes caps the number of full corpus passes (0 = until the deadline).
+	// `-passes 1` is the full-slice shape: one complete pass, then stop, even
+	// if the wall-time budget has room for another.
+	passes int
 	// rolesCSV is the heterogeneous per-role model map (M9): "main=tag,
 	// tall=tag, security=tag, alternative=tag, wide=tag". Empty means every
 	// generation role uses the -model, judge uses -judge-model.
@@ -117,6 +124,8 @@ func runSoak(args []string) {
 	fs.StringVar(&c.rolesCSV, "roles", "", "heterogeneous per-role models: main=tag,tall=tag,security=tag,alternative=tag,wide=tag (overrides -model per role)")
 	fs.BoolVar(&c.dag, "dag", false, "enable execution.dag_decomposition: decompose each goal and run the M6 scheduler")
 	fs.StringVar(&c.onlyCSV, "only", "", "comma-separated goal names to soak (empty = all)")
+	fs.StringVar(&c.anchorPath, "anchor-tasks", "", "anchor YAML file whose task ids narrow the corpus (eval/bench/anchor.yaml)")
+	fs.IntVar(&c.passes, "passes", 0, "cap full corpus passes (0 = until the deadline); 1 = one full slice")
 	fs.IntVar(&c.goalLimit, "goals", 0, "limit to the first N goals after loading (0 = all)")
 	_ = fs.Parse(args)
 	if err := c.run(); err != nil {
@@ -137,6 +146,9 @@ func (c *soakRunConfig) run() error {
 	if !ok {
 		return fmt.Errorf("unknown -arm %q (single|dialectical|bestof3|reflect|full)", c.armName)
 	}
+	if c.passes < 0 {
+		return fmt.Errorf("-passes must be >= 0, got %d", c.passes)
+	}
 	goals := sampleGoals
 	if c.corpusPath != "" {
 		g, err := loadCorpus(c.corpusPath)
@@ -148,6 +160,13 @@ func (c *soakRunConfig) run() error {
 	// Apply -only / -goals selection (same semantics as the `run` command).
 	sel := &runnerConfig{corpus: goals, onlyCSV: c.onlyCSV, goalLimit: c.goalLimit}
 	goals = sel.goals()
+	// The anchor is an explicit subset used by onboarding/leaderboard; it is
+	// never the headline run.
+	filtered, err := filterByAnchor(goals, c.anchorPath)
+	if err != nil {
+		return err
+	}
+	goals = filtered
 	abs, err := filepath.Abs(c.outDir)
 	if err != nil {
 		return err
@@ -246,11 +265,11 @@ func (c *soakRunConfig) run() error {
 	if err := waitHealthy(r.baseURL(), 90*time.Second); err != nil {
 		return fmt.Errorf("daemon not healthy (see %s): %w", logPath, err)
 	}
-	logEvent("soak start: model=%s arm=%s goals=%d until=%s", m.Label, a.Name, len(goals), deadline.Local().Format(time.RFC3339))
+	logEvent("soak start: model=%s arm=%s goals=%d passes=%d until=%s", m.Label, a.Name, len(goals), c.passes, deadline.Local().Format(time.RFC3339))
 	sampler := startSoak(c.outDir, c.soakInterval, proc.Process.Pid, stateDir, r.baseURL()+"/healthz")
 	killed := false
 	pass := 0
-	for time.Now().Before(deadline) && !interrupted.Load() {
+	for passAllowed(pass, c.passes, deadline, time.Now(), interrupted.Load()) {
 		pass++
 		fmt.Printf("soak: pass %d at %s\n", pass, time.Now().Format(time.RFC3339))
 		for _, g := range goals {
@@ -373,6 +392,20 @@ func appendMetricRow(path string, m jobMetrics) error {
 	defer func() { _ = f.Close() }()
 	_, err = f.Write(append(b, '\n'))
 	return err
+}
+
+// passAllowed decides whether to start the next corpus pass. A positive
+// maxPasses is a hard pass cap (the full-slice shape); zero keeps the original
+// deadline behavior. The deadline is checked only between passes, so a pass
+// that starts always finishes (bounded by the per-job timeout).
+func passAllowed(pass, maxPasses int, deadline, now time.Time, interrupted bool) bool {
+	if interrupted {
+		return false
+	}
+	if maxPasses > 0 {
+		return pass < maxPasses
+	}
+	return now.Before(deadline)
 }
 
 // writeComplete marks a soak as a normal budget-exhausted run. The ladder skips

@@ -176,6 +176,8 @@ func main() {
 		runReconcile(os.Args[2:])
 	case "measure":
 		runMeasure(os.Args[2:])
+	case "verify-models":
+		runVerifyModels(os.Args[2:])
 	default:
 		usage()
 		os.Exit(2)
@@ -196,6 +198,7 @@ commands:
   bundle    write a labeled, human-readable artifact bundle (artifacts.md)
   reconcile re-read outcomes from the state DB to repair missed rows, then re-run report
   measure   write onboard measurements.json from a results tree + anchor (M9-T2b)
+  verify-models check the frozen protocol roster against the local Ollama digests
 
 Run each command with -h for its flags. Protocol:
 docs/probes/m3-t7-quality-probe.md

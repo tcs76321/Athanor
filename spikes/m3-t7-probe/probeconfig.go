@@ -190,6 +190,10 @@ context_engine:
   seed_active_chunk: true
   seed_active_max_bytes: 16384
   repository_index_limit: 20
+  # The vector half must be on for the benchmark to measure the MCE's hybrid
+  # retrieval; empty would silently degrade query_memory to FTS-only.
+  memory_embedding_model: "nomic-embed-text:latest"
+  memory_search_top_k: 8
 
 limits:
   max_concurrent_jobs: 1
