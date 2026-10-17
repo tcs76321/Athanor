@@ -1,6 +1,6 @@
 # Frozen benchmark v1 — task set, protocol, and scoring
 
-**Status:** proposed (authoring not started) · **Date:** 2026-10-17 · **Refs:**
+**Status:** frozen (v1, cut 2026-10-17) · **Refs:**
 [ADR-0075](adr/0075-frozen-corpus-compass.md) (frozen benchmark),
 [ADR-0061](adr/0061-harder-benchmark.md) (harder benchmark),
 [ADR-0070](adr/0070-declared-checks.md) (declared checks),
@@ -10,7 +10,8 @@ This spec defines the controlled study ADR-0075 calls for. The **benchmark** is
 three frozen things — the **task set**, the **procedure**, and the **external
 scoring** — pinned at x.0.0 and unchanged until (x+1).0.0. The **soak** is one
 run shape of it (endurance); the **matrix** is the other (capability). It
-replaces the current 15-task `eval/bench/tasks.yaml` as the fixed reference.
+replaces the earlier 15-task corpus as the fixed reference; the frozen set is
+the 80 items in `eval/bench/`.
 
 The benchmark exists to answer, on the same tasks and the same external checks:
 **did a change to the system — especially the multidimensional context/memory
@@ -26,42 +27,47 @@ prompts cannot answer that.
   fixture tree, recorded in `eval/bench/CORPUS.digest`.
 - New or corrected tasks, a changed check, or a changed procedure are a **new
   benchmark version** (v2), cut only at a major boundary; v1 stays runnable.
-- The digest is checked by a small `make corpus-check` target (discipline, not
-  CI).
+- The digest is checked by `make corpus-check` (discipline, not CI); it covers
+  `tasks.yaml`, `memory-scripts.yaml`, `human-review.yaml`, and every fixture.
 
 ## 2. Composition
 
-**40 core tasks** (the comparable headline), plus **3 memory scripts** and **4
-human-review tasks** (below).
+**70 deterministic tasks** (the comparable headline), plus **4 memory scripts**
+and **6 human-review tasks** (below).
 
-| Archetype | E | M | H | total | of which context-heavy |
+| Archetype | E | M | H | total | context-heavy |
 |---|---|---|---|---|---|
-| code | 2 | 6 | 8 | 16 | ≥ 6 repo-scale / multi-file |
-| document | 2 | 3 | 3 | 8 | ≥ 3 long-document (source > window) |
-| text | 1 | 3 | 2 | 6 | ≥ 1 long-source rewrite |
-| data | 1 | 2 | 1 | 4 | — |
-| adversarial | 0 | 1 | 3 | 4 | — |
-| odd / easily verified | 1 | 1 | 0 | 2 | — |
-| **total** | **7** | **16** | **17** | **40** | **≥ 12** |
+| code | 6 | 12 | 12 | 30 | 1 repo-backed |
+| document | 3 | 8 | 5 | 16 | 3 long-source, 1 repo-backed |
+| text | 3 | 6 | 3 | 12 | 1 long-source |
+| data | 1 | 3 | 2 | 6 | 2 long-input |
+| adversarial | 0 | 2 | 4 | 6 | — |
+| **total** | **13** | **31** | **26** | **70** | |
 
-- **Code is 40%** because its deterministic tests are the strongest grounded
-  signal; half of it is repo-scale so MCE/retrieval actually matters.
-- **Odd-but-easily-verified** tasks (exact formatting, units, ordering) are
-  cheap, discriminating, and catch harness bugs.
-- **Difficulty:** E ~18%, M ~40%, H ~42%, with **headroom evidence** (an H task
+- **Code is 38% of all 80 items** (43% of deterministic) because its tests are
+  the strongest grounded signal. It is mostly self-contained; the one
+  repo-backed task (`code-refactor-provided`) is the MCE retrieval probe.
+- **Odd-but-easily-verified** is a **tag** (`category: odd`) on five tasks
+  across code and text, not a separate archetype: exact formatting, units,
+  ordering. Cheap, discriminating, and they catch harness bugs.
+- **Difficulty:** E ~19%, M ~44%, H ~37%, with headroom evidence (an H task
   must fail a reference model, or it is really M).
+- **Held-out:** **20 of 80 (25%)** — 14 deterministic + 3 memory + 3 human,
+  stratified; never used for tuning.
 
-### Memory scripts (3, outside the 40)
+### Memory scripts (4, outside the 70)
 
-A memory script is a **sequence**, not a single job: job 1 → a correction/insight
-→ job 2, scored on whether job 2 recalls and applies the earlier input. These are
-the only tasks that can show a multi-session memory change.
+A memory script is a **sequence**, not a single job: job 1 → a correction or
+insight → job 2, scored on whether job 2 recalls and applies the earlier input.
+These are the only tasks that can show a multi-session memory change. Three are
+held out.
 
-### Human-review tier (4, outside the 40)
+### Human-review tier (6, outside the 70)
 
-Large, nuanced tasks (a small game, a multi-file refactor, a long brief) scored
-by the operator review queue, not deterministic checks. Kept small because human
-time is the scarce resource.
+Nuanced tasks (a ship-or-wait memo, a design review, a tone rewrite, a database
+tradeoff, an incident update, a code review) scored by the operator review
+queue, not deterministic checks. Reported separately as a calibration set; three
+are held out.
 
 ## 3. Procedure (part of the freeze)
 
@@ -111,9 +117,10 @@ a win to bank.
 - **E** — sanity; a competent model should pass. Guards harness regressions.
 - **M** — discriminating; separates model tiers.
 - **H** — headroom; a 9–12 B should fail a meaningful fraction.
-- **Held-out slice**: **10 of 40** (stratified) marked `held_out: true`. They run
-  like any other task but are **never used to tune prompts, routing, thresholds,
-  or the escalation ladder**. They exist so a reported improvement has an
+- **Held-out slice**: **20 of 80** (25%; 14 deterministic + 3 memory + 3
+  human), stratified by archetype, tier, and context demand. They run like any
+  other task but are **never used to tune prompts, routing, thresholds, or the
+  escalation ladder**. They exist so a reported improvement has an
   uncontaminated check.
 
 ## 7. Per-item requirements (authoring checklist)
@@ -132,16 +139,21 @@ a win to bank.
    benchmark can report MCE-sensitive strata.
 10. A contamination check (not in the anchor, qualification suite, or any tuning
     corpus).
-11. A stable name (`code-…`, `doc-…`, `text-…`, `data-…`, `adversarial-…`,
-    `odd-…`, `mem-…`).
+11. A stable name (`code-…`, `doc-…`, `text-…`, `data-…`, `adv-…`,
+    `adversarial-…`, `mem-…`) and an optional `category` tag (`adversarial`,
+    `odd`).
 
 ## 8. Smoke subset
 
-A fixed **6-item** subset for engine-surface changes: two H code (one
-repo-scale), one M code, one H document (long), one H text, one H data. It
-finishes in ~30 min on the reference host and catches the common regressions
-(candidate parsing, verdict parsing, checks, pod execution, context assembly,
-scheduling).
+A fixed **6-item** subset for engine-surface changes: `code-csv-rfc4180`
+(H code), `code-refactor-provided` (M repo-backed), `doc-cited-brief` (H
+document, long source), `text-level-rewrite` (H text, long source),
+`data-json-normalize` (H data, long input), `adv-h-contradictory-requirements`
+(H adversarial). It finishes in ~30–40 min on the reference host and catches the
+common regressions (candidate parsing, verdict parsing, checks, pod execution,
+context assembly, scheduling).
+
+Run it with `make soak-smoke` (it sets `MINI_SOAK_ONLY` and a fresh output dir).
 
 ## 9. How it is used
 
@@ -155,8 +167,19 @@ scheduling).
 
 ## 10. Open items
 
-- Author the 25 new core tasks and the 7 extra items (3 memory scripts, 4 human).
-- Tag context demand and mark the 10 held-out; record the digest.
-- `make corpus-check` (digest) and a smoke-subset selector.
+- ~~Author the 70 deterministic tasks, 4 memory scripts, and 6 human-review
+  tasks.~~ **Done.** `eval/bench/`.
+- ~~Tag context demand, mark the 20 held-out, and record the digest.~~ **Done**
+  (`CORPUS.digest`, `make corpus-check`).
+- ~~Validate the code checks against reference solutions.~~ **Done**
+  (`reference.yaml`, `TestBenchCodeReferences`).
+- **Memory-script sequence runner** (spec frozen; the runner must create one
+  project, submit the correction/insight, run the later job, and read the
+  injection from the event log).
+- **Human-review queue** (the 6 rubric tasks are specified; the operator UI is
+  runner work).
+- **Anchor pairs** (good + near-miss artifacts) for judge-discrimination, using
+  each task's `quality_rubric` and `expected_failure_modes` as the brief.
 - Implement the mechanism-metric reducer over the run's event log.
-- Validate the runtime budget on the reference host before freezing.
+- Validate the runtime budget on the reference host before the first full
+  matrix.

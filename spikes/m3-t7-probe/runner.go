@@ -387,6 +387,8 @@ func (r *runnerConfig) runOne(g sampleGoal, m probeModel, a arm, run int, stateD
 	mx := jobMetrics{
 		GoalName: g.Name, GoalNumber: g.Number, Archetype: g.Archetype, Tier: tierOf(g.Source),
 		ModelLabel: m.Label, Model: m.Model, Family: m.Family, Arm: a.Name, Run: run,
+		HeldOut: g.HeldOut, ContextDemand: g.ContextDemand, Category: g.Category,
+		Bench: strings.HasPrefix(g.Source, "bench:"),
 	}
 	name := fmt.Sprintf("%s-%s-%s-r%d-%d", g.Name, m.Label, a.Name, run, time.Now().UnixNano()%1_000_000)
 
@@ -673,7 +675,8 @@ func writeCSV(path string, metrics []jobMetrics) error {
 	defer func() { _ = f.Close() }()
 	w := csv.NewWriter(f)
 	defer w.Flush()
-	header := []string{"goal", "archetype", "model_label", "arm", "run", "state", "winner",
+	header := []string{"goal", "archetype", "tier", "held_out", "context_demand", "category",
+		"model_label", "arm", "run", "state", "winner",
 		"confidence", "score", "token_cost", "wall_ms", "retries", "diversity", "candidates",
 		"llm_calls", "prompt_tokens", "completion_tokens",
 		"judge_called", "verifier_applied", "verifier_passed", "job_id", "error"}
@@ -690,7 +693,8 @@ func writeCSV(path string, metrics []jobMetrics) error {
 			calls, promptTok, completionTok = m.Telemetry.Calls, m.Telemetry.PromptTokens, m.Telemetry.CompletionTokens
 		}
 		if err := w.Write([]string{
-			m.GoalName, m.Archetype, m.ModelLabel, m.Arm, strconv.Itoa(m.Run), m.State, m.Winner,
+			m.GoalName, m.Archetype, m.Tier, strconv.FormatBool(m.HeldOut),
+			m.ContextDemand, m.Category, m.ModelLabel, m.Arm, strconv.Itoa(m.Run), m.State, m.Winner,
 			strconv.FormatFloat(m.Confidence, 'f', 4, 64), strconv.FormatFloat(m.Score, 'f', 4, 64),
 			strconv.Itoa(m.TokenCost), strconv.Itoa(m.WallMS), strconv.Itoa(m.Retries),
 			strconv.FormatFloat(m.Diversity, 'f', 4, 64), strconv.Itoa(m.Candidates),

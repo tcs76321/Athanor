@@ -197,6 +197,52 @@ func corpusSummary(metrics []jobMetrics) []tierPassRow {
 	return out
 }
 
+// heldOutRow is the deterministic pass count for one (held_out, arm) cell.
+type heldOutRow struct {
+	HeldOut bool
+	Arm     string
+	N       int
+	Pass    int
+}
+
+// heldOutSummary aggregates the bench corpus pass rate by held-out vs tuning
+// and arm. The locked M3-T7 set (Bench=false) is excluded: it is a different
+// instrument and must not inflate the tuning slice.
+func heldOutSummary(metrics []jobMetrics) []heldOutRow {
+	type key struct {
+		held bool
+		arm  string
+	}
+	agg := map[key]*heldOutRow{}
+	var order []key
+	for _, m := range metrics {
+		if !m.Bench {
+			continue
+		}
+		k := key{m.HeldOut, m.Arm}
+		if _, ok := agg[k]; !ok {
+			agg[k] = &heldOutRow{HeldOut: m.HeldOut, Arm: m.Arm}
+			order = append(order, k)
+		}
+		r := agg[k]
+		r.N++
+		if jobPassed(m) {
+			r.Pass++
+		}
+	}
+	sort.Slice(order, func(i, j int) bool {
+		if order[i].held != order[j].held {
+			return !order[i].held
+		}
+		return order[i].arm < order[j].arm
+	})
+	out := make([]heldOutRow, 0, len(order))
+	for _, k := range order {
+		out = append(out, *agg[k])
+	}
+	return out
+}
+
 // renderReport renders the markdown findings skeleton over all collected
 // metrics. It fills the tables mechanically; interpretation and the ADR
 // trigger stay with the human writing the findings.
@@ -226,6 +272,22 @@ func renderReport(metrics []jobMetrics) string {
 			rate = float64(r.Pass) / float64(r.N) * 100
 		}
 		fmt.Fprintf(&b, "| %s | %s | %d | %d | %.0f%% |\n", r.Tier, r.Arm, r.N, r.Pass, rate)
+	}
+
+	b.WriteString("\n## Corpus — held-out vs tuning\n\n")
+	b.WriteString("The held-out slice is never tuned on. A gain that appears only in the tuning\n")
+	b.WriteString("slice is not evidence of generalization.\n\n")
+	b.WriteString("| slice | arm | n | pass | rate |\n|---|---|---|---|---|\n")
+	for _, r := range heldOutSummary(metrics) {
+		label := "tuning"
+		if r.HeldOut {
+			label = "held-out"
+		}
+		rate := 0.0
+		if r.N > 0 {
+			rate = float64(r.Pass) / float64(r.N) * 100
+		}
+		fmt.Fprintf(&b, "| %s | %s | %d | %d | %.0f%% |\n", label, r.Arm, r.N, r.Pass, rate)
 	}
 
 	b.WriteString("\n## T-b — judge-confidence calibration (all arms)\n\n")

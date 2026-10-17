@@ -1,6 +1,7 @@
 package main
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 )
@@ -36,5 +37,24 @@ func TestNamedArm(t *testing.T) {
 	}
 	if _, ok := namedArm("nope"); ok {
 		t.Error("namedArm(\"nope\") found, want miss")
+	}
+}
+
+// TestSoakCompleteMarker pins the resume rule: only a normal-completion marker
+// counts. report.md is written after every pass (including an interrupted one),
+// so it must not make the ladder skip a partial model.
+func TestSoakCompleteMarker(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "report.md"), []byte("partial"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if soakComplete(dir) {
+		t.Error("report.md must not count as a complete soak")
+	}
+	if err := writeComplete(dir, 3, 1); err != nil {
+		t.Fatal(err)
+	}
+	if !soakComplete(dir) {
+		t.Error("complete marker not detected")
 	}
 }

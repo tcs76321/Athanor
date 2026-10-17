@@ -64,6 +64,31 @@ func TestRunChecksAdvisoryDoesNotGate(t *testing.T) {
 	}
 }
 
+func TestRunChecksJSONArray(t *testing.T) {
+	checks := map[string]any{
+		"array_length":       3,
+		"array_unique_by":    "id",
+		"array_sorted_by":    "id",
+		"json_field_matches": map[string]any{"sev": "^(info|warning)$"},
+	}
+	good := `[{"id":1,"sev":"info"},{"id":2,"sev":"warning"},{"id":3,"sev":"info"}]`
+	if pass, results := runChecks(checks, good); !pass {
+		t.Errorf("good array failed: %+v", results)
+	}
+	if pass, _ := runChecks(checks, `[{"id":1,"sev":"info"},{"id":1,"sev":"info"},{"id":2,"sev":"info"}]`); pass {
+		t.Error("duplicate id passed array_unique_by")
+	}
+	if pass, _ := runChecks(checks, `[{"id":2,"sev":"info"},{"id":1,"sev":"info"},{"id":3,"sev":"info"}]`); pass {
+		t.Error("unsorted passed array_sorted_by")
+	}
+	if pass, _ := runChecks(checks, `[{"id":1,"sev":"debug"},{"id":2,"sev":"info"},{"id":3,"sev":"info"}]`); pass {
+		t.Error("bad enum passed json_field_matches")
+	}
+	if pass, _ := runChecks(checks, "not json"); pass {
+		t.Error("non-JSON passed the array checks")
+	}
+}
+
 // TestChecksToExecution pins the ADR-0070 translation: deterministic keys
 // carry, the two count_*_min keys become min_items, advisory/fixture keys do
 // not carry, and an advisory-only task yields nil (no execution block).

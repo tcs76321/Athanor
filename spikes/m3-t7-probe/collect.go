@@ -55,6 +55,15 @@ type jobMetrics struct {
 	// semantic checks reported but never gating. M8-T18/T21.
 	CheckFailures []string `json:"check_failures,omitempty"`
 	CheckAdvisory []string `json:"check_advisory,omitempty"`
+	// Benchmark v1 metadata, carried so the report can split the held-out
+	// slice from tuning and group by context demand. M8-T21 / ADR-0075.
+	HeldOut       bool   `json:"held_out,omitempty"`
+	ContextDemand string `json:"context_demand,omitempty"`
+	Category      string `json:"category,omitempty"`
+	// Bench is true for rows from eval/bench/tasks.yaml (including the original
+	// 15), false for the locked M3-T7 set; the held-out table uses it to keep
+	// the locked set out of the tuning count.
+	Bench bool `json:"bench,omitempty"`
 	// Telemetry is the event-log reduction (ADR-0073 §3): per-phase/per-persona
 	// calls and tokens plus the engine's lever counters. Nil when the job
 	// produced no events (e.g. it errored before execution).

@@ -29,6 +29,15 @@ type sampleGoal struct {
 	// fixture is never mutated) and runs an index pass so the MCE's Dormant
 	// Index carries repository chunks. Empty for the self-contained tasks.
 	Repo string
+	// HeldOut marks a benchmark v1 task that is never used for tuning. The
+	// report splits held-out from tuning rows so a change that only helps the
+	// tuning slice is visible.
+	HeldOut bool
+	// ContextDemand is the v1 metadata short | long | repo | memory; it says
+	// what the task stresses, not how hard it is.
+	ContextDemand string
+	// Category is the optional cross-cutting tag (adversarial | odd | "").
+	Category string
 }
 
 // sampleGoals is the 10-goal set: M1-T8's five then M3-T2's five, with no

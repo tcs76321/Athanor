@@ -1,0 +1,13 @@
+{
+  "type": "array",
+  "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["id", "city", "country"],
+    "properties": {
+      "id": { "type": "integer" },
+      "city": { "type": "string" },
+      "country": { "type": "string" }
+    }
+  }
+}

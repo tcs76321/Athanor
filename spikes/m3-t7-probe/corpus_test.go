@@ -9,10 +9,11 @@ func TestLoadCorpus(t *testing.T) {
 	if err != nil {
 		t.Fatalf("loadCorpus: %v", err)
 	}
-	if len(goals) != 15 {
-		t.Errorf("corpus tasks = %d, want 15", len(goals))
+	if len(goals) != 70 {
+		t.Errorf("corpus tasks = %d, want 70", len(goals))
 	}
 	byTier := map[string]int{}
+	var heldOut, tagged int
 	for i, g := range goals {
 		if g.Name == "" || g.Goal == "" {
 			t.Errorf("task %d has empty id/goal: %+v", i+1, g)
@@ -21,9 +22,21 @@ func TestLoadCorpus(t *testing.T) {
 			t.Errorf("task %s Number = %d, want %d", g.Name, g.Number, i+1)
 		}
 		byTier[g.Source]++
+		if g.HeldOut {
+			heldOut++
+		}
+		if g.ContextDemand != "" {
+			tagged++
+		}
 	}
-	if byTier["bench:H"] == 0 || byTier["bench:M"] == 0 {
-		t.Errorf("tier counts = %v, want some bench:H and bench:M", byTier)
+	if byTier["bench:E"] == 0 || byTier["bench:M"] == 0 || byTier["bench:H"] == 0 {
+		t.Errorf("tier counts = %v, want some bench:E, bench:M, and bench:H", byTier)
+	}
+	if heldOut == 0 {
+		t.Error("no held-out tasks carried into the probe goals")
+	}
+	if tagged != len(goals) {
+		t.Errorf("context_demand carried on %d/%d goals", tagged, len(goals))
 	}
 	var code int
 	for _, g := range goals {

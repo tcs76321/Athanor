@@ -1,0 +1,629 @@
+# Athanor benchmark v1 — reference solutions for the code tasks.
+#
+# These are NOT part of the frozen task set and are never shown to a model.
+# `corpus_v1_test.go` writes each one to a temp dir (`solution.py`, or
+# `messy.py` for the refactor task) and runs the task's real `test_command`
+# against it. That proves the deterministic check is satisfiable and pins the
+# expected behavior; a task whose reference fails is a broken task.
+#
+# They are deliberately plain: the benchmark measures the engine, not the
+# reference. Where a task permits an oracle (unified diff), the reference uses
+# it and the test still pins exact output.
+version: 1
+solutions:
+
+  code-bank-atomic: |
+    class Ledger:
+        def __init__(self):
+            self.entries = []
+
+
+    class Account:
+        def __init__(self, ledger=None):
+            self._balance = 0
+            self.ledger = ledger
+
+        @property
+        def balance(self):
+            return self._balance
+
+        def _record(self, kind, amount):
+            if self.ledger is not None:
+                self.ledger.entries.append((kind, amount))
+
+        def deposit(self, n):
+            if n < 0:
+                raise ValueError("negative deposit")
+            self._balance += n
+            self._record("deposit", n)
+
+        def withdraw(self, n):
+            if n < 0 or n > self._balance:
+                raise ValueError("insufficient funds")
+            self._balance -= n
+            self._record("withdraw", n)
+
+        def transfer(self, other, n):
+            if n < 0 or n > self._balance:
+                raise ValueError("insufficient funds")
+            self._balance -= n
+            other._balance += n
+            self._record("transfer", n)
+
+  code-expr-eval: |
+    class _Parser:
+        def __init__(self, text):
+            self.text = text
+            self.i = 0
+
+        def peek(self):
+            while self.i < len(self.text) and self.text[self.i].isspace():
+                self.i += 1
+            return self.text[self.i] if self.i < len(self.text) else ""
+
+        def expr(self):
+            value = self.term()
+            while self.peek() in ("+", "-"):
+                op = self.text[self.i]
+                self.i += 1
+                rhs = self.term()
+                value = value + rhs if op == "+" else value - rhs
+            return value
+
+        def term(self):
+            value = self.factor()
+            while self.peek() in ("*", "/"):
+                op = self.text[self.i]
+                self.i += 1
+                rhs = self.factor()
+                if op == "*":
+                    value *= rhs
+                else:
+                    if rhs == 0:
+                        raise ZeroDivisionError("division by zero")
+                    value //= rhs
+            return value
+
+        def factor(self):
+            c = self.peek()
+            if c == "-":
+                self.i += 1
+                return -self.factor()
+            if c == "(":
+                self.i += 1
+                value = self.expr()
+                if self.peek() != ")":
+                    raise ValueError("expected )")
+                self.i += 1
+                return value
+            if c.isdigit():
+                start = self.i
+                while self.i < len(self.text) and self.text[self.i].isdigit():
+                    self.i += 1
+                return int(self.text[start:self.i])
+            raise ValueError("unexpected input")
+
+
+    def evaluate(expr):
+        parser = _Parser(expr)
+        value = parser.expr()
+        if parser.peek() != "":
+            raise ValueError("trailing input")
+        return value
+
+  code-lru-ttl: |
+    import time
+    from collections import OrderedDict
+
+
+    class LRUCache:
+        def __init__(self, capacity, ttl_seconds):
+            self.capacity = capacity
+            self.ttl = ttl_seconds
+            self.data = OrderedDict()
+
+        def get(self, key):
+            if key not in self.data:
+                return None
+            expires, value = self.data[key]
+            if time.monotonic() >= expires:
+                del self.data[key]
+                return None
+            self.data.move_to_end(key)
+            return value
+
+        def put(self, key, value):
+            if key in self.data:
+                del self.data[key]
+            self.data[key] = (time.monotonic() + self.ttl, value)
+            while len(self.data) > self.capacity:
+                self.data.popitem(last=False)
+
+  code-unified-diff: |
+    import difflib
+
+
+    def unified_diff(a, b):
+        return difflib.unified_diff(a, b)
+
+  code-refactor-provided: |
+    """messy.py — refactored: one classification path, same public API."""
+
+
+    def classify(n):
+        if n < 0:
+            return "neg"
+        if n == 0:
+            return "zero"
+        return "pos"
+
+
+    def classify_many(xs):
+        return [classify(x) for x in xs]
+
+
+    def add(a, b):
+        return a + b
+
+
+    def add_twice(a, b):
+        return add(add(a, b), b)
+
+  code-parse-duration: |
+    import re
+
+
+    class DurationError(ValueError):
+        pass
+
+
+    _UNITS = {"s": 1, "m": 60, "h": 3600, "d": 86400}
+
+
+    def parse_duration(s):
+        if not isinstance(s, str) or not s.strip():
+            raise DurationError("empty duration")
+        pos = 0
+        total = 0
+        for match in re.finditer(r"\s*(\d+)\s*([smhd])", s):
+            if match.start() != pos:
+                raise DurationError("bad token at %d" % pos)
+            total += int(match.group(1)) * _UNITS[match.group(2)]
+            pos = match.end()
+        if pos != len(s):
+            raise DurationError("bad token at %d" % pos)
+        return total
+
+  code-e-fizzbuzz: |
+    def fizzbuzz(n):
+        out = []
+        for i in range(1, n + 1):
+            if i % 15 == 0:
+                out.append("FizzBuzz")
+            elif i % 3 == 0:
+                out.append("Fizz")
+            elif i % 5 == 0:
+                out.append("Buzz")
+            else:
+                out.append(i)
+        return out
+
+  code-e-sum-evens: |
+    def sum_evens(xs):
+        return sum(x for x in xs if x % 2 == 0)
+
+  code-e-reverse-words: |
+    def reverse_words(s):
+        return " ".join(reversed(s.split()))
+
+  code-e-count-vowels: |
+    def count_vowels(s):
+        return sum(1 for c in s.lower() if c in "aeiou")
+
+  code-e-is-palindrome: |
+    import re
+
+
+    def is_palindrome(s):
+        text = re.sub(r"[^a-z0-9]", "", s.lower())
+        return text == text[::-1]
+
+  code-e-max-three: |
+    def max3(a, b, c):
+        return max(a, b, c)
+
+  code-merge-intervals: |
+    def merge(intervals):
+        if not intervals:
+            return []
+        iv = sorted(intervals)
+        out = [list(iv[0])]
+        for start, end in iv[1:]:
+            if start <= out[-1][1]:
+                out[-1][1] = max(out[-1][1], end)
+            else:
+                out.append([start, end])
+        return out
+
+  code-rle: |
+    def encode(s):
+        if not s:
+            return ""
+        out = []
+        run, count = s[0], 1
+        for c in s[1:]:
+            if c == run:
+                count += 1
+            else:
+                out.append(run + str(count))
+                run, count = c, 1
+        out.append(run + str(count))
+        return "".join(out)
+
+
+    def decode(s):
+        out = []
+        i = 0
+        while i < len(s):
+            char = s[i]
+            i += 1
+            start = i
+            while i < len(s) and s[i].isdigit():
+                i += 1
+            if start == i:
+                raise ValueError("missing count")
+            out.append(char * int(s[start:i]))
+        return "".join(out)
+
+  code-roman: |
+    _VALUES = [
+        (1000, "M"), (900, "CM"), (500, "D"), (400, "CD"),
+        (100, "C"), (90, "XC"), (50, "L"), (40, "XL"),
+        (10, "X"), (9, "IX"), (5, "V"), (4, "IV"), (1, "I"),
+    ]
+
+
+    def to_roman(n):
+        if not 0 < n < 4000:
+            raise ValueError("out of range")
+        out = []
+        for value, symbol in _VALUES:
+            while n >= value:
+                out.append(symbol)
+                n -= value
+        return "".join(out)
+
+
+    def from_roman(s):
+        values = {"I": 1, "V": 5, "X": 10, "L": 50, "C": 100, "D": 500, "M": 1000}
+        total = 0
+        prev = 0
+        for c in reversed(s):
+            value = values[c]
+            if value < prev:
+                total -= value
+            else:
+                total += value
+                prev = value
+        return total
+
+  code-semver: |
+    import re
+
+
+    _SEMVER = re.compile(r"^(\d+)\.(\d+)\.(\d+)$")
+
+
+    def parse(v):
+        match = _SEMVER.match(v)
+        if not match:
+            raise ValueError("bad semver: %r" % v)
+        return tuple(int(x) for x in match.groups())
+
+
+    def compare(a, b):
+        pa, pb = parse(a), parse(b)
+        return (pa > pb) - (pa < pb)
+
+  code-glob: |
+    from functools import lru_cache
+
+
+    def match(pattern, s):
+        @lru_cache(maxsize=None)
+        def go(i, j):
+            if i == len(pattern):
+                return j == len(s)
+            c = pattern[i]
+            if c == "*":
+                return go(i + 1, j) or (j < len(s) and go(i, j + 1))
+            if j < len(s) and (c == "?" or c == s[j]):
+                return go(i + 1, j + 1)
+            return False
+
+        return go(0, 0)
+
+  code-json-pointer: |
+    def resolve(doc, pointer):
+        if pointer == "":
+            return doc
+        if not pointer.startswith("/"):
+            raise ValueError("bad pointer")
+        cur = doc
+        for raw in pointer[1:].split("/"):
+            token = raw.replace("~1", "/").replace("~0", "~")
+            if isinstance(cur, list):
+                cur = cur[int(token)]
+            elif isinstance(cur, dict):
+                cur = cur[token]
+            else:
+                raise KeyError(token)
+        return cur
+
+  code-token-bucket: |
+    class TokenBucket:
+        def __init__(self, rate, capacity, clock):
+            self.rate = float(rate)
+            self.capacity = float(capacity)
+            self.clock = clock
+            self.tokens = float(capacity)
+            self.last = clock()
+
+        def allow(self, n=1):
+            now = self.clock()
+            self.tokens = min(self.capacity, self.tokens + (now - self.last) * self.rate)
+            self.last = now
+            if self.tokens >= n:
+                self.tokens -= n
+                return True
+            return False
+
+  code-union-find: |
+    class UnionFind:
+        def __init__(self, n):
+            self.parent = list(range(n))
+            self.rank = [0] * n
+            self.count = n
+
+        def find(self, x):
+            while self.parent[x] != x:
+                self.parent[x] = self.parent[self.parent[x]]
+                x = self.parent[x]
+            return x
+
+        def union(self, a, b):
+            ra, rb = self.find(a), self.find(b)
+            if ra == rb:
+                return
+            if self.rank[ra] < self.rank[rb]:
+                ra, rb = rb, ra
+            self.parent[rb] = ra
+            if self.rank[ra] == self.rank[rb]:
+                self.rank[ra] += 1
+            self.count -= 1
+
+        def connected(self, a, b):
+            return self.find(a) == self.find(b)
+
+        def components(self):
+            return self.count
+
+  code-deep-merge: |
+    def merge(a, b):
+        out = dict(a)
+        for key, value in b.items():
+            if key in out and isinstance(out[key], dict) and isinstance(value, dict):
+                out[key] = merge(out[key], value)
+            else:
+                out[key] = value
+        return out
+
+  code-parentheses: |
+    def balanced(s):
+        pairs = {")": "(", "]": "[", "}": "{"}
+        stack = []
+        for c in s:
+            if c in "([{":
+                stack.append(c)
+            elif c in pairs:
+                if not stack or stack.pop() != pairs[c]:
+                    return False
+        return not stack
+
+  code-topo-sort: |
+    from collections import deque
+
+
+    def topo_sort(graph):
+        nodes = set(graph)
+        for deps in graph.values():
+            nodes.update(deps)
+        indegree = {n: 0 for n in nodes}
+        adj = {n: [] for n in nodes}
+        for node, deps in graph.items():
+            for dep in deps:
+                adj[dep].append(node)
+                indegree[node] += 1
+        queue = deque(n for n in nodes if indegree[n] == 0)
+        out = []
+        while queue:
+            node = queue.popleft()
+            out.append(node)
+            for nxt in adj[node]:
+                indegree[nxt] -= 1
+                if indegree[nxt] == 0:
+                    queue.append(nxt)
+        if len(out) != len(nodes):
+            raise ValueError("cycle")
+        return out
+
+  code-csv-rfc4180: |
+    def parse_csv(text):
+        rows = []
+        row = []
+        field = []
+        in_quotes = False
+        i = 0
+        while i < len(text):
+            c = text[i]
+            if in_quotes:
+                if c == '"':
+                    if i + 1 < len(text) and text[i + 1] == '"':
+                        field.append('"')
+                        i += 2
+                        continue
+                    in_quotes = False
+                    i += 1
+                    continue
+                field.append(c)
+                i += 1
+                continue
+            if c == '"':
+                in_quotes = True
+            elif c == ",":
+                row.append("".join(field))
+                field = []
+            elif c == "\n":
+                row.append("".join(field))
+                rows.append(row)
+                row = []
+                field = []
+            elif c != "\r":
+                field.append(c)
+            i += 1
+        if field or row:
+            row.append("".join(field))
+            rows.append(row)
+        return rows
+
+  code-rotated-search: |
+    def search_rotated(xs, target):
+        lo, hi = 0, len(xs) - 1
+        while lo <= hi:
+            mid = (lo + hi) // 2
+            if xs[mid] == target:
+                return mid
+            if xs[lo] == xs[mid] == xs[hi]:
+                lo += 1
+                hi -= 1
+            elif xs[lo] <= xs[mid]:
+                if xs[lo] <= target < xs[mid]:
+                    hi = mid - 1
+                else:
+                    lo = mid + 1
+            else:
+                if xs[mid] < target <= xs[hi]:
+                    lo = mid + 1
+                else:
+                    hi = mid - 1
+        return -1
+
+  code-template: |
+    import re
+
+
+    _PLACEHOLDER = re.compile(r"\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}")
+
+
+    def render(template, values):
+        def sub(match):
+            key = match.group(1)
+            return str(values[key]) if key in values else match.group(0)
+
+        return _PLACEHOLDER.sub(sub, template)
+
+  code-retry-backoff: |
+    def retry(fn, attempts, base, sleep):
+        last = None
+        for i in range(attempts):
+            try:
+                return fn()
+            except Exception as exc:  # noqa: BLE001 - the task retries any failure
+                last = exc
+                if i < attempts - 1:
+                    sleep(base * (2 ** i))
+        raise last
+
+  code-priority-queue: |
+    import heapq
+    import itertools
+
+
+    class PriorityQueue:
+        def __init__(self):
+            self._heap = []
+            self._counter = itertools.count()
+
+        def push(self, item, priority):
+            heapq.heappush(self._heap, (-priority, next(self._counter), item))
+
+        def pop(self):
+            if not self._heap:
+                raise IndexError("pop from an empty priority queue")
+            return heapq.heappop(self._heap)[2]
+
+  code-json-patch: |
+    import copy
+
+
+    def _parts(path):
+        if not path.startswith("/"):
+            raise ValueError("bad path")
+        return [p.replace("~1", "/").replace("~0", "~") for p in path[1:].split("/")]
+
+
+    def _get(doc, parts):
+        cur = doc
+        for part in parts:
+            if isinstance(cur, list):
+                cur = cur[int(part)]
+            else:
+                cur = cur[part]
+        return cur
+
+
+    def apply_patch(doc, patch):
+        out = copy.deepcopy(doc)
+        for op in patch:
+            parts = _parts(op["path"])
+            kind = op["op"]
+            if kind == "test":
+                if _get(out, parts) != op["value"]:
+                    raise ValueError("test failed")
+            elif kind in ("replace", "add", "remove"):
+                parent = _get(out, parts[:-1])
+                key = parts[-1]
+                if kind == "replace":
+                    if isinstance(parent, list):
+                        parent[int(key)] = op["value"]
+                    else:
+                        parent[key] = op["value"]
+                elif kind == "add":
+                    if isinstance(parent, list):
+                        parent.insert(int(key), op["value"])
+                    else:
+                        parent[key] = op["value"]
+                else:
+                    if isinstance(parent, list):
+                        parent.pop(int(key))
+                    else:
+                        del parent[key]
+            else:
+                raise ValueError("unsupported op")
+        return out
+
+  code-weighted-intervals: |
+    import bisect
+
+
+    def max_weight(intervals):
+        if not intervals:
+            return 0
+        iv = sorted(intervals, key=lambda x: x[1])
+        ends = [x[1] for x in iv]
+        best = [0] * (len(iv) + 1)
+        for i in range(1, len(iv) + 1):
+            start, _end, weight = iv[i - 1]
+            j = bisect.bisect_right(ends, start, 0, i - 1)
+            best[i] = max(best[i - 1], best[j] + weight)
+        return best[-1]

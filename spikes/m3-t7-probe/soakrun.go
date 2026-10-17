@@ -178,6 +178,9 @@ func (c *soakRunConfig) run() error {
 	if len(prior) > 0 {
 		fmt.Printf("soak: resuming — %d rows already collected\n", len(prior))
 	}
+	// A forced re-run clears a previous completion marker so the ladder does not
+	// skip it; an interrupted run never writes one (see writeComplete).
+	_ = os.Remove(filepath.Join(c.outDir, "complete"))
 
 	r := &runnerConfig{
 		binary:    c.binary,
@@ -323,6 +326,9 @@ func (c *soakRunConfig) run() error {
 	reason := "budget reached"
 	if interrupted.Load() {
 		reason = "interrupted (early stop)"
+		_ = os.Remove(filepath.Join(c.outDir, "complete"))
+	} else if err := writeComplete(c.outDir, len(prior), pass); err != nil {
+		return err
 	}
 	logEvent("soak end: %s; %d rows, %d passes", reason, len(prior), pass)
 	return nil
@@ -367,6 +373,21 @@ func appendMetricRow(path string, m jobMetrics) error {
 	defer func() { _ = f.Close() }()
 	_, err = f.Write(append(b, '\n'))
 	return err
+}
+
+// writeComplete marks a soak as a normal budget-exhausted run. The ladder skips
+// a model only when this marker exists: report.md is written after every pass
+// (including an interrupted one), so it cannot distinguish a complete run from
+// a stopped one. An interrupted run removes the marker.
+func writeComplete(outDir string, rows, passes int) error {
+	body := fmt.Sprintf("complete %s rows=%d passes=%d\n", time.Now().UTC().Format(time.RFC3339), rows, passes)
+	return os.WriteFile(filepath.Join(outDir, "complete"), []byte(body), 0o644)
+}
+
+// soakComplete reports whether outDir holds a normal-completion marker.
+func soakComplete(outDir string) bool {
+	_, err := os.Stat(filepath.Join(outDir, "complete"))
+	return err == nil
 }
 
 // writeRollingReport writes the aggregate artifacts (report.md, results.json,

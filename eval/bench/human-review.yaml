@@ -1,0 +1,148 @@
+# Athanor benchmark v1 — human-review tasks
+#
+# These have no deterministic check. They are scored by a human (or, in a
+# pinch, the advisory LLM judge) against the rubric, and they exist to keep the
+# benchmark honest about qualities a string check cannot see: judgment, tone,
+# tradeoff reasoning, and review depth. They are NOT part of the headline pass
+# rate; report them separately as a calibration set.
+#
+# held_out: true means never tune a prompt against them.
+version: 1
+tasks:
+
+  - id: human-strategy-memo
+    title: Ship-or-wait memo with a real counterargument
+    archetype: document
+    tier: H
+    held_out: true
+    context_demand: long
+    human_review: true
+    goal: |
+      Write a one-page memo recommending whether Athanor should tag 0.0.0 with
+      the Core Pod-only runtime, or wait for the benchmark's first full corpus.
+      State the recommendation, the strongest counterargument, and the condition
+      that would change your mind.
+    criteria:
+      - "a clear recommendation, not a survey"
+      - "the strongest counterargument is stated fairly"
+      - "a falsifiable condition that would change the recommendation"
+      - "no invented metrics or dates"
+    rubric:
+      5: "Takes a position; the counterargument is the one a smart opponent would make; the change-my-mind condition is concrete and observable."
+      3: "Takes a position but the counterargument is a strawman or the condition is vague."
+      1: "Lists considerations without deciding, or fabricates evidence."
+    reviewer_notes: "The point is judgment under uncertainty, not prose polish."
+
+  - id: human-design-review
+    title: Design review of a local-first sync engine
+    archetype: document
+    tier: H
+    held_out: false
+    context_demand: long
+    human_review: true
+    goal: |
+      Review this design: a single-operator app syncs a SQLite database between
+      two machines by exchanging CRDT ops over an untrusted relay; conflicts are
+      resolved last-writer-wins per field; the relay stores ciphertext it cannot
+      read. Identify the three most consequential risks and the single change you
+      would make first.
+    criteria:
+      - "three risks, each concrete and ranked"
+      - "one first change with a rationale"
+      - "engages with the trust model, not just the feature list"
+      - "distinguishes correctness risk from operational risk"
+    rubric:
+      5: "Finds at least one non-obvious risk (e.g. LWW losing concurrent edits silently, relay metadata, schema evolution); the first change is small and high-leverage."
+      3: "Three plausible risks but ranked by taste; the change is a rewrite."
+      1: "Generic security boilerplate or misses the trust boundary."
+    reviewer_notes: "Reward the reviewer who names what the design cannot do."
+
+  - id: human-tone-adaptation
+    title: Incident update for a non-technical customer
+    archetype: text
+    tier: M
+    held_out: true
+    context_demand: short
+    human_review: true
+    goal: |
+      Rewrite this internal update for a non-technical customer, keeping every
+      fact and removing jargon: "At 14:02 UTC the primary DB hit max_connections;
+      the pooler queued requests until 14:19; we raised the limit and added an
+      alarm." Under 120 words.
+    criteria:
+      - "all three facts and both times preserved"
+      - "no unexplained jargon (DB, pooler, max_connections)"
+      - "honest about impact without alarming"
+      - "under 120 words"
+    rubric:
+      5: "A customer could repeat the facts accurately; the tone is calm and specific."
+      3: "Facts intact but one jargon term survives, or the tone over-apologizes."
+      1: "Drops a fact or invents a cause."
+    reviewer_notes: "Check fact preservation against the source line by line."
+
+  - id: human-tradeoff-analysis
+    title: SQLite vs Postgres for a single-operator app
+    archetype: document
+    tier: H
+    held_out: false
+    context_demand: long
+    human_review: true
+    goal: |
+      Recommend SQLite or PostgreSQL for a single-operator, local-first desktop
+      app with one writer, occasional read concurrency, and no ops team. Name the
+      decisive constraint, the cost of being wrong, and a migration trigger.
+    criteria:
+      - "a decisive constraint, not a feature table"
+      - "the cost of being wrong is stated"
+      - "a concrete migration trigger"
+      - "no claim that SQLite has no concurrency"
+    rubric:
+      5: "Picks one, names the decisive constraint (ops burden/single writer), and gives a trigger that is observable."
+      3: "Picks one but hedges; the trigger is vague."
+      1: "Refuses to choose or repeats a myth."
+    reviewer_notes: "A good answer may choose either; the reasoning is the artifact."
+
+  - id: human-incident-comms
+    title: Customer update 30 minutes into an outage
+    archetype: text
+    tier: M
+    held_out: false
+    context_demand: short
+    human_review: true
+    goal: |
+      Write a 100-word status update for customers 30 minutes into an outage.
+      We know: logins fail for some users; a fix is being tested; we do not know
+      the cause yet; the next update will be in 30 minutes.
+    criteria:
+      - "states what is known and what is not"
+      - "gives the next-update time"
+      - "no invented cause or ETA for the fix"
+      - "under 100 words"
+    rubric:
+      5: "Calm, specific, and makes the uncertainty explicit without undermining confidence."
+      3: "Correct but vague, or implies an ETA it cannot support."
+      1: "Fabricates a cause or omits the next update."
+    reviewer_notes: "The hard part is saying 'we do not know' without hedging everything."
+
+  - id: human-code-review
+    title: Review a small diff for real bugs
+    archetype: code
+    tier: H
+    held_out: true
+    context_demand: repo
+    human_review: true
+    fixture: eval/bench/fixtures/human-code-review
+    goal: |
+      Review the provided diff. List the bugs in severity order, each with the
+      line and a concrete failure case; do not rewrite the whole file. If a
+      change is correct, say so.
+    criteria:
+      - "every real bug found"
+      - "each finding has a concrete failure case"
+      - "severity order is defensible"
+      - "no invented bugs"
+    rubric:
+      5: "Finds the off-by-one and the missing None case, ranks them, and does not pad the list."
+      3: "Finds one bug and one stylistic nit presented as a bug."
+      1: "Misses the data-loss bug or rewrites the file."
+    reviewer_notes: "The diff contains exactly two real bugs and one deliberate non-bug."

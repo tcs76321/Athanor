@@ -10,6 +10,28 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Benchmark v1 authored — 80 items — 2026-10-17
+
+- **Frozen benchmark v1** ([ADR-0075](docs/adr/0075-frozen-corpus-compass.md),
+  [docs/frozen-corpus-v1.md](docs/frozen-corpus-v1.md)): **70 deterministic
+  tasks** (code 30, document 16, text 12, data 6, adversarial 6; E13/M31/H26)
+  plus **4 memory scripts** and **6 human-review tasks**. **20 of 80 are held
+  out** (25%), and every task carries `context_demand`
+  (`short|long|repo|memory`).
+- **Proof, not assertion:** `eval/bench/reference.yaml` holds a reference
+  solution per code task, and `TestBenchCodeReferences` runs every real
+  `test_command` against it. `corpus_v1_test.go` pins the composition, unique
+  IDs, fixture/schema existence, and the held-out share.
+- **Stronger data checks:** `array_length`, `array_unique_by`,
+  `array_sorted_by`, and `json_field_matches` — the JSON-Schema subset cannot
+  pin count, order, uniqueness, or a timestamp format.
+- **Freeze enforced:** `make corpus-check` verifies
+  `eval/bench/CORPUS.digest` over the three YAMLs and every fixture;
+  `make soak-smoke` is the 6-item engine-surface subset.
+- **Soak harness fix:** the ladder skips only on a `complete` marker, not
+  `report.md` — an interrupted run also writes a report, so the old rule
+  silently skipped partial models.
+
 ### Plan: the media verifier is pure Go — 2026-10-17
 
 - **No `os/exec`, no `ffprobe`, no external binary.** Images use the Go stdlib
@@ -72,9 +94,9 @@ New entries are appended at the top. Do not rewrite history.
   plus a within-version A/B of config toggles.
 - **No self-grading in the headline.** The headline metric uses the frozen
   external checks/tests; the engine's own verifier/judge is reported separately.
-- `docs/frozen-corpus-v1.md` reworked: 40 core tasks (**40% code, ≥12
-  context-heavy**), plus 3 memory scripts and 4 human-review tasks; procedure and
-  scoring are part of the freeze.
+- `docs/frozen-corpus-v1.md` reworked: the v1 target of 70 deterministic tasks
+  (**38% code, context-heavy strata**), plus 4 memory scripts and 6
+  human-review tasks; procedure and scoring are part of the freeze.
 - Docs corrected: ADR-0075, `docs/0.0.0-plan.md`, `AGENTS.md`, `ROADMAP.md`,
   `README.md`, `docs/soak-m7.md`.
 

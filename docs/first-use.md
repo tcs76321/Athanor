@@ -243,7 +243,8 @@ Two tracks; the first makes beta usable, the second makes it learn.
 16. **Issues surface** — operator-confirmed must-fix bugs.
 17. **Web access requests** — a HITL type for adding a site; research through
     the gateway allowlist + airlock/scanners.
-18. **Frozen corpus v1** — 40 tasks, held-out, digest-pinned, smoke subset.
+18. **Frozen corpus v1** — 80 items (70 deterministic + 4 memory + 6 human),
+    20 held-out, digest-pinned, reference-validated, smoke subset.
 
 ### Track 3 — Package the first use
 

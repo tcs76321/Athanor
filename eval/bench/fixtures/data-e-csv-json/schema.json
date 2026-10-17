@@ -1,0 +1,12 @@
+{
+  "type": "array",
+  "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["name", "age"],
+    "properties": {
+      "name": { "type": "string" },
+      "age": { "type": "integer" }
+    }
+  }
+}

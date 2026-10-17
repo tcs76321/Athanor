@@ -85,7 +85,7 @@ SOAK_LADDER_TIMEOUT ?= 10m
 SOAK_LADDER_MODELS ?= granite3b gemmae4b granite8b ornith9b gemma12b qwen27b granite30b nemotron30b muse30b ornith35b
 soak-ladder:
 	@for m in $(SOAK_LADDER_MODELS); do \
-		if [ -f "$(SOAK_LADDER_OUT)/$$m/report.md" ]; then \
+		if [ -f "$(SOAK_LADDER_OUT)/$$m/complete" ]; then \
 			echo "=== ladder $$m: already complete, skipping ==="; continue; \
 		fi; \
 		echo "=== ladder $$m ($(SOAK_LADDER_HOURS)h) ==="; \
@@ -95,6 +95,23 @@ soak-ladder:
 			MINI_SOAK_OUT=$(SOAK_LADDER_OUT)/$$m || exit 1; \
 	done
 	$(MAKE) probe-report PROBE_OUT=$(SOAK_LADDER_OUT)
+
+# Corpus freeze (ADR-0075). The digest covers tasks.yaml, memory-scripts.yaml,
+# human-review.yaml, and every fixture — not the README or reference.yaml.
+# Discipline, not CI: a mismatch means the frozen set changed, which is a new
+# benchmark version, not an edit. `make corpus-digest` re-pins deliberately.
+corpus-check:
+	@./scripts/corpus-digest.sh check
+
+corpus-digest:
+	@./scripts/corpus-digest.sh write
+
+# The 6-item smoke subset (docs/frozen-corpus-v1.md §8) for engine-surface
+# changes. A fresh output dir by default; set SOAK_SMOKE_OUT to keep the run.
+SOAK_SMOKE_OUT  ?= spikes/m3-t7-probe/results/smoke
+SOAK_SMOKE_ONLY ?= code-csv-rfc4180,code-refactor-provided,doc-cited-brief,text-level-rewrite,data-json-normalize,adv-h-contradictory-requirements
+soak-smoke:
+	$(MAKE) soak-mini MINI_SOAK_ONLY=$(SOAK_SMOKE_ONLY) MINI_SOAK_OUT=$(SOAK_SMOKE_OUT)
 
 run:
 	go run $(GO_TAGS) ./cmd/athanor

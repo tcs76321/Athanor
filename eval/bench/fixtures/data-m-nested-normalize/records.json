@@ -1,0 +1,4 @@
+[
+  {"id": 1, "address": {"city": "Oslo", "country": "NO"}, "extra": "x"},
+  {"id": 2, "address": {"city": "Lima", "country": "PE"}}
+]

@@ -15,17 +15,20 @@ import (
 // probe consumes are declared; the YAML decoder ignores the rest (the rubric,
 // checks, expected failure modes are read by the check engine / humans).
 type corpusTask struct {
-	ID          string         `yaml:"id"`
-	Title       string         `yaml:"title"`
-	Archetype   string         `yaml:"archetype"`
-	Tier        string         `yaml:"tier"`
-	Language    string         `yaml:"language"`
-	Goal        string         `yaml:"goal"`
-	Criteria    []string       `yaml:"criteria"`
-	Fixture     string         `yaml:"fixture"`
-	Repo        string         `yaml:"repo"`
-	TestCommand string         `yaml:"test_command"`
-	Checks      map[string]any `yaml:"checks"`
+	ID            string         `yaml:"id"`
+	Title         string         `yaml:"title"`
+	Archetype     string         `yaml:"archetype"`
+	Tier          string         `yaml:"tier"`
+	Language      string         `yaml:"language"`
+	Goal          string         `yaml:"goal"`
+	Criteria      []string       `yaml:"criteria"`
+	Fixture       string         `yaml:"fixture"`
+	Repo          string         `yaml:"repo"`
+	TestCommand   string         `yaml:"test_command"`
+	Checks        map[string]any `yaml:"checks"`
+	HeldOut       bool           `yaml:"held_out"`
+	ContextDemand string         `yaml:"context_demand"`
+	Category      string         `yaml:"category"`
 }
 
 // indexSummary mirrors the daemon's IndexSummary JSON (M8-T19).
@@ -66,16 +69,19 @@ func loadCorpus(path string) ([]sampleGoal, error) {
 			return nil, fmt.Errorf("corpus %s: task %d missing id or goal", path, i+1)
 		}
 		out = append(out, sampleGoal{
-			Number:      i + 1,
-			Name:        t.ID,
-			Source:      "bench:" + t.Tier,
-			Archetype:   t.Archetype,
-			Goal:        t.Goal,
-			Criteria:    t.Criteria,
-			Fixture:     t.Fixture,
-			Repo:        t.Repo,
-			TestCommand: t.TestCommand,
-			Checks:      t.Checks,
+			Number:        i + 1,
+			Name:          t.ID,
+			Source:        "bench:" + t.Tier,
+			Archetype:     t.Archetype,
+			Goal:          t.Goal,
+			Criteria:      t.Criteria,
+			Fixture:       t.Fixture,
+			Repo:          t.Repo,
+			TestCommand:   t.TestCommand,
+			Checks:        t.Checks,
+			HeldOut:       t.HeldOut,
+			ContextDemand: t.ContextDemand,
+			Category:      t.Category,
 		})
 	}
 	return out, nil

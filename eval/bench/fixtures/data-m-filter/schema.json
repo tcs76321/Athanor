@@ -1,0 +1,12 @@
+{
+  "type": "array",
+  "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["id", "status"],
+    "properties": {
+      "id": { "type": "integer" },
+      "status": { "type": "string", "enum": ["active"] }
+    }
+  }
+}

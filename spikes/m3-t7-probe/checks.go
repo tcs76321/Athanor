@@ -9,6 +9,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"regexp"
 	"strconv"
@@ -110,6 +111,58 @@ func runChecks(checks map[string]any, content string) (bool, []checkResult) {
 		} else {
 			add("json_schema", true, false, "")
 		}
+	}
+
+	// JSON-array checks for data tasks: the schema validates shape; these pin
+	// count, uniqueness, ordering, and field formats the schema subset cannot.
+	if v, ok := checks["array_length"]; ok {
+		arr, valid := jsonArray(content)
+		add("array_length", valid && len(arr) == toInt(v), false,
+			fmt.Sprintf("length=%d want=%d", len(arr), toInt(v)))
+	}
+	if v, ok := checks["array_unique_by"]; ok {
+		key, _ := v.(string)
+		arr, valid := jsonArray(content)
+		seen, unique := map[string]bool{}, valid
+		for _, m := range arr {
+			k := fmt.Sprint(m[key])
+			if seen[k] {
+				unique = false
+				break
+			}
+			seen[k] = true
+		}
+		add("array_unique_by", valid && unique, false, "key="+key)
+	}
+	if v, ok := checks["array_sorted_by"]; ok {
+		key, _ := v.(string)
+		arr, valid := jsonArray(content)
+		sorted := valid
+		for i := 1; valid && i < len(arr); i++ {
+			if !jsonLessOrEqual(arr[i-1][key], arr[i][key]) {
+				sorted = false
+			}
+		}
+		add("array_sorted_by", sorted, false, "key="+key)
+	}
+	if v, ok := checks["json_field_matches"]; ok {
+		patterns, _ := v.(map[string]any)
+		arr, valid := jsonArray(content)
+		matched := valid
+		for _, m := range arr {
+			for field, pv := range patterns {
+				pat, _ := pv.(string)
+				re, err := regexp.Compile(pat)
+				if err != nil || !re.MatchString(fmt.Sprint(m[field])) {
+					matched = false
+					break
+				}
+			}
+			if !matched {
+				break
+			}
+		}
+		add("json_field_matches", matched, false, "")
 	}
 
 	for _, key := range advisoryChecks {
@@ -244,6 +297,42 @@ func countBulletsInSection(content, name string) int {
 		}
 	}
 	return n
+}
+
+// jsonArray parses content as a JSON array of objects. ok is false when the
+// content is not such an array, so an array check fails rather than panicking.
+func jsonArray(content string) ([]map[string]any, bool) {
+	var v any
+	if json.Unmarshal([]byte(content), &v) != nil {
+		return nil, false
+	}
+	arr, ok := v.([]any)
+	if !ok {
+		return nil, false
+	}
+	out := make([]map[string]any, 0, len(arr))
+	for _, e := range arr {
+		m, ok := e.(map[string]any)
+		if !ok {
+			return nil, false
+		}
+		out = append(out, m)
+	}
+	return out, true
+}
+
+// jsonLessOrEqual compares two JSON scalar values (number or string) for the
+// array_sorted_by check. Mixed or unknown types are not comparable.
+func jsonLessOrEqual(a, b any) bool {
+	switch x := a.(type) {
+	case float64:
+		y, ok := b.(float64)
+		return ok && x <= y
+	case string:
+		y, ok := b.(string)
+		return ok && x <= y
+	}
+	return false
 }
 
 func toStrings(v any) []string {
