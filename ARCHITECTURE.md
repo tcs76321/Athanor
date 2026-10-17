@@ -1538,13 +1538,15 @@ Tools are constrained, audited, and available only to Job Pods and the Core orch
 
 ## 26. Skills and Extensibility
 
-> **Superseded by [ADR-0079](docs/adr/0079-no-skills-runtime.md).** There is
-> **no skills runtime, plugin API, or MCP/tool ecosystem**. Customization is
-> through the built-in mechanisms (configuration, personas, prompt/context
-> policy, corrections, selection/escalation, and the closed tool set).
-> Untrusted input is scanned and is **never executed**; it cannot grant a tool
-> or permission, and there is no supported extension path. The historic skill
-> object and rules below are retained for context only.
+> **Superseded by [ADR-0079](docs/adr/0079-no-skills-runtime.md).** External
+> skills and plugins are **unnecessary by design** and likely counterproductive:
+> every need they serve has an internal, measured mechanism (configuration,
+> personas, prompt/context policy, CorrectionRecords, project context/MCE, the
+> selection/escalation layer, and the closed tool set). A missing capability
+> becomes a built-in tool, not a user extension. The §25 tool envelope and the
+> internal API are an **internal contract**, not an external plugin protocol.
+> Untrusted input is scanned and never executed; there is no supported extension
+> path. The historic skill object and rules below are retained for context only.
 
 Custom jobs and extensions are Python-first.
 

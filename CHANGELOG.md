@@ -12,12 +12,14 @@ New entries are appended at the top. Do not rewrite history.
 
 ### Plan: no skills runtime (ADR-0079); 1.0.0 roadmap + media verifier — 2026-10-17
 
-- **Skills/MCP/plugin is not planned** (not merely deferred), for **security**:
-  executable extensions are a malware/adversarial vector and a new trust
-  boundary. **Customization is configuration + built-in tools + adaptability**
-  (selection, escalation, MCE, corrections, grounded outcomes);
-  **hyper-customization** means tuning those, not adding code. Untrusted input
-  is scanned and never executed; there is no supported extension path
+- **External skills/plugins/MCP are unnecessary by design** — not deferred.
+  Every need they serve has an internal, measured equivalent
+  (personas/prompt/context, corrections, MCE, built-in tools, DAG/scheduler,
+  selection/escalation); an external layer would duplicate them with less
+  attribution, more risk, and would compete with the mechanisms that improve
+  Athanor. **Hyper-customization is configuration + adaptation**; a missing
+  capability becomes a built-in tool. The internal tool envelope is an internal
+  contract, not a plugin protocol
   ([ADR-0079](docs/adr/0079-no-skills-runtime.md)). ARCHITECTURE §26 is marked
   superseded and `SECURITY.md` records the boundary.
 - New [docs/1.0.0-plan.md](docs/1.0.0-plan.md): bounded workstreams (first-class

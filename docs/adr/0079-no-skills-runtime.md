@@ -1,4 +1,4 @@
-# ADR 0079 — Built-in tools and adaptability, not a skills runtime
+# ADR 0079 — External skills are unnecessary by design
 
 **Status:** Accepted · **Date:** 2026-10-17 · **Refs:**
 ARCHITECTURE §25 (tool interface), §26 (skills and extensibility), §21.3
@@ -10,64 +10,65 @@ ARCHITECTURE §25 (tool interface), §26 (skills and extensibility), §21.3
 
 ## Context
 
-M6 sketched a **skills runtime** (user-authored executable skill objects) and
-`skill_refinement`; both were deferred. A generic plugin/MCP/tool ecosystem was
-a candidate for 1.x. Two reasons now close that direction rather than defer it:
+M6 sketched an external **skills runtime** (user-authored executable skill
+objects) and `skill_refinement`; both were deferred. A generic plugin/MCP/tool
+ecosystem was a candidate for 1.x.
 
-1. **Security.** Every executable extension is a malware/adversarial vector and
-   a new trust boundary — sandbox, permission model, supply chain, versioned API.
-   A single-operator local system with a **closed tool envelope** is safer
-   without one.
-2. **The product bet.** What makes Athanor valuable is the **integrated,
-   hard-coded system** — the MCE, selection/escalation, corrections, grounded
-   outcomes, and the built-in tools. A user-authored extension layer is neither
-   where the value is nor a portability goal.
+Athanor's design already covers what external skills are usually for:
 
-"Hyper-customization" is still wanted — but through configuration and
-adaptation, not code.
+| Skill need | Internal mechanism |
+|---|---|
+| Behaviour / instructions | personas, prompt/context policy, CorrectionRecords |
+| Domain knowledge | project repository indexing, the MCE, uploaded documents |
+| New capabilities | the closed built-in tool set |
+| Reusable workflows | DAG decomposition + scheduler + attempt escalation |
+| Getting better at a class of work | grounded outcomes + selection + the benchmark |
+
+An external skill layer would duplicate those with **less attribution** (its
+behaviour is not measured against the frozen benchmark), **more risk** (an
+executable vector and a new trust boundary), and it would **compete with** the
+mechanisms that are supposed to improve the system. That is why the position is
+not "we haven't got around to it" but **"we don't want it."**
 
 ## Decision
 
-1. **No user-authored skills runtime, no `skill_refinement`, no plugin API, and
-   no generic MCP/tool ecosystem in the 1.0 line.** This is a direction
-   decision, not a temporary deferral.
-2. **Customization is built-in and declarative.** The surfaces are
-   configuration, personas, prompt/context policy, corrections,
-   selection/escalation, and the closed built-in tool set. Hyper-customization
-   means tuning those and letting evidence-driven adaptation choose among them —
-   not adding executable code to the system.
-3. **Untrusted input is data.** Content that arrives through a prompt, upload, or
-   ingestion path is scanned by the airlock/scanner, is **never executed**, and
+1. **External skills and plugins are unnecessary and likely counterproductive
+   for using Athanor as designed.** They are not a supported direction and not a
+   deferred feature.
+2. **The customization path is internal and measured**: configuration, personas,
+   prompt/context policy, CorrectionRecords, project context/MCE, the
+   selection/escalation layer, and the built-in tool set. Domain instructions go
+   through corrections/config/context — which the benchmark can measure — not a
+   separate skill artifact.
+3. **A missing capability becomes a built-in tool**, decided by the operator
+   (with its containment and tests). It does not become a user extension.
+4. **The internal tool interface is closed.** The §25 tool envelope and the
+   internal API are an internal contract (tools, schemas, permissions) — **not**
+   an external plugin protocol, and not marketed as MCP.
+5. **Untrusted input is data.** Content that arrives through a prompt, upload, or
+   ingestion path is scanned by the airlock/scanner, is never executed, and
    cannot grant a tool, permission, or capability. There is no supported path
    that turns input into executable behaviour.
-4. **No supported extension path, and none documented.** The documentation
-   describes customization through built-in mechanisms only; it does not present
-   an extension or plugin path.
-5. **No lock-in, no portability goal.** Athanor's value is its hard-coded,
-   integrated behaviour. Standardizing concepts so others can build something
-   similar is a *maybe later*, not a commitment, and it does not require an
-   extension layer here.
-6. **Revisit only on a concrete integration need** that a built-in tool cannot
-   meet; then add a specific built-in tool, not a generic plugin surface.
+6. **No documented extension mechanism.** The documentation presents
+   configuration + adaptation as customization; it does not describe a plugin or
+   skill path.
 
 ## Consequences
 
-- A smaller attack surface: no plugin sandbox, no third-party skill trust model,
-  no versioned skill API, no supply chain to police.
+- A smaller attack surface: no plugin sandbox, no third-party trust model, no
+  supply chain, no versioned skill API.
+- Behaviour that improves Athanor is **measurable**: it lives in mechanisms the
+  benchmark can exercise, not in unmeasured user artifacts.
 - Less open-ended extensibility; the answer to "can I add X?" is "we add X as a
   built-in tool," decided by the operator.
-- The documentation must make **configuration + adaptation** the customization
-  path; it does not describe an extension mechanism.
-- Untrusted input stays inside the scanner/airlock boundary; it is a
-  prompt-injection surface to defend, not a feature to support.
-- The tool envelope stays closed, so Gate G2's structural proof stays simple.
+- The customisation story is "tune the system and let evidence choose," not
+  "write a skill."
 
 ## Alternatives rejected
 
-- **Skills runtime (deferred from M6).** Adds a trust boundary and an API to
-  maintain; the built-in repertoire is the better lever, and executable
-  extensions are exactly the vector we want to discourage.
-- **MCP/plugin ecosystem.** The same cost, plus a broad external contract, for a
-  single-operator local system.
-- **Do nothing / no position.** Leaves an open question that keeps resurfacing
-  in scope discussions; a direction decision closes it.
+- **Skills runtime (deferred from M6).** Duplicates the internal mechanisms with
+  less attribution and an executable vector.
+- **MCP / plugin ecosystem.** The same cost plus a broad external contract, for
+  a single-operator local system.
+- **Do nothing / no position.** Leaves an open question that keeps resurfacing;
+  a direction decision closes it.

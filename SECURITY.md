@@ -56,12 +56,14 @@ report. If a proof of concept requires them, describe the shape instead.
 These are intentional design boundaries, documented so a reader does not
 mistake them for gaps:
 
-- **No executable extension surface.** There is no skills runtime, plugin API,
-  or MCP/tool ecosystem ([ADR-0079](docs/adr/0079-no-skills-runtime.md)).
-  Customization is configuration plus built-in tools, never user code.
-  Untrusted input is scanned and is never executed; it cannot grant a tool or
-  permission. A report that untrusted input can cause execution or capability
-  escalation is high interest.
+- **No executable extension surface — by design.** External skills, plugins, and
+  MCP are not supported: every need they serve has an internal, measured
+  mechanism ([ADR-0079](docs/adr/0079-no-skills-runtime.md)). Customization is
+  configuration plus built-in tools, never user code; the internal tool envelope
+  is an internal contract, not an external plugin protocol. Untrusted input is
+  scanned and is never executed; it cannot grant a tool or permission. A report
+  that untrusted input can cause execution or capability escalation is high
+  interest.
 - **Pod-supplied commands run inside the pod.** `run_tests` and `lint` accept a
   command from the job (an operator/project command), which executes *inside*
   the already-hardened Job Pod. It grants no capability the pod did not
