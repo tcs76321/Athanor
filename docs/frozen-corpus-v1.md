@@ -124,9 +124,11 @@ set, not edits to it.
 - **Model order.** Model-outer for throughput (one load per model), with a
   randomized task order and a **daily reference-model control** to detect drift.
   A small anchor may be run paired (A/B back-to-back) for tight comparisons.
-- **Runtime.** The **Core Pod** (ADR-0078). Record load/switch time and
-  cold-start latency. The probe's host-binary mode is a development path, not
-  the benchmark runtime.
+- **Runtime.** The **Core Pod** (ADR-0078). The probe runs **inside** the Core
+  Pod, reads the named state volume, and writes the report to a host-mounted
+  `/bench` (`scripts/bench-core.sh`, `make bench-full`). The host binary is a
+  development path only; it is not the benchmark runtime. Record load/switch
+  time and cold-start latency.
 - **A/B within a version.** The same frozen tasks run under config toggles (e.g.
   `seed_active_chunk`, index limits, compaction on/off, prompt/context policy)
   so a change is attributable, not only a version-to-version delta. A/B

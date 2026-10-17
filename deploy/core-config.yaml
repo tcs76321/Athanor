@@ -12,3 +12,9 @@
 # override anything else.
 inference:
   ollama_url: "http://host.containers.internal:11434"
+
+job_pod:
+  # A fresh Core Pod must be able to spawn a Job Pod; without an image every
+  # execute_code/run_tests/lint call answers 503. The benchmark mount overrides
+  # this config with the full canonical protocol.
+  image: "athanor-jobpod:latest"

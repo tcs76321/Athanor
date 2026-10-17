@@ -128,6 +128,9 @@ soak-smoke:
 BENCH_MODEL        ?= ornith9b
 BENCH_JUDGE        ?= granite4.2:3b
 BENCH_OUT          ?= spikes/m3-t7-probe/results/bench-v1
+BENCH_CONFIG       ?= $(BENCH_OUT)/core-config.yaml
+BENCH_STATE_VOLUME ?= athanor-bench-state
+PROBE_IMAGE        ?= athanor-bench:latest
 BENCH_HOURS        ?= 12
 BENCH_TIMEOUT      ?= 45m
 BENCH_ANCHOR_HOURS ?= 1
@@ -136,7 +139,47 @@ BENCH_ANCHOR_MODELS ?= granite3b gemmae4b granite8b ornith9b gemma12b qwen27b gr
 bench-verify:
 	go run $(GO_TAGS) ./spikes/m3-t7-probe verify-models -protocol eval/bench/protocol.yaml
 
-bench-full: bench-verify
+# The Core Pod image plus the probe binary (deploy/bench.Containerfile). The
+# final image is the Core image with /usr/local/bin/athanor-probe added.
+bench-image: core-image
+	podman build -t $(PROBE_IMAGE) -f deploy/bench.Containerfile .
+
+# Generate the canonical Core Pod config. Always regenerated: a model change
+# must never silently reuse a stale config.
+bench-config:
+	@mkdir -p $(BENCH_OUT)
+	CGO_ENABLED=1 go run $(GO_TAGS) ./spikes/m3-t7-probe config \
+		-model $(BENCH_MODEL) -arm full -judge-model $(BENCH_JUDGE) \
+		-ollama http://host.containers.internal:11434 -addr 127.0.0.1:7420 \
+		-jobpod-image athanor-jobpod:latest \
+		-token-host-dir $(abspath $(BENCH_OUT))/tokens -soak > $(BENCH_CONFIG)
+
+# The full benchmark on the shipped runtime: ONE canonical persona set, one
+# pass, <=12h hard cap. The probe runs inside the Core Pod and reads the named
+# state volume; the results tree lands in BENCH_OUT/out on the host.
+bench-full: bench-verify bench-image bench-config
+	@if [ -f "$(BENCH_OUT)/out/complete" ]; then \
+		echo "=== full benchmark already complete: $(BENCH_OUT)/out ==="; exit 0; \
+	fi
+	@if [ -d "$(BENCH_OUT)/out" ] && [ -n "$$(ls -A $(BENCH_OUT)/out 2>/dev/null)" ]; then \
+		echo "=== incomplete full run at $(BENCH_OUT)/out; remove it to restart ===" >&2; exit 1; \
+	fi
+	@BENCH_OUT=$(BENCH_OUT) BENCH_CONFIG=$(BENCH_CONFIG) BENCH_STATE_VOLUME=$(BENCH_STATE_VOLUME) \
+		PROBE_IMAGE=$(PROBE_IMAGE) ./scripts/bench-core.sh start
+	@BENCH_OUT=$(BENCH_OUT) BENCH_PROBE_OUT=/bench/out \
+		./scripts/bench-core.sh probe -corpus eval/bench/tasks.yaml \
+		-model $(BENCH_MODEL) -arm full -judge-model $(BENCH_JUDGE) \
+		-passes 1 -hours $(BENCH_HOURS) -timeout $(BENCH_TIMEOUT)
+
+bench-core-stop:
+	@BENCH_OUT=$(BENCH_OUT) ./scripts/bench-core.sh stop
+
+bench-core-status:
+	@BENCH_OUT=$(BENCH_OUT) ./scripts/bench-core.sh status
+
+# Host-binary development path. Unsupported as a measurement runtime (ADR-0078);
+# use it for harness work only.
+bench-full-host: bench-verify
 	@if [ -f "$(BENCH_OUT)/full/complete" ]; then \
 		echo "=== full benchmark already complete: $(BENCH_OUT)/full ==="; exit 0; \
 	fi
@@ -148,6 +191,8 @@ bench-full: bench-verify
 		MINI_SOAK_TIMEOUT=$(BENCH_TIMEOUT) MINI_SOAK_PASSES=1 \
 		MINI_SOAK_OUT=$(BENCH_OUT)/full
 
+# Host-binary onboarding/leaderboard screen. The Core Pod version is one model
+# per Core restart (single-slot); this stays for quick dev screens.
 bench-anchor: bench-verify
 	@for m in $(BENCH_ANCHOR_MODELS); do \
 		if [ -f "$(BENCH_OUT)/anchor/$$m/complete" ]; then \

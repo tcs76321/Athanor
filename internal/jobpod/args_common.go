@@ -23,7 +23,11 @@ func buildArgs(spec Spec) []string {
 		"--tmpfs", "/tmp:rw,noexec,nosuid,nodev,size=8m",
 	}
 	args = append(args, platformHardening()...)
-	args = append(args, mountFlags(spec.TokenDir)...)
+	tokenMount := spec.TokenMountDir
+	if tokenMount == "" {
+		tokenMount = spec.TokenDir
+	}
+	args = append(args, mountFlags(tokenMount)...)
 	// known-issues L11: `--` ends option parsing so the image is always the
 	// first positional argument, even if it begins with '-'.
 	args = append(args, "--")

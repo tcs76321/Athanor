@@ -76,8 +76,8 @@ func TestProbeConfigYAML(t *testing.T) {
 			if len(tools) != 3 {
 				t.Errorf("%s/%s: default_tools = %v, want the 3 code tools", m.Label, a.Name, jp["default_tools"])
 			}
-			if jp["image"] != "python:3.12-alpine" {
-				t.Errorf("%s/%s: job_pod.image = %v, want python:3.12-alpine", m.Label, a.Name, jp["image"])
+			if jp["image"] != "athanor-jobpod:latest" {
+				t.Errorf("%s/%s: job_pod.image = %v, want athanor-jobpod:latest", m.Label, a.Name, jp["image"])
 			}
 		}
 	}

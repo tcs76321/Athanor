@@ -16,6 +16,7 @@ func runStart(args []string) error {
 	configPath := fs.String("config", "config.yaml", "path to config.yaml")
 	stateDir := fs.String("state-dir", "state", "state directory")
 	addr := fs.String("addr", "127.0.0.1:7420", "HTTP listen address")
+	container := fs.Bool("container", false, "Core Pod mode: allow a wildcard bind behind a loopback-only published port")
 	skipDoctor := fs.Bool("skip-doctor", false, "skip the pre-flight checks and serve immediately")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -32,5 +33,5 @@ func runStart(args []string) error {
 			return fmt.Errorf("start: doctor found %d failing check(s); fix them or re-run with -skip-doctor", fail)
 		}
 	}
-	return run(*configPath, *addr, *stateDir)
+	return run(*configPath, *addr, *stateDir, *container)
 }

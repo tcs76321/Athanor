@@ -48,6 +48,7 @@ type daemonFlags struct {
 	configPath string
 	addr       string
 	stateDir   string
+	container  bool
 	version    bool
 }
 
@@ -57,6 +58,7 @@ func serveFlags(args []string) *daemonFlags {
 	fs := flag.NewFlagSet("serve", flag.ContinueOnError)
 	fs.StringVar(&f.configPath, "config", "config.yaml", "path to config.yaml")
 	fs.StringVar(&f.addr, "addr", "127.0.0.1:7420", "HTTP listen address (loopback only, §21.8)")
+	fs.BoolVar(&f.container, "container", false, "Core Pod mode: allow a wildcard bind behind a loopback-only published port")
 	fs.StringVar(&f.stateDir, "state-dir", "state", "state directory (database, logs, backups)")
 	fs.BoolVar(&f.version, "version", false, "print version and exit")
 	if len(args) > 0 && args[0] == "serve" {
@@ -75,14 +77,14 @@ func runServe(f *daemonFlags) {
 		fmt.Println("athanor", version)
 		return
 	}
-	if err := run(f.configPath, f.addr, f.stateDir); err != nil {
+	if err := run(f.configPath, f.addr, f.stateDir, f.container); err != nil {
 		fmt.Fprintln(os.Stderr, "athanor:", err)
 		os.Exit(1)
 	}
 }
 
 // run boots the daemon and blocks until an OS signal or server failure.
-func run(configPath, addr, stateDir string) error {
+func run(configPath, addr, stateDir string, container bool) error {
 	cfg, err := loadConfig(configPath)
 	if err != nil {
 		return fmt.Errorf("loading config: %w", err)
@@ -142,7 +144,7 @@ func run(configPath, addr, stateDir string) error {
 	// engine's pod-lifecycle seam starts a per-job pod and stops it at
 	// terminal state, and the internal API execs into it; the runner's
 	// TokenFor resolves the per-job token from this manager.
-	podMgr := jobpod.New(NewExecClient(), killSwitch, filepath.Join(stateDir, "tokens"))
+	podMgr := jobpod.NewWithHostTokenBase(NewExecClient(), killSwitch, filepath.Join(stateDir, "tokens"), cfg.JobPod.TokenHostDir)
 	if res, err := podMgr.Sweep(context.Background()); err != nil {
 		// Sweep is opportunistic: a missing podman or a not-yet-
 		// started machine is logged, not fatal.
@@ -150,10 +152,21 @@ func run(configPath, addr, stateDir string) error {
 	} else if res.Removed > 0 {
 		fmt.Printf("athanor: swept %d orphan pod(s) at startup\n", res.Removed)
 	}
-	// Resolve the loopback listen address once, before any
-	// component that needs it. The engine's ToolRunner (M2-T4)
-	// uses it as the base URL for the internal API.
-	loopAddr, err := server.LocalhostAddr(addr)
+	// Resolve the listen address once, before any component that needs it.
+	// The host binary is loopback-only; the Core Pod may bind the container
+	// wildcard because the published port is loopback-only on the host. The
+	// internal API client always uses loopback: a wildcard Host header
+	// (0.0.0.0:7420) is not in the allowlist and is not a destination.
+	var listenAddr string
+	if container {
+		listenAddr, err = server.ContainerAddr(addr)
+	} else {
+		listenAddr, err = server.LocalhostAddr(addr)
+	}
+	if err != nil {
+		return err
+	}
+	internalAddr, err := server.LocalhostAddr(addr)
 	if err != nil {
 		return err
 	}
@@ -204,7 +217,7 @@ func run(configPath, addr, stateDir string) error {
 		// token retrieved from the Job Pod manager, so the
 		// engine is just another client of the loopback
 		// internal API (ADR-0009 D5).
-		runner.New("http://"+loopAddr, podMgr),
+		runner.New("http://"+internalAddr, podMgr),
 		// M5-T5.6: the §10.4 eviction seam is now the real §10.5
 		// ladder (ADR-0023 §6) — one step down the tier order per
 		// critical-pressure call, recorded in the job's suppression
@@ -452,9 +465,9 @@ func run(configPath, addr, stateDir string) error {
 		Handler:           srv.Handler(),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
-	ln, err := net.Listen("tcp", loopAddr)
+	ln, err := net.Listen("tcp", listenAddr)
 	if err != nil {
-		return fmt.Errorf("listening on %s: %w", loopAddr, err)
+		return fmt.Errorf("listening on %s: %w", listenAddr, err)
 	}
 	errCh := make(chan error, 1)
 	go func() { errCh <- httpSrv.Serve(ln) }()
@@ -603,7 +616,7 @@ func run(configPath, addr, stateDir string) error {
 	})
 	defer daydream.Close()
 
-	fmt.Printf("athanor %s listening on http://%s\n", version, loopAddr)
+	fmt.Printf("athanor %s listening on http://%s\n", version, listenAddr)
 
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)

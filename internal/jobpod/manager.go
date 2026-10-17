@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"sync"
@@ -28,6 +29,9 @@ type manager struct {
 	client    Client
 	freezer   Freezer
 	tokenBase string // base dir for per-job token dirs; <state-dir>/tokens
+	// hostTokenBase is the machine-visible base for the same per-job dirs
+	// (Core Pod only). Empty means the host binary: mount tokenBase directly.
+	hostTokenBase string
 	// sealed is set by Shutdown. Once true, Start refuses with ErrSealed so
 	// a racing ensure cannot create a pod that outlives the process (M9 soak).
 	sealed atomic.Bool
@@ -51,6 +55,14 @@ type podEntry struct {
 // 0700 perms at construction. An empty string disables token-dir
 // generation; tests that do not exercise tokens may pass "".
 func New(client Client, freezer Freezer, tokenBase string) Manager {
+	return NewWithHostTokenBase(client, freezer, tokenBase, "")
+}
+
+// NewWithHostTokenBase is New with a machine-visible token base. The Core Pod
+// writes tokens under tokenBase (its container state dir) but the Podman
+// machine must mount hostTokenBase/<job>, because the machine cannot see the
+// container's filesystem. Empty hostTokenBase keeps the host-binary behavior.
+func NewWithHostTokenBase(client Client, freezer Freezer, tokenBase, hostTokenBase string) Manager {
 	if tokenBase != "" {
 		// Best-effort: if MkdirAll fails here, the first Start
 		// that needs a token dir will surface the error. We do
@@ -60,10 +72,11 @@ func New(client Client, freezer Freezer, tokenBase string) Manager {
 		_ = os.MkdirAll(tokenBase, 0o700)
 	}
 	return &manager{
-		client:    client,
-		freezer:   freezer,
-		tokenBase: tokenBase,
-		pods:      map[string]*podEntry{},
+		client:        client,
+		freezer:       freezer,
+		tokenBase:     tokenBase,
+		hostTokenBase: hostTokenBase,
+		pods:          map[string]*podEntry{},
 	}
 }
 
@@ -152,6 +165,9 @@ func (m *manager) Start(ctx context.Context, spec Spec) (*Pod, error) {
 			tokenDir = dir
 			spec.Token = tok
 			spec.TokenDir = dir
+			if m.hostTokenBase != "" {
+				spec.TokenMountDir = filepath.Join(m.hostTokenBase, spec.ID)
+			}
 		}
 	case spec.Token != "" && spec.TokenDir != "":
 		// Caller-supplied: trust it. (M2-T4 will pass these

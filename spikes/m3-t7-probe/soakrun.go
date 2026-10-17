@@ -22,6 +22,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"strings"
@@ -58,6 +59,12 @@ type soakRunConfig struct {
 	// `-passes 1` is the full-slice shape: one complete pass, then stop, even
 	// if the wall-time budget has room for another.
 	passes int
+	// external attaches to an already-running Core Pod. The probe never starts,
+	// stops, kills, or restores a daemon; it reads stateDir and submits to addr.
+	external bool
+	// stateDir is the external Core Pod's state dir (inside the Core Pod, the
+	// mounted state volume). Empty in host-binary mode (defaults to <out>/state).
+	stateDir string
 	// rolesCSV is the heterogeneous per-role model map (M9): "main=tag,
 	// tall=tag, security=tag, alternative=tag, wide=tag". Empty means every
 	// generation role uses the -model, judge uses -judge-model.
@@ -126,6 +133,8 @@ func runSoak(args []string) {
 	fs.StringVar(&c.onlyCSV, "only", "", "comma-separated goal names to soak (empty = all)")
 	fs.StringVar(&c.anchorPath, "anchor-tasks", "", "anchor YAML file whose task ids narrow the corpus (eval/bench/anchor.yaml)")
 	fs.IntVar(&c.passes, "passes", 0, "cap full corpus passes (0 = until the deadline); 1 = one full slice")
+	fs.BoolVar(&c.external, "external", false, "attach to an already-running Core Pod; do not start/stop/kill a daemon")
+	fs.StringVar(&c.stateDir, "state-dir", "", "external mode: the Core Pod's state dir (required with -external)")
 	fs.IntVar(&c.goalLimit, "goals", 0, "limit to the first N goals after loading (0 = all)")
 	_ = fs.Parse(args)
 	if err := c.run(); err != nil {
@@ -135,7 +144,14 @@ func runSoak(args []string) {
 }
 
 func (c *soakRunConfig) run() error {
-	if _, err := os.Stat(c.binary); err != nil {
+	if c.external {
+		if c.stateDir == "" {
+			return fmt.Errorf("-external requires -state-dir (the Core Pod's mounted state volume)")
+		}
+		if c.killAfter > 0 {
+			return fmt.Errorf("-external cannot inject a daemon kill")
+		}
+	} else if _, err := os.Stat(c.binary); err != nil {
 		return fmt.Errorf("athanor binary %q not found (run `make build`): %w", c.binary, err)
 	}
 	m, ok := modelByLabel(c.modelLabel)
@@ -173,7 +189,9 @@ func (c *soakRunConfig) run() error {
 	}
 	c.outDir = abs
 	stateDir := filepath.Join(c.outDir, "state")
-	if err := os.MkdirAll(stateDir, 0o755); err != nil {
+	if c.external {
+		stateDir = c.stateDir
+	} else if err := os.MkdirAll(stateDir, 0o755); err != nil {
 		return err
 	}
 	roleModels, err := parseRoleModels(c.rolesCSV)
@@ -258,15 +276,26 @@ func (c *soakRunConfig) run() error {
 		fmt.Printf("soak: running until %s (%s)\n", deadline.Local().Format(time.RFC3339), remaining.Round(time.Minute))
 	}
 
-	proc, logPath, err := r.startDaemon(cfgPath, stateDir)
-	if err != nil {
-		return err
+	var proc *exec.Cmd
+	var logPath string
+	if c.external {
+		if err := waitHealthy(r.baseURL(), 30*time.Second); err != nil {
+			return fmt.Errorf("external Core Pod not healthy at %s: %w", r.baseURL(), err)
+		}
+	} else {
+		proc, logPath, err = r.startDaemon(cfgPath, stateDir)
+		if err != nil {
+			return err
+		}
+		if err := waitHealthy(r.baseURL(), 90*time.Second); err != nil {
+			return fmt.Errorf("daemon not healthy (see %s): %w", logPath, err)
+		}
 	}
-	if err := waitHealthy(r.baseURL(), 90*time.Second); err != nil {
-		return fmt.Errorf("daemon not healthy (see %s): %w", logPath, err)
+	logEvent("soak start: model=%s arm=%s goals=%d passes=%d external=%v until=%s", m.Label, a.Name, len(goals), c.passes, c.external, deadline.Local().Format(time.RFC3339))
+	var sampler *soakSampler
+	if !c.external {
+		sampler = startSoak(c.outDir, c.soakInterval, proc.Process.Pid, stateDir, r.baseURL()+"/healthz")
 	}
-	logEvent("soak start: model=%s arm=%s goals=%d passes=%d until=%s", m.Label, a.Name, len(goals), c.passes, deadline.Local().Format(time.RFC3339))
-	sampler := startSoak(c.outDir, c.soakInterval, proc.Process.Pid, stateDir, r.baseURL()+"/healthz")
 	killed := false
 	pass := 0
 	for passAllowed(pass, c.passes, deadline, time.Now(), interrupted.Load()) {
@@ -281,7 +310,7 @@ func (c *soakRunConfig) run() error {
 				interrupted.Store(true)
 				break
 			}
-			if c.killAfter > 0 && !killed && time.Since(start) >= c.killAfter {
+			if c.killAfter > 0 && !killed && !c.external && time.Since(start) >= c.killAfter {
 				logEvent("injecting kill -9 after %s", time.Since(start).Round(time.Second))
 				_ = proc.Process.Kill()
 				_, _ = proc.Process.Wait()
@@ -314,15 +343,17 @@ func (c *soakRunConfig) run() error {
 	}
 
 	// ADR-0073 §2: conformance scenarios against the live daemon, after the
-	// workload, so freezing cannot stall a job.
+	// workload, so freezing cannot stall a job. External mode never runs the
+	// destructive lifecycle/restore scenarios: the Core Pod is not ours to stop.
 	deps := scenarioDeps{baseURL: r.baseURL(), stateDir: stateDir, outDir: c.outDir, binary: c.binary}
-	scenarios := runScenarios(deps)
-
-	sampler.stopAndWait()
-	r.stopDaemon(proc)
-
-	// The restore scenario needs the daemon stopped: it replaces a database.
-	scenarios = append(scenarios, scenarioRestore(deps))
+	var scenarios []scenarioResult
+	if !c.external {
+		scenarios = runScenarios(deps)
+		sampler.stopAndWait()
+		r.stopDaemon(proc)
+		// The restore scenario needs the daemon stopped: it replaces a database.
+		scenarios = append(scenarios, scenarioRestore(deps))
+	}
 
 	if err := writeJSON(filepath.Join(c.outDir, "scenarios.json"), scenarios); err != nil {
 		return err

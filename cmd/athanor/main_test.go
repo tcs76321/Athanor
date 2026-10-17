@@ -55,7 +55,7 @@ func TestRunInvalidConfigRejected(t *testing.T) {
 	if err := writeFile(path, bad); err != nil {
 		t.Fatal(err)
 	}
-	err := run(path, "127.0.0.1:0", filepath.Join(dir, "state"))
+	err := run(path, "127.0.0.1:0", filepath.Join(dir, "state"), false)
 	if err == nil || !strings.Contains(err.Error(), "loading config") {
 		t.Fatalf("err = %v, want config loading failure", err)
 	}
@@ -69,7 +69,7 @@ func TestRunMalformedConfigRejected(t *testing.T) {
 	if err := writeFile(path, "version: 2\n  bad indent: ["); err != nil {
 		t.Fatal(err)
 	}
-	err := run(path, "127.0.0.1:0", filepath.Join(dir, "state"))
+	err := run(path, "127.0.0.1:0", filepath.Join(dir, "state"), false)
 	if err == nil || !strings.Contains(err.Error(), "loading config") {
 		t.Fatalf("err = %v, want config loading failure", err)
 	}

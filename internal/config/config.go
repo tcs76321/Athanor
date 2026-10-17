@@ -730,9 +730,13 @@ type Logging struct {
 type JobPod struct {
 	DefaultTools []string `yaml:"default_tools"`
 	Image        string   `yaml:"image"`
-	PidsLimit    int      `yaml:"pids_limit"`
-	MemoryMB     int      `yaml:"memory_mb"`
-	CPUs         float64  `yaml:"cpus"`
+	// TokenHostDir is the machine-visible base for per-job token dirs. The
+	// Core Pod sets it to the host path behind its state bind mount; empty
+	// keeps the host-binary behavior.
+	TokenHostDir string  `yaml:"token_host_dir"`
+	PidsLimit    int     `yaml:"pids_limit"`
+	MemoryMB     int     `yaml:"memory_mb"`
+	CPUs         float64 `yaml:"cpus"`
 }
 
 // JobPodEnvelope returns the per-job default tool envelope. The

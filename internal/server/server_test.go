@@ -131,3 +131,35 @@ func TestLocalhostAddr(t *testing.T) {
 		}
 	}
 }
+
+func TestContainerAddr(t *testing.T) {
+	cases := []struct {
+		in    string
+		want  string
+		fails bool
+	}{
+		{in: "0.0.0.0:7420", want: "0.0.0.0:7420"},
+		{in: ":7420", want: "0.0.0.0:7420"},
+		{in: "[::]:7420", want: "[::]:7420"},
+		{in: "127.0.0.1:7420", want: "127.0.0.1:7420"},
+		{in: "192.168.1.5:7420", fails: true},
+		{in: "example.com:7420", fails: true},
+		{in: "noport", fails: true},
+	}
+	for _, tc := range cases {
+		got, err := ContainerAddr(tc.in)
+		if tc.fails {
+			if err == nil {
+				t.Errorf("ContainerAddr(%q) = %q, want error", tc.in, got)
+			}
+			continue
+		}
+		if err != nil {
+			t.Errorf("ContainerAddr(%q): %v", tc.in, err)
+			continue
+		}
+		if got != tc.want {
+			t.Errorf("ContainerAddr(%q) = %q, want %q", tc.in, got, tc.want)
+		}
+	}
+}

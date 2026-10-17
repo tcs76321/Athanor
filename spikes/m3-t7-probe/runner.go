@@ -908,6 +908,9 @@ func printConfig(args []string) {
 	altModel := fs.String("alt-model", "", "personas.alternative.model override")
 	ollamaURL := fs.String("ollama", "http://localhost:11434", "Ollama base URL written into the config")
 	gates := fs.Bool("gates", false, "enable the F5 code acceptance gates")
+	jobPodImage := fs.String("jobpod-image", "athanor-jobpod:latest", "Job Pod base image (job_pod.image)")
+	tokenHostDir := fs.String("token-host-dir", "", "Podman-machine-visible token base (Core Pod only)")
+	soak := fs.Bool("soak", false, "compress time-triggered schedules (Core Pod / soak shape)")
 	_ = fs.Parse(args)
 
 	m, ok := modelByLabel(*modelLabel)
@@ -924,5 +927,5 @@ func printConfig(args []string) {
 		os.Exit(2)
 	}
 	fmt.Print(probeConfigYAML(m, a, *seed, *addr, *noReflect,
-		probePolicy{JudgeMode: *judgeMode, JudgeModel: *judgeModel, AltModel: *altModel, OllamaURL: *ollamaURL, CodeGates: *gates}))
+		probePolicy{JudgeMode: *judgeMode, JudgeModel: *judgeModel, AltModel: *altModel, OllamaURL: *ollamaURL, CodeGates: *gates, JobPodImage: *jobPodImage, TokenHostDir: *tokenHostDir, Soak: *soak}))
 }

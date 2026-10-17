@@ -84,7 +84,7 @@ canonical_persona_set:
       default: "900s"
 
   job_pod:
-    image: "python:3.12-alpine"
+    image: athanor-jobpod:latest
     default_tools: [execute_code, run_tests, lint]
 
   runtime:

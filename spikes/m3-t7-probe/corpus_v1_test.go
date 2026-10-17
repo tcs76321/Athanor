@@ -326,6 +326,9 @@ func TestBenchProtocol(t *testing.T) {
 		p.CanonicalPersonaSet.Runtime.HostClass == "" {
 		t.Errorf("runtime drift: %+v", p.CanonicalPersonaSet.Runtime)
 	}
+	if p.CanonicalPersonaSet.JobPod.Image != "athanor-jobpod:latest" {
+		t.Errorf("job pod image = %q, want athanor-jobpod:latest", p.CanonicalPersonaSet.JobPod.Image)
+	}
 	if p.CanonicalPersonaSet.Execution.DivergenceCandidates != 3 ||
 		p.CanonicalPersonaSet.Execution.MaxReflectionLoops != 2 {
 		t.Errorf("execution drift: %+v", p.CanonicalPersonaSet.Execution)
@@ -390,6 +393,9 @@ func TestBenchProtocol(t *testing.T) {
 		Limits struct {
 			MaxConcurrentJobs int `yaml:"max_concurrent_jobs"`
 		} `yaml:"limits"`
+		JobPod struct {
+			Image string `yaml:"image"`
+		} `yaml:"job_pod"`
 	}
 	if err := yaml.Unmarshal([]byte(raw), &cfg); err != nil {
 		t.Fatalf("parse canonical config: %v", err)
@@ -404,6 +410,9 @@ func TestBenchProtocol(t *testing.T) {
 	}
 	if cfg.Limits.MaxConcurrentJobs != 1 {
 		t.Errorf("config max_concurrent_jobs = %d, want 1", cfg.Limits.MaxConcurrentJobs)
+	}
+	if cfg.JobPod.Image != p.CanonicalPersonaSet.JobPod.Image {
+		t.Errorf("config job_pod.image = %q, want %q", cfg.JobPod.Image, p.CanonicalPersonaSet.JobPod.Image)
 	}
 	if cfg.ContextEngine.MemoryEmbeddingModel != p.Embeddings.Model ||
 		cfg.ContextEngine.MemorySearchTopK != p.CanonicalPersonaSet.Context.MemorySearchTopK {

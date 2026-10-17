@@ -55,7 +55,10 @@ type protocolPersonaSet struct {
 	Inference protocolInference       `yaml:"inference"`
 	Execution protocolExecution       `yaml:"execution"`
 	Context   protocolContext         `yaml:"context"`
-	Runtime   struct {
+	JobPod    struct {
+		Image string `yaml:"image"`
+	} `yaml:"job_pod"`
+	Runtime struct {
 		CorePodImage       string `yaml:"core_pod_image"`
 		CorePodImageDigest string `yaml:"core_pod_image_digest"`
 		HostClass          string `yaml:"host_class"`

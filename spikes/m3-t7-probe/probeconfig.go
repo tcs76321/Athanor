@@ -31,6 +31,13 @@ type probePolicy struct {
 	// always-reverse) whose criteria do not mention docstrings. Run the
 	// gates as a separate arm (-gates) to measure their effect.
 	CodeGates bool
+	// JobPodImage is the Job Pod base image (job_pod.image). Empty uses the
+	// hardened athanor-jobpod image, which carries Python, pytest, git, and
+	// build-essential; the old python:3.12-alpine fallback lacks them.
+	JobPodImage string
+	// TokenHostDir is the Podman-machine-visible token base (Core Pod only).
+	// Empty keeps the host-binary behavior (mount the local token dir).
+	TokenHostDir string
 	// Soak compresses the time-triggered subsystem schedules (backup, HITL
 	// TTL) so a short deadline run still exercises them (M8-T31).
 	Soak bool
@@ -176,7 +183,7 @@ execution:
 	b.WriteString(selfRefineLine)
 	// `comparing` must accommodate a model swap under single residency
 	// (ARCHITECTURE §12.5), so it is larger than the M3-T7 120s.
-	b.WriteString(`  phase_wall_time_budgets:
+	fmt.Fprintf(&b, `  phase_wall_time_budgets:
     planning: "900s"
     diverging: "900s"
     evaluating: "900s"
@@ -199,12 +206,13 @@ limits:
   max_concurrent_jobs: 1
 
 job_pod:
-  image: "python:3.12-alpine"
+  image: %q
+  token_host_dir: %q
   default_tools:
     - execute_code
     - run_tests
     - lint
-`)
+`, orDefault(p.JobPodImage, "athanor-jobpod:latest"), p.TokenHostDir)
 	// M8-T31: a soak run must exercise the time-triggered subsystems within a
 	// short window, so their schedules are compressed. The production
 	// backup.schedule (`0 3 * * *`) stays pinned by internal/backup's cron test.

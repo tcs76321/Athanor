@@ -187,6 +187,26 @@ func (s *Server) handleFreeze(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// ContainerAddr resolves the listen address for the Core Pod. Unlike the host
+// binary, the Core Pod may bind the container's wildcard address because the
+// host publishes only loopback: the container boundary is the trust boundary,
+// and the published port is 127.0.0.1-only. A non-wildcard, non-loopback host
+// is still rejected. The host-binary path keeps LocalhostAddr.
+func ContainerAddr(addr string) (string, error) {
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return "", fmt.Errorf("listen address %q must be host:port: %w", addr, err)
+	}
+	switch host {
+	case "":
+		return net.JoinHostPort("0.0.0.0", port), nil
+	case "0.0.0.0", "::", "localhost", "127.0.0.1", "::1":
+		return net.JoinHostPort(host, port), nil
+	default:
+		return "", fmt.Errorf("container listen address %q must be wildcard or loopback", addr)
+	}
+}
+
 // LocalhostAddr forces a listen address onto the loopback interface
 // (§21.8). Bare ports and wildcard hosts become 127.0.0.1; explicit
 // non-loopback hosts are rejected outright (fail closed).

@@ -31,6 +31,11 @@ type Spec struct {
 	// TokenDir is the host directory containing a file named "token"
 	// whose contents are Token. The pod bind-mounts it read-only.
 	TokenDir string
+	// TokenMountDir is the machine-visible source for the token bind mount.
+	// It defaults to TokenDir (host binary). The Core Pod sets it to the host
+	// path that the Podman machine can see, because the Core Pod's local
+	// state path is inside the container, not on the machine.
+	TokenMountDir string
 	// ResourceLimits is the pids/memory/cpus set applied to the pod.
 	ResourceLimits Limits
 	// Env is the pod's environment. Empty in M2-T2; the token never

@@ -48,8 +48,13 @@ RUN CGO_ENABLED=1 go build -tags sqlite_fts5 \
 FROM debian:bookworm-slim
 
 RUN apt-get update \
- && apt-get install -y --no-install-recommends ca-certificates tini podman \
+ && apt-get install -y --no-install-recommends ca-certificates tini podman git \
  && rm -rf /var/lib/apt/lists/*
+
+# The Core Pod's podman client must talk to the mounted machine socket, not to
+# a local (container) store. Without this the client tries overlay-over-overlayfs
+# and fails; the socket is the runtime boundary (ADR-0069).
+ENV CONTAINER_HOST=unix:///run/podman/podman.sock
 
 COPY --from=build /out/athanor /usr/local/bin/athanor
 COPY config.example.yaml /etc/athanor/config.example.yaml
@@ -63,9 +68,12 @@ COPY deploy/core-config.yaml /etc/athanor/config.yaml
 VOLUME ["/var/lib/athanor/state", "/var/lib/athanor/workspace"]
 EXPOSE 7420
 
-# The Podman socket the Core uses to spawn Job Pods is mounted at run time:
+# The daemon binds the container wildcard; the host publishes only loopback
+# (127.0.0.1:7420). The `-container` flag is the explicit exception to §21.8;
+# the host binary still refuses a non-loopback bind. The Podman socket the Core
+# uses to spawn Job Pods is mounted at run time:
 #   -v /run/podman/podman.sock:/run/podman/podman.sock
 # Job Pods are separate containers and never receive this mount.
 
 ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/athanor"]
-CMD ["serve", "-config", "/etc/athanor/config.yaml", "-state-dir", "/var/lib/athanor/state"]
+CMD ["serve", "-container", "-addr", "0.0.0.0:7420", "-config", "/etc/athanor/config.yaml", "-state-dir", "/var/lib/athanor/state"]

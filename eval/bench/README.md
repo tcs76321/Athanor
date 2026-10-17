@@ -78,8 +78,8 @@ Ollama digests, and the run shape.
 
 | shape | what runs | budget | command |
 |---|---|---|---|
-| **full** (headline) | one canonical persona set, one pass over all 70 deterministic tasks | ≤ 12 h | `make bench-full` |
-| **anchor** (onboarding/leaderboard) | 12 tuning-only tasks, one single-shot pass per pinned roster model | ≤ 12 h total | `make bench-anchor` |
+| **full** (headline) | one canonical persona set, one pass over all 70 deterministic tasks, **inside the Core Pod** | ≤ 12 h | `make bench-full` |
+| **anchor** (onboarding/leaderboard) | 12 tuning-only tasks, one single-shot pass per pinned roster model | ≤ 12 h total | `make bench-anchor` (host/dev screen; Core Pod anchor is one model per restart) |
 | **smoke** | 6 engine-surface tasks | ~30–60 min | `make soak-smoke` |
 
 - The full run does **not** sweep models or persona variants. The leaderboard is
@@ -298,9 +298,13 @@ pass rate. Three are held out.
 4. **Done:** `protocol.yaml` pins the run; `make bench-verify` checks model
    digests, `-passes 1` is the full slice, and `-anchor-tasks` runs the 12-task
    onboarding/leaderboard anchor.
-5. **Next:** the memory-script sequence runner, the human-review queue, and the
-   Core Pod run mode. The corpus and protocol are frozen; only the runner
-   changes.
+5. **Done:** the full benchmark runs **inside the Core Pod** via
+   `scripts/bench-core.sh`: the probe reads the named state volume, calls the
+   daemon at `127.0.0.1:7420`, and writes the report to the host-mounted
+   `/bench` (`BENCH_OUT/out`). `make bench-full-host` is the dev-only host path.
+6. **Next:** the memory-script sequence runner, the human-review queue, and the
+   Core Pod anchor loop (one model per Core restart). The corpus and protocol are
+   frozen; only the runner changes.
 
 ## Required assets and known gaps
 

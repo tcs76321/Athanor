@@ -601,6 +601,39 @@ func TestStart_WritesTokenFile(t *testing.T) {
 	}
 }
 
+// TestStart_HostTokenMount proves the Core Pod shape: the manager writes the
+// token under its local state dir, but the podman argv mounts the
+// machine-visible host path (the state bind's other side).
+func TestStart_HostTokenMount(t *testing.T) {
+	base := t.TempDir()
+	local := filepath.Join(base, "local")
+	host := filepath.Join(base, "host")
+	client := &fakeClient{}
+	m := NewWithHostTokenBase(client, &stubFreezer{}, local, host)
+
+	spec := validSpec()
+	spec.Token = ""
+	spec.TokenDir = ""
+	if _, err := m.Start(context.Background(), spec); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	if _, err := os.ReadFile(filepath.Join(local, goodID, tokenFileName)); err != nil {
+		t.Fatalf("local token file missing: %v", err)
+	}
+	calls := client.Calls()
+	if len(calls) < 1 {
+		t.Fatal("no client calls")
+	}
+	joined := joinArgs(calls[0])
+	want := filepath.Join(host, goodID)
+	if !contains(joined, want) {
+		t.Errorf("argv missing machine-visible token dir %q\ngot: %s", want, joined)
+	}
+	if contains(joined, filepath.Join(local, goodID)) {
+		t.Errorf("argv leaked the container-local token dir %q\ngot: %s", filepath.Join(local, goodID), joined)
+	}
+}
+
 // TestStart_RemovesTokenDirOnClientFailure asserts that if podman
 // rejects the run, the token dir we just created does not leak to
 // disk. The fail-closed posture is part of the security contract.

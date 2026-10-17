@@ -10,6 +10,28 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### F1: the benchmark runs on the Core Pod — 2026-10-17
+
+- **Rootless Podman is verified** on the reference macOS host; `jobpod`,
+  `core`, and `bench` images build; the Core Pod boots, answers `/healthz`,
+  spawns a Job Pod, runs a code test, and accepts the artifact.
+- **Core Pod fixes found by the end-to-end run:** `CONTAINER_HOST` baked into
+  the image (the client was trying overlay-over-overlayfs), `git` added,
+  `serve -container` allows the container wildcard while the host publishes only
+  loopback, and the internal API client uses loopback rather than the wildcard
+  Host header. Job Pods get the token from a **host-visible** bind
+  (`job_pod.token_host_dir`), because the remote Podman cannot see the Core
+  container's state path.
+- **The state DB must be a named volume on macOS.** Host-binding `state/`
+  corrupts SQLite/WAL over virtiofs (`file is not a database`); only the token
+  directory is host-bound.
+- **Probe attach:** `-external` + `-state-dir`; `scripts/bench-core.sh` and
+  `deploy/bench.Containerfile`; `make bench-full` runs the 70-task slice inside
+  the Core Pod. `make bench-full-host` is the dev-only host path.
+- **Verified smoke:** 6 tasks in ~14 min, 3 pass / 3 fail; the failures are real
+  model behavior (a Node `package.json` instead of the Python refactor; prose
+  instead of JSON), not harness defects. The first 70-task slice is running.
+
 ### Benchmark protocol: one persona set, a ≤12 h slice, pinned models — 2026-10-17
 
 - **The full benchmark runs on ONE canonical persona set**, not a model sweep.
