@@ -78,6 +78,9 @@ SOAK_LADDER_ONLY   ?=
 SOAK_LADDER_MODELS ?= granite3b gemmae4b granite8b ornith9b gemma12b qwen27b granite30b nemotron30b muse30b ornith35b
 soak-ladder:
 	@for m in $(SOAK_LADDER_MODELS); do \
+		if [ -f "$(SOAK_LADDER_OUT)/$$m/report.md" ]; then \
+			echo "=== ladder $$m: already complete, skipping ==="; continue; \
+		fi; \
 		echo "=== ladder $$m ($(SOAK_LADDER_HOURS)h) ==="; \
 		$(MAKE) soak-mini MINI_SOAK_MODEL=$$m MINI_SOAK_HOURS=$(SOAK_LADDER_HOURS) \
 			MINI_SOAK_KILL=0 MINI_SOAK_ONLY=$(SOAK_LADDER_ONLY) \
