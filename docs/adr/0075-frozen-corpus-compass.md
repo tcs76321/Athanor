@@ -28,12 +28,14 @@ Three constraints shape that:
    **pre-tag double-check**, documented (AGENTS + testing docs) as the
    controlled study that tracks progress over time. Running it is a discipline,
    not a pipeline stage.
-2. **A frozen corpus v1, pinned from 0.0.0 until 1.0.0.** It is content-hashed,
-   **never edited**, and large and representative enough to carry the period:
-   every archetype (code/document/text/data/adversarial), E/M/H tiers, and
-   enough hard tasks that a good model does not saturate it. A **held-out
-   slice** is never used for tuning. New tasks go into a **v2** corpus; v1 stays
-   comparable forever.
+2. **A frozen corpus is pinned at every major release and never edited until the
+   next major.** The corpus cut at **x.0.0** is content-hashed and immutable
+   until **(x+1).0.0**, when a new corpus version is cut; the old one stays
+   runnable for continuity. It is large and representative enough to carry the
+   period: every archetype (code/document/text/data/adversarial), E/M/H tiers,
+   and enough hard tasks that a good model does not saturate it. A **held-out
+   slice** is never used for tuning. The 0.0.0 corpus is **v1**; new tasks go
+   into v2 at the next major boundary, never by editing v1.
 3. **Two tiers.**
    - **Smoke**: a small fixed subset, run on any change to the named engine
      surface (`internal/engine`, `internal/policy`, `internal/verify`,
@@ -46,6 +48,10 @@ Three constraints shape that:
 5. **Soaks vary Athanor, not the world.** Arms, per-role models, gates,
    escalation, and routing are the independent variables; the frozen corpus is
    the constant. It is a controlled study of the *system*.
+6. **The soak runs the shipped artifact.** It exercises the **Core Pod** (full
+   pod architecture, [ADR-0069](0069-core-pod-packaging.md)), not only the host
+   binary, so the controlled study measures what users actually run. The host
+   binary remains a development convenience.
 6. **Two-sided acceptance.** The frozen corpus must **not regress**, and real-work
    evidence ([ADR-0076](0076-continuous-evidence.md)) must **improve**. Neither
    number alone is a claim.

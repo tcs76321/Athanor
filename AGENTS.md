@@ -193,17 +193,27 @@ signing flow); signatures are not required for the agent's commits.
 - Spikes (`spikes/`) may use whatever they need. Spike code never gets
   imported by `internal/`.
 
+## Runtime
+
+- The **Core Pod is the only supported runtime**
+  ([ADR-0078](docs/adr/0078-core-pod-only-runtime.md)). The host binary is a
+  client and a development/testing tool; its `serve`/`go run` mode is an
+  unsupported escape hatch, never measured.
+
 ## Soaks and evidence
 
-- The **frozen corpus** (`eval/bench/`, pinned per
-  [ADR-0075](docs/adr/0075-frozen-corpus-compass.md)) is the controlled study
-  that tracks progress across versions. It is **not CI** and not a formal
-  release gate.
+- The **frozen corpus** (`eval/bench/`) is the controlled study that tracks
+  progress across versions ([ADR-0075](docs/adr/0075-frozen-corpus-compass.md)).
+  A corpus is cut at **x.0.0** and never edited until **(x+1).0.0**. It is **not
+  CI** and not a formal release gate.
+- The soak runs the **Core Pod**, not the host binary.
 - Run the **smoke subset** after any change to the engine surface
   (`internal/engine`, `internal/policy`, `internal/verify`, `internal/mce`,
   `internal/prompt`, `internal/scheduler`, the LLM client) and note the delta;
   run the **full corpus** before a tag.
-- Never edit a frozen corpus version — add tasks to the next version. Never tune
+- Never edit a frozen corpus version — cut the next version instead. Never tune
   on the held-out slice (`docs/frozen-corpus-v1.md`).
-- Real-use evidence ([ADR-0076](docs/adr/0076-continuous-evidence.md)) feeds
-  *selection*; the frozen soak *validates* it. Neither number alone is a claim.
+- **Real use is the primary design signal** (beta, now). It feeds *selection*;
+  the frozen soak *validates* it. Neither number alone is a claim
+  ([ADR-0076](docs/adr/0076-continuous-evidence.md),
+  [ADR-0077](docs/adr/0077-two-day-cycle.md)).

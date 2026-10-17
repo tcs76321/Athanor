@@ -12,10 +12,12 @@ as the fixed reference.
 
 ## 1. Immutability
 
-- v1 is **content-pinned**: a SHA-256 over `eval/bench/tasks.yaml` plus every
-  fixture tree, recorded in `eval/bench/CORPUS.digest`.
-- v1 is **never edited** after the 0.0.0 freeze. New or corrected tasks go into
-  **v2** (`eval/bench/v2/`), and v1 stays comparably runnable forever.
+- A corpus is **cut at every major release**: the corpus frozen at **x.0.0** is
+  content-pinned and **never edited** until **(x+1).0.0**, when a new version is
+  cut. The old version stays runnable for continuity.
+- v1 is the **0.0.0** corpus: a SHA-256 over `eval/bench/tasks.yaml` plus every
+  fixture tree, recorded in `eval/bench/CORPUS.digest`. New or corrected tasks
+  go into **v2** at the next major boundary, never by editing v1.
 - The digest is checked by a small `make corpus-check` target (a doc/discipline
   check, not CI).
 
@@ -91,7 +93,10 @@ the same run.
 ## 7. How it is used
 
 - **Smoke** after any engine-surface change; record a one-paragraph delta.
-- **Full** before a tag; compare against the previous tag's run on the same v1.
+- **Full** before a tag; compare against the previous tag's run on the same
+  corpus version.
+- Run against the **Core Pod** (the only supported runtime, ADR-0078), with the
+  state volume readable by the probe.
 - **Never** as a CI job and never as a tag blocker (ADR-0075).
 - **Never** tune on the held-out slice.
 

@@ -37,8 +37,10 @@ deliberately-human checkpoints) is [m8-process-matrix.md](m8-process-matrix.md).
 
 ## Sustained-load soak (M7-T9)
 
-Run the M8-T23 `soak` harness (see [`soak-m7.md`](soak-m7.md)) on AC hardware;
-the results are the evidence. **Status: pending human run.** Acceptance is by
+Run the M8-T23 `soak` harness (see [`soak-m7.md`](soak-m7.md)) on AC hardware
+against the **Core Pod** ([ADR-0078](adr/0078-core-pod-only-runtime.md)) on a
+**frozen corpus version** ([ADR-0075](adr/0075-frozen-corpus-compass.md)); the
+results are the evidence. **Status: pending human run.** Acceptance is by
 **coverage, not a fixed wall-clock figure** ([ADR-0066](adr/0066-release-scope-soak.md)):
 no orphan pods, no unrecovered `kill -9`, bounded RSS/**goroutine**/WAL/disk
 growth, one human sleep/wake cycle, and the time-triggered arms exercised.

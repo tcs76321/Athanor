@@ -78,15 +78,34 @@ A reported improvement must show **both**: real-work movement (fewer retries,
 lower tokens per accepted artifact, fewer corrections) **and** non-regression on
 the frozen held-out corpus. Neither alone is a claim.
 
-## 7. Implementation steps (after the current run)
+## 6a. Experiment records and the approval ledger
+
+A night of work ([ADR-0077](adr/0077-two-day-cycle.md)) produces **experiment
+records**, not just prose:
+
+- **hypothesis** → **spec** (config variation, task set, budget) → **samples** →
+  **result** → **proposal**;
+- shadow/draft only, budgeted, preemptible, never on the held-out corpus;
+- stored with provenance (project, conversation, config, version).
+
+The persistent **digest is the approval ledger**: each item records the
+hypothesis, the experiment, its samples/effect, the operator's decision
+(approved / deferred / rejected), and provenance. Confirmed **project-scoped**
+adjustments become policy; **global** or **untested** proposals stay queued
+(two-axis rule).
+
+## 7. Implementation steps
 
 1. `evidence` subcommand + state-dir reducer over `jobs`/`strategy_outcomes`/
-   `events`; tests against a fixture DB.
+   `events`; tests against a fixture DB. Read the state from the **Core Pod's
+   mounted volume** (the only supported runtime, ADR-0078).
 2. Downstream-use joins (git commit, export/push, re-run, correction) as label
    columns.
 3. Review-queue export (sampled, blinded) + ratings store.
-4. Surface the same reducer in the daemon (`athanor report`) once the UX surface
-   is settled by `docs/` UX workflow.
+4. **Experiment records + shadow runner** (bounded; never held-out).
+5. **Persistent digest = approval ledger** with the two-axis decision.
+6. Surface the same reducer in the daemon/UI once the first-use surface is
+   settled ([first-use.md](first-use.md)).
 
 ## 8. Open questions for the UX workflow
 

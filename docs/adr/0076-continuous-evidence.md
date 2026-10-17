@@ -4,7 +4,9 @@
 [ADR-0049](0049-model-onboarding-qualification.md) (onboarding/qualification),
 [ADR-0064](0064-cognitive-operations.md) (operations),
 [ADR-0067](0067-technique-guidance-loop.md) (technique guidance),
-[ADR-0075](0075-frozen-corpus-compass.md) (frozen-corpus soak);
+[ADR-0075](0075-frozen-corpus-compass.md) (frozen-corpus soak),
+[ADR-0077](0077-two-day-cycle.md) (two-day cycle),
+[ADR-0078](0078-core-pod-only-runtime.md) (Core Pod runtime);
 `docs/self-improvement.md`; AGENTS "repertoire vs. selection".
 
 ## Context
@@ -47,6 +49,11 @@ unlabeled.
 8. **Idle adaptation is a background tenant.** Daydreaming, minting evidence, and
    model qualification are preemptible, deferred, budgeted, and reversible; they
    never tax the next interaction (evicting a resident model is a real cost).
+9. **The loop is two days.** Day 1 works and collects human evals; night 1 dreams
+   on them and tests hypotheses in **bounded shadow experiments**; day 2 confirms
+   tested, **project-scoped** adjustments. The night is HITL-free by
+   construction, and the digest is the approval ledger
+   ([ADR-0077](0077-two-day-cycle.md)).
 
 ## Consequences
 

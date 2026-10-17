@@ -2009,11 +2009,12 @@ Athanor is deployed via a single CLI binary (`athanor`) which:
 - Restart Core Pod.
 - Resume from checkpoint.
 
-> **Implementation status (M7-T7/T8; M9-T5).** Packaging ships both shapes:
+> **Implementation status (M7-T7/T8; M9-T5; [ADR-0078](docs/adr/0078-core-pod-only-runtime.md)).**
 > `make jobpod-image` builds the Job Pod base image and `make core-image` builds
 > the **Core Pod** OCI image ([ADR-0069](docs/adr/0069-core-pod-packaging.md));
-> `scripts/install.sh [--service]` installs the host binary and a systemd user
-> unit (Linux) or launchd agent (macOS); `athanor start` runs `doctor` then
-> serves. The host-binary shape remains the development path; the Core Pod is
-> the container-native deploy. The fresh-install demo and the §31.3 audit
-> sign-off are Gate G7 human checkpoints.
+> `scripts/install.sh [--service]` installs the client and a systemd user unit
+> (Linux) or launchd agent (macOS). **The Core Pod is the only supported
+> runtime:** the installer/`start` run the container, and the soak measures it.
+> The host binary is a client and a development/testing tool; its `serve`/`go
+> run` mode is an unsupported escape hatch. The fresh-install demo and the §31.3
+> audit sign-off are Gate G7 human checkpoints.

@@ -10,6 +10,28 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Plan: first-use workflow, Core Pod-only runtime, and the two-day cycle — 2026-10-17
+
+- **0.0.0 gains a bounded first-use quality addendum (F1–F8).** The first real
+  use is now part of the acceptance set: the **Core Pod as the only supported
+  runtime** ([ADR-0078](docs/adr/0078-core-pod-only-runtime.md)), an onboarding
+  qualification ladder, a project interview + approved plan, a
+  presentation/review queue, an evidence reducer over a state dir, the
+  **two-day cycle** ([ADR-0077](docs/adr/0077-two-day-cycle.md)), a frozen corpus
+  v1, and a `curl` installer. Workflow + runbook:
+  [docs/first-use.md](docs/first-use.md); plan: `docs/0.0.0-plan.md` §2b.
+- **The soak is the per-major controlled study.** A corpus is cut at **x.0.0**
+  and never edited until **(x+1).0.0**; the soak runs the **Core Pod**; a smoke
+  subset on engine-surface changes and the full corpus pre-tag; not CI and not a
+  release gate ([ADR-0075](docs/adr/0075-frozen-corpus-compass.md)).
+- **Real use is the primary development signal.** Beta IRL use of 0.0.0
+  candidates begins now; the frozen soak validates it
+  ([ADR-0076](docs/adr/0076-continuous-evidence.md)).
+- Docs updated: `docs/first-use.md` (new), `docs/0.0.0-plan.md`, `ROADMAP.md`,
+  `AGENTS.md`, `ARCHITECTURE.md` §32, `README.md`, `docs/soak-m7.md`,
+  `docs/m7-gate-g7.md`, `docs/deploy-core-pod.md`, `docs/evidence-pipeline.md`,
+  `docs/frozen-corpus-v1.md`, ADR-0075/0076, and new ADR-0077/0078.
+
 ### Fix: soak robustness — duplicate file blocks and truncated verdicts — 2026-10-17
 
 - **A model that restates a file no longer fails the candidate.**

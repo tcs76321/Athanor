@@ -137,7 +137,12 @@ Then watch it work in real time from the Watch View, or queue it and check the M
   the **Core Pod** OCI image ([ADR-0069](docs/adr/0069-core-pod-packaging.md)).
   Model qualification + the routing recommendation are in
   [docs/qualification-smoke-m9.md](docs/qualification-smoke-m9.md); plan in
-  [docs/0.0.0-plan.md](docs/0.0.0-plan.md).
+  [docs/0.0.0-plan.md](docs/0.0.0-plan.md). The **Core Pod is the only supported
+  runtime** ([ADR-0078](docs/adr/0078-core-pod-only-runtime.md)); the host binary
+  is a client/development tool. The first-use workflow — install, onboarding,
+  first project, review, and the two-day cycle — is
+  [docs/first-use.md](docs/first-use.md); the frozen-corpus soak is the
+  per-major controlled study ([ADR-0075](docs/adr/0075-frozen-corpus-compass.md)).
 - **Daemon on loopback** (`http://127.0.0.1:7420`). Config falls back to built-in defaults when `config.yaml` is absent; missing config is not an error on a fresh clone. `/healthz` reports status, version, uptime.
 - **CLI client.** `project create`, `goal submit`, `job watch`, `artifacts`, `freeze`, `unfreeze`, `doctor`, `models`. Talks to a running daemon over loopback, except `doctor` and `models`, which inspect the local host directly.
 - **Doctor (M7-T5).** `athanor doctor` checks rootless Podman, Git, Ollama reachability, every persona model (with `ollama pull` remediation), memory, disk, state-dir writability, the Job Pod image, §12.6 context feasibility, and the network posture — failing loudly on hard prerequisites and warning on advisories. [ADR-0050](docs/adr/0050-doctor.md).

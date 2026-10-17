@@ -5,9 +5,10 @@ The **Core Pod** is the container-native Athanor deployment
 `athanor` daemon. It is trusted and holds the Podman socket so it can spawn
 Job Pods; Job Pods never receive that socket (§3.1, Gate G2).
 
-The **host-binary** shape ([ADR-0056](adr/0056-packaging.md),
-`scripts/install.sh`) remains the development path; this guide is the
-container-native one.
+The Core Pod is the **only supported runtime**
+([ADR-0078](adr/0078-core-pod-only-runtime.md)). The **host binary** is a client
+and a development/testing tool; its `serve`/`go run` mode is an unsupported
+escape hatch. This guide is the supported deployment.
 
 ## Prerequisites
 
