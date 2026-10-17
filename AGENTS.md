@@ -202,11 +202,18 @@ signing flow); signatures are not required for the agent's commits.
 
 ## Soaks and evidence
 
-- The **frozen corpus** (`eval/bench/`) is the controlled study that tracks
-  progress across versions ([ADR-0075](docs/adr/0075-frozen-corpus-compass.md)).
-  A corpus is cut at **x.0.0** and never edited until **(x+1).0.0**. It is **not
-  CI** and not a formal release gate.
-- The soak runs the **Core Pod**, not the host binary.
+- The **frozen benchmark** (`eval/bench/`: task set + procedure + external
+  scoring) is the controlled study that tracks progress across versions
+  ([ADR-0075](docs/adr/0075-frozen-corpus-compass.md)). A benchmark is cut at
+  **x.0.0** and never edited until **(x+1).0.0**. It is **not CI** and not a
+  formal release gate. Freezing the soak alone measures survival, not capability.
+- The **matrix** is the capability run shape; the **soak** is the endurance run
+  shape. Both run the **Core Pod**, not the host binary.
+- The benchmark must be **sensitive to what we change** (especially the MCE):
+  context-heavy tasks, multi-session memory scripts, and mechanism metrics
+  (retrieval hit, context/KV, compaction, tokens, latency), not just pass rates.
+- The **headline metric uses frozen external checks**, never the engine's own
+  verifier/judge; internal decisions are reported separately.
 - Run the **smoke subset** after any change to the engine surface
   (`internal/engine`, `internal/policy`, `internal/verify`, `internal/mce`,
   `internal/prompt`, `internal/scheduler`, the LLM client) and note the delta;

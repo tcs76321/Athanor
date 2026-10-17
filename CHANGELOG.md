@@ -10,6 +10,27 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Plan: the frozen benchmark — not the soak — is the controlled study — 2026-10-17
+
+- **Corrects the instrument.** The controlled study is the **benchmark** — task
+  set + procedure + **external scoring** — frozen at **x.0.0** and unchanged
+  until **(x+1).0.0** ([ADR-0075](docs/adr/0075-frozen-corpus-compass.md)). The
+  **soak** is one run shape (endurance); the **matrix** is the capability run
+  shape. Freezing a soak says nothing about whether a change improved real
+  performance.
+- **MCE sensitivity is a requirement.** The task set must contain
+  context-heavy tasks and multi-session memory scripts, and every run must
+  report mechanism metrics (retrieval hit/attribution, context tokens, KV
+  pressure/evictions, compaction fidelity, tokens, latency) alongside outcomes,
+  plus a within-version A/B of config toggles.
+- **No self-grading in the headline.** The headline metric uses the frozen
+  external checks/tests; the engine's own verifier/judge is reported separately.
+- `docs/frozen-corpus-v1.md` reworked: 40 core tasks (**40% code, ≥12
+  context-heavy**), plus 3 memory scripts and 4 human-review tasks; procedure and
+  scoring are part of the freeze.
+- Docs corrected: ADR-0075, `docs/0.0.0-plan.md`, `AGENTS.md`, `ROADMAP.md`,
+  `README.md`, `docs/soak-m7.md`.
+
 ### Plan: first-use workflow, Core Pod-only runtime, and the two-day cycle — 2026-10-17
 
 - **0.0.0 gains a bounded first-use quality addendum (F1–F8).** The first real
