@@ -10,6 +10,23 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Plan: no skills runtime (ADR-0079); 1.0.0 roadmap + media verifier — 2026-10-17
+
+- **Skills/MCP/plugin is not planned** (not merely deferred): the bet is
+  **built-in tools + adaptability** — selection, escalation, MCE, corrections,
+  grounded outcomes ([ADR-0079](docs/adr/0079-no-skills-runtime.md)). Revisit only
+  on a concrete integration need a built-in tool cannot meet.
+- New [docs/1.0.0-plan.md](docs/1.0.0-plan.md): bounded workstreams (first-class
+  GUI, validation/self-improvement, benchmark, trust, distribution, portfolio,
+  media verifier, observability), the acceptance set, order/dependencies,
+  out-of-scope, risks, and the freeze rule.
+- New [docs/media-verifier.md](docs/media-verifier.md): deterministic structural
+  checks (image/audio/video/metadata/safety), a Core-side trust boundary (a pod
+  cannot certify its own artifact), the tooling decision (pure-Go parser vs a
+  named `cmd/` ffprobe adapter), and "unsupported is reported, never silently
+  passed."
+- `docs/1.0.0-direction.md` and `ROADMAP.md` §10 updated.
+
 ### Plan: GUI is a soft 0.0.0 goal; first-class GUI is the 1.0.0 focus — 2026-10-17
 
 - **0.0.0 requires a functional first-use GUI flow** (onboarding, project +

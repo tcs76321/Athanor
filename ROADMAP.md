@@ -342,10 +342,12 @@ validated self-improvement, a mature MCE-sensitive benchmark, trustworthiness
 (§31.3 audit, containment, recovery), and distribution.
 
 **Committed additions:** portfolio/multi-project, the deterministic `media`
-verifier, and full Statistics/Memory-Browser views (observability inside the
-GUI). **Deferred to 1.x:** skills/MCP/plugin ecosystem, Browser Mode, cloud
-credential broker, Exploration Paths, adversarial self-critique + tree search,
-Windows/WSL.
+verifier ([design](docs/media-verifier.md)), and full Statistics/Memory-Browser
+views (observability inside the GUI). **Not planned:** skills runtime / plugin /
+MCP ([ADR-0079](docs/adr/0079-no-skills-runtime.md)) — built-in tools +
+adaptability are the bet. **Deferred to 1.x:** Browser Mode, cloud credential
+broker, Exploration Paths, adversarial self-critique + tree search, Windows/WSL.
+Bounded roadmap: [docs/1.0.0-plan.md](docs/1.0.0-plan.md).
 
 First-class GUI is a **soft goal for 0.0.0** (a functional first-use flow) and
 the **main focus of 1.0.0**.
