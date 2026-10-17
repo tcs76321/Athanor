@@ -340,7 +340,7 @@ func TestBenchProtocol(t *testing.T) {
 		t.Errorf("full run shape drift: %+v", p.RunShape.Full)
 	}
 	if p.RunShape.Anchor.Passes != 1 || p.RunShape.Anchor.MachineBudgetHours > 12 ||
-		p.RunShape.Anchor.Tasks != "eval/bench/anchor.yaml" {
+		p.RunShape.Anchor.Tasks != "eval/bench/anchor.yaml" || p.RunShape.Anchor.Arm != "single" {
 		t.Errorf("anchor run shape drift: %+v", p.RunShape.Anchor)
 	}
 

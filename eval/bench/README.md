@@ -79,7 +79,7 @@ Ollama digests, and the run shape.
 | shape | what runs | budget | command |
 |---|---|---|---|
 | **full** (headline) | one canonical persona set, one pass over all 70 deterministic tasks | ≤ 12 h | `make bench-full` |
-| **anchor** (onboarding/leaderboard) | 12 tuning-only tasks, one pass per pinned roster model | ≤ 12 h total | `make bench-anchor` |
+| **anchor** (onboarding/leaderboard) | 12 tuning-only tasks, one single-shot pass per pinned roster model | ≤ 12 h total | `make bench-anchor` |
 | **smoke** | 6 engine-surface tasks | ~30–60 min | `make soak-smoke` |
 
 - The full run does **not** sweep models or persona variants. The leaderboard is

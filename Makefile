@@ -66,9 +66,10 @@ MINI_SOAK_ONLY  ?=
 # 1 = one full slice. MINI_SOAK_ANCHOR narrows to an anchor YAML.
 MINI_SOAK_PASSES ?=
 MINI_SOAK_ANCHOR ?=
+MINI_SOAK_ARM    ?= full
 soak-mini:
 	go run $(GO_TAGS) ./spikes/m3-t7-probe soak \
-		-model $(MINI_SOAK_MODEL) -arm full -corpus eval/bench/tasks.yaml \
+		-model $(MINI_SOAK_MODEL) -arm $(MINI_SOAK_ARM) -corpus eval/bench/tasks.yaml \
 		-judge-model $(MINI_SOAK_JUDGE) -hours $(MINI_SOAK_HOURS) \
 		-timeout $(MINI_SOAK_TIMEOUT) \
 		-kill-after $(MINI_SOAK_KILL) $(if $(MINI_SOAK_ONLY),-only $(MINI_SOAK_ONLY)) \
@@ -159,6 +160,7 @@ bench-anchor: bench-verify
 		$(MAKE) soak-mini MINI_SOAK_MODEL=$$m MINI_SOAK_JUDGE=$(BENCH_JUDGE) \
 			MINI_SOAK_HOURS=$(BENCH_ANCHOR_HOURS) MINI_SOAK_KILL=0 \
 			MINI_SOAK_TIMEOUT=$(BENCH_TIMEOUT) MINI_SOAK_PASSES=1 \
+			MINI_SOAK_ARM=single \
 			MINI_SOAK_ANCHOR=eval/bench/anchor.yaml \
 			MINI_SOAK_OUT=$(BENCH_OUT)/anchor/$$m || exit 1; \
 	done

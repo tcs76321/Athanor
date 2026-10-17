@@ -85,9 +85,10 @@ contract**:
   target). `-passes 1` makes this explicit; the wall-time deadline is only a
   safety net.
 - **Anchor = the short onboarding/leaderboard screen.** Twelve tuning-only tasks
-  (`eval/bench/anchor.yaml`), one pass per pinned roster model, **≤ 12 h total**.
-  The anchor is not the headline; it selects models for onboarding and orders
-  the leaderboard.
+  (`eval/bench/anchor.yaml`), one **single-shot** pass per pinned roster model,
+  **≤ 12 h total**. The anchor is not the headline; it selects models for
+  onboarding and orders the leaderboard. The anchor uses the same role models,
+  temperatures, and context targets; only the arm differs (`single` vs `full`).
 - **The leaderboard is an aggregation, not a second benchmark.** It merges the
   anchor runs into one row per model using the same deterministic checks. The
   full benchmark is then run on the chosen canonical persona set.
@@ -112,8 +113,8 @@ set, not edits to it.
 - **Run shape.** Two shapes share one frozen task set. **Full:** the canonical
   persona set from `protocol.yaml`, one pass over all 70 deterministic tasks,
   **≤ 12 h** (typically 3–5 h on the 9B reference). **Anchor:** the 12-task
-  tuning-only subset, one pass per pinned roster model, **≤ 12 h total**; this is
-  the onboarding/leaderboard screen. A full matrix (multiple arms × repeats) is
+  tuning-only subset, one **single-shot** pass per pinned roster model,
+  **≤ 12 h total**; this is the onboarding/leaderboard screen. A full matrix (multiple arms × repeats) is
   a pre-tag confirmation, not the initial slice and not the leaderboard.
 - **One persona set.** The full run uses the five roles, models, temperatures,
   context targets, inference parameters, embedding model, and runtime image

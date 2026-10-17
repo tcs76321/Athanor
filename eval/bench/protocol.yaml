@@ -8,7 +8,7 @@
 #   - full:   the headline. ONE canonical persona set, ONE pass over all 70
 #             deterministic tasks, budgeted at <= 12h of machine time.
 #   - anchor: the onboarding/leaderboard screen. 12 non-held-out tasks over the
-#             pinned model roster, one pass per model, <= 12h total.
+#             pinned model roster, one SINGLE-SHOT pass per model, <= 12h total.
 #
 # The full run does NOT sweep models. The leaderboard is an aggregation of
 # anchor runs, not a second benchmark.
@@ -109,7 +109,7 @@ run_shape:
   anchor:
     tasks: eval/bench/anchor.yaml
     passes: 1
-    arm: full
+    arm: single
     per_model_timeout: 1h
     machine_budget_hours: 12
 
