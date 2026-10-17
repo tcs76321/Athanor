@@ -214,16 +214,61 @@ func (r *Report) checkPodman(ctx context.Context, p Probes) {
 		})
 		return
 	}
-	if strings.TrimSpace(string(out)) != "true" {
+	if strings.TrimSpace(string(out)) == "true" {
+		r.add(Check{Name: "podman", Status: StatusOK, Detail: path + " (rootless)"})
+		return
+	}
+	// Rootless=false. On a podman-machine host (macOS/Windows) the CLI field can
+	// read false while the VM is rootless, and a *rootful* machine is a specific,
+	// fixable deviation. Inspect the running machine before failing; a plain
+	// Podman host falls through to the generic failure.
+	if rootful, running := podmanMachine(ctx, p); running {
+		if !rootful {
+			r.add(Check{Name: "podman", Status: StatusOK, Detail: path + " (rootless podman machine)"})
+			return
+		}
 		r.add(Check{
-			Name:        "podman",
-			Status:      StatusFail,
-			Detail:      "podman is not running rootless",
-			Remediation: "configure rootless Podman; Athanor never runs privileged containers (§21.1)",
+			Name:   "podman",
+			Status: StatusFail,
+			Detail: "the running Podman machine is rootful",
+			Remediation: "podman machine stop && podman machine set --rootful=false && " +
+				"podman machine start (or recreate the machine); Athanor never runs privileged containers (§21.1)",
 		})
 		return
 	}
-	r.add(Check{Name: "podman", Status: StatusOK, Detail: path + " (rootless)"})
+	r.add(Check{
+		Name:        "podman",
+		Status:      StatusFail,
+		Detail:      "podman is not running rootless",
+		Remediation: "configure rootless Podman; Athanor never runs privileged containers (§21.1)",
+	})
+}
+
+// podmanMachine reports whether a podman-machine is running and, if so, whether
+// it is rootful. running is false on a plain Podman host (the Linux service),
+// where the generic rootless check applies. A running-but-indeterminate machine
+// fails closed (reported as rootful).
+func podmanMachine(ctx context.Context, p Probes) (rootful, running bool) {
+	out, err := p.Command(ctx, "podman", "machine", "list", "--format", "{{.Name}} {{.Running}}")
+	if err != nil || strings.TrimSpace(string(out)) == "" {
+		return false, false
+	}
+	isRunning := false
+	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+		fields := strings.Fields(line)
+		if len(fields) >= 2 && strings.EqualFold(fields[len(fields)-1], "true") {
+			isRunning = true
+			break
+		}
+	}
+	if !isRunning {
+		return false, false
+	}
+	out, err = p.Command(ctx, "podman", "machine", "inspect", "--format", "{{.Rootful}}")
+	if err != nil {
+		return true, true
+	}
+	return strings.EqualFold(strings.TrimSpace(string(out)), "true"), true
 }
 
 // checkGit verifies Git is available (§14 Git-as-undo; §30.2).

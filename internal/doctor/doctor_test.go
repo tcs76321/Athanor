@@ -135,6 +135,50 @@ func TestRunPodmanNotRootless(t *testing.T) {
 	}
 }
 
+// TestRunPodmanRootlessMachine pins the macOS/podman-machine case: the CLI's
+// Rootless field reads false, but the running machine is rootless, so a healthy
+// host passes instead of failing.
+func TestRunPodmanRootlessMachine(t *testing.T) {
+	p := goodProbes()
+	p.commands["podman info --format {{.Host.Security.Rootless}}"] = "false\n"
+	p.commands["podman machine list --format {{.Name}} {{.Running}}"] = "podman-machine-default true\n"
+	p.commands["podman machine inspect --format {{.Rootful}}"] = "false\n"
+	rep := runAll(t, goodConfig(t), p)
+	if c := findCheck(rep, "podman"); c == nil || c.Status != StatusOK || !strings.Contains(c.Detail, "rootless podman machine") {
+		t.Fatalf("podman check = %+v", c)
+	}
+}
+
+// TestRunPodmanRootfulMachine pins the precise failure for a rootful machine:
+// still a failure, but with the exact remediation.
+func TestRunPodmanRootfulMachine(t *testing.T) {
+	p := goodProbes()
+	p.commands["podman info --format {{.Host.Security.Rootless}}"] = "false\n"
+	p.commands["podman machine list --format {{.Name}} {{.Running}}"] = "podman-machine-default true\n"
+	p.commands["podman machine inspect --format {{.Rootful}}"] = "true\n"
+	rep := runAll(t, goodConfig(t), p)
+	c := findCheck(rep, "podman")
+	if c == nil || c.Status != StatusFail || !strings.Contains(c.Detail, "rootful") ||
+		!strings.Contains(c.Remediation, "--rootful=false") {
+		t.Fatalf("podman check = %+v", c)
+	}
+}
+
+// TestRunPodmanMachineIndeterminate pins fail-closed behavior: a running machine
+// whose rootfulness cannot be read is treated as rootful.
+func TestRunPodmanMachineIndeterminate(t *testing.T) {
+	p := goodProbes()
+	p.commands["podman info --format {{.Host.Security.Rootless}}"] = "false\n"
+	p.commands["podman machine list --format {{.Name}} {{.Running}}"] = "podman-machine-default true\n"
+	p.commandErrs = map[string]error{
+		"podman machine inspect --format {{.Rootful}}": fmt.Errorf("inspect failed"),
+	}
+	rep := runAll(t, goodConfig(t), p)
+	if c := findCheck(rep, "podman"); c == nil || c.Status != StatusFail {
+		t.Fatalf("podman check = %+v", c)
+	}
+}
+
 func TestRunPodmanInfoError(t *testing.T) {
 	p := goodProbes()
 	p.commandErrs = map[string]error{"podman info --format {{.Host.Security.Rootless}}": fmt.Errorf("machine not running")}
