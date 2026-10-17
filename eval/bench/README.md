@@ -88,9 +88,11 @@ Ollama digests, and the run shape.
   embedding model is pinned too; leaving `memory_embedding_model` empty would
   make retrieval FTS-only and hollow out the MCE measurement.
 - The anchor is drawn only from the **tuning slice** — no held-out tasks.
-- `-passes 1` is the full-slice shape: one complete pass, then stop. The
-  wall-time budget is a safety cap, not a mid-pass cutoff (the deadline is
-  checked between passes; each job is bounded by `per_job_timeout`).
+- `-passes 1` is the full-slice shape: one complete pass, then stop. For a
+  capped run the wall-time budget is a hard cap checked **between tasks**; an
+  in-flight job can overshoot by at most its `per_job_timeout`, and the run is
+  marked incomplete (no `complete` marker) rather than overrunning. An uncapped
+  endurance soak still finishes its pass and checks the deadline between passes.
 - Changing a model, digest, role temperature, context target, embedding model,
   arm, pass count, or scoring rule is a **new benchmark version**, not an edit.
 

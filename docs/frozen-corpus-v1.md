@@ -82,8 +82,9 @@ contract**:
 - **Full slice = one pass.** The full run is one complete pass over the 70
   deterministic tasks on the canonical set, budgeted at **≤ 12 h** of machine
   time (one pass is ~3–5 h on the 9B reference, so the budget is a cap, not a
-  target). `-passes 1` makes this explicit; the wall-time deadline is only a
-  safety net.
+  target). `-passes 1` makes this explicit. For a capped run the budget is a
+  hard cap checked between tasks; an in-flight job can overshoot by at most its
+  per-job timeout, and that run is marked incomplete rather than overrunning.
 - **Anchor = the short onboarding/leaderboard screen.** Twelve tuning-only tasks
   (`eval/bench/anchor.yaml`), one **single-shot** pass per pinned roster model,
   **≤ 12 h total**. The anchor is not the headline; it selects models for

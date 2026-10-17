@@ -66,6 +66,18 @@ func TestPassAllowed(t *testing.T) {
 			t.Errorf("%s: passAllowed = %v, want %v", c.name, got, c.want)
 		}
 	}
+
+	// A capped run hard-stops between tasks at the deadline; an uncapped
+	// endurance run finishes its pass and checks the deadline between passes.
+	if !midPassDeadline(1, past, now) {
+		t.Error("capped run did not hard-stop at a passed deadline")
+	}
+	if midPassDeadline(1, future, now) {
+		t.Error("capped run stopped before its deadline")
+	}
+	if midPassDeadline(0, past, now) {
+		t.Error("uncapped endurance run was cut mid-pass")
+	}
 }
 
 // TestSoakCompleteMarker pins the resume rule: only a normal-completion marker

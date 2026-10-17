@@ -18,8 +18,9 @@ New entries are appended at the top. Do not rewrite history.
   parameters, embedding model, job-pod/Core Pod images, and the run shape.
   Changing any of them is a new benchmark version
   ([ADR-0075 amendment](docs/adr/0075-frozen-corpus-compass.md)).
-- **Full slice = one pass, ≤ 12 h.** `-passes 1` plus a 12 h safety cap; the
-  expected time on the 9B reference is ~3–5 h, not weeks.
+- **Full slice = one pass, ≤ 12 h.** `-passes 1` plus a 12 h cap checked between
+  tasks; a capped run that hits the cap is marked incomplete rather than
+  overrunning. The expected time on the 9B reference is ~3–5 h, not weeks.
 - **Onboarding/leaderboard = a 12-task anchor**, one **single-shot** pass per
   pinned model, ≤ 12 h total (`make bench-anchor`). The leaderboard aggregates
   anchor runs; it is not a second benchmark.

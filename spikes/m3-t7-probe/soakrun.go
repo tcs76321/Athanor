@@ -276,6 +276,11 @@ func (c *soakRunConfig) run() error {
 			if interrupted.Load() {
 				break
 			}
+			if midPassDeadline(c.passes, deadline, time.Now()) {
+				logEvent("hard stop: deadline reached before %s; run is incomplete", g.Name)
+				interrupted.Store(true)
+				break
+			}
 			if c.killAfter > 0 && !killed && time.Since(start) >= c.killAfter {
 				logEvent("injecting kill -9 after %s", time.Since(start).Round(time.Second))
 				_ = proc.Process.Kill()
@@ -392,6 +397,15 @@ func appendMetricRow(path string, m jobMetrics) error {
 	defer func() { _ = f.Close() }()
 	_, err = f.Write(append(b, '\n'))
 	return err
+}
+
+// midPassDeadline reports whether a capped run has hit its wall-time deadline
+// between tasks. An uncapped endurance run (maxPasses == 0) deliberately
+// finishes its pass; a capped full-slice/anchor run stops and is marked
+// incomplete rather than overrunning the budget. An in-flight job can still
+// overshoot by up to the per-job timeout.
+func midPassDeadline(maxPasses int, deadline, now time.Time) bool {
+	return maxPasses > 0 && now.After(deadline)
 }
 
 // passAllowed decides whether to start the next corpus pass. A positive
