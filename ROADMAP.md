@@ -331,3 +331,17 @@ Post-M7 capability. Listed so ideas have a home without derailing the current mi
 3. **When reality disagrees with the plan, believe reality.** Change the plan, write the ADR, move on. The roadmap serves the system, not vice versa.
 4. **Quality probes (M1-T8, M3-T7) exist because local-model behavior is the biggest empirical unknown.** Take their findings seriously before compounding capability on top.
 5. **Containment is a feature you ship, not a phase you pass.** Gates G0–G7 stay enforced after they're earned — regression in any gate re-blocks release.
+
+---
+
+## 10. 1.0.0 direction
+
+0.0.x validates; 1.0.0 completes. The pillars are in
+[docs/1.0.0-direction.md](docs/1.0.0-direction.md): **first-class GUI (the main
+focus)**, validated self-improvement, a mature MCE-sensitive benchmark,
+trustworthiness (§31.3 audit, containment, recovery), complete workflows (media
+verifier, skills runtime, Browser Mode, cloud broker, Exploration Paths, tree
+search), portfolio/multi-project, distribution, and efficiency.
+
+First-class GUI is a **soft goal for 0.0.0** (a functional first-use flow) and
+the **main focus of 1.0.0**.

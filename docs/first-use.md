@@ -8,6 +8,9 @@
 
 Legend: ✅ exists today · 🔨 to build · ⚠️ decision/gap · `[UNKNOWN]` not verified.
 
+**GUI:** the 0.0.0 bar is a **functional** first-use flow; **first-class GUI is
+the main 1.0.0 focus** ([1.0.0-direction.md](1.0.0-direction.md)).
+
 ---
 
 ## Part A — The user journey (abstract, user-facing)
