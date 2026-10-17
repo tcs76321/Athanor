@@ -57,12 +57,16 @@ MINI_SOAK_MODEL ?= ornith9b
 MINI_SOAK_JUDGE ?= granite4.2:3b
 MINI_SOAK_HOURS ?= 1
 MINI_SOAK_KILL  ?= 20m
+# MINI_SOAK_TIMEOUT bounds one job (the soak's -timeout). A degenerate model can
+# otherwise spend 45m on a single task and blow a short run's budget.
+MINI_SOAK_TIMEOUT ?= 45m
 # MINI_SOAK_ONLY narrows the corpus to a comma-separated task list (empty = all).
 MINI_SOAK_ONLY  ?=
 soak-mini:
 	go run $(GO_TAGS) ./spikes/m3-t7-probe soak \
 		-model $(MINI_SOAK_MODEL) -arm full -corpus eval/bench/tasks.yaml \
 		-judge-model $(MINI_SOAK_JUDGE) -hours $(MINI_SOAK_HOURS) \
+		-timeout $(MINI_SOAK_TIMEOUT) \
 		-kill-after $(MINI_SOAK_KILL) $(if $(MINI_SOAK_ONLY),-only $(MINI_SOAK_ONLY)) \
 		-out $(MINI_SOAK_OUT)
 
@@ -75,6 +79,9 @@ soak-mini:
 SOAK_LADDER_HOURS  ?= 0.5
 SOAK_LADDER_OUT    ?= spikes/m3-t7-probe/results/ladder
 SOAK_LADDER_ONLY   ?=
+# One job is bounded so a degenerate model cannot consume the whole per-model
+# budget on a single task (the 0.0.0 ladder saw a 33-minute verdict loop).
+SOAK_LADDER_TIMEOUT ?= 10m
 SOAK_LADDER_MODELS ?= granite3b gemmae4b granite8b ornith9b gemma12b qwen27b granite30b nemotron30b muse30b ornith35b
 soak-ladder:
 	@for m in $(SOAK_LADDER_MODELS); do \
@@ -83,7 +90,8 @@ soak-ladder:
 		fi; \
 		echo "=== ladder $$m ($(SOAK_LADDER_HOURS)h) ==="; \
 		$(MAKE) soak-mini MINI_SOAK_MODEL=$$m MINI_SOAK_HOURS=$(SOAK_LADDER_HOURS) \
-			MINI_SOAK_KILL=0 MINI_SOAK_ONLY=$(SOAK_LADDER_ONLY) \
+			MINI_SOAK_KILL=0 MINI_SOAK_TIMEOUT=$(SOAK_LADDER_TIMEOUT) \
+			MINI_SOAK_ONLY=$(SOAK_LADDER_ONLY) \
 			MINI_SOAK_OUT=$(SOAK_LADDER_OUT)/$$m || exit 1; \
 	done
 	$(MAKE) probe-report PROBE_OUT=$(SOAK_LADDER_OUT)
