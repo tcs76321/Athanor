@@ -59,6 +59,13 @@ func TestBenchCorpusV1(t *testing.T) {
 	arch := map[string]int{}
 	tier := map[string]int{}
 	heldOut := 0
+	advisory := map[string]bool{
+		"required_substrings_source": true, "preserve_entities_from_fixture": true,
+		"every_item_once": true, "must_flag_contradiction": true,
+		"must_not_fabricate": true, "no_fabricated_commands": true,
+		"max_new_claims": true, "exactly_one_cta": true,
+		"required_citations_from_fixture": true,
+	}
 	for _, g := range goals {
 		if g.Name == "" {
 			t.Errorf("task %d has no id", g.Number)
@@ -86,6 +93,17 @@ func TestBenchCorpusV1(t *testing.T) {
 			}
 		} else if len(g.Checks) == 0 {
 			t.Errorf("%s: non-code task has no checks", g.Name)
+		} else {
+			deterministic := false
+			for kind := range g.Checks {
+				if !advisory[kind] {
+					deterministic = true
+					break
+				}
+			}
+			if !deterministic {
+				t.Errorf("%s: every check is advisory; the task has no deterministic gate", g.Name)
+			}
 		}
 		if g.Fixture != "" {
 			if _, err := os.Stat(repoPath(g.Fixture)); err != nil {

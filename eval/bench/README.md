@@ -147,7 +147,8 @@ human anchor is the fallback for those qualities.
 The corpus is guarded by `spikes/m3-t7-probe/corpus_v1_test.go`:
 
 - **Structure:** 70 tasks, unique IDs, the exact archetype/tier spread, a
-  `context_demand` on every task, a test or checks on every task, and every
+  `context_demand` on every task, a test or checks on every task, at least one
+  deterministic (non-advisory) check on every non-code task, and every
   fixture/repo/JSON-schema path exists.
 - **Extras:** 4 memory scripts with task → correction/insight → task steps, 6
   human tasks with a 5/3/1 rubric, and exactly 20 held-out items.
