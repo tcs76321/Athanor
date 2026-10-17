@@ -15,11 +15,14 @@ New entries are appended at the top. Do not rewrite history.
 - **0.0.0 requires a functional first-use GUI flow** (onboarding, project +
   plan, presentation, review, digest); **first-class GUI polish moves to
   1.0.0**.
-- New [docs/1.0.0-direction.md](docs/1.0.0-direction.md): the 1.0.0 pillars —
-  first-class GUI (main focus), validated self-improvement, a mature
-  MCE-sensitive benchmark, trustworthiness, complete workflows, portfolio/
-  multi-project, distribution, and efficiency — plus non-goals and acceptance
-  themes.
+- New [docs/1.0.0-direction.md](docs/1.0.0-direction.md): the **five musts**
+  (first-class GUI, validated self-improvement, a mature MCE-sensitive
+  benchmark, trustworthiness, distribution) plus three **committed additions** —
+  **portfolio/multi-project**, the **deterministic `media` verifier**, and full
+  **Statistics/Memory-Browser views** — and a draft 1.0.0 acceptance set.
+  Skills/MCP/plugin ecosystem, Browser Mode, the cloud credential broker,
+  Exploration Paths, adversarial self-critique + tree search, and Windows/WSL
+  are deferred to 1.x.
 - Updated `docs/0.0.0-plan.md` (§2b soft-goal note, §4 bar, §10 direction),
   `ROADMAP.md` §10, and `docs/first-use.md`.
 

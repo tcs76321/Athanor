@@ -336,12 +336,16 @@ Post-M7 capability. Listed so ideas have a home without derailing the current mi
 
 ## 10. 1.0.0 direction
 
-0.0.x validates; 1.0.0 completes. The pillars are in
-[docs/1.0.0-direction.md](docs/1.0.0-direction.md): **first-class GUI (the main
-focus)**, validated self-improvement, a mature MCE-sensitive benchmark,
-trustworthiness (§31.3 audit, containment, recovery), complete workflows (media
-verifier, skills runtime, Browser Mode, cloud broker, Exploration Paths, tree
-search), portfolio/multi-project, distribution, and efficiency.
+0.0.x validates; 1.0.0 completes. The **five musts** are in
+[docs/1.0.0-direction.md](docs/1.0.0-direction.md): first-class GUI (main focus),
+validated self-improvement, a mature MCE-sensitive benchmark, trustworthiness
+(§31.3 audit, containment, recovery), and distribution.
+
+**Committed additions:** portfolio/multi-project, the deterministic `media`
+verifier, and full Statistics/Memory-Browser views (observability inside the
+GUI). **Deferred to 1.x:** skills/MCP/plugin ecosystem, Browser Mode, cloud
+credential broker, Exploration Paths, adversarial self-critique + tree search,
+Windows/WSL.
 
 First-class GUI is a **soft goal for 0.0.0** (a functional first-use flow) and
 the **main focus of 1.0.0**.
