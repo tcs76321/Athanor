@@ -49,17 +49,16 @@ with no `media_checks` is **not** verifier-gated (documented, judge-advisory).
 
 - The **Core** must verify the artifact bytes; a **Job Pod is untrusted**, so a
   pod-reported "pass" cannot be the ground truth.
-- Gate G1 forbids `os/exec` in `internal/`. Options:
-  1. **Pure Go** — stdlib `image` (PNG/JPEG/GIF) covers images with no new
-     dependency; WebP needs `golang.org/x/image` (a project dependency
-     decision); audio/video metadata needs a pure-Go parser (another dependency).
-  2. **Named `cmd/` adapter** — shell out to `ffprobe` in a Gate-G1-allowlisted
-     file (like the git/podman adapters). Requires `ffprobe` in the Core Pod
-     image (a packaging change).
-- **Recommendation:** ship **image** support first (stdlib, no dependency) and
-  make audio/video return an explicit **unsupported** result — never a silent
-  pass — until the ffprobe/pure-Go decision is made. This keeps the verifier
-  honest and unblocks the common media task (generated images).
+- **Decision: pure Go.** No `os/exec`, no `ffprobe`, no external binary. Gate G1
+  stays intact and the verifier is portable and deterministic.
+  - **Images:** Go stdlib `image` covers PNG/JPEG/GIF with no new dependency;
+    WebP needs `golang.org/x/image/webp` (a project dependency decision).
+  - **Audio/video metadata:** a pure-Go parser (a dependency decision; the
+    project allowlist must ratify it). No shelling out.
+  - **Unsupported formats/kinds are reported as unsupported** — never a silent
+    pass.
+- **First ship:** image support (stdlib), then add a pure-Go audio/video parser
+  only when the media stratum needs it and the dependency is approved.
 
 ## Acceptance
 
@@ -73,7 +72,8 @@ with no `media_checks` is **not** verifier-gated (documented, judge-advisory).
 
 ## Open questions
 
-- ffprobe adapter (Core Pod image change) vs a pure-Go parser dependency?
+- Which pure-Go audio/video parser (a dependency) clears the project allowlist,
+  if any? Until then, audio/video is explicitly unsupported.
 - Which media tasks are in the benchmark's media stratum, and what do they
   declare?
 - Is perceptual-hash-to-reference a useful check, or a false comfort?

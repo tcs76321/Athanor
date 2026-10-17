@@ -10,6 +10,14 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Plan: the media verifier is pure Go — 2026-10-17
+
+- **No `os/exec`, no `ffprobe`, no external binary.** Images use the Go stdlib
+  (PNG/JPEG/GIF; WebP needs `golang.org/x/image`); audio/video metadata needs a
+  pure-Go parser and a project-allowlist decision. Unsupported formats are
+  reported as unsupported, never silently passed
+  ([docs/media-verifier.md](docs/media-verifier.md)).
+
 ### Plan: no skills runtime (ADR-0079); 1.0.0 roadmap + media verifier — 2026-10-17
 
 - **External skills/plugins/MCP are unnecessary by design** — not deferred.
