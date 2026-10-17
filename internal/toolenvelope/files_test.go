@@ -103,6 +103,26 @@ func TestParseFileMarkers(t *testing.T) {
 	}
 }
 
+// TestParseFileMarkersDuplicateLastWins pins the 0.0.0-soak fix: a model that
+// restates a file must not fail the whole candidate. The later block wins, and
+// the other files are preserved in first-appearance order.
+func TestParseFileMarkersDuplicateLastWins(t *testing.T) {
+	text := "=== FILE: solution.py ===\nold\n\n=== FILE: note.md ===\nnote\n\n=== FILE: ./solution.py ===\nnew\n"
+	files, err := ParseFileMarkers(text)
+	if err != nil {
+		t.Fatalf("ParseFileMarkers: %v", err)
+	}
+	if len(files) != 2 {
+		t.Fatalf("files = %+v, want 2 (solution.py merged, note.md kept)", files)
+	}
+	if files[0].Path != "solution.py" || strings.TrimSpace(files[0].Content) != "new" {
+		t.Errorf("solution.py = %+v, want the last block's content", files[0])
+	}
+	if files[1].Path != "note.md" || strings.TrimSpace(files[1].Content) != "note" {
+		t.Errorf("note.md = %+v", files[1])
+	}
+}
+
 func TestIsTreeManifest(t *testing.T) {
 	manifest, _ := EncodeFiles([]File{{Path: "a.py", Content: "x"}})
 	if !IsTreeManifest(manifest) {

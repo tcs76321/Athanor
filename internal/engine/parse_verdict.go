@@ -52,23 +52,30 @@ func parseVerdictJSON[T any](content string) (T, error) {
 // errors.As.
 func parseVerdictJSONCoerced[T any](content string) (T, []string, error) {
 	var v T
-	obj, err := extractVerdictObject(content)
+	obj, salvaged, err := extractVerdictObject(content)
 	if err != nil {
 		return v, nil, err
 	}
+	var notes []string
+	if salvaged {
+		// The response was truncated at max_output_tokens and repaired. Audit
+		// it so a degenerate model is visible rather than silently accepted.
+		notes = append(notes, "json (truncated→salvaged)")
+	}
 	// Strict fast path: a conforming model never pays for reflection.
 	if err := json.Unmarshal(obj, &v); err == nil {
-		return v, nil, nil
+		return v, notes, nil
 	}
 	// Tolerant path: decode the object generically, coerce each field to
 	// the destination type, then decode again.
 	var raw map[string]any
 	if err := json.Unmarshal(obj, &raw); err != nil {
-		return v, nil, &VerdictParseError{Msg: fmt.Sprintf("decoding verdict JSON: %v", err)}
+		return v, notes, &VerdictParseError{Msg: fmt.Sprintf("decoding verdict JSON: %v", err)}
 	}
-	notes, cerr := coerceMapInto(raw, &v)
+	cnotes, cerr := coerceMapInto(raw, &v)
+	notes = append(notes, cnotes...)
 	if cerr != nil {
-		return v, nil, &VerdictParseError{Msg: fmt.Sprintf("decoding verdict JSON: %v", cerr)}
+		return v, notes, &VerdictParseError{Msg: fmt.Sprintf("decoding verdict JSON: %v", cerr)}
 	}
 	return v, notes, nil
 }
@@ -77,10 +84,16 @@ func parseVerdictJSONCoerced[T any](content string) (T, []string, error) {
 // object in content. The matching '}' is found by
 // tracking brace depth with quote + escape handling (an
 // embedded '}' inside a string does not count).
-func extractVerdictObject(content string) ([]byte, error) {
+//
+// When the object is unterminated — the model was cut off at
+// max_output_tokens, as a degenerate repetition loop does — it returns a
+// best-effort repaired object and salvaged=true instead of failing the job.
+// The repaired verdict is a rejection we can act on (typically passed=false,
+// score=0); the caller audits the salvage.
+func extractVerdictObject(content string) ([]byte, bool, error) {
 	start := strings.IndexByte(content, '{')
 	if start < 0 {
-		return nil, &VerdictParseError{Msg: fmt.Sprintf("no JSON object in verdict: %q", content)}
+		return nil, false, &VerdictParseError{Msg: fmt.Sprintf("no JSON object in verdict: %q", truncateForEvent(content, 512))}
 	}
 	depth, end := 0, -1
 	inStr, escape := false, false
@@ -114,10 +127,124 @@ func extractVerdictObject(content string) ([]byte, error) {
 			break
 		}
 	}
-	if end < 0 {
-		return nil, &VerdictParseError{Msg: fmt.Sprintf("unterminated JSON object in verdict: %q", content)}
+	if end >= 0 {
+		return []byte(content[start : end+1]), false, nil
 	}
-	return []byte(content[start : end+1]), nil
+	if obj, ok := repairTruncatedObject(content[start:]); ok {
+		return obj, true, nil
+	}
+	return nil, false, &VerdictParseError{Msg: fmt.Sprintf("unterminated JSON object in verdict: %q", truncateForEvent(content, 512))}
+}
+
+// repairTruncatedObject closes a JSON object cut off at EOF: it terminates an
+// open string, drops a dangling member separator, and closes every open
+// container. If the whole prefix cannot be repaired (say it ends mid-key), it
+// retries after dropping the last top-level member.
+func repairTruncatedObject(s string) ([]byte, bool) {
+	if cand, ok := closeOpenJSON(s); ok {
+		return cand, true
+	}
+	if cut := lastTopLevelComma(s); cut >= 0 {
+		if cand, ok := closeOpenJSON(s[:cut]); ok {
+			return cand, true
+		}
+	}
+	return nil, false
+}
+
+// closeOpenJSON scans s, closes an open string and every open {/[ in reverse,
+// and reports whether the result is valid JSON. A dangling trailing comma is
+// dropped first (`{...,` is not valid once closed).
+func closeOpenJSON(s string) ([]byte, bool) {
+	inStr, escape := false, false
+	var stack []byte
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if escape {
+			escape = false
+			continue
+		}
+		if inStr {
+			switch c {
+			case '\\':
+				escape = true
+			case '"':
+				inStr = false
+			}
+			continue
+		}
+		switch c {
+		case '"':
+			inStr = true
+		case '{', '[':
+			stack = append(stack, c)
+		case '}', ']':
+			if len(stack) > 0 {
+				stack = stack[:len(stack)-1]
+			}
+		}
+	}
+	prefix := s
+	if !inStr {
+		if t := strings.TrimRight(prefix, " \t\r\n"); strings.HasSuffix(t, ",") {
+			prefix = t[:len(t)-1]
+		}
+	}
+	var b strings.Builder
+	b.WriteString(prefix)
+	if inStr {
+		b.WriteByte('"')
+	}
+	for i := len(stack) - 1; i >= 0; i-- {
+		if stack[i] == '{' {
+			b.WriteByte('}')
+		} else {
+			b.WriteByte(']')
+		}
+	}
+	out := []byte(b.String())
+	if !json.Valid(out) {
+		return nil, false
+	}
+	return out, true
+}
+
+// lastTopLevelComma returns the byte index of the last comma at the root
+// object's member level (depth 1), or -1. It is the truncation point for a
+// repair that has to drop an incomplete member.
+func lastTopLevelComma(s string) int {
+	inStr, escape, depth, last := false, false, 0, -1
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if escape {
+			escape = false
+			continue
+		}
+		if inStr {
+			switch c {
+			case '\\':
+				escape = true
+			case '"':
+				inStr = false
+			}
+			continue
+		}
+		switch c {
+		case '"':
+			inStr = true
+		case '{', '[':
+			depth++
+		case '}', ']':
+			if depth > 0 {
+				depth--
+			}
+		case ',':
+			if depth == 1 {
+				last = i
+			}
+		}
+	}
+	return last
 }
 
 // coerceMapInto coerces raw's values to the field types

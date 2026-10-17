@@ -23,6 +23,12 @@ var fileMarker = regexp.MustCompile(`(?m)^[ \t]*={2,}[ \t]*FILE:[ \t]*(\S+)[ \t]
 // returns (nil, nil) when the text carries no marker — the caller then treats
 // the whole output as a single file. Paths are sanitized; an unsafe path is an
 // error, so a hostile model cannot direct a write outside the scratch dir.
+//
+// A model may restate a file (the 0.0.0 soak's granite3b emitted two
+// `=== FILE: solution.py ===` blocks). That is a normal model quirk, not a
+// hostile tree, so duplicates are merged **last-wins** rather than failing the
+// whole candidate; the caller still gets a sanitized, duplicate-free tree.
+// Stored manifests stay strict (DecodeFiles/EncodeFiles reject duplicates).
 func ParseFileMarkers(text string) ([]File, error) {
 	idx := fileMarker.FindAllStringSubmatchIndex(text, -1)
 	if len(idx) == 0 {
@@ -43,7 +49,32 @@ func ParseFileMarkers(text string) ([]File, error) {
 		}
 		out = append(out, File{Path: clean, Content: content})
 	}
-	return ValidateFiles(out)
+	return ValidateFiles(mergeLastWins(out))
+}
+
+// mergeLastWins collapses files that name the same sanitized path, keeping the
+// last occurrence's content (the model's final statement of that file) in
+// first-appearance order. It never changes a path or content otherwise, so
+// ValidateFiles still performs the containment checks.
+func mergeLastWins(files []File) []File {
+	order := make([]string, 0, len(files))
+	content := make(map[string]string, len(files))
+	for _, f := range files {
+		p, err := SanitizeRelPath(f.Path)
+		if err != nil {
+			// Leave the bad path for ValidateFiles to report.
+			return files
+		}
+		if _, seen := content[p]; !seen {
+			order = append(order, p)
+		}
+		content[p] = f.Content
+	}
+	out := make([]File, 0, len(order))
+	for _, p := range order {
+		out = append(out, File{Path: p, Content: content[p]})
+	}
+	return out
 }
 
 // File is one entry of a multi-file code candidate (ADR-0065). Path is a

@@ -68,12 +68,44 @@ func TestParseVerdictJSON_NoJSON(t *testing.T) {
 	}
 }
 
-// TestParseVerdictJSON_Unterminated covers the
-// "open brace but no close" failure mode.
-func TestParseVerdictJSON_Unterminated(t *testing.T) {
-	_, err := parseVerdictJSON[minimalVerdict](`{"winner":"new"`)
+// TestParseVerdictJSON_TruncatedSalvaged covers the 0.0.0-soak failure: a
+// response cut off at max_output_tokens (a degenerate repetition loop) is
+// repaired into a usable verdict instead of failing the job.
+func TestParseVerdictJSON_TruncatedSalvaged(t *testing.T) {
+	v, err := parseVerdictJSON[minimalVerdict](`{"winner":"new"`)
+	if err != nil {
+		t.Fatalf("parseVerdictJSON (truncated): %v", err)
+	}
+	if v.Winner != "new" {
+		t.Errorf("Winner = %q, want new", v.Winner)
+	}
+
+	// The real shape: truncation inside a long, nested value string.
+	truncated := `{"passed": false, "score": 0.0, "failed_tests": [{"test_command": "python -c 'import solution; assert solution.evaluate(\"2+3*4\")==14`
+	ev, notes, err := parseVerdictJSONCoerced[evalVerdict](truncated)
+	if err != nil {
+		t.Fatalf("parseVerdictJSONCoerced (truncated verdict): %v", err)
+	}
+	if ev.Passed || ev.Score != 0 {
+		t.Errorf("salvaged verdict = %+v, want passed=false score=0", ev)
+	}
+	if len(notes) == 0 || !strings.Contains(notes[0], "salvaged") {
+		t.Errorf("notes = %v, want a salvage note first", notes)
+	}
+
+	// A dangling member separator is also repaired.
+	if v, err := parseVerdictJSON[minimalVerdict](`{"winner":"previous",`); err != nil || v.Winner != "previous" {
+		t.Errorf("dangling comma salvage = %+v, %v; want previous", v, err)
+	}
+}
+
+// TestParseVerdictJSON_UnterminatedUnrecoverable: a truncation that leaves no
+// complete member (a dangling key) is still a hard error, so salvage never
+// invents a verdict.
+func TestParseVerdictJSON_UnterminatedUnrecoverable(t *testing.T) {
+	_, err := parseVerdictJSON[minimalVerdict](`{"winner":`)
 	if err == nil {
-		t.Fatal("parseVerdictJSON: no error for unterminated JSON")
+		t.Fatal("parseVerdictJSON: expected an error for an unrecoverable truncation")
 	}
 	var vpe *VerdictParseError
 	if !errors.As(err, &vpe) {
