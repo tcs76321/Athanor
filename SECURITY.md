@@ -58,11 +58,10 @@ mistake them for gaps:
 
 - **No executable extension surface.** There is no skills runtime, plugin API,
   or MCP/tool ecosystem ([ADR-0079](docs/adr/0079-no-skills-runtime.md)).
-  Customization is configuration plus built-in tools, never user code. A "skill"
-  or tool description pasted as text is **untrusted data**: it is scanned, may
-  be analysed, is never executed, and cannot grant a tool or permission. A
-  report that pasted text can cause execution or capability escalation is high
-  interest.
+  Customization is configuration plus built-in tools, never user code.
+  Untrusted input is scanned and is never executed; it cannot grant a tool or
+  permission. A report that untrusted input can cause execution or capability
+  escalation is high interest.
 - **Pod-supplied commands run inside the pod.** `run_tests` and `lint` accept a
   command from the job (an operator/project command), which executes *inside*
   the already-hardened Job Pod. It grants no capability the pod did not

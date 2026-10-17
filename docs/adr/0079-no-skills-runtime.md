@@ -24,8 +24,7 @@ a candidate for 1.x. Two reasons now close that direction rather than defer it:
    where the value is nor a portability goal.
 
 "Hyper-customization" is still wanted — but through configuration and
-adaptation, not code. And users can always paste text; that cannot be prevented,
-so it must be treated as **data**, never as a capability.
+adaptation, not code.
 
 ## Decision
 
@@ -37,14 +36,13 @@ so it must be treated as **data**, never as a capability.
    selection/escalation, and the closed built-in tool set. Hyper-customization
    means tuning those and letting evidence-driven adaptation choose among them —
    not adding executable code to the system.
-3. **Pasted text is data.** A "skill" or tool description pasted into a prompt,
-   an upload, or an ingestion path is untrusted input: it is scanned by the
-   airlock/scanner, **never executed**, and it **cannot grant a tool, permission,
-   or capability**. It may be analysed for intent, but any analysis is advisory
-   to the operator.
-4. **Allowed but not encouraged or advertised.** We cannot stop a user pasting
-   text, and we do not build a path that turns it into an extension mechanism.
-   It is not documented as one.
+3. **Untrusted input is data.** Content that arrives through a prompt, upload, or
+   ingestion path is scanned by the airlock/scanner, is **never executed**, and
+   cannot grant a tool, permission, or capability. There is no supported path
+   that turns input into executable behaviour.
+4. **No supported extension path, and none documented.** The documentation
+   describes customization through built-in mechanisms only; it does not present
+   an extension or plugin path.
 5. **No lock-in, no portability goal.** Athanor's value is its hard-coded,
    integrated behaviour. Standardizing concepts so others can build something
    similar is a *maybe later*, not a commitment, and it does not require an
@@ -59,9 +57,9 @@ so it must be treated as **data**, never as a capability.
 - Less open-ended extensibility; the answer to "can I add X?" is "we add X as a
   built-in tool," decided by the operator.
 - The documentation must make **configuration + adaptation** the customization
-  path, and must not present pasted text as an extension mechanism.
-- Pasted text stays inside the scanner/airlock boundary; it is a prompt-injection
-  surface to defend, not a feature to support.
+  path; it does not describe an extension mechanism.
+- Untrusted input stays inside the scanner/airlock boundary; it is a
+  prompt-injection surface to defend, not a feature to support.
 - The tool envelope stays closed, so Gate G2's structural proof stays simple.
 
 ## Alternatives rejected

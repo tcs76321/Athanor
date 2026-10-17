@@ -16,9 +16,8 @@ New entries are appended at the top. Do not rewrite history.
   executable extensions are a malware/adversarial vector and a new trust
   boundary. **Customization is configuration + built-in tools + adaptability**
   (selection, escalation, MCE, corrections, grounded outcomes);
-  **hyper-customization** means tuning those, not adding code. A "skill" pasted
-  as text is **untrusted data** — scanned, never executed, grants no capability
-  — allowed because it cannot be prevented, but **not encouraged or advertised**
+  **hyper-customization** means tuning those, not adding code. Untrusted input
+  is scanned and never executed; there is no supported extension path
   ([ADR-0079](docs/adr/0079-no-skills-runtime.md)). ARCHITECTURE §26 is marked
   superseded and `SECURITY.md` records the boundary.
 - New [docs/1.0.0-plan.md](docs/1.0.0-plan.md): bounded workstreams (first-class
