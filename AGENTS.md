@@ -192,3 +192,18 @@ signing flow); signatures are not required for the agent's commits.
   clients, and `syscall` in `internal/`. Do not add them.
 - Spikes (`spikes/`) may use whatever they need. Spike code never gets
   imported by `internal/`.
+
+## Soaks and evidence
+
+- The **frozen corpus** (`eval/bench/`, pinned per
+  [ADR-0075](docs/adr/0075-frozen-corpus-compass.md)) is the controlled study
+  that tracks progress across versions. It is **not CI** and not a formal
+  release gate.
+- Run the **smoke subset** after any change to the engine surface
+  (`internal/engine`, `internal/policy`, `internal/verify`, `internal/mce`,
+  `internal/prompt`, `internal/scheduler`, the LLM client) and note the delta;
+  run the **full corpus** before a tag.
+- Never edit a frozen corpus version — add tasks to the next version. Never tune
+  on the held-out slice (`docs/frozen-corpus-v1.md`).
+- Real-use evidence ([ADR-0076](docs/adr/0076-continuous-evidence.md)) feeds
+  *selection*; the frozen soak *validates* it. Neither number alone is a claim.

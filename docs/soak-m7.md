@@ -7,6 +7,14 @@ bounded by a wall-clock deadline (`-until`), not a fixed duration, and is
 resumable and rolling so a short or interrupted run still yields a readout.
 Acceptance is by coverage ([ADR-0066](adr/0066-release-scope-soak.md)).
 
+A soak is also the **controlled study** of Athanor itself
+([ADR-0075](adr/0075-frozen-corpus-compass.md)): a frozen corpus, varied
+Athanor configuration, compared across versions. It is **not CI** and not a
+formal release gate. Run the 6-task **smoke subset** after engine-surface
+changes and the **full frozen corpus** before a tag; never edit a frozen corpus
+version and never tune on its held-out slice
+([docs/frozen-corpus-v1.md](frozen-corpus-v1.md)).
+
 ## Prerequisites
 
 - AC power (the run must not pause on battery; §24).
