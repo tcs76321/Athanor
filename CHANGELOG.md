@@ -16,6 +16,11 @@ New entries are appended at the top. Do not rewrite history.
   `full` arm, the bench corpus, one `kill -9` at 20m — exercising the whole
   ADR-0073 harness end to end (quality, telemetry, leaderboard, conformance
   scenarios). Overridable via `MINI_SOAK_*`; documented in `docs/soak-m7.md`.
+- **`make soak-ladder`** runs the full 10-model roster time-boxed — one soak per
+  model (single-slot residency) into a common tree, then one merged report — for
+  a model-comparison leaderboard. `SOAK_LADDER_HOURS` sizes the window,
+  `SOAK_LADDER_ONLY` narrows the task set, and kill injection is off so models
+  see identical conditions.
 - **`probe config -arm full` works.** The generated-config preflight used the
   headline-pair arm lookup and rejected the ablation/soak arms
   (`bestof3|reflect|full`) that `run`/`soak` accept; it now resolves the full

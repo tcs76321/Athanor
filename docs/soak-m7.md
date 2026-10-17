@@ -174,6 +174,25 @@ tokens, and calls by phase) reduced from each job's event log
 engine-attribution data the soak previously discarded. Then `probe-measure` +
 `athanor models -qualification` turn the same tree into a routing proposal.
 
+### Time-boxed 10-model ladder
+
+For a comparison across every matrix model inside a fixed window,
+`make soak-ladder` runs one soak per model into a common tree and then merges it:
+
+```bash
+make soak-ladder SOAK_LADDER_HOURS=0.5      # ~7-8h for the 10-model roster
+make probe-report PROBE_OUT=spikes/m3-t7-probe/results/ladder
+```
+
+A short per-model budget yields a **partial** pass per model: the leaderboard
+compares completed rows, so read the `jobs` column alongside the rate. Kill
+injection is off so every model sees identical conditions. Narrow the task set
+with `SOAK_LADDER_ONLY=task-a,task-b` for a fixed cross-archetype subset. Use a
+fresh `SOAK_LADDER_OUT` for a clean ladder. The judge is fixed
+(`granite4.2:3b`), so the granite generators are same-family; verifier-first
+acceptance keeps the deterministic code edge, and the report flags
+`cross_family_ok=false` where it applied.
+
 ## Acceptance (Gate G7)
 
 Coverage-based ([ADR-0066](adr/0066-release-scope-soak.md)):
