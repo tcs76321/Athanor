@@ -12,10 +12,15 @@ New entries are appended at the top. Do not rewrite history.
 
 ### Plan: no skills runtime (ADR-0079); 1.0.0 roadmap + media verifier — 2026-10-17
 
-- **Skills/MCP/plugin is not planned** (not merely deferred): the bet is
-  **built-in tools + adaptability** — selection, escalation, MCE, corrections,
-  grounded outcomes ([ADR-0079](docs/adr/0079-no-skills-runtime.md)). Revisit only
-  on a concrete integration need a built-in tool cannot meet.
+- **Skills/MCP/plugin is not planned** (not merely deferred), for **security**:
+  executable extensions are a malware/adversarial vector and a new trust
+  boundary. **Customization is configuration + built-in tools + adaptability**
+  (selection, escalation, MCE, corrections, grounded outcomes);
+  **hyper-customization** means tuning those, not adding code. A "skill" pasted
+  as text is **untrusted data** — scanned, never executed, grants no capability
+  — allowed because it cannot be prevented, but **not encouraged or advertised**
+  ([ADR-0079](docs/adr/0079-no-skills-runtime.md)). ARCHITECTURE §26 is marked
+  superseded and `SECURITY.md` records the boundary.
 - New [docs/1.0.0-plan.md](docs/1.0.0-plan.md): bounded workstreams (first-class
   GUI, validation/self-improvement, benchmark, trust, distribution, portfolio,
   media verifier, observability), the acceptance set, order/dependencies,
