@@ -52,6 +52,7 @@ type memoryFake struct {
 	insights    int
 	patches     int
 	lastTest    string
+	failJobs    bool
 }
 
 func (f *memoryFake) handler() http.Handler {
@@ -85,6 +86,10 @@ func (f *memoryFake) handler() http.Handler {
 		write(w, map[string]any{"job_id": id})
 	})
 	mux.HandleFunc("GET /jobs/", func(w http.ResponseWriter, r *http.Request) {
+		if f.failJobs {
+			write(w, map[string]any{"state": "failed"})
+			return
+		}
 		write(w, map[string]any{"state": "completed", "artifact_id": "a1"})
 	})
 	mux.HandleFunc("POST /projects/p1/corrections", func(w http.ResponseWriter, r *http.Request) {
@@ -122,9 +127,9 @@ func (f *memoryFake) counts() memoryFakeCounts {
 	}
 }
 
-func runMemoryTest(t *testing.T, only string) (memoryFakeCounts, string) {
+func runMemoryTest(t *testing.T, only string, failJobs bool) (memoryFakeCounts, string) {
 	t.Helper()
-	fake := &memoryFake{}
+	fake := &memoryFake{failJobs: failJobs}
 	ts := httptest.NewServer(fake.handler())
 	t.Cleanup(ts.Close)
 	out := t.TempDir()
@@ -142,7 +147,7 @@ func runMemoryTest(t *testing.T, only string) (memoryFakeCounts, string) {
 }
 
 func TestMemoryRunnerCorrection(t *testing.T) {
-	fake, report := runMemoryTest(t, "mem-correction-error-type")
+	fake, report := runMemoryTest(t, "mem-correction-error-type", false)
 	if fake.projects != 1 || fake.goals != 2 || fake.corrections != 1 || fake.patches != 2 {
 		t.Errorf("calls: projects=%d goals=%d corrections=%d patches=%d, want 1/2/1/2",
 			fake.projects, fake.goals, fake.corrections, fake.patches)
@@ -156,7 +161,7 @@ func TestMemoryRunnerCorrection(t *testing.T) {
 }
 
 func TestMemoryRunnerInsight(t *testing.T) {
-	fake, report := runMemoryTest(t, "mem-insight-input-validation")
+	fake, report := runMemoryTest(t, "mem-insight-input-validation", false)
 	if fake.insights != 1 || fake.goals != 2 {
 		t.Errorf("calls: insights=%d goals=%d, want 1/2", fake.insights, fake.goals)
 	}
@@ -166,8 +171,11 @@ func TestMemoryRunnerInsight(t *testing.T) {
 }
 
 func TestMemoryRunnerCompactionPartial(t *testing.T) {
-	_, report := runMemoryTest(t, "mem-compaction-fact")
-	if !strings.Contains(report, "| mem-compaction-fact | partial | pass |") {
+	// The real day-2 may fail without the filler; the script must still be
+	// labeled partial (unsupported), never fail, because it was not run as
+	// specified.
+	_, report := runMemoryTest(t, "mem-compaction-fact", true)
+	if !strings.Contains(report, "| mem-compaction-fact | partial | fail |") {
 		t.Errorf("compaction should be partial, not pass/fail:\n%s", report)
 	}
 	if !strings.Contains(report, "compaction filler") {

@@ -295,6 +295,11 @@ func runMemoryScript(baseURL string, db *sql.DB, s memoryScript, timeout time.Du
 		}
 	}
 	switch {
+	case unsupported:
+		// The script was not executed as specified (e.g. the compaction filler
+		// has no driver yet). Do not report a pass/fail of an unrun script.
+		res.Status = "partial"
+		res.Detail = "unsupported filler/step; the later task is not a pass/fail of the script as specified"
 	case lastTask < 0:
 		res.Status = "invalid"
 		res.Detail = "no task step"
@@ -304,9 +309,6 @@ func runMemoryScript(baseURL string, db *sql.DB, s memoryScript, timeout time.Du
 	case res.Steps[lastTask].Injected != nil && !*res.Steps[lastTask].Injected:
 		res.Status = "fail"
 		res.Detail = "day-2 task passed but the correction/insight was not injected"
-	case unsupported:
-		res.Status = "partial"
-		res.Detail = "day-2 passed without a supported filler/compaction step"
 	default:
 		res.Status = "pass"
 		if res.Steps[lastTask].Injected == nil {
