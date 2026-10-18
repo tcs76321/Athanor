@@ -1,0 +1,56 @@
+# Athanor benchmark v2 — the onboarding/leaderboard anchor
+#
+# 12 tuning-only H tasks: the floor of the v2 corpus, not the X headroom. Used
+# to screen models for onboarding and to order the leaderboard; never the
+# headline. No held-out task appears here.
+version: 2
+benchmark: v2
+tasks:
+  - id: code-bank-atomic
+    tier: H
+    archetype: code
+    why: atomic state transitions; a strong correctness floor
+  - id: code-expr-eval
+    tier: H
+    archetype: code
+    why: precedence, recursion, typed errors
+  - id: code-topo-sort
+    tier: H
+    archetype: code
+    why: graph order and cycle detection
+  - id: code-json-patch
+    tier: H
+    archetype: code
+    why: non-mutating multi-op state
+  - id: code-weighted-intervals
+    tier: H
+    archetype: code
+    why: DP edge cases; greedy fails
+  - id: doc-design-adr
+    tier: H
+    archetype: document
+    why: alternatives and risks under a fixed structure
+  - id: doc-cited-brief
+    tier: H
+    archetype: document
+    why: long-source citation fidelity
+  - id: doc-incident-postmortem
+    tier: H
+    archetype: document
+    why: causal timeline and corrective actions
+  - id: text-constrained-email
+    tier: H
+    archetype: text
+    why: word limit, one CTA, forbidden phrases
+  - id: text-counterargument
+    tier: H
+    archetype: text
+    why: distinct arguments and a real rebuttal
+  - id: data-json-normalize
+    tier: H
+    archetype: data
+    why: schema, timestamps, severity mapping
+  - id: adv-h-false-premise
+    tier: H
+    archetype: adversarial
+    why: corrects a false premise instead of building on it

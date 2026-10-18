@@ -107,6 +107,33 @@ them.
 This keeps the controlled study constant across 0.x while making the initial
 slice and the onboarding screen fit in a day.
 
+## Amendment — 2026-10-18: v2 is the 0.0.0 instrument
+
+The v1 80-item E/M/H corpus ran as the **pilot**: 56/70 deterministic (80%),
+held-out 12/14 (86%), but **code 30/30** and two checks were too literal (a
+correct fenced JSON answer and a correct “I won’t” refusal failed bare-JSON /
+exact-phrase gates). The probe also scored only accepted artifacts, so a
+non-code failure fell back to the engine’s decision.
+
+v2 is cut at **0.0.0** as the hard H/X instrument
+([frozen-corpus-v2.md](../frozen-corpus-v2.md)):
+
+- **41 deterministic tasks, all H or X.** No E, no M. The v1 H tasks are the
+  floor; the new X tier is repo-scale/multi-file code, long-context synthesis,
+  and adversarial reconciliation. Code grows to 18 tasks (6 X).
+- **4 memory scripts + 6 human-review tasks**, with 10 deterministic + 3 + 3
+  held out.
+- **12 H anchor**, single-shot, ≤12h; the full H/X slice is one pass, ≤12h.
+- **Fair deterministic checks:** `json_extract` for fenced JSON,
+  `must_contain_any` for refusals, and artifact-only synthesis. The probe scores
+  the highest-scoring candidate independently of the engine’s accept.
+- The canonical persona set, models/digests, context targets, inference, and
+  embedding model are unchanged from v1; they are pinned in
+  `eval/bench/v2/protocol.yaml`.
+
+v1 remains the pilot baseline. This is a **new version**, not an edit; a change
+to v2 is v3 at 1.0.0.
+
 ## Consequences
 
 - The current 15-task corpus is **insufficient**: it lacks long-context,

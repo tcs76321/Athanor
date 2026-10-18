@@ -1,5 +1,9 @@
 # Frozen benchmark v1 — task set, protocol, and scoring
 
+> **Pilot note (2026-10-18):** v1 is the **pilot baseline**. The 0.0.0
+> instrument is **v2** ([frozen-corpus-v2.md](frozen-corpus-v2.md)); v1 remains
+> frozen and runnable for comparison.
+
 **Status:** frozen (v1, cut 2026-10-17) · **Refs:**
 [ADR-0075](adr/0075-frozen-corpus-compass.md) (frozen benchmark),
 [ADR-0061](adr/0061-harder-benchmark.md) (harder benchmark),

@@ -1,0 +1,13 @@
+{
+  "type": "array",
+  "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["user", "total", "count"],
+    "properties": {
+      "user": { "type": "string" },
+      "total": { "type": "integer" },
+      "count": { "type": "integer" }
+    }
+  }
+}

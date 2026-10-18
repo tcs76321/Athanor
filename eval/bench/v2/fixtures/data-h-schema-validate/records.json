@@ -1,0 +1,4 @@
+[
+  {"id": "7", "created_at": "2026-03-01 10:00:00", "severity": "WARN", "extra": 1},
+  {"id": "9", "created_at": "2026-03-02T11:30:00+01:00", "severity": "critical"}
+]

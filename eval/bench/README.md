@@ -1,5 +1,9 @@
 # Athanor benchmark corpus (v1)
 
+> **The 0.0.0 benchmark is v2:** [`v2/`](v2/README.md) — 41 hard H/X tasks, no
+> easy tier. This README documents the **v1 pilot**, retained for comparison
+> and its findings ([docs/bench-v1-findings.md](../../docs/bench-v1-findings.md)).
+
 **80 items: 70 deterministic tasks + 4 memory scripts + 6 human-review
 tasks.** This is the frozen benchmark for 0.0.0: it is cut once, never edited
 until 1.0.0, and it is **not CI** ([ADR-0075](../../docs/adr/0075-frozen-corpus-compass.md)).

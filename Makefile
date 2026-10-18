@@ -60,6 +60,9 @@ MINI_SOAK_KILL  ?= 20m
 # MINI_SOAK_TIMEOUT bounds one job (the soak's -timeout). A degenerate model can
 # otherwise spend 45m on a single task and blow a short run's budget.
 MINI_SOAK_TIMEOUT ?= 45m
+# Benchmark version root. v2 is the 0.0.0 hard H/X corpus; use
+# BENCH_DIR=eval/bench for the v1 pilot.
+BENCH_DIR ?= eval/bench/v2
 # MINI_SOAK_ONLY narrows the corpus to a comma-separated task list (empty = all).
 MINI_SOAK_ONLY  ?=
 # MINI_SOAK_PASSES caps full corpus passes (empty = until the deadline);
@@ -67,9 +70,10 @@ MINI_SOAK_ONLY  ?=
 MINI_SOAK_PASSES ?=
 MINI_SOAK_ANCHOR ?=
 MINI_SOAK_ARM    ?= full
+MINI_SOAK_CORPUS ?= $(BENCH_DIR)/tasks.yaml
 soak-mini:
 	go run $(GO_TAGS) ./spikes/m3-t7-probe soak \
-		-model $(MINI_SOAK_MODEL) -arm $(MINI_SOAK_ARM) -corpus eval/bench/tasks.yaml \
+		-model $(MINI_SOAK_MODEL) -arm $(MINI_SOAK_ARM) -corpus $(MINI_SOAK_CORPUS) \
 		-judge-model $(MINI_SOAK_JUDGE) -hours $(MINI_SOAK_HOURS) \
 		-timeout $(MINI_SOAK_TIMEOUT) \
 		-kill-after $(MINI_SOAK_KILL) $(if $(MINI_SOAK_ONLY),-only $(MINI_SOAK_ONLY)) \
@@ -113,10 +117,17 @@ corpus-check:
 corpus-digest:
 	@./scripts/corpus-digest.sh write
 
+# v2 (0.0.0 hard H/X corpus). v1 remains checkable with `make corpus-check`.
+corpus-check-v2:
+	@./scripts/corpus-digest.sh check eval/bench/v2
+
+corpus-digest-v2:
+	@./scripts/corpus-digest.sh write eval/bench/v2
+
 # The 6-item smoke subset (docs/frozen-corpus-v1.md §8) for engine-surface
 # changes. A fresh output dir by default; set SOAK_SMOKE_OUT to keep the run.
 SOAK_SMOKE_OUT  ?= spikes/m3-t7-probe/results/smoke
-SOAK_SMOKE_ONLY ?= code-csv-rfc4180,code-refactor-provided,doc-cited-brief,text-level-rewrite,data-json-normalize,adv-h-contradictory-requirements
+SOAK_SMOKE_ONLY ?= code-bank-atomic,code-expr-eval,x-code-interpreter,doc-cited-brief,text-level-rewrite,data-json-normalize
 soak-smoke:
 	$(MAKE) soak-mini MINI_SOAK_ONLY=$(SOAK_SMOKE_ONLY) MINI_SOAK_OUT=$(SOAK_SMOKE_OUT)
 
@@ -127,9 +138,9 @@ soak-smoke:
 # first; a changed model is a changed benchmark, not a sloppy run.
 BENCH_MODEL        ?= ornith9b
 BENCH_JUDGE        ?= granite4.2:3b
-BENCH_OUT          ?= spikes/m3-t7-probe/results/bench-v1
+BENCH_OUT          ?= spikes/m3-t7-probe/results/bench-v2
 BENCH_CONFIG       ?= $(BENCH_OUT)/core-config.yaml
-BENCH_STATE_VOLUME ?= athanor-bench-state
+BENCH_STATE_VOLUME ?= athanor-bench-v2-state
 PROBE_IMAGE        ?= athanor-bench:latest
 BENCH_HOURS        ?= 12
 BENCH_TIMEOUT      ?= 45m
@@ -137,7 +148,7 @@ BENCH_ANCHOR_HOURS ?= 1
 BENCH_ANCHOR_MODELS ?= granite3b gemmae4b granite8b ornith9b gemma12b qwen27b granite30b nemotron30b muse30b ornith35b
 
 bench-verify:
-	go run $(GO_TAGS) ./spikes/m3-t7-probe verify-models -protocol eval/bench/protocol.yaml
+	go run $(GO_TAGS) ./spikes/m3-t7-probe verify-models -protocol $(BENCH_DIR)/protocol.yaml
 
 # The Core Pod image plus the probe binary (deploy/bench.Containerfile). The
 # final image is the Core image with /usr/local/bin/athanor-probe added.
@@ -167,7 +178,7 @@ bench-full: bench-verify bench-image bench-config
 	@BENCH_OUT=$(BENCH_OUT) BENCH_CONFIG=$(BENCH_CONFIG) BENCH_STATE_VOLUME=$(BENCH_STATE_VOLUME) \
 		PROBE_IMAGE=$(PROBE_IMAGE) ./scripts/bench-core.sh start
 	@BENCH_OUT=$(BENCH_OUT) BENCH_PROBE_OUT=/bench/out \
-		./scripts/bench-core.sh probe -corpus eval/bench/tasks.yaml \
+		./scripts/bench-core.sh probe -corpus $(BENCH_DIR)/tasks.yaml \
 		-model $(BENCH_MODEL) -arm full -judge-model $(BENCH_JUDGE) \
 		-passes 1 -hours $(BENCH_HOURS) -timeout $(BENCH_TIMEOUT)
 
@@ -181,7 +192,7 @@ bench-core-status:
 # the compaction script is reported as partial until the filler driver lands.
 # The Core Pod must already be up (do not run `start` during a full slice).
 bench-memory:
-	@BENCH_OUT=$(BENCH_OUT) BENCH_PROBE_OUT=/bench/out-memory \
+	@BENCH_OUT=$(BENCH_OUT) BENCH_PROBE_OUT=/bench/out-memory BENCH_DIR=$(BENCH_DIR) \
 		./scripts/bench-core.sh memory
 
 # Host-binary development path. Unsupported as a measurement runtime (ADR-0078);
@@ -213,7 +224,7 @@ bench-anchor: bench-verify
 			MINI_SOAK_HOURS=$(BENCH_ANCHOR_HOURS) MINI_SOAK_KILL=0 \
 			MINI_SOAK_TIMEOUT=$(BENCH_TIMEOUT) MINI_SOAK_PASSES=1 \
 			MINI_SOAK_ARM=single \
-			MINI_SOAK_ANCHOR=eval/bench/anchor.yaml \
+			MINI_SOAK_ANCHOR=$(BENCH_DIR)/anchor.yaml \
 			MINI_SOAK_OUT=$(BENCH_OUT)/anchor/$$m || exit 1; \
 	done
 	$(MAKE) probe-report PROBE_OUT=$(BENCH_OUT)/anchor

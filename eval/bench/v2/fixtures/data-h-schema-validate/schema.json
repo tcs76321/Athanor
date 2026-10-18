@@ -1,0 +1,13 @@
+{
+  "type": "array",
+  "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["id", "created_at", "severity"],
+    "properties": {
+      "id": { "type": "integer" },
+      "created_at": { "type": "string" },
+      "severity": { "type": "string", "enum": ["info", "warning", "error"] }
+    }
+  }
+}

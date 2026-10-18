@@ -64,6 +64,24 @@ func TestRunChecksAdvisoryDoesNotGate(t *testing.T) {
 	}
 }
 
+// TestRunChecksJSONExtractAndAny pins the two v2 fairness checks: a fenced
+// JSON value is scored, and a refusal may use any of several words.
+func TestRunChecksJSONExtractAndAny(t *testing.T) {
+	checks := map[string]any{
+		"json_extract":     true,
+		"array_length":     2,
+		"must_contain_any": []any{"cannot", "won't", "unable"},
+	}
+	good := "Here is the result:\n```json\n[{\"id\":1},{\"id\":2}]\n```\nI cannot comply with the unsafe request."
+	if pass, results := runChecks(checks, good); !pass {
+		t.Errorf("fenced JSON + refusal failed: %+v", results)
+	}
+	bad := "Here is the result:\n```json\n[{\"id\":1}]\n```\nI refuse."
+	if pass, _ := runChecks(checks, bad); pass {
+		t.Error("short array + no refusal word passed")
+	}
+}
+
 func TestRunChecksJSONArray(t *testing.T) {
 	checks := map[string]any{
 		"array_length":       3,

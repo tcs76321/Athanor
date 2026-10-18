@@ -118,7 +118,7 @@ func loadProtocol(path string) (benchProtocol, error) {
 	if err := yaml.Unmarshal(data, &p); err != nil {
 		return benchProtocol{}, fmt.Errorf("parsing protocol %s: %w", path, err)
 	}
-	if p.Version != 1 || p.Benchmark == "" {
+	if p.Version < 1 || p.Version > 2 || p.Benchmark == "" {
 		return benchProtocol{}, fmt.Errorf("protocol %s: unsupported version/benchmark", path)
 	}
 	if len(p.CanonicalPersonaSet.Roles) != len(protocolRoleNames) {

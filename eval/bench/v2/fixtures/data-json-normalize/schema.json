@@ -1,0 +1,13 @@
+{
+  "type": "array",
+  "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["timestamp", "severity", "message"],
+    "properties": {
+      "timestamp": { "type": "string" },
+      "severity": { "type": "string", "enum": ["info", "warning", "error"] },
+      "message": { "type": "string" }
+    }
+  }
+}

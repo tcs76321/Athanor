@@ -7,13 +7,17 @@
 # (validation asset): editing prose or a reference solution is not a benchmark
 # change, but editing a task, check, or fixture is.
 #
-# Usage: scripts/corpus-digest.sh write|check
+# Usage: scripts/corpus-digest.sh write|check [dir]
+# `dir` defaults to eval/bench (v1). Use eval/bench/v2 for v2. The v1 manifest
+# explicitly excludes the nested v2 tree so the pilot's digest stays stable.
 set -eu
 
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 cd "$root"
 
-digest_file=eval/bench/CORPUS.digest
+action=${1:-check}
+dir=${2:-eval/bench}
+digest_file=$dir/CORPUS.digest
 
 hash_file() {
 	if command -v shasum >/dev/null 2>&1; then
@@ -24,17 +28,29 @@ hash_file() {
 }
 
 manifest() {
-	find eval/bench -type f \
-		! -name 'CORPUS.digest' \
-		! -name 'reference.yaml' \
-		\( -name '*.yaml' -o -path 'eval/bench/fixtures/*' \) \
-		| LC_ALL=C sort \
-		| while IFS= read -r f; do
-			hash_file "$f"
-		done
+	if [ "$dir" = "eval/bench" ]; then
+		find "$dir" -type f \
+			! -name 'CORPUS.digest' \
+			! -name 'reference.yaml' \
+			! -path 'eval/bench/v2/*' \
+			\( -name '*.yaml' -o -path 'eval/bench/fixtures/*' \) \
+			| LC_ALL=C sort \
+			| while IFS= read -r f; do
+				hash_file "$f"
+			done
+	else
+		find "$dir" -type f \
+			! -name 'CORPUS.digest' \
+			! -name 'reference.yaml' \
+			\( -name '*.yaml' -o -path "$dir/fixtures/*" \) \
+			| LC_ALL=C sort \
+			| while IFS= read -r f; do
+				hash_file "$f"
+			done
+	fi
 }
 
-case "${1:-check}" in
+case "$action" in
 write)
 	manifest >"$digest_file"
 	echo "wrote $digest_file"
@@ -56,7 +72,7 @@ check)
 	fi
 	;;
 *)
-	echo "usage: $0 write|check" >&2
+	echo "usage: $0 write|check [dir]" >&2
 	exit 2
 	;;
 esac

@@ -15,11 +15,23 @@ set -eu
 
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 out=${BENCH_OUT:-$root/spikes/m3-t7-probe/results/bench-v1}
+# Podman treats a relative -v source as a named volume, and volume names cannot
+# contain slashes. Normalize the output/config paths before any mount.
+mkdir -p "$out"
+case "$out" in
+/*) ;;
+*) out=$(CDPATH= cd -- "$out" && pwd) ;;
+esac
 config=${BENCH_CONFIG:-$out/core-config.yaml}
+case "$config" in
+/*) ;;
+*) config=$(CDPATH= cd -- "$(dirname -- "$config")" && pwd)/$(basename -- "$config") ;;
+esac
 state_vol=${BENCH_STATE_VOLUME:-athanor-bench-state}
 image=${PROBE_IMAGE:-athanor-bench:latest}
 name=athanor-core
 probe_out=${BENCH_PROBE_OUT:-/bench/out}
+bench_dir=${BENCH_DIR:-eval/bench/v2}
 
 machine_sock() {
 	if [ "$(uname -s)" = Darwin ]; then
@@ -77,7 +89,7 @@ probe)
 memory)
 	shift
 	podman exec -w /bench/repo "$name" /usr/local/bin/athanor-probe memory \
-		-scripts eval/bench/memory-scripts.yaml -addr 127.0.0.1:7420 \
+		-scripts "$bench_dir/memory-scripts.yaml" -addr 127.0.0.1:7420 \
 		-state-dir /var/lib/athanor/state -out "$probe_out" "$@"
 	;;
 stop)

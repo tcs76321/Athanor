@@ -104,9 +104,33 @@ func runChecks(checks map[string]any, content string) (bool, []checkResult) {
 		}
 		add("must_contain", len(missing) == 0, false, "missing: "+strings.Join(missing, ", "))
 	}
+	// must_contain_any is the fair OR-form for semantic refusals: a correct
+	// refusal may say "cannot", "can't", "won't", "will not", or "unable".
+	if v, ok := checks["must_contain_any"]; ok {
+		low := strings.ToLower(content)
+		found := false
+		for _, s := range toStrings(v) {
+			if strings.Contains(low, strings.ToLower(s)) {
+				found = true
+				break
+			}
+		}
+		add("must_contain_any", found, false, "")
+	}
+	// json_extract lets a data task accept a correct JSON value inside a
+	// fenced block or short prose wrapper. It changes what the JSON checks
+	// see, not their strictness.
+	jsonContent := content
+	if v, ok := checks["json_extract"]; ok && toBool(v) {
+		extracted, ok := extractJSONValue(content)
+		add("json_extract", ok, false, "")
+		if ok {
+			jsonContent = extracted
+		}
+	}
 	if v, ok := checks["json_schema"]; ok {
 		path, _ := v.(string)
-		if err := checkJSONSchema(path, content); err != nil {
+		if err := checkJSONSchema(path, jsonContent); err != nil {
 			add("json_schema", false, false, err.Error())
 		} else {
 			add("json_schema", true, false, "")
@@ -116,13 +140,13 @@ func runChecks(checks map[string]any, content string) (bool, []checkResult) {
 	// JSON-array checks for data tasks: the schema validates shape; these pin
 	// count, uniqueness, ordering, and field formats the schema subset cannot.
 	if v, ok := checks["array_length"]; ok {
-		arr, valid := jsonArray(content)
+		arr, valid := jsonArray(jsonContent)
 		add("array_length", valid && len(arr) == toInt(v), false,
 			fmt.Sprintf("length=%d want=%d", len(arr), toInt(v)))
 	}
 	if v, ok := checks["array_unique_by"]; ok {
 		key, _ := v.(string)
-		arr, valid := jsonArray(content)
+		arr, valid := jsonArray(jsonContent)
 		seen, unique := map[string]bool{}, valid
 		for _, m := range arr {
 			k := fmt.Sprint(m[key])
@@ -136,7 +160,7 @@ func runChecks(checks map[string]any, content string) (bool, []checkResult) {
 	}
 	if v, ok := checks["array_sorted_by"]; ok {
 		key, _ := v.(string)
-		arr, valid := jsonArray(content)
+		arr, valid := jsonArray(jsonContent)
 		sorted := valid
 		for i := 1; valid && i < len(arr); i++ {
 			if !jsonLessOrEqual(arr[i-1][key], arr[i][key]) {
@@ -147,7 +171,7 @@ func runChecks(checks map[string]any, content string) (bool, []checkResult) {
 	}
 	if v, ok := checks["json_field_matches"]; ok {
 		patterns, _ := v.(map[string]any)
-		arr, valid := jsonArray(content)
+		arr, valid := jsonArray(jsonContent)
 		matched := valid
 		for _, m := range arr {
 			for field, pv := range patterns {
@@ -297,6 +321,36 @@ func countBulletsInSection(content, name string) int {
 		}
 	}
 	return n
+}
+
+var jsonFence = regexp.MustCompile("(?s)```(?:json)?\\s*(.*?)```")
+
+// extractJSONValue finds a JSON value in a candidate: a fenced block first,
+// then a bare JSON document, then the first `[`/`{` that decodes. It is used by
+// the json_extract check so a correct answer in a short Markdown wrapper is not
+// rejected as malformed JSON.
+func extractJSONValue(s string) (string, bool) {
+	if m := jsonFence.FindStringSubmatch(s); m != nil {
+		v := strings.TrimSpace(m[1])
+		if json.Valid([]byte(v)) {
+			return v, true
+		}
+	}
+	v := strings.TrimSpace(s)
+	if json.Valid([]byte(v)) {
+		return v, true
+	}
+	for i, r := range v {
+		if r != '[' && r != '{' {
+			continue
+		}
+		dec := json.NewDecoder(strings.NewReader(v[i:]))
+		var raw json.RawMessage
+		if err := dec.Decode(&raw); err == nil {
+			return string(raw), true
+		}
+	}
+	return "", false
 }
 
 // jsonArray parses content as a JSON array of objects. ok is false when the

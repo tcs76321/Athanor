@@ -10,6 +10,25 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Benchmark v2: the hard H/X corpus — 2026-10-18
+
+- **v2 is the 0.0.0 instrument** ([frozen-corpus-v2.md](docs/frozen-corpus-v2.md),
+  [ADR-0075 amendment](docs/adr/0075-frozen-corpus-compass.md)): **41 hard H/X
+  deterministic tasks, no E/M**, plus 4 memory and 6 human-review tasks. 10
+  deterministic + 3 memory + 3 human held out. The v1 80-item corpus remains the
+  **pilot**.
+- **X code:** repo rate limiter, three-bug pipeline hunt, expression-language
+  interpreter, three-way merge, bounded thread pool, and a transactional SQLite
+  migration runner. All 18 code references are executed by the v2 test.
+- **Fairness fixes:** `json_extract` (a correct fenced JSON answer is scored),
+  `must_contain_any` (refusal variants), and **external candidate scoring**
+  (`bestCandidateArtifact`) so a non-code task is judged by its own checks, not
+  by the engine’s accept. The pilot audit is in
+  [bench-v1-findings.md](docs/bench-v1-findings.md).
+- **Versioned freeze:** `eval/bench/v2/CORPUS.digest`,
+  `make corpus-check-v2`, and `make bench-full`/`bench-memory` default to v2;
+  `BENCH_DIR=eval/bench` runs the v1 pilot.
+
 ### Memory sequences + airlock scanners — 2026-10-17
 
 - **`probe memory` + `make bench-memory`**: the three correction/insight scripts

@@ -1,0 +1,221 @@
+# Athanor benchmark v1 — memory scripts
+#
+# A memory script is a *sequence* of jobs in one project (or across projects)
+# that tests whether a correction or an insight survives into a later job. It is
+# not a single artifact: the deterministic checks apply to the later steps, and
+# the mechanism metrics (was the correction/insight in the prompt?) come from the
+# event log.
+#
+# STATUS: `probe memory` (make bench-memory) drives the three correction/insight
+# scripts: one project, the correction/insight, the later job, and the injection
+# check from the event log. The compaction script is PARTIAL: the engine compacts
+# within a job's message window and the multi-turn filler driver is pending, so
+# the later task runs but the script is never marked pass.
+#
+# held_out: true means the script is never used for tuning. 3 of 4 are held out.
+version: 1
+scripts:
+
+  - id: mem-correction-error-type
+    title: A correction to the error type survives into the next job
+    archetype: code
+    tier: H
+    held_out: true
+    context_demand: memory
+    project: ledger-cli
+    scope: project
+    steps:
+      - kind: task
+        goal: |
+          Implement withdraw(balance, amount) in solution.py: return the new balance, or raise when amount > balance.
+        criteria:
+          - "pure stdlib"
+          - "overdraft raises"
+        test_command: |
+          python -c 'import solution
+          assert solution.withdraw(100, 30) == 70
+          ok = False
+          try: solution.withdraw(10, 20)
+          except Exception: ok = True
+          assert ok, "overdraft must raise"'
+      - kind: correction
+        category: style
+        severity: high
+        reason: "Domain errors were untyped, so callers cannot distinguish them."
+        desired: "All domain errors must be a LedgerError (a subclass of ValueError)."
+      - kind: task
+        goal: |
+          Implement transfer(a, b, amount) in solution.py: move amount from a to b, returning (a, b); refuse an insufficient balance.
+        criteria:
+          - "pure stdlib"
+          - "insufficient funds are refused"
+        test_command: |
+          python -c 'import solution
+          assert solution.transfer(100, 0, 30) == (70, 30)
+          ok = False
+          try: solution.transfer(10, 0, 20)
+          except solution.LedgerError: ok = True
+          assert ok, "insufficient funds must raise LedgerError"
+          assert issubclass(solution.LedgerError, ValueError)'
+    acceptance_floor: "day-2 test passes AND the correction is present in the day-2 prompt (telemetry)"
+    quality_rubric:
+      - "5: day-2 passes with no repetition of the correction in the goal"
+      - "3: day-2 passes but the model was re-told the rule"
+      - "1: day-2 raises the wrong type"
+    expected_failure_modes:
+      - "raise ValueError instead of LedgerError"
+      - "the correction never reaches the second job"
+    signals:
+      - "correction_injected (telemetry)"
+      - "day2_check_pass"
+
+  - id: mem-insight-input-validation
+    title: An outcome insight is applied to a new parser
+    archetype: code
+    tier: H
+    held_out: false
+    context_demand: memory
+    project: ports
+    scope: project
+    steps:
+      - kind: task
+        goal: |
+          Implement parse_port(s) in solution.py returning an integer port from "host:port".
+        criteria:
+          - "pure stdlib"
+          - "returns an integer"
+        test_command: |
+          python -c 'import solution
+          assert solution.parse_port("db:5432") == 5432
+          for bad in ("", "db", "db:", ":5432", "db:notaport"):
+              try:
+                  solution.parse_port(bad)
+                  assert False, "accepted " + repr(bad)
+              except (ValueError, IndexError):
+                  pass'
+        outcome: "The edge cases failed; the insight is to validate every field before converting."
+      - kind: insight
+        category: technique
+        desired: "Validate every field before converting; test empty, missing, and non-numeric inputs."
+      - kind: task
+        goal: |
+          Implement parse_host(s) in solution.py returning the host from "host:port".
+        criteria:
+          - "pure stdlib"
+          - "returns a string"
+        test_command: |
+          python -c 'import solution
+          assert solution.parse_host("db:5432") == "db"
+          for bad in ("", ":5432", "db", "db:"):
+              try:
+                  solution.parse_host(bad)
+                  assert False, "accepted " + repr(bad)
+              except (ValueError, IndexError):
+                  pass'
+    acceptance_floor: "day-2 test passes AND the insight is present in the day-2 prompt (telemetry)"
+    quality_rubric:
+      - "5: day-2 passes first try with no restatement of the insight in the goal"
+      - "3: day-2 passes after candidate churn"
+      - "1: the same edge-case failure recurs"
+    expected_failure_modes:
+      - "splitting without checking the field count"
+      - "int() on an empty string"
+    signals:
+      - "insight_injected (telemetry)"
+      - "candidate_count"
+      - "day2_check_pass"
+
+  - id: mem-cross-project-secrets
+    title: A global correction reaches a different project
+    archetype: code
+    tier: H
+    held_out: true
+    context_demand: memory
+    project: auth-service
+    scope: global
+    steps:
+      - kind: task
+        goal: |
+          Implement log_request(headers) in solution.py returning a log line for a request.
+        criteria:
+          - "pure stdlib"
+          - "returns one line"
+        test_command: |
+          python -c 'import solution
+          line = solution.log_request({"Authorization": "Bearer SECRET", "Accept": "json"})
+          assert isinstance(line, str)'
+      - kind: correction
+        category: security
+        severity: critical
+        reason: "A request log leaked the Authorization header."
+        desired: "Never log Authorization, Cookie, or Set-Cookie header values."
+      - kind: task
+        project: billing-service
+        goal: |
+          Implement audit(event, headers) in solution.py returning a line suitable for the audit log.
+        criteria:
+          - "pure stdlib"
+          - "returns one line"
+        test_command: |
+          python -c 'import solution
+          line = solution.audit("token.check", {"Authorization": "Bearer SECRET", "Accept": "json"})
+          assert "SECRET" not in line
+          assert "Authorization" not in line or "***" in line'
+    acceptance_floor: "day-2 test passes in a different project AND the global correction is in its prompt"
+    quality_rubric:
+      - "5: no secret leaks, with no restatement in the day-2 goal"
+      - "3: no leak but the model was re-told the rule"
+      - "1: the header value appears in the audit line"
+    expected_failure_modes:
+      - "project-scoped memory drops the global correction"
+      - "redacting the key but not the value"
+    signals:
+      - "correction_scope=global (telemetry)"
+      - "day2_check_pass"
+
+  - id: mem-compaction-fact
+    title: A fact survives compaction
+    archetype: code
+    tier: H
+    held_out: true
+    context_demand: memory
+    project: api-client
+    scope: project
+    steps:
+      - kind: task
+        goal: |
+          Implement call(url) in solution.py that returns a request dict for an HTTP GET.
+        criteria:
+          - "pure stdlib"
+          - "returns a dict"
+        test_command: |
+          python -c 'import solution
+          r = solution.call("https://example.test/ping")
+          assert r["method"] == "GET" and r["url"].endswith("/ping")'
+        notes: "The task states the authentication header is X-Api-Key: <token>."
+      - kind: filler
+        turns: 12
+        purpose: "Push the conversation past the compaction threshold with unrelated work."
+      - kind: task
+        goal: |
+          Implement call_authed(url, token) in solution.py returning a request dict with the project's authentication header.
+        criteria:
+          - "pure stdlib"
+          - "returns a dict"
+        test_command: |
+          python -c 'import solution
+          r = solution.call_authed("https://example.test/ping", "T")
+          assert r["method"] == "GET"
+          assert r["headers"] == {"X-Api-Key": "T"}, r["headers"]'
+    acceptance_floor: "day-2 test passes after compaction AND the fact is in the reconstructed prompt"
+    quality_rubric:
+      - "5: exact header recalled after compaction"
+      - "3: header plausible but the key name is wrong"
+      - "1: the fact is lost"
+    expected_failure_modes:
+      - "compaction drops the header fact"
+      - "invents a Bearer token instead"
+    signals:
+      - "compaction_events"
+      - "fact_in_prompt (telemetry)"
+      - "day2_check_pass"
