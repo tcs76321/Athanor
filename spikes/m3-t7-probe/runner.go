@@ -539,8 +539,17 @@ func (r *runnerConfig) runOne(g sampleGoal, m probeModel, a arm, run int, stateD
 	if txt, err := readArtifact(stateDir, mx.ArtifactID); err == nil {
 		mx.ArtifactText = txt
 	}
+	// External scoring: when the engine accepted nothing, score the best
+	// candidate with the task's own checks. The engine's judge/verifier is a
+	// system decision; the benchmark's non-code gate must not depend on it.
+	if mx.ArtifactText == "" && len(g.Checks) > 0 {
+		if id, txt, err := bestCandidateArtifact(db, stateDir, mx.JobID); err == nil && txt != "" {
+			mx.ArtifactID, mx.ArtifactText = id, txt
+		}
+	}
 	// M8-T21: apply the task's deterministic non-code checks to the accepted
-	// artifact. Code tasks carry no `checks` (their test command is the check).
+	// artifact (or the best candidate when the engine accepted none). Code
+	// tasks carry no `checks` (their test command is the check).
 	if len(g.Checks) > 0 && mx.ArtifactText != "" {
 		pass, results := runChecks(g.Checks, mx.ArtifactText)
 		mx.CheckPass = &pass

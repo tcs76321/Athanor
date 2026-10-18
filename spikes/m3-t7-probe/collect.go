@@ -161,6 +161,51 @@ func readArtifact(stateDir, id string) (string, error) {
 	return string(b), nil
 }
 
+// bestCandidateArtifact returns the highest-scoring proposal artifact for a job,
+// independent of the engine's accept/reject decision. The external benchmark
+// check must score the best candidate, not only an accepted artifact; otherwise
+// a judge/verifier rejection makes a task with a check-passing candidate look
+// like a check failure.
+func bestCandidateArtifact(db *sql.DB, stateDir, jobID string) (id, text string, err error) {
+	if db == nil || jobID == "" {
+		return "", "", nil
+	}
+	rows, err := db.Query(`
+		SELECT a.id, COALESCE(MAX(e.score), 0) AS score
+		  FROM artifacts a
+		  LEFT JOIN evaluation_records e ON e.artifact_id = a.id
+		 WHERE a.job_id = ? AND a.kind = 'proposal'
+		 GROUP BY a.id
+		 ORDER BY score DESC, a.created_at DESC`, jobID)
+	if err == nil {
+		var ids []string
+		for rows.Next() {
+			var aid string
+			var score float64
+			if scanErr := rows.Scan(&aid, &score); scanErr == nil {
+				ids = append(ids, aid)
+			}
+		}
+		_ = rows.Close()
+		for _, aid := range ids {
+			if txt, rerr := readArtifact(stateDir, aid); rerr == nil && txt != "" {
+				return aid, txt, nil
+			}
+		}
+	}
+	// Older DBs may have no evaluation rows; fall back to the last proposal.
+	ids, lerr := loadCandidateIDs(db, jobID)
+	if lerr != nil {
+		return "", "", lerr
+	}
+	for i := len(ids) - 1; i >= 0; i-- {
+		if txt, rerr := readArtifact(stateDir, ids[i]); rerr == nil && txt != "" {
+			return ids[i], txt, nil
+		}
+	}
+	return "", "", nil
+}
+
 // loadDivergenceJaccard returns the most recent `divergence_jaccard`
 // event's (avg_jaccard, candidates) for a job. The engine records one
 // event per divergence cycle; the last cycle is the one whose candidates
