@@ -23,6 +23,25 @@ a documented trade-off recorded below. New findings resume here.
 
 ---
 
+## Fixed (2026-10-24 remediation batch)
+
+The truth/on-ramp/hardening batch from the 0.0.0 plan. Each item carries its
+regression proof; the plan and evidence live in
+[0.0.0-baseline](verification/0.0.0-baseline.md) and `docs/claims.md`.
+
+| Area | Fix |
+|---|---|
+| Tool contract | The prompt promised a model-invoked tool interface the engine never implemented. It now lists engine-executed operations, requires artifact-only output, and the Dormant Index no longer invites `context_swap` ([ADR-0080](adr/0080-engine-executed-tools.md)); `internal/prompt` tests pin the wording. |
+| Code on-ramp | A default `code` project could never pass because `job_pod.default_tools` is empty and `require_tests_for_code` is true. Code tasks now carry `execute_code`/`run_tests`/`lint` as a per-task default ([ADR-0081](adr/0081-code-archetype-tool-defaults.md)); `internal/project` tests pin it. |
+| Project create | `project create -goal` left an unrun task. The first goal is enqueued by default; `start: false` is metadata-only; `internal/api` tests cover both. |
+| Config honesty | `limits.max_concurrent_fetches` is enforced; parsed-but-unenforced fields reject a non-default value; `default_backend: cloud` warns that no client exists; `internal/config/drift_test.go` fails on a new dead knob. |
+| Docs | Corrected the workspace-mount, token-lifetime, recovery-field, `O_NOFOLLOW`, artifact/git, and cloud claims; added [claims.md](claims.md). |
+| Packaging | The benchmark probe moved from `spikes/` to `tools/bench/`; `install.sh` and `athanor start` now run the Core Pod ([ADR-0078](adr/0078-core-pod-only-runtime.md)); the benchmark container is `athanor-bench-core`, avoiding the product container name. |
+| Coverage | Floors added for engine/store/config/MCE/scheduler/API/UI/project/evaluation (`scripts/cover-check.sh`). |
+| Security docs | `SECURITY.md` now states the Core Pod root/socket trust boundary, the unauthenticated local API, scanner freshness, and the model's no-tool-call posture; [security-audit-0.0.0.md](security-audit-0.0.0.md) tracks the §31.3 sign-off. |
+
+---
+
 ## Fixed (2026-10-17 soak)
 
 Two parser-robustness defects found by the 0.0.0 soak ladder (`granite3b`):
