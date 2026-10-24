@@ -95,7 +95,7 @@ func (gitClient) Snapshot(ctx context.Context, repoPath, dest string) error {
 	if err := validateRepoRoot(ctx, repoPath); err != nil {
 		return err
 	}
-	if err := os.MkdirAll(dest, 0o700); err != nil {
+	if err := os.MkdirAll(dest, 0o755); err != nil {
 		return fmt.Errorf("git snapshot: creating %s: %w", dest, err)
 	}
 	parent, err := os.MkdirTemp("", "athanor-snapshot-")
@@ -162,14 +162,14 @@ func extractSnapshot(tarPath, dest string) error {
 		target := filepath.Join(dest, name)
 		switch hdr.Typeflag {
 		case tar.TypeDir:
-			if err := os.MkdirAll(target, 0o700); err != nil {
+			if err := os.MkdirAll(target, 0o755); err != nil {
 				return fmt.Errorf("git snapshot: mkdir %s: %w", name, err)
 			}
 		case tar.TypeReg:
-			if err := os.MkdirAll(filepath.Dir(target), 0o700); err != nil {
+			if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
 				return fmt.Errorf("git snapshot: mkdir for %s: %w", name, err)
 			}
-			out, err := os.OpenFile(target, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
+			out, err := os.OpenFile(target, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
 			if err != nil {
 				return fmt.Errorf("git snapshot: create %s: %w", name, err)
 			}
