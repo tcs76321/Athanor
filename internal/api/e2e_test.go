@@ -72,7 +72,8 @@ func (h *harness) createProject(t *testing.T) (projectID, taskID string) {
 		"name": "my-notes",
 		"archetype": "text",
 		"goal": "Write a short essay about why local-first software matters.",
-		"acceptance_criteria": ["at least three arguments", "a conclusion"]
+		"acceptance_criteria": ["at least three arguments", "a conclusion"],
+		"start": false
 	}`))
 	if err != nil {
 		t.Fatal(err)
@@ -209,5 +210,65 @@ func TestFrozenDaemonRejectsNewWork(t *testing.T) {
 	jobID := h.submitGoal(t, projectID)
 	if j := h.waitTerminal(t, jobID); j.State != job.StateCompleted {
 		t.Errorf("job after unfreeze = %s, want completed", j.State)
+	}
+}
+
+// TestProjectCreateStartsFirstGoal pins M9-T5: a default project create
+// enqueues its first goal, while an explicit start:false creates metadata
+// only. The orphan-task bug was a task with no job and no obvious way to
+// run it.
+func TestProjectCreateStartsFirstGoal(t *testing.T) {
+	h := newHarness(t)
+
+	started := func(body string) projectResponse {
+		t.Helper()
+		resp, err := http.Post(h.ts.URL+"/projects", "application/json", strings.NewReader(body))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() { _ = resp.Body.Close() }()
+		if resp.StatusCode != http.StatusCreated {
+			t.Fatalf("POST /projects status = %d, want 201", resp.StatusCode)
+		}
+		var out projectResponse
+		if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+			t.Fatal(err)
+		}
+		return out
+	}
+
+	// Default: the first goal starts immediately.
+	out := started(`{
+		"name": "starts-now", "archetype": "text",
+		"goal": "Write a short essay about deterministic judgment."
+	}`)
+	if out.JobID == "" {
+		t.Fatal("default project create did not return a job id")
+	}
+	jobs, err := h.jobs.ByTask(context.Background(), out.TaskID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(jobs) != 1 || jobs[0].ID != out.JobID {
+		t.Fatalf("task jobs = %+v, want exactly the returned job %s", jobs, out.JobID)
+	}
+	if j := h.waitTerminal(t, out.JobID); j.State != job.StateCompleted {
+		t.Fatalf("started job = %s, want completed", j.State)
+	}
+
+	// Explicit false: metadata only, no job, no orphan work.
+	meta := started(`{
+		"name": "metadata-only", "archetype": "text",
+		"goal": "Write a short essay about lossless context.", "start": false
+	}`)
+	if meta.JobID != "" {
+		t.Fatalf("start:false returned job id %q", meta.JobID)
+	}
+	jobs, err = h.jobs.ByTask(context.Background(), meta.TaskID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(jobs) != 0 {
+		t.Fatalf("start:false created %d jobs, want 0", len(jobs))
 	}
 }

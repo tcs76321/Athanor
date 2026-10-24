@@ -313,6 +313,10 @@ type projectRequest struct {
 	// Execution is the optional §6.2 execution override (F3-T4,
 	// ADR-0031). Absent means "use the built-in archetype defaults".
 	Execution *projectExecution `json:"execution"`
+	// Start controls whether the initial goal is enqueued immediately.
+	// Omitted means true: the first goal starts work (M9-T5). Set false
+	// only to create project metadata without a job.
+	Start *bool `json:"start,omitempty"`
 }
 
 // projectExecution is the wire shape for the per-project execution override.
@@ -336,11 +340,22 @@ type projectResponse struct {
 	Goal           string `json:"goal"`
 	RepositoryPath string `json:"repository_path,omitempty"`
 	TaskID         string `json:"task_id,omitempty"`
+	JobID          string `json:"job_id,omitempty"`
 }
 
 func (a *API) handleProjectCreate(w http.ResponseWriter, r *http.Request) {
 	var req projectRequest
 	if !decodeBody(w, r, &req) {
+		return
+	}
+	// M9-T5: project create starts the first goal by default, so a fresh
+	// project is not left with an unrun task. The kill switch still gates
+	// new work; a frozen daemon refuses an immediately-starting create but
+	// allows an explicit start:false metadata create.
+	start := req.Start == nil || *req.Start
+	if start && a.freezer.Frozen() {
+		writeError(w, http.StatusConflict,
+			"daemon is frozen: no new work is accepted (unfreeze with a reason first, §22.2)")
 		return
 	}
 	p, task, err := a.projects.Create(r.Context(), req.Name, req.Archetype, req.Goal, req.RepositoryPath, req.Criteria)
@@ -359,9 +374,19 @@ func (a *API) handleProjectCreate(w http.ResponseWriter, r *http.Request) {
 		}
 		p.Execution = ex
 	}
+	var jobID string
+	if start {
+		j, err := a.jobs.Create(r.Context(), task.ID, task.ProjectID)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		a.engine.Enqueue(j.ID)
+		jobID = j.ID
+	}
 	writeJSON(w, http.StatusCreated, projectResponse{
 		ID: p.ID, Name: p.Name, Archetype: p.Archetype, Goal: p.Goal,
-		RepositoryPath: p.RepositoryPath, TaskID: task.ID,
+		RepositoryPath: p.RepositoryPath, TaskID: task.ID, JobID: jobID,
 	})
 }
 

@@ -12,6 +12,7 @@ type projectCreateResult struct {
 	ID     string `json:"id"`
 	Name   string `json:"name"`
 	TaskID string `json:"task_id"`
+	JobID  string `json:"job_id"`
 }
 
 func runProject(args []string) error {
@@ -64,7 +65,13 @@ func runProject(args []string) error {
 	if err := apiCall(http.MethodPost, *addr+"/projects", body, &out); err != nil {
 		return err
 	}
-	fmt.Printf("project %s created (task %s)\nSubmit a goal with:\n  athanor goal submit -project %s -goal \"...\"\n", out.ID, out.TaskID, out.ID)
+	fmt.Printf("project %s created (task %s)\n", out.ID, out.TaskID)
+	if out.JobID != "" {
+		fmt.Printf("job %s started — watch it with:\n  athanor job watch -job %s\n", out.JobID, out.JobID)
+		fmt.Printf("add another goal with:\n  athanor goal submit -project %s -goal \"...\"\n", out.ID)
+		return nil
+	}
+	fmt.Printf("submit a goal with:\n  athanor goal submit -project %s -goal \"...\"\n", out.ID)
 	return nil
 }
 

@@ -84,9 +84,9 @@ Full topology, isolation rules, and every subsystem are documented in [`ARCHITEC
 ```bash
 make build
 make run                                     # daemon on http://127.0.0.1:7420 (defaults, no config needed)
-./bin/athanor project create -name demo -archetype text -goal "Write a short essay about why local-first software matters."
-./bin/athanor goal submit -project <id> -goal "Summarize it in five bullet points."
-./bin/athanor job watch -job <id>            # streams every phase; ends with the draft artifact
+./bin/athanor project create -name demo -archetype text -goal "Write a short essay about why local-first software matters."   # starts the first job; prints its id
+./bin/athanor job watch -job <job-id>        # streams every phase; ends with the draft artifact
+./bin/athanor goal submit -project <id> -goal "Summarize it in five bullet points."   # optional follow-up goal
 ```
 
 Full walkthrough (including the kill switch and crash recovery):

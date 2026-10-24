@@ -32,14 +32,15 @@ make run                  # daemon on http://127.0.0.1:7420
 # in another shell:
 curl http://127.0.0.1:7420/healthz
 
-# 1. Create a project (name + archetype + goal ≥ 20 chars)
+# 1. Create a project (name + archetype + goal ≥ 20 chars).
+#    The first goal starts immediately; the printed job id is the one to watch.
 ./bin/athanor project create \
   -name my-essay \
   -archetype text \
   -goal "Write a short essay about why local-first software matters." \
   -criteria "at least three arguments;a conclusion"
 
-# 2. Submit a goal — this creates the task, a queued job, and starts it
+# 2. Add a follow-up goal — this creates another task, a queued job, and starts it
 ./bin/athanor goal submit \
   -project <project-id-from-step-1> \
   -goal "Summarize the essay in exactly five bullet points."

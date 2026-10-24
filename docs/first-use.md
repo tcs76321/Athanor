@@ -88,7 +88,7 @@ the main 1.0.0 focus** ([1.0.0-direction.md](1.0.0-direction.md)).
 | Discover/install | `make build`, `scripts/install.sh [--service]` | `curl` installer with checksums/signing; Core Pod pulled; browser open |
 | Prereq checks | `athanor doctor` (⚠️ macOS `podman machine` reports `Rootless=false` → false FAIL) | fix the macOS check; installer uses doctor |
 | Onboarding | `athanor init`, `athanor models` (inventory + advisory routing) | UI wizard; **qualification ladder run**; minimal prefs; optional name |
-| First project | `project create` (⚠️ creates an unrun task), `goal submit` | project interview → plan artifact → approve; tutorial mode |
+| First project | `project create` (starts the first goal), `goal submit` (adds another) | project interview → plan artifact → approve; tutorial mode |
 | Work/watch | `job watch`, `/ui`, job watch page, SSE | presentation surface; notifications |
 | Human eval | accept/reject, `reject` corrections, `/ui/statistics` | review queue (sampled, blinded) + ratings store |
 | Overnight | daydream (5 fixed actions), backups, alarms, strategy mining | hypothesis-driven shadow experiments; budgets; HITL-free queue; research via allowlist; new-site requests |
@@ -168,13 +168,20 @@ resumable) is a to-build item; today this is manual.
 
 ```bash
 athanor project create -name first -archetype code \
-  -goal "..." -test-command "pytest -q"
-athanor goal submit -project <ID> -goal "..." -criteria "..."
-athanor job watch -job <ID>
+  -goal "..." -test-command "pytest -q"   # starts the first job; prints its id
+athanor job watch -job <JOB_ID>
+athanor goal submit -project <ID> -goal "..." -criteria "..."   # optional follow-up
 ```
 
-⚠️ `project create`'s `-goal` creates a task that is not enqueued; work starts
-with `goal submit`. The UI project interview (to build) replaces this.
+`project create`'s `-goal` is the first goal and it is enqueued immediately; the
+command prints the job id to watch. The UI project interview (to build) replaces
+this flow.
+
+> **Code projects need tools.** The shipped default is
+> `job_pod.default_tools: []`. A `code` project must grant
+> `execute_code`, `run_tests`, and `lint` (via config or the per-task
+> override); otherwise tests never run and the code acceptance gate rejects
+> every candidate. This becomes a default at project creation (M9-T4).
 
 ### C7. Daily review (today)
 
@@ -224,8 +231,9 @@ Two tracks; the first makes beta usable, the second makes it learn.
 5. **Presentation surface** — "what was built / how to run / known-broken /
    cost", with the signal to present.
 6. **Notifications** — pending HITL, completion, critical alarm.
-7. **`project create` semantics** — decide: enqueue the first goal, or stop
-   taking one (remove the unrun-task quirk).
+7. ~~**`project create` semantics** — decide: enqueue the first goal, or stop
+   taking one (remove the unrun-task quirk).~~ **Done (M9-T5):** the initial
+   goal is enqueued immediately; `start: false` creates metadata only.
 8. **Task/DAG inspection CLI** — a read-only `athanor tasks` over `GET /projects/{id}/tasks`.
 
 ### Track 2 — Learn from it
@@ -269,4 +277,3 @@ the onboarding/project/presentation work gates first use.
 - Experiment budget: fixed nightly envelope vs. adaptive?
 - Global-policy graduation: how many projects / what held-out evidence?
 - Core Pod on macOS: socket path and volume strategy `[UNKNOWN]` — verify.
-- `project create` semantics (enqueue vs. no goal).
