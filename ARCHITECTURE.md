@@ -452,7 +452,7 @@ Critical artifacts (source code, test outputs, exact user constraints) are never
 - **Active Chunk:** Loaded into the LLM context window.
 - **Dormant Chunks:** Held intact in fast local storage (SQLite/RAM).
 - **Dormant Index:** A table of contents provided to the LLM in the prompt. Contains chunk IDs, summaries (1-line), and metadata (file path, line range, type).
-- **Context Swap Tool:** If the LLM requires dormant information, it issues a `context_swap(target_chunk_id)` tool call. The system flushes the current Active Chunk to Dormant storage and loads the requested chunk perfectly intact.
+- **Context Swap (engine-executed):** The Core keeps one chunk active. When the assembled context exceeds the §10.4 pressure budget, the engine force-evicts the lowest-priority tier and may load a dormant chunk perfectly intact. The model cannot invoke the swap itself (ADR-0080); it sees the Active Chunk and the Dormant Index.
 
 ### 10.2 The N-Dimensional Context Gradient
 
@@ -1504,7 +1504,7 @@ Tools are constrained, audited, and available only to Job Pods and the Core orch
 | `search_web(query)` | Search through Gateway | No (if search engine allowlisted) | **Live** (inert until configured) |
 | `browser_mode(url)` | Full browser in isolated Job Pod | Yes | Deferred |
 | `query_memory(query)` | Hybrid vector + FTS retrieval from SQLite | No | **Live** |
-| `context_swap(target_chunk_id)` | Swap dormant full-fidelity chunk into active context | No | **Live** |
+| `context_swap(target_chunk_id)` | Swap dormant full-fidelity chunk into active context (**engine-executed**, ADR-0080) | No | **Live** |
 | `create_artifact(type, content)` | Create versioned artifact | No | Deferred |
 | `request_approval(type, details)` | Create HITL request | N/A | Deferred |
 | `add_correction(category, reason)` | Create `CorrectionRecord` | No | Deferred |
@@ -1518,9 +1518,11 @@ Tools are constrained, audited, and available only to Job Pods and the Core orch
 > through the M5-T8 indexing pipeline plus `query_memory`/`context_swap`
 > rather than a `read_file` tool.
 
-> **Implementation status (F3-T5).** Built: `execute_code`, `run_tests`,
-> `lint`, `fetch_url`, `search_web`, `context_swap`, `query_memory` — the
-> closed §25 set, each Core-executed behind the per-job envelope. The agent
+> **Implementation status (F3-T5; ADR-0080).** Built: `execute_code`,
+> `run_tests`, `lint`, `fetch_url`, `search_web`, `context_swap`,
+> `query_memory` — the closed §25 set, each Core-executed behind the per-job
+> envelope. **The model cannot invoke any of them:** the engine decides when to
+> run an operation on a candidate; the prompt states this explicitly. The agent
 > reads repositories today through the M5-T8 indexing pipeline and
 > `query_memory`. **Git-as-undo is live Core-side** (F3-T5,
 > [ADR-0030](docs/adr/0030-git-as-undo.md)): accepting an artifact commits it

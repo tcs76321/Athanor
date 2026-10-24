@@ -71,7 +71,7 @@ func TestPromptTiersFeedActiveChunkAndDormantIndex(t *testing.T) {
 	served := e.ollama.lastPromptText()
 	for _, fragment := range []string{
 		"ACTIVE CODE CHUNK", "chunk_id: c1", "package widget",
-		"DORMANT INDEX", "chunk_id=c2", "the gadget", "context_swap(target_chunk_id)",
+		"DORMANT INDEX", "chunk_id=c2", "the gadget", "may load a dormant chunk",
 	} {
 		if !strings.Contains(served, fragment) {
 			t.Errorf("served prompt missing %q", fragment)
