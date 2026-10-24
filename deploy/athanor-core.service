@@ -1,0 +1,19 @@
+[Unit]
+Description=Athanor Core Pod (local-first autonomous agent daemon)
+Documentation=https://github.com/tcs76321/athanor
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# install.sh substitutes the podman path and container name below.
+# The container is created by `athanor start`; this unit only supervises it.
+ExecStart=__PODMAN__ start -a __CONTAINER__
+ExecStop=__PODMAN__ stop __CONTAINER__
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+LimitNOFILE=65536
+
+[Install]
+WantedBy=default.target

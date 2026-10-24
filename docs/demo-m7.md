@@ -4,13 +4,20 @@ An executable walkthrough of the M7 surfaces. It doubles as the shape of the
 Gate G7 fresh-install demo (which must complete in <15 minutes on a clean
 machine). Commands assume `make build` has run (`./bin/athanor`).
 
+> **Runtime.** `sh scripts/install.sh` is the supported path (Core Pod:
+> images, config, container, health). The direct `state/` and `sqlite3` commands
+> in this walkthrough are the **host development** path; the Core Pod keeps
+> state in the `athanor-state` volume. Container-aware `backup`/`restore` is
+> still on the P1 list, so use `podman exec athanor-core ...` or the host path
+> until it lands.
+
 ## 1. Doctor and start
 
 ```bash
-./bin/athanor doctor                       # §30.2 checks, actionable remediation
-./bin/athanor start -skip-doctor           # start normally: `start` runs doctor first
-# (build the Job Pod image once, if you have not)
-make jobpod-image
+./bin/athanor doctor                       # §30.2 host checks
+sh scripts/install.sh                      # Core Pod: images, config, start, health
+# or, for the host development path:
+# make jobpod-image && ./bin/athanor start -host -skip-doctor
 ```
 
 ## 2. A project and a goal

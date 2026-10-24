@@ -114,26 +114,33 @@ run` path is an unsupported development escape hatch and is never measured.
 - Rootless Podman / `podman machine` running; `podman run --rm alpine:3.20 true` works.
 - `OLLAMA_MAX_LOADED_MODELS=1`, `OLLAMA_NUM_PARALLEL=1` set on the **server**.
 - AC power; a few GB free.
-- `[UNKNOWN]` macOS Core Pod socket path (verify against `docs/deploy-core-pod.md`;
-  prefer named volumes for `state/` and `workspace/`, never WAL over a VM-crossing mount).
+- The installer resolves the macOS `podman machine` socket through
+  `podman machine ssh`; no host state/workspace path is bind-mounted (named
+  volumes only, so SQLite/WAL never crosses virtiofs).
 
-### C2. Build
+### C2. Build and install
 
 ```bash
-make build                 # host binary (probe + CLI + Core Pod build stage)
-make jobpod-image          # Job Pod base image
-make core-image            # Core Pod OCI image
+make build                 # host CLI (client + development commands)
+sh scripts/install.sh      # builds the Job Pod + Core images if missing,
+                           # writes ~/.config/athanor/config.yaml, starts the
+                           # Core Pod, and waits for /healthz
 ```
+
+`install.sh --service` also writes a systemd/launchd unit that supervises the
+container. `make jobpod-image` / `make core-image` remain available for a
+manual build; `--no-build` makes the installer require the images.
 
 ### C3. Config for the Core Pod
 
-`~/.config/athanor/config.yaml`, at minimum:
+The installer writes the first config with `athanor init -core`:
 
 ```yaml
 inference:
   ollama_url: "http://host.containers.internal:11434"   # Core Pod → host Ollama
 job_pod:
   image: "athanor-jobpod:latest"
+  token_host_dir: "/Users/you/.config/athanor/tokens"    # host-visible token bind
 ```
 
 Edit personas, `limits` (single-slot defaults), `power`, `backup`, `hitl`,
@@ -142,12 +149,13 @@ warns on a mismatched `ollama_url` (M9-T7).
 
 ### C4. Run the Core Pod
 
-Per `docs/deploy-core-pod.md` (socket + state + workspace + config volumes,
-`-p 127.0.0.1:7420:7420`). Verify:
+`sh scripts/install.sh` starts it. Re-running `athanor start -config
+~/.config/athanor/config.yaml` is idempotent (it starts the existing container
+and waits for health). Verify:
 
 ```bash
 curl -s http://127.0.0.1:7420/healthz
-podman exec <core> athanor doctor
+podman exec athanor-core athanor doctor
 podman ps -a | grep athanor-job-          # zero after work settles
 ```
 

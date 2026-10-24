@@ -31,7 +31,13 @@ func runDoctor(args []string) error {
 	if err != nil {
 		return fmt.Errorf("loading config: %w", err)
 	}
-	rep := doctor.Run(context.Background(), cfg, doctor.Options{StateDir: *stateDir}, newOSProbes())
+	probes := newOSProbes()
+	// A host-side doctor inspecting a Core Pod config should probe the host
+	// loopback, not the container-only host.containers.internal alias.
+	if !probes.InContainer() {
+		cfg = hostDoctorConfig(cfg)
+	}
+	rep := doctor.Run(context.Background(), cfg, doctor.Options{StateDir: *stateDir}, probes)
 	printReport(rep)
 	if !rep.OK() {
 		_, _, fail := rep.Counts()

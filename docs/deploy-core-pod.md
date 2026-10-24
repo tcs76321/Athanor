@@ -12,6 +12,13 @@ escape hatch. This guide is the supported deployment.
 
 ## Prerequisites
 
+> **Installer shortcut (M9-P1).** `sh scripts/install.sh` builds the Job Pod
+> and Core images if missing, writes a Core Pod config with a host-visible
+> `job_pod.token_host_dir`, starts the container, and waits for `/healthz`.
+> `--service` writes a unit that supervises the existing container. The manual
+> steps below remain the reference for what the installer does and for
+> debugging.
+
 - Rootless Podman. On macOS/Apple Silicon, a `podman machine` must be running.
 - Ollama on the host with the persona models pulled.
 - The **Job Pod** base image built once: `make jobpod-image`.

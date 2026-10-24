@@ -33,6 +33,13 @@ New entries are appended at the top. Do not rewrite history.
   [claims table](docs/claims.md).
 - **Coverage floors** for engine/store/config/MCE/scheduler/API/UI/project/
   evaluation (M9-H1); **trust-boundary docs + 0.0.0 audit checklist** (M9-H2).
+- **Core Pod is the install/start runtime** (M9-P1): `scripts/install.sh`
+  builds the Job Pod and Core images if missing, writes a Core config
+  (`athanor init -core` with `job_pod.token_host_dir`), starts the container,
+  and waits for `/healthz`; `athanor start` defaults to the Core Pod and
+  `-host` is the explicit development escape hatch. `--service` writes a unit
+  that supervises the container. Smoke-verified on macOS/arm64 (image build,
+  start, health). Container-aware `backup`/`restore`/`models` remain.
 - **Baseline evidence:** [0.0.0-baseline](docs/verification/0.0.0-baseline.md)
   — `make check` green, 64.7% whole-tree coverage, measured state growth,
   v2 6-task smoke status.

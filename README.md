@@ -75,22 +75,27 @@ Full topology, isolation rules, and every subsystem are documented in [`ARCHITEC
 
 ### Install & First Run
 
-> **Install (M7-T7/T8):** build a Job Pod image with `make jobpod-image`, then
-> `sh scripts/install.sh` (add `--service` for a systemd user unit / launchd
-> agent). `athanor start` runs `doctor` then serves. The Core runs as a host
-> binary; execution happens in rootless Podman Job Pods. You can also run
-> directly from a clone:
+> **Install (M7-T7/T8; ADR-0078):** the supported runtime is the **Core Pod**.
+> From a clone, `sh scripts/install.sh` builds the Job Pod and Core images if
+> missing, writes a Core Pod config, starts the container, and waits for
+> `/healthz`. Add `--service` for a systemd user unit / launchd agent that
+> supervises the container. The host binary is the client and a development
+> tool; `make run` / `athanor serve` is an unsupported dev escape hatch
+> (`install.sh --host --service` keeps the old host service for development
+> only).
 
 ```bash
 make build
-make run                                     # daemon on http://127.0.0.1:7420 (defaults, no config needed)
+sh scripts/install.sh                        # Core Pod, images built if absent
 ./bin/athanor project create -name demo -archetype text -goal "Write a short essay about why local-first software matters."   # starts the first job; prints its id
 ./bin/athanor job watch -job <job-id>        # streams every phase; ends with the draft artifact
 ./bin/athanor goal submit -project <id> -goal "Summarize it in five bullet points."   # optional follow-up goal
 ```
 
-Full walkthrough (including the kill switch and crash recovery):
-[docs/demo-m1.md](docs/demo-m1.md) — that script is the Gate G1 demo.
+For host-side development without a container, `make run` still works (it is
+not the supported runtime). Full walkthrough (including the kill switch and
+crash recovery): [docs/demo-m1.md](docs/demo-m1.md) — that script is the Gate G1
+demo.
 
 The eventual flow:
 
@@ -98,7 +103,7 @@ The eventual flow:
 # 1. Validate your hardware and environment (proposes fixes where possible)
 athanor doctor
 
-# 2. Start the Core Pod
+# 2. Start the Core Pod (the supported runtime)
 athanor start
 ```
 

@@ -29,7 +29,7 @@ case "$config" in
 esac
 state_vol=${BENCH_STATE_VOLUME:-athanor-bench-state}
 image=${PROBE_IMAGE:-athanor-bench:latest}
-name=athanor-core
+name=${BENCH_CORE_NAME:-athanor-bench-core}
 probe_out=${BENCH_PROBE_OUT:-/bench/out}
 bench_dir=${BENCH_DIR:-eval/bench/v2}
 

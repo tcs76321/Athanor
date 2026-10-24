@@ -41,7 +41,9 @@ func TestPackagingArtifactsExist(t *testing.T) {
 		{"deploy/core-config.yaml", []string{"host.containers.internal", "ollama_url"}},
 		{"deploy/athanor.service", []string{"ExecStart=__BINARY__", "WantedBy=default.target"}},
 		{"deploy/com.athanor.agent.plist", []string{"com.athanor.agent", "__BINARY__", "RunAtLoad"}},
-		{"scripts/install.sh", []string{"--service", "deploy/athanor.service", "deploy/com.athanor.agent.plist", "__STATE__"}},
+		{"deploy/athanor-core.service", []string{"ExecStart=__PODMAN__", "__CONTAINER__", "WantedBy=default.target"}},
+		{"deploy/com.athanor.core.plist", []string{"com.athanor.core", "__PODMAN__", "__CONTAINER__", "RunAtLoad"}},
+		{"scripts/install.sh", []string{"--service", "--host", "-core", "token-host-dir", `"$PREFIX/athanor" start`, "deploy/athanor.service", "deploy/com.athanor.agent.plist", "deploy/athanor-core.service", "deploy/com.athanor.core.plist", "__STATE__"}},
 	}
 	for _, c := range cases {
 		raw, err := os.ReadFile(filepath.Join(root, c.path))

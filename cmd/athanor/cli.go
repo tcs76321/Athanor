@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/tcs76321/athanor/internal/config"
@@ -76,6 +77,9 @@ func (c *criteriaFlag) Set(v string) error {
 func runInit(args []string) error {
 	fs := flag.NewFlagSet("init", flag.ContinueOnError)
 	path := fs.String("out", "config.yaml", "where to write the config")
+	core := fs.Bool("core", false, "write a Core Pod config (host.containers.internal Ollama URL + token host dir)")
+	tokenDir := fs.String("token-host-dir", "", "Core Pod: host-visible token directory (default ~/.config/athanor/tokens)")
+	jobPodImage := fs.String("jobpod-image", "athanor-jobpod:latest", "Core Pod: Job Pod base image")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -85,6 +89,19 @@ func runInit(args []string) error {
 	cfg, err := config.Default()
 	if err != nil {
 		return err
+	}
+	if *core {
+		cfg.Inference.OllamaURL = "http://host.containers.internal:11434"
+		cfg.JobPod.Image = *jobPodImage
+		dir := *tokenDir
+		if dir == "" {
+			home, err := os.UserHomeDir()
+			if err != nil {
+				return fmt.Errorf("resolving the home directory for the token dir: %w", err)
+			}
+			dir = filepath.Join(home, ".config", "athanor", "tokens")
+		}
+		cfg.JobPod.TokenHostDir = dir
 	}
 	raw, err := yaml.Marshal(cfg)
 	if err != nil {
