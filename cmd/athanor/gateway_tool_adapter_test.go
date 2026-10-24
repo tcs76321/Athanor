@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/tcs76321/athanor/internal/gateway"
 	"github.com/tcs76321/athanor/internal/internalapi"
@@ -50,7 +51,7 @@ func (f *fakeReader) Extract(_ context.Context, resp *gateway.Response) (*gatewa
 }
 
 func newAdapter(parts GatewayParts, template string) *gatewayToolAdapter {
-	return newGatewayToolAdapter(parts, template, 10<<20)
+	return newGatewayToolAdapter(parts, template, 10<<20, 0)
 }
 
 func TestAdapterFetchURL_HappyPath(t *testing.T) {
@@ -220,4 +221,26 @@ func TestSearchWeb_HappyPathEscapesQuery(t *testing.T) {
 	if len(res.Results) != 2 || res.Results[0].URL != "https://r.test/1" {
 		t.Errorf("results = %+v, want two extracted hits", res.Results)
 	}
+}
+
+// TestFetchConcurrencyLimit pins limits.max_concurrent_fetches: a held slot
+// blocks another fetch until it is released, and a canceled waiter returns
+// the context error instead of hanging.
+func TestFetchConcurrencyLimit(t *testing.T) {
+	a := &gatewayToolAdapter{fetchSem: make(chan struct{}, 1)}
+	release, err := a.acquireFetch(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitCtx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	if _, err := a.acquireFetch(waitCtx); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("second acquire = %v, want DeadlineExceeded while the slot is held", err)
+	}
+	release()
+	release2, err := a.acquireFetch(context.Background())
+	if err != nil {
+		t.Fatalf("acquire after release: %v", err)
+	}
+	release2()
 }

@@ -39,17 +39,39 @@ type gatewayToolAdapter struct {
 	// the halved re-fetch (known-issues L9); zero falls back to the 10 MiB
 	// §21.5 default.
 	responseCap int64
+	// fetchSem bounds concurrent outbound tool fetches across all jobs
+	// (limits.max_concurrent_fetches). nil means no bound.
+	fetchSem chan struct{}
 }
 
 // newGatewayToolAdapter returns the internalapi.ToolGateway for the
 // daemon's GatewayParts. searchTemplate is the raw config value
 // (validated at config load); an empty value leaves search_web
-// inert. responseCap is network.max_response_bytes.
-func newGatewayToolAdapter(parts GatewayParts, searchTemplate string, responseCap int64) *gatewayToolAdapter {
+// inert. responseCap is network.max_response_bytes. maxConcurrentFetches
+// is limits.max_concurrent_fetches (0 or negative = unbounded).
+func newGatewayToolAdapter(parts GatewayParts, searchTemplate string, responseCap int64, maxConcurrentFetches int) *gatewayToolAdapter {
 	if responseCap <= 0 {
 		responseCap = 10485760
 	}
-	return &gatewayToolAdapter{parts: parts, searchTemplate: searchTemplate, maxSearchResults: 10, responseCap: responseCap}
+	a := &gatewayToolAdapter{parts: parts, searchTemplate: searchTemplate, maxSearchResults: 10, responseCap: responseCap}
+	if maxConcurrentFetches > 0 {
+		a.fetchSem = make(chan struct{}, maxConcurrentFetches)
+	}
+	return a
+}
+
+// acquireFetch reserves a fetch slot, or waits for one. The returned
+// release is always safe to call. A nil semaphore is unbounded.
+func (a *gatewayToolAdapter) acquireFetch(ctx context.Context) (func(), error) {
+	if a.fetchSem == nil {
+		return func() {}, nil
+	}
+	select {
+	case a.fetchSem <- struct{}{}:
+		return func() { <-a.fetchSem }, nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
 }
 
 // FetchURL implements internalapi.ToolGateway. Flow: build the
@@ -66,6 +88,11 @@ func newGatewayToolAdapter(parts GatewayParts, searchTemplate string, responseCa
 // whichever pass extracted more markdown; the response's Truncated
 // flag is true if either pass truncated.
 func (a *gatewayToolAdapter) FetchURL(ctx context.Context, req toolenvelope.FetchURLRequest) (*toolenvelope.FetchURLResponse, error) {
+	release, err := a.acquireFetch(ctx)
+	if err != nil {
+		return nil, errors.Join(internalapi.ErrFetchFailed, err)
+	}
+	defer release()
 	httpReq, err := gateway.NewRequest(ctx, "GET", req.URL)
 	if err != nil {
 		return nil, fmt.Errorf("gateway tool: build request: %w", err)
@@ -172,6 +199,12 @@ func (a *gatewayToolAdapter) SearchWeb(ctx context.Context, req toolenvelope.Sea
 		return nil, errors.Join(internalapi.ErrFetchFailed, err)
 	}
 	engineURL := buf.String()
+
+	release, err := a.acquireFetch(ctx)
+	if err != nil {
+		return nil, errors.Join(internalapi.ErrFetchFailed, err)
+	}
+	defer release()
 
 	httpReq, err := gateway.NewRequest(ctx, "GET", engineURL)
 	if err != nil {

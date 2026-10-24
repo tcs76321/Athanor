@@ -89,6 +89,9 @@ func run(configPath, addr, stateDir string, container bool) error {
 	if err != nil {
 		return fmt.Errorf("loading config: %w", err)
 	}
+	for _, w := range cfg.Warnings() {
+		fmt.Fprintln(os.Stderr, "athanor: warning:", w)
+	}
 
 	logMgr, err := logging.New(logging.Options{
 		Dir:        filepath.Join(stateDir, "logs"),
@@ -388,7 +391,7 @@ func run(configPath, addr, stateDir string, container bool) error {
 	}
 	internalapi.New(tokenStoreAdapter{podMgr}, project.NewRepo(st), st,
 		project.NewRepo(st), defaultEnv,
-		newGatewayToolAdapter(gw, cfg.Network.SearchEngineURLTemplate, cfg.Network.MaxResponseBytes),
+		newGatewayToolAdapter(gw, cfg.Network.SearchEngineURLTemplate, cfg.Network.MaxResponseBytes, cfg.Limits.MaxConcurrentFetches),
 		// M5-T3.3: the context_swap adapter over the MCE chunk store built
 		// above. A daemon with lossless swapping disabled still constructs
 		// it; every swap then returns ErrSwapDisabled (501).

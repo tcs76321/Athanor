@@ -361,7 +361,71 @@ func validateCross(c *Config) error {
 	if c.Airlock.PromptInjectionLongUserPromptThresholdBytes < 1 {
 		return fmt.Errorf("airlock.prompt_injection_long_user_prompt_threshold_bytes must be ≥ 1, got %d", c.Airlock.PromptInjectionLongUserPromptThresholdBytes)
 	}
+	if err := validateUnenforced(c); err != nil {
+		return err
+	}
 	return nil
+}
+
+// validateUnenforced rejects a non-default value for a field that is parsed
+// and validated but not yet enforced by production code. The contract is
+// "a validated field either works or fails loudly": silently accepting a
+// tuning knob that changes nothing is worse than refusing it. Implement the
+// field (and delete its row here) or keep the documented default.
+func validateUnenforced(c *Config) error {
+	for _, f := range []struct {
+		name string
+		got  int
+		def  int
+	}{
+		{"limits.max_tasks_per_hour", c.Limits.MaxTasksPerHour, 20},
+		{"limits.max_total_recoveries_per_job", c.Limits.MaxTotalRecoveriesPerJob, 8},
+		{"recovery.max_tool_call_retries", c.Recovery.MaxToolCallRetries, 2},
+		{"recovery.max_loop_interventions", c.Recovery.MaxLoopInterventions, 1},
+		{"recovery.max_context_compactions", c.Recovery.MaxContextCompactions, 3},
+		{"agent.max_proactive_tasks_per_day", c.Agent.MaxProactiveTasksPerDay, 10},
+		{"power.daydream_max_concurrent", c.Power.DaydreamMaxConcurrent, 2},
+		{"context_engine.research_floor", c.ContextEngine.ResearchFloor, 32768},
+		{"strategy_analysis.insight_expiry_days", c.StrategyAnalysis.InsightExpiryDays, 90},
+		{"airlock.prompt_injection_long_user_prompt_threshold_bytes", c.Airlock.PromptInjectionLongUserPromptThresholdBytes, 2048},
+	} {
+		if f.got != f.def {
+			return fmt.Errorf("%s is parsed but not enforced yet; keep the default %d or remove the field (ARCHITECTURE §29)", f.name, f.def)
+		}
+	}
+	if c.Execution.Policy.VerifierMinFraction != nil && *c.Execution.Policy.VerifierMinFraction != 0.5 {
+		return fmt.Errorf("execution.policy.verifier_min_fraction is parsed but not enforced yet; keep the default 0.5")
+	}
+	if c.Execution.Policy.MinAnchorAgreement != nil && *c.Execution.Policy.MinAnchorAgreement != 0.6 {
+		return fmt.Errorf("execution.policy.min_anchor_agreement is parsed but not enforced yet; keep the default 0.6")
+	}
+	if !Val(c.Security.ScanIngressFiles, true) || !Val(c.Security.ScanEgressFiles, true) ||
+		!Val(c.Security.PromptInjectionScan, true) || !Val(c.Security.QuarantineSuspiciousFiles, true) {
+		return fmt.Errorf("security.* scan toggles are not independently enforced yet; keep them true (scanning is always on)")
+	}
+	if !Val(c.Airlock.PromptInjectionScanLongUserPrompts, true) {
+		return fmt.Errorf("airlock.prompt_injection_scan_long_user_prompts is parsed but not enforced yet; keep the default true")
+	}
+	if c.Network.BrowserModeRequiresApproval != nil && !*c.Network.BrowserModeRequiresApproval {
+		return fmt.Errorf("network.browser_mode_requires_approval is dormant until Browser Mode lands; keep the default true")
+	}
+	if c.Backup.IncludeWorkspaceMetadata != nil && !*c.Backup.IncludeWorkspaceMetadata {
+		return fmt.Errorf("backup.include_workspace_metadata is not implemented (only the database is snapshotted); keep the default true")
+	}
+	return nil
+}
+
+// Warnings returns actionable non-fatal configuration warnings. The daemon
+// prints them at boot; unlike validateUnenforced they do not refuse startup.
+func (c *Config) Warnings() []string {
+	var out []string
+	if c.Inference.DefaultBackend == "cloud" {
+		out = append(out, "inference.default_backend=cloud is reserved and not implemented; the daemon uses Ollama")
+	}
+	if c.Inference.CloudEnabled {
+		out = append(out, "inference.cloud_enabled=true has no effect in 0.0.0 (no cloud client); the daemon uses Ollama")
+	}
+	return out
 }
 
 // checkActiveHours validates an "HH:MM-HH:MM" range such as "00:00-24:00".

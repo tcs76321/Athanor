@@ -331,18 +331,28 @@ func TestMinJudgeConfidence_UnsetAppliesDefault(t *testing.T) {
 }
 
 func TestExplicitFalseHonoredForDefaultTrueFlags(t *testing.T) {
-	cfg, err := Parse([]byte("version: 2\npower:\n  daydream_on_idle: false\nsecurity:\n  scan_ingress_files: false\nbackup:\n  auto: false\n"))
+	cfg, err := Parse([]byte("version: 2\npower:\n  daydream_on_idle: false\nbackup:\n  auto: false\n"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if Val(cfg.Power.DaydreamOnIdle, true) {
 		t.Error("explicit daydream_on_idle=false was overridden by default")
 	}
-	if Val(cfg.Security.ScanIngressFiles, true) {
-		t.Error("explicit scan_ingress_files=false was overridden by default")
-	}
 	if Val(cfg.Backup.Auto, true) {
 		t.Error("explicit backup.auto=false was overridden by default")
+	}
+}
+
+// TestDormantSecurityTogglesRejected pins the honesty rule for the security
+// scan toggles: scanning is always on, so a false value fails loudly rather
+// than silently disabling nothing.
+func TestDormantSecurityTogglesRejected(t *testing.T) {
+	_, err := Parse([]byte("version: 2\nsecurity:\n  scan_ingress_files: false\n"))
+	if err == nil {
+		t.Fatal("Parse(scan_ingress_files=false) = nil, want a not-enforced error")
+	}
+	if !strings.Contains(err.Error(), "security") {
+		t.Errorf("error %q does not name the security toggles", err.Error())
 	}
 }
 
@@ -903,5 +913,47 @@ func TestIndexConfig(t *testing.T) {
 		if !strings.Contains(err.Error(), field.name) {
 			t.Errorf("%s: error %q does not mention the failing field", field.name, err.Error())
 		}
+	}
+}
+
+// TestUnenforcedKnobRejected pins the configuration-honesty contract: a
+// field that is parsed but not enforced fails loudly on a non-default value
+// rather than silently doing nothing.
+func TestUnenforcedKnobRejected(t *testing.T) {
+	cases := []struct {
+		yaml string
+		name string
+	}{
+		{"version: 2\nlimits:\n  max_tasks_per_hour: 5\n", "limits.max_tasks_per_hour"},
+		{"version: 2\nrecovery:\n  max_context_compactions: 9\n", "recovery.max_context_compactions"},
+		{"version: 2\nagent:\n  max_proactive_tasks_per_day: 3\n", "agent.max_proactive_tasks_per_day"},
+		{"version: 2\nnetwork:\n  browser_mode_requires_approval: false\n", "network.browser_mode_requires_approval"},
+		{"version: 2\nbackup:\n  include_workspace_metadata: false\n", "backup.include_workspace_metadata"},
+	}
+	for _, tc := range cases {
+		_, err := Parse([]byte(tc.yaml))
+		if err == nil {
+			t.Errorf("%s: Parse returned nil; want a not-enforced error", tc.name)
+			continue
+		}
+		if !strings.Contains(err.Error(), tc.name) {
+			t.Errorf("%s: error %q does not mention the field", tc.name, err.Error())
+		}
+	}
+}
+
+// TestCloudBackendWarns pins D6: cloud stays accepted as a reserved,
+// non-default value but the daemon warns; it is never silently used.
+func TestCloudBackendWarns(t *testing.T) {
+	cfg, err := Parse([]byte("version: 2\ninference:\n  default_backend: cloud\n  cloud_enabled: true\n"))
+	if err != nil {
+		t.Fatalf("Parse(cloud) = %v, want a warning-only acceptance", err)
+	}
+	warns := cfg.Warnings()
+	if len(warns) != 2 {
+		t.Fatalf("Warnings() = %v, want one for the backend and one for cloud_enabled", warns)
+	}
+	if !strings.Contains(strings.Join(warns, " "), "not implemented") {
+		t.Errorf("warnings = %v, want an explicit not-implemented message", warns)
 	}
 }

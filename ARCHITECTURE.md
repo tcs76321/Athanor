@@ -1898,15 +1898,20 @@ hitl:
 ```
 
 > **Implementation status (2026-10-24).** The following fields are parsed and
-> validated but **not yet enforced**: `limits.max_concurrent_fetches`,
-> `limits.max_tasks_per_hour`, `limits.max_total_recoveries_per_job`,
-> `recovery.max_tool_call_retries`, `recovery.max_loop_interventions`,
-> `recovery.max_context_compactions`, `agent.max_proactive_tasks_per_day`,
-> `network.browser_mode_requires_approval`, and
-> `backup.include_workspace_metadata`. `inference.default_backend: cloud` is
-> accepted but no cloud client exists. The configuration-honesty pass will
-> either implement each field or reject a non-default value; until then, setting
-> one does not change behavior. See `config.example.yaml` for the same note.
+> validated but **not yet enforced**: `limits.max_tasks_per_hour`,
+> `limits.max_total_recoveries_per_job`, `recovery.max_tool_call_retries`,
+> `recovery.max_loop_interventions`, `recovery.max_context_compactions`,
+> `agent.max_proactive_tasks_per_day`, `power.daydream_max_concurrent`,
+> `context_engine.research_floor`, `strategy_analysis.insight_expiry_days`,
+> `execution.policy.verifier_min_fraction`,
+> `execution.policy.min_anchor_agreement`, the `security.*` scan toggles,
+> `airlock.prompt_injection_scan_long_user_prompts`,
+> `airlock.scanners.*`, `network.browser_mode_requires_approval`, and
+> `backup.include_workspace_metadata`. A non-default value for most of these is
+> rejected at load time; the scanner lists and the cloud backend are accepted
+> with a warning. `inference.default_backend: cloud` is accepted but no cloud
+> client exists. The configuration-honesty pass will either implement each
+> field or keep rejecting it. See `config.example.yaml` for the same note.
 
 ---
 

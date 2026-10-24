@@ -28,7 +28,7 @@ power:
   pause_on_sleep: true
   resume_on_wake: true
   daydream_on_idle: true
-  daydream_max_concurrent: 2
+  daydream_max_concurrent: 2       # not yet enforced (ARCHITECTURE §29 note)
   daydream_max_wall_time_minutes: 30
 
 inference:
@@ -100,7 +100,7 @@ context_engine:
   # Floors are role-scoped working-set requirements, not per-task
   # constants (§12.6, ADR-0002).
   coding_floor: 32768
-  research_floor: 32768
+  research_floor: 32768            # not yet enforced (ARCHITECTURE §29 note)
   document_floor: 16384
   simple_floor: 8192
   compaction_temperature: 0.0   # invariant: always 0.0 (§10.3)
@@ -207,7 +207,7 @@ strategy_analysis:
   min_accept_rate_delta: 0.15
   auto_promote: false            # promote conservative insights without HITL
   max_active_insights: 10
-  insight_expiry_days: 90
+  insight_expiry_days: 90           # not yet enforced (ARCHITECTURE §29 note)
   strategy_notes_in_prompts: true
   # M8-T28 (ADR-0067): a winning technique (an execution operation) whose
   # grounded evidence clears technique_min_accept_delta auto-activates, bounded
@@ -277,6 +277,7 @@ network:
     - "athanor.local:7420"
 
 security:
+  # Scanning is always on; these toggles are dormant (false is rejected).
   scan_ingress_files: true
   scan_egress_files: true
   prompt_injection_scan: true
@@ -341,6 +342,8 @@ airlock:
   # degrades to VerdictUncertain at scan time; the pipeline
   # fails closed.
   enabled: true
+  # The scanner lists are parsed but not yet enforced: the registry is built
+  # in cmd/athanor/ingress.go with the same set (ARCHITECTURE §29 note).
   scanners:
     ingress:
       - prompt-injection-heuristic
@@ -367,8 +370,8 @@ airlock:
   # The threshold is a heuristic, not a security boundary;
   # operators who paste long, benign material can disable the
   # check.
-  prompt_injection_long_user_prompt_threshold_bytes: 2048
-  prompt_injection_scan_long_user_prompts: true
+  prompt_injection_long_user_prompt_threshold_bytes: 2048   # not yet enforced
+  prompt_injection_scan_long_user_prompts: true             # not yet enforced
   # Path to a private YARA rule set. Leave empty (the
   # default) to use the in-tree baseline ruleset
   # (embedded in the daemon binary, materialized to
