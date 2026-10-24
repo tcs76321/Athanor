@@ -1,17 +1,24 @@
 package main
 
 import (
+	"archive/tar"
 	"context"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"strings"
 
 	"github.com/tcs76321/athanor/internal/toolenvelope"
 )
+
+// maxRepoSnapshotBytes bounds one staged repository snapshot (ADR-0082).
+// A larger repository is reported rather than silently truncated; the operator
+// can index it and work on a narrower task.
+const maxRepoSnapshotBytes = 256 << 20
 
 // ErrDirtyWorktree is returned when the project repository has uncommitted
 // changes. Git-as-undo refuses to run rather than disturb work it did not
@@ -73,6 +80,128 @@ func (gitClient) Commit(ctx context.Context, repoPath, branch, relPath string, c
 		return "", errors.New("git: branch and relPath are required")
 	}
 	return gitCommitOnBranch(ctx, repoPath, branch, []commitFile{{rel: relPath, content: content}}, message)
+}
+
+// Snapshot stages the tracked files at HEAD into dest for a Job Pod's
+// read-only repository mount (ADR-0082). It is not a working-tree copy: git
+// archive HEAD is deterministic, excludes untracked/ignored files, and never
+// carries .git. Secret-shaped files are skipped, symlinks/devices are skipped
+// (a repository symlink must not become a host escape), and the archive is
+// size-capped. The caller owns dest and removes it at terminal state.
+func (gitClient) Snapshot(ctx context.Context, repoPath, dest string) error {
+	if repoPath == "" || dest == "" {
+		return errors.New("git snapshot: repoPath and dest are required")
+	}
+	if err := validateRepoRoot(ctx, repoPath); err != nil {
+		return err
+	}
+	if err := os.MkdirAll(dest, 0o700); err != nil {
+		return fmt.Errorf("git snapshot: creating %s: %w", dest, err)
+	}
+	parent, err := os.MkdirTemp("", "athanor-snapshot-")
+	if err != nil {
+		return fmt.Errorf("git snapshot: temp dir: %w", err)
+	}
+	defer func() { _ = os.RemoveAll(parent) }()
+	tarPath := filepath.Join(parent, "repo.tar")
+	if err := gitRun(ctx, repoPath, "archive", "--format=tar", "-o", tarPath, "HEAD"); err != nil {
+		return fmt.Errorf("git snapshot: archiving HEAD: %w", err)
+	}
+	fi, err := os.Stat(tarPath)
+	if err != nil {
+		return fmt.Errorf("git snapshot: stat archive: %w", err)
+	}
+	if fi.Size() > maxRepoSnapshotBytes {
+		return fmt.Errorf("git snapshot: repository archive is %d bytes, over the %d-byte cap (ADR-0082)", fi.Size(), int64(maxRepoSnapshotBytes))
+	}
+	if err := extractSnapshot(tarPath, dest); err != nil {
+		_ = os.RemoveAll(dest)
+		return err
+	}
+	return nil
+}
+
+// validateRepoRoot requires repoPath to be the root of a git worktree (the
+// same root rule git-as-undo uses). A snapshot is taken from HEAD, so an
+// uncommitted working tree is not an error.
+func validateRepoRoot(ctx context.Context, repoPath string) error {
+	toplevel, err := gitOutput(ctx, repoPath, "rev-parse", "--show-toplevel")
+	if err != nil {
+		return fmt.Errorf("git: %s is not a worktree: %w", repoPath, err)
+	}
+	if !samePath(strings.TrimSpace(toplevel), repoPath) {
+		return fmt.Errorf("%w: %s (top-level is %s)", ErrNotRepoRoot, repoPath, strings.TrimSpace(toplevel))
+	}
+	return nil
+}
+
+// extractSnapshot unpacks a git archive into dest with path containment and
+// the ADR-0082 exclusions. Only regular files and directories are written.
+func extractSnapshot(tarPath, dest string) error {
+	f, err := os.Open(tarPath)
+	if err != nil {
+		return fmt.Errorf("git snapshot: opening archive: %w", err)
+	}
+	defer func() { _ = f.Close() }()
+	tr := tar.NewReader(f)
+	for {
+		hdr, err := tr.Next()
+		if errors.Is(err, io.EOF) {
+			return nil
+		}
+		if err != nil {
+			return fmt.Errorf("git snapshot: reading archive: %w", err)
+		}
+		name := filepath.Clean(hdr.Name)
+		if !filepath.IsLocal(name) || name == "." {
+			return fmt.Errorf("git snapshot: unsafe archive path %q", hdr.Name)
+		}
+		if skipSnapshotPath(name) {
+			continue
+		}
+		target := filepath.Join(dest, name)
+		switch hdr.Typeflag {
+		case tar.TypeDir:
+			if err := os.MkdirAll(target, 0o700); err != nil {
+				return fmt.Errorf("git snapshot: mkdir %s: %w", name, err)
+			}
+		case tar.TypeReg:
+			if err := os.MkdirAll(filepath.Dir(target), 0o700); err != nil {
+				return fmt.Errorf("git snapshot: mkdir for %s: %w", name, err)
+			}
+			out, err := os.OpenFile(target, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
+			if err != nil {
+				return fmt.Errorf("git snapshot: create %s: %w", name, err)
+			}
+			_, copyErr := io.Copy(out, tr)
+			closeErr := out.Close()
+			if copyErr != nil {
+				return fmt.Errorf("git snapshot: write %s: %w", name, copyErr)
+			}
+			if closeErr != nil {
+				return fmt.Errorf("git snapshot: close %s: %w", name, closeErr)
+			}
+		default:
+			// Symlinks, devices, FIFOs, and git metadata entries are not
+			// materialized. A repository cannot turn a snapshot into a host
+			// escape or a special-file read.
+		}
+	}
+}
+
+// skipSnapshotPath excludes secret-shaped files from a snapshot. It is a
+// conservative default, not a substitute for not committing secrets.
+func skipSnapshotPath(name string) bool {
+	base := path.Base(name)
+	if base == ".env" || strings.HasPrefix(base, ".env.") {
+		return true
+	}
+	switch {
+	case strings.HasSuffix(base, ".pem"), strings.HasSuffix(base, ".key"),
+		strings.HasSuffix(base, ".p12"), strings.HasSuffix(base, ".pfx"):
+		return true
+	}
+	return base == "id_rsa" || base == "id_ed25519" || strings.HasSuffix(base, ".id_rsa")
 }
 
 // CommitTree writes every file (sanitized repository-relative paths) into the

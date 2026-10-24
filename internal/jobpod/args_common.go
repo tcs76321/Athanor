@@ -20,7 +20,7 @@ func buildArgs(spec Spec) []string {
 		"--memory", itoa(limits.MemoryMB) + "m",
 		"--cpus", ftoa(limits.CPUs),
 		"--network", "none",
-		"--tmpfs", "/tmp:rw,noexec,nosuid,nodev,size=8m",
+		"--tmpfs", "/tmp:rw,noexec,nosuid,nodev,size=" + itoa(limits.TmpfsMB) + "m",
 	}
 	args = append(args, platformHardening()...)
 	tokenMount := spec.TokenMountDir
@@ -49,6 +49,9 @@ func withDefaults(l Limits) Limits {
 	}
 	if l.CPUs <= 0 {
 		l.CPUs = 1.0
+	}
+	if l.TmpfsMB <= 0 {
+		l.TmpfsMB = 256
 	}
 	return l
 }

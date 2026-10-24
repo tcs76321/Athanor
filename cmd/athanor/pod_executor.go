@@ -40,14 +40,27 @@ func newPodExecutor(pods podExecer, image string) *podExecutorAdapter {
 	return &podExecutorAdapter{pods: pods, image: image}
 }
 
-// The Job Pod's root filesystem is read-only and its only writable location
-// is the /tmp tmpfs (ADR-0007/0024). Materializing the candidate there is what
-// lets a real test command see it. A dedicated, owner-scoped workspace mount
-// is future work (F4-T0); this is the contained first step.
+// The Job Pod's root filesystem is read-only; /tmp is the writable tmpfs.
+// /tmp/work is the test work tree: it starts as a copy of the staged
+// repository snapshot (when one is mounted) and receives the candidate
+// overlay. The snapshot itself is read-only at /workspace/repo (ADR-0082).
 const (
 	podScratch    = "/tmp"
-	candidateFile = podScratch + "/solution.py"
+	podWork       = podScratch + "/work"
+	repoMount     = "/workspace/repo"
+	repoReadyFlag = podScratch + "/.athanor-repo-ready"
+	candidateFile = podWork + "/solution.py"
 )
+
+// prepWorkDir is the shell prefix that materializes the work tree once per
+// pod. It copies the read-only repository snapshot into /tmp/work before the
+// candidate is written; the flag keeps a later run_tests exec from
+// overwriting the candidate with the pristine snapshot.
+func prepWorkDir() string {
+	return "mkdir -p " + podWork +
+		"; if [ -d " + repoMount + " ] && [ ! -f " + repoReadyFlag + " ]; then " +
+		"cp -a " + repoMount + "/. " + podWork + "/ && touch " + repoReadyFlag + "; fi"
+}
 
 // treeUnpacker is the fixed in-pod program that materializes a Files tree
 // (ADR-0065). It reads the JSON manifest on stdin — content never touches
@@ -85,12 +98,12 @@ func (a *podExecutorAdapter) RunCode(ctx context.Context, jobID string, req tool
 			return toolenvelope.ExecuteResult{}, fmt.Errorf("encoding candidate file tree: %w", err)
 		}
 		return a.exec(ctx, jobID, jobpod.ExecSpec{
-			Command: []string{"sh", "-c", "mkdir -p " + podScratch + " && cd " + podScratch + " && python -c '" + treeUnpacker + "'"},
+			Command: []string{"sh", "-c", prepWorkDir() + " && cd " + podWork + " && python -c '" + treeUnpacker + "'"},
 			Stdin:   manifest,
 		})
 	}
 	return a.exec(ctx, jobID, jobpod.ExecSpec{
-		Command: []string{"sh", "-c", "cat > " + candidateFile + " && python " + candidateFile},
+		Command: []string{"sh", "-c", prepWorkDir() + " && cat > " + candidateFile + " && python " + candidateFile},
 		Stdin:   []byte(req.Code),
 	})
 }
@@ -104,13 +117,13 @@ func (a *podExecutorAdapter) RunCode(ctx context.Context, jobID string, req tool
 // validated the run_tests envelope (known-issues L6). The base image must
 // provide a POSIX shell (ADR-0024 §6).
 func (a *podExecutorAdapter) RunTests(ctx context.Context, jobID string, req toolenvelope.ExecuteRequest) (toolenvelope.ExecuteResult, error) {
-	return a.exec(ctx, jobID, jobpod.ExecSpec{Command: []string{"sh", "-c", "cd " + podScratch + " && " + req.Command}})
+	return a.exec(ctx, jobID, jobpod.ExecSpec{Command: []string{"sh", "-c", prepWorkDir() + " && cd " + podWork + " && " + req.Command}})
 }
 
 // Lint is RunTests with the linter command (the default `ruff check .` is
 // resolved server-side before the call); the same containment note applies.
 func (a *podExecutorAdapter) Lint(ctx context.Context, jobID string, req toolenvelope.ExecuteRequest) (toolenvelope.ExecuteResult, error) {
-	return a.exec(ctx, jobID, jobpod.ExecSpec{Command: []string{"sh", "-c", "cd " + podScratch + " && " + req.Command}})
+	return a.exec(ctx, jobID, jobpod.ExecSpec{Command: []string{"sh", "-c", prepWorkDir() + " && cd " + podWork + " && " + req.Command}})
 }
 
 // exec is the shared body. It refuses early when no image is configured,

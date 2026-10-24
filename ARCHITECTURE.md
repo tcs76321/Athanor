@@ -95,8 +95,8 @@ Job Pods may communicate **only** with:
 - The Core internal API (via restricted localhost socket).
 - The per-job token directory (a read-only bind mount at `/run/athanor`).
 - A staged repository snapshot (read-only at `/workspace/repo`) — the first
-  approved workspace volume, planned for 0.0.x. No host repository path is
-  mounted directly.
+  approved workspace volume (ADR-0082). The Core stages tracked files under its
+  own state directory; no host repository path is mounted directly.
 
 Read-only skill volumes are deferred with the skills runtime
 ([ADR-0079](docs/adr/0079-no-skills-runtime.md)).

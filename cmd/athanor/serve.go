@@ -235,7 +235,7 @@ func run(configPath, addr, stateDir string, container bool) error {
 		// long-lived idle pod before the code-archetype sub-steps and
 		// stops it at terminal state, so the runner's per-job token
 		// (TokenFor) exists when the internal API execs into it.
-		newPodLifecycle(podMgr, cfg),
+		newPodLifecycle(podMgr, cfg, projectRepo, stateDir, gitClient{}),
 	)
 	// M7-T1 (§24): the engine consults the power gate before each phase, so
 	// a battery/sleep pause parks active jobs and ResumePaused re-drives them.

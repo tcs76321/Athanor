@@ -237,6 +237,7 @@ func validateRaw(c *Config) error {
 		{"strategy_analysis.insight_expiry_days", c.StrategyAnalysis.InsightExpiryDays},
 		{"job_pod.pids_limit", c.JobPod.PidsLimit},
 		{"job_pod.memory_mb", c.JobPod.MemoryMB},
+		{"job_pod.tmpfs_mb", c.JobPod.TmpfsMB},
 		{"network.rate_limit_per_minute", c.Network.RateLimitPerMinute},
 	} {
 		if n.val < 0 {

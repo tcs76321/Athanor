@@ -737,6 +737,9 @@ type JobPod struct {
 	PidsLimit    int     `yaml:"pids_limit"`
 	MemoryMB     int     `yaml:"memory_mb"`
 	CPUs         float64 `yaml:"cpus"`
+	// TmpfsMB is the writable /tmp size. The repository work tree is copied
+	// there (ADR-0082); 0 uses jobpod's 256 MiB default.
+	TmpfsMB int `yaml:"tmpfs_mb"`
 }
 
 // JobPodEnvelope returns the per-job default tool envelope. The
@@ -756,6 +759,7 @@ func (c *Config) JobPodResourceLimits() jobpod.Limits {
 		PidsLimit: c.JobPod.PidsLimit,
 		MemoryMB:  c.JobPod.MemoryMB,
 		CPUs:      c.JobPod.CPUs,
+		TmpfsMB:   c.JobPod.TmpfsMB,
 	}
 }
 

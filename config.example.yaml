@@ -330,6 +330,9 @@ job_pod:
   pids_limit: 0
   memory_mb: 0
   cpus: 0
+  # Writable /tmp size (MiB). The repository work tree is copied into
+  # /tmp/work, so this must be large enough for the snapshot (ADR-0082).
+  tmpfs_mb: 256
 
 airlock:
   # §21.3 file-airlock pipeline (M4-T2/T3/T4; ADR-0015). The

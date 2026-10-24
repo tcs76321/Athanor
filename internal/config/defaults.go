@@ -310,10 +310,12 @@ func applyDefaults(c *Config) {
 	// production must configure it explicitly so an operator cannot
 	// accidentally launch a daemon that picks up the wrong base image.
 	// Resource limits are zero so jobpod.withDefaults fills the §21.2
-	// values (PidsLimit=64, MemoryMB=512, CPUs=1.0).
+	// values (PidsLimit=64, MemoryMB=512, CPUs=1.0). TmpfsMB is explicit:
+	// the repository work tree is copied into /tmp/work (ADR-0082).
 	if c.JobPod.DefaultTools == nil {
 		c.JobPod.DefaultTools = []string{}
 	}
+	setInt(&c.JobPod.TmpfsMB, 256)
 
 	// Airlock defaults (M4-T2/T3/T4; ADR-0015). The pipeline
 	// lists are the closed set shipped in M4-T3; a typo in

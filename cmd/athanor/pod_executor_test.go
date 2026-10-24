@@ -38,7 +38,7 @@ func TestPodExecutor_RunCode_MaterializesFileViaStdin(t *testing.T) {
 	if res.Stdout != "1\n" {
 		t.Errorf("stdout = %q, want %q", res.Stdout, "1\n")
 	}
-	want := []string{"sh", "-c", "cat > /tmp/solution.py && python /tmp/solution.py"}
+	want := []string{"sh", "-c", prepWorkDir() + " && cat > /tmp/work/solution.py && python /tmp/work/solution.py"}
 	if len(f.got.Command) != len(want) {
 		t.Fatalf("command = %v, want %v", f.got.Command, want)
 	}
@@ -90,7 +90,7 @@ func TestPodExecutor_RunTests_UsesShell(t *testing.T) {
 	if res.ExitCode != 1 {
 		t.Errorf("exit = %d, want 1", res.ExitCode)
 	}
-	want := []string{"sh", "-c", "cd /tmp && pytest -q"}
+	want := []string{"sh", "-c", prepWorkDir() + " && cd /tmp/work && pytest -q"}
 	if len(f.got.Command) != len(want) {
 		t.Fatalf("command = %v, want %v", f.got.Command, want)
 	}

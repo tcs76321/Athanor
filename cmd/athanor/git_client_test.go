@@ -144,3 +144,52 @@ func gitTestOutput(t *testing.T, repo string, args ...string) string {
 	}
 	return strings.TrimSpace(string(out))
 }
+
+// TestGitClientSnapshot pins ADR-0082: tracked files are staged, secrets and
+// symlinks are not, and the destination never carries .git.
+func TestGitClientSnapshot(t *testing.T) {
+	requireGit(t)
+	repo := initTestRepo(t)
+	if err := os.MkdirAll(filepath.Join(repo, "pkg"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	files := map[string]string{
+		"pkg/main.py": "print('ok')\n",
+		".env":        "SECRET=1\n",
+		"server.pem":  "not-a-real-key\n",
+		"README.md":   "base\n",
+	}
+	for name, body := range files {
+		if err := os.WriteFile(filepath.Join(repo, name), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.Symlink("/etc/passwd", filepath.Join(repo, "escape")); err != nil {
+		t.Fatal(err)
+	}
+	gitTestRun(t, repo, "add", "-A")
+	gitTestRun(t, repo, "commit", "-q", "-m", "snapshot inputs")
+
+	dest := filepath.Join(t.TempDir(), "repo")
+	if err := (gitClient{}).Snapshot(context.Background(), repo, dest); err != nil {
+		t.Fatalf("Snapshot: %v", err)
+	}
+	for _, name := range []string{"pkg/main.py", "README.md"} {
+		if _, err := os.Stat(filepath.Join(dest, name)); err != nil {
+			t.Errorf("tracked file %s missing from snapshot: %v", name, err)
+		}
+	}
+	for _, name := range []string{".env", "server.pem", "escape", ".git"} {
+		if _, err := os.Stat(filepath.Join(dest, name)); !errors.Is(err, os.ErrNotExist) {
+			t.Errorf("%s must not be in the snapshot", name)
+		}
+	}
+}
+
+func gitTestRun(t *testing.T, repo string, args ...string) {
+	t.Helper()
+	cmd := exec.Command("git", append([]string{"-C", repo}, args...)...)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git %v: %v\n%s", args, err, out)
+	}
+}

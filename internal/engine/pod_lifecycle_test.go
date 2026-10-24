@@ -23,7 +23,7 @@ type fakeLifecycle struct {
 	err     error
 }
 
-func (f *fakeLifecycle) Ensure(_ context.Context, jobID string) error {
+func (f *fakeLifecycle) Ensure(_ context.Context, jobID, _ string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.ensured = append(f.ensured, jobID)

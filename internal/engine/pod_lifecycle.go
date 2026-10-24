@@ -19,8 +19,9 @@ import (
 // wires the cmd/athanor adapter over jobpod.Manager.
 type PodLifecycle interface {
 	// Ensure makes a Job Pod exist for the job. Idempotent: a job whose
-	// pod is already running is a no-op.
-	Ensure(ctx context.Context, jobID string) error
+	// pod is already running is a no-op. projectID lets the adapter stage a
+	// repository snapshot for the job (ADR-0082).
+	Ensure(ctx context.Context, jobID, projectID string) error
 	// Stop tears the job's Job Pod down. Idempotent: an unknown job is a
 	// no-op.
 	Stop(ctx context.Context, jobID string) error
@@ -35,7 +36,7 @@ func (e *Engine) ensurePod(ctx context.Context, j job.Job) {
 	if e.podLifecycle == nil || e.draining.Load() {
 		return
 	}
-	if err := e.podLifecycle.Ensure(ctx, j.ID); err != nil {
+	if err := e.podLifecycle.Ensure(ctx, j.ID, j.ProjectID); err != nil {
 		e.auditCat(ctx, j.ID, "podman", map[string]any{
 			"event": "pod_start_failed", "error": err.Error(),
 		})

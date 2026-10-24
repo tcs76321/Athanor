@@ -53,6 +53,10 @@ type Limits struct {
 	PidsLimit int
 	MemoryMB  int
 	CPUs      float64
+	// TmpfsMB is the size of the writable /tmp tmpfs. 0 uses the 256 MiB
+	// default. The repository working set is copied into /tmp/work, so the
+	// old 8 MiB default was too small (ADR-0082).
+	TmpfsMB int
 }
 
 // ExecSpec is the input to Exec: one command to run inside a live pod
