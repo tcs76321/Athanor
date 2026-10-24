@@ -36,6 +36,10 @@ type Spec struct {
 	// path that the Podman machine can see, because the Core Pod's local
 	// state path is inside the container, not on the machine.
 	TokenMountDir string
+	// RepoDir is an optional Core-staged repository snapshot, mounted
+	// read-only at /workspace/repo (ADR-0082). The caller creates and owns the
+	// snapshot; the manager only mounts it. Empty means no repository mount.
+	RepoDir string
 	// ResourceLimits is the pids/memory/cpus set applied to the pod.
 	ResourceLimits Limits
 	// Env is the pod's environment. Empty in M2-T2; the token never

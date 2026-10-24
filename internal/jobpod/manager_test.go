@@ -132,6 +132,8 @@ func TestStart_ValidatesSpec(t *testing.T) {
 		{"flag-like image", func(s *Spec) { s.Image = "--privileged" }},
 		{"whitespace image", func(s *Spec) { s.Image = "alpine:3.20 /bin/sh" }},
 		{"empty command", func(s *Spec) { s.Command = nil }},
+		{"relative repo dir", func(s *Spec) { s.RepoDir = "repo" }},
+		{"traversing repo dir", func(s *Spec) { s.RepoDir = "/tmp/../repo" }},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

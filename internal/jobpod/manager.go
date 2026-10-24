@@ -101,6 +101,20 @@ func (m *manager) validateSpec(spec Spec) error {
 	if len(spec.Command) == 0 {
 		return fmt.Errorf("%w: command is required", ErrInvalidSpec)
 	}
+	// ADR-0082: a repository mount is a Core-staged snapshot, never a bare
+	// host path. The caller owns creation; the manager only refuses a
+	// non-absolute or traversal-shaped source. The Gate G2 argv arm pins the
+	// read-only target and the absence of any other repository source.
+	if spec.RepoDir != "" {
+		if !filepath.IsAbs(spec.RepoDir) {
+			return fmt.Errorf("%w: RepoDir must be absolute, got %q", ErrInvalidSpec, spec.RepoDir)
+		}
+		for _, part := range strings.Split(spec.RepoDir, string(filepath.Separator)) {
+			if part == ".." {
+				return fmt.Errorf("%w: RepoDir must not traverse, got %q", ErrInvalidSpec, spec.RepoDir)
+			}
+		}
+	}
 	return nil
 }
 

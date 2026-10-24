@@ -92,6 +92,24 @@ func TestBuildArgs_OmitsTokenMountWhenNoDir(t *testing.T) {
 	}
 }
 
+// TestBuildArgs_IncludesReadOnlyRepoMount pins ADR-0082: a Core-staged
+// repository snapshot is read-only at /workspace/repo and is the only
+// repository mount.
+func TestBuildArgs_IncludesReadOnlyRepoMount(t *testing.T) {
+	s := sampleSpec()
+	s.RepoDir = "/state/scratch/job/repo"
+	args := buildArgs(s)
+	joined := joinArgs(args)
+	want := "--mount type=bind,source=/state/scratch/job/repo,target=/workspace/repo,ro"
+	if !strings.Contains(joined, want) {
+		t.Errorf("argv missing read-only repo mount %q\ngot: %s", want, joined)
+	}
+	s.RepoDir = ""
+	if joined := joinArgs(buildArgs(s)); strings.Contains(joined, "/workspace/repo") {
+		t.Errorf("argv has a repo mount without RepoDir\ngot: %s", joined)
+	}
+}
+
 // TestBuildArgs_PackageFlagsCannotBypassHardening is the defense-in-
 // depth check. The package constructs every flag before the image;
 // the user's Command runs *inside* the pod and is the user's
