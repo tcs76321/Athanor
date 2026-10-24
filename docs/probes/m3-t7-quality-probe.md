@@ -14,7 +14,7 @@ calibration + stability table.
 The M3-T7-a (Jaccard diversity) measurement is a
 code change in `internal/engine/diverge.go` that
 emits the `divergence_jaccard` event. See the
-`spikes/m3-t7-probe/` scaffold for the runner.
+`tools/bench/` scaffold for the runner.
 
 ## Headline experiment: dialectical vs single-shot
 
@@ -309,7 +309,7 @@ the M3-T7 sequence (post-spike).
 
 ## Runbook (manual collection, F3-T6)
 
-The runner is not implemented; `spikes/m3-t7-probe/` is a scaffold that
+The runner is not implemented; `tools/bench/` is a scaffold that
 prints a banner. Until the runner lands, the measurements can be collected
 by hand from a running daemon. This section is the operational recipe.
 

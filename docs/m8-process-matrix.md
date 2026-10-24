@@ -25,7 +25,7 @@ Status legend: **auto** = enforced by `make check` / CI; **opt-in** = gated by
 | 13 | Pod teardown removes the per-job token dir | `internal/jobpod/manager_test.go::TestStop_RemovesTokenDir` | auto |
 | 14 | Power: battery/sleep pauses, AC/wake resumes | `internal/power/supervisor_test.go`, `policy_test.go`, `manager_test.go` | auto |
 | 15 | Graceful shutdown stops pods, abandons in-flight phases, recovers next boot | [ADR-0060](adr/0060-shutdown-semantics.md) + rows 1–5 (`Recover`) | auto (via recovery) |
-| 16 | A real `kill -9` of the running daemon mid-job | `spikes/m3-t7-probe soak -kill-after` → `soak-events.log` | opt-in (harness) |
+| 16 | A real `kill -9` of the running daemon mid-job | `tools/bench soak -kill-after` → `soak-events.log` | opt-in (harness) |
 | 17 | A real sleep/wake cycle mid-run | runbook [soak-m7.md](soak-m7.md) | **human** |
 | 18 | 24h+ soak: no orphan pods, bounded RSS/WAL/disk, no unrecovered crash | `m3-t7-probe soak` (rolling `report.md`, `soak.csv`) | **human** (supervised run) |
 
@@ -34,8 +34,8 @@ Status legend: **auto** = enforced by `make check` / CI; **opt-in** = gated by
 ```bash
 make check                                   # rows 1–15 (structural + unit)
 make test-integration                        # behavioral pod/gateway probes
-go run ./spikes/m3-t7-probe soak -model <m> -corpus eval/bench/tasks.yaml \
-    -hours 24 -kill-after 6h -out spikes/m3-t7-probe/results/soak   # rows 16, 18
+go run ./tools/bench soak -model <m> -corpus eval/bench/tasks.yaml \
+    -hours 24 -kill-after 6h -out tools/bench/results/soak   # rows 16, 18
 ```
 
 Row 17 (sleep/wake) is performed by hand on the release host and recorded in the
@@ -48,6 +48,6 @@ soak run's notes; the harness cannot sleep the host safely.
   signal-level test would need a running daemon and is covered behaviorally by
   row 16 during the soak.
 - Rows 16 and 18 are produced by the M8-T23 harness on real hardware; their
-  evidence lands under `spikes/m3-t7-probe/results/soak/` (gitignored).
+  evidence lands under `tools/bench/results/soak/` (gitignored).
 
 See also: the real-world-internal workflow map, [m8-workflows.md](m8-workflows.md).

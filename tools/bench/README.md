@@ -38,23 +38,23 @@ exercised when the probe actually runs.
 make build
 
 # 2. smoke test: one goal, one model, both arms
-go run -tags sqlite_fts5 ./spikes/m3-t7-probe run -goals 1 -models qwen27b
+go run -tags sqlite_fts5 ./tools/bench run -goals 1 -models qwen27b
 
 # 3. the full locked matrix (hours; see the protocol)
-go run -tags sqlite_fts5 ./spikes/m3-t7-probe run
+go run -tags sqlite_fts5 ./tools/bench run
 
 # 4. score every artifact with the third-party judges (gemma + granite)
-go run -tags sqlite_fts5 ./spikes/m3-t7-probe judge
+go run -tags sqlite_fts5 ./tools/bench judge
 
 # 5. aggregate every results.json into report.md
-go run -tags sqlite_fts5 ./spikes/m3-t7-probe report
+go run -tags sqlite_fts5 ./tools/bench report
 ```
 
 CGO is required: the runner reads the daemon's SQLite database read-only
 (`strategy_outcomes` and the proposal artifacts) for captured outcomes.
 Per (model, arm) the runner writes `config.yaml`, `daemon.log`,
 `results.json`, `results.csv`, `packets/` (blind judge packets plus
-`index.json`), and `report.md` under `spikes/m3-t7-probe/results/`.
+`index.json`), and `report.md` under `tools/bench/results/`.
 
 The judge packets are blind to the arm and model by design; the operator
 pastes each `packets/PKT-NNNN.md` into a browser agent and transcribes

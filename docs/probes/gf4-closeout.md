@@ -5,7 +5,7 @@
 **Protocol:** [M3-T7 quality probe](m3-t7-quality-probe.md) + F4 follow-ups
 ([f4-verifier-run](f4-verifier-run.md)); plan
 [gf4-probe-plan](gf4-probe-plan.md).
-**Artifacts:** `spikes/m3-t7-probe/results/` (gitignored) — `anchor10/`
+**Artifacts:** `tools/bench/results/` (gitignored) — `anchor10/`
 (P1), `gf4/` (P2 + P3), `gf4-drift/` (drift check).
 
 ## Model roster (10 models / 5 families)

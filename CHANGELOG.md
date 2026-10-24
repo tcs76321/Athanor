@@ -287,17 +287,17 @@ New entries are appended at the top. Do not rewrite history.
   reflections, divergence re-rolls, candidate raises, KV pressure, context-floor
   violations, corrections/notes injected, and the git-as-undo outcome — carried
   in `results.json`, new `results.csv` columns, and report tables.
-  `spikes/m3-t7-probe/telemetry.go`.
+  `tools/bench/telemetry.go`.
 - **A per-model leaderboard.** `report.md` gains a grounded leaderboard — pass
   rate, tokens per passing job, wall-time p50/p95, calls/job — so a results tree
   from `soak` or `run` answers "which model should I run". The soak runbook
   documents the full-ladder benchmark (one soak per model under a common tree,
-  then `report` + `measure`). `spikes/m3-t7-probe/leaderboard.go`.
+  then `report` + `measure`). `tools/bench/leaderboard.go`.
 - **Conformance scenarios.** The soak drives end-to-end scenarios against the
   live daemon and folds a pass/fail matrix into the report: the §22 freeze
   switch, the UI pages + SSE stream, an approved push to a **local bare remote**,
   and the §23.4 **backup → restore** cycle — all offline, each added only when it
-  proves something no existing gate proves. `spikes/m3-t7-probe/scenarios.go`;
+  proves something no existing gate proves. `tools/bench/scenarios.go`;
   decision: `docs/adr/0073-soak-validation-harness.md`.
 
 ### Fix: single-slot execution (ADR-0072) — 2026-10-16
@@ -330,7 +330,7 @@ New entries are appended at the top. Do not rewrite history.
   The probe roots each staged fixture copy as its own git repository, and its
   fixture commit passes `--no-gpg-sign` / `commit.gpgsign=false` — a global
   `commit.gpgsign=true` previously blocked the run on a pinentry prompt. Tests:
-  `cmd/athanor/git_client_test.go`, `spikes/m3-t7-probe/repo_source_test.go`;
+  `cmd/athanor/git_client_test.go`, `tools/bench/repo_source_test.go`;
   decision: `docs/adr/0071-git-as-undo-containment.md`.
 
 ### Probe: heterogeneous per-role models + DAG mode (soak) — 2026-10-16
@@ -343,7 +343,7 @@ New entries are appended at the top. Do not rewrite history.
   `probeConfigYAML` resolves each role's model and declared family;
   `parseRoleModels` errors on a typo rather than silently falling back to
   `-model`; the probe now waits for every scheduled job of a decomposed goal and
-  aggregates. Tests: `spikes/m3-t7-probe/rolemodels_test.go`.
+  aggregates. Tests: `tools/bench/rolemodels_test.go`.
 
 ### Fix: bounded MCE summarizer output (soak stall) — 2026-10-16
 
@@ -355,7 +355,7 @@ New entries are appended at the top. Do not rewrite history.
   job loop between tasks. The request now caps output at `maxSummaryTokens`
   (256); a one-line Dormant Index summary needs far less. Test:
   `cmd/athanor/mce_adapter_test.go`.
-- **The probe bounds its API calls.** `spikes/m3-t7-probe`'s `apiCall` now uses
+- **The probe bounds its API calls.** `tools/bench`'s `apiCall` now uses
   a client with a 20-minute timeout, so a wedged handler surfaces as an error
   row instead of hanging the soak loop forever.
 
@@ -368,7 +368,7 @@ New entries are appended at the top. Do not rewrite history.
   tasks (7 of the 15-task bench set) could only fail, wasting soak cycles and
   skewing the quality readout. The probe now indexes a non-code fixture as the
   project repository (`repoSourceFor`), so it reaches the prompt through the
-  MCE working set. Test: `spikes/m3-t7-probe/repo_source_test.go`.
+  MCE working set. Test: `tools/bench/repo_source_test.go`.
 
 ### Qualification measurements: probe `measure` (M9-T2b) — 2026-10-16
 
@@ -379,7 +379,7 @@ New entries are appended at the top. Do not rewrite history.
   can act on how many samples back a score and `athanor models -qualification`
   consumes it directly. The M9 soak's 6/6 → 0/2 swing is why a single-pass
   pass@k must not swap a model on its own. Tests:
-  `spikes/m3-t7-probe/measure_test.go`.
+  `tools/bench/measure_test.go`.
 
 ### Model onboarding surface: `athanor models` (M9-T2) — 2026-10-16
 
@@ -407,7 +407,7 @@ New entries are appended at the top. Do not rewrite history.
   gates at runtime, not only after the fact. ADR:
   [0070](docs/adr/0070-declared-checks.md). Tests:
   `internal/verify/checks_test.go`, `internal/project/execution_test.go`,
-  `spikes/m3-t7-probe/checks_test.go`.
+  `tools/bench/checks_test.go`.
 
 ### Job Pod shutdown hardening (M9 soak) — 2026-10-16
 
@@ -1061,7 +1061,7 @@ New entries are appended at the top. Do not rewrite history.
 
 ### M8-T18 — non-code check engine in the probe
 
-- **M8-T18.** `spikes/m3-t7-probe/checks.go` turns a corpus task's `checks:`
+- **M8-T18.** `tools/bench/checks.go` turns a corpus task's `checks:`
   map into deterministic pass/fail (`required_sections`, `strict_section_order`,
   `exact_paragraphs`, `max_words`, `forbidden_phrases`, `no_headings`,
   bullet-count minimums). Semantic kinds (`json_schema`, fabrication,

@@ -11,9 +11,9 @@ suite). Both use existing tooling; this note records what they showed.
 Command:
 
 ```bash
-go run -tags sqlite_fts5 ./spikes/m3-t7-probe anchor \
+go run -tags sqlite_fts5 ./tools/bench anchor \
   -judges granite4.2:3b,granite4.2:8b,gemma4:12b-mlx,gemma4:e4b-mlx,ornith-1.5:9b \
-  -protocol pointwise5 -think false -out spikes/m3-t7-probe/results/anchor-m9
+  -protocol pointwise5 -think false -out tools/bench/results/anchor-m9
 ```
 
 | judge | calls ok | reliability | Spearman | Kendall |
@@ -42,11 +42,11 @@ the finding, not an error.
 Command (6 code tasks, dialectical arm, the M9-T1 repair loop live):
 
 ```bash
-go run -tags sqlite_fts5 ./spikes/m3-t7-probe run \
+go run -tags sqlite_fts5 ./tools/bench run \
   -corpus eval/bench/tasks.yaml -models ornith9b,gemma12b \
   -only code-bank-atomic,code-expr-eval,code-lru-ttl,code-unified-diff,code-refactor-provided,code-parse-duration \
   -dialectical-runs 1 -judge-model granite4.2:3b -max-wall 45m \
-  -out spikes/m3-t7-probe/results/gen-smoke-m9
+  -out tools/bench/results/gen-smoke-m9
 ```
 
 | task | tier | state | winner | judge score | diversity |

@@ -57,7 +57,7 @@ family/capability confound), `qwen3.8:27b-mlx`, `gemma4:12b-mlx`,
 
 ```sh
 make build
-go run -tags sqlite_fts5 ./spikes/m3-t7-probe anchor \
+go run -tags sqlite_fts5 ./tools/bench anchor \
   -protocol pointwise5 \
   -judges ornith-1.5:9b,ornith-1.5:35b,qwen3.8:27b-mlx,gemma4:12b-mlx,granite4.2:30b,granite4.2:3b \
   -think false -num-ctx 8192
@@ -75,7 +75,7 @@ go run -tags sqlite_fts5 ./spikes/m3-t7-probe anchor \
 ## P2 — Headline: dialectical vs single-shot (the main event)
 
 ```sh
-go run -tags sqlite_fts5 ./spikes/m3-t7-probe run \
+go run -tags sqlite_fts5 ./tools/bench run \
   -models ornith9b -judge-mode verifier -max-wall 10h
 ```
 
@@ -89,9 +89,9 @@ go run -tags sqlite_fts5 ./spikes/m3-t7-probe run \
 ## P3 — Score and aggregate
 
 ```sh
-go run -tags sqlite_fts5 ./spikes/m3-t7-probe judge
-go run -tags sqlite_fts5 ./spikes/m3-t7-probe report
-go run -tags sqlite_fts5 ./spikes/m3-t7-probe bundle   # labeled artifact bundle
+go run -tags sqlite_fts5 ./tools/bench judge
+go run -tags sqlite_fts5 ./tools/bench report
+go run -tags sqlite_fts5 ./tools/bench bundle   # labeled artifact bundle
 ```
 
 - `report.md` fills the headline Δ table, T-a diversity, T-b calibration bin

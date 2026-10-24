@@ -42,7 +42,7 @@ install:
 
 # M7-T9: the 24h soak harness. Human-run; see docs/soak-m7.md. Repeats the
 # quality-probe workload (which samples RSS/DB/disk to soak.csv) for SOAK_HOURS.
-SOAK_OUT ?= spikes/m3-t7-probe/results/soak
+SOAK_OUT ?= tools/bench/results/soak
 soak:
 	SOAK_OUT=$(SOAK_OUT) sh scripts/soak.sh
 
@@ -52,7 +52,7 @@ soak:
 # injection. The model is the fast 9B by default; the judge is cross-family.
 # Use a FRESH MINI_SOAK_OUT for a clean run (a reused dir resumes from its
 # deadline + metrics). See docs/soak-m7.md.
-MINI_SOAK_OUT   ?= spikes/m3-t7-probe/results/mini-soak
+MINI_SOAK_OUT   ?= tools/bench/results/mini-soak
 MINI_SOAK_MODEL ?= ornith9b
 MINI_SOAK_JUDGE ?= granite4.2:3b
 MINI_SOAK_HOURS ?= 1
@@ -72,7 +72,7 @@ MINI_SOAK_ANCHOR ?=
 MINI_SOAK_ARM    ?= full
 MINI_SOAK_CORPUS ?= $(BENCH_DIR)/tasks.yaml
 soak-mini:
-	go run $(GO_TAGS) ./spikes/m3-t7-probe soak \
+	go run $(GO_TAGS) ./tools/bench soak \
 		-model $(MINI_SOAK_MODEL) -arm $(MINI_SOAK_ARM) -corpus $(MINI_SOAK_CORPUS) \
 		-judge-model $(MINI_SOAK_JUDGE) -hours $(MINI_SOAK_HOURS) \
 		-timeout $(MINI_SOAK_TIMEOUT) \
@@ -88,7 +88,7 @@ soak-mini:
 # so budget ~1.3x; kill injection is OFF so models see identical conditions.
 # Use a FRESH SOAK_LADDER_OUT for a clean ladder (a reused tree resumes per model).
 SOAK_LADDER_HOURS  ?= 0.5
-SOAK_LADDER_OUT    ?= spikes/m3-t7-probe/results/ladder
+SOAK_LADDER_OUT    ?= tools/bench/results/ladder
 SOAK_LADDER_ONLY   ?=
 # One job is bounded so a degenerate model cannot consume the whole per-model
 # budget on a single task (the 0.0.0 ladder saw a 33-minute verdict loop).
@@ -126,7 +126,7 @@ corpus-digest-v2:
 
 # The 6-item smoke subset (docs/frozen-corpus-v1.md §8) for engine-surface
 # changes. A fresh output dir by default; set SOAK_SMOKE_OUT to keep the run.
-SOAK_SMOKE_OUT  ?= spikes/m3-t7-probe/results/smoke
+SOAK_SMOKE_OUT  ?= tools/bench/results/smoke
 SOAK_SMOKE_ONLY ?= code-bank-atomic,code-expr-eval,x-code-interpreter,doc-cited-brief,text-level-rewrite,data-json-normalize
 soak-smoke:
 	$(MAKE) soak-mini MINI_SOAK_ONLY=$(SOAK_SMOKE_ONLY) MINI_SOAK_OUT=$(SOAK_SMOKE_OUT)
@@ -138,7 +138,7 @@ soak-smoke:
 # first; a changed model is a changed benchmark, not a sloppy run.
 BENCH_MODEL        ?= ornith9b
 BENCH_JUDGE        ?= granite4.2:3b
-BENCH_OUT          ?= spikes/m3-t7-probe/results/bench-v2
+BENCH_OUT          ?= tools/bench/results/bench-v2
 BENCH_CONFIG       ?= $(BENCH_OUT)/core-config.yaml
 BENCH_STATE_VOLUME ?= athanor-bench-v2-state
 PROBE_IMAGE        ?= athanor-bench:latest
@@ -148,7 +148,7 @@ BENCH_ANCHOR_HOURS ?= 1
 BENCH_ANCHOR_MODELS ?= granite3b gemmae4b granite8b ornith9b gemma12b qwen27b granite30b nemotron30b muse30b ornith35b
 
 bench-verify:
-	go run $(GO_TAGS) ./spikes/m3-t7-probe verify-models -protocol $(BENCH_DIR)/protocol.yaml
+	go run $(GO_TAGS) ./tools/bench verify-models -protocol $(BENCH_DIR)/protocol.yaml
 
 # The Core Pod image plus the probe binary (deploy/bench.Containerfile). The
 # final image is the Core image with /usr/local/bin/athanor-probe added.
@@ -159,7 +159,7 @@ bench-image: core-image
 # must never silently reuse a stale config.
 bench-config:
 	@mkdir -p $(BENCH_OUT)
-	CGO_ENABLED=1 go run $(GO_TAGS) ./spikes/m3-t7-probe config \
+	CGO_ENABLED=1 go run $(GO_TAGS) ./tools/bench config \
 		-model $(BENCH_MODEL) -arm full -judge-model $(BENCH_JUDGE) \
 		-ollama http://host.containers.internal:11434 -addr 127.0.0.1:7420 \
 		-jobpod-image athanor-jobpod:latest \
@@ -285,37 +285,37 @@ bench:
 # PROBE_OUT=/path. `probe-micro` is the fast 3-goal (text/document/code)
 # set; `probe` is the full 10-goal matrix; `probe-judge` scores the
 # collected packets with the third-party judges; `probe-report` aggregates.
-PROBE_OUT ?= spikes/m3-t7-probe/results
+PROBE_OUT ?= tools/bench/results
 
 probe-micro:
-	go run $(GO_TAGS) ./spikes/m3-t7-probe run -only local-first-essay,md2html-readme,todo-list -out $(PROBE_OUT)
+	go run $(GO_TAGS) ./tools/bench run -only local-first-essay,md2html-readme,todo-list -out $(PROBE_OUT)
 
 probe:
-	go run $(GO_TAGS) ./spikes/m3-t7-probe run -out $(PROBE_OUT)
+	go run $(GO_TAGS) ./tools/bench run -out $(PROBE_OUT)
 
 probe-judge:
-	go run $(GO_TAGS) ./spikes/m3-t7-probe judge -out $(PROBE_OUT)
+	go run $(GO_TAGS) ./tools/bench judge -out $(PROBE_OUT)
 
 # F4-T4: score the human-anchor set and report per-judge reliability + rank
 # agreement. Needs the judge models pulled locally.
 probe-anchor:
-	go run $(GO_TAGS) ./spikes/m3-t7-probe anchor -out $(PROBE_OUT)/anchor
+	go run $(GO_TAGS) ./tools/bench anchor -out $(PROBE_OUT)/anchor
 
 # M9-T2b: reduce a results tree + anchor run into onboard measurements.json
 # (with Samples), consumable by `athanor models -qualification`.
 probe-measure:
-	go run $(GO_TAGS) ./spikes/m3-t7-probe measure -out $(PROBE_OUT)
+	go run $(GO_TAGS) ./tools/bench measure -out $(PROBE_OUT)
 
 probe-report:
-	go run $(GO_TAGS) ./spikes/m3-t7-probe report -out $(PROBE_OUT)
+	go run $(GO_TAGS) ./tools/bench report -out $(PROBE_OUT)
 
 # Repair results.json rows the live collector missed (code-goal outcomes land
 # ~10s after the terminal transition). Run after `probe`, before `probe-report`.
 probe-reconcile:
-	go run $(GO_TAGS) ./spikes/m3-t7-probe reconcile -out $(PROBE_OUT)
+	go run $(GO_TAGS) ./tools/bench reconcile -out $(PROBE_OUT)
 
 probe-bundle:
-	go run $(GO_TAGS) ./spikes/m3-t7-probe bundle -out $(PROBE_OUT)
+	go run $(GO_TAGS) ./tools/bench bundle -out $(PROBE_OUT)
 
 # Short fuzz pass (F3-T7) over the security-sensitive parsers. The seed
 # corpora also run as ordinary tests under `make test` (Go executes each

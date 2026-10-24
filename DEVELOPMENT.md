@@ -177,7 +177,7 @@ The full M1 walkthrough is [`docs/demo-m1.md`](docs/demo-m1.md) — it doubles a
 ## M3-T7 quality probe
 
 Measures the dialectical loop (N candidates + deterministic judgment) against a
-single-shot baseline on local models. Code lives in `spikes/m3-t7-probe/`; the
+single-shot baseline on local models. Code lives in `tools/bench/`; the
 protocol is [`docs/probes/m3-t7-quality-probe.md`](docs/probes/m3-t7-quality-probe.md)
 and the results skeleton is
 [`docs/probes/m3-t7-quality-probe-results.md`](docs/probes/m3-t7-quality-probe-results.md).
@@ -193,7 +193,7 @@ make probe-measure   # M9-T2b: reduce results + anchor into onboard measurements
 make probe-report    # aggregate into results/report.md
 ```
 
-Output lands under `spikes/m3-t7-probe/results/` (gitignored); override with
+Output lands under `tools/bench/results/` (gitignored); override with
 `PROBE_OUT=/path`. The runner manages the daemon lifecycle, samples RSS/DB/disk
 to `soak.csv`, bounds each job, and aborts on a wall-time / disk / consecutive-
 error budget. Set `OLLAMA_MAX_LOADED_MODELS=1` and `OLLAMA_NUM_PARALLEL=1`, and
@@ -207,6 +207,7 @@ keep the machine awake on AC (no in-tree power guard until M7).
 | `internal/` | real implementation packages (config, logging, store, power, llm, prompt, job, artifact, project, engine, control, api, server, gate, …) |
 | `migrations/` | embedded forward-only SQL migrations (`NNNN_description.sql`) |
 | `spikes/` | **throwaway** validation code. Prove or kill an idea here, record findings under `docs/`, then implement properly in `internal/`. Spike code never gets imported by `internal/`. |
+| `tools/bench/` | first-class benchmark/soak probe (`athanor-probe`): corpus loading, external scoring, report/leaderboard, memory scripts. A measurement tool, not a product surface. |
 | `docs/adr/` | Architecture Decision Records |
 | `docs/demo-m1.md` | Gate G1 demo script (executable walkthrough) |
 | `docs/probes/` | quality-probe protocols and findings |

@@ -16,7 +16,7 @@
 #   BUDGET_HOURS=24 OLLAMA=http://127.0.0.1:11435 sh scripts/gf4-panel.sh
 set -eu
 
-OUT=${OUT:-spikes/m3-t7-probe/results/gf4}
+OUT=${OUT:-tools/bench/results/gf4}
 OLLAMA=${OLLAMA:-http://127.0.0.1:11435}
 BUDGET_HOURS=${BUDGET_HOURS:-24}
 PANEL_GOALS="local-first-essay,onboarding-email,book-collection,fibonacci,md2html-readme,sunrise-alarm-brief"
@@ -52,7 +52,7 @@ run_gen() {
 	if [ -n "$goals" ]; then
 		set -- "$@" -only "$goals"
 	fi
-	go run -tags sqlite_fts5 ./spikes/m3-t7-probe run "$@"
+	go run -tags sqlite_fts5 ./tools/bench run "$@"
 }
 
 # Core first: full 10-goal set, dialectical runs=3 (T-a/b/c).
@@ -81,7 +81,7 @@ done
 DRIFT_OUT="${OUT}-drift"
 if [ "$(minutes_left)" -gt 0 ] && [ ! -f "$DRIFT_OUT/$CORE/dialectical/results.json" ]; then
 	echo "gf4-panel: drift re-check of $CORE [$(minutes_left) min left]"
-	go run -tags sqlite_fts5 ./spikes/m3-t7-probe run \
+	go run -tags sqlite_fts5 ./tools/bench run \
 		-models "$CORE" -dialectical-runs 1 -judge-mode verifier -judge-model gemma4:12b-mlx \
 		-ollama "$OLLAMA" -out "$DRIFT_OUT" -only "$PANEL_GOALS" \
 		-max-wall 2h -min-free-gb 5

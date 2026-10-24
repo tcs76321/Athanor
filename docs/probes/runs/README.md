@@ -3,7 +3,7 @@
 This directory holds committed copies of the M3-T7 probe's rolling
 `report.md` files — one per run directory — so `v0.0.0` ships with the run
 evidence attached. They are **copies** of generated output; the live tree they
-come from is `spikes/m3-t7-probe/results/`, which is **gitignored** (generated
+come from is `tools/bench/results/`, which is **gitignored** (generated
 configs, daemon logs, packets, the 59 MB of `results.csv`/`soak.csv`/
 `metrics.jsonl`). A fresh clone gets these summaries, not the raw data.
 
@@ -11,7 +11,7 @@ Regenerate the copies after a run:
 
 ```sh
 rsync -a --include='*/' --include='report.md' --exclude='*' \
-  spikes/m3-t7-probe/results/ docs/probes/runs/
+  tools/bench/results/ docs/probes/runs/
 ```
 
 The curated write-ups in `docs/probes/` are the durable record; these files are
@@ -37,7 +37,7 @@ numbers.
 
 ```sh
 make probe-measure            # writes results/measurements.json (onboard.Measurement[])
-athanor models -qualification spikes/m3-t7-probe/results/measurements.json
+athanor models -qualification tools/bench/results/measurements.json
 ```
 
 `measure` records `Samples` per score, so `onboard.Route`'s `MinSamples` guard

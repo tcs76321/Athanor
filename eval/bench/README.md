@@ -178,7 +178,7 @@ human anchor is the fallback for those qualities.
 
 ## Validation
 
-The corpus is guarded by `spikes/m3-t7-probe/corpus_v1_test.go`:
+The corpus is guarded by `tools/bench/corpus_v1_test.go`:
 
 - **Structure:** 70 tasks, unique IDs, the exact archetype/tier spread, a
   `context_demand` on every task, a test or checks on every task, at least one
@@ -197,7 +197,7 @@ The corpus is guarded by `spikes/m3-t7-probe/corpus_v1_test.go`:
   benchmark itself runs in the Job Pod, which has Python).
 
 ```
-CGO_ENABLED=1 go test -tags sqlite_fts5 ./spikes/m3-t7-probe/ -run TestBench -v
+CGO_ENABLED=1 go test -tags sqlite_fts5 ./tools/bench/ -run TestBench -v
 ```
 
 ## Scoring channels

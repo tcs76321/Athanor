@@ -17,7 +17,7 @@ RUN apt-get update \
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN CGO_ENABLED=1 go build -tags sqlite_fts5 -o /out/athanor-probe ./spikes/m3-t7-probe
+RUN CGO_ENABLED=1 go build -tags sqlite_fts5 -o /out/athanor-probe ./tools/bench
 
 FROM athanor-core:latest
 COPY --from=build /out/athanor-probe /usr/local/bin/athanor-probe

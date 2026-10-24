@@ -17,7 +17,7 @@ import (
 // finishes, then re-run `report`.
 func runReconcile(args []string) {
 	fs := flag.NewFlagSet("reconcile", flag.ExitOnError)
-	out := fs.String("out", "spikes/m3-t7-probe/results", "results dir to reconcile")
+	out := fs.String("out", "tools/bench/results", "results dir to reconcile")
 	_ = fs.Parse(args)
 	if err := reconcileDir(*out); err != nil {
 		fmt.Fprintln(os.Stderr, "reconcile:", err)

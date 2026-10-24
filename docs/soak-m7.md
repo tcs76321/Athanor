@@ -51,12 +51,12 @@ frozen corpus version and never tune on its held-out slice
 ```bash
 make build
 make integration-images        # once, only if python:3.12-alpine is absent
-go run -tags sqlite_fts5 ./spikes/m3-t7-probe soak \
+go run -tags sqlite_fts5 ./tools/bench soak \
   -model gemma12b -arm full \
   -corpus eval/bench/tasks.yaml \
   -judge-model granite4.2:3b \
   -hours 8 -kill-after 2h \
-  -out spikes/m3-t7-probe/results/soak-0.0.0
+  -out tools/bench/results/soak-0.0.0
 ```
 
 - `-model gemma12b` is the routed `main` (best generator on the H-tier code
@@ -89,10 +89,10 @@ make soak-mini            # ornith9b, full arm, 1h, one kill -9 at 20m
 which is:
 
 ```bash
-go run -tags sqlite_fts5 ./spikes/m3-t7-probe soak \
+go run -tags sqlite_fts5 ./tools/bench soak \
   -model ornith9b -arm full -corpus eval/bench/tasks.yaml \
   -judge-model granite4.2:3b -hours 1 -kill-after 20m \
-  -out spikes/m3-t7-probe/results/mini-soak
+  -out tools/bench/results/mini-soak
 ```
 
 Override `MINI_SOAK_MODEL`, `MINI_SOAK_JUDGE`, `MINI_SOAK_HOURS`,
@@ -108,13 +108,13 @@ FAIL.
 ```bash
 make build
 # deadline mode (preferred): run until tonight's local midnight, then stop
-go run ./spikes/m3-t7-probe soak \
+go run ./tools/bench soak \
   -model ornith9b -corpus eval/bench/tasks.yaml -until midnight \
   -kill-after 2h -gates -judge-model granite4.2:3b \
-  -out spikes/m3-t7-probe/results/soak-0.0.0
+  -out tools/bench/results/soak-0.0.0
 
 # fixed-duration variant
-go run ./spikes/m3-t7-probe soak -model ornith9b -corpus eval/bench/tasks.yaml -hours 4
+go run ./tools/bench soak -model ornith9b -corpus eval/bench/tasks.yaml -hours 4
 ```
 
 The `soak` subcommand holds **one long-lived daemon** over the bench corpus.
@@ -169,12 +169,12 @@ then aggregate the whole tree:
 ```bash
 for m in granite3b gemmae4b granite8b ornith9b gemma12b \
          qwen27b granite30b nemotron30b muse30b ornith35b; do
-  go run -tags sqlite_fts5 ./spikes/m3-t7-probe soak \
+  go run -tags sqlite_fts5 ./tools/bench soak \
     -model "$m" -arm full -corpus eval/bench/tasks.yaml \
     -judge-model granite4.2:3b -hours 8 \
-    -out spikes/m3-t7-probe/results/ladder/"$m"
+    -out tools/bench/results/ladder/"$m"
 done
-go run -tags sqlite_fts5 ./spikes/m3-t7-probe report -out spikes/m3-t7-probe/results/ladder
+go run -tags sqlite_fts5 ./tools/bench report -out tools/bench/results/ladder
 ```
 
 `report` walks the tree and merges every `results.json`. The rolling
@@ -192,7 +192,7 @@ For a comparison across every matrix model inside a fixed window,
 
 ```bash
 make soak-ladder SOAK_LADDER_HOURS=0.5      # ~7-8h for the 10-model roster
-make probe-report PROBE_OUT=spikes/m3-t7-probe/results/ladder
+make probe-report PROBE_OUT=tools/bench/results/ladder
 ```
 
 A short per-model budget yields a **partial** pass per model: the leaderboard
@@ -226,9 +226,9 @@ aggregated `report.md` are the evidence for the Gate G7 soak arm.
 ## After the run
 
 ```bash
-make probe-report  PROBE_OUT=spikes/m3-t7-probe/results/soak-0.0.0
-make probe-measure PROBE_OUT=spikes/m3-t7-probe/results/soak-0.0.0
-./bin/athanor models -qualification spikes/m3-t7-probe/results/soak-0.0.0/measurements.json
+make probe-report  PROBE_OUT=tools/bench/results/soak-0.0.0
+make probe-measure PROBE_OUT=tools/bench/results/soak-0.0.0
+./bin/athanor models -qualification tools/bench/results/soak-0.0.0/measurements.json
 ```
 
 `probe-report` re-aggregates the rolling `report.md`; `probe-measure` reduces

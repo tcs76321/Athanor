@@ -4,7 +4,7 @@
 ARCHITECTURE §6.2, §9.3, §13.1, §19; ADR-0031 (project execution config),
 ADR-0045/ADR-0058 (verification-first gates), ADR-0061 (bench corpus);
 `internal/project`, `internal/verify`, `internal/engine/verify.go`,
-`eval/bench`, `spikes/m3-t7-probe/checks.go`
+`eval/bench`, `tools/bench/checks.go`
 
 ## Context
 
@@ -18,7 +18,7 @@ anything it cannot parse.
 
 The M9 soak made the gap concrete. The `eval/bench` corpus declares a
 machine-readable `checks:` block per non-code task
-(`spikes/m3-t7-probe/checks.go`, M8-T18/T21) — `required_sections`,
+(`tools/bench/checks.go`, M8-T18/T21) — `required_sections`,
 `strict_section_order`, `exact_paragraphs`, `max_words`, `forbidden_phrases`,
 `must_contain`, `count_alternatives_min`, `count_risks_min` — and scores the
 accepted artifact against it *offline*. But the engine never saw those checks:
@@ -52,7 +52,7 @@ execution config, enforced by a hard verifier.**
   `verifyCandidate`, so both `phaseEvaluate` and `phaseCompare` enforce it
   through the existing `HardDecisive()` path. The API `projectExecution` wire
   type and `athanor project create -checks <json>` expose it.
-- The probe (`spikes/m3-t7-probe`) translates a bench task's `checks:` into the
+- The probe (`tools/bench`) translates a bench task's `checks:` into the
   project's execution config — and, for `data`, maps `json_schema` to
   `data_schema` — so the benchmark's deterministic checks are enforced at
   runtime, not only scored after the fact. The probe keeps its own `runChecks`
@@ -70,7 +70,7 @@ execution config, enforced by a hard verifier.**
   parses whatever the free-text criteria state, while the declared checks are the
   operator's explicit, authoritative set. Both can be present; the declared set
   never weakens a heuristic match into a fail (it is a separate verifier).
-- Matching-rule parity with `spikes/m3-t7-probe/checks.go` is by construction
+- Matching-rule parity with `tools/bench/checks.go` is by construction
   (mirrored helpers) and by test; drift between the two is a benchmark-validity
   bug the tests should catch.
 - `min_distinct_arguments` (corpus `text-argued-essay`) is deliberately **not**

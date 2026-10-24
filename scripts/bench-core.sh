@@ -14,7 +14,7 @@
 set -eu
 
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-out=${BENCH_OUT:-$root/spikes/m3-t7-probe/results/bench-v1}
+out=${BENCH_OUT:-$root/tools/bench/results/bench-v1}
 # Podman treats a relative -v source as a named volume, and volume names cannot
 # contain slashes. Normalize the output/config paths before any mount.
 mkdir -p "$out"

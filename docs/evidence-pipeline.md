@@ -6,7 +6,7 @@
 [ADR-0073](adr/0073-soak-validation-harness.md) (soak harness).
 
 The keystone of ADR-0076: **real use and soaks must share one evidence path.**
-Today the reducer (`spikes/m3-t7-probe/telemetry.go`) and the report/leaderboard
+Today the reducer (`tools/bench/telemetry.go`) and the report/leaderboard
 read a probe results tree, not a daemon state dir. This note specifies the
 smallest surface that makes any state dir readable as evidence.
 

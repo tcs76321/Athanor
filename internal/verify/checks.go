@@ -17,7 +17,7 @@ import (
 // check is authoritative, like a code test run or a JSON Schema.
 //
 // The vocabulary and matching rules mirror eval/bench's `checks:` block
-// (spikes/m3-t7-probe/checks.go), which was the benchmark's offline scorer.
+// (tools/bench/checks.go), which was the benchmark's offline scorer.
 // Promoting it here lets the engine gate at runtime instead of scoring after
 // the fact. The probe keeps its own copy as the *independent* benchmark
 // scorer, so the benchmark never trusts the engine's own verifier.
@@ -123,7 +123,7 @@ func (checksVerifier) Verify(in Input) Verdict {
 }
 
 // checksHeadingRE matches an ATX markdown heading, matching the benchmark's
-// independent scorer exactly (spikes/m3-t7-probe/checks.go).
+// independent scorer exactly (tools/bench/checks.go).
 var checksHeadingRE = regexp.MustCompile(`(?m)^[ \t]*#{1,6}[ \t]+(.+?)[ \t]*$`)
 
 // normalizeCheckName lowercases and trims a heading to its comparable form.
