@@ -82,3 +82,24 @@ mistake them for gaps:
   a caller can tell an envelope miss from a containment denial (known-issues
   O1; [ADR-0019](docs/adr/0019-gateway-tools.md)). No pod-supplied identifier
   may select a data scope — enforced by `internal/gate/gate_scope_test.go`.
+- **The Core Pod is the trust boundary.** The Core runs as root inside its
+  container and holds the Podman socket so it can spawn Job Pods. Compromise of
+  the Core is equivalent to control of every Job Pod and the daemon state.
+  Job Pods never receive the socket (Gate G2 argv test + behavioral probes).
+  On SELinux hosts the socket mount needs `label=disable`; that relaxation
+  applies to the trusted Core, not to Job Pods.
+- **The local API is unauthenticated by design.** It binds loopback only and
+  is guarded by the Host allowlist (DNS rebinding) and the
+  `Sec-Fetch-Site`/`Origin` check (CSRF). Any local process on the machine can
+  drive it; remote access is SSH port forwarding, never an exposed listener.
+- **The model cannot invoke tools** (ADR-0080). The engine runs operations on
+  a candidate; the prompt says so. A text/document artifact that is a
+  tool-call transcript is a model failure, not a capability.
+- **Scanner freshness is an operator concern.** The Core image bakes a ClamAV
+  signature database at build time; a long-lived container should update it
+  (`freshclam`) or rebuild. Scanner absence fails closed (egress blocked /
+  `VerdictUncertain`), never silently clean.
+- **A repository working set is a planned boundary.** When it lands, the Core
+  stages a per-job snapshot under its state directory (read-only mount,
+  `.git`/secret exclusions, size cap); no host repository path is mounted
+  directly. Until then, a Job Pod has no workspace mount beyond `/tmp`.
