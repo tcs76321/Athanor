@@ -11,8 +11,14 @@ import (
 )
 
 // runBackup forces one §23.4 snapshot + retention prune. It operates directly
-// on the state directory (the daemon should be stopped: it holds the database
-// open).
+// on a host state directory (the daemon should be stopped: it holds the
+// database open). For the supported Core Pod runtime, run the same command
+// inside the container instead:
+//
+//	podman exec athanor-core athanor backup -state-dir /var/lib/athanor/state
+//
+// Container-aware host-side backup/restore (copying the volume in and out) is
+// still on the M9-P1 list.
 func runBackup(args []string) error {
 	fs := flag.NewFlagSet("backup", flag.ContinueOnError)
 	stateDir := fs.String("state-dir", "state", "state directory")

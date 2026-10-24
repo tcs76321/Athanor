@@ -41,6 +41,9 @@ func runModels(args []string) error {
 	}
 	probes := newOSProbes()
 	ctx := context.Background()
+	if !probes.InContainer() {
+		cfg = hostDoctorConfig(cfg)
+	}
 
 	models, err := ollamaCatalog(ctx, probes, cfg.Inference.OllamaURL)
 	if err != nil {
