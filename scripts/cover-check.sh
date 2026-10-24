@@ -21,12 +21,25 @@ export CGO_ENABLED
 GO_TAGS="-tags sqlite_fts5"
 
 # "<module-relative package>:<floor percent>" pairs.
+# Floors sit a few points below the measured baseline (2026-10-24) and are
+# raised deliberately when coverage improves; lowering one belongs in the
+# commit message. The engine/store/config/MCE/scheduler/API/UI packages were
+# added in M9-H1 because their rows were previously unfloored.
 FLOORS="
 internal/airlock/paths:60
 internal/gateway:80
 internal/toolenvelope:90
 internal/internalapi:65
 internal/mce/division:78
+internal/engine:75
+internal/store:75
+internal/config:75
+internal/mce:75
+internal/scheduler:70
+internal/api:60
+internal/ui:50
+internal/project:55
+internal/evaluation:55
 "
 
 status=0
