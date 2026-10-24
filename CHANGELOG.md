@@ -33,6 +33,12 @@ New entries are appended at the top. Do not rewrite history.
   [claims table](docs/claims.md).
 - **Coverage floors** for engine/store/config/MCE/scheduler/API/UI/project/
   evaluation (M9-H1); **trust-boundary docs + 0.0.0 audit checklist** (M9-H2).
+- **Repository working set (C1, [ADR-0082](docs/adr/0082-repository-working-set.md)):**
+  a project's tracked files are staged with `git archive HEAD` (secrets and
+  symlinks skipped, 256 MiB cap), mounted read-only at `/workspace/repo`, and
+  copied into a writable `/tmp/work` overlay before `execute_code`/`run_tests`
+  so candidates run against the real project. The snapshot is removed on
+  terminal state; the tmpfs budget is `job_pod.tmpfs_mb` (256 MiB default).
 - **Core Pod is the install/start runtime** (M9-P1): `scripts/install.sh`
   builds the Job Pod and Core images if missing, writes a Core config
   (`athanor init -core` with `job_pod.token_host_dir`), starts the container,

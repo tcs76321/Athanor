@@ -66,3 +66,15 @@ operator's working tree at run time.
 - **Add `read_file`/`write_file` model tools now.** A different decision with
   a larger containment surface; the engine-driven snapshot is the smaller
   first step (ADR-0080).
+
+## Implemented (C1b, 2026-10-24)
+
+`gitClient.Snapshot` stages tracked files with `git archive HEAD` (secrets and
+symlinks skipped, 256 MiB cap); `jobpod.Spec.RepoDir` mounts the snapshot
+read-only at `/workspace/repo`; the pod lifecycle stages it under
+`<state>/scratch/<job>/repo` and removes it on terminal state; `execute_code`
+and `run_tests` copy it into a 256 MiB `/tmp/work` overlay (configurable via
+`job_pod.tmpfs_mb`) before applying the candidate. Covered by
+`cmd/athanor/git_client_test.go`, `internal/jobpod/args_common_test.go`, and
+`cmd/athanor/pod_lifecycle_test.go`. An end-to-end repository task and the boot
+scratch sweep remain.
