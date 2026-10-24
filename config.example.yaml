@@ -10,13 +10,15 @@
 # - Unknown keys are rejected (strict parsing).
 # - If config.yaml is absent, the daemon boots on these defaults and logs a
 #   notice; a present-but-invalid config still fails loudly.
+# - Some fields are parsed but not yet enforced (see the §29 implementation
+#   note in ARCHITECTURE.md and the comments at limits/recovery below).
 
 version: 2
 
 agent:
   active_hours: "00:00-24:00"
   idle_threshold: "5m"
-  max_proactive_tasks_per_day: 10
+  max_proactive_tasks_per_day: 10   # not yet enforced (ARCHITECTURE §29 note)
 
 power:
   require_ac_for_deep_work: true
@@ -30,9 +32,9 @@ power:
   daydream_max_wall_time_minutes: 30
 
 inference:
-  default_backend: ollama
+  default_backend: ollama      # only ollama is implemented; "cloud" is reserved
   ollama_url: "http://127.0.0.1:11434"
-  cloud_enabled: false
+  cloud_enabled: false         # reserved: no cloud client exists in 0.0.0
   cloud_requires_approval: true
   # json_format grammar-constrains the structured judgment phases
   # (evaluating, comparing) via Ollama JSON mode (ADR-0012). true by
@@ -217,11 +219,14 @@ strategy_analysis:
 limits:
   max_concurrent_jobs: 1
   max_concurrent_llm_calls: 1
+  # Not yet enforced (see the ARCHITECTURE §29 note): fetch concurrency,
+  # tasks/hour, and total recoveries/job.
   max_concurrent_fetches: 5
   max_tasks_per_hour: 20
   max_total_recoveries_per_job: 8
 
 recovery:
+  # Not yet enforced (see the ARCHITECTURE §29 note).
   max_tool_call_retries: 2
   max_loop_interventions: 1
   max_context_compactions: 3
@@ -239,7 +244,7 @@ network:
     # with ErrReaderDisabled and callers receive the raw fetched
     # bytes. The default is true; an operator who disables it
     # explicitly opts into raw-HTML handling.
-  browser_mode_requires_approval: true
+  browser_mode_requires_approval: true   # dormant: Browser Mode is deferred
     # M4-T5 deferred, M6 follow-up (ADR-0017 §10):
     # the §21.6 Browser Mode runtime is part of
     # the M6 HITL infrastructure. The flag is
@@ -281,7 +286,7 @@ backup:
   auto: true
   schedule: "0 3 * * *"
   max_local_backups: 10
-  include_workspace_metadata: true
+  include_workspace_metadata: true   # deferred: only the DB is snapshotted
 
 logging:
   level: info
