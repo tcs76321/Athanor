@@ -10,6 +10,33 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Truth, on-ramp, and hardening — 2026-10-24
+
+- **Engine-executed tools are now stated honestly** ([ADR-0080](docs/adr/0080-engine-executed-tools.md)):
+  the prompt no longer promises a model-invoked tool interface; it lists the
+  operations the Core may run and requires artifact-only output. The Dormant
+  Index no longer invites a `context_swap` tool call. A tool-call transcript is
+  the failure class the v1 audit found (`text-e-bio`).
+- **Configuration honesty** (M9-T2a): `limits.max_concurrent_fetches` is
+  enforced; fields that are parsed but not enforced now reject a non-default
+  value (`limits.max_tasks_per_hour`, recovery counters, research floor,
+  dormant security toggles, etc.); `default_backend: cloud` is accepted but
+  warns that no cloud client exists; a drift gate
+  (`internal/config/drift_test.go`) fails on a new dead knob.
+- **A code project starts ready to test** (M9-T4, [ADR-0081](docs/adr/0081-code-archetype-tool-defaults.md)):
+  code tasks carry `execute_code`, `run_tests`, and `lint` as a per-task
+  default; the daemon-wide default stays empty.
+- **`project create` starts its first goal** (M9-T5): no more unrun task;
+  `start: false` creates metadata only.
+- **Doc-truth sweep** (M9-T3): mounts, token lifetime, recovery fields,
+  `O_NOFOLLOW`, artifacts/git wording, cloud status; new
+  [claims table](docs/claims.md).
+- **Coverage floors** for engine/store/config/MCE/scheduler/API/UI/project/
+  evaluation (M9-H1); **trust-boundary docs + 0.0.0 audit checklist** (M9-H2).
+- **Baseline evidence:** [0.0.0-baseline](docs/verification/0.0.0-baseline.md)
+  — `make check` green, 64.7% whole-tree coverage, measured state growth,
+  v2 6-task smoke status.
+
 ### Benchmark v2: the hard H/X corpus — 2026-10-18
 
 - **v2 is the 0.0.0 instrument** ([frozen-corpus-v2.md](docs/frozen-corpus-v2.md),
