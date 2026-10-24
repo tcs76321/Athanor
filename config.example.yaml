@@ -308,7 +308,10 @@ job_pod:
   # git_operation has no route yet (M6). Empty list = "no
   # tools", which is the safe default: the engine still runs
   # the LLM-only phases but no code, tests, network, or memory
-  # tool runs until the operator opts in.
+  # tool runs until the operator opts in. A `code` project's
+  # tasks get execute_code/run_tests/lint as a per-task default
+  # (M9-T4), so code work runs tests without widening this
+  # daemon-wide list.
   default_tools: []
   # Image is the Job Pod base image. The default is intentionally
   # empty: the daemon still boots (LLM-only jobs work) but logs a

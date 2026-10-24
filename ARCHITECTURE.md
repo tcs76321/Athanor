@@ -1522,9 +1522,12 @@ Tools are constrained, audited, and available only to Job Pods and the Core orch
 > `run_tests`, `lint`, `fetch_url`, `search_web`, `context_swap`,
 > `query_memory` — the closed §25 set, each Core-executed behind the per-job
 > envelope. **The model cannot invoke any of them:** the engine decides when to
-> run an operation on a candidate; the prompt states this explicitly. The agent
-> reads repositories today through the M5-T8 indexing pipeline and
-> `query_memory`. **Git-as-undo is live Core-side** (F3-T5,
+> run an operation on a candidate; the prompt states this explicitly. A `code`
+> project's tasks carry `execute_code`, `run_tests`, and `lint` as a per-task
+> default (M9-T4) so the real test command can run; other archetypes stay
+> tool-free unless the operator opts in. The agent reads repositories today
+> through the M5-T8 indexing pipeline and `query_memory`. **Git-as-undo is live
+> Core-side** (F3-T5,
 > [ADR-0030](docs/adr/0030-git-as-undo.md)): accepting an artifact commits it
 > to `.athanor/artifacts/<kind>/<id>` on an `athanor/<project>` branch and
 > records the SHA on the artifact; push is HITL-gated and built (M6-T5,

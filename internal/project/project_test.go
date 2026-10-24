@@ -161,3 +161,45 @@ func TestValidArchetype(t *testing.T) {
 		}
 	}
 }
+
+// TestCodeArchetypeGetsToolDefaults pins M9-T4: a code project's tasks carry
+// the three execution tools so the real test command can run; non-code
+// projects keep the daemon-wide default (no tools) and stay explicit.
+func TestCodeArchetypeGetsToolDefaults(t *testing.T) {
+	r, _ := openRepo(t)
+	ctx := context.Background()
+
+	_, codeTask, err := r.Create(ctx, "code-demo", ArchetypeCode, validGoal, "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := CodeArchetypeTools()
+	if len(codeTask.AllowedTools) != len(want) {
+		t.Fatalf("code task tools = %v, want %v", codeTask.AllowedTools, want)
+	}
+	for i := range want {
+		if codeTask.AllowedTools[i] != want[i] {
+			t.Fatalf("code task tools = %v, want %v", codeTask.AllowedTools, want)
+		}
+	}
+
+	codeProject, _, err := r.Create(ctx, "code-demo-2", ArchetypeCode, validGoal, "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	followUp, err := r.SubmitGoal(ctx, codeProject.ID, "Add a subtract function with tests.", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(followUp.AllowedTools) != len(want) {
+		t.Errorf("follow-up code task tools = %v, want %v", followUp.AllowedTools, want)
+	}
+
+	_, textTask, err := r.Create(ctx, "text-demo", ArchetypeText, validGoal, "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(textTask.AllowedTools) != 0 {
+		t.Errorf("text task tools = %v, want none", textTask.AllowedTools)
+	}
+}

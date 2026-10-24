@@ -12,6 +12,32 @@ import (
 	"github.com/tcs76321/athanor/internal/toolenvelope"
 )
 
+// CodeArchetypeTools is the default per-task tool set for a `code`
+// project (M9-T4). The daemon-wide default stays `[]` (no tools), so
+// network/context tools remain explicit operator decisions; a code task
+// nevertheless needs the three execution tools or its real test command
+// can never run. A task-level override still wins in EnvelopeFor.
+func CodeArchetypeTools() []string {
+	return []string{
+		string(toolenvelope.ToolExecuteCode),
+		string(toolenvelope.ToolRunTests),
+		string(toolenvelope.ToolLint),
+	}
+}
+
+// defaultToolsJSON returns the task's allowed_tools_json default for an
+// archetype. Empty is "[]" so the daemon-wide default applies.
+func defaultToolsJSON(archetype string) (string, error) {
+	if archetype != ArchetypeCode {
+		return "[]", nil
+	}
+	b, err := json.Marshal(CodeArchetypeTools())
+	if err != nil {
+		return "", fmt.Errorf("marshalling code tool defaults: %w", err)
+	}
+	return string(b), nil
+}
+
 // Create makes a project with its first goal and task, atomically.
 // repositoryPath is the §6.1 repository root the M5-T8 indexer walks
 // (ADR-0028); empty means no repository is configured.
@@ -27,6 +53,10 @@ func (r *Repo) Create(ctx context.Context, name, archetype, goal, repositoryPath
 	}
 	projectID, goalID, taskID := ids.New(), ids.New(), ids.New()
 	criteriaJSON, err := marshalCriteria(criteria)
+	if err != nil {
+		return Project{}, Task{}, err
+	}
+	toolsJSON, err := defaultToolsJSON(archetype)
 	if err != nil {
 		return Project{}, Task{}, err
 	}
@@ -54,8 +84,8 @@ func (r *Repo) Create(ctx context.Context, name, archetype, goal, repositoryPath
 	// config.job_pod.default_tools. M2-T4 commit 4 widens the
 	// signature to accept a per-task override.
 	if _, err := tx.ExecContext(ctx,
-		`INSERT INTO tasks (id, project_id, goal_id, title, acceptance_criteria_json) VALUES (?, ?, ?, ?, ?)`,
-		taskID, projectID, goalID, goal, criteriaJSON,
+		`INSERT INTO tasks (id, project_id, goal_id, title, acceptance_criteria_json, allowed_tools_json) VALUES (?, ?, ?, ?, ?, ?)`,
+		taskID, projectID, goalID, goal, criteriaJSON, toolsJSON,
 	); err != nil {
 		return Project{}, Task{}, fmt.Errorf("inserting task: %w", err)
 	}
@@ -79,11 +109,16 @@ func (r *Repo) SubmitGoal(ctx context.Context, projectID, goalText string, crite
 	if err := validateGoalText(goalText); err != nil {
 		return Task{}, err
 	}
-	if _, err := r.Get(ctx, projectID); err != nil {
+	p, err := r.Get(ctx, projectID)
+	if err != nil {
 		return Task{}, err
 	}
 	goalID, taskID := ids.New(), ids.New()
 	criteriaJSON, err := marshalCriteria(criteria)
+	if err != nil {
+		return Task{}, err
+	}
+	toolsJSON, err := defaultToolsJSON(p.Archetype)
 	if err != nil {
 		return Task{}, err
 	}
@@ -101,8 +136,8 @@ func (r *Repo) SubmitGoal(ctx context.Context, projectID, goalText string, crite
 	// allowed_tools_json defaults to '[]' (migration 0005). See Create
 	// above for the M2-T4 commit 4 widening rationale.
 	if _, err := tx.ExecContext(ctx,
-		`INSERT INTO tasks (id, project_id, goal_id, title, acceptance_criteria_json) VALUES (?, ?, ?, ?, ?)`,
-		taskID, projectID, goalID, goalText, criteriaJSON,
+		`INSERT INTO tasks (id, project_id, goal_id, title, acceptance_criteria_json, allowed_tools_json) VALUES (?, ?, ?, ?, ?, ?)`,
+		taskID, projectID, goalID, goalText, criteriaJSON, toolsJSON,
 	); err != nil {
 		return Task{}, fmt.Errorf("inserting task: %w", err)
 	}

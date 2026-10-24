@@ -177,11 +177,12 @@ athanor goal submit -project <ID> -goal "..." -criteria "..."   # optional follo
 command prints the job id to watch. The UI project interview (to build) replaces
 this flow.
 
-> **Code projects need tools.** The shipped default is
-> `job_pod.default_tools: []`. A `code` project must grant
-> `execute_code`, `run_tests`, and `lint` (via config or the per-task
-> override); otherwise tests never run and the code acceptance gate rejects
-> every candidate. This becomes a default at project creation (M9-T4).
+> **Code projects need tools.** The shipped daemon default is
+> `job_pod.default_tools: []`. `project create` and `goal submit` now give a
+> `code` task the three execution tools (`execute_code`, `run_tests`, `lint`)
+> as a per-task default (M9-T4); other archetypes stay tool-free and explicit.
+> Without those tools the real test command cannot run and the code acceptance
+> gate rejects every candidate.
 
 ### C7. Daily review (today)
 

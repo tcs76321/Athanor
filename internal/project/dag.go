@@ -22,11 +22,16 @@ func (r *Repo) CreateDAG(ctx context.Context, projectID, goalText string, criter
 	if err := validateGoalText(goalText); err != nil {
 		return "", nil, err
 	}
-	if _, err := r.Get(ctx, projectID); err != nil {
+	p, err := r.Get(ctx, projectID)
+	if err != nil {
 		return "", nil, err
 	}
 	if len(specs) == 0 {
 		return "", nil, fmt.Errorf("decomposition has no tasks")
+	}
+	toolsJSON, err := defaultToolsJSON(p.Archetype)
+	if err != nil {
+		return "", nil, err
 	}
 
 	// Resolve keys to generated IDs first; this also rejects duplicate
@@ -87,10 +92,10 @@ func (r *Repo) CreateDAG(ctx context.Context, projectID, goalText string, criter
 		}
 		if _, err := tx.ExecContext(ctx,
 			`INSERT INTO tasks (id, project_id, goal_id, parent_task_id, title, description,
-			        depends_on_json, acceptance_criteria_json, budget_json, priority)
-			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			        depends_on_json, acceptance_criteria_json, budget_json, allowed_tools_json, priority)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			idsByKey[s.Key], projectID, goalID, parentID, s.Title, s.Description,
-			string(depsJSON), criteriaJSON, string(budgetJSON), s.Priority,
+			string(depsJSON), criteriaJSON, string(budgetJSON), toolsJSON, s.Priority,
 		); err != nil {
 			return "", nil, fmt.Errorf("inserting task %q: %w", s.Key, err)
 		}
