@@ -38,6 +38,23 @@ func dbBytes(stateDir string) int64 {
 	return total
 }
 
+// dirBytes returns the total size of the regular files under dir. A missing
+// directory is zero. It is used for the non-SQLite growth sources: artifacts,
+// backups, and the per-job repository scratch (E3).
+func dirBytes(dir string) int64 {
+	var total int64
+	_ = filepath.Walk(dir, func(_ string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil
+		}
+		if info.Mode().IsRegular() {
+			total += info.Size()
+		}
+		return nil
+	})
+	return total
+}
+
 // rssKB returns the resident set size (KiB) of a pid using `ps`.
 func rssKB(pid int) (int64, error) {
 	out, err := exec.Command("ps", "-o", "rss=", "-p", strconv.Itoa(pid)).Output()
@@ -90,7 +107,7 @@ func startSoak(runDir string, interval time.Duration, pid int, stateDir, healthU
 		defer func() { _ = f.Close() }()
 		w := csv.NewWriter(f)
 		defer w.Flush()
-		_ = w.Write([]string{"ts", "rss_kb", "db_bytes", "free_gb", "goroutines"})
+		_ = w.Write([]string{"ts", "rss_kb", "db_bytes", "free_gb", "goroutines", "artifacts_bytes", "scratch_bytes", "backups_bytes"})
 		sample := func() {
 			rss, _ := rssKB(pid)
 			free, _ := freeBytes(stateDir)
@@ -101,6 +118,9 @@ func startSoak(runDir string, interval time.Duration, pid int, stateDir, healthU
 				strconv.FormatInt(dbBytes(stateDir), 10),
 				fmt.Sprintf("%.1f", float64(free)/(1<<30)),
 				strconv.Itoa(g),
+				strconv.FormatInt(dirBytes(filepath.Join(stateDir, "artifacts")), 10),
+				strconv.FormatInt(dirBytes(filepath.Join(stateDir, "scratch")), 10),
+				strconv.FormatInt(dirBytes(filepath.Join(stateDir, "backups")), 10),
 			})
 			w.Flush()
 		}
@@ -152,7 +172,7 @@ func soakSummary(path string) string {
 		}
 		return row[i]
 	}
-	var maxRSS, maxDB int64
+	var maxRSS, maxDB, maxArtifacts, maxScratch int64
 	maxG := 0
 	minFree := math.MaxFloat64
 	n := 0
@@ -161,11 +181,19 @@ func soakSummary(path string) string {
 		db, _ := strconv.ParseInt(col(row, "db_bytes"), 10, 64)
 		free, _ := strconv.ParseFloat(col(row, "free_gb"), 64)
 		g, _ := strconv.Atoi(col(row, "goroutines"))
+		art, _ := strconv.ParseInt(col(row, "artifacts_bytes"), 10, 64)
+		scratch, _ := strconv.ParseInt(col(row, "scratch_bytes"), 10, 64)
 		if rss > maxRSS {
 			maxRSS = rss
 		}
 		if db > maxDB {
 			maxDB = db
+		}
+		if art > maxArtifacts {
+			maxArtifacts = art
+		}
+		if scratch > maxScratch {
+			maxScratch = scratch
 		}
 		if g > maxG {
 			maxG = g
@@ -178,8 +206,8 @@ func soakSummary(path string) string {
 	if n == 0 {
 		return ""
 	}
-	return fmt.Sprintf("samples=%d peak_rss=%.0fMB max_db=%.1fMB max_goroutines=%d min_free=%.1fGB",
-		n, float64(maxRSS)/1024, float64(maxDB)/(1<<20), maxG, minFree)
+	return fmt.Sprintf("samples=%d peak_rss=%.0fMB max_db=%.1fMB max_artifacts=%.1fMB max_scratch=%.1fMB max_goroutines=%d min_free=%.1fGB",
+		n, float64(maxRSS)/1024, float64(maxDB)/(1<<20), float64(maxArtifacts)/(1<<20), float64(maxScratch)/(1<<20), maxG, minFree)
 }
 
 // settleOrphanPods waits up to timeout for Job Pod teardown to finish before
