@@ -326,8 +326,10 @@ func createMemoryProject(baseURL, name, archetype string, step memoryStep) (stri
 		ID string `json:"id"`
 	}
 	body := map[string]any{
+		// M9-T5: create metadata only; the memory sequence submits its goals
+		// explicitly (a default-start create would add a duplicate job).
 		"name": name, "archetype": archetype,
-		"goal": step.Goal, "acceptance_criteria": step.Criteria,
+		"goal": step.Goal, "acceptance_criteria": step.Criteria, "start": false,
 	}
 	if err := apiCall("POST", baseURL+"/projects", body, &out); err != nil {
 		return "", err

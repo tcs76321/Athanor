@@ -380,6 +380,17 @@ func (r *runnerConfig) stopDaemon(cmd *exec.Cmd) {
 	}
 }
 
+// projectCreateBody is the probe's project-create payload. start:false is
+// load-bearing: project create starts its first goal by default (M9-T5) and
+// the probe submits the goal explicitly, so the default would run every task
+// twice.
+func projectCreateBody(g sampleGoal, name string) map[string]any {
+	return map[string]any{
+		"name": name, "archetype": g.Archetype, "goal": g.Goal,
+		"acceptance_criteria": g.Criteria, "start": false,
+	}
+}
+
 // runOne submits a single job and collects its metrics. Collection
 // failures are non-fatal: the row still records what the HTTP surface
 // returned.
@@ -395,9 +406,7 @@ func (r *runnerConfig) runOne(g sampleGoal, m probeModel, a arm, run int, stateD
 	var pr struct {
 		ID string `json:"id"`
 	}
-	body := map[string]any{
-		"name": name, "archetype": g.Archetype, "goal": g.Goal, "acceptance_criteria": g.Criteria,
-	}
+	body := projectCreateBody(g, name)
 	// M8-T19 / M9: a repo-backed task indexes a throwaway copy of its source so
 	// the MCE working set (Dormant Index + seeded active chunk, F5/ADR-0059)
 	// carries it into the prompt, and git-as-undo commits into the copy — never
