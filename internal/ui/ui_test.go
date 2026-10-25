@@ -169,6 +169,7 @@ func TestPagesRender(t *testing.T) {
 		{"/ui/projects", "demo"},
 		{"/ui/projects/" + fx.project.ID, "Artifacts"},
 		{"/ui/corrections", "Corrections"},
+		{"/ui/statistics", "captured outcome(s)"},
 		{"/ui/jobs/" + fx.job.ID, "Live output"},
 		{"/ui/artifacts/" + fx.artifact.ID + "/diff", "line TWO"},
 	} {
@@ -180,6 +181,37 @@ func TestPagesRender(t *testing.T) {
 		if !strings.Contains(body, tc.want) {
 			t.Errorf("GET %s body missing %q", tc.path, tc.want)
 		}
+	}
+}
+
+// TestNewEventsAdvancesWatermark pins the M9 bounded-delta contract: a read
+// returns only events after the watermark and advances it.
+func TestNewEventsAdvancesWatermark(t *testing.T) {
+	fx := setup(t)
+	ctx := context.Background()
+	lastID, err := fx.ui.deps.Store.LatestEventID(ctx, store.EventFilter{JobID: fx.job.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := fx.ui.deps.Store.AppendEvent(ctx, store.Event{
+		Category: "jobs", JobID: fx.job.ID, Data: map[string]any{"event": "one"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := fx.ui.deps.Store.AppendEvent(ctx, store.Event{
+		Category: "jobs", JobID: fx.job.ID, Data: map[string]any{"event": "two"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	got := fx.ui.newEvents(ctx, fx.job.ID, &lastID)
+	if len(got) != 2 {
+		t.Fatalf("events = %d, want 2", len(got))
+	}
+	if lastID != got[1].ID {
+		t.Errorf("watermark = %d, want %d", lastID, got[1].ID)
+	}
+	if again := fx.ui.newEvents(ctx, fx.job.ID, &lastID); len(again) != 0 {
+		t.Errorf("second read = %d events, want 0", len(again))
 	}
 }
 
