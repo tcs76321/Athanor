@@ -165,9 +165,11 @@ Then watch it work in real time from the Watch View, or queue it and check the M
 - **Alarms (M7-T3).** The nine §22.3 categories and four levels are persisted
   and monitored; a `critical` alarm freezes the system. `GET /alarms` and
   `athanor alarms [-resolve <id>]` expose the queue. [ADR-0053](docs/adr/0053-alarms.md).
-- **Backups (M7-T4).** Scheduled VACUUM-INTO snapshots with retention
-  (`backup.schedule` / `max_local_backups`), `athanor backup`, and an offline
-  `athanor restore -from <file> -force`. [ADR-0054](docs/adr/0054-backups.md).
+- **Backups (M7-T4; M9-P1d).** Scheduled VACUUM-INTO snapshots with retention
+  (`backup.schedule` / `max_local_backups`), `athanor backup -container
+  athanor-core` (or the host-dev `-state-dir` path), and an offline
+  `athanor restore -container ... -from <file> -force` / host equivalent.
+  [ADR-0054](docs/adr/0054-backups.md).
 - **Morning Digest (M7-T6).** `GET /digest?hours=N` / `athanor digest` summarize
   a window's jobs (with reasons), artifacts, approvals, alarms, daydream
   output, and token usage. [ADR-0055](docs/adr/0055-morning-digest.md).

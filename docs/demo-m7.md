@@ -7,9 +7,8 @@ machine). Commands assume `make build` has run (`./bin/athanor`).
 > **Runtime.** `sh scripts/install.sh` is the supported path (Core Pod:
 > images, config, container, health). The direct `state/` and `sqlite3` commands
 > in this walkthrough are the **host development** path; the Core Pod keeps
-> state in the `athanor-state` volume. Container-aware `backup`/`restore` is
-> still on the P1 list, so use `podman exec athanor-core ...` or the host path
-> until it lands.
+> state in the `athanor-state` volume. `backup`/`restore -container` operate on
+> that volume.
 
 ## 1. Doctor and start
 
@@ -55,9 +54,11 @@ sqlite3 state/athanor.db "SELECT action, started_at FROM daydream_logs ORDER BY 
 ## 6. Backups and restore
 
 ```bash
-./bin/athanor backup -keep 5
-# stop the daemon, then:
-./bin/athanor restore -from state/backups/<snapshot>.db -force
+# Core Pod (supported): snapshot inside the state volume, then copy it out.
+./bin/athanor backup -container athanor-core -keep 5
+podman cp athanor-core:/var/lib/athanor/state/backups/<snapshot>.db .
+podman stop athanor-core
+./bin/athanor restore -container athanor-core -from ./<snapshot>.db -force
 ```
 
 ## 7. Kill switch

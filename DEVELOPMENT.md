@@ -244,9 +244,15 @@ Scheduled backups run from `backup.schedule` (default `0 3 * * *`) and retain
 and restore offline with:
 
 ```bash
-make build
-./bin/athanor backup -state-dir state -keep 10        # force a snapshot
-# stop the daemon first — it holds the database open
+# Core Pod (the supported runtime) — snapshot inside the state volume:
+./bin/athanor backup -container athanor-core -keep 10
+podman cp athanor-core:/var/lib/athanor/state/backups/<snapshot>.db .
+# stop the Core before restore; it holds the database open
+podman stop athanor-core
+./bin/athanor restore -container athanor-core -from ./<snapshot>.db -force
+
+# Host development path (not the supported runtime):
+./bin/athanor backup -state-dir state -keep 10
 ./bin/athanor restore -from state/backups/athanor-v0023-20260101T030000Z.db -force -state-dir state
 ```
 

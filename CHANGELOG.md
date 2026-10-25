@@ -45,7 +45,8 @@ New entries are appended at the top. Do not rewrite history.
   and waits for `/healthz`; `athanor start` defaults to the Core Pod and
   `-host` is the explicit development escape hatch. `--service` writes a unit
   that supervises the container. Smoke-verified on macOS/arm64 (image build,
-  start, health). Container-aware `backup`/`restore`/`models` remain.
+  start, health); `backup`/`restore -container` work against the state volume
+  (verified live), and a boot scratch sweep removes orphaned repo snapshots.
 - **Baseline evidence:** [0.0.0-baseline](docs/verification/0.0.0-baseline.md)
   — `make check` green, 64.7% whole-tree coverage, measured state growth,
   v2 6-task smoke status.

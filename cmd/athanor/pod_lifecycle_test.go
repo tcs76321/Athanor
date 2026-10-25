@@ -123,3 +123,23 @@ func TestPodLifecycleSnapshotFailureStillStartsPod(t *testing.T) {
 		t.Errorf("partial snapshot dir left behind: %v", err)
 	}
 }
+
+func TestClearScratchRemovesOrphans(t *testing.T) {
+	state := t.TempDir()
+	orphan := filepath.Join(state, "scratch", "old-job", "repo", "file.py")
+	if err := os.MkdirAll(filepath.Dir(orphan), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(orphan, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := ClearScratch(state); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(state, "scratch")); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("scratch still present after ClearScratch: %v", err)
+	}
+	if err := ClearScratch(""); err != nil {
+		t.Errorf("ClearScratch(empty) = %v, want nil", err)
+	}
+}

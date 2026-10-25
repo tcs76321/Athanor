@@ -18,7 +18,7 @@ demo. A claim without a proof is either removed or marked as a target.
 | Context floors are never silently reduced | ARCHITECTURE §12.3 | `internal/llm/feasibility.go`, KV pressure tests | proven |
 | The model cannot invoke tools; the engine executes them | ARCHITECTURE §25, ADR-0080 | `internal/prompt/render_test.go`; no tool-call parser | proven |
 | A code project's tasks carry the execution tools | ARCHITECTURE §25, ADR-0081 | `internal/project/project_test.go` | proven |
-| The Core Pod is the only supported runtime | README, ADR-0078 | `install.sh` / `athanor start` now target the container; host `serve` is an explicit dev escape hatch | **proven for install/start**; container-aware backup/restore/models still open |
+| The Core Pod is the only supported runtime | README, ADR-0078 | `install.sh` / `athanor start` target the container; `backup`/`restore -container` and host `doctor`/`models` are wired | **proven for install/start/backup/restore**; fresh-install demo and a Core Pod job remain |
 | A repository working set reaches Job Pods | README coding workflow | staged snapshot mounted read-only at `/workspace/repo`; `/tmp/work` overlay for tests (ADR-0082) | **partial — wiring landed; end-to-end repo task not yet run** |
 | The frozen benchmark is the controlled study | AGENTS, ADR-0075 | v2 corpus exists; full run pending | **partial — smoke only** |
 

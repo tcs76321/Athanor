@@ -120,3 +120,14 @@ func (a *podLifecycleAdapter) Stop(ctx context.Context, jobID string) error {
 	}
 	return nil
 }
+
+// ClearScratch removes every per-job snapshot under <state>/scratch. It runs
+// once at daemon boot: a crash can leave snapshots behind, and a recovered job
+// re-stages its snapshot before the next pod start (ADR-0082). The caller
+// treats a failure as non-fatal; the jobs can still run without a repo.
+func ClearScratch(stateDir string) error {
+	if stateDir == "" {
+		return nil
+	}
+	return os.RemoveAll(filepath.Join(stateDir, "scratch"))
+}

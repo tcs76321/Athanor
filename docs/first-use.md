@@ -213,10 +213,11 @@ this flow.
 ### C9. Backup / stop
 
 ```bash
-athanor backup -keep 5                     # snapshots under <state-dir>/backups
-athanor freeze                             # optional
-# stop the daemon (SIGINT/SIGTERM) or `podman stop <core>`
-# restore (daemon stopped): athanor restore -from <snap>.db -force
+athanor backup -container athanor-core -keep 5   # snapshot inside the state volume
+podman cp athanor-core:/var/lib/athanor/state/backups/<snap>.db .
+athanor freeze                                    # optional
+podman stop athanor-core                          # restore requires a stopped Core
+athanor restore -container athanor-core -from <snap>.db -force
 ```
 
 ---

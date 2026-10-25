@@ -120,6 +120,11 @@ func run(configPath, addr, stateDir string, container bool) error {
 	if err := store.Migrate(st.DB(), migrations.FS, filepath.Join(stateDir, "backups")); err != nil {
 		return fmt.Errorf("migrating database: %w", err)
 	}
+	// ADR-0082: a crash can leave per-job repository snapshots behind. They
+	// are disposable; a recovered job re-stages one before its next pod start.
+	if err := ClearScratch(stateDir); err != nil {
+		fmt.Fprintf(os.Stderr, "athanor: clearing job scratch: %v\n", err)
+	}
 
 	// Kill switch (M1-T6, §22): loads persisted frozen state so a restart
 	// inherits freeze status, never resets it.
