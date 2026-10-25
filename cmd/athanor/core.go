@@ -34,6 +34,7 @@ type coreOptions struct {
 	StateVolume     string
 	WorkspaceVolume string
 	TokenDir        string
+	ScratchDir      string
 	SocketPath      string
 	Addr            string
 }
@@ -50,6 +51,7 @@ func coreRunArgs(o coreOptions) []string {
 		"-v", o.SocketPath + ":/run/podman/podman.sock",
 		"-v", o.StateVolume + ":/var/lib/athanor/state",
 		"-v", o.TokenDir + ":/var/lib/athanor/state/tokens",
+		"-v", o.ScratchDir + ":/var/lib/athanor/state/scratch",
 		"-v", o.WorkspaceVolume + ":/var/lib/athanor/workspace",
 		"-v", o.ConfigPath + ":/etc/athanor/config.yaml:ro",
 		o.Image,
@@ -122,6 +124,9 @@ func coreUp(ctx context.Context, o coreOptions) error {
 		if err := os.MkdirAll(o.TokenDir, 0o700); err != nil {
 			return fmt.Errorf("creating token directory %s: %w", o.TokenDir, err)
 		}
+		if err := os.MkdirAll(o.ScratchDir, 0o755); err != nil {
+			return fmt.Errorf("creating scratch directory %s: %w", o.ScratchDir, err)
+		}
 		if _, stderr, err := client.Run(ctx, coreRunArgs(o)...); err != nil {
 			return fmt.Errorf("starting Core Pod: %w: %s", err, strings.TrimSpace(string(stderr)))
 		}
@@ -154,15 +159,22 @@ func waitCoreHealth(ctx context.Context, addr string) error {
 // start flags. The token host directory must be set: the Core writes tokens
 // into its state volume, while the Podman machine must be able to see the
 // same path for the Job Pod bind mount.
-func coreOptionsFromConfig(cfgTokenDir, configPath, addr, image, name, stateVol, workVol, socket string) (coreOptions, error) {
+func coreOptionsFromConfig(cfgTokenDir, cfgScratchDir, configPath, addr, image, name, stateVol, workVol, socket string) (coreOptions, error) {
 	if cfgTokenDir == "" {
 		return coreOptions{}, fmt.Errorf("job_pod.token_host_dir is empty: set it to a host-visible directory (e.g. ~/.config/athanor/tokens) for Core Pod mode")
+	}
+	if cfgScratchDir == "" {
+		return coreOptions{}, fmt.Errorf("job_pod.scratch_host_dir is empty: set it to a host-visible directory (e.g. ~/.config/athanor/scratch) for Core Pod mode")
 	}
 	absConfig, err := filepath.Abs(configPath)
 	if err != nil {
 		return coreOptions{}, err
 	}
 	absTokens, err := filepath.Abs(cfgTokenDir)
+	if err != nil {
+		return coreOptions{}, err
+	}
+	absScratch, err := filepath.Abs(cfgScratchDir)
 	if err != nil {
 		return coreOptions{}, err
 	}
@@ -173,6 +185,7 @@ func coreOptionsFromConfig(cfgTokenDir, configPath, addr, image, name, stateVol,
 		StateVolume:     stateVol,
 		WorkspaceVolume: workVol,
 		TokenDir:        absTokens,
+		ScratchDir:      absScratch,
 		SocketPath:      socket,
 		Addr:            addr,
 	}, nil

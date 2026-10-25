@@ -115,6 +115,16 @@ func (m *manager) validateSpec(spec Spec) error {
 			}
 		}
 	}
+	if spec.RepoMountDir != "" {
+		if !filepath.IsAbs(spec.RepoMountDir) {
+			return fmt.Errorf("%w: RepoMountDir must be absolute, got %q", ErrInvalidSpec, spec.RepoMountDir)
+		}
+		for _, part := range strings.Split(spec.RepoMountDir, string(filepath.Separator)) {
+			if part == ".." {
+				return fmt.Errorf("%w: RepoMountDir must not traverse, got %q", ErrInvalidSpec, spec.RepoMountDir)
+			}
+		}
+	}
 	return nil
 }
 

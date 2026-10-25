@@ -29,6 +29,7 @@ done
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 ROOT=$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)
 TOKEN_DIR="$CONFIG_DIR/tokens"
+SCRATCH_DIR="$CONFIG_DIR/scratch"
 
 if ! command -v podman >/dev/null 2>&1; then
     echo "athanor: podman is required (rootless mode)" >&2
@@ -86,8 +87,9 @@ if [ ! -x "$PREFIX/athanor" ] || [ "${REBUILD:-0}" = "1" ]; then
     install -m 0755 "$ROOT/bin/athanor" "$PREFIX/athanor"
 fi
 
-mkdir -p "$CONFIG_DIR" "$TOKEN_DIR"
+mkdir -p "$CONFIG_DIR" "$TOKEN_DIR" "$SCRATCH_DIR"
 chmod 700 "$TOKEN_DIR"
+chmod 755 "$SCRATCH_DIR"
 
 if [ "$HOST_MODE" = "1" ]; then
     mkdir -p "$STATE_DIR"
@@ -123,7 +125,7 @@ fi
 # 3. Write a Core Pod config on first install.
 if [ ! -f "$CONFIG_DIR/config.yaml" ]; then
     "$PREFIX/athanor" init -core -out "$CONFIG_DIR/config.yaml" \
-        -token-host-dir "$TOKEN_DIR" -jobpod-image "$JOBPOD_IMAGE"
+        -token-host-dir "$TOKEN_DIR" -scratch-host-dir "$SCRATCH_DIR" -jobpod-image "$JOBPOD_IMAGE"
 fi
 
 # 4. Start (or reuse) the Core Pod. Doctor is run next; it may report

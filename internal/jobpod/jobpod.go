@@ -40,6 +40,11 @@ type Spec struct {
 	// read-only at /workspace/repo (ADR-0082). The caller creates and owns the
 	// snapshot; the manager only mounts it. Empty means no repository mount.
 	RepoDir string
+	// RepoMountDir is the machine-visible source for the repository bind
+	// mount. It defaults to RepoDir (host binary). The Core Pod sets it to the
+	// host path behind the state scratch bind, because the Podman machine
+	// cannot see the Core container's internal path.
+	RepoMountDir string
 	// ResourceLimits is the pids/memory/cpus set applied to the pod.
 	ResourceLimits Limits
 	// Env is the pod's environment. Empty in M2-T2; the token never

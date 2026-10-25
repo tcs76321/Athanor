@@ -29,7 +29,11 @@ func buildArgs(spec Spec) []string {
 	}
 	args = append(args, mountFlags(tokenMount)...)
 	if spec.RepoDir != "" {
-		args = append(args, "--mount", "type=bind,source="+spec.RepoDir+",target=/workspace/repo,ro")
+		repoMount := spec.RepoMountDir
+		if repoMount == "" {
+			repoMount = spec.RepoDir
+		}
+		args = append(args, "--mount", "type=bind,source="+repoMount+",target=/workspace/repo,ro")
 	}
 	// known-issues L11: `--` ends option parsing so the image is always the
 	// first positional argument, even if it begins with '-'.

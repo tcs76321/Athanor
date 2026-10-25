@@ -24,6 +24,7 @@ func runStart(args []string) error {
 	containerName := fs.String("container-name", defaultCoreName, "Core Pod container name")
 	stateVol := fs.String("state-volume", defaultStateVol, "Core Pod state volume")
 	workVol := fs.String("workspace-volume", defaultWorkVol, "Core Pod workspace volume")
+	scratchHost := fs.String("scratch-host-dir", "", "Core Pod: host-visible scratch directory (default: job_pod.scratch_host_dir)")
 	socket := fs.String("socket", "", "Podman socket path (default: resolve from the machine)")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -59,7 +60,11 @@ func runStart(args []string) error {
 	if !allowlistContains(cfg.Network.ExternalAPIHostAllowlist, *addr) {
 		return fmt.Errorf("network.external_api_host_allowlist does not include %s; add it to the config or use the default 127.0.0.1:7420 (the Core would start but reject every request)", *addr)
 	}
-	opts, err := coreOptionsFromConfig(cfg.JobPod.TokenHostDir, *configPath, *addr,
+	scratch := *scratchHost
+	if scratch == "" {
+		scratch = cfg.JobPod.ScratchHostDir
+	}
+	opts, err := coreOptionsFromConfig(cfg.JobPod.TokenHostDir, scratch, *configPath, *addr,
 		*coreImage, *containerName, *stateVol, *workVol, sock)
 	if err != nil {
 		return err

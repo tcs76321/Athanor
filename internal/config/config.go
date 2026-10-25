@@ -740,6 +740,11 @@ type JobPod struct {
 	// TmpfsMB is the writable /tmp size. The repository work tree is copied
 	// there (ADR-0082); 0 uses jobpod's 256 MiB default.
 	TmpfsMB int `yaml:"tmpfs_mb"`
+	// ScratchHostDir is the machine-visible host directory behind the Core
+	// Pod's state scratch mount (ADR-0082). The Core writes snapshots under
+	// <state>/scratch, but the host Podman machine must see the same files to
+	// bind-mount them into a Job Pod. Empty keeps host-binary behavior.
+	ScratchHostDir string `yaml:"scratch_host_dir"`
 }
 
 // JobPodEnvelope returns the per-job default tool envelope. The

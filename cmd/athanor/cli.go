@@ -79,6 +79,7 @@ func runInit(args []string) error {
 	path := fs.String("out", "config.yaml", "where to write the config")
 	core := fs.Bool("core", false, "write a Core Pod config (host.containers.internal Ollama URL + token host dir)")
 	tokenDir := fs.String("token-host-dir", "", "Core Pod: host-visible token directory (default ~/.config/athanor/tokens)")
+	scratchDir := fs.String("scratch-host-dir", "", "Core Pod: host-visible scratch directory (default: next to the config)")
 	jobPodImage := fs.String("jobpod-image", "athanor-jobpod:latest", "Core Pod: Job Pod base image")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -102,6 +103,11 @@ func runInit(args []string) error {
 			dir = filepath.Join(home, ".config", "athanor", "tokens")
 		}
 		cfg.JobPod.TokenHostDir = dir
+		scratch := *scratchDir
+		if scratch == "" {
+			scratch = filepath.Join(filepath.Dir(*path), "scratch")
+		}
+		cfg.JobPod.ScratchHostDir = scratch
 	}
 	raw, err := yaml.Marshal(cfg)
 	if err != nil {

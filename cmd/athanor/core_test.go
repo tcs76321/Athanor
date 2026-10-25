@@ -17,6 +17,7 @@ func TestCoreRunArgs(t *testing.T) {
 		StateVolume:     "athanor-state",
 		WorkspaceVolume: "athanor-workspace",
 		TokenDir:        "/home/u/.config/athanor/tokens",
+		ScratchDir:      "/home/u/.config/athanor/scratch",
 		SocketPath:      "/run/user/1000/podman/podman.sock",
 		Addr:            "127.0.0.1:7420",
 	}
@@ -28,6 +29,7 @@ func TestCoreRunArgs(t *testing.T) {
 		"-v /run/user/1000/podman/podman.sock:/run/podman/podman.sock",
 		"-v athanor-state:/var/lib/athanor/state",
 		"-v /home/u/.config/athanor/tokens:/var/lib/athanor/state/tokens",
+		"-v /home/u/.config/athanor/scratch:/var/lib/athanor/state/scratch",
 		"-v athanor-workspace:/var/lib/athanor/workspace",
 		"-v /home/u/.config/athanor/config.yaml:/etc/athanor/config.yaml:ro",
 		"athanor-core:latest",
@@ -39,10 +41,15 @@ func TestCoreRunArgs(t *testing.T) {
 }
 
 func TestCoreOptionsRequireTokenDir(t *testing.T) {
-	_, err := coreOptionsFromConfig("", "config.yaml", "127.0.0.1:7420",
+	_, err := coreOptionsFromConfig("", "scratch", "config.yaml", "127.0.0.1:7420",
 		"img", "name", "state", "work", "/sock")
 	if err == nil || !strings.Contains(err.Error(), "token_host_dir") {
 		t.Fatalf("coreOptionsFromConfig(empty token dir) = %v, want a token_host_dir error", err)
+	}
+	_, err = coreOptionsFromConfig("tokens", "", "config.yaml", "127.0.0.1:7420",
+		"img", "name", "state", "work", "/sock")
+	if err == nil || !strings.Contains(err.Error(), "scratch_host_dir") {
+		t.Fatalf("coreOptionsFromConfig(empty scratch dir) = %v, want a scratch_host_dir error", err)
 	}
 }
 
@@ -73,8 +80,8 @@ func TestInitCoreWritesContainerConfig(t *testing.T) {
 	if cfg.Inference.OllamaURL != "http://host.containers.internal:11434" {
 		t.Errorf("ollama_url = %q, want the Core Pod alias", cfg.Inference.OllamaURL)
 	}
-	if cfg.JobPod.Image == "" || cfg.JobPod.TokenHostDir != "/tmp/athanor-tokens" {
-		t.Errorf("job_pod = %+v, want image and token host dir", cfg.JobPod)
+	if cfg.JobPod.Image == "" || cfg.JobPod.TokenHostDir != "/tmp/athanor-tokens" || cfg.JobPod.ScratchHostDir == "" {
+		t.Errorf("job_pod = %+v, want image, token host dir, and scratch host dir", cfg.JobPod)
 	}
 }
 

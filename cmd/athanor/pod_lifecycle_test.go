@@ -65,7 +65,7 @@ func TestPodLifecycleStagesRepoAndCleansUp(t *testing.T) {
 	snap := &fakeSnapshotter{}
 	adapter := newPodLifecycle(pods, testLifecycleConfig(),
 		fakeProjectGetter{project: project.Project{RepositoryPath: "/tmp/repo"}},
-		state, snap)
+		state, "/host/scratch", snap)
 
 	if err := adapter.Ensure(context.Background(), "job-1", "proj-1"); err != nil {
 		t.Fatal(err)
@@ -80,6 +80,10 @@ func TestPodLifecycleStagesRepoAndCleansUp(t *testing.T) {
 	if len(pods.specs) != 1 || pods.specs[0].RepoDir != wantDest {
 		t.Fatalf("pod spec = %+v, want RepoDir %q", pods.specs, wantDest)
 	}
+	wantMount := filepath.Join("/host/scratch", "job-1", "repo")
+	if pods.specs[0].RepoMountDir != wantMount {
+		t.Errorf("repo mount = %q, want host-visible %q", pods.specs[0].RepoMountDir, wantMount)
+	}
 	if err := adapter.Stop(context.Background(), "job-1"); err != nil {
 		t.Fatal(err)
 	}
@@ -92,7 +96,7 @@ func TestPodLifecycleNoRepoSkipsSnapshot(t *testing.T) {
 	pods := &fakePodManager{}
 	snap := &fakeSnapshotter{}
 	adapter := newPodLifecycle(pods, testLifecycleConfig(),
-		fakeProjectGetter{project: project.Project{}}, t.TempDir(), snap)
+		fakeProjectGetter{project: project.Project{}}, t.TempDir(), "", snap)
 
 	if err := adapter.Ensure(context.Background(), "job-2", "proj-2"); err != nil {
 		t.Fatal(err)
@@ -111,7 +115,7 @@ func TestPodLifecycleSnapshotFailureStillStartsPod(t *testing.T) {
 	snap := &fakeSnapshotter{err: errors.New("too big")}
 	adapter := newPodLifecycle(pods, testLifecycleConfig(),
 		fakeProjectGetter{project: project.Project{RepositoryPath: "/tmp/big"}},
-		state, snap)
+		state, "", snap)
 
 	if err := adapter.Ensure(context.Background(), "job-3", "proj-3"); err != nil {
 		t.Fatal(err)

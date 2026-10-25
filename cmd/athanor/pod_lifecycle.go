@@ -38,17 +38,18 @@ type podManager interface {
 // terminal state. It is the mirror of podExecutorAdapter — one starts,
 // the other execs; both ride the same manager.
 type podLifecycleAdapter struct {
-	pods     podManager
-	cfg      *config.Config
-	projects projectGetter
-	stateDir string
-	snap     repoSnapshotter
+	pods           podManager
+	cfg            *config.Config
+	projects       projectGetter
+	stateDir       string
+	scratchHostDir string
+	snap           repoSnapshotter
 }
 
 var _ engine.PodLifecycle = (*podLifecycleAdapter)(nil)
 
-func newPodLifecycle(pods podManager, cfg *config.Config, projects projectGetter, stateDir string, snap repoSnapshotter) *podLifecycleAdapter {
-	return &podLifecycleAdapter{pods: pods, cfg: cfg, projects: projects, stateDir: stateDir, snap: snap}
+func newPodLifecycle(pods podManager, cfg *config.Config, projects projectGetter, stateDir, scratchHostDir string, snap repoSnapshotter) *podLifecycleAdapter {
+	return &podLifecycleAdapter{pods: pods, cfg: cfg, projects: projects, stateDir: stateDir, scratchHostDir: scratchHostDir, snap: snap}
 }
 
 // Ensure starts the job's pod unless one already exists. If the project has a
@@ -65,12 +66,13 @@ func (a *podLifecycleAdapter) Ensure(ctx context.Context, jobID, projectID strin
 	if a.cfg.JobPod.Image == "" {
 		return errors.New("job_pod.image is empty; cannot start a Job Pod")
 	}
-	repoDir := a.stageRepo(ctx, jobID, projectID)
+	repoDir, repoMountDir := a.stageRepo(ctx, jobID, projectID)
 	_, err := a.pods.Start(ctx, jobpod.Spec{
-		ID:      jobID,
-		Image:   a.cfg.JobPod.Image,
-		Command: []string{"sleep", "infinity"},
-		RepoDir: repoDir,
+		ID:           jobID,
+		Image:        a.cfg.JobPod.Image,
+		Command:      []string{"sleep", "infinity"},
+		RepoDir:      repoDir,
+		RepoMountDir: repoMountDir,
 		ResourceLimits: jobpod.Limits{
 			PidsLimit: a.cfg.JobPod.PidsLimit,
 			MemoryMB:  a.cfg.JobPod.MemoryMB,
@@ -84,27 +86,33 @@ func (a *podLifecycleAdapter) Ensure(ctx context.Context, jobID, projectID strin
 	return nil
 }
 
-// stageRepo creates the per-job snapshot. It returns "" when the project has
-// no repository, the lookup fails, or the snapshot cannot be staged.
-func (a *podLifecycleAdapter) stageRepo(ctx context.Context, jobID, projectID string) string {
+// stageRepo creates the per-job snapshot. It returns the container-visible
+// snapshot path and, in Core Pod mode, the host-visible bind source the Podman
+// machine can see. Both are empty when the project has no repository, the
+// lookup fails, or the snapshot cannot be staged.
+func (a *podLifecycleAdapter) stageRepo(ctx context.Context, jobID, projectID string) (string, string) {
 	if a.projects == nil || a.snap == nil || a.stateDir == "" {
-		return ""
+		return "", ""
 	}
 	p, err := a.projects.Get(ctx, projectID)
 	if err != nil {
 		slog.Warn("pod lifecycle: loading project for repository snapshot", "job", jobID, "err", err)
-		return ""
+		return "", ""
 	}
 	if p.RepositoryPath == "" {
-		return ""
+		return "", ""
 	}
 	dest := filepath.Join(a.stateDir, "scratch", jobID, "repo")
 	if err := a.snap.Snapshot(ctx, p.RepositoryPath, dest); err != nil {
 		slog.Warn("pod lifecycle: staging repository snapshot", "job", jobID, "repo", p.RepositoryPath, "err", err)
 		_ = os.RemoveAll(dest)
-		return ""
+		return "", ""
 	}
-	return dest
+	mount := ""
+	if a.scratchHostDir != "" {
+		mount = filepath.Join(a.scratchHostDir, jobID, "repo")
+	}
+	return dest, mount
 }
 
 // Stop tears the pod down and removes the job's snapshot. Idempotent: an
