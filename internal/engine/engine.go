@@ -845,7 +845,13 @@ func (e *Engine) auditCat(ctx context.Context, jobID, category string, data map[
 	if e.db == nil {
 		return
 	}
-	if _, err := e.db.AppendEvent(ctx, store.Event{Category: category, JobID: jobID, Data: data}); err != nil {
+	// A phase deadline cancels ctx while the phase is unwinding; an audit row
+	// written during that unwind is still important (it explains why the
+	// phase failed). Detach cancellation but keep the context values, and
+	// bound the write so a stuck DB cannot hold the job goroutine.
+	actx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	defer cancel()
+	if _, err := e.db.AppendEvent(actx, store.Event{Category: category, JobID: jobID, Data: data}); err != nil {
 		slog.Error("engine: appending event", "job", jobID, "category", category, "err", err)
 	}
 }
