@@ -99,7 +99,9 @@ mistake them for gaps:
   signature database at build time; a long-lived container should update it
   (`freshclam`) or rebuild. Scanner absence fails closed (egress blocked /
   `VerdictUncertain`), never silently clean.
-- **A repository working set is a planned boundary.** When it lands, the Core
-  stages a per-job snapshot under its state directory (read-only mount,
-  `.git`/secret exclusions, size cap); no host repository path is mounted
-  directly. Until then, a Job Pod has no workspace mount beyond `/tmp`.
+- **The repository working set is a boundary.** The Core stages a per-job
+  snapshot under its state directory (read-only mount, `.git`/secret
+  exclusions, size cap); no host repository path is mounted directly. In Core
+  Pod mode the snapshot source is a host-visible `job_pod.scratch_host_dir`
+  bind; the Job Pod still sees only the staged snapshot, never the original
+  repository.

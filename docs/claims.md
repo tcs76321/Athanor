@@ -19,7 +19,7 @@ demo. A claim without a proof is either removed or marked as a target.
 | The model cannot invoke tools; the engine executes them | ARCHITECTURE §25, ADR-0080 | `internal/prompt/render_test.go`; no tool-call parser | proven |
 | A code project's tasks carry the execution tools | ARCHITECTURE §25, ADR-0081 | `internal/project/project_test.go` | proven |
 | The Core Pod is the only supported runtime | README, ADR-0078 | `install.sh` / `athanor start` target the container; `backup`/`restore -container` and host `doctor`/`models` are wired | **proven for install/start/backup/restore**; fresh-install demo and a Core Pod job remain |
-| A repository working set reaches Job Pods | README coding workflow | staged snapshot mounted read-only at `/workspace/repo`; `/tmp/work` overlay for tests (ADR-0082) | **partial — wiring landed; end-to-end repo task not yet run** |
+| A repository working set reaches Job Pods | README coding workflow | staged snapshot at `/workspace/repo`; `/tmp/work` overlay; verified by a Core Pod `pytest` asserting the mount (ADR-0082) | **proven** |
 | The frozen benchmark is the controlled study | AGENTS, ADR-0075 | v2 corpus exists; full run pending | **partial — smoke only** |
 
 ## Rule

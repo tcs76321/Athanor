@@ -333,6 +333,11 @@ job_pod:
   # Writable /tmp size (MiB). The repository work tree is copied into
   # /tmp/work, so this must be large enough for the snapshot (ADR-0082).
   tmpfs_mb: 256
+  # Core Pod only: the machine-visible host directory behind the state
+  # scratch bind. The Core writes repo snapshots under <state>/scratch and
+  # the host Podman machine must see the same files to mount them into a
+  # Job Pod. Empty is the host-binary default.
+  scratch_host_dir: ""
 
 airlock:
   # §21.3 file-airlock pipeline (M4-T2/T3/T4; ADR-0015). The

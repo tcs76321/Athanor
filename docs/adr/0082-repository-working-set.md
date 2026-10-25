@@ -74,7 +74,11 @@ symlinks skipped, 256 MiB cap); `jobpod.Spec.RepoDir` mounts the snapshot
 read-only at `/workspace/repo`; the pod lifecycle stages it under
 `<state>/scratch/<job>/repo` and removes it on terminal state; `execute_code`
 and `run_tests` copy it into a 256 MiB `/tmp/work` overlay (configurable via
-`job_pod.tmpfs_mb`) before applying the candidate. Covered by
-`cmd/athanor/git_client_test.go`, `internal/jobpod/args_common_test.go`, and
-`cmd/athanor/pod_lifecycle_test.go`. An end-to-end repository task and the boot
-scratch sweep remain.
+`job_pod.tmpfs_mb`) before applying the candidate. In Core Pod mode the host
+Podman machine cannot see the Core container's internal state path, so
+`job_pod.scratch_host_dir` is bind-mounted at `<state>/scratch` and
+`jobpod.Spec.RepoMountDir` supplies the host-visible source for the Job Pod
+mount. Covered by `cmd/athanor/git_client_test.go`,
+`internal/jobpod/args_common_test.go`, `cmd/athanor/pod_lifecycle_test.go`, and
+an end-to-end Core Pod job whose `pytest` asserted the `/workspace/repo` mount.
+The boot scratch sweep is live.

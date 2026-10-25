@@ -13,8 +13,9 @@ escape hatch. This guide is the supported deployment.
 ## Prerequisites
 
 > **Installer shortcut (M9-P1).** `sh scripts/install.sh` builds the Job Pod
-> and Core images if missing, writes a Core Pod config with a host-visible
-> `job_pod.token_host_dir`, starts the container, and waits for `/healthz`.
+> and Core images if missing, writes a Core Pod config with host-visible
+> `job_pod.token_host_dir` and `job_pod.scratch_host_dir`, starts the
+> container, and waits for `/healthz`.
 > `--service` writes a unit that supervises the existing container. The manual
 > steps below remain the reference for what the installer does and for
 > debugging.
@@ -54,6 +55,7 @@ job_pod:
   # remote podman must see this path on the machine; the Core writes the same
   # files through its token bind mount. See "Run" below.
   token_host_dir: "/Users/you/.config/athanor/tokens"
+  scratch_host_dir: "/Users/you/.config/athanor/scratch"
 ```
 
 `athanor doctor` reports the shape and warns if `ollama_url` does not match it
@@ -76,13 +78,14 @@ publishes only loopback, so the container boundary is the trust boundary.
 ```bash
 SOCK=$(podman machine ssh 'echo $XDG_RUNTIME_DIR')/podman/podman.sock   # macOS
 # Linux: SOCK="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/podman/podman.sock"
-mkdir -p "$HOME/.config/athanor/tokens"
+mkdir -p "$HOME/.config/athanor/tokens" "$HOME/.config/athanor/scratch"
 
 podman run -d --name athanor-core --security-opt label=disable \
   -p 127.0.0.1:7420:7420 \
   -v "$SOCK:/run/podman/podman.sock" \
   -v athanor-state:/var/lib/athanor/state \
   -v "$HOME/.config/athanor/tokens:/var/lib/athanor/state/tokens" \
+  -v "$HOME/.config/athanor/scratch:/var/lib/athanor/state/scratch" \
   -v athanor-workspace:/var/lib/athanor/workspace \
   -v "$HOME/.config/athanor/config.yaml:/etc/athanor/config.yaml:ro" \
   athanor-core:0.0.0
@@ -103,11 +106,13 @@ Platform notes:
   - **The state database must be a named volume.** A host bind for
     `state/` corrupts SQLite/WAL over virtiofs (observed as
     `file is not a database`); named volumes are machine-local and safe.
-  - **The token directory must be a host bind**, because Job Pods are separate
-    containers and the machine must be able to `stat` and mount the per-job
-    token source. Keep only `<state>/tokens` on the bind; never the database.
-  - Set `job_pod.token_host_dir` to the **host** path of that bind (the path the
-    Podman machine sees), not the container path.
+  - **The token and scratch directories must be host binds**, because Job Pods
+    are separate containers and the machine must be able to `stat` and mount
+    the per-job token and repository snapshot sources. Keep only
+    `<state>/tokens` and `<state>/scratch` on their binds; never the database.
+  - Set `job_pod.token_host_dir` and `job_pod.scratch_host_dir` to the **host**
+    paths of those binds (the paths the Podman machine sees), not container
+    paths.
 
 ## Verify
 

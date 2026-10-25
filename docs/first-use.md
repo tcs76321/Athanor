@@ -141,6 +141,7 @@ inference:
 job_pod:
   image: "athanor-jobpod:latest"
   token_host_dir: "/Users/you/.config/athanor/tokens"    # host-visible token bind
+  scratch_host_dir: "/Users/you/.config/athanor/scratch" # host-visible repo snapshot bind
 ```
 
 Edit personas, `limits` (single-slot defaults), `power`, `backup`, `hitl`,

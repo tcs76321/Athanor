@@ -52,8 +52,12 @@ New entries are appended at the top. Do not rewrite history.
   a project's tracked files are staged with `git archive HEAD` (secrets and
   symlinks skipped, 256 MiB cap), mounted read-only at `/workspace/repo`, and
   copied into a writable `/tmp/work` overlay before `execute_code`/`run_tests`
-  so candidates run against the real project. The snapshot is removed on
-  terminal state; the tmpfs budget is `job_pod.tmpfs_mb` (256 MiB default).
+  so candidates run against the real project. In Core Pod mode
+  `job_pod.scratch_host_dir` is the host-visible bind for the snapshot source.
+  The snapshot is removed on terminal state; the tmpfs budget is
+  `job_pod.tmpfs_mb` (256 MiB default). **Proven end-to-end** by a Core Pod
+  `pytest` that asserted the `/workspace/repo` mount; the job completed and
+  committed its artifact.
 - **Core Pod is the install/start runtime** (M9-P1): `scripts/install.sh`
   builds the Job Pod and Core images if missing, writes a Core config
   (`athanor init -core` with `job_pod.token_host_dir`), starts the container,
