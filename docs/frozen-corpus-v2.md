@@ -1,8 +1,9 @@
 # Frozen benchmark v2 (0.0.0) — the hard H/X corpus
 
-**Status:** frozen (v2, cut 2026-10-18) · **Refs:**
+**Status:** frozen (v2, cut 2026-10-18; first full run 2026-10-25) · **Refs:**
 [ADR-0075](adr/0075-frozen-corpus-compass.md) (frozen benchmark, amendment),
 [bench-v1-findings.md](bench-v1-findings.md) (the pilot audit),
+[bench-v2-findings.md](probes/bench-v2-findings.md) (first full run),
 [`eval/bench/v2/`](../eval/bench/v2/) (the corpus).
 
 v2 is the **0.0.0 benchmark**. The v1 corpus at `eval/bench/` remains the
@@ -82,6 +83,17 @@ task’s real test command. A broken reference fails the test, not a model run.
   (31%). Never used for tuning.
 - **Anchor:** 12 H tasks in `eval/bench/v2/anchor.yaml`; all tuning-only.
 - The v1 anchor/pilot is not used as the v2 headline.
+
+## First full run (2026-10-25)
+
+**30/41 (73%) deterministic** on the canonical `ornith-1.5:9b` persona set:
+H 24/26 (92%), X 6/15 (40%), held-out 6/10 (60%), tuning 24/31 (77%);
+code 12/18 (all H; 0/6 X), document 13/13, text 5/5, data 0/5. Code accepts
+were **12/12 deterministic** (no LLM judge). 1 h 39 m, 763k tokens.
+
+Full tables, mechanism metrics, caveats, and next steps:
+[bench-v2-findings.md](probes/bench-v2-findings.md); raw outputs under
+[`docs/probes/runs/bench-v2-20261025/`](probes/runs/bench-v2-20261025/).
 
 ## Run
 

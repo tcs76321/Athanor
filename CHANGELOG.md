@@ -10,6 +10,21 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Benchmark v2 — first full run (2026-10-25)
+
+- **30/41 deterministic (73%)** on the canonical 9B set: **H 24/26 (92%)**,
+  **X 6/15 (40%)**, held-out 6/10, tuning 24/31; code 12/18 (all H; X code
+  0/6), document 13/13, text 5/5, data 0/5. **12/12 code accepts were
+  deterministic** (no LLM judge). 1 h 39 m, 763k tokens.
+- **Harness fix found while running:** `project create` now starts its first
+  goal (M9-T5), but the probe also submitted the same goal, creating two jobs
+  per task. The probe now creates with `start: false`; the contaminated run is
+  archived, not evidence.
+- **Audit fix:** event writes are detached from a canceled phase context, so a
+  deadline no longer loses the post-mortem row.
+- Findings: [bench-v2-findings.md](docs/probes/bench-v2-findings.md); raw
+  outputs: [runs/bench-v2-20261025](docs/probes/runs/bench-v2-20261025/).
+
 ### Truth, on-ramp, and hardening — 2026-10-24
 
 - **Engine-executed tools are now stated honestly** ([ADR-0080](docs/adr/0080-engine-executed-tools.md)):

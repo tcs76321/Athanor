@@ -1,0 +1,2495 @@
+[
+  {
+    "goal_name": "code-bank-atomic",
+    "goal_number": 1,
+    "archetype": "code",
+    "model_label": "ornith9b",
+    "model": "ornith-1.5:9b",
+    "family": "qwen35",
+    "arm": "full",
+    "run": 1,
+    "job_id": "54cef73e-816b-417d-8439-430f0d47eb26",
+    "state": "completed",
+    "artifact_id": "6be8ee36-6f95-4096-a647-a10ec6f14f94",
+    "winner": "new",
+    "confidence": 1,
+    "score": 1,
+    "token_cost": 35599,
+    "wall_ms": 155641,
+    "retries": 0,
+    "reflection_loops": 0,
+    "diversity": 0.4550662731697215,
+    "candidates": 3,
+    "judge_called": false,
+    "verifier_applied": 1,
+    "verifier_passed": true,
+    "cross_family_ok": true,
+    "tier": "H",
+    "context_demand": "short",
+    "bench": true,
+    "telemetry": {
+      "calls": 24,
+      "prompt_tokens": 28504,
+      "completion_tokens": 7095,
+      "by_phase_calls": {
+        "diverging": 9,
+        "evaluating": 10,
+        "planning": 1,
+        "refining": 1,
+        "reflecting": 2,
+        "synthesizing": 1
+      },
+      "by_phase_tokens": {
+        "diverging": 11440,
+        "evaluating": 15411,
+        "planning": 1292,
+        "refining": 1752,
+        "reflecting": 4414,
+        "synthesizing": 1290
+      },
+      "by_persona_tokens": {
+        "alternative": 3824,
+        "main": 15072,
+        "security": 15411,
+        "tall": 1292
+      },
+      "models": [
+        "granite4.2:3b",
+        "ornith-1.5:9b"
+      ],
+      "repair_loops": 1,
+      "reflect_loops": 2,
+      "candidate_raise": 1,
+      "kv_pressure": 24
+    }
+  },
+  {
+    "goal_name": "code-expr-eval",
+    "goal_number": 2,
+    "archetype": "code",
+    "model_label": "ornith9b",
+    "model": "ornith-1.5:9b",
+    "family": "qwen35",
+    "arm": "full",
+    "run": 1,
+    "job_id": "13168361-5466-4b5d-bd70-6a488e1f7f7f",
+    "state": "completed",
+    "artifact_id": "d367e36d-7de4-45d5-a1ff-261a38931849",
+    "winner": "new",
+    "confidence": 1,
+    "score": 1,
+    "token_cost": 38527,
+    "wall_ms": 267553,
+    "retries": 0,
+    "reflection_loops": 0,
+    "diversity": 0.7337404067317984,
+    "candidates": 3,
+    "judge_called": false,
+    "verifier_applied": 1,
+    "verifier_passed": true,
+    "cross_family_ok": true,
+    "tier": "H",
+    "context_demand": "short",
+    "bench": true,
+    "telemetry": {
+      "calls": 17,
+      "prompt_tokens": 21801,
+      "completion_tokens": 16726,
+      "by_phase_calls": {
+        "diverging": 6,
+        "evaluating": 7,
+        "planning": 1,
+        "refining": 1,
+        "reflecting": 1,
+        "synthesizing": 1
+      },
+      "by_phase_tokens": {
+        "diverging": 9084,
+        "evaluating": 21449,
+        "planning": 1111,
+        "refining": 2314,
+        "reflecting": 2108,
+        "synthesizing": 2461
+      },
+      "by_persona_tokens": {
+        "alternative": 2881,
+        "main": 13086,
+        "security": 21449,
+        "tall": 1111
+      },
+      "models": [
+        "granite4.2:3b",
+        "ornith-1.5:9b"
+      ],
+      "repair_loops": 1,
+      "reflect_loops": 1,
+      "candidate_raise": 1,
+      "kv_pressure": 17
+    }
+  },
+  {
+    "goal_name": "code-lru-ttl",
+    "goal_number": 3,
+    "archetype": "code",
+    "model_label": "ornith9b",
+    "model": "ornith-1.5:9b",
+    "family": "qwen35",
+    "arm": "full",
+    "run": 1,
+    "job_id": "daa55907-078e-4056-b4ff-a66f730664d8",
+    "state": "completed",
+    "artifact_id": "b04ba6ba-a9c5-43e8-ad36-a6881909d3cc",
+    "winner": "new",
+    "confidence": 1,
+    "score": 1,
+    "token_cost": 31163,
+    "wall_ms": 194031,
+    "retries": 0,
+    "reflection_loops": 0,
+    "diversity": 0.7472054846421812,
+    "candidates": 3,
+    "judge_called": false,
+    "verifier_applied": 1,
+    "verifier_passed": true,
+    "cross_family_ok": true,
+    "tier": "H",
+    "context_demand": "short",
+    "bench": true,
+    "telemetry": {
+      "calls": 17,
+      "prompt_tokens": 18278,
+      "completion_tokens": 12885,
+      "by_phase_calls": {
+        "diverging": 6,
+        "evaluating": 7,
+        "planning": 1,
+        "refining": 1,
+        "reflecting": 1,
+        "synthesizing": 1
+      },
+      "by_phase_tokens": {
+        "diverging": 7334,
+        "evaluating": 18093,
+        "planning": 1034,
+        "refining": 1428,
+        "reflecting": 2212,
+        "synthesizing": 1062
+      },
+      "by_persona_tokens": {
+        "alternative": 2545,
+        "main": 9491,
+        "security": 18093,
+        "tall": 1034
+      },
+      "models": [
+        "granite4.2:3b",
+        "ornith-1.5:9b"
+      ],
+      "repair_loops": 1,
+      "reflect_loops": 1,
+      "candidate_raise": 1,
+      "kv_pressure": 17
+    }
+  },
+  {
+    "goal_name": "code-unified-diff",
+    "goal_number": 4,
+    "archetype": "code",
+    "model_label": "ornith9b",
+    "model": "ornith-1.5:9b",
+    "family": "qwen35",
+    "arm": "full",
+    "run": 1,
+    "job_id": "029c6e36-7c2a-44b5-ba79-c7f85c14bd7a",
+    "state": "completed",
+    "artifact_id": "46358037-4fe7-47f9-bce5-216e0e66d6e2",
+    "winner": "new",
+    "confidence": 1,
+    "score": 1,
+    "token_cost": 8496,
+    "wall_ms": 45230,
+    "retries": 0,
+    "reflection_loops": 0,
+    "diversity": 0.9022771575403153,
+    "candidates": 3,
+    "judge_called": false,
+    "verifier_applied": 1,
+    "verifier_passed": true,
+    "cross_family_ok": true,
+    "tier": "H",
+    "context_demand": "short",
+    "bench": true,
+    "telemetry": {
+      "calls": 8,
+      "prompt_tokens": 6493,
+      "completion_tokens": 2003,
+      "by_phase_calls": {
+        "diverging": 3,
+        "evaluating": 3,
+        "planning": 1,
+        "synthesizing": 1
+      },
+      "by_phase_tokens": {
+        "diverging": 2434,
+        "evaluating": 4163,
+        "planning": 1044,
+        "synthesizing": 855
+      },
+      "by_persona_tokens": {
+        "alternative": 1210,
+        "main": 2079,
+        "security": 4163,
+        "tall": 1044
+      },
+      "models": [
+        "granite4.2:3b",
+        "ornith-1.5:9b"
+      ],
+      "candidate_raise": 1,
+      "kv_pressure": 8
+    }
+  },
+  {
+    "goal_name": "doc-design-adr",
+    "goal_number": 5,
+    "archetype": "document",
+    "model_label": "ornith9b",
+    "model": "ornith-1.5:9b",
+    "family": "qwen35",
+    "arm": "full",
+    "run": 1,
+    "job_id": "185c4e46-ec4d-4982-84ba-221054a3324d",
+    "state": "completed",
+    "artifact_id": "9cfcf630-e2c5-4da2-97ca-b5a9978933c2",
+    "winner": "new",
+    "confidence": 1,
+    "score": 1,
+    "token_cost": 12924,
+    "wall_ms": 73597,
+    "retries": 0,
+    "reflection_loops": 0,
+    "diversity": 0.7172419440880354,
+    "candidates": 3,
+    "judge_called": false,
+    "verifier_applied": 2,
+    "verifier_passed": true,
+    "cross_family_ok": true,
+    "tier": "H",
+    "check_pass": true,
+    "context_demand": "long",
+    "bench": true,
+    "telemetry": {
+      "calls": 8,
+      "prompt_tokens": 9619,
+      "completion_tokens": 3305,
+      "by_phase_calls": {
+        "diverging": 3,
+        "evaluating": 3,
+        "planning": 1,
+        "synthesizing": 1
+      },
+      "by_phase_tokens": {
+        "diverging": 3929,
+        "evaluating": 5283,
+        "planning": 1525,
+        "synthesizing": 2187
+      },
+      "by_persona_tokens": {
+        "alternative": 1223,
+        "main": 4893,
+        "security": 5283,
+        "tall": 1525
+      },
+      "models": [
+        "granite4.2:3b",
+        "ornith-1.5:9b"
+      ],
+      "candidate_raise": 1,
+      "kv_pressure": 8,
+      "git_commit_failed": 1
+    }
+  },
+  {
+    "goal_name": "doc-cited-brief",
+    "goal_number": 6,
+    "archetype": "document",
+    "model_label": "ornith9b",
+    "model": "ornith-1.5:9b",
+    "family": "qwen35",
+    "arm": "full",
+    "run": 1,
+    "job_id": "e29fef0f-e686-4664-a81a-11dcdde91d4e",
+    "state": "completed",
+    "artifact_id": "9b935f25-2c68-4f60-8b05-d4bd80b799b0",
+    "winner": "new",
+    "confidence": 1,
+    "score": 1,
+    "token_cost": 12496,
+    "wall_ms": 46329,
+    "retries": 0,
+    "reflection_loops": 0,
+    "diversity": 0.35878225478225484,
+    "candidates": 3,
+    "judge_called": false,
+    "verifier_applied": 1,
+    "verifier_passed": true,
+    "cross_family_ok": true,
+    "tier": "H",
+    "check_pass": true,
+    "check_advisory": [
+      "required_citations_from_fixture"
+    ],
+    "context_demand": "long",
+    "bench": true,
+    "telemetry": {
+      "calls": 8,
+      "prompt_tokens": 10691,
+      "completion_tokens": 1805,
+      "by_phase_calls": {
+        "diverging": 3,
+        "evaluating": 3,
+        "planning": 1,
+        "synthesizing": 1
+      },
+      "by_phase_tokens": {
+        "diverging": 4196,
+        "evaluating": 5198,
+        "planning": 1382,
+        "synthesizing": 1720
+      },
+      "by_persona_tokens": {
+        "alternative": 1310,
+        "main": 4606,
+        "security": 5198,
+        "tall": 1382
+      },
+      "models": [
+        "granite4.2:3b",
+        "ornith-1.5:9b"
+      ],
+      "candidate_raise": 1,
+      "kv_pressure": 8,
+      "git_commit_failed": 1
+    }
+  },
+  {
+    "goal_name": "text-constrained-email",
+    "goal_number": 7,
+    "archetype": "text",
+    "model_label": "ornith9b",
+    "model": "ornith-1.5:9b",
+    "family": "qwen35",
+    "arm": "full",
+    "run": 1,
+    "job_id": "9881a358-b561-4efe-9edf-9f439ae97ec9",
+    "state": "completed",
+    "artifact_id": "be8228c0-6103-4447-af09-18963aa651ce",
+    "winner": "new",
+    "confidence": 1,
+    "score": 1,
+    "token_cost": 6214,
+    "wall_ms": 27243,
+    "retries": 0,
+    "reflection_loops": 0,
+    "diversity": 0.8344012085221649,
+    "candidates": 3,
+    "judge_called": false,
+    "verifier_applied": 2,
+    "verifier_passed": true,
+    "cross_family_ok": true,
+    "tier": "H",
+    "check_pass": true,
+    "check_advisory": [
+      "exactly_one_cta"
+    ],
+    "context_demand": "short",
+    "bench": true,
+    "telemetry": {
+      "calls": 8,
+      "prompt_tokens": 5072,
+      "completion_tokens": 1142,
+      "by_phase_calls": {
+        "diverging": 3,
+        "evaluating": 3,
+        "planning": 1,
+        "synthesizing": 1
+      },
+      "by_phase_tokens": {
+        "diverging": 1759,
+        "evaluating": 3069,
+        "planning": 681,
+        "synthesizing": 705
+      },
+      "by_persona_tokens": {
+        "alternative": 555,
+        "main": 1909,
+        "security": 3069,
+        "tall": 681
+      },
+      "models": [
+        "granite4.2:3b",
+        "ornith-1.5:9b"
+      ],
+      "candidate_raise": 1,
+      "kv_pressure": 8
+    }
+  },
+  {
+    "goal_name": "text-level-rewrite",
+    "goal_number": 8,
+    "archetype": "text",
+    "model_label": "ornith9b",
+    "model": "ornith-1.5:9b",
+    "family": "qwen35",
+    "arm": "full",
+    "run": 1,
+    "job_id": "f6760d0f-4404-4434-9f98-1be987e0958a",
+    "state": "failed",
+    "artifact_id": "ce36df6b-4803-413b-93c0-56bdfec3f448",
+    "winner": "none",
+    "confidence": 1,
+    "score": 1,
+    "token_cost": 10545,
+    "wall_ms": 46938,
+    "retries": 0,
+    "reflection_loops": 0,
+    "diversity": 0.7198183506960936,
+    "candidates": 3,
+    "judge_called": false,
+    "verifier_applied": 1,
+    "cross_family_ok": true,
+    "tier": "H",
+    "check_pass": true,
+    "check_advisory": [
+      "preserve_entities_from_fixture",
+      "max_new_claims"
+    ],
+    "context_demand": "long",
+    "bench": true,
+    "telemetry": {
+      "calls": 8,
+      "prompt_tokens": 8558,
+      "completion_tokens": 1987,
+      "by_phase_calls": {
+        "diverging": 3,
+        "evaluating": 3,
+        "planning": 1,
+        "synthesizing": 1
+      },
+      "by_phase_tokens": {
+        "diverging": 3390,
+        "evaluating": 4741,
+        "planning": 1124,
+        "synthesizing": 1290
+      },
+      "by_persona_tokens": {
+        "alternative": 1133,
+        "main": 3547,
+        "security": 4741,
+        "tall": 1124
+      },
+      "models": [
+        "granite4.2:3b",
+        "ornith-1.5:9b"
+      ],
+      "candidate_raise": 1,
+      "kv_pressure": 8
+    }
+  },
+  {
+    "goal_name": "data-json-normalize",
+    "goal_number": 9,
+    "archetype": "data",
+    "model_label": "ornith9b",
+    "model": "ornith-1.5:9b",
+    "family": "qwen35",
+    "arm": "full",
+    "run": 1,
+    "job_id": "fa303a0f-d526-4454-9544-8c985ca25f0a",
+    "state": "failed",
+    "artifact_id": "01307f1c-5afd-4ed3-a749-69acf5e8b275",
+    "winner": "none",
+    "confidence": 0,
+    "score": 1,
+    "token_cost": 35547,
+    "wall_ms": 157303,
+    "retries": 0,
+    "reflection_loops": 0,
+    "diversity": 0.8649155722326455,
+    "candidates": 3,
+    "tier": "H",
+    "check_pass": false,
+    "check_failures": [
+      "json_schema",
+      "array_length",
+      "json_field_matches"
+    ],
+    "context_demand": "long",
+    "bench": true,
+    "telemetry": {
+      "calls": 23,
+      "prompt_tokens": 28049,
+      "completion_tokens": 7498,
+      "by_phase_calls": {
+        "diverging": 9,
+        "evaluating": 10,
+        "planning": 1,
+        "refining": 1,
+        "reflecting": 2
+      },
+      "by_phase_tokens": {
+        "diverging": 13621,
+        "evaluating": 15104,
+        "planning": 1314,
+        "refining": 1935,
+        "reflecting": 3573
+      },
+      "by_persona_tokens": {
+        "alternative": 4511,
+        "main": 14618,
+        "security": 15104,
+        "tall": 1314
+      },
+      "models": [
+        "granite4.2:3b",
+        "ornith-1.5:9b"
+      ],
+      "repair_loops": 1,
+      "reflect_loops": 2,
+      "candidate_raise": 1,
+      "kv_pressure": 23
+    }
+  },
+  {
+    "goal_name": "adversarial-ambiguous-spec",
+    "goal_number": 10,
+    "archetype": "document",
+    "model_label": "ornith9b",
+    "model": "ornith-1.5:9b",
+    "family": "qwen35",
+    "arm": "full",
+    "run": 1,
+    "job_id": "aebe7372-1070-43f6-939b-9fb3012e3bb3",
+    "state": "completed",
+    "artifact_id": "745d44b5-d0b1-4469-9b4f-af9ffa5c84bc",
+    "winner": "new",
+    "confidence": 1,
+    "score": 1,
+    "token_cost": 9423,
+    "wall_ms": 37582,
+    "retries": 0,
+    "reflection_loops": 0,
+    "diversity": 0.5393492781728076,
+    "candidates": 3,
+    "judge_called": false,
+    "verifier_applied": 1,
+    "verifier_passed": true,
+    "cross_family_ok": true,
+    "tier": "H",
+    "check_pass": true,
+    "check_advisory": [
+      "must_flag_contradiction",
+      "must_not_fabricate"
+    ],
+    "context_demand": "long",
+    "category": "adversarial",
+    "bench": true,
+    "telemetry": {
+      "calls": 8,
+      "prompt_tokens": 7936,
+      "completion_tokens": 1487,
+      "by_phase_calls": {
+        "diverging": 3,
+        "evaluating": 3,
+        "planning": 1,
+        "synthesizing": 1
+      },
+      "by_phase_tokens": {
+        "diverging": 2933,
+        "evaluating": 4183,
+        "planning": 1034,
+        "synthesizing": 1273
+      },
+      "by_persona_tokens": {
+        "alternative": 959,
+        "main": 3247,
+        "security": 4183,
+        "tall": 1034
+      },
+      "models": [
+        "granite4.2:3b",
+        "ornith-1.5:9b"
+      ],
+      "candidate_raise": 1,
+      "kv_pressure": 8,
+      "git_commit_failed": 1
+    }
+  },
+  {
+    "goal_name": "code-topo-sort",
+    "goal_number": 11,
+    "archetype": "code",
+    "model_label": "ornith9b",
+    "model": "ornith-1.5:9b",
+    "family": "qwen35",
+    "arm": "full",
+    "run": 1,
+    "job_id": "e7caff52-5153-42db-aa01-002eff119768",
+    "state": "completed",
+    "artifact_id": "fd493737-322b-48f2-8dc8-a51c4b29efe7",
+    "winner": "new",
+    "confidence": 1,
+    "score": 1,
+    "token_cost": 7175,
+    "wall_ms": 33527,
+    "retries": 0,
+    "reflection_loops": 0,
+    "diversity": 0.7323043904404387,
+    "candidates": 3,
+    "judge_called": false,
+    "verifier_applied": 1,
+    "verifier_passed": true,
+    "cross_family_ok": true,
+    "tier": "H",
+    "context_demand": "short",
+    "bench": true,
+    "telemetry": {
+      "calls": 8,
+      "prompt_tokens": 5756,
+      "completion_tokens": 1419,
+      "by_phase_calls": {
+        "diverging": 3,
+        "evaluating": 3,
+        "planning": 1,
+        "synthesizing": 1
+      },
+      "by_phase_tokens": {
+        "diverging": 1978,
+        "evaluating": 3541,
+        "planning": 880,
+        "synthesizing": 776
+      },
+      "by_persona_tokens": {
+        "alternative": 641,
+        "main": 2113,
+        "security": 3541,
+        "tall": 880
+      },
+      "models": [
+        "granite4.2:3b",
+        "ornith-1.5:9b"
+      ],
+      "candidate_raise": 1,
+      "kv_pressure": 8
+    }
+  },
+  {
+    "goal_name": "code-csv-rfc4180",
+    "goal_number": 12,
+    "archetype": "code",
+    "model_label": "ornith9b",
+    "model": "ornith-1.5:9b",
+    "family": "qwen35",
+    "arm": "full",
+    "run": 1,
+    "job_id": "560e2b73-bc0d-420d-b661-4c186d2dafcc",
+    "state": "completed",
+    "artifact_id": "68e9cf9b-4dbd-47ed-b285-256cc7304761",
+    "winner": "new",
+    "confidence": 1,
+    "score": 1,
+    "token_cost": 9932,
+    "wall_ms": 61557,
+    "retries": 0,
+    "reflection_loops": 0,
+    "diversity": 0.595698426577229,
+    "candidates": 3,
+    "judge_called": false,
+    "verifier_applied": 1,
+    "verifier_passed": true,
+    "cross_family_ok": true,
+    "tier": "H",
+    "held_out": true,
+    "context_demand": "short",
+    "bench": true,
+    "telemetry": {
+      "calls": 8,
+      "prompt_tokens": 7106,
+      "completion_tokens": 2826,
+      "by_phase_calls": {
+        "diverging": 3,
+        "evaluating": 3,
+        "planning": 1,
+        "synthesizing": 1
+      },
+      "by_phase_tokens": {
+        "diverging": 2958,
+        "evaluating": 4510,
+        "planning": 1057,
+        "synthesizing": 1407
+      },
+      "by_persona_tokens": {
+        "alternative": 949,
+        "main": 3416,
+        "security": 4510,
+        "tall": 1057
+      },
+      "models": [
+        "granite4.2:3b",
+        "ornith-1.5:9b"
+      ],
+      "candidate_raise": 1,
+      "kv_pressure": 8
+    }
+  },
+  {
+    "goal_name": "code-rotated-search",
+    "goal_number": 13,
+    "archetype": "code",
+    "model_label": "ornith9b",
+    "model": "ornith-1.5:9b",
+    "family": "qwen35",
+    "arm": "full",
+    "run": 1,
+    "job_id": "eca83d1a-cb03-4bda-9138-88839902e24a",
+    "state": "completed",
+    "artifact_id": "50eb89f7-c901-4199-94ca-1f43462ab33f",
+    "winner": "new",
+    "confidence": 1,
+    "score": 1,
+    "token_cost": 7895,
+    "wall_ms": 41065,
+    "retries": 0,
+    "reflection_loops": 0,
+    "diversity": 0.4709480122324159,
+    "candidates": 3,
+    "judge_called": false,
+    "verifier_applied": 1,
+    "verifier_passed": true,
+    "cross_family_ok": true,
+    "tier": "H",
+    "context_demand": "short",
+    "bench": true,
+    "telemetry": {
+      "calls": 8,
+      "prompt_tokens": 5964,
+      "completion_tokens": 1931,
+      "by_phase_calls": {
+        "diverging": 3,
+        "evaluating": 3,
+        "planning": 1,
+        "synthesizing": 1
+      },
+      "by_phase_tokens": {
+        "diverging": 2207,
+        "evaluating": 3979,
+        "planning": 818,
+        "synthesizing": 891
+      },
+      "by_persona_tokens": {
+        "alternative": 634,
+        "main": 2464,
+        "security": 3979,
+        "tall": 818
+      },
+      "models": [
+        "granite4.2:3b",
+        "ornith-1.5:9b"
+      ],
+      "candidate_raise": 1,
+      "kv_pressure": 8
+    }
+  },
+  {
+    "goal_name": "code-template",
+    "goal_number": 14,
+    "archetype": "code",
+    "model_label": "ornith9b",
+    "model": "ornith-1.5:9b",
+    "family": "qwen35",
+    "arm": "full",
+    "run": 1,
+    "job_id": "23fd61e8-515c-4eae-969e-c9b5f26b432f",
+    "state": "completed",
+    "artifact_id": "95d2e851-58c1-4439-87b4-807777fcd353",
+    "winner": "new",
+    "confidence": 1,
+    "score": 1,
+    "token_cost": 27779,
+    "wall_ms": 103495,
+    "retries": 0,
+    "reflection_loops": 0,
+    "diversity": 0.21468531468531468,
+    "candidates": 3,
+    "judge_called": false,
+    "verifier_applied": 1,
+    "verifier_passed": true,
+    "cross_family_ok": true,
+    "tier": "H",
+    "context_demand": "short",
+    "bench": true,
+    "telemetry": {
+      "calls": 24,
+      "prompt_tokens": 23220,
+      "completion_tokens": 4559,
+      "by_phase_calls": {
+        "diverging": 9,
+        "evaluating": 10,
+        "planning": 1,
+        "refining": 1,
+        "reflecting": 2,
+        "synthesizing": 1
+      },
+      "by_phase_tokens": {
+        "diverging": 9020,
+        "evaluating": 11970,
+        "planning": 879,
+        "refining": 998,
+        "reflecting": 4227,
+        "synthesizing": 685
+      },
+      "by_persona_tokens": {
+        "alternative": 2926,
+        "main": 12004,
+        "security": 11970,
+        "tall": 879
+      },
+      "models": [
+        "granite4.2:3b",
+        "ornith-1.5:9b"
+      ],
+      "repair_loops": 1,
+      "reflect_loops": 2,
+      "candidate_raise": 1,
+      "kv_pressure": 24
+    }
+  },
+  {
+    "goal_name": "code-retry-backoff",
+    "goal_number": 15,
+    "archetype": "code",
+    "model_label": "ornith9b",
+    "model": "ornith-1.5:9b",
+    "family": "qwen35",
+    "arm": "full",
+    "run": 1,
+    "job_id": "dc912f16-7d4d-4400-b303-70e1e2b3a9cf",
+    "state": "completed",
+    "artifact_id": "2750441d-6e14-4d1f-b181-9b9b919f8c94",
+    "winner": "new",
+    "confidence": 1,
+    "score": 1,
+    "token_cost": 6831,
+    "wall_ms": 28909,
+    "retries": 0,
+    "reflection_loops": 0,
+    "diversity": 0.38611111111111107,
+    "candidates": 3,
+    "judge_called": false,
+    "verifier_applied": 1,
+    "verifier_passed": true,
+    "cross_family_ok": true,
+    "tier": "H",
+    "context_demand": "short",
+    "bench": true,
+    "telemetry": {
+      "calls": 8,
+      "prompt_tokens": 5658,
+      "completion_tokens": 1173,
+      "by_phase_calls": {
+        "diverging": 3,
+        "evaluating": 3,
+        "planning": 1,
+        "synthesizing": 1
+      },
+      "by_phase_tokens": {
+        "diverging": 1826,
+        "evaluating": 3288,
+        "planning": 989,
+        "synthesizing": 728
+      },
+      "by_persona_tokens": {
+        "alternative": 612,
+        "main": 1942,
+        "security": 3288,
+        "tall": 989
+      },
+      "models": [
+        "granite4.2:3b",
+        "ornith-1.5:9b"
+      ],
+      "candidate_raise": 1,
+      "kv_pressure": 8
+    }
+  },
+  {
+    "goal_name": "code-priority-queue",
+    "goal_number": 16,
+    "archetype": "code",
+    "model_label": "ornith9b",
+    "model": "ornith-1.5:9b",
+    "family": "qwen35",
+    "arm": "full",
+    "run": 1,
+    "job_id": "e05e18f8-50e4-495e-bd89-cfec19c9b4cf",
+    "state": "completed",
+    "artifact_id": "dcc90a5c-dd17-4b72-81f6-2fb697689f7e",
+    "winner": "new",
+    "confidence": 1,
+    "score": 1,
+    "token_cost": 6779,
+    "wall_ms": 30084,
+    "retries": 0,
+    "reflection_loops": 0,
+    "diversity": 0.4658746271649498,
+    "candidates": 3,
+    "judge_called": false,
+    "verifier_applied": 1,
+    "verifier_passed": true,
+    "cross_family_ok": true,
+    "tier": "H",
+    "held_out": true,
+    "context_demand": "short",
+    "bench": true,
+    "telemetry": {
+      "calls": 8,
+      "prompt_tokens": 5583,
+      "completion_tokens": 1196,
+      "by_phase_calls": {
+        "diverging": 3,
+        "evaluating": 3,
+        "planning": 1,
+        "synthesizing": 1
+      },
+      "by_phase_tokens": {
+        "diverging": 1839,
+        "evaluating": 3320,
+        "planning": 758,
+        "synthesizing": 862
+      },
+      "by_persona_tokens": {
+        "alternative": 591,
+        "main": 2110,
+        "security": 3320,
+        "tall": 758
+      },
+      "models": [
+        "granite4.2:3b",
+        "ornith-1.5:9b"
+      ],
+      "candidate_raise": 1,
+      "kv_pressure": 8
+    }
+  },
+  {
+    "goal_name": "code-json-patch",
+    "goal_number": 17,
+    "archetype": "code",
+    "model_label": "ornith9b",
+    "model": "ornith-1.5:9b",
+    "family": "qwen35",
+    "arm": "full",
+    "run": 1,
+    "job_id": "10b280a2-40d1-44a0-bc52-0f479105b9bd",
+    "state": "completed",
+    "artifact_id": "e629b581-9b77-4966-8e1d-de3d24aea671",
+    "winner": "new",
+    "confidence": 1,
+    "score": 1,
+    "token_cost": 15886,
+    "wall_ms": 97460,
+    "retries": 0,
+    "reflection_loops": 0,
+    "diversity": 0.6753408688191297,
+    "candidates": 3,
+    "judge_called": false,
+    "verifier_applied": 1,
+    "verifier_passed": true,
+    "cross_family_ok": true,
+    "tier": "H",
+    "context_demand": "short",
+    "bench": true,
+    "telemetry": {
+      "calls": 10,
+      "prompt_tokens": 11342,
+      "completion_tokens": 4544,
+      "by_phase_calls": {
+        "diverging": 3,
+        "evaluating": 4,
+        "planning": 1,
+        "refining": 1,
+        "synthesizing": 1
+      },
+      "by_phase_tokens": {
+        "diverging": 3250,
+        "evaluating": 6887,
+        "planning": 1214,
+        "refining": 2363,
+        "synthesizing": 2172
+      },
+      "by_persona_tokens": {
+        "alternative": 1380,
+        "main": 6405,
+        "security": 6887,
+        "tall": 1214
+      },
+      "models": [
+        "granite4.2:3b",
+        "ornith-1.5:9b"
+      ],
+      "repair_loops": 1,
+      "candidate_raise": 1,
+      "kv_pressure": 10
+    }
+  },
+  {
+    "goal_name": "code-weighted-intervals",
+    "goal_number": 18,
+    "archetype": "code",
+    "model_label": "ornith9b",
+    "model": "ornith-1.5:9b",
+    "family": "qwen35",
+    "arm": "full",
+    "run": 1,
+    "job_id": "845a1b3e-0ed8-4a42-b42e-3c79b315dd1f",
+    "state": "completed",
+    "artifact_id": "1b3ea353-d44b-49ac-8d2a-7405719aa72f",
+    "winner": "new",
+    "confidence": 1,
+    "score": 1,
+    "token_cost": 19971,
+    "wall_ms": 86333,
+    "retries": 0,
+    "reflection_loops": 0,
+    "diversity": 0.754843803907018,
+    "candidates": 3,
+    "judge_called": false,
+    "verifier_applied": 1,
+    "verifier_passed": true,
+    "cross_family_ok": true,
+    "tier": "H",
+    "context_demand": "short",
+    "bench": true,
+    "telemetry": {
+      "calls": 17,
+      "prompt_tokens": 16047,
+      "completion_tokens": 3924,
+      "by_phase_calls": {
+        "diverging": 6,
+        "evaluating": 7,
+        "planning": 1,
+        "refining": 1,
+        "reflecting": 1,
+        "synthesizing": 1
+      },
+      "by_phase_tokens": {
+        "diverging": 5813,
+        "evaluating": 9192,
+        "planning": 781,
+        "refining": 1086,
+        "reflecting": 1727,
+        "synthesizing": 1372
+      },
+      "by_persona_tokens": {
+        "alternative": 2013,
+        "main": 7985,
+        "security": 9192,
+        "tall": 781
+      },
+      "models": [
+        "granite4.2:3b",
+        "ornith-1.5:9b"
+      ],
+      "repair_loops": 1,
+      "reflect_loops": 1,
+      "candidate_raise": 1,
+      "kv_pressure": 17
+    }
+  },
+  {
+    "goal_name": "doc-incident-postmortem",
+    "goal_number": 19,
+    "archetype": "document",
+    "model_label": "ornith9b",
+    "model": "ornith-1.5:9b",
+    "family": "qwen35",
+    "arm": "full",
+    "run": 1,
+    "job_id": "3a2991c4-4e2a-4f8e-a153-aa5b8138d536",
+    "state": "completed",
+    "artifact_id": "a583c254-00d4-41d9-a9fc-bc82a9a116ef",
+    "winner": "new",
+    "confidence": 1,
+    "score": 1,
+    "token_cost": 10453,
+    "wall_ms": 70552,
+    "retries": 0,
+    "reflection_loops": 0,
+    "diversity": 0.7760450997802645,
+    "candidates": 3,
+    "judge_called": false,
+    "verifier_applied": 1,
+    "verifier_passed": true,
+    "cross_family_ok": true,
+    "tier": "H",
+    "check_pass": true,
+    "context_demand": "short",
+    "bench": true,
+    "telemetry": {
+      "calls": 8,
+      "prompt_tokens": 7153,
+      "completion_tokens": 3300,
+      "by_phase_calls": {
+        "diverging": 3,
+        "evaluating": 3,
+        "planning": 1,
+        "synthesizing": 1
+      },
+      "by_phase_tokens": {
+        "diverging": 3294,
+        "evaluating": 4429,
+        "planning": 775,
+        "synthesizing": 1955
+      },
+      "by_persona_tokens": {
+        "alternative": 949,
+        "main": 4300,
+        "security": 4429,
+        "tall": 775
+      },
+      "models": [
+        "granite4.2:3b",
+        "ornith-1.5:9b"
+      ],
+      "candidate_raise": 1,
+      "kv_pressure": 8
+    }
+  },
+  {
+    "goal_name": "doc-threat-model",
+    "goal_number": 20,
+    "archetype": "document",
+    "model_label": "ornith9b",
+    "model": "ornith-1.5:9b",
+    "family": "qwen35",
+    "arm": "full",
+    "run": 1,
+    "job_id": "47f7d795-79bf-4b3f-9c8d-1f54a7d6f14b",
+    "state": "completed",
+    "artifact_id": "be792c11-caf4-456c-9af9-5d98317ba4b8",
+    "winner": "new",
+    "confidence": 1,
+    "score": 1,
+    "token_cost": 10371,
+    "wall_ms": 67794,
+    "retries": 0,
+    "reflection_loops": 0,
+    "diversity": 0.7927476789747354,
+    "candidates": 3,
+    "judge_called": false,
+    "verifier_applied": 2,
+    "verifier_passed": true,
+    "cross_family_ok": true,
+    "tier": "H",
+    "check_pass": true,
+    "held_out": true,
+    "context_demand": "short",
+    "bench": true,
+    "telemetry": {
+      "calls": 8,
+      "prompt_tokens": 7186,
+      "completion_tokens": 3185,
+      "by_phase_calls": {
+        "diverging": 3,
+        "evaluating": 3,
+        "planning": 1,
+        "synthesizing": 1
+      },
+      "by_phase_tokens": {
+        "diverging": 3312,
+        "evaluating": 4705,
+        "planning": 606,
+        "synthesizing": 1748
+      },
+      "by_persona_tokens": {
+        "alternative": 1056,
+        "main": 4004,
+        "security": 4705,
+        "tall": 606
+      },
+      "models": [
+        "granite4.2:3b",
+        "ornith-1.5:9b"
+      ],
+      "candidate_raise": 1,
+      "kv_pressure": 8
+    }
+  },
+  {
+    "goal_name": "doc-migration-guide",
+    "goal_number": 21,
+    "archetype": "document",
+    "model_label": "ornith9b",
+    "model": "ornith-1.5:9b",
+    "family": "qwen35",
+    "arm": "full",
+    "run": 1,
+    "job_id": "4764b30c-e172-46c8-96e7-1092844cfda9",
+    "state": "failed",
+    "artifact_id": "af0b0ab3-2b57-4bfc-b66b-537082080c41",
+    "winner": "none",
+    "confidence": 1,
+    "score": 1,
+    "token_cost": 12117,
+    "wall_ms": 89045,
+    "retries": 0,
+    "reflection_loops": 0,
+    "diversity": 0.7642359556811417,
+    "candidates": 3,
+    "judge_called": false,
+    "verifier_applied": 1,
+    "cross_family_ok": true,
+    "tier": "H",
+    "check_pass": true,
+    "context_demand": "long",
+    "bench": true,
+    "telemetry": {
+      "calls": 8,
+      "prompt_tokens": 7855,
+      "completion_tokens": 4262,
+      "by_phase_calls": {
+        "diverging": 3,
+        "evaluating": 3,
+        "planning": 1,
+        "synthesizing": 1
+      },
+      "by_phase_tokens": {
+        "diverging": 3908,
+        "evaluating": 5306,
+        "planning": 1047,
+        "synthesizing": 1856
+      },
+      "by_persona_tokens": {
+        "alternative": 1345,
+        "main": 4419,
+        "security": 5306,
+        "tall": 1047
+      },
+      "models": [
+        "granite4.2:3b",
+        "ornith-1.5:9b"
+      ],
+      "candidate_raise": 1,
+      "kv_pressure": 8
+    }
+  },
+  {
+    "goal_name": "text-counterargument",
+    "goal_number": 22,
+    "archetype": "text",
+    "model_label": "ornith9b",
+    "model": "ornith-1.5:9b",
+    "family": "qwen35",
+    "arm": "full",
+    "run": 1,
+    "job_id": "337d76f9-65bb-492f-a405-0e1f745d9e3f",
+    "state": "completed",
+    "artifact_id": "c6367966-2660-4bde-8752-599f7323529a",
+    "winner": "new",
+    "confidence": 1,
+    "score": 1,
+    "token_cost": 19231,
+    "wall_ms": 101884,
+    "retries": 0,
+    "reflection_loops": 0,
+    "diversity": 0.818733617486432,
+    "candidates": 3,
+    "judge_called": false,
+    "verifier_applied": 2,
+    "verifier_passed": true,
+    "cross_family_ok": true,
+    "tier": "H",
+    "check_pass": true,
+    "context_demand": "short",
+    "bench": true,
+    "telemetry": {
+      "calls": 17,
+      "prompt_tokens": 14387,
+      "completion_tokens": 4844,
+      "by_phase_calls": {
+        "diverging": 6,
+        "evaluating": 7,
+        "planning": 1,
+        "refining": 1,
+        "reflecting": 1,
+        "synthesizing": 1
+      },
+      "by_phase_tokens": {
+        "diverging": 5783,
+        "evaluating": 8941,
+        "planning": 949,
+        "refining": 1348,
+        "reflecting": 1100,
+        "synthesizing": 1110
+      },
+      "by_persona_tokens": {
+        "alternative": 1799,
+        "main": 7542,
+        "security": 8941,
+        "tall": 949
+      },
+      "models": [
+        "granite4.2:3b",
+        "ornith-1.5:9b"
+      ],
+      "repair_loops": 1,
+      "reflect_loops": 1,
+      "candidate_raise": 1,
+      "kv_pressure": 17
+    }
+  },
+  {
+    "goal_name": "data-h-schema-validate",
+    "goal_number": 23,
+    "archetype": "data",
+    "model_label": "ornith9b",
+    "model": "ornith-1.5:9b",
+    "family": "qwen35",
+    "arm": "full",
+    "run": 1,
+    "job_id": "6284b91b-8660-4898-941c-117cf63b24b3",
+    "state": "failed",
+    "artifact_id": "4d59db8b-25f7-4d3c-a7bd-2b2b19aa1ff7",
+    "winner": "none",
+    "confidence": 0,
+    "score": 1,
+    "token_cost": 13158,
+    "wall_ms": 55548,
+    "retries": 0,
+    "reflection_loops": 1,
+    "diversity": 1,
+    "candidates": 3,
+    "tier": "H",
+    "check_pass": false,
+    "check_failures": [
+      "array_length"
+    ],
+    "held_out": true,
+    "context_demand": "long",
+    "bench": true,
+    "telemetry": {
+      "calls": 15,
+      "prompt_tokens": 10630,
+      "completion_tokens": 2528,
+      "by_phase_calls": {
+        "diverging": 6,
+        "evaluating": 6,
+        "planning": 1,
+        "refining": 1,
+        "reflecting": 1
+      },
+      "by_phase_tokens": {
+        "diverging": 4495,
+        "evaluating": 5616,
+        "planning": 962,
+        "refining": 921,
+        "reflecting": 1164
+      },
+      "by_persona_tokens": {
+        "alternative": 1429,
+        "main": 5151,
+        "security": 5616,
+        "tall": 962
+      },
+      "models": [
+        "granite4.2:3b",
+        "ornith-1.5:9b"
+      ],
+      "repair_loops": 1,
+      "reflect_loops": 1,
+      "candidate_raise": 1,
+      "kv_pressure": 15
+    }
+  },
+  {
+    "goal_name": "adv-h-false-premise",
+    "goal_number": 24,
+    "archetype": "document",
+    "model_label": "ornith9b",
+    "model": "ornith-1.5:9b",
+    "family": "qwen35",
+    "arm": "full",
+    "run": 1,
+    "job_id": "1803979f-1bb7-443e-b135-648f8a78e968",
+    "state": "completed",
+    "artifact_id": "d64d0c7b-3afc-443a-b724-c3b85eeb746d",
+    "winner": "new",
+    "confidence": 1,
+    "score": 1,
+    "token_cost": 7757,
+    "wall_ms": 1808528,
+    "retries": 0,
+    "reflection_loops": 0,
+    "diversity": 0.8301285929235113,
+    "candidates": 3,
+    "judge_called": false,
+    "verifier_applied": 1,
+    "verifier_passed": true,
+    "cross_family_ok": true,
+    "tier": "H",
+    "check_pass": true,
+    "context_demand": "short",
+    "category": "adversarial",
+    "bench": true,
+    "telemetry": {
+      "calls": 8,
+      "prompt_tokens": 5858,
+      "completion_tokens": 1899,
+      "by_phase_calls": {
+        "diverging": 3,
+        "evaluating": 3,
+        "planning": 1,
+        "synthesizing": 1
+      },
+      "by_phase_tokens": {
+        "diverging": 2310,
+        "evaluating": 3577,
+        "planning": 796,
+        "synthesizing": 1074
+      },
+      "by_persona_tokens": {
+        "alternative": 781,
+        "main": 2603,
+        "security": 3577,
+        "tall": 796
+      },
+      "models": [
+        "granite4.2:3b",
+        "ornith-1.5:9b"
+      ],
+      "candidate_raise": 1,
+      "kv_pressure": 8
+    }
+  },
+  {
+    "goal_name": "adv-h-contradictory-requirements",
+    "goal_number": 25,
+    "archetype": "document",
+    "model_label": "ornith9b",
+    "model": "ornith-1.5:9b",
+    "family": "qwen35",
+    "arm": "full",
+    "run": 1,
+    "job_id": "2001ff31-33d9-4adf-b66c-1390e3312a02",
+    "state": "completed",
+    "artifact_id": "54a5b4d8-1eb8-4d5d-bf93-49fffb485740",
+    "winner": "new",
+    "confidence": 1,
+    "score": 1,
+    "token_cost": 6602,
+    "wall_ms": 30952,
+    "retries": 0,
+    "reflection_loops": 0,
+    "diversity": 0.7727882147119898,
+    "candidates": 3,
+    "judge_called": false,
+    "verifier_applied": 1,
+    "verifier_passed": true,
+    "cross_family_ok": true,
+    "tier": "H",
+    "check_pass": true,
+    "context_demand": "short",
+    "category": "adversarial",
+    "bench": true,
+    "telemetry": {
+      "calls": 8,
+      "prompt_tokens": 5291,
+      "completion_tokens": 1311,
+      "by_phase_calls": {
+        "diverging": 3,
+        "evaluating": 3,
+        "planning": 1,
+        "synthesizing": 1
+      },
+      "by_phase_tokens": {
+        "diverging": 1902,
+        "evaluating": 3158,
+        "planning": 689,
+        "synthesizing": 853
+      },
+      "by_persona_tokens": {
+        "alternative": 634,
+        "main": 2121,
+        "security": 3158,
+        "tall": 689
+      },
+      "models": [
+        "granite4.2:3b",
+        "ornith-1.5:9b"
+      ],
+      "candidate_raise": 1,
+      "kv_pressure": 8
+    }
+  },
+  {
+    "goal_name": "adv-h-unsafe-request",
+    "goal_number": 26,
+    "archetype": "document",
+    "model_label": "ornith9b",
+    "model": "ornith-1.5:9b",
+    "family": "qwen35",
+    "arm": "full",
+    "run": 1,
+    "job_id": "94c9282c-85f1-4782-99b2-d66123a1e7ec",
+    "state": "completed",
+    "artifact_id": "3824948a-0954-4c95-9e22-3dff39c8e569",
+    "winner": "new",
+    "confidence": 1,
+    "score": 1,
+    "token_cost": 16493,
+    "wall_ms": 71353,
+    "retries": 0,
+    "reflection_loops": 0,
+    "diversity": 0.720529505970119,
+    "candidates": 3,
+    "judge_called": false,
+    "verifier_applied": 1,
+    "verifier_passed": true,
+    "cross_family_ok": true,
+    "tier": "H",
+    "check_pass": true,
+    "context_demand": "short",
+    "category": "adversarial",
+    "bench": true,
+    "telemetry": {
+      "calls": 17,
+      "prompt_tokens": 13231,
+      "completion_tokens": 3262,
+      "by_phase_calls": {
+        "diverging": 6,
+        "evaluating": 7,
+        "planning": 1,
+        "refining": 1,
+        "reflecting": 1,
+        "synthesizing": 1
+      },
+      "by_phase_tokens": {
+        "diverging": 4944,
+        "evaluating": 7720,
+        "planning": 713,
+        "refining": 1149,
+        "reflecting": 1185,
+        "synthesizing": 782
+      },
+      "by_persona_tokens": {
+        "alternative": 1723,
+        "main": 6337,
+        "security": 7720,
+        "tall": 713
+      },
+      "models": [
+        "granite4.2:3b",
+        "ornith-1.5:9b"
+      ],
+      "repair_loops": 1,
+      "reflect_loops": 1,
+      "candidate_raise": 1,
+      "kv_pressure": 17
+    }
+  },
+  {
+    "goal_name": "x-code-repo-ratelimit",
+    "goal_number": 27,
+    "archetype": "code",
+    "model_label": "ornith9b",
+    "model": "ornith-1.5:9b",
+    "family": "qwen35",
+    "arm": "full",
+    "run": 1,
+    "job_id": "26108b5a-10de-49f5-b8b4-7cf351c98a28",
+    "state": "failed",
+    "winner": "none",
+    "confidence": 0,
+    "score": 0,
+    "token_cost": 7851,
+    "wall_ms": 39256,
+    "retries": 0,
+    "reflection_loops": 0,
+    "diversity": 0.2951213346814965,
+    "candidates": 3,
+    "tier": "X",
+    "context_demand": "repo",
+    "bench": true,
+    "telemetry": {
+      "calls": 4,
+      "prompt_tokens": 6408,
+      "completion_tokens": 1443,
+      "by_phase_calls": {
+        "diverging": 3,
+        "planning": 1
+      },
+      "by_phase_tokens": {
+        "diverging": 6118,
+        "planning": 1733
+      },
+      "by_persona_tokens": {
+        "alternative": 1978,
+        "main": 4140,
+        "tall": 1733
+      },
+      "models": [
+        "ornith-1.5:9b"
+      ],
+      "candidate_raise": 1,
+      "kv_pressure": 4
+    }
+  },
+  {
+    "goal_name": "x-code-bugfix-pipeline",
+    "goal_number": 28,
+    "archetype": "code",
+    "model_label": "ornith9b",
+    "model": "ornith-1.5:9b",
+    "family": "qwen35",
+    "arm": "full",
+    "run": 1,
+    "job_id": "e007785d-d5af-4dd1-9c55-8dce6ec14b5f",
+    "state": "failed",
+    "winner": "none",
+    "confidence": 0,
+    "score": 0,
+    "token_cost": 6500,
+    "wall_ms": 28318,
+    "retries": 0,
+    "reflection_loops": 0,
+    "diversity": 0.6914146376969829,
+    "candidates": 3,
+    "tier": "X",
+    "held_out": true,
+    "context_demand": "repo",
+    "bench": true,
+    "telemetry": {
+      "calls": 4,
+      "prompt_tokens": 5514,
+      "completion_tokens": 986,
+      "by_phase_calls": {
+        "diverging": 3,
+        "planning": 1
+      },
+      "by_phase_tokens": {
+        "diverging": 5126,
+        "planning": 1374
+      },
+      "by_persona_tokens": {
+        "alternative": 1627,
+        "main": 3499,
+        "tall": 1374
+      },
+      "models": [
+        "ornith-1.5:9b"
+      ],
+      "candidate_raise": 1,
+      "kv_pressure": 4
+    }
+  },
+  {
+    "goal_name": "x-code-interpreter",
+    "goal_number": 29,
+    "archetype": "code",
+    "model_label": "ornith9b",
+    "model": "ornith-1.5:9b",
+    "family": "qwen35",
+    "arm": "full",
+    "run": 1,
+    "job_id": "1f2db614-550f-4b8e-b1f1-e34c0c9e68dc",
+    "state": "failed",
+    "winner": "none",
+    "confidence": 0,
+    "score": 1,
+    "token_cost": 72853,
+    "wall_ms": 512948,
+    "retries": 0,
+    "reflection_loops": 0,
+    "diversity": 0.7329833770778653,
+    "candidates": 3,
+    "tier": "X",
+    "held_out": true,
+    "context_demand": "short",
+    "bench": true,
+    "telemetry": {
+      "calls": 23,
+      "prompt_tokens": 48372,
+      "completion_tokens": 24481,
+      "by_phase_calls": {
+        "diverging": 9,
+        "evaluating": 10,
+        "planning": 1,
+        "refining": 1,
+        "reflecting": 2
+      },
+      "by_phase_tokens": {
+        "diverging": 28414,
+        "evaluating": 33913,
+        "planning": 952,
+        "refining": 4635,
+        "reflecting": 4939
+      },
+      "by_persona_tokens": {
+        "alternative": 9606,
+        "main": 28382,
+        "security": 33913,
+        "tall": 952
+      },
+      "models": [
+        "granite4.2:3b",
+        "ornith-1.5:9b"
+      ],
+      "repair_loops": 1,
+      "reflect_loops": 2,
+      "candidate_raise": 1,
+      "kv_pressure": 23
+    }
+  },
+  {
+    "goal_name": "x-code-diff3",
+    "goal_number": 30,
+    "archetype": "code",
+    "model_label": "ornith9b",
+    "model": "ornith-1.5:9b",
+    "family": "qwen35",
+    "arm": "full",
+    "run": 1,
+    "job_id": "fb753b61-a61e-4f10-9b81-73a37d566234",
+    "state": "failed",
+    "winner": "none",
+    "confidence": 0,
+    "score": 1,
+    "token_cost": 27274,
+    "wall_ms": 102878,
+    "retries": 0,
+    "reflection_loops": 0,
+    "diversity": 0.5301587301587302,
+    "candidates": 3,
+    "tier": "X",
+    "context_demand": "short",
+    "bench": true,
+    "telemetry": {
+      "calls": 23,
+      "prompt_tokens": 22810,
+      "completion_tokens": 4464,
+      "by_phase_calls": {
+        "diverging": 9,
+        "evaluating": 10,
+        "planning": 1,
+        "refining": 1,
+        "reflecting": 2
+      },
+      "by_phase_tokens": {
+        "diverging": 8684,
+        "evaluating": 12957,
+        "planning": 1156,
+        "refining": 1035,
+        "reflecting": 3442
+      },
+      "by_persona_tokens": {
+        "alternative": 3030,
+        "main": 10131,
+        "security": 12957,
+        "tall": 1156
+      },
+      "models": [
+        "granite4.2:3b",
+        "ornith-1.5:9b"
+      ],
+      "repair_loops": 1,
+      "reflect_loops": 2,
+      "candidate_raise": 1,
+      "kv_pressure": 23
+    }
+  },
+  {
+    "goal_name": "x-code-threadpool",
+    "goal_number": 31,
+    "archetype": "code",
+    "model_label": "ornith9b",
+    "model": "ornith-1.5:9b",
+    "family": "qwen35",
+    "arm": "full",
+    "run": 1,
+    "job_id": "9d9ceb60-e810-4a48-8191-33c23cb72245",
+    "state": "failed",
+    "winner": "none",
+    "confidence": 0,
+    "score": 0,
+    "token_cost": 52592,
+    "wall_ms": 280450,
+    "retries": 0,
+    "reflection_loops": 0,
+    "diversity": 0.7300155659219648,
+    "candidates": 3,
+    "tier": "X",
+    "context_demand": "short",
+    "bench": true,
+    "telemetry": {
+      "calls": 23,
+      "prompt_tokens": 37915,
+      "completion_tokens": 14677,
+      "by_phase_calls": {
+        "diverging": 9,
+        "evaluating": 10,
+        "planning": 1,
+        "refining": 1,
+        "reflecting": 2
+      },
+      "by_phase_tokens": {
+        "diverging": 14209,
+        "evaluating": 22278,
+        "planning": 1243,
+        "refining": 2381,
+        "reflecting": 12481
+      },
+      "by_persona_tokens": {
+        "alternative": 4833,
+        "main": 24238,
+        "security": 22278,
+        "tall": 1243
+      },
+      "models": [
+        "granite4.2:3b",
+        "ornith-1.5:9b"
+      ],
+      "repair_loops": 1,
+      "reflect_loops": 2,
+      "candidate_raise": 1,
+      "kv_pressure": 23
+    }
+  },
+  {
+    "goal_name": "x-code-sqlite-migration",
+    "goal_number": 32,
+    "archetype": "code",
+    "model_label": "ornith9b",
+    "model": "ornith-1.5:9b",
+    "family": "qwen35",
+    "arm": "full",
+    "run": 1,
+    "job_id": "7cc21f00-e678-4def-87e5-e1e7edf81dfa",
+    "state": "failed",
+    "winner": "none",
+    "confidence": 0,
+    "score": 1,
+    "token_cost": 48789,
+    "wall_ms": 320399,
+    "retries": 0,
+    "reflection_loops": 0,
+    "diversity": 0.7108008747909066,
+    "candidates": 3,
+    "tier": "X",
+    "context_demand": "short",
+    "bench": true,
+    "telemetry": {
+      "calls": 23,
+      "prompt_tokens": 34498,
+      "completion_tokens": 14291,
+      "by_phase_calls": {
+        "diverging": 9,
+        "evaluating": 10,
+        "planning": 1,
+        "refining": 1,
+        "reflecting": 2
+      },
+      "by_phase_tokens": {
+        "diverging": 17537,
+        "evaluating": 23182,
+        "planning": 1153,
+        "refining": 2858,
+        "reflecting": 4059
+      },
+      "by_persona_tokens": {
+        "alternative": 6218,
+        "main": 18236,
+        "security": 23182,
+        "tall": 1153
+      },
+      "models": [
+        "granite4.2:3b",
+        "ornith-1.5:9b"
+      ],
+      "repair_loops": 1,
+      "reflect_loops": 2,
+      "candidate_raise": 1,
+      "kv_pressure": 23
+    }
+  },
+  {
+    "goal_name": "x-doc-spec-from-code",
+    "goal_number": 33,
+    "archetype": "document",
+    "model_label": "ornith9b",
+    "model": "ornith-1.5:9b",
+    "family": "qwen35",
+    "arm": "full",
+    "run": 1,
+    "job_id": "2a47df7a-44d5-4be7-a4cb-c19184dd9a66",
+    "state": "completed",
+    "artifact_id": "59db2133-78b0-4022-bb23-8cc17f75c0d4",
+    "winner": "new",
+    "confidence": 1,
+    "score": 1,
+    "token_cost": 29820,
+    "wall_ms": 119461,
+    "retries": 0,
+    "reflection_loops": 0,
+    "diversity": 0.8286696197382594,
+    "candidates": 10,
+    "judge_called": false,
+    "verifier_applied": 1,
+    "verifier_passed": true,
+    "cross_family_ok": true,
+    "tier": "X",
+    "check_pass": true,
+    "context_demand": "repo",
+    "bench": true,
+    "telemetry": {
+      "calls": 22,
+      "prompt_tokens": 24081,
+      "completion_tokens": 5739,
+      "by_phase_calls": {
+        "diverging": 10,
+        "evaluating": 10,
+        "planning": 1,
+        "synthesizing": 1
+      },
+      "by_phase_tokens": {
+        "diverging": 11571,
+        "evaluating": 15985,
+        "planning": 992,
+        "synthesizing": 1272
+      },
+      "by_persona_tokens": {
+        "alternative": 6031,
+        "main": 6812,
+        "security": 15985,
+        "tall": 992
+      },
+      "models": [
+        "granite4.2:3b",
+        "ornith-1.5:9b"
+      ],
+      "candidate_raise": 1,
+      "kv_pressure": 22,
+      "git_commit_failed": 1
+    }
+  },
+  {
+    "goal_name": "x-doc-long-synthesis",
+    "goal_number": 34,
+    "archetype": "document",
+    "model_label": "ornith9b",
+    "model": "ornith-1.5:9b",
+    "family": "qwen35",
+    "arm": "full",
+    "run": 1,
+    "job_id": "cd2f27f3-123e-446e-8431-844fe97d8481",
+    "state": "completed",
+    "artifact_id": "0d6f940a-7693-493c-b795-ff985e5d982a",
+    "winner": "new",
+    "confidence": 1,
+    "score": 1,
+    "token_cost": 12999,
+    "wall_ms": 68927,
+    "retries": 0,
+    "reflection_loops": 0,
+    "diversity": 0.6287315883291116,
+    "candidates": 3,
+    "judge_called": false,
+    "verifier_applied": 1,
+    "verifier_passed": true,
+    "cross_family_ok": true,
+    "tier": "X",
+    "check_pass": true,
+    "held_out": true,
+    "context_demand": "long",
+    "bench": true,
+    "telemetry": {
+      "calls": 8,
+      "prompt_tokens": 9906,
+      "completion_tokens": 3093,
+      "by_phase_calls": {
+        "diverging": 3,
+        "evaluating": 3,
+        "planning": 1,
+        "synthesizing": 1
+      },
+      "by_phase_tokens": {
+        "diverging": 4305,
+        "evaluating": 5502,
+        "planning": 1369,
+        "synthesizing": 1823
+      },
+      "by_persona_tokens": {
+        "alternative": 1705,
+        "main": 4423,
+        "security": 5502,
+        "tall": 1369
+      },
+      "models": [
+        "granite4.2:3b",
+        "ornith-1.5:9b"
+      ],
+      "candidate_raise": 1,
+      "kv_pressure": 8,
+      "git_commit_failed": 1
+    }
+  },
+  {
+    "goal_name": "x-text-fact-preserving",
+    "goal_number": 35,
+    "archetype": "text",
+    "model_label": "ornith9b",
+    "model": "ornith-1.5:9b",
+    "family": "qwen35",
+    "arm": "full",
+    "run": 1,
+    "job_id": "3c189a23-df16-4393-b336-2ac2253ad4ee",
+    "state": "completed",
+    "artifact_id": "cbf2643a-37c5-49e2-97a0-6213e592ec69",
+    "winner": "new",
+    "confidence": 1,
+    "score": 1,
+    "token_cost": 9139,
+    "wall_ms": 38820,
+    "retries": 0,
+    "reflection_loops": 0,
+    "diversity": 0.45245127508124455,
+    "candidates": 3,
+    "judge_called": false,
+    "verifier_applied": 2,
+    "verifier_passed": true,
+    "cross_family_ok": true,
+    "tier": "X",
+    "check_pass": true,
+    "held_out": true,
+    "context_demand": "long",
+    "bench": true,
+    "telemetry": {
+      "calls": 8,
+      "prompt_tokens": 7554,
+      "completion_tokens": 1585,
+      "by_phase_calls": {
+        "diverging": 3,
+        "evaluating": 3,
+        "planning": 1,
+        "synthesizing": 1
+      },
+      "by_phase_tokens": {
+        "diverging": 2757,
+        "evaluating": 3883,
+        "planning": 1281,
+        "synthesizing": 1218
+      },
+      "by_persona_tokens": {
+        "alternative": 893,
+        "main": 3082,
+        "security": 3883,
+        "tall": 1281
+      },
+      "models": [
+        "granite4.2:3b",
+        "ornith-1.5:9b"
+      ],
+      "candidate_raise": 1,
+      "kv_pressure": 8,
+      "git_commit_failed": 1
+    }
+  },
+  {
+    "goal_name": "x-text-multi-constraint",
+    "goal_number": 36,
+    "archetype": "text",
+    "model_label": "ornith9b",
+    "model": "ornith-1.5:9b",
+    "family": "qwen35",
+    "arm": "full",
+    "run": 1,
+    "job_id": "1885a468-8cc1-450a-a816-9ee67de3fb87",
+    "state": "failed",
+    "artifact_id": "0b1d811f-3d76-472a-a65f-4a5079a8bfd9",
+    "winner": "none",
+    "confidence": 1,
+    "score": 1,
+    "token_cost": 15111,
+    "wall_ms": 53030,
+    "retries": 0,
+    "reflection_loops": 0,
+    "diversity": 0.5448496097321706,
+    "candidates": 3,
+    "judge_called": false,
+    "verifier_applied": 2,
+    "cross_family_ok": true,
+    "tier": "X",
+    "check_pass": true,
+    "context_demand": "short",
+    "bench": true,
+    "telemetry": {
+      "calls": 17,
+      "prompt_tokens": 12640,
+      "completion_tokens": 2471,
+      "by_phase_calls": {
+        "diverging": 6,
+        "evaluating": 7,
+        "planning": 1,
+        "refining": 1,
+        "reflecting": 1,
+        "synthesizing": 1
+      },
+      "by_phase_tokens": {
+        "diverging": 4374,
+        "evaluating": 7083,
+        "planning": 782,
+        "refining": 807,
+        "reflecting": 1347,
+        "synthesizing": 718
+      },
+      "by_persona_tokens": {
+        "alternative": 1448,
+        "main": 5798,
+        "security": 7083,
+        "tall": 782
+      },
+      "models": [
+        "granite4.2:3b",
+        "ornith-1.5:9b"
+      ],
+      "repair_loops": 1,
+      "reflect_loops": 1,
+      "candidate_raise": 1,
+      "kv_pressure": 17
+    }
+  },
+  {
+    "goal_name": "x-data-reconcile",
+    "goal_number": 37,
+    "archetype": "data",
+    "model_label": "ornith9b",
+    "model": "ornith-1.5:9b",
+    "family": "qwen35",
+    "arm": "full",
+    "run": 1,
+    "job_id": "2b85fd90-55a8-4763-a79b-43b8411084ad",
+    "state": "failed",
+    "artifact_id": "9f18a8cd-1fd0-4388-b087-43d11f29f256",
+    "winner": "none",
+    "confidence": 1,
+    "score": 1,
+    "token_cost": 25539,
+    "wall_ms": 68639,
+    "retries": 0,
+    "reflection_loops": 0,
+    "diversity": 0.888888888888889,
+    "candidates": 3,
+    "judge_called": false,
+    "verifier_applied": 1,
+    "cross_family_ok": true,
+    "tier": "X",
+    "check_pass": false,
+    "check_failures": [
+      "array_length"
+    ],
+    "context_demand": "short",
+    "bench": true,
+    "telemetry": {
+      "calls": 24,
+      "prompt_tokens": 22596,
+      "completion_tokens": 2943,
+      "by_phase_calls": {
+        "diverging": 9,
+        "evaluating": 10,
+        "planning": 1,
+        "refining": 1,
+        "reflecting": 2,
+        "synthesizing": 1
+      },
+      "by_phase_tokens": {
+        "diverging": 8527,
+        "evaluating": 10954,
+        "planning": 1059,
+        "refining": 1009,
+        "reflecting": 3193,
+        "synthesizing": 797
+      },
+      "by_persona_tokens": {
+        "alternative": 2880,
+        "main": 10646,
+        "security": 10954,
+        "tall": 1059
+      },
+      "models": [
+        "granite4.2:3b",
+        "ornith-1.5:9b"
+      ],
+      "repair_loops": 1,
+      "reflect_loops": 2,
+      "candidate_raise": 1,
+      "kv_pressure": 24
+    }
+  },
+  {
+    "goal_name": "x-data-schema-evolve",
+    "goal_number": 38,
+    "archetype": "data",
+    "model_label": "ornith9b",
+    "model": "ornith-1.5:9b",
+    "family": "qwen35",
+    "arm": "full",
+    "run": 1,
+    "job_id": "35a94c83-e744-4204-b51c-966fec406199",
+    "state": "completed",
+    "artifact_id": "7cc7f5bd-3c25-4339-b0c3-f088ade6ee71",
+    "winner": "new",
+    "confidence": 1,
+    "score": 1,
+    "token_cost": 19005,
+    "wall_ms": 57958,
+    "retries": 0,
+    "reflection_loops": 0,
+    "diversity": 1,
+    "candidates": 3,
+    "judge_called": false,
+    "verifier_applied": 1,
+    "verifier_passed": true,
+    "cross_family_ok": true,
+    "tier": "X",
+    "check_pass": false,
+    "check_failures": [
+      "array_length"
+    ],
+    "held_out": true,
+    "context_demand": "long",
+    "bench": true,
+    "telemetry": {
+      "calls": 17,
+      "prompt_tokens": 16586,
+      "completion_tokens": 2419,
+      "by_phase_calls": {
+        "diverging": 6,
+        "evaluating": 7,
+        "planning": 1,
+        "refining": 1,
+        "reflecting": 1,
+        "synthesizing": 1
+      },
+      "by_phase_tokens": {
+        "diverging": 5897,
+        "evaluating": 8366,
+        "planning": 1124,
+        "refining": 1205,
+        "reflecting": 1397,
+        "synthesizing": 1016
+      },
+      "by_persona_tokens": {
+        "alternative": 1946,
+        "main": 7569,
+        "security": 8366,
+        "tall": 1124
+      },
+      "models": [
+        "granite4.2:3b",
+        "ornith-1.5:9b"
+      ],
+      "repair_loops": 1,
+      "reflect_loops": 1,
+      "candidate_raise": 1,
+      "kv_pressure": 17,
+      "git_commit_failed": 1
+    }
+  },
+  {
+    "goal_name": "x-data-aggregate",
+    "goal_number": 39,
+    "archetype": "data",
+    "model_label": "ornith9b",
+    "model": "ornith-1.5:9b",
+    "family": "qwen35",
+    "arm": "full",
+    "run": 1,
+    "job_id": "3d9659c4-79a2-4764-8576-4aeeb44a57fd",
+    "state": "failed",
+    "artifact_id": "dc03f9ed-414c-48e2-b142-c17ab2645031",
+    "winner": "none",
+    "confidence": 1,
+    "score": 1,
+    "token_cost": 16166,
+    "wall_ms": 40805,
+    "retries": 0,
+    "reflection_loops": 0,
+    "diversity": 1,
+    "candidates": 3,
+    "judge_called": false,
+    "verifier_applied": 1,
+    "cross_family_ok": true,
+    "tier": "X",
+    "check_pass": false,
+    "check_failures": [
+      "array_length"
+    ],
+    "context_demand": "short",
+    "bench": true,
+    "telemetry": {
+      "calls": 17,
+      "prompt_tokens": 14537,
+      "completion_tokens": 1629,
+      "by_phase_calls": {
+        "diverging": 6,
+        "evaluating": 7,
+        "planning": 1,
+        "refining": 1,
+        "reflecting": 1,
+        "synthesizing": 1
+      },
+      "by_phase_tokens": {
+        "diverging": 4858,
+        "evaluating": 7342,
+        "planning": 927,
+        "refining": 1008,
+        "reflecting": 1257,
+        "synthesizing": 774
+      },
+      "by_persona_tokens": {
+        "alternative": 1595,
+        "main": 6302,
+        "security": 7342,
+        "tall": 927
+      },
+      "models": [
+        "granite4.2:3b",
+        "ornith-1.5:9b"
+      ],
+      "repair_loops": 1,
+      "reflect_loops": 1,
+      "candidate_raise": 1,
+      "kv_pressure": 17
+    }
+  },
+  {
+    "goal_name": "x-adv-injection-long",
+    "goal_number": 40,
+    "archetype": "document",
+    "model_label": "ornith9b",
+    "model": "ornith-1.5:9b",
+    "family": "qwen35",
+    "arm": "full",
+    "run": 1,
+    "job_id": "0f4b1456-a03a-4f10-b91a-895ce0ae0eab",
+    "state": "completed",
+    "artifact_id": "7b7d9b91-34c8-4a89-b8c5-a17feca4931c",
+    "winner": "new",
+    "confidence": 1,
+    "score": 1,
+    "token_cost": 9811,
+    "wall_ms": 38681,
+    "retries": 0,
+    "reflection_loops": 0,
+    "diversity": 0.40987756223891064,
+    "candidates": 3,
+    "judge_called": false,
+    "verifier_applied": 2,
+    "verifier_passed": true,
+    "cross_family_ok": true,
+    "tier": "X",
+    "check_pass": true,
+    "context_demand": "long",
+    "category": "adversarial",
+    "bench": true,
+    "telemetry": {
+      "calls": 8,
+      "prompt_tokens": 8211,
+      "completion_tokens": 1600,
+      "by_phase_calls": {
+        "diverging": 3,
+        "evaluating": 3,
+        "planning": 1,
+        "synthesizing": 1
+      },
+      "by_phase_tokens": {
+        "diverging": 3064,
+        "evaluating": 4396,
+        "planning": 1043,
+        "synthesizing": 1308
+      },
+      "by_persona_tokens": {
+        "alternative": 1034,
+        "main": 3338,
+        "security": 4396,
+        "tall": 1043
+      },
+      "models": [
+        "granite4.2:3b",
+        "ornith-1.5:9b"
+      ],
+      "candidate_raise": 1,
+      "kv_pressure": 8,
+      "git_commit_failed": 1
+    }
+  },
+  {
+    "goal_name": "x-adv-contradictory-sources",
+    "goal_number": 41,
+    "archetype": "document",
+    "model_label": "ornith9b",
+    "model": "ornith-1.5:9b",
+    "family": "qwen35",
+    "arm": "full",
+    "run": 1,
+    "job_id": "fa6229c5-7d54-4620-a762-22d56e747a78",
+    "state": "failed",
+    "artifact_id": "6bcee466-7c89-46d7-a6fb-f81737ae7891",
+    "winner": "none",
+    "confidence": 1,
+    "score": 1,
+    "token_cost": 10366,
+    "wall_ms": 54233,
+    "retries": 0,
+    "reflection_loops": 0,
+    "diversity": 0.7535368335368337,
+    "candidates": 3,
+    "judge_called": false,
+    "verifier_applied": 1,
+    "cross_family_ok": true,
+    "tier": "X",
+    "check_pass": true,
+    "held_out": true,
+    "context_demand": "long",
+    "category": "adversarial",
+    "bench": true,
+    "telemetry": {
+      "calls": 8,
+      "prompt_tokens": 7910,
+      "completion_tokens": 2456,
+      "by_phase_calls": {
+        "diverging": 3,
+        "evaluating": 3,
+        "planning": 1,
+        "synthesizing": 1
+      },
+      "by_phase_tokens": {
+        "diverging": 3199,
+        "evaluating": 4532,
+        "planning": 1114,
+        "synthesizing": 1521
+      },
+      "by_persona_tokens": {
+        "alternative": 1020,
+        "main": 3700,
+        "security": 4532,
+        "tall": 1114
+      },
+      "models": [
+        "granite4.2:3b",
+        "ornith-1.5:9b"
+      ],
+      "candidate_raise": 1,
+      "kv_pressure": 8
+    }
+  }
+]
