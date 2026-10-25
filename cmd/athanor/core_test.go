@@ -89,3 +89,16 @@ func TestCoreSocketExplicit(t *testing.T) {
 		t.Errorf("socket = %q", got)
 	}
 }
+
+func TestAllowlistContains(t *testing.T) {
+	if !allowlistContains(nil, "127.0.0.1:7421") {
+		t.Error("empty allowlist should accept any address")
+	}
+	list := []string{"127.0.0.1:7420", "localhost:7420"}
+	if !allowlistContains(list, "127.0.0.1:7420") {
+		t.Error("allowlisted address rejected")
+	}
+	if allowlistContains(list, "127.0.0.1:7421") {
+		t.Error("non-allowlisted address accepted")
+	}
+}

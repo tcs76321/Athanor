@@ -56,6 +56,9 @@ func runStart(args []string) error {
 	if err != nil {
 		return err
 	}
+	if !allowlistContains(cfg.Network.ExternalAPIHostAllowlist, *addr) {
+		return fmt.Errorf("network.external_api_host_allowlist does not include %s; add it to the config or use the default 127.0.0.1:7420 (the Core would start but reject every request)", *addr)
+	}
 	opts, err := coreOptionsFromConfig(cfg.JobPod.TokenHostDir, *configPath, *addr,
 		*coreImage, *containerName, *stateVol, *workVol, sock)
 	if err != nil {
@@ -78,4 +81,19 @@ func hostDoctorConfig(cfg *config.Config) *config.Config {
 	out := *cfg
 	out.Inference.OllamaURL = strings.Replace(cfg.Inference.OllamaURL, "host.containers.internal", "127.0.0.1", 1)
 	return &out
+}
+
+// allowlistContains reports whether addr is in the external-API Host
+// allowlist. An empty list disables the check (the documented test escape
+// hatch), so it accepts any address.
+func allowlistContains(list []string, addr string) bool {
+	if len(list) == 0 {
+		return true
+	}
+	for _, entry := range list {
+		if entry == addr {
+			return true
+		}
+	}
+	return false
 }
