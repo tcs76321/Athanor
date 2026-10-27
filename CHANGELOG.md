@@ -29,6 +29,9 @@ New entries are appended at the top. Do not rewrite history.
 - **Code generation is told to preserve existing code.** The code instruction
   now requires preserving unrelated public functions, classes, tests, and
   documentation; a follow-up job had dropped a previously accepted function.
+- **A first-use project form in the local UI.** `/ui/projects/new` creates a
+  project, applies the test command, runs the same bounded pre-index, and
+  starts the first job; the dashboard and projects page link to it.
 - Verified end to end on a three-file Python repository: pre-index (3 files /
   8 chunks) → planning → 3 candidates → self-refine → synthesis → comparison →
   accepted. A later goal was accepted on the deterministic better-or-equal

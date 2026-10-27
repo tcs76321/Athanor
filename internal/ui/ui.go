@@ -14,6 +14,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
+	"log/slog"
 	"net/http"
 	"strings"
 	"sync"
@@ -35,6 +36,13 @@ type Freezer interface{ Frozen() bool }
 // Enqueuer starts a job (the engine). Used by retry/resume.
 type Enqueuer interface{ Enqueue(jobID string) }
 
+// RepoPreindexer runs one bounded repository index pass. It is optional: a UI
+// without one still creates projects, but a repo-backed first job starts with
+// an empty Dormant Index.
+type RepoPreindexer interface {
+	Preindex(ctx context.Context, projectID, path string) error
+}
+
 // Deps wires the UI to the daemon's stores and services.
 type Deps struct {
 	Store         *store.Store
@@ -47,6 +55,9 @@ type Deps struct {
 	Strategy      *strategy.Repo
 	Freezer       Freezer
 	Engine        Enqueuer
+	// Indexer runs the bounded pre-index on the first-use project create.
+	// nil is valid: the job starts without a populated Dormant Index.
+	Indexer RepoPreindexer
 	// DefaultTTL is applied to defer decisions made without an explicit
 	// duration.
 	DefaultTTL time.Duration
@@ -72,6 +83,8 @@ func (u *UI) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /ui", u.handleDashboard)
 	mux.HandleFunc("GET /ui/events", u.handleDashboardStream)
 	mux.HandleFunc("GET /ui/projects", u.handleProjects)
+	mux.HandleFunc("GET /ui/projects/new", u.handleNewProject)
+	mux.HandleFunc("POST /ui/projects", u.handleProjectCreate)
 	mux.HandleFunc("GET /ui/projects/{id}", u.handleProject)
 	mux.HandleFunc("POST /ui/projects/{id}/corrections", u.handleCorrectionCreate)
 	mux.HandleFunc("GET /ui/corrections", u.handleCorrections)
@@ -163,6 +176,95 @@ func (u *UI) handleProjects(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	u.render(w, "Projects", projectsBody, map[string]any{"Projects": projects})
+}
+
+// handleNewProject renders the first-use project form. It is deliberately
+// small: the full project interview (F3) is still to-build, but a human can
+// create a project without touching the CLI.
+func (u *UI) handleNewProject(w http.ResponseWriter, r *http.Request) {
+	u.render(w, "New project", newProjectBody, map[string]any{
+		"Archetype": "code", "Start": true,
+	})
+}
+
+// handleProjectCreate creates a project from the UI form, applies the optional
+// execution command, runs a bounded pre-index when a repository is supplied,
+// and starts the first job. It mirrors the POST /projects API path; the GUI is
+// the human-facing surface, not a second semantics.
+func (u *UI) handleProjectCreate(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		u.fail(w, fmt.Errorf("invalid form: %w", err))
+		return
+	}
+	name := strings.TrimSpace(r.FormValue("name"))
+	archetype := strings.TrimSpace(r.FormValue("archetype"))
+	if archetype == "" {
+		archetype = project.ArchetypeCode
+	}
+	goal := strings.TrimSpace(r.FormValue("goal"))
+	repo := strings.TrimSpace(r.FormValue("repository_path"))
+	testCmd := strings.TrimSpace(r.FormValue("test_command"))
+	criteria := splitCriteria(r.FormValue("criteria"))
+	start := r.FormValue("start") != ""
+
+	values := map[string]any{
+		"Name": name, "Archetype": archetype, "Goal": goal,
+		"RepositoryPath": repo, "TestCommand": testCmd,
+		"Criteria": r.FormValue("criteria"), "Start": start,
+	}
+	if name == "" || goal == "" {
+		values["Error"] = "name and goal are required"
+		u.render(w, "New project", newProjectBody, values)
+		return
+	}
+	p, task, err := u.deps.Projects.Create(r.Context(), name, archetype, goal, repo, criteria)
+	if err != nil {
+		values["Error"] = err.Error()
+		u.render(w, "New project", newProjectBody, values)
+		return
+	}
+	if testCmd != "" {
+		if err := u.deps.Projects.SetExecution(r.Context(), p.ID, project.Execution{TestCommand: testCmd}); err != nil {
+			values["Error"] = err.Error()
+			u.render(w, "New project", newProjectBody, values)
+			return
+		}
+	}
+	if !start {
+		http.Redirect(w, r, "/ui/projects/"+p.ID, http.StatusSeeOther)
+		return
+	}
+	// The first job must not run against an empty Dormant Index. The bounded
+	// pass is best-effort: an indexer failure degrades context, it does not
+	// cancel the work the human just asked for.
+	if repo != "" && u.deps.Indexer != nil {
+		ictx, cancel := context.WithTimeout(r.Context(), 5*time.Minute)
+		ierr := u.deps.Indexer.Preindex(ictx, p.ID, repo)
+		cancel()
+		if ierr != nil {
+			slog.Warn("ui: repository pre-index failed", "project", p.ID, "repo", repo, "err", ierr)
+		}
+	}
+	j, err := u.deps.Jobs.Create(r.Context(), task.ID, p.ID)
+	if err != nil {
+		values["Error"] = err.Error()
+		u.render(w, "New project", newProjectBody, values)
+		return
+	}
+	u.deps.Engine.Enqueue(j.ID)
+	http.Redirect(w, r, "/ui/jobs/"+j.ID, http.StatusSeeOther)
+}
+
+// splitCriteria turns a textarea (one criterion per line) into the API's
+// criteria slice. Blank lines are ignored; order is preserved.
+func splitCriteria(raw string) []string {
+	var out []string
+	for _, line := range strings.Split(raw, "\n") {
+		if line = strings.TrimSpace(line); line != "" {
+			out = append(out, line)
+		}
+	}
+	return out
 }
 
 func (u *UI) handleProject(w http.ResponseWriter, r *http.Request) {

@@ -62,6 +62,13 @@ func (m *mceIndexer) IndexOnceSummary(ctx context.Context, projectID, path strin
 	return summaryFromResult(res), nil
 }
 
+// Preindex runs one bounded pass for the UI's first-use project create. The
+// UI only needs success/failure, not the counters.
+func (m *mceIndexer) Preindex(ctx context.Context, projectID, path string) error {
+	_, err := m.IndexOnceSummary(ctx, projectID, path)
+	return err
+}
+
 func summaryFromResult(res mce.IndexResult) api.IndexSummary {
 	return api.IndexSummary{
 		Discovered: res.Discovered,

@@ -29,6 +29,19 @@ type fakeEngine struct{ enqueued []string }
 
 func (f *fakeEngine) Enqueue(id string) { f.enqueued = append(f.enqueued, id) }
 
+type fakePreindexer struct {
+	calls   int
+	project string
+	path    string
+	err     error
+}
+
+func (f *fakePreindexer) Preindex(_ context.Context, projectID, path string) error {
+	f.calls++
+	f.project, f.path = projectID, path
+	return f.err
+}
+
 type fixtures struct {
 	ui       *UI
 	ts       *httptest.Server
@@ -344,5 +357,88 @@ func TestLineDiffBuildsValidEditScript(t *testing.T) {
 	}
 	if !summarized {
 		t.Error("oversized input was not summarized (known-issues M10)")
+	}
+}
+
+// TestNewProjectPage proves the first-use GUI form is reachable and points at
+// the project-create POST route.
+func TestNewProjectPage(t *testing.T) {
+	fx := setup(t)
+	status, body := get(t, fx.ts.URL+"/ui/projects/new")
+	if status != http.StatusOK {
+		t.Fatalf("status = %d, want 200", status)
+	}
+	for _, want := range []string{"New project", `action="/ui/projects"`, `name="repository_path"`, `name="test_command"`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("new-project page missing %q", want)
+		}
+	}
+}
+
+// TestCreateProjectFromUI covers the metadata path: no job, execution command
+// persisted, redirect to the project page.
+func TestCreateProjectFromUI(t *testing.T) {
+	fx := setup(t)
+	form := url.Values{
+		"name":            {"ui-project"},
+		"archetype":       {"code"},
+		"goal":            {"Build a small add function with tests and a docstring."},
+		"repository_path": {"/tmp/repo"},
+		"test_command":    {"pytest -q"},
+		"criteria":        {"pytest passes\ndocstring present"},
+	}
+	resp := postForm(t, fx.ts.URL+"/ui/projects", form)
+	if resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303", resp.StatusCode)
+	}
+	loc := resp.Header.Get("Location")
+	if !strings.HasPrefix(loc, "/ui/projects/") {
+		t.Fatalf("Location = %q, want a project page", loc)
+	}
+	id := strings.TrimPrefix(loc, "/ui/projects/")
+	p, err := fx.ui.deps.Projects.Get(context.Background(), id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.Execution.TestCommand != "pytest -q" {
+		t.Errorf("test command = %q, want pytest -q", p.Execution.TestCommand)
+	}
+	if len(fx.engine.enqueued) != 0 {
+		t.Errorf("enqueued = %v, want none without start", fx.engine.enqueued)
+	}
+}
+
+// TestCreateProjectFromUIStartsJob covers the human happy path: pre-index the
+// repo, create the first job, enqueue it, and redirect to the watch view.
+func TestCreateProjectFromUIStartsJob(t *testing.T) {
+	fx := setup(t)
+	idx := &fakePreindexer{}
+	fx.ui.deps.Indexer = idx
+	form := url.Values{
+		"name":            {"ui-starts"},
+		"archetype":       {"code"},
+		"goal":            {"Build a small add function with tests and a docstring."},
+		"repository_path": {"/tmp/repo"},
+		"test_command":    {"pytest -q"},
+		"criteria":        {"pytest passes"},
+		"start":           {"1"},
+	}
+	resp := postForm(t, fx.ts.URL+"/ui/projects", form)
+	if resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303", resp.StatusCode)
+	}
+	loc := resp.Header.Get("Location")
+	if !strings.HasPrefix(loc, "/ui/jobs/") {
+		t.Fatalf("Location = %q, want a job watch page", loc)
+	}
+	if idx.calls != 1 || idx.path != "/tmp/repo" {
+		t.Fatalf("pre-index calls=%d path=%q, want one call for /tmp/repo", idx.calls, idx.path)
+	}
+	if len(fx.engine.enqueued) != 1 {
+		t.Fatalf("enqueued = %v, want one job", fx.engine.enqueued)
+	}
+	jobID := strings.TrimPrefix(loc, "/ui/jobs/")
+	if _, err := fx.ui.deps.Jobs.Get(context.Background(), jobID); err != nil {
+		t.Fatalf("job %s not persisted: %v", jobID, err)
 	}
 }

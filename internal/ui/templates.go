@@ -66,6 +66,7 @@ func document(body string) string {
 
 const dashboardBody = `
 <h1>Dashboard</h1>
+<p><a href="/ui/projects/new">+ New project</a></p>
 <p>Power: {{if .Frozen}}<b>FROZEN (kill switch)</b>{{else}}active{{end}}</p>
 <h2>Active jobs</h2>
 <table><thead><tr><th>Job</th><th>Project</th><th>Phase</th><th></th></tr></thead><tbody>
@@ -92,10 +93,33 @@ const dashboardBody = `
 
 const projectsBody = `
 <h1>Projects</h1>
+<p><a href="/ui/projects/new">+ New project</a></p>
 <table><thead><tr><th>Name</th><th>Archetype</th><th>Goal</th></tr></thead><tbody>
 {{range .Projects}}<tr><td><a href="/ui/projects/{{.ID}}">{{.Name}}</a></td><td>{{.Archetype}}</td><td class="muted">{{.Goal}}</td></tr>
 {{else}}<tr><td colspan="3" class="muted">none</td></tr>{{end}}
 </tbody></table>
+`
+
+const newProjectBody = `
+<h1>New project</h1>
+{{if .Error}}<p class="del">{{.Error}}</p>{{end}}
+<form method="post" action="/ui/projects">
+<div><label>name <input name="name" value="{{.Name}}" size="40" required></label></div>
+<div><label>archetype <select name="archetype">
+<option value="code" {{if eq .Archetype "code"}}selected{{end}}>code</option>
+<option value="text" {{if eq .Archetype "text"}}selected{{end}}>text</option>
+<option value="document" {{if eq .Archetype "document"}}selected{{end}}>document</option>
+<option value="data" {{if eq .Archetype "data"}}selected{{end}}>data</option>
+<option value="media" {{if eq .Archetype "media"}}selected{{end}}>media</option>
+</select></label></div>
+<div><label>goal <input name="goal" value="{{.Goal}}" size="80" minlength="20" maxlength="500" required></label></div>
+<div><label>repository path <input name="repository_path" value="{{.RepositoryPath}}" size="80" placeholder="/absolute/path/to/repo"></label></div>
+<div><label>test command <input name="test_command" value="{{.TestCommand}}" size="40" placeholder="pytest -q"></label></div>
+<div><label>acceptance criteria (one per line)<br><textarea name="criteria" rows="4" cols="80">{{.Criteria}}</textarea></label></div>
+<div><label><input type="checkbox" name="start" value="1" {{if .Start}}checked{{end}}> start the first job immediately</label></div>
+<button>Create project</button>
+</form>
+<p class="muted">A repository-backed code project is indexed once before the first job. The full pass remains available through the CLI.</p>
 `
 
 const projectBody = `
