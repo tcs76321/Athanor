@@ -15,6 +15,8 @@ import (
 
 	"github.com/tcs76321/athanor/internal/artifact"
 	"github.com/tcs76321/athanor/internal/evaluation"
+	"github.com/tcs76321/athanor/internal/job"
+	"github.com/tcs76321/athanor/internal/verify"
 )
 
 // makeFinalArtifact returns an in-memory Artifact with a
@@ -166,5 +168,59 @@ func TestIsUnknownWinnerErr_TrueOnlyForTheSentinel(t *testing.T) {
 	}
 	if isUnknownWinnerErr(fmt.Errorf("plain error")) {
 		t.Error("plain error should not be detected as errUnknownWinner")
+	}
+}
+
+// TestBuildFinalEvaluationBacksDeterministicImprovement pins the first-use
+// fix: when a hard verifier passes and its score is at least the previous
+// accepted artifact's known average score, the final record backs "new" even
+// though the evaluation LLM's own better_than_previous flag is false.
+func TestBuildFinalEvaluationBacksDeterministicImprovement(t *testing.T) {
+	ver := verify.Result{Applied: 2, Passed: true, HardApplied: 1, HardPassed: true, Score: 1}
+	rec := buildFinalEvaluation(job.Job{ID: "j1"}, artifact.Artifact{ID: "a1"}, "prev", 0.9, ver)
+
+	if !rec.BetterThanPrevious {
+		t.Error("hard pass at or above the previous score must set BetterThanPrevious")
+	}
+	if rec.Confidence != 1 {
+		t.Errorf("confidence = %v, want 1 for a hard verifier", rec.Confidence)
+	}
+	if !rec.PassedTests {
+		t.Error("deterministic pass must set PassedTests")
+	}
+
+	got := DecideWinner(comparisonVerdict{Winner: "new", Confidence: 0.8}, []evaluation.Record{rec}, 0.7, true)
+	if got.Winner != "new" {
+		t.Errorf("DecideWinner = %q, want new when the verifier backs better-or-equal; reasons=%v", got.Winner, got.Reasons)
+	}
+}
+
+// TestBuildFinalEvaluationNoHistoryDoesNotBackNew keeps the conservative
+// contract: a previous accepted artifact with no evaluation history has no
+// known score, so the guard still downgrades an unsupported "new".
+func TestBuildFinalEvaluationNoHistoryDoesNotBackNew(t *testing.T) {
+	ver := verify.Result{Applied: 1, Passed: true, HardApplied: 1, HardPassed: true, Score: 1}
+	rec := buildFinalEvaluation(job.Job{ID: "j1"}, artifact.Artifact{ID: "a1"}, "prev", 0, ver)
+
+	if rec.BetterThanPrevious {
+		t.Error("no previous score must not set BetterThanPrevious")
+	}
+	if got := DecideWinner(comparisonVerdict{Winner: "new", Confidence: 0.99}, []evaluation.Record{rec}, 0.7, true); got.Winner != "previous" {
+		t.Errorf("DecideWinner = %q, want previous without deterministic backing", got.Winner)
+	}
+}
+
+// TestBuildFinalEvaluationDeterministicNoPrevious keeps the no-previous path
+// unchanged: there is nothing to be better than, so BetterThanPrevious stays
+// false and the hard verifier supplies confidence 1.
+func TestBuildFinalEvaluationDeterministicNoPrevious(t *testing.T) {
+	ver := verify.Result{Applied: 1, Passed: true, HardApplied: 1, HardPassed: true, Score: 1}
+	rec := buildFinalEvaluation(job.Job{ID: "j1"}, artifact.Artifact{ID: "a1"}, "", 0, ver)
+
+	if rec.BetterThanPrevious {
+		t.Error("no-previous deterministic path must not set BetterThanPrevious")
+	}
+	if rec.Confidence != 1 {
+		t.Errorf("confidence = %v, want 1 for a hard verifier", rec.Confidence)
 	}
 }

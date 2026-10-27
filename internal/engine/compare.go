@@ -198,7 +198,7 @@ func (e *Engine) phaseCompare(ctx context.Context, j job.Job) error {
 	// persisted after the cost-aware block below so the proposal-based
 	// max-score there is unchanged.
 	threshold := e.cfg.Execution.MinJudge()
-	finalRecord := buildFinalEvaluation(j, final, previousID, ver)
+	finalRecord := buildFinalEvaluation(j, final, previousID, previousAvgScore, ver)
 	guardRecords := append(append([]evaluation.Record(nil), records...), finalRecord)
 	verdict = DecideWinner(verdict, guardRecords, threshold, previousID != "")
 
@@ -318,11 +318,23 @@ func loserWinner(hasPrevious bool) string {
 
 // buildFinalEvaluation constructs the EvaluationRecord for the synthesized
 // final artifact from the deterministic verifier result (known-issues D1).
-// BetterThanPrevious is deliberately left false: a verifier cannot judge
-// "better than the previous artifact" — that is the judge's role, and the
-// §19.3 no-previous branch backs "new" on PassedTests alone. Confidence is 1
-// when an objective verifier applied (the deterministic edge), else 0.
-func buildFinalEvaluation(j job.Job, final artifact.Artifact, previousID string, ver verify.Result) evaluation.Record {
+//
+// BetterThanPrevious is set only when the comparison is deterministic: a hard
+// verifier (code tests/lint, JSON Schema, declared checks) passed AND its
+// score is at least the previous accepted artifact's average score. That is
+// §19.3's "tests_pass_better_or_equal" applied without asking the LLM to
+// self-report an unreliable flag (ADR-0043). When the previous has no
+// evaluation history, or no hard verifier applied, the flag stays false and
+// the guard keeps its conservative downgrade.
+//
+// This closes a first-use dead end: once a project had an accepted artifact
+// with a known score, every later passing `new` candidate was downgraded
+// because this record left BetterThanPrevious false and the evaluation LLM
+// rarely sets its own flag. The comparison judge must still say "new"; the
+// reward-hacking guard still overrides a hard verifier failure.
+func buildFinalEvaluation(j job.Job, final artifact.Artifact, previousID string,
+	previousAvgScore float64, ver verify.Result) evaluation.Record {
+
 	rec := evaluation.NewRecord(j.ID, final.ID)
 	rec.ComparedAgainst = previousID
 	rec.Score = ver.Score
@@ -332,6 +344,10 @@ func buildFinalEvaluation(j job.Job, final artifact.Artifact, previousID string,
 	rec.PassedTests = ver.Passed
 	if !ver.Passed {
 		rec.MissingCriteria = ver.Reasons
+	}
+	if previousID != "" && previousAvgScore > 0 && ver.HardDecisive() &&
+		ver.HardPassed && rec.Score >= previousAvgScore {
+		rec.BetterThanPrevious = true
 	}
 	if ver.HardDecisive() {
 		rec.Confidence = 1
