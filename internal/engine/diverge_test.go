@@ -6,6 +6,7 @@
 package engine
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -114,5 +115,19 @@ func TestTokenize_Empty(t *testing.T) {
 	got := tokenize("")
 	if len(got) != 0 {
 		t.Errorf("tokenize empty = %d tokens, want 0", len(got))
+	}
+}
+
+// TestCodeOnlyInstructionPreservesExistingCode pins the regression rule added
+// after a follow-up job rewrote a file and dropped a previously accepted
+// function. The model must be told to preserve unrelated code and tests.
+func TestCodeOnlyInstructionPreservesExistingCode(t *testing.T) {
+	for _, want := range []string{
+		"preserve every existing public function",
+		"never drop unrelated code or tests",
+	} {
+		if !strings.Contains(codeOnlyInstruction, want) {
+			t.Errorf("codeOnlyInstruction missing %q; got %q", want, codeOnlyInstruction)
+		}
 	}
 }
