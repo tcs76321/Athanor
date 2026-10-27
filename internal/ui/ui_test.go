@@ -442,3 +442,28 @@ func TestCreateProjectFromUIStartsJob(t *testing.T) {
 		t.Fatalf("job %s not persisted: %v", jobID, err)
 	}
 }
+
+// TestCreateGoalFromUI covers the iterative human loop: submit a follow-up
+// goal from the project page and land on its watch view.
+func TestCreateGoalFromUI(t *testing.T) {
+	fx := setup(t)
+	form := url.Values{
+		"goal":     {"Add a small subtract function with tests."},
+		"criteria": {"pytest passes\nsubtract works"},
+	}
+	resp := postForm(t, fx.ts.URL+"/ui/projects/"+fx.project.ID+"/goals", form)
+	if resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303", resp.StatusCode)
+	}
+	loc := resp.Header.Get("Location")
+	if !strings.HasPrefix(loc, "/ui/jobs/") {
+		t.Fatalf("Location = %q, want a job watch page", loc)
+	}
+	if len(fx.engine.enqueued) != 1 {
+		t.Fatalf("enqueued = %v, want one job", fx.engine.enqueued)
+	}
+	jobID := strings.TrimPrefix(loc, "/ui/jobs/")
+	if _, err := fx.ui.deps.Jobs.Get(context.Background(), jobID); err != nil {
+		t.Fatalf("job %s not persisted: %v", jobID, err)
+	}
+}

@@ -32,6 +32,9 @@ New entries are appended at the top. Do not rewrite history.
 - **A first-use project form in the local UI.** `/ui/projects/new` creates a
   project, applies the test command, runs the same bounded pre-index, and
   starts the first job; the dashboard and projects page link to it.
+- **Follow-up goals from the project page.** A project page submits a goal and
+  its criteria, creates the task/job, and redirects to the watch view, so the
+  human loop stays in the GUI.
 - Verified end to end on a three-file Python repository: pre-index (3 files /
   8 chunks) → planning → 3 candidates → self-refine → synthesis → comparison →
   accepted. A later goal was accepted on the deterministic better-or-equal

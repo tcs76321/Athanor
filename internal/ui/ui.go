@@ -86,6 +86,7 @@ func (u *UI) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /ui/projects/new", u.handleNewProject)
 	mux.HandleFunc("POST /ui/projects", u.handleProjectCreate)
 	mux.HandleFunc("GET /ui/projects/{id}", u.handleProject)
+	mux.HandleFunc("POST /ui/projects/{id}/goals", u.handleGoalCreate)
 	mux.HandleFunc("POST /ui/projects/{id}/corrections", u.handleCorrectionCreate)
 	mux.HandleFunc("GET /ui/corrections", u.handleCorrections)
 	mux.HandleFunc("GET /ui/statistics", u.handleStatistics)
@@ -287,6 +288,36 @@ func (u *UI) handleProject(w http.ResponseWriter, r *http.Request) {
 	u.render(w, "Project "+p.Name, projectBody, map[string]any{
 		"Project": p, "Artifacts": arts, "Corrections": corr,
 	})
+}
+
+// handleGoalCreate submits a follow-up goal to an existing project from the
+// project page. It creates the M1 task/job and enqueues it, then redirects to
+// the watch view. The full project interview (F3) is still to-build; this is
+// the minimal human loop.
+func (u *UI) handleGoalCreate(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		u.fail(w, fmt.Errorf("invalid form: %w", err))
+		return
+	}
+	projectID := r.PathValue("id")
+	goal := strings.TrimSpace(r.FormValue("goal"))
+	if goal == "" {
+		u.fail(w, fmt.Errorf("goal is required"))
+		return
+	}
+	criteria := splitCriteria(r.FormValue("criteria"))
+	task, err := u.deps.Projects.SubmitGoal(r.Context(), projectID, goal, criteria)
+	if err != nil {
+		u.fail(w, err)
+		return
+	}
+	j, err := u.deps.Jobs.Create(r.Context(), task.ID, projectID)
+	if err != nil {
+		u.fail(w, err)
+		return
+	}
+	u.deps.Engine.Enqueue(j.ID)
+	http.Redirect(w, r, "/ui/jobs/"+j.ID, http.StatusSeeOther)
 }
 
 func (u *UI) handleCorrections(w http.ResponseWriter, r *http.Request) {

@@ -125,6 +125,12 @@ const newProjectBody = `
 const projectBody = `
 <h1>{{.Project.Name}} <span class="muted">({{.Project.Archetype}})</span></h1>
 <p class="muted">{{.Project.Goal}}</p>
+<h2>New goal</h2>
+<form method="post" action="/ui/projects/{{.Project.ID}}/goals">
+<div><label>goal <textarea name="goal" rows="3" cols="80" minlength="20" maxlength="500" required></textarea></label></div>
+<div><label>acceptance criteria (one per line)<br><textarea name="criteria" rows="3" cols="80"></textarea></label></div>
+<button>Submit goal</button>
+</form>
 <h2>Artifacts</h2>
 <table><thead><tr><th>Kind</th><th>Version</th><th>Status</th><th>Commit</th><th></th></tr></thead><tbody>
 {{range .Artifacts}}<tr><td>{{.Kind}}</td><td>v{{.Version}}</td><td>{{.Status}}</td><td>{{.GitCommit | short}}</td><td>{{if .SupersedesID}}<a href="/ui/artifacts/{{.ID}}/diff">diff</a>{{end}}</td></tr>
