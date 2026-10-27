@@ -10,6 +10,30 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### First-use fixes — 2026-10-27
+
+- **The host binary's default `-state-dir state` now works.** The daemon
+  resolves it to an absolute path before building a Job Pod spec, so the staged
+  repository mount no longer fails with `RepoDir must be absolute`. The Core
+  Pod's absolute state path is unchanged.
+- **A repo-backed project's first job sees its repository.** `project create
+  -repo` runs one bounded index pass before enqueueing the first job, audits a
+  `repo_preindex` row under `context`, and reports the summary in the CLI. A
+  failed or timed-out pass is a warning, not a block; the full pass remains
+  `athanor index`.
+- **A follow-up job can be accepted.** A hard verifier pass at or above the
+  previous accepted artifact's average score now sets `better_than_previous` on
+  the final record, so the §19.3 guard honors a comparison judge's `new` when
+  the deterministic edge backs it. A previous with no evaluation history still
+  downgrades, preserving the conservative contract.
+- **Code generation is told to preserve existing code.** The code instruction
+  now requires preserving unrelated public functions, classes, tests, and
+  documentation; a follow-up job had dropped a previously accepted function.
+- Verified end to end on a three-file Python repository: pre-index (3 files /
+  8 chunks) → planning → 3 candidates → self-refine → synthesis → comparison →
+  accepted. A later goal was accepted on the deterministic better-or-equal
+  edge.
+
 ### Benchmark v2 — first full run (2026-10-25)
 
 - **30/41 deterministic (73%)** on the canonical 9B set: **H 24/26 (92%)**,
