@@ -85,6 +85,17 @@ func runServe(f *daemonFlags) {
 
 // run boots the daemon and blocks until an OS signal or server failure.
 func run(configPath, addr, stateDir string, container bool) error {
+	// The Job Pod spec requires absolute mount sources (RepoDir, token dir).
+	// `state` is the documented default and is relative, so resolve it once
+	// here rather than letting a later `state/scratch/.../repo` reach Podman
+	// and fail with "RepoDir must be absolute". This is a no-op for the Core
+	// Pod, whose state path is already absolute.
+	absState, err := filepath.Abs(stateDir)
+	if err != nil {
+		return fmt.Errorf("resolving state dir %q: %w", stateDir, err)
+	}
+	stateDir = absState
+
 	cfg, err := loadConfig(configPath)
 	if err != nil {
 		return fmt.Errorf("loading config: %w", err)
