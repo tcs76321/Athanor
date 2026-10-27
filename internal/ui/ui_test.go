@@ -467,3 +467,16 @@ func TestCreateGoalFromUI(t *testing.T) {
 		t.Fatalf("job %s not persisted: %v", jobID, err)
 	}
 }
+
+// TestArtifactView proves the human can read the accepted bytes, not just the
+// status and diff.
+func TestArtifactView(t *testing.T) {
+	fx := setup(t)
+	status, body := get(t, fx.ts.URL+"/ui/artifacts/"+fx.artifact.ID)
+	if status != http.StatusOK {
+		t.Fatalf("status = %d, want 200", status)
+	}
+	if !strings.Contains(body, "line TWO") {
+		t.Fatal("artifact content is not rendered")
+	}
+}

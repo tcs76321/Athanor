@@ -133,7 +133,7 @@ const projectBody = `
 </form>
 <h2>Artifacts</h2>
 <table><thead><tr><th>Kind</th><th>Version</th><th>Status</th><th>Commit</th><th></th></tr></thead><tbody>
-{{range .Artifacts}}<tr><td>{{.Kind}}</td><td>v{{.Version}}</td><td>{{.Status}}</td><td>{{.GitCommit | short}}</td><td>{{if .SupersedesID}}<a href="/ui/artifacts/{{.ID}}/diff">diff</a>{{end}}</td></tr>
+{{range .Artifacts}}<tr><td><a href="/ui/artifacts/{{.ID}}">{{.Kind}}</a></td><td><a href="/ui/artifacts/{{.ID}}">v{{.Version}}</a></td><td>{{.Status}}</td><td>{{.GitCommit | short}}</td><td>{{if .SupersedesID}}<a href="/ui/artifacts/{{.ID}}/diff">diff</a>{{end}}</td></tr>
 {{else}}<tr><td colspan="5" class="muted">none</td></tr>{{end}}
 </tbody></table>
 <h2>Corrections</h2>
@@ -200,12 +200,18 @@ const watchBody = `
 {{range .Notes}}<div class="muted">{{.Status}}: {{.Text}}</div>{{end}}
 <h2>Artifacts</h2>
 <table><thead><tr><th>Kind</th><th>Version</th><th>Status</th><th></th></tr></thead><tbody>
-{{range .Artifacts}}<tr><td>{{.Kind}}</td><td>v{{.Version}}</td><td>{{.Status}}</td><td>{{if .SupersedesID}}<a href="/ui/artifacts/{{.ID}}/diff">diff</a>{{end}}</td></tr>
+{{range .Artifacts}}<tr><td><a href="/ui/artifacts/{{.ID}}">{{.Kind}}</a></td><td><a href="/ui/artifacts/{{.ID}}">v{{.Version}}</a></td><td>{{.Status}}</td><td>{{if .SupersedesID}}<a href="/ui/artifacts/{{.ID}}/diff">diff</a>{{end}}</td></tr>
 {{else}}<tr><td colspan="4" class="muted">none</td></tr>{{end}}
 </tbody></table>
 <h2>Events</h2>
 <div id="events"></div>
 <script>` + watchJS + `</script>
+`
+
+const artifactBody = `
+<h1>Artifact {{.Artifact.ID | short}} <span class="muted">{{.Artifact.Kind}} v{{.Artifact.Version}} / {{.Artifact.Status}}</span></h1>
+<p class="muted">project {{.Artifact.ProjectID | short}} · job {{.Artifact.JobID | short}} · commit {{.Artifact.GitCommit | short}}</p>
+<pre>{{.Content}}</pre>
 `
 
 const diffBody = `

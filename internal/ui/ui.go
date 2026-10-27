@@ -95,6 +95,7 @@ func (u *UI) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /ui/jobs/{id}/stream", u.handleJobStream)
 	mux.HandleFunc("POST /ui/jobs/{id}/note", u.handleNote)
 	mux.HandleFunc("POST /ui/jobs/{id}/control", u.handleControl)
+	mux.HandleFunc("GET /ui/artifacts/{id}", u.handleArtifact)
 	mux.HandleFunc("GET /ui/artifacts/{id}/diff", u.handleDiff)
 	mux.HandleFunc("POST /ui/approvals/{id}", u.handleApproval)
 }
@@ -622,6 +623,27 @@ func (u *UI) handleControl(w http.ResponseWriter, r *http.Request) {
 
 // handleDiff renders a line diff between an artifact and the version it
 // superseded.
+// handleArtifact renders one artifact's full content. The project page links
+// here; without it the human could see statuses and diffs but not the accepted
+// bytes.
+func (u *UI) handleArtifact(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	id := r.PathValue("id")
+	a, err := u.deps.Artifacts.Get(ctx, id)
+	if err != nil {
+		u.fail(w, err)
+		return
+	}
+	content, err := u.deps.Artifacts.ReadContent(ctx, id)
+	if err != nil {
+		u.fail(w, err)
+		return
+	}
+	u.render(w, "Artifact "+a.ID, artifactBody, map[string]any{
+		"Artifact": a, "Content": string(content),
+	})
+}
+
 func (u *UI) handleDiff(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	a, err := u.deps.Artifacts.Get(ctx, r.PathValue("id"))
