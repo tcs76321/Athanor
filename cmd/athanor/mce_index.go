@@ -21,8 +21,11 @@ type mceIndexer struct {
 	cfg     config.ContextEngine
 }
 
-// Compile-time proof that the adapter satisfies the API seam.
-var _ api.IndexRunner = (*mceIndexer)(nil)
+// Compile-time proof that the adapter satisfies the API seams.
+var (
+	_ api.IndexRunner        = (*mceIndexer)(nil)
+	_ api.BoundedIndexRunner = (*mceIndexer)(nil)
+)
 
 // newMCEIndexer builds the indexer over the daemon's MCE runtime. An empty
 // memory_embedding_model leaves the vector half inert: indexing still divides
@@ -45,6 +48,21 @@ func (m *mceIndexer) IndexProject(ctx context.Context, projectID, path string) (
 	if err != nil {
 		return api.IndexSummary{}, err
 	}
+	return summaryFromResult(res), nil
+}
+
+// IndexOnceSummary runs one bounded pass and maps it onto the API response.
+// It is the first-use pre-index path: cheap enough to run before a project's
+// first job, and resumable by the daydream indexer afterwards.
+func (m *mceIndexer) IndexOnceSummary(ctx context.Context, projectID, path string) (api.IndexSummary, error) {
+	res, err := m.indexer.RunOnce(ctx, m.opts(projectID, path))
+	if err != nil {
+		return api.IndexSummary{}, err
+	}
+	return summaryFromResult(res), nil
+}
+
+func summaryFromResult(res mce.IndexResult) api.IndexSummary {
 	return api.IndexSummary{
 		Discovered: res.Discovered,
 		Indexed:    res.Indexed,
@@ -54,7 +72,7 @@ func (m *mceIndexer) IndexProject(ctx context.Context, projectID, path string) (
 		Summarized: res.Summarized,
 		Embedded:   res.Embedded,
 		Failed:     res.Failed,
-	}, nil
+	}
 }
 
 // IndexOnce runs one bounded pass. It is the idle daydream driver's entry

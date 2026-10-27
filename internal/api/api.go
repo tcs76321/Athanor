@@ -7,6 +7,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -46,6 +47,14 @@ type ManualExporter interface {
 // so the API does not import internal/mce.
 type IndexRunner interface {
 	IndexProject(ctx context.Context, projectID, path string) (IndexSummary, error)
+}
+
+// BoundedIndexRunner is the optional extension used by the first-use path: a
+// single bounded pass is cheap enough to run before a project's first job, so
+// the job's Dormant Index is not empty. The full run stays available behind
+// POST /projects/{id}/index.
+type BoundedIndexRunner interface {
+	IndexOnceSummary(ctx context.Context, projectID, path string) (IndexSummary, error)
 }
 
 // Decomposer is the surface the M6-T1 `POST /projects/{id}/decompose`
@@ -341,6 +350,13 @@ type projectResponse struct {
 	RepositoryPath string `json:"repository_path,omitempty"`
 	TaskID         string `json:"task_id,omitempty"`
 	JobID          string `json:"job_id,omitempty"`
+	// Index is the bounded repository pass run before the first job when a
+	// repository_path was supplied. Absent when no repository was configured
+	// or the indexer does not support a bounded pass.
+	Index *IndexSummary `json:"index,omitempty"`
+	// IndexWarning reports a pre-index failure. Project creation and the job
+	// still proceed; a missing index degrades context, it does not block work.
+	IndexWarning string `json:"index_warning,omitempty"`
 }
 
 func (a *API) handleProjectCreate(w http.ResponseWriter, r *http.Request) {
@@ -374,6 +390,33 @@ func (a *API) handleProjectCreate(w http.ResponseWriter, r *http.Request) {
 		}
 		p.Execution = ex
 	}
+
+	// First-use on-ramp: a repository-backed project's first job must not run
+	// against an empty Dormant Index. Run one bounded index pass before the
+	// job is enqueued. It is deliberately bounded (index_batch_*) and
+	// best-effort: a failed or timed-out pass degrades context, it does not
+	// block the work. The full pass remains POST /projects/{id}/index.
+	var (
+		index        *IndexSummary
+		indexWarning string
+	)
+	if start && p.RepositoryPath != "" && a.indexer != nil {
+		if bounded, ok := a.indexer.(BoundedIndexRunner); ok {
+			ictx, cancel := context.WithTimeout(r.Context(), 5*time.Minute)
+			sum, ierr := bounded.IndexOnceSummary(ictx, p.ID, p.RepositoryPath)
+			cancel()
+			if ierr != nil {
+				indexWarning = "repository pre-index failed: " + ierr.Error()
+				slog.Warn("project create: repository pre-index failed",
+					"project", p.ID, "repo", p.RepositoryPath, "err", ierr)
+			} else {
+				index = &sum
+			}
+		} else {
+			indexWarning = "repository pre-index skipped: indexer does not support a bounded pass"
+		}
+	}
+
 	var jobID string
 	if start {
 		j, err := a.jobs.Create(r.Context(), task.ID, task.ProjectID)
@@ -384,9 +427,31 @@ func (a *API) handleProjectCreate(w http.ResponseWriter, r *http.Request) {
 		a.engine.Enqueue(j.ID)
 		jobID = j.ID
 	}
+	// Audit the pre-index under the §28.1 `context` category. This is the
+	// evidence a post-mortem needs to tell "the job was blind" from "the
+	// repository was indexed but ranked nothing relevant".
+	if a.db != nil && (index != nil || indexWarning != "") {
+		data := map[string]any{"event": "repo_preindex", "repo": p.RepositoryPath}
+		if index != nil {
+			data["discovered"] = index.Discovered
+			data["indexed"] = index.Indexed
+			data["skipped"] = index.Skipped
+			data["chunks"] = index.Chunks
+			data["summarized"] = index.Summarized
+		}
+		if indexWarning != "" {
+			data["warning"] = indexWarning
+		}
+		if _, err := a.db.AppendEvent(r.Context(), store.Event{
+			Category: "context", ProjectID: p.ID, JobID: jobID, Data: data,
+		}); err != nil {
+			slog.Warn("project create: auditing repository pre-index", "project", p.ID, "err", err)
+		}
+	}
 	writeJSON(w, http.StatusCreated, projectResponse{
 		ID: p.ID, Name: p.Name, Archetype: p.Archetype, Goal: p.Goal,
 		RepositoryPath: p.RepositoryPath, TaskID: task.ID, JobID: jobID,
+		Index: index, IndexWarning: indexWarning,
 	})
 }
 

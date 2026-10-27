@@ -9,10 +9,12 @@ import (
 )
 
 type projectCreateResult struct {
-	ID     string `json:"id"`
-	Name   string `json:"name"`
-	TaskID string `json:"task_id"`
-	JobID  string `json:"job_id"`
+	ID           string       `json:"id"`
+	Name         string       `json:"name"`
+	TaskID       string       `json:"task_id"`
+	JobID        string       `json:"job_id"`
+	Index        *indexResult `json:"index,omitempty"`
+	IndexWarning string       `json:"index_warning,omitempty"`
 }
 
 func runProject(args []string) error {
@@ -61,11 +63,21 @@ func runProject(args []string) error {
 		}
 		body["execution"] = ex
 	}
+	if *repo != "" {
+		fmt.Println("indexing the repository (bounded first pass) before the first job...")
+	}
 	var out projectCreateResult
 	if err := apiCall(http.MethodPost, *addr+"/projects", body, &out); err != nil {
 		return err
 	}
 	fmt.Printf("project %s created (task %s)\n", out.ID, out.TaskID)
+	if out.Index != nil {
+		fmt.Printf("repository pre-index: %d indexed, %d skipped, %d chunks, %d summaries (%d failed)\n",
+			out.Index.Indexed, out.Index.Skipped, out.Index.Chunks, out.Index.Summarized, out.Index.Failed)
+	}
+	if out.IndexWarning != "" {
+		fmt.Printf("warning: %s\n", out.IndexWarning)
+	}
 	if out.JobID != "" {
 		fmt.Printf("job %s started — watch it with:\n  athanor job watch -job %s\n", out.JobID, out.JobID)
 		fmt.Printf("add another goal with:\n  athanor goal submit -project %s -goal \"...\"\n", out.ID)
