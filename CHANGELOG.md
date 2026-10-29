@@ -10,6 +10,24 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### P0 reliability — 2026-10-28
+
+- **Comparison guard diagnostics.** The `comparison` event now carries the
+  §19.3 guard's exact inputs (pre/post winner, threshold, `has_previous`, final
+  record pass/confidence/better, final verifier application) and the benchmark
+  collector records them, so a row that passed the external check but ended
+  `failed` is explainable from `results.json` alone. `tools/bench/report` gains
+  a decision-diagnostics table. Proof: `TestLoadComparisonDiagnostics`.
+- **A job panic is contained to one job.** `Engine.Run` recovers a phase panic,
+  records `job_panicked` with the phase and a bounded stack, fails the job,
+  captures a runtime-error correction, and stops its pod. The daemon keeps
+  running. [ADR-0086](docs/adr/0086-job-panic-containment.md); proof:
+  `internal/engine/panic_test.go`.
+- **A missing data schema fails loudly.** The probe previously omitted
+  `data_schema` when the declared schema path could not be read, silently
+  disabling the engine's only deterministic data verifier. It now errors the
+  row. Proof: `TestDataSchemaForFailsLoudly`.
+
 ### First-use fixes — 2026-10-27
 
 - **The host binary's default `-state-dir state` now works.** The daemon

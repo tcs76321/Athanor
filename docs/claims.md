@@ -18,9 +18,12 @@ demo. A claim without a proof is either removed or marked as a target.
 | Context floors are never silently reduced | ARCHITECTURE §12.3 | `internal/llm/feasibility.go`, KV pressure tests | proven |
 | The model cannot invoke tools; the engine executes them | ARCHITECTURE §25, ADR-0080 | `internal/prompt/render_test.go`; no tool-call parser | proven |
 | A code project's tasks carry the execution tools | ARCHITECTURE §25, ADR-0081 | `internal/project/project_test.go` | proven |
-| The Core Pod is the only supported runtime | README, ADR-0078 | `install.sh` / `athanor start` target the container; `backup`/`restore -container` and host `doctor`/`models` are wired | **proven for install/start/backup/restore**; fresh-install demo and a Core Pod job remain |
+| The Core Pod is the only supported runtime | README, ADR-0078 | `install.sh` / `athanor start` target the container; `backup`/`restore -container` and host `doctor`/`models` are wired; a repo-backed Core Pod job completed end to end (0.0.0 baseline) | **proven for install/start/backup/restore and a Core Pod job**; the timed fresh-install demo remains |
 | A repository working set reaches Job Pods | README coding workflow | staged snapshot at `/workspace/repo`; `/tmp/work` overlay; verified by a Core Pod `pytest` asserting the mount (ADR-0082) | **proven** |
-| The frozen benchmark is the controlled study | AGENTS, ADR-0075 | v2 corpus exists; full run pending | **partial — smoke only** |
+| The frozen benchmark is the controlled study | AGENTS, ADR-0075 | v2 corpus and digest are pinned; the full 41-task slice ran 2026-10-25 (30/41, [findings](probes/bench-v2-findings.md)); the 6-task smoke runs on engine changes | **proven for the instrument; full rerun after P0 capability changes pending** |
+| A job panic is contained to one job | ADR-0086 | `internal/engine/panic_test.go`; `job_panicked` event | **proven** |
+| The benchmark records comparison-guard diagnostics | AGENTS (honest evidence), P0 plan | `tools/bench/collect.go` (`comparisonRow`); `TestLoadComparisonDiagnostics`; report decision-diagnostics section | **proven** |
+| A declared data schema is never silently omitted | P0 plan | `tools/bench/runner.go` (`dataSchemaFor`); `TestDataSchemaForFailsLoudly` | **proven** |
 
 ## Rule
 

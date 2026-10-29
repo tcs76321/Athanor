@@ -136,7 +136,7 @@ Then watch it work in real time from the Watch View, or queue it and check the M
 
 ## Status
 
-### What works today (M0–M8 complete; M9 — 0.0.0 — in progress)
+### What works today (M0–M8 code-complete; M9 — 0.0.0 — in progress)
 
 - **0.0.0 capability + packaging (M9).** The self-refine repair loop
   (`execution.self_refine`, on by default) feeds the failing test's output back
