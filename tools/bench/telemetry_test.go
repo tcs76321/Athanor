@@ -28,10 +28,15 @@ func TestFillTelemetry(t *testing.T) {
 		`{"event":"reflection"}`,
 		`{"event":"divergence_reroll"}`,
 		`{"event":"difficulty_hint"}`,
-		`{"event":"kv_cache_pressure"}`,
+		`{"event":"kv_cache_pressure","action":"warn"}`,
+		`{"event":"kv_cache_pressure","action":"critical"}`,
 		`{"event":"context_floor_violation"}`,
 		`{"event":"git_committed"}`,
 		`{"event":"git_commit_failed"}`,
+		`{"event":"dormant_index_sourced","rows":4}`,
+		`{"event":"working_set_sourced","chunks":3,"bytes":900}`,
+		`{"event":"memory_injected","hits":2,"bytes":400}`,
+		`{"event":"memory_compacted","source_bytes":1000,"compacted_bytes":250}`,
 		`{"event":"some_future_event_the_engine_may_add"}`,
 	}
 	for _, r := range rows {
@@ -65,11 +70,23 @@ func TestFillTelemetry(t *testing.T) {
 	if tel.RepairLoops != 1 || tel.ReflectLoops != 1 || tel.Rerolls != 1 || tel.CandidateRaise != 1 {
 		t.Errorf("lever counters wrong: %+v", tel)
 	}
-	if tel.KVPressure != 1 || tel.ContextFloors != 1 {
-		t.Errorf("kv/floors = %d/%d, want 1/1", tel.KVPressure, tel.ContextFloors)
+	if tel.KVPressure != 2 || tel.KVWarn != 1 || tel.KVCritical != 1 || tel.ContextFloors != 1 {
+		t.Errorf("kv/floors = %d/%d/%d/%d, want 2/1/1/1",
+			tel.KVPressure, tel.KVWarn, tel.KVCritical, tel.ContextFloors)
 	}
 	if tel.GitCommitted != 1 || tel.GitCommitFailed != 1 {
 		t.Errorf("git = %d/%d, want 1/1", tel.GitCommitted, tel.GitCommitFailed)
+	}
+	if tel.DormantRows != 4 || tel.WorkingSetChunks != 3 || tel.WorkingSetBytes != 900 {
+		t.Errorf("working set = rows %d chunks %d bytes %d, want 4/3/900",
+			tel.DormantRows, tel.WorkingSetChunks, tel.WorkingSetBytes)
+	}
+	if tel.MemoryHits != 2 || tel.MemoryBytes != 400 {
+		t.Errorf("memory = %d/%d, want 2/400", tel.MemoryHits, tel.MemoryBytes)
+	}
+	if tel.Compactions != 1 || tel.CompactionSource != 1000 || tel.CompactionBytes != 250 {
+		t.Errorf("compaction = %d/%d/%d, want 1/1000/250",
+			tel.Compactions, tel.CompactionSource, tel.CompactionBytes)
 	}
 }
 

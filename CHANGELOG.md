@@ -48,6 +48,11 @@ New entries are appended at the top. Do not rewrite history.
   the write-only memory gap: daydream consolidation now has a consumer.
   [ADR-0085](docs/adr/0085-memory-in-prompt.md); proof:
   `TestMemoryReachesEpisodicTier`.
+- **Benchmark MCE mechanism metrics.** The probe now reduces dormant-index
+  rows, working-set chunks/bytes, memory hits/bytes, compaction source/result
+  bytes, and split KV warn/critical counts from the event log. This is the
+  ADR-0075 sensitivity requirement: a change to the MCE is reportable, not
+  invisible. Proof: `TestFillTelemetry`.
 - **Synthesis keeps a verified candidate for every hard-verifier archetype.**
   The ADR-0068 fallback was code-only; a text job could pass every declared
   check at the candidate stage yet fail after synthesis, while the benchmark's

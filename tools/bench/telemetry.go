@@ -29,11 +29,23 @@ type jobTelemetry struct {
 	Rerolls          int            `json:"divergence_rerolls,omitempty"`
 	CandidateRaise   int            `json:"candidate_raise,omitempty"`
 	KVPressure       int            `json:"kv_pressure,omitempty"`
+	KVWarn           int            `json:"kv_warn,omitempty"`
+	KVCritical       int            `json:"kv_critical,omitempty"`
 	ContextFloors    int            `json:"context_floor_violations,omitempty"`
 	Notes            int            `json:"strategy_notes_injected,omitempty"`
 	Corrections      int            `json:"corrections_injected,omitempty"`
 	GitCommitted     int            `json:"git_committed,omitempty"`
 	GitCommitFailed  int            `json:"git_commit_failed,omitempty"`
+	// P1 MCE mechanism metrics (ADR-0075 sensitivity): what retrieval put in
+	// front of the model and what compaction paid for it.
+	DormantRows      int `json:"dormant_index_rows,omitempty"`
+	WorkingSetChunks int `json:"working_set_chunks,omitempty"`
+	WorkingSetBytes  int `json:"working_set_bytes,omitempty"`
+	MemoryHits       int `json:"memory_hits,omitempty"`
+	MemoryBytes      int `json:"memory_bytes,omitempty"`
+	Compactions      int `json:"compactions,omitempty"`
+	CompactionSource int `json:"compaction_source_bytes,omitempty"`
+	CompactionBytes  int `json:"compaction_bytes,omitempty"`
 }
 
 // fillTelemetry reduces the job's event log into m.Telemetry (ADR-0073 §3). It
@@ -63,6 +75,13 @@ func (m *jobMetrics) fillTelemetry(db *sql.DB) {
 			Model            string `json:"model"`
 			PromptTokens     int    `json:"prompt_tokens"`
 			CompletionTokens int    `json:"completion_tokens"`
+			Action           string `json:"action"`
+			Rows             int    `json:"rows"`
+			Chunks           int    `json:"chunks"`
+			Bytes            int    `json:"bytes"`
+			Hits             int    `json:"hits"`
+			SourceBytes      int    `json:"source_bytes"`
+			CompactedBytes   int    `json:"compacted_bytes"`
 		}
 		if json.Unmarshal([]byte(raw), &d) != nil {
 			continue
@@ -100,6 +119,24 @@ func (m *jobMetrics) fillTelemetry(db *sql.DB) {
 			t.CandidateRaise++
 		case "kv_cache_pressure":
 			t.KVPressure++
+			switch d.Action {
+			case "warn":
+				t.KVWarn++
+			case "critical":
+				t.KVCritical++
+			}
+		case "dormant_index_sourced":
+			t.DormantRows += d.Rows
+		case "working_set_sourced":
+			t.WorkingSetChunks += d.Chunks
+			t.WorkingSetBytes += d.Bytes
+		case "memory_injected":
+			t.MemoryHits += d.Hits
+			t.MemoryBytes += d.Bytes
+		case "memory_compacted":
+			t.Compactions++
+			t.CompactionSource += d.SourceBytes
+			t.CompactionBytes += d.CompactedBytes
 		case "context_floor_violation":
 			t.ContextFloors++
 		case "strategy_notes_injected":
@@ -128,7 +165,17 @@ type telemetryRow struct {
 	Rerolls          int
 	Raises           int
 	KVPressure       int
+	KVWarn           int
+	KVCritical       int
 	ContextFloors    int
+	DormantRows      int
+	WorkingChunks    int
+	WorkingBytes     int
+	MemoryHits       int
+	MemoryBytes      int
+	Compactions      int
+	CompactionSource int
+	CompactionBytes  int
 }
 
 // telemetryTable aggregates per-model telemetry over the rows that carry it.
@@ -155,7 +202,17 @@ func telemetryTable(metrics []jobMetrics) []telemetryRow {
 		r.Rerolls += t.Rerolls
 		r.Raises += t.CandidateRaise
 		r.KVPressure += t.KVPressure
+		r.KVWarn += t.KVWarn
+		r.KVCritical += t.KVCritical
 		r.ContextFloors += t.ContextFloors
+		r.DormantRows += t.DormantRows
+		r.WorkingChunks += t.WorkingSetChunks
+		r.WorkingBytes += t.WorkingSetBytes
+		r.MemoryHits += t.MemoryHits
+		r.MemoryBytes += t.MemoryBytes
+		r.Compactions += t.Compactions
+		r.CompactionSource += t.CompactionSource
+		r.CompactionBytes += t.CompactionBytes
 	}
 	sort.Strings(order)
 	out := make([]telemetryRow, 0, len(order))
@@ -214,12 +271,14 @@ func renderTelemetryTables(metrics []jobMetrics) string {
 		return ""
 	}
 	b.WriteString("\n## Telemetry — per model (ADR-0073)\n\n")
-	b.WriteString("| model | jobs | calls | prompt tok | completion tok | repairs | reflections | rerolls | raises | kv pressure | floor violations |\n")
-	b.WriteString("|---|---|---|---|---|---|---|---|---|---|---|\n")
+	b.WriteString("| model | jobs | calls | prompt tok | completion tok | repairs | reflections | rerolls | raises | kv warn | kv critical | floor violations | dormant rows | ws chunks | ws bytes | memory hits | compactions | compacted bytes |\n")
+	b.WriteString("|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|\n")
 	for _, r := range perModel {
-		fmt.Fprintf(&b, "| %s | %d | %d | %d | %d | %d | %d | %d | %d | %d | %d |\n",
+		fmt.Fprintf(&b, "| %s | %d | %d | %d | %d | %d | %d | %d | %d | %d | %d | %d | %d | %d | %d | %d | %d | %d |\n",
 			r.Model, r.Jobs, r.Calls, r.PromptTokens, r.CompletionTokens,
-			r.Repairs, r.Reflections, r.Rerolls, r.Raises, r.KVPressure, r.ContextFloors)
+			r.Repairs, r.Reflections, r.Rerolls, r.Raises, r.KVWarn, r.KVCritical,
+			r.ContextFloors, r.DormantRows, r.WorkingChunks, r.WorkingBytes,
+			r.MemoryHits, r.Compactions, r.CompactionBytes)
 	}
 	phases := phaseTelemetry(metrics)
 	if len(phases) > 0 {
