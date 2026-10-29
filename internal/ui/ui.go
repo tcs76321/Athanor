@@ -23,6 +23,7 @@ import (
 
 	"github.com/tcs76321/athanor/internal/artifact"
 	"github.com/tcs76321/athanor/internal/corrections"
+	"github.com/tcs76321/athanor/internal/digest"
 	"github.com/tcs76321/athanor/internal/firstuse"
 	"github.com/tcs76321/athanor/internal/hitl"
 	"github.com/tcs76321/athanor/internal/interruptions"
@@ -201,9 +202,11 @@ func (u *UI) handleDashboard(w http.ResponseWriter, r *http.Request) {
 			reviewCount = len(ids)
 		}
 	}
+	day, _ := digest.Build(ctx, u.deps.Store, time.Now().Add(-24*time.Hour), time.Now())
 	u.render(w, "Dashboard", dashboardBody, map[string]any{
 		"Active": active, "Terminal": terminal, "Pending": pending, "Frozen": frozen,
 		"ProjectNames": names, "ReviewCount": reviewCount, "RecentArtifacts": recentArts,
+		"Digest": day,
 	})
 }
 

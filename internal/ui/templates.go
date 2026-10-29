@@ -203,6 +203,20 @@ const dashboardBody = `
   <div class="card stat"><div class="n">{{if .Frozen}}Frozen{{else}}Active{{end}}</div><div class="l">kill switch</div></div>
 </div>
 
+<h2>Last 24 hours</h2>
+<div class="grid">
+  <div class="card stat"><div class="n">{{.Digest.JobsCompleted}}</div><div class="l">jobs completed</div></div>
+  <div class="card stat"><div class="n">{{.Digest.JobsFailed}}</div><div class="l">jobs failed</div></div>
+  <div class="card stat"><div class="n">{{.Digest.Artifacts.Accepted}}</div><div class="l">artifacts accepted</div></div>
+  <div class="card stat"><div class="n">{{.Digest.Tokens}}</div><div class="l">tokens spent</div></div>
+</div>
+{{if .Digest.Failures}}
+<div class="card">
+  <h3>Failures worth a look</h3>
+  {{range .Digest.Failures}}<div class="ev"><a href="/ui/jobs/{{.JobID}}" class="mono">{{.JobID | short}}</a> — {{.Reason}}</div>{{end}}
+</div>
+{{end}}
+
 {{if .Pending}}
 <div class="card">
 <h2>Needs your decision</h2>

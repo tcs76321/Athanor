@@ -378,6 +378,17 @@ func TestLineDiffBuildsValidEditScript(t *testing.T) {
 	}
 }
 
+// TestDashboardShowsDigest proves the morning-digest strip renders.
+func TestDashboardShowsDigest(t *testing.T) {
+	fx := setup(t)
+	_, body := get(t, fx.ts.URL+"/ui")
+	for _, want := range []string{"Last 24 hours", "jobs completed", "artifacts accepted"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("dashboard missing %q", want)
+		}
+	}
+}
+
 // TestReviewQueuePage proves the blinded human review queue is reachable and
 // lists an accepted artifact that has no review.
 func TestReviewQueuePage(t *testing.T) {
