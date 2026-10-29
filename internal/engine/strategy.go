@@ -132,6 +132,7 @@ func (e *Engine) captureOutcome(ctx context.Context, jobID string) {
 		return
 	}
 	tokens, confidence := e.eventStats(ctx, jobID)
+	stats := e.armStats(ctx, jobID)
 	o := strategy.Outcome{
 		JobID:               jobID,
 		Result:              e.outcomeResult(ctx, j),
@@ -139,6 +140,11 @@ func (e *Engine) captureOutcome(ctx context.Context, jobID string) {
 		EvaluatorConfidence: confidence,
 		ReflectionLoops:     e.reflectionLoops(ctx, jobID),
 		TokenCost:           tokens,
+		ThinkArm:            stats.arm,
+		ReasoningTokens:     stats.reasoning,
+		DeliberateUnits:     stats.deliberate,
+		Refines:             stats.refines,
+		Reframes:            stats.reframes,
 	}
 	if j.StartedAt != nil && j.FinishedAt != nil {
 		o.WallTime = j.FinishedAt.Sub(*j.StartedAt)
@@ -205,6 +211,78 @@ func (e *Engine) eventStats(ctx context.Context, jobID string) (tokens int, conf
 		}
 	}
 	return tokens, confidence
+}
+
+// jobArmStats is the ADR-0090 S4 tag derived from a job's event log.
+type jobArmStats struct {
+	arm        string
+	reasoning  int
+	deliberate int
+	refines    int
+	reframes   int
+}
+
+// armStats derives the dominant generation think arm, the estimated reasoning
+// spend, the proposed deliberate-unit count, and the regulator's moves.
+func (e *Engine) armStats(ctx context.Context, jobID string) jobArmStats {
+	out := jobArmStats{}
+	events, err := e.db.QueryEvents(ctx, store.EventFilter{JobID: jobID, Category: "jobs"})
+	if err != nil {
+		return out
+	}
+	counts := map[string]int{}
+	for _, ev := range events {
+		var d struct {
+			Event           string          `json:"event"`
+			Think           json.RawMessage `json:"think"`
+			ReasoningTokens int             `json:"reasoning_tokens"`
+			Deliberate      int             `json:"deliberate"`
+			Decision        string          `json:"decision"`
+		}
+		if json.Unmarshal([]byte(ev.DataJSON), &d) != nil {
+			continue
+		}
+		switch d.Event {
+		case "llm_call":
+			out.reasoning += d.ReasoningTokens
+			counts[thinkArm(d.Think)]++
+		case "task_analysis":
+			out.deliberate = d.Deliberate
+		case "regulator_decision":
+			switch d.Decision {
+			case "refine":
+				out.refines++
+			case "reframe":
+				out.reframes++
+			}
+		}
+	}
+	best := -1
+	for arm, n := range counts {
+		if n > best || (n == best && arm < out.arm) {
+			out.arm, best = arm, n
+		}
+	}
+	return out
+}
+
+// thinkArm renders the audit `think` value as a stable arm name.
+func thinkArm(raw json.RawMessage) string {
+	if len(raw) == 0 || string(raw) == "null" {
+		return "unset"
+	}
+	var s string
+	if json.Unmarshal(raw, &s) == nil {
+		return s
+	}
+	var b bool
+	if json.Unmarshal(raw, &b) == nil {
+		if b {
+			return "on"
+		}
+		return "off"
+	}
+	return "unset"
 }
 
 // maxEvaluationScore returns the highest score among the job's evaluation

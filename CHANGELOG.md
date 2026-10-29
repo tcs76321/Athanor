@@ -10,6 +10,15 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Arm-tagged outcomes — 2026-10-29
+
+- **The loop's reasoning spend is now in the outcome record.** Migration 0032
+  adds the dominant think arm, estimated reasoning tokens, deliberate-unit
+  count, and regulator refine/reframe moves to `strategy_outcomes`, derived
+  from the job's `llm_call`, `task_analysis`, and `regulator_decision` events.
+  This is the evidence a later selection layer needs to compare arms without
+  re-reading the log. Proofs: `TestArmStats`, `TestThinkArmNames`.
+
 ### Regulator — 2026-10-29
 
 - **The evaluation checkpoint now classifies the failure instead of only

@@ -1,6 +1,6 @@
 # ADR 0090 — Task analysis sets a contemplation budget the loop revises
 
-**Status:** Proposed — S0–S2 implemented; S3–S4 open · **Date:** 2026-10-29 ·
+**Status:** Proposed — S0–S2 and S4 implemented; S3 open · **Date:** 2026-10-29 ·
 **Refs:** ARCHITECTURE §8.2 (state rules), §13.1 Phase 1 (planning), §19.3
 (comparison), §24 (power and idle policy); [ADR-0044](0044-compute-policy-seam.md)
 (compute-policy seam), [ADR-0064](0064-cognitive-operations.md) (operation
@@ -167,7 +167,14 @@ attributes the verifier/test output to a unit, keeps one refine per unit,
 reframes when the same failure signature repeats, defers when the horizon grant
 is spent (paused, not failed), and prepends a deterministic directive to both
 the reflection instructions and the next divergence seed. Units are still
-addressing labels, not separate jobs. S3–S4 remain open.
+addressing labels, not separate jobs.
+
+**S4 landed (2026-10-29):** migration 0032 adds the arm tag to
+`strategy_outcomes`: dominant think arm, estimated reasoning tokens, deliberate
+units, refines, and reframes. A later selection layer can estimate uplift per
+arm without re-reading the event log. S3 (executing a per-unit falsifier) stays
+open: it needs a command contract and a containment review, and the analysis
+falsifier is currently prose.
 
 | Step | Change | Behavior |
 |---|---|---|

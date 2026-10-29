@@ -81,7 +81,19 @@ type Outcome struct {
 	// Operations is the executed cognitive trajectory (M8-T7): the ordered
 	// operations that ran, with attributed cost and grounded verdicts.
 	Operations []cognitive.Operation
-	CreatedAt  time.Time
+	// ThinkArm is the dominant generation reasoning arm for the job ("off",
+	// "on", "low", "medium", "high", or "" when none was recorded). S4 keeps
+	// the arm with the outcome so a later selection layer can estimate uplift
+	// without re-reading the event log.
+	ThinkArm string
+	// ReasoningTokens is the estimated hidden-reasoning spend (ADR-0090 S0).
+	ReasoningTokens int
+	// DeliberateUnits, Refines, and Reframes describe what the regulator
+	// actually spent: proposed deliberate units, refine moves, reframe moves.
+	DeliberateUnits int
+	Refines         int
+	Reframes        int
+	CreatedAt       time.Time
 }
 
 // Repo persists strategy records.
@@ -168,11 +180,13 @@ func (r *Repo) CreateOutcome(ctx context.Context, o Outcome) (Outcome, error) {
 	}
 	if _, err := r.store.DB().ExecContext(ctx,
 		`INSERT INTO strategy_outcomes
-		   (id, job_id, strategy_profile_id, result, score, evaluator_confidence, retries, reflection_loops, token_cost, wall_time_ms, operations_json)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		   (id, job_id, strategy_profile_id, result, score, evaluator_confidence, retries, reflection_loops, token_cost, wall_time_ms, operations_json,
+		    think_arm, reasoning_tokens, deliberate_units, refines, reframes)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		 ON CONFLICT(job_id) DO NOTHING`,
 		ids.New(), o.JobID, profile.ID, o.Result, o.Score, o.EvaluatorConfidence,
 		o.Retries, o.ReflectionLoops, o.TokenCost, o.WallTime.Milliseconds(), string(ops),
+		o.ThinkArm, o.ReasoningTokens, o.DeliberateUnits, o.Refines, o.Reframes,
 	); err != nil {
 		return Outcome{}, fmt.Errorf("inserting strategy outcome: %w", err)
 	}
@@ -182,13 +196,15 @@ func (r *Repo) CreateOutcome(ctx context.Context, o Outcome) (Outcome, error) {
 // GetOutcomeByJob loads a job's outcome.
 func (r *Repo) GetOutcomeByJob(ctx context.Context, jobID string) (Outcome, error) {
 	row := r.store.DB().QueryRowContext(ctx,
-		`SELECT id, job_id, strategy_profile_id, result, score, evaluator_confidence, retries, reflection_loops, token_cost, wall_time_ms, operations_json, created_at
+		`SELECT id, job_id, strategy_profile_id, result, score, evaluator_confidence, retries, reflection_loops, token_cost, wall_time_ms, operations_json,
+		        think_arm, reasoning_tokens, deliberate_units, refines, reframes, created_at
 		 FROM strategy_outcomes WHERE job_id = ?`, jobID)
 	var o Outcome
 	var createdAt, opsJSON string
 	var wallMS int64
 	err := row.Scan(&o.ID, &o.JobID, &o.StrategyProfileID, &o.Result, &o.Score, &o.EvaluatorConfidence,
-		&o.Retries, &o.ReflectionLoops, &o.TokenCost, &wallMS, &opsJSON, &createdAt)
+		&o.Retries, &o.ReflectionLoops, &o.TokenCost, &wallMS, &opsJSON,
+		&o.ThinkArm, &o.ReasoningTokens, &o.DeliberateUnits, &o.Refines, &o.Reframes, &createdAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Outcome{}, fmt.Errorf("%w: no outcome for job %s", ErrNotFound, jobID)
 	}
@@ -207,7 +223,8 @@ func (r *Repo) GetOutcomeByJob(ctx context.Context, jobID string) (Outcome, erro
 
 // ListOutcomes returns outcomes, newest first (limit <= 0 means no limit).
 func (r *Repo) ListOutcomes(ctx context.Context, limit int) ([]Outcome, error) {
-	q := `SELECT id, job_id, strategy_profile_id, result, score, evaluator_confidence, retries, reflection_loops, token_cost, wall_time_ms, operations_json, created_at
+	q := `SELECT id, job_id, strategy_profile_id, result, score, evaluator_confidence, retries, reflection_loops, token_cost, wall_time_ms, operations_json,
+	             think_arm, reasoning_tokens, deliberate_units, refines, reframes, created_at
 	      FROM strategy_outcomes ORDER BY created_at DESC, id DESC`
 	if limit > 0 {
 		q += fmt.Sprintf(` LIMIT %d`, limit)
@@ -223,7 +240,8 @@ func (r *Repo) ListOutcomes(ctx context.Context, limit int) ([]Outcome, error) {
 		var createdAt, opsJSON string
 		var wallMS int64
 		if err := rows.Scan(&o.ID, &o.JobID, &o.StrategyProfileID, &o.Result, &o.Score, &o.EvaluatorConfidence,
-			&o.Retries, &o.ReflectionLoops, &o.TokenCost, &wallMS, &opsJSON, &createdAt); err != nil {
+			&o.Retries, &o.ReflectionLoops, &o.TokenCost, &wallMS, &opsJSON,
+			&o.ThinkArm, &o.ReasoningTokens, &o.DeliberateUnits, &o.Refines, &o.Reframes, &createdAt); err != nil {
 			return nil, err
 		}
 		o.WallTime = time.Duration(wallMS) * time.Millisecond
