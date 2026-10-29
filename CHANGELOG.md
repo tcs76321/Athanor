@@ -27,6 +27,13 @@ New entries are appended at the top. Do not rewrite history.
   `data_schema` when the declared schema path could not be read, silently
   disabling the engine's only deterministic data verifier. It now errors the
   row. Proof: `TestDataSchemaForFailsLoudly`.
+- **Data tasks see their schema.** The operator-supplied JSON Schema now renders
+  in pinned prompt tier 2; the model no longer has to call `context_swap` (which
+  it cannot) to discover the contract. The `data` verifier accepts a single
+  fenced/prose-wrapped JSON value, matching the benchmark's `json_extract`, so
+  the engine and the independent scorer agree. [ADR-0070 amendment](docs/adr/0070-declared-checks.md);
+  proofs: `TestDataSchemaIsPinnedAndRendered`,
+  `TestDataSchema_ExtractsFencedAndProse`, `TestRun_DataArchetypePromptIncludesSchema`.
 
 ### First-use fixes — 2026-10-27
 

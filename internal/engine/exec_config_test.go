@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/tcs76321/athanor/internal/project"
@@ -42,5 +43,36 @@ func TestRun_CodeArchetypeUsesConfiguredTestCommand(t *testing.T) {
 	}
 	if testCalls == 0 {
 		t.Fatal("no RunTests calls; the code evaluation path did not run")
+	}
+}
+
+// TestRun_DataArchetypePromptIncludesSchema pins the P0 data fix: the schema is
+// a pinned prompt requirement, not a dormant chunk the model cannot request.
+func TestRun_DataArchetypePromptIncludesSchema(t *testing.T) {
+	env := newEnv(t)
+	ctx := context.Background()
+	projectID, _, jobID := env.createProjectTask(t, "data",
+		"Normalize the event list to the provided JSON Schema.")
+	if err := env.projects.SetExecution(ctx, projectID, project.Execution{
+		DataSchema: `{"type":"array","items":{"type":"object"}}`,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	env.eng.Run(ctx, jobID)
+
+	prompts := env.ollama.promptTexts()
+	if len(prompts) == 0 {
+		t.Fatal("no model call recorded")
+	}
+	found := false
+	for _, p := range prompts {
+		if strings.Contains(p, `{"type":"array","items":{"type":"object"}}`) {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("data schema did not reach the prompt")
 	}
 }

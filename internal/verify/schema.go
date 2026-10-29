@@ -28,16 +28,63 @@ func (dataVerifier) Verify(in Input) Verdict {
 	if schema == "" {
 		return Verdict{Verifier: "json-schema", Applied: false, Hard: true}
 	}
-	if err := validateJSONSchema([]byte(schema), []byte(in.Content)); err != nil {
+	rawErr := validateJSONSchema([]byte(schema), []byte(in.Content))
+	if rawErr == nil {
 		return Verdict{
-			Verifier: "json-schema", Applied: true, Hard: true, Pass: false, Score: 0,
-			Reasons: []string{"json-schema violation: " + err.Error()},
+			Verifier: "json-schema", Applied: true, Hard: true, Pass: true, Score: 1,
+			Reasons: []string{"output validates against the declared JSON schema"},
+		}
+	}
+	// A short Markdown wrapper (the model put the JSON in a fence or added one
+	// sentence around it) is not a schema violation. The benchmark's external
+	// `json_extract` check already accepts it; the engine's acceptance edge must
+	// agree, or the same artifact passes one gate and fails the other. Only a
+	// single JSON value is extracted; anything else keeps the raw error.
+	if extracted, ok := extractJSONValue(in.Content); ok {
+		if err := validateJSONSchema([]byte(schema), []byte(extracted)); err == nil {
+			return Verdict{
+				Verifier: "json-schema", Applied: true, Hard: true, Pass: true, Score: 1,
+				Reasons: []string{"output validates after extracting a single JSON value; wrapper prose/fence ignored"},
+			}
 		}
 	}
 	return Verdict{
-		Verifier: "json-schema", Applied: true, Hard: true, Pass: true, Score: 1,
-		Reasons: []string{"output validates against the declared JSON schema"},
+		Verifier: "json-schema", Applied: true, Hard: true, Pass: false, Score: 0,
+		Reasons: []string{"json-schema violation: " + rawErr.Error()},
 	}
+}
+
+// extractJSONValue finds a JSON value in a candidate: a fenced block first,
+// then a bare document, then the first `[`/`{` that decodes. It mirrors the
+// benchmark's json_extract semantics so the engine and the external scorer do
+// not disagree about the same artifact.
+func extractJSONValue(s string) (string, bool) {
+	trimmed := strings.TrimSpace(s)
+	if json.Valid([]byte(trimmed)) {
+		return trimmed, true
+	}
+	if start := strings.Index(trimmed, "```"); start >= 0 {
+		rest := trimmed[start+3:]
+		if end := strings.Index(rest, "```"); end >= 0 {
+			body := strings.TrimSpace(rest[:end])
+			body = strings.TrimPrefix(body, "json")
+			body = strings.TrimSpace(body)
+			if json.Valid([]byte(body)) {
+				return body, true
+			}
+		}
+	}
+	for i, r := range trimmed {
+		if r != '[' && r != '{' {
+			continue
+		}
+		dec := json.NewDecoder(strings.NewReader(trimmed[i:]))
+		var raw json.RawMessage
+		if err := dec.Decode(&raw); err == nil && len(raw) > 0 {
+			return string(raw), true
+		}
+	}
+	return "", false
 }
 
 // validateJSONSchema checks a document against a schema. A schema that fails to

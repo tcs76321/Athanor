@@ -60,6 +60,20 @@ func TestDataVerifierValidates(t *testing.T) {
 	}
 }
 
+// TestDataSchemaExtractsFencedAndProse pins the ADR-0070 amendment: the engine
+// accepts the same single-JSON-value wrapper the benchmark's json_extract does.
+func TestDataSchemaExtractsFencedAndProse(t *testing.T) {
+	good := `{"id":"a","severity":"high","ts":"2026-01-01T00:00:00Z"}`
+	fenced := "Here is the normalized record:\n```json\n" + good + "\n```\n"
+	if res := Default().Run(Input{Archetype: project.ArchetypeData, Content: fenced, DataSchema: sampleSchema}); !res.HardPassed {
+		t.Errorf("fenced JSON rejected: %+v", res)
+	}
+	prose := "Result: " + good + "\nDone."
+	if res := Default().Run(Input{Archetype: project.ArchetypeData, Content: prose, DataSchema: sampleSchema}); !res.HardPassed {
+		t.Errorf("prose-wrapped JSON rejected: %+v", res)
+	}
+}
+
 func TestDataVerifierUnappliedWithoutSchema(t *testing.T) {
 	res := Default().Run(Input{Archetype: project.ArchetypeData, Content: `{"id":"a"}`})
 	if res.HardDecisive() {

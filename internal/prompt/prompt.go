@@ -33,6 +33,7 @@ const (
 	SectionProjectContext         = "project_context"
 	SectionTaskContext            = "task_context"
 	SectionAcceptanceCriteria     = "acceptance_criteria"
+	SectionDataSchema             = "data_schema"
 	SectionActiveChunk            = "active_chunk"
 	SectionCorrections            = "corrections"
 	SectionEpisodic               = "episodic_context"
@@ -90,6 +91,11 @@ type Input struct {
 	Task    Task
 	// Criteria are the acceptance criteria, in given order.
 	Criteria []string
+	// DataSchema is the operator-supplied JSON Schema a `data` candidate must
+	// validate against (M9-T3). It is a hard requirement, not model input: the
+	// model must see it, and the engine's verifier is the acceptance edge. The
+	// schema is rendered in tier 2 so the §10.5 ladder can never evict it.
+	DataSchema string
 	// EvaluationInstructions replaces the default comparison instructions
 	// when the caller needs phase-specific evaluation detail (§11.2 §13).
 	EvaluationInstructions string

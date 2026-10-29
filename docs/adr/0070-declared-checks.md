@@ -59,6 +59,29 @@ execution config, enforced by a hard verifier.**
   as the **independent** offline scorer: the benchmark does not trust the
   engine's verifier to grade the engine.
 
+## Amendment (P0, 2026-10-28) — the schema is prompt-visible; one JSON value is extracted
+
+The first full v2 run showed every data task failing with `json-schema
+violation: output is not valid JSON`. The verifier was applied; the model had
+never seen the schema, because the schema was a dormant chunk and the engine
+does not let the model call `context_swap` (ADR-0080). The reflection trace
+asked to call it, which is impossible by design.
+
+Two changes close the gap without weakening the schema:
+
+1. `prompt.Input.DataSchema` renders the operator-supplied schema in **tier 2**
+   (pinned), immediately after the acceptance criteria. The input data remains
+   the working set; the schema is a hard requirement.
+2. `internal/verify` extracts a single fenced or prose-wrapped JSON value before
+   declaring a schema violation. This mirrors the benchmark's `json_extract`
+   semantics so the engine and the independent scorer cannot disagree about the
+   same artifact. A value that still fails the schema is rejected with the
+   original error.
+
+The artifact-only contract is unchanged: the prompt still asks for data only.
+Extraction is a tolerance for a wrapper, not a license for extra fields — the
+schema's `additionalProperties`/`required` rules still decide.
+
 ## Consequences
 
 - A `text`/`document` goal whose project declares checks is accepted only when a

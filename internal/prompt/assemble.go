@@ -54,6 +54,7 @@ func renderSections(in Input) ([]sectionSpec, error) {
 		{SectionProjectContext, TierTaskCriteria, projectContext(in.Project)},
 		{SectionTaskContext, TierTaskCriteria, taskContext(in.Task)},
 		{SectionAcceptanceCriteria, TierTaskCriteria, criteria(in.Criteria)},
+		{SectionDataSchema, TierTaskCriteria, dataSchemaSection(in.DataSchema)},
 		{SectionActiveChunk, TierWorkingSet, activeChunkOrEmpty(in.ActiveChunk)},
 		{SectionCorrections, TierCorrections, correctionsSection(in.Corrections)},
 		{SectionEpisodic, TierEpisodic, episodicSection(in.Episodic)},
@@ -182,4 +183,20 @@ func criteria(cs []string) string {
 		}
 	}
 	return b.String()
+}
+
+// dataSchemaSection renders the operator's JSON Schema as a hard requirement.
+// It lives in tier 2 (pinned) deliberately: before P0 the schema was only a
+// dormant chunk, the engine does not let the model call context_swap (ADR-0080),
+// and every data candidate therefore failed with "output is not valid JSON" or
+// emitted prose. The input data remains the working set; this is the contract
+// against which it must be shaped.
+func dataSchemaSection(schema string) string {
+	schema = strings.TrimSpace(schema)
+	if schema == "" {
+		return ""
+	}
+	return "DATA SCHEMA (hard requirement; the output must validate against it)\n" +
+		schema + "\n" +
+		"Produce only data that validates: no prose and no fields the schema does not define."
 }

@@ -24,6 +24,8 @@ demo. A claim without a proof is either removed or marked as a target.
 | A job panic is contained to one job | ADR-0086 | `internal/engine/panic_test.go`; `job_panicked` event | **proven** |
 | The benchmark records comparison-guard diagnostics | AGENTS (honest evidence), P0 plan | `tools/bench/collect.go` (`comparisonRow`); `TestLoadComparisonDiagnostics`; report decision-diagnostics section | **proven** |
 | A declared data schema is never silently omitted | P0 plan | `tools/bench/runner.go` (`dataSchemaFor`); `TestDataSchemaForFailsLoudly` | **proven** |
+| A data task sees its schema as a pinned requirement | ADR-0070 amendment | `internal/prompt/data_schema_test.go`; `TestRun_DataArchetypePromptIncludesSchema` | **proven** |
+| The engine and benchmark agree on a single wrapped JSON value | ADR-0070 amendment | `internal/verify/schema.go` (`extractJSONValue`); `TestDataSchemaExtractsFencedAndProse` | **proven** |
 
 ## Rule
 
