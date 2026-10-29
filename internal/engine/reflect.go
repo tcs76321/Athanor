@@ -9,9 +9,11 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/tcs76321/athanor/internal/analysis"
 	"github.com/tcs76321/athanor/internal/evaluation"
 	"github.com/tcs76321/athanor/internal/job"
 	"github.com/tcs76321/athanor/internal/llm"
+	"github.com/tcs76321/athanor/internal/regulator"
 )
 
 // reflectCounterPrefix is the `system_state` key prefix
@@ -186,24 +188,55 @@ func (e *Engine) phaseReflect(ctx context.Context, j job.Job) error {
 	plan := e.planFor(ctx, j, p, t)
 	max := plan.MaxReflectionLoops
 	iter := e.getReflectCounter(ctx, j.ID)
-	if iter >= max {
-		e.audit(ctx, j.ID, map[string]any{
-			"event":     "reflection_budget_exhausted",
-			"iter":      iter,
-			"max":       max,
-			"archetype": p.Archetype,
-		})
-		_, err = e.jobs.Transition(ctx, j.ID, job.StateFailed)
-		return err
-	}
 
-	// Aggregate the failure context for the LLM: the most recent
-	// EvaluationRecord set tells the reflector what failed.
+	// Aggregate the failure context for the LLM and the regulator: the most
+	// recent EvaluationRecord set tells the reflector what failed.
 	records, err := e.eval.ListByJob(ctx, j.ID)
 	if err != nil {
 		return fmt.Errorf("listing evaluation records: %w", err)
 	}
+	reasons, failureText := failureSignals(records)
+	sig := regulator.Signature(reasons)
+	analysisState, _ := e.getAnalysis(ctx, j.ID)
+	implicated := regulator.Attribute(analysisState.Units, failureText)
+	refined := e.getRefinedCounts(ctx, j.ID)
+	budgetExhausted := false
+	if rem, ok, rerr := e.horizon.Remaining(ctx, j.ID); rerr == nil && ok && rem <= 0 {
+		budgetExhausted = true
+	}
+	decision := regulator.Decide(regulator.Input{
+		Units:             analysisState.Units,
+		Implicated:        implicated,
+		Signature:         sig,
+		PreviousSignature: e.getRegulatorSignature(ctx, j.ID),
+		Refined:           refined,
+		Iterations:        iter,
+		MaxIterations:     max,
+		BudgetExhausted:   budgetExhausted,
+	})
+	e.audit(ctx, j.ID, map[string]any{
+		"event": "regulator_decision", "decision": string(decision.Decision),
+		"unit": decision.UnitID, "reason": decision.Reason,
+		"signature": sig, "implicated": implicated, "iter": iter,
+	})
+
+	switch decision.Decision {
+	case regulator.Defer:
+		// Running out of night is not a failed job: keep the state and let a
+		// resume (or the next window) continue it.
+		if _, terr := e.jobs.Transition(ctx, j.ID, job.StatePaused); terr != nil {
+			return terr
+		}
+		return nil
+	case regulator.Abandon:
+		_, terr := e.jobs.Transition(ctx, j.ID, job.StateFailed)
+		return terr
+	}
+
 	instructions := buildReflectionInstructions(records)
+	if d := regulatorDirective(decision, analysisState.Units); d != "" {
+		instructions = d + "\n\n" + instructions
+	}
 
 	role := e.roleFor(plan, llm.PhaseReflecting, llm.RoleMain)
 	resp, err := e.call(ctx, j, p, t, llm.PhaseReflecting, role, instructions, nil)
@@ -219,10 +252,25 @@ func (e *Engine) phaseReflect(ctx context.Context, j job.Job) error {
 	})
 
 	// H1: persist the proposal so phaseDivergeN can inject it into the next
-	// divergence pass. The doc comment's "persists the proposed improvements"
-	// contract is now actually honored.
-	if serr := e.setReflectionProposal(ctx, j.ID, resp.Content); serr != nil {
+	// divergence pass. The regulator directive leads it, so a refine or
+	// reframe reaches the retry deterministically rather than only through
+	// the model's prose.
+	proposal := resp.Content
+	if d := regulatorDirective(decision, analysisState.Units); d != "" {
+		proposal = d + "\n\n" + proposal
+	}
+	if serr := e.setReflectionProposal(ctx, j.ID, proposal); serr != nil {
 		slog.Warn("engine: persisting reflection proposal", "err", serr)
+	}
+
+	if decision.Decision == regulator.Refine && decision.UnitID != "" {
+		refined[decision.UnitID]++
+		if err := e.setRefinedCounts(ctx, j.ID, refined); err != nil {
+			slog.Warn("engine: persisting refine counts", "err", err)
+		}
+	}
+	if err := e.setRegulatorSignature(ctx, j.ID, sig); err != nil {
+		slog.Warn("engine: persisting failure signature", "err", err)
 	}
 
 	// H2: bump the counter, then always re-enter divergence. The budget is
@@ -268,6 +316,62 @@ func buildReflectionInstructions(records []evaluation.Record) string {
 	}
 	b.WriteString("\nPropose ONE specific change (a different approach, a missing context, or a hybrid) that the next divergence pass should try. Output prose, not JSON.")
 	return b.String()
+}
+
+// failureSignals flattens an evaluation set into (reasons for a stable
+// signature, text for unit attribution).
+func failureSignals(records []evaluation.Record) ([]string, string) {
+	var reasons []string
+	var text strings.Builder
+	for _, r := range records {
+		if r.Summary != "" {
+			reasons = append(reasons, r.Summary)
+			text.WriteString(r.Summary)
+			text.WriteByte(' ')
+		}
+		for _, t := range r.FailedTests {
+			reasons = append(reasons, t)
+			text.WriteString(t)
+			text.WriteByte(' ')
+		}
+		for _, c := range r.MissingCriteria {
+			reasons = append(reasons, c)
+			text.WriteString(c)
+			text.WriteByte(' ')
+		}
+		for _, s := range r.SecurityIssues {
+			reasons = append(reasons, s)
+			text.WriteString(s)
+			text.WriteByte(' ')
+		}
+	}
+	return reasons, text.String()
+}
+
+// regulatorDirective is the deterministic instruction the checkpoint adds to
+// reflection and to the next divergence seed.
+func regulatorDirective(r regulator.Result, units []analysis.Unit) string {
+	switch r.Decision {
+	case regulator.Refine:
+		for _, u := range units {
+			if u.ID != r.UnitID {
+				continue
+			}
+			return fmt.Sprintf(
+				"REGULATOR: refine unit %s (%s). Goal: %s. Falsifier: %s. "+
+					"Focus the next attempt on this unit and keep the rest working.",
+				u.ID, u.Reason, u.Goal, u.Falsifier)
+		}
+		return "REGULATOR: refine the failing part identified by the evaluation; keep the rest working."
+	case regulator.Reframe:
+		return "REGULATOR: reframe. The same failure repeated; do not repeat the previous approach. " +
+			"Change the strategy or the framing, not just the wording."
+	case regulator.Probe:
+		return "REGULATOR: probe. The failure reason is uninformative; run the cheapest check " +
+			"against the implicated part before a full rewrite."
+	default:
+		return ""
+	}
 }
 
 // truncateForEvent bounds the size of an LLM response embedded in

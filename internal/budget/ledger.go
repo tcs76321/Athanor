@@ -199,6 +199,27 @@ func (l *Ledger) Release(ctx context.Context, jobID string) error {
 	return err
 }
 
+// Remaining returns the live grant's unspent tokens and whether a reservation
+// exists. It is used by the regulator to defer rather than fail when the
+// horizon is spent.
+func (l *Ledger) Remaining(ctx context.Context, jobID string) (int64, bool, error) {
+	if l == nil || l.db == nil {
+		return 0, false, nil
+	}
+	var rem int64
+	err := l.db.QueryRowContext(ctx,
+		`SELECT tokens - tokens_spent FROM budget_grants
+		  WHERE job_id = ? AND state = 'reserved'
+		  ORDER BY granted_at DESC LIMIT 1`, jobID).Scan(&rem)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, false, nil
+	}
+	if err != nil {
+		return 0, false, err
+	}
+	return rem, true, nil
+}
+
 // Status reports the window's committed spend and remaining buckets.
 func (l *Ledger) Status(ctx context.Context, w Window, s Settings) (Status, error) {
 	key := windowKey(w)

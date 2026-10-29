@@ -1,6 +1,6 @@
 # ADR 0090 — Task analysis sets a contemplation budget the loop revises
 
-**Status:** Proposed — S0–S1 implemented; S2–S4 open · **Date:** 2026-10-29 ·
+**Status:** Proposed — S0–S2 implemented; S3–S4 open · **Date:** 2026-10-29 ·
 **Refs:** ARCHITECTURE §8.2 (state rules), §13.1 Phase 1 (planning), §19.3
 (comparison), §24 (power and idle policy); [ADR-0044](0044-compute-policy-seam.md)
 (compute-policy seam), [ADR-0064](0064-cognitive-operations.md) (operation
@@ -159,8 +159,15 @@ Behavior is unchanged unless `think_level` is set.
 **S1 landed (2026-10-29):** planning emits a fenced `analysis` block; the
 lenient parser (`internal/analysis`) produces units with a **default-direct**
 mode and a falsifier, and the engine persists it in `system_state` with a
-`task_analysis` audit row. A malformed block degrades to one direct unit. The
-analysis is not yet consumed by the regulator; S2–S4 remain open.
+`task_analysis` audit row. A malformed block degrades to one direct unit.
+
+**S2 landed (2026-10-29):** `internal/regulator` is the pure checkpoint
+decision (settle/refine/reframe/probe/defer/abandon). The reflection phase
+attributes the verifier/test output to a unit, keeps one refine per unit,
+reframes when the same failure signature repeats, defers when the horizon grant
+is spent (paused, not failed), and prepends a deterministic directive to both
+the reflection instructions and the next divergence seed. Units are still
+addressing labels, not separate jobs. S3–S4 remain open.
 
 | Step | Change | Behavior |
 |---|---|---|

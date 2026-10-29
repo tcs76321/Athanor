@@ -10,6 +10,18 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Regulator — 2026-10-29
+
+- **The evaluation checkpoint now classifies the failure instead of only
+  describing it.** `internal/regulator` decides settle/refine/reframe/probe/
+  defer/abandon from the analysis units, the failure text and signature, and
+  the refine counts. The engine attributes verifier output to a unit, allows one
+  refine per unit, reframes on a repeated signature, and defers (pauses) rather
+  than failing when the horizon grant is spent. A deterministic directive leads
+  both the reflection instructions and the next divergence seed. Proofs:
+  `TestDecideRefinesAnUnrefinedUnit`, `TestDecideRepeatedSignatureReframesAfterRefine`,
+  `TestRegulatorStateRoundTrip`.
+
 ### Task analysis — 2026-10-29
 
 - **Planning now emits a structured decomposition.** A fenced `analysis` block
