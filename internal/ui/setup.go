@@ -102,10 +102,14 @@ func (u *UI) handleSetup(w http.ResponseWriter, r *http.Request) {
 		data["OllamaURL"] = cfg.Inference.OllamaURL
 	}
 	state := u.loadQualState(r.Context())
+	stale := state.stale()
+	if stale {
+		state.Running = false
+	}
 	data["Models"] = models
 	data["Roles"] = roles
 	data["State"] = state
-	data["Stale"] = state.stale()
+	data["Stale"] = stale
 	if cfg != nil {
 		ms := qualMeasurementsFromState(state)
 		data["Measurements"] = ms
@@ -219,9 +223,16 @@ func (u *UI) runQualification(ctx context.Context, cfg *config.Config, roles []o
 	}
 	state.Running = true
 	state.StartedAt = time.Now()
+	state.Error = ""
 	state.Total = qualificationPlan(roles, models)
 	state.Done = len(state.Results)
 	u.saveQualState(ctx, *state)
+	if state.Total == 0 {
+		state.Running = false
+		state.Error = "no installed models to qualify; pull a model first"
+		u.saveQualState(context.Background(), *state)
+		return
+	}
 
 	ladder := onboard.DefaultLadder()
 	judges := ladder.Judges
