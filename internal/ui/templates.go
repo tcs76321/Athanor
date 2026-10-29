@@ -98,16 +98,29 @@ es.addEventListener('event',e=>{
 
 const watchJS = `
 const root=document.getElementById('watch');const jobID=root.dataset.job;
+const pre=document.getElementById('tokens');
+let stick=true;
+pre.addEventListener('scroll',()=>{stick=pre.scrollTop+pre.clientHeight>=pre.scrollHeight-24});
+function evLine(p){
+  let d={};try{d=JSON.parse(p.data)}catch(_){}
+  const label=d.event||p.category||'event';
+  const keys=['phase','state','to','winner','passed','score','reason','decision','unit','iter'];
+  const parts=[];
+  for(const k of keys){if(d[k]!==undefined&&d[k]!==''&&parts.length<4)parts.push(k+'='+d[k])}
+  const ts=p.ts?String(p.ts).slice(11,19)+' ':'';
+  return ts+label+(parts.length?' · '+parts.join(' · '):'');
+}
 const streams=new EventSource('/ui/jobs/'+jobID+'/stream');
 streams.addEventListener('token',e=>{
   let t; try{t=JSON.parse(e.data)}catch(_){return}
-  document.getElementById('tokens').textContent+=t;
+  pre.textContent+=t;
+  if(stick)pre.scrollTop=pre.scrollHeight;
 });
 streams.addEventListener('event',e=>{
   let p; try{p=JSON.parse(e.data)}catch(_){return}
-  const li=document.createElement('div');
-  li.textContent=p.ts+' '+p.category+' '+p.data;
-  document.getElementById('events').prepend(li);
+  const div=document.createElement('div');div.className='ev';
+  div.textContent=evLine(p);
+  document.getElementById('events').prepend(div);
 });
 `
 
@@ -182,6 +195,7 @@ const errorBody = `
 const dashboardBody = `
 <h1>Dashboard</h1>
 <p class="sub">What needs you, and what the machine is doing.</p>
+<div class="actions"><a class="btn" href="/ui/projects/new">+ New project</a></div>
 <div class="grid">
   <div class="card stat"><div class="n">{{len .Active}}</div><div class="l">active jobs</div></div>
   <a class="card stat" href="/ui/reviews"><div class="n">{{.ReviewCount}}</div><div class="l">artifacts to review</div></a>
@@ -243,177 +257,349 @@ const dashboardBody = `
 
 const projectsBody = `
 <h1>Projects</h1>
-<p><a href="/ui/projects/new">+ New project</a></p>
-<table><thead><tr><th>Name</th><th>Archetype</th><th>Goal</th></tr></thead><tbody>
-{{range .Projects}}<tr><td><a href="/ui/projects/{{.ID}}">{{.Name}}</a></td><td>{{.Archetype}}</td><td class="muted">{{.Goal}}</td></tr>
-{{else}}<tr><td colspan="3" class="muted">none</td></tr>{{end}}
+<p class="sub">Each project is one goal, its criteria, and the work history behind it.</p>
+<div class="actions"><a class="btn" href="/ui/projects/new">+ New project</a></div>
+{{if .Projects}}
+<table><thead><tr><th>Name</th><th>Archetype</th><th>Status</th><th>Goal</th><th>Created</th></tr></thead><tbody>
+{{range .Projects}}<tr>
+  <td><a href="/ui/projects/{{.ID}}">{{.Name}}</a></td>
+  <td><span class="pill">{{.Archetype}}</span></td>
+  <td><span class="pill">{{.Status}}</span></td>
+  <td class="muted">{{.Goal}}</td>
+  <td class="muted">{{.CreatedAt | ts}}</td>
+</tr>{{end}}
 </tbody></table>
+{{else}}<div class="empty">No projects yet. <a href="/ui/projects/new">Create the first one.</a></div>{{end}}
 `
 
 const newProjectBody = `
 <h1>New project</h1>
-{{if .Error}}<p class="del">{{.Error}}</p>{{end}}
+<p class="sub">A project holds one goal, its criteria, and the jobs that work on it.</p>
+{{if .Error}}<div class="card"><p class="del">{{.Error}}</p></div>{{end}}
+<div class="card">
 <form method="post" action="/ui/projects">
-<div><label>name <input name="name" value="{{.Name}}" size="40" required></label></div>
-<div><label>archetype <select name="archetype">
-<option value="code" {{if eq .Archetype "code"}}selected{{end}}>code</option>
-<option value="text" {{if eq .Archetype "text"}}selected{{end}}>text</option>
-<option value="document" {{if eq .Archetype "document"}}selected{{end}}>document</option>
-<option value="data" {{if eq .Archetype "data"}}selected{{end}}>data</option>
-<option value="media" {{if eq .Archetype "media"}}selected{{end}}>media</option>
-</select></label></div>
-<div><label>goal <input name="goal" value="{{.Goal}}" size="80" minlength="20" maxlength="500" required></label></div>
-<div><label>repository path <input name="repository_path" value="{{.RepositoryPath}}" size="80" placeholder="/absolute/path/to/repo"></label></div>
-<div><label>test command <input name="test_command" value="{{.TestCommand}}" size="40" placeholder="pytest -q"></label></div>
-<div><label>acceptance criteria (one per line)<br><textarea name="criteria" rows="4" cols="80">{{.Criteria}}</textarea></label></div>
-<div><label><input type="checkbox" name="start" value="1" {{if .Start}}checked{{end}}> start the first job immediately</label></div>
-<button>Create project</button>
+  <label>Name <input name="name" value="{{.Name}}" required></label>
+  <div class="row">
+    <label>Archetype <select name="archetype">
+      <option value="code" {{if eq .Archetype "code"}}selected{{end}}>code</option>
+      <option value="text" {{if eq .Archetype "text"}}selected{{end}}>text</option>
+      <option value="document" {{if eq .Archetype "document"}}selected{{end}}>document</option>
+      <option value="data" {{if eq .Archetype "data"}}selected{{end}}>data</option>
+      <option value="media" {{if eq .Archetype "media"}}selected{{end}}>media</option>
+    </select></label>
+    <label>Test command <input name="test_command" value="{{.TestCommand}}" placeholder="pytest -q"></label>
+  </div>
+  <label>Goal <input name="goal" value="{{.Goal}}" minlength="20" maxlength="500" required></label>
+  <label>Repository path <input name="repository_path" value="{{.RepositoryPath}}" placeholder="/absolute/path/to/repo"></label>
+  <label>Acceptance criteria (one per line) <textarea name="criteria" rows="4">{{.Criteria}}</textarea></label>
+  <div class="actions">
+    <button name="start" value="">Create and review plan</button>
+    <button name="start" value="1" class="secondary">Create and start now</button>
+  </div>
 </form>
-<p class="muted">A repository-backed code project is indexed once before the first job. The full pass remains available through the CLI.</p>
+</div>
+<p class="muted">A repository-backed code project is indexed once before the first job. The interview is optional and skippable; approving a plan starts work.</p>
 `
 
 const interviewBody = `
 <h1>Plan: {{.Project.Name}}</h1>
-<p class="muted">{{.Project.Goal}}</p>
-<p>Status: <b>{{.Interview.Status}}</b></p>
-<h2>Clarify (optional, resumable)</h2>
-<form method="post" action="/ui/projects/{{.Project.ID}}/interview">
-{{range .Questions}}
-<div><label>{{.Prompt}}<br><textarea name="{{.ID}}" rows="2" cols="80">{{index $.Answers .ID}}</textarea></label>
-{{if .Help}}<span class="muted">{{.Help}}</span>{{end}}</div>
+<p class="sub">{{.Project.Goal}}</p>
+<p>Status:
+  <span class="pill {{if interviewDone .Interview.Status}}ok{{else}}warn{{end}}">{{.Interview.Status}}</span>
+</p>
+
+{{if not (interviewDone .Interview.Status)}}
+<div class="card">
+  <h2>Clarify (optional, resumable)</h2>
+  <form method="post" action="/ui/projects/{{.Project.ID}}/interview">
+  {{range .Questions}}
+    <label>{{.Prompt}}
+      <textarea name="{{.ID}}" rows="2">{{index $.Answers .ID}}</textarea>
+    </label>
+    {{if .Help}}<div class="muted">{{.Help}}</div>{{end}}
+  {{end}}
+  <button>Save answers and build plan</button>
+  </form>
+</div>
 {{end}}
-<button>Save answers and build plan</button>
-</form>
+
 <h2>Plan</h2>
-{{if .Plan}}<pre>{{.Plan}}</pre>{{else}}<p class="muted">Answer the questions and save, or skip the interview to use the goal and criteria as the plan.</p>{{end}}
-<h2>Decision</h2>
-<form method="post" action="/ui/projects/{{.Project.ID}}/interview/approve"><button>Approve plan and start work</button></form>
-<form method="post" action="/ui/projects/{{.Project.ID}}/interview/skip"><button>Skip interview and start work</button></form>
-<p><a href="/ui/projects/{{.Project.ID}}">back to project</a></p>
+{{if .Plan}}<div class="card"><pre>{{.Plan}}</pre></div>
+{{else}}<div class="empty">Answer the questions and save, or skip the interview to use the goal and criteria as the plan.</div>{{end}}
+
+<div class="card">
+  <h2>Decision</h2>
+  {{if not (interviewDone .Interview.Status)}}
+    <p class="muted">Approving starts the first job. Skipping uses the goal and criteria as the plan. Both are reversible through the project page.</p>
+    <div class="actions">
+    <form method="post" action="/ui/projects/{{.Project.ID}}/interview/approve"><button>Approve plan and start work</button></form>
+    <form method="post" action="/ui/projects/{{.Project.ID}}/interview/skip"><button class="secondary">Skip interview and start work</button></form>
+    </div>
+  {{else}}
+    <p>This plan is <b>{{.Interview.Status}}</b>. Work has started.</p>
+    <div class="actions"><a class="btn" href="/ui/projects/{{.Project.ID}}">Back to project</a></div>
+  {{end}}
+</div>
 `
 
 const projectBody = `
-<h1>{{.Project.Name}} <span class="muted">({{.Project.Archetype}})</span></h1>
-<p class="muted">{{.Project.Goal}}</p>
-<p><a href="/ui/projects/{{.Project.ID}}/interview">Plan / interview</a></p>
-<h2>New goal</h2>
+<h1>{{.Project.Name}} <span class="pill">{{.Project.Archetype}}</span></h1>
+<p class="sub">{{.Project.Goal}}</p>
+<div class="actions">
+  <a class="btn" href="/ui/projects/{{.Project.ID}}/interview">Plan / interview</a>
+  <a class="btn secondary" href="/ui/projects">All projects</a>
+</div>
+
+<div class="card">
+  <div class="grid">
+    <div><div class="l muted">Status</div><div><span class="pill">{{.Project.Status}}</span></div></div>
+    <div><div class="l muted">Repository</div><div class="mono">{{if .Project.RepositoryPath}}{{.Project.RepositoryPath}}{{else}}—{{end}}</div></div>
+    <div><div class="l muted">Test command</div><div class="mono">{{if .Project.TestCommand}}{{.Project.TestCommand}}{{else}}—{{end}}</div></div>
+    <div><div class="l muted">Created</div><div>{{.Project.CreatedAt | ts}}</div></div>
+  </div>
+</div>
+
+<h2>Work</h2>
+{{range .Work}}
+<div class="card">
+  <h3>{{if .Task.Title}}{{.Task.Title}}{{else}}{{.Task.Description}}{{end}}
+    <span class="pill">{{.Task.Status}}</span></h3>
+  {{if .Task.Criteria}}<p class="muted">Criteria: {{join .Task.Criteria}}</p>{{end}}
+  {{if .Jobs}}
+  <table><thead><tr><th>Job</th><th>State</th><th>Attempt</th><th>Started</th></tr></thead><tbody>
+  {{range .Jobs}}<tr>
+    <td><a href="/ui/jobs/{{.ID}}" class="mono">{{.ID | short}}</a></td>
+    <td><span class="pill {{stateClass .State}}">{{.State}}</span></td>
+    <td>{{.Attempt}}</td>
+    <td class="muted">{{if .StartedAt}}{{.StartedAt | ts}}{{end}}</td>
+  </tr>{{end}}
+  </tbody></table>
+  {{else}}<p class="muted">No job yet. Approve the plan or submit a goal.</p>{{end}}
+</div>
+{{else}}<div class="empty">No tasks yet.</div>{{end}}
+
+<h2>Submit a goal</h2>
+<div class="card">
 <form method="post" action="/ui/projects/{{.Project.ID}}/goals">
-<div><label>goal <textarea name="goal" rows="3" cols="80" minlength="20" maxlength="500" required></textarea></label></div>
-<div><label>acceptance criteria (one per line)<br><textarea name="criteria" rows="3" cols="80"></textarea></label></div>
-<button>Submit goal</button>
+  <label>goal <textarea name="goal" rows="3" minlength="20" maxlength="500" required></textarea></label>
+  <label>acceptance criteria (one per line) <textarea name="criteria" rows="3"></textarea></label>
+  <button>Submit goal</button>
 </form>
+</div>
+
 <h2>Artifacts</h2>
+{{if .Artifacts}}
 <table><thead><tr><th>Kind</th><th>Version</th><th>Status</th><th>Commit</th><th></th></tr></thead><tbody>
-{{range .Artifacts}}<tr><td><a href="/ui/artifacts/{{.ID}}">{{.Kind}}</a></td><td><a href="/ui/artifacts/{{.ID}}">v{{.Version}}</a></td><td>{{.Status}}</td><td>{{.GitCommit | short}}</td><td>{{if .SupersedesID}}<a href="/ui/artifacts/{{.ID}}/diff">diff</a>{{end}}</td></tr>
-{{else}}<tr><td colspan="5" class="muted">none</td></tr>{{end}}
+{{range .Artifacts}}<tr>
+  <td><a href="/ui/artifacts/{{.ID}}">{{.Kind}}</a></td>
+  <td><a href="/ui/artifacts/{{.ID}}">v{{.Version}}</a></td>
+  <td><span class="pill {{stateClass .Status}}">{{.Status}}</span></td>
+  <td class="mono muted">{{.GitCommit | short}}</td>
+  <td>{{if .SupersedesID}}<a href="/ui/artifacts/{{.ID}}/diff">diff</a>{{end}}</td>
+</tr>{{end}}
 </tbody></table>
+{{else}}<div class="empty">No artifacts yet.</div>{{end}}
+
 <h2>Corrections</h2>
+{{if .Corrections}}
 <table><thead><tr><th>Category</th><th>Severity</th><th>Scope</th><th>Status</th><th>Rule</th></tr></thead><tbody>
-{{range .Corrections}}<tr><td>{{.Category}}</td><td>{{.Severity}}</td><td>{{.Scope}}</td><td>{{.Status}}</td><td>{{.DerivedRule}}</td></tr>
-{{else}}<tr><td colspan="5" class="muted">none</td></tr>{{end}}
+{{range .Corrections}}<tr><td>{{.Category}}</td><td>{{.Severity}}</td><td>{{.Scope}}</td><td>{{.Status}}</td><td class="muted">{{.DerivedRule}}</td></tr>
+{{end}}
 </tbody></table>
+{{else}}<div class="empty">No corrections for this project.</div>{{end}}
+
 <h2>Reject / correct an artifact (§18.4)</h2>
+<div class="card">
 <form method="post" action="/ui/projects/{{.Project.ID}}/corrections">
-<div><label>artifact id <input name="artifact_id" size="40"></label></div>
-<div><label>category <select name="category" required>
-<option value="architecture">architecture</option><option value="style">style</option>
-<option value="testing">testing</option><option value="security">security</option>
-<option value="performance">performance</option><option value="tooling">tooling</option>
-<option value="documentation">documentation</option><option value="other">other</option></select></label>
-<label>severity <select name="severity" required>
-<option value="low">low</option><option value="medium" selected>medium</option>
-<option value="high">high</option><option value="critical">critical</option></select></label>
-<label>scope <select name="scope" required>
-<option value="project" selected>project</option><option value="global">global</option></select></label></div>
-<div><label>reason <input name="reason" size="60" required></label></div>
-<div><label>desired behavior <input name="desired_behavior" size="60" required></label></div>
-<input type="hidden" name="source" value="user_rejection">
-<button>Record rejection</button>
+  <label>artifact id <input name="artifact_id" placeholder="artifact uuid"></label>
+  <div class="row">
+    <label>category <select name="category" required>
+      <option value="architecture">architecture</option><option value="style">style</option>
+      <option value="testing">testing</option><option value="security">security</option>
+      <option value="performance">performance</option><option value="tooling">tooling</option>
+      <option value="documentation">documentation</option><option value="other">other</option></select></label>
+    <label>severity <select name="severity" required>
+      <option value="low">low</option><option value="medium" selected>medium</option>
+      <option value="high">high</option><option value="critical">critical</option></select></label>
+    <label>scope <select name="scope" required>
+      <option value="project" selected>project</option><option value="global">global</option></select></label>
+  </div>
+  <label>reason <input name="reason" required></label>
+  <label>desired behavior <input name="desired_behavior" required></label>
+  <input type="hidden" name="source" value="user_rejection">
+  <button>Record rejection</button>
 </form>
+</div>
 `
 
 const correctionsBody = `
 <h1>Corrections</h1>
+<p class="sub">Prescriptive lessons captured from rejections and failures. Active rows are ranked into future prompts.</p>
+{{if .Corrections}}
+<div class="card">
 <table><thead><tr><th>Category</th><th>Severity</th><th>Scope</th><th>Status</th><th>Applied</th><th>Rule</th><th></th></tr></thead><tbody>
 {{range .Corrections}}<tr>
-<td>{{.Category}}</td><td>{{.Severity}}</td><td>{{.Scope}}</td><td>{{.Status}}</td><td>{{.AppliedCount}}</td>
-<td>{{.DerivedRule}}</td>
+<td>{{.Category}}</td><td><span class="pill {{if eq .Severity "critical"}}bad{{else if eq .Severity "high"}}warn{{end}}">{{.Severity}}</span></td>
+<td>{{.Scope}}</td><td>{{.Status}}</td><td>{{.AppliedCount}}</td>
+<td class="muted">{{.DerivedRule}}</td>
 <td>
 <form method="post" action="/ui/corrections/{{.ID}}">
-<button name="status" value="muted">Mute</button>
+<button name="status" value="muted" class="secondary">Mute</button>
 <button name="status" value="active">Promote</button>
-<input name="severity" placeholder="severity" size="8">
-<input name="derived_rule" placeholder="rule" size="24">
-<button name="edit" value="1">Edit</button>
+<input name="severity" placeholder="severity" style="width:90px">
+<input name="derived_rule" placeholder="rule" style="width:160px">
+<button name="edit" value="1" class="secondary">Edit</button>
 </form>
 </td></tr>
-{{else}}<tr><td colspan="7" class="muted">none</td></tr>{{end}}
+{{end}}
 </tbody></table>
+</div>
+{{else}}<div class="empty">No active corrections. Reject an artifact from its project page to record one.</div>{{end}}
 `
 
 const watchBody = `
-<h1>Job {{.Job.ID | short}} <span class="muted">{{.Job.State}}</span></h1>
+<h1>Job <span class="mono">{{.Job.ID | short}}</span>
+  <span class="pill {{stateClass .Job.State}}">{{.Job.State}}</span></h1>
+<p class="sub">{{.ProjectName}} · task <span class="mono">{{.Job.TaskID | short}}</span>
+  {{if .Job.PausedFrom}}· paused from {{.Job.PausedFrom}}{{end}}</p>
 <div id="watch" data-job="{{.Job.ID}}"></div>
-<p>Project {{.Job.ProjectID | short}} · Task {{.Job.TaskID | short}}{{if .Job.PausedFrom}} · paused from {{.Job.PausedFrom}}{{end}}</p>
+
+<div class="actions">
 <form method="post" action="/ui/jobs/{{.Job.ID}}/control">
-<button name="action" value="pause">Pause</button>
-<button name="action" value="resume">Resume</button>
-<button name="action" value="cancel">Cancel</button>
-<button name="action" value="retry">Retry</button>
+  {{if eq .Job.State "paused"}}<button name="action" value="resume">Resume</button>
+  {{else if not .Job.State.Terminal}}<button name="action" value="pause" class="secondary">Pause</button>{{end}}
+  {{if not .Job.State.Terminal}}<button name="action" value="cancel" class="danger">Cancel</button>{{end}}
+  {{if .Job.State.Terminal}}<button name="action" value="retry">Retry</button>{{end}}
 </form>
-<h2>Live output</h2>
-<pre id="tokens"></pre>
-<h2>Interruptions (§20.4)</h2>
-<form method="post" action="/ui/jobs/{{.Job.ID}}/note">
-<input name="note" size="60" placeholder="note injected at the next safe point">
-<button>Queue note</button>
-</form>
-{{range .Notes}}<div class="muted">{{.Status}}: {{.Text}}</div>{{end}}
+</div>
+
+<div class="split">
+  <div>
+    <h2>Live output</h2>
+    <pre id="tokens"></pre>
+  </div>
+  <div>
+    <h2>Events</h2>
+    <div id="events">
+    {{range .Events}}<div class="ev"><span class="muted">{{.TS | ts}}</span> {{prettyEvent .DataJSON}}</div>
+    {{else}}<div class="empty">No events yet.</div>{{end}}
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Interruptions (§20.4)</h2>
+  <form method="post" action="/ui/jobs/{{.Job.ID}}/note">
+    <label>note <input name="note" placeholder="injected at the next safe point"></label>
+    <button>Queue note</button>
+  </form>
+  {{range .Notes}}<div class="muted">{{.Status}}: {{.Text}}</div>{{end}}
+</div>
+
 <h2>Artifacts</h2>
+{{if .Artifacts}}
 <table><thead><tr><th>Kind</th><th>Version</th><th>Status</th><th></th></tr></thead><tbody>
-{{range .Artifacts}}<tr><td><a href="/ui/artifacts/{{.ID}}">{{.Kind}}</a></td><td><a href="/ui/artifacts/{{.ID}}">v{{.Version}}</a></td><td>{{.Status}}</td><td>{{if .SupersedesID}}<a href="/ui/artifacts/{{.ID}}/diff">diff</a>{{end}}</td></tr>
-{{else}}<tr><td colspan="4" class="muted">none</td></tr>{{end}}
+{{range .Artifacts}}<tr><td><a href="/ui/artifacts/{{.ID}}">{{.Kind}}</a></td><td><a href="/ui/artifacts/{{.ID}}">v{{.Version}}</a></td>
+<td><span class="pill {{stateClass .Status}}">{{.Status}}</span></td>
+<td>{{if .SupersedesID}}<a href="/ui/artifacts/{{.ID}}/diff">diff</a>{{end}}</td></tr>
+{{end}}
 </tbody></table>
-<h2>Events</h2>
-<div id="events"></div>
+{{else}}<div class="empty">No artifacts yet.</div>{{end}}
 <script>` + watchJS + `</script>
 `
 
 const artifactBody = `
-<h1>Artifact {{.Artifact.ID | short}} <span class="muted">{{.Artifact.Kind}} v{{.Artifact.Version}} / {{.Artifact.Status}}</span></h1>
-<p class="muted">project {{.Artifact.ProjectID | short}} · job {{.Artifact.JobID | short}} · commit {{.Artifact.GitCommit | short}}</p>
-<pre>{{.Content}}</pre>
-<h2>Review</h2>
-<form method="post" action="/ui/artifacts/{{.Artifact.ID}}/review">
-<div><label>score (0–1) <input name="score" size="6" value="1.0" required></label>
-<label><input type="checkbox" name="accepted" value="1" checked> accepted</label></div>
-<div><label>note <input name="note" size="70" placeholder="what worked, what is missing"></label></div>
-<button>Record review</button>
-</form>
-<h2>Previous reviews</h2>
-<table><thead><tr><th>When</th><th>Reviewer</th><th>Score</th><th>Accepted</th><th>Note</th></tr></thead><tbody>
-{{range .Reviews}}<tr><td>{{.CreatedAt}}</td><td>{{.Reviewer}}</td><td>{{printf "%.2f" .Score}}</td><td>{{.Accepted}}</td><td>{{.Note}}</td></tr>
-{{else}}<tr><td colspan="5" class="muted">none</td></tr>{{end}}
-</tbody></table>
+<h1>Artifact <span class="mono">{{.Artifact.ID | short}}</span></h1>
+<p class="sub">
+  <span class="pill">{{.Artifact.Kind}}</span> v{{.Artifact.Version}}
+  <span class="pill {{stateClass .Artifact.Status}}">{{.Artifact.Status}}</span>
+  {{if .Project}}· <a href="/ui/projects/{{.Project.ID}}">{{.Project.Name}}</a>{{end}}
+  · job <a href="/ui/jobs/{{.Artifact.JobID}}" class="mono">{{.Artifact.JobID | short}}</a>
+  {{if .Artifact.GitCommit}}· commit <span class="mono">{{.Artifact.GitCommit | short}}</span>{{end}}
+</p>
+
+<div class="split">
+  <div class="card">
+    <h2>What was built</h2>
+    <pre>{{.Content}}</pre>
+  </div>
+  <div>
+    <div class="card">
+      <h2>How to run</h2>
+      {{if .Project}}
+        {{if .Project.TestCommand}}<p>Test: <code>{{.Project.TestCommand}}</code></p>
+        {{else}}<p class="muted">No test command is configured for this project.</p>{{end}}
+        {{if .Project.RepositoryPath}}<p>Repository: <code>{{.Project.RepositoryPath}}</code></p>{{end}}
+      {{else}}<p class="muted">Project metadata is unavailable.</p>{{end}}
+    </div>
+
+    <div class="card">
+      <h2>What it cost</h2>
+      {{if .HasOutcome}}
+        <p><b>{{.Outcome.TokenCost}}</b> tokens · {{.Outcome.WallTime}} · {{.Outcome.Result}}</p>
+        {{if .Outcome.ThinkArm}}<p class="muted">reasoning arm: {{.Outcome.ThinkArm}} · {{.Outcome.ReasoningTokens}} estimated reasoning tokens</p>{{end}}
+      {{else}}<p class="muted">No captured outcome for this job.</p>{{end}}
+    </div>
+
+    <div class="card">
+      <h2>Known issues</h2>
+      {{range .Issues}}<div class="ev"><b>{{.Category}}</b> <span class="pill warn">{{.Severity}}</span><br>{{.UserFeedback}}</div>
+      {{else}}<p class="muted">None recorded against this artifact.</p>{{end}}
+    </div>
+
+    <div class="card">
+      <h2>Human review</h2>
+      <form method="post" action="/ui/artifacts/{{.Artifact.ID}}/review">
+        <label>score (0–1)
+          <input type="number" name="score" min="0" max="1" step="0.05" value="1" required>
+        </label>
+        <label><input type="checkbox" name="accepted" value="1" checked> accepted</label>
+        <label>note
+          <input name="note" placeholder="what worked, what is missing">
+        </label>
+        <button>Record review</button>
+      </form>
+      <h3>Previous reviews</h3>
+      {{if .Reviews}}
+      <table><thead><tr><th>When</th><th>By</th><th>Score</th><th></th></tr></thead><tbody>
+      {{range .Reviews}}<tr><td class="muted">{{.CreatedAt}}</td><td>{{.Reviewer}}</td><td>{{printf "%.2f" .Score}}</td>
+      <td>{{if .Accepted}}<span class="pill ok">accepted</span>{{else}}<span class="pill bad">rejected</span>{{end}}</td></tr>
+      {{if .Note}}<tr><td colspan="4" class="muted">{{.Note}}</td></tr>{{end}}{{end}}
+      </tbody></table>
+      {{else}}<p class="muted">No reviews yet.</p>{{end}}
+    </div>
+  </div>
+</div>
 `
 
 const diffBody = `
-<h1>Diff {{.Artifact.Kind}} v{{.Artifact.Version}} <span class="muted">{{.Artifact.ID | short}}</span></h1>
+<h1>Diff: {{.Artifact.Kind}} v{{.Artifact.Version}}</h1>
+<p class="sub">Compared with the version it superseded. <span class="mono">{{.Artifact.ID | short}}</span></p>
+<div class="card">
 <pre>{{range .Lines}}<span{{if eq .Kind "-"}} class="del"{{else if eq .Kind "+"}} class="add"{{end}}>{{.Kind}} {{.Text}}</span>
 {{end}}</pre>
+</div>
+<div class="actions"><a class="btn secondary" href="/ui/artifacts/{{.Artifact.ID}}">Back to artifact</a></div>
 `
 
 const statisticsBody = `
 <h1>Statistics</h1>
-<p>{{.Jobs}} captured outcome(s) · {{.Accepted}} accepted · {{.Tokens}} total tokens</p>
+<p class="sub">Captured outcomes and the strategy insights mined from them.</p>
+<div class="grid">
+  <div class="card stat"><div class="n">{{.Jobs}}</div><div class="l">captured outcomes</div></div>
+  <div class="card stat"><div class="n">{{.Accepted}}</div><div class="l">accepted</div></div>
+  <div class="card stat"><div class="n">{{.Tokens}}</div><div class="l">tokens spent</div></div>
+</div>
 <h2>Strategy insights (§13.4)</h2>
+{{if .Insights}}
 <table><thead><tr><th>Polarity</th><th>Status</th><th>Feature</th><th>Cohort</th><th>Accept / baseline</th><th>Statement</th></tr></thead><tbody>
 {{range .Insights}}<tr>
-<td>{{.Polarity}}</td><td>{{.Status}}</td><td>{{.Pattern.Feature}}={{.Pattern.Value}}</td>
+<td><span class="pill {{if eq .Polarity "winning"}}ok{{else}}bad{{end}}">{{.Polarity}}</span></td>
+<td>{{.Status}}</td><td>{{.Pattern.Feature}}={{.Pattern.Value}}</td>
 <td>{{.Evidence.CohortJobs}}</td><td>{{printf "%.2f" .Evidence.AcceptRate}} / {{printf "%.2f" .Evidence.BaselineAcceptRate}}</td>
 <td>{{.Statement}}</td>
-</tr>
-{{else}}<tr><td colspan="6" class="muted">none</td></tr>{{end}}
+</tr>{{end}}
 </tbody></table>
-<p class="muted">Promote/mute from the CLI: athanor strategy promote|mute -id &lt;id&gt;.</p>
+{{else}}<div class="empty">No strategy insights yet. They appear after enough outcomes accumulate.</div>{{end}}
+<p class="muted">Promote/mute from the CLI: <code>athanor strategy promote|mute -id &lt;id&gt;</code>.</p>
 `

@@ -198,9 +198,9 @@ func TestPagesRender(t *testing.T) {
 	}{
 		{"/ui", "Dashboard"},
 		{"/ui/projects", "demo"},
-		{"/ui/projects/" + fx.project.ID, "Artifacts"},
+		{"/ui/projects/" + fx.project.ID, "Submit a goal"},
 		{"/ui/corrections", "Corrections"},
-		{"/ui/statistics", "captured outcome(s)"},
+		{"/ui/statistics", "captured outcomes"},
 		{"/ui/jobs/" + fx.job.ID, "Live output"},
 		{"/ui/artifacts/" + fx.artifact.ID + "/diff", "line TWO"},
 	} {
@@ -518,5 +518,10 @@ func TestArtifactView(t *testing.T) {
 	}
 	if !strings.Contains(body, "line TWO") {
 		t.Fatal("artifact content is not rendered")
+	}
+	for _, want := range []string{"How to run", "What it cost", "Known issues", "Human review"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("presentation surface missing %q", want)
+		}
 	}
 }

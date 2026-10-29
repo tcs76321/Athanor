@@ -14,6 +14,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -365,8 +366,26 @@ func (u *UI) handleProject(w http.ResponseWriter, r *http.Request) {
 		u.fail(w, err)
 		return
 	}
+	tasks, err := u.deps.Projects.TasksByProject(ctx, p.ID)
+	if err != nil {
+		u.fail(w, err)
+		return
+	}
+	type workItem struct {
+		Task project.Task
+		Jobs []job.Job
+	}
+	work := make([]workItem, 0, len(tasks))
+	for _, t := range tasks {
+		jobs, err := u.deps.Jobs.ByTask(ctx, t.ID)
+		if err != nil {
+			u.fail(w, err)
+			return
+		}
+		work = append(work, workItem{Task: t, Jobs: jobs})
+	}
 	u.render(w, "Project "+p.Name, projectBody, map[string]any{
-		"Project": p, "Artifacts": arts, "Corrections": corr,
+		"Project": p, "Artifacts": arts, "Corrections": corr, "Work": work,
 	})
 }
 
@@ -541,8 +560,19 @@ func (u *UI) handleWatch(w http.ResponseWriter, r *http.Request) {
 		u.fail(w, err)
 		return
 	}
+	if len(events) > 100 {
+		events = events[len(events)-100:]
+	}
+	for i, j := 0, len(events)-1; i < j; i, j = i+1, j-1 {
+		events[i], events[j] = events[j], events[i]
+	}
+	projectName := j.ProjectID
+	if p, err := u.deps.Projects.Get(ctx, j.ProjectID); err == nil {
+		projectName = p.Name
+	}
 	u.render(w, "Watch "+id, watchBody, map[string]any{
 		"Job": j, "Artifacts": arts, "Notes": notes, "Events": events,
+		"ProjectName": projectName,
 	})
 }
 
@@ -816,8 +846,30 @@ func (u *UI) handleArtifact(w http.ResponseWriter, r *http.Request) {
 	if u.deps.Reviews != nil {
 		reviews, _ = u.deps.Reviews.ListByArtifact(ctx, id)
 	}
+	// The presentation surface (first-use F5): what was built, how to run it,
+	// what it cost, and what is known-broken. Each source is optional; the
+	// page renders what exists rather than failing.
+	p, _ := u.deps.Projects.Get(ctx, a.ProjectID)
+	var outcome strategy.Outcome
+	hasOutcome := false
+	if u.deps.Strategy != nil && a.JobID != "" {
+		if o, err := u.deps.Strategy.GetOutcomeByJob(ctx, a.JobID); err == nil {
+			outcome, hasOutcome = o, true
+		}
+	}
+	var issues []corrections.Record
+	if u.deps.Corrections != nil {
+		if all, err := u.deps.Corrections.ListByProject(ctx, a.ProjectID); err == nil {
+			for _, c := range all {
+				if c.ArtifactID == a.ID {
+					issues = append(issues, c)
+				}
+			}
+		}
+	}
 	u.render(w, "Artifact "+a.ID, artifactBody, map[string]any{
 		"Artifact": a, "Content": string(content), "Reviews": reviews,
+		"Project": p, "Outcome": outcome, "HasOutcome": hasOutcome, "Issues": issues,
 	})
 }
 
@@ -934,6 +986,7 @@ func (u *UI) renderStatus(w http.ResponseWriter, status int, title, body string,
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(status)
 	if err := t.Execute(w, data); err != nil {
+		slog.Error("ui: rendering page", "title", title, "err", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }
@@ -962,8 +1015,11 @@ var funcs = template.FuncMap{
 		}
 		return ""
 	},
-	"join": func(ss []string) string { return strings.Join(ss, ", ") },
-	"stateClass": func(s string) string {
+	"join":          func(ss []string) string { return strings.Join(ss, ", ") },
+	"prettyEvent":   prettyEvent,
+	"interviewDone": func(s string) bool { return s == "approved" || s == "skipped" },
+	"stateClass": func(v any) string {
+		s := fmt.Sprint(v)
 		switch s {
 		case "completed":
 			return "ok"
@@ -981,6 +1037,44 @@ var funcs = template.FuncMap{
 
 func writeSSE(w http.ResponseWriter, event, data string) {
 	_, _ = fmt.Fprintf(w, "event: %s\ndata: %s\n\n", event, data)
+}
+
+// prettyEvent renders one audit row as a compact, human-readable line. The raw
+// JSON remains the source of truth; this is display only.
+func prettyEvent(raw string) string {
+	var d map[string]any
+	if json.Unmarshal([]byte(raw), &d) != nil {
+		return raw
+	}
+	name, _ := d["event"].(string)
+	if name == "" {
+		name = "event"
+	}
+	keys := []string{
+		"phase", "state", "to", "winner", "result", "passed", "score",
+		"reason", "model", "prompt_tokens", "completion_tokens",
+		"reasoning_tokens", "decision", "unit", "iter", "candidates",
+		"count", "error", "difficulty", "note",
+	}
+	var parts []string
+	for _, k := range keys {
+		v, ok := d[k]
+		if !ok || v == nil || v == "" {
+			continue
+		}
+		parts = append(parts, fmt.Sprintf("%s=%v", k, v))
+		if len(parts) == 5 {
+			break
+		}
+	}
+	line := name
+	if len(parts) > 0 {
+		line += " · " + strings.Join(parts, " · ")
+	}
+	if len(line) > 220 {
+		line = line[:220] + "…"
+	}
+	return line
 }
 
 func mustJSON(v any) string {
