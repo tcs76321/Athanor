@@ -336,6 +336,30 @@ func renderReport(metrics []jobMetrics) string {
 		fmt.Fprintf(&b, "WARNING: %d comparison(s) had cross_family_ok=false — the judge shared the generator's family.\n", mismatched)
 	}
 
+	b.WriteString("\n## Decision diagnostics — external check passed but not accepted\n\n")
+	b.WriteString("These rows passed the benchmark's own deterministic check yet the engine did not\n")
+	b.WriteString("complete with a new winner. The guard columns show whether the §19.3 guard\n")
+	b.WriteString("downgraded a supported `new`, or the judge itself declined.\n\n")
+	b.WriteString("| goal | model | state | winner | pre | post | thr | prev | final pass | final conf | reason |\n")
+	b.WriteString("|---|---|---|---|---|---|---|---|---|---|---|\n")
+	anomalies := 0
+	for _, m := range metrics {
+		if m.CheckPass == nil || !*m.CheckPass || (m.State == "completed" && m.Winner == "new") {
+			continue
+		}
+		anomalies++
+		finalPass := ""
+		if m.FinalRecordPassed != nil {
+			finalPass = fmt.Sprintf("%t", *m.FinalRecordPassed)
+		}
+		fmt.Fprintf(&b, "| %s | %s | %s | %s | %s | %s | %.2f | %t | %s | %.2f | %s |\n",
+			m.GoalName, m.ModelLabel, m.State, m.Winner, m.GuardPreWinner, m.GuardPostWinner,
+			m.GuardThreshold, m.HasPrevious, finalPass, m.FinalRecordConfidence, m.DecideReason)
+	}
+	if anomalies == 0 {
+		b.WriteString("| — | — | — | — | — | — | — | — | — | — | none |\n")
+	}
+
 	b.WriteString("\n## Environment / caveats\n\n")
 	b.WriteString("- Fill in the model digests, Ollama version, and any confounds from the daemon logs.\n")
 	b.WriteString("- T-c across fresh jobs confounds model nondeterminism with input nondeterminism; note it.\n")

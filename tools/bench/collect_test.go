@@ -55,3 +55,35 @@ func TestBestCandidateArtifact(t *testing.T) {
 		t.Errorf("fallback = %q/%q, want a2/high", id, text)
 	}
 }
+
+// TestLoadComparisonDiagnostics pins the P0 diagnostic reader: the guard
+// inputs and the last reason line are what make an "external check passed but
+// engine failed" row explainable.
+func TestLoadComparisonDiagnostics(t *testing.T) {
+	db, err := sql.Open("sqlite3", ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	if _, err := db.Exec(`
+		CREATE TABLE events (id INTEGER PRIMARY KEY, job_id TEXT, category TEXT, data_json TEXT);
+		INSERT INTO events (job_id, category, data_json) VALUES
+			('j1','jobs','{"event":"transition","to":"comparing"}'),
+			('j1','jobs','{"event":"comparison","winner":"none","reasons":["judge declined","downgraded from new to none"],"guard_pre_winner":"new","guard_post_winner":"none","guard_threshold":0.7,"has_previous":false,"final_record_passed":true,"final_record_confidence":0.0,"final_record_better":false,"final_verifier_applied":1,"final_verifier_hard":false,"final_verifier_hard_passed":true}');
+	`); err != nil {
+		t.Fatal(err)
+	}
+	c, ok := loadComparisonDiagnostics(db, "j1")
+	if !ok {
+		t.Fatal("comparison event not found")
+	}
+	if c.GuardPreWinner != "new" || c.GuardPostWinner != "none" {
+		t.Errorf("guard = %s -> %s, want new -> none", c.GuardPreWinner, c.GuardPostWinner)
+	}
+	if c.FinalRecordPassed == nil || !*c.FinalRecordPassed {
+		t.Error("final record pass was not carried")
+	}
+	if len(c.Reasons) != 2 || c.Reasons[1] != "downgraded from new to none" {
+		t.Errorf("reasons = %v", c.Reasons)
+	}
+}

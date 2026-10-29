@@ -200,6 +200,7 @@ func (e *Engine) phaseCompare(ctx context.Context, j job.Job) error {
 	threshold := e.cfg.Execution.MinJudge()
 	finalRecord := buildFinalEvaluation(j, final, previousID, previousAvgScore, ver)
 	guardRecords := append(append([]evaluation.Record(nil), records...), finalRecord)
+	preGuardWinner := verdict.Winner
 	verdict = DecideWinner(verdict, guardRecords, threshold, previousID != "")
 
 	// F4-T4 reward-hacking guard: a decisive verifier failure overrides an
@@ -270,6 +271,20 @@ func (e *Engine) phaseCompare(ctx context.Context, j job.Job) error {
 		"previous_records_count":  len(previousRecords),
 		"previous_avg_score":      previousAvgScore,
 		"previous_avg_confidence": previousAvgConf,
+		// P0 diagnostics: these are the exact inputs the §19.3 guard saw.
+		// A failed job whose external check passed is otherwise opaque:
+		// the report can now distinguish "the judge said no" from "the
+		// guard downgraded a supported new" without a live DB.
+		"guard_pre_winner":           preGuardWinner,
+		"guard_post_winner":          verdict.Winner,
+		"guard_threshold":            threshold,
+		"has_previous":               previousID != "",
+		"final_record_passed":        finalRecord.PassedTests,
+		"final_record_confidence":    finalRecord.Confidence,
+		"final_record_better":        finalRecord.BetterThanPrevious,
+		"final_verifier_applied":     ver.Applied,
+		"final_verifier_hard":        ver.HardDecisive(),
+		"final_verifier_hard_passed": ver.HardPassed,
 	})
 
 	// §9.3 status transitions.

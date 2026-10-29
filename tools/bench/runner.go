@@ -544,6 +544,7 @@ func (r *runnerConfig) runOne(g sampleGoal, m probeModel, a arm, run int, stateD
 	}
 	_ = mx.fillCandidateMetrics(db, stateDir)
 	mx.fillVerification(db)
+	mx.fillDecisionDiagnostics(db)
 	mx.fillTelemetry(db)
 	if txt, err := readArtifact(stateDir, mx.ArtifactID); err == nil {
 		mx.ArtifactText = txt
@@ -697,7 +698,11 @@ func writeCSV(path string, metrics []jobMetrics) error {
 		"model_label", "arm", "run", "state", "winner",
 		"confidence", "score", "token_cost", "wall_ms", "retries", "diversity", "candidates",
 		"llm_calls", "prompt_tokens", "completion_tokens",
-		"judge_called", "verifier_applied", "verifier_passed", "job_id", "error"}
+		"judge_called", "verifier_applied", "verifier_passed",
+		"guard_pre_winner", "guard_post_winner", "guard_threshold", "has_previous",
+		"final_record_passed", "final_record_confidence", "final_record_better",
+		"final_verifier_applied", "final_verifier_hard", "final_verifier_passed",
+		"decide_reason", "job_id", "error"}
 	if err := w.Write(header); err != nil {
 		return err
 	}
@@ -710,6 +715,10 @@ func writeCSV(path string, metrics []jobMetrics) error {
 		if m.Telemetry != nil {
 			calls, promptTok, completionTok = m.Telemetry.Calls, m.Telemetry.PromptTokens, m.Telemetry.CompletionTokens
 		}
+		finalRecordPassed := ""
+		if m.FinalRecordPassed != nil {
+			finalRecordPassed = strconv.FormatBool(*m.FinalRecordPassed)
+		}
 		if err := w.Write([]string{
 			m.GoalName, m.Archetype, m.Tier, strconv.FormatBool(m.HeldOut),
 			m.ContextDemand, m.Category, m.ModelLabel, m.Arm, strconv.Itoa(m.Run), m.State, m.Winner,
@@ -718,7 +727,12 @@ func writeCSV(path string, metrics []jobMetrics) error {
 			strconv.FormatFloat(m.Diversity, 'f', 4, 64), strconv.Itoa(m.Candidates),
 			strconv.Itoa(calls), strconv.Itoa(promptTok), strconv.Itoa(completionTok),
 			judgeCalled, strconv.Itoa(m.VerifierApplied), strconv.FormatBool(m.VerifierPassed),
-			m.JobID, m.Error,
+			m.GuardPreWinner, m.GuardPostWinner, strconv.FormatFloat(m.GuardThreshold, 'f', 4, 64),
+			strconv.FormatBool(m.HasPrevious), finalRecordPassed,
+			strconv.FormatFloat(m.FinalRecordConfidence, 'f', 4, 64),
+			strconv.FormatBool(m.FinalRecordBetter), strconv.Itoa(m.FinalVerifierApplied),
+			strconv.FormatBool(m.FinalVerifierHard), strconv.FormatBool(m.FinalVerifierPassed),
+			m.DecideReason, m.JobID, m.Error,
 		}); err != nil {
 			return err
 		}

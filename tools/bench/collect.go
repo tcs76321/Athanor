@@ -39,6 +39,20 @@ type jobMetrics struct {
 	VerifierApplied int   `json:"verifier_applied,omitempty"`
 	VerifierPassed  bool  `json:"verifier_passed,omitempty"`
 	CrossFamilyOK   *bool `json:"cross_family_ok,omitempty"`
+	// P0 decision diagnostics: the §19.3 guard inputs and the reason the
+	// comparison ended where it did. These make a "check passed but the
+	// engine failed" row explainable from results.json alone.
+	DecideReason          string  `json:"decide_reason,omitempty"`
+	GuardPreWinner        string  `json:"guard_pre_winner,omitempty"`
+	GuardPostWinner       string  `json:"guard_post_winner,omitempty"`
+	GuardThreshold        float64 `json:"guard_threshold,omitempty"`
+	HasPrevious           bool    `json:"has_previous,omitempty"`
+	FinalRecordPassed     *bool   `json:"final_record_passed,omitempty"`
+	FinalRecordConfidence float64 `json:"final_record_confidence,omitempty"`
+	FinalRecordBetter     bool    `json:"final_record_better,omitempty"`
+	FinalVerifierApplied  int     `json:"final_verifier_applied,omitempty"`
+	FinalVerifierHard     bool    `json:"final_verifier_hard,omitempty"`
+	FinalVerifierPassed   bool    `json:"final_verifier_passed,omitempty"`
 	// ArtifactText is the final artifact's content. It is used to build
 	// judge packets and is not serialized into results.json (the file is
 	// read back from the state dir when packets are generated).
@@ -296,6 +310,92 @@ func (m *jobMetrics) fillVerification(db *sql.DB) {
 	m.VerifierApplied = v.VerifierApplied
 	m.VerifierPassed = v.VerifierPassed
 	m.CrossFamilyOK = v.CrossFamilyOK
+}
+
+// comparisonRow is the P0 diagnostic subset of the engine's `comparison`
+// event. The guard fields were added in P0; older rows leave them zero.
+type comparisonRow struct {
+	Reasons                 []string
+	GuardPreWinner          string
+	GuardPostWinner         string
+	GuardThreshold          float64
+	HasPrevious             bool
+	FinalRecordPassed       *bool
+	FinalRecordConfidence   float64
+	FinalRecordBetter       bool
+	FinalVerifierApplied    int
+	FinalVerifierHard       bool
+	FinalVerifierHardPassed bool
+}
+
+// loadComparisonDiagnostics reads the job's latest `comparison` event. The
+// boolean is false when the job never reached comparison.
+func loadComparisonDiagnostics(db *sql.DB, jobID string) (comparisonRow, bool) {
+	rows, err := db.Query(
+		`SELECT data_json FROM events WHERE job_id = ? AND category = 'jobs' ORDER BY id DESC`, jobID)
+	if err != nil {
+		return comparisonRow{}, false
+	}
+	defer func() { _ = rows.Close() }()
+	for rows.Next() {
+		var d string
+		if err := rows.Scan(&d); err != nil {
+			return comparisonRow{}, false
+		}
+		var m struct {
+			Event                   string   `json:"event"`
+			Reasons                 []string `json:"reasons"`
+			GuardPreWinner          string   `json:"guard_pre_winner"`
+			GuardPostWinner         string   `json:"guard_post_winner"`
+			GuardThreshold          float64  `json:"guard_threshold"`
+			HasPrevious             bool     `json:"has_previous"`
+			FinalRecordPassed       *bool    `json:"final_record_passed"`
+			FinalRecordConfidence   float64  `json:"final_record_confidence"`
+			FinalRecordBetter       bool     `json:"final_record_better"`
+			FinalVerifierApplied    int      `json:"final_verifier_applied"`
+			FinalVerifierHard       bool     `json:"final_verifier_hard"`
+			FinalVerifierHardPassed bool     `json:"final_verifier_hard_passed"`
+		}
+		if json.Unmarshal([]byte(d), &m) != nil || m.Event != "comparison" {
+			continue
+		}
+		return comparisonRow{
+			Reasons:                 m.Reasons,
+			GuardPreWinner:          m.GuardPreWinner,
+			GuardPostWinner:         m.GuardPostWinner,
+			GuardThreshold:          m.GuardThreshold,
+			HasPrevious:             m.HasPrevious,
+			FinalRecordPassed:       m.FinalRecordPassed,
+			FinalRecordConfidence:   m.FinalRecordConfidence,
+			FinalRecordBetter:       m.FinalRecordBetter,
+			FinalVerifierApplied:    m.FinalVerifierApplied,
+			FinalVerifierHard:       m.FinalVerifierHard,
+			FinalVerifierHardPassed: m.FinalVerifierHardPassed,
+		}, true
+	}
+	return comparisonRow{}, false
+}
+
+// fillDecisionDiagnostics records the comparison guard inputs and the last
+// reason line (the guard's own annotation is appended last by DecideWinner).
+func (m *jobMetrics) fillDecisionDiagnostics(db *sql.DB) {
+	c, ok := loadComparisonDiagnostics(db, m.JobID)
+	if !ok {
+		return
+	}
+	m.GuardPreWinner = c.GuardPreWinner
+	m.GuardPostWinner = c.GuardPostWinner
+	m.GuardThreshold = c.GuardThreshold
+	m.HasPrevious = c.HasPrevious
+	m.FinalRecordPassed = c.FinalRecordPassed
+	m.FinalRecordConfidence = c.FinalRecordConfidence
+	m.FinalRecordBetter = c.FinalRecordBetter
+	m.FinalVerifierApplied = c.FinalVerifierApplied
+	m.FinalVerifierHard = c.FinalVerifierHard
+	m.FinalVerifierPassed = c.FinalVerifierHardPassed
+	if len(c.Reasons) > 0 {
+		m.DecideReason = c.Reasons[len(c.Reasons)-1]
+	}
 }
 
 // fillCandidateMetrics records the job's candidate count and diversity
