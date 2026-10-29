@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -95,7 +96,17 @@ type EventFilter struct {
 	ProjectID string
 	JobID     string
 	AfterID   int64
-	Limit     int
+	// BeforeID bounds a newest-first page: only rows with id < BeforeID.
+	BeforeID int64
+	// Level filters on the closed event level set (debug|info|warn|error).
+	Level string
+	// Query is a case-insensitive substring match over data_json. It is for
+	// the read-only inspector, not a hot path.
+	Query string
+	// Desc returns newest first. The default is ascending (the SSE delta and
+	// trajectory readers rely on insertion order).
+	Desc  bool
+	Limit int
 }
 
 // QueryEvents returns matching events ordered by insertion id ascending.
@@ -119,7 +130,23 @@ func (s *Store) QueryEvents(ctx context.Context, f EventFilter) ([]EventRecord, 
 		q += ` AND id > ?`
 		args = append(args, f.AfterID)
 	}
-	q += ` ORDER BY id ASC`
+	if f.BeforeID > 0 {
+		q += ` AND id < ?`
+		args = append(args, f.BeforeID)
+	}
+	if f.Level != "" {
+		q += ` AND level = ?`
+		args = append(args, f.Level)
+	}
+	if f.Query != "" {
+		q += ` AND data_json LIKE ? ESCAPE '\'`
+		args = append(args, "%"+escapeLike(f.Query)+"%")
+	}
+	if f.Desc {
+		q += ` ORDER BY id DESC`
+	} else {
+		q += ` ORDER BY id ASC`
+	}
 	if f.Limit > 0 {
 		q += ` LIMIT ?`
 		args = append(args, f.Limit)
@@ -146,6 +173,12 @@ func (s *Store) QueryEvents(ctx context.Context, f EventFilter) ([]EventRecord, 
 		out = append(out, r)
 	}
 	return out, rows.Err()
+}
+
+// escapeLike escapes SQLite LIKE metacharacters so a user query is a literal
+// substring. The caller pairs it with ESCAPE '\'.
+func escapeLike(s string) string {
+	return strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(s)
 }
 
 // LatestEventID returns the largest event id matching f, or 0 when none

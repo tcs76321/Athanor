@@ -78,6 +78,14 @@ button.danger{background:#3a1d22;border-color:#5a2b2b;color:#ffd7d7}
 .ev{border-left:2px solid var(--line);padding:4px 0 4px 10px;margin:6px 0;font-size:13px}
 .ev b{color:#c7d3e6;font-weight:600}
 #events{max-height:52vh;overflow:auto}
+.tabs{display:flex;gap:4px;flex-wrap:wrap;margin:0 0 18px}
+.tabs a{padding:6px 11px;border:1px solid var(--line);border-radius:999px;color:var(--muted);font-size:14px}
+.tabs a[aria-current="page"]{background:var(--panel2);color:var(--text)}
+details{border:1px solid var(--line);border-radius:8px;padding:6px 10px;margin:6px 0;background:#0f141c}
+summary{cursor:pointer;color:#c7d3e6}
+.kv{display:grid;grid-template-columns:170px 1fr;gap:4px 12px;margin:0}
+.kv dt{color:var(--muted)}
+.kv dd{margin:0}
 `
 
 const dashboardJS = `
@@ -87,7 +95,7 @@ document.querySelectorAll('header nav a').forEach(a=>{
   const active=href==='/ui'?path==='/ui':path===href||path.startsWith(href+'/');
   if(active)a.setAttribute('aria-current','page');
 });
-const es=new EventSource('/ui/events');
+const es=new EventSource('/ui/events/stream');
 es.addEventListener('event',e=>{
   let p; try{p=JSON.parse(e.data)}catch(_){return}
   if(p.category!=='jobs'||!p.job_id)return;
@@ -146,6 +154,7 @@ func document(body string) string {
     <a href="/ui/reviews">Reviews</a>
     <a href="/ui/corrections">Corrections</a>
     <a href="/ui/statistics">Statistics</a>
+    <a href="/ui/events">Inspect</a>
   </nav>
 </header>
 <main id="main">` + body + `</main>
@@ -498,6 +507,7 @@ const watchBody = `
   {{if not .Job.State.Terminal}}<button name="action" value="cancel" class="danger">Cancel</button>{{end}}
   {{if .Job.State.Terminal}}<button name="action" value="retry">Retry</button>{{end}}
 </form>
+<a class="btn secondary" href="/ui/jobs/{{.Job.ID}}/trace">Full trace</a>
 </div>
 
 <div class="split">

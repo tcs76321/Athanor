@@ -3,10 +3,12 @@
 // SSE, and net/http only.
 //
 // Pages: Dashboard (jobs + pending approvals + power/freeze), Projects
-// (artifact history + diffs + corrections), Corrections, and Job Watch (live
-// phase events + streamed tokens + interruption notes + controls). Live
-// updates use Server-Sent Events: /ui/events for the dashboard and
-// /ui/jobs/{id}/stream for the watch view.
+// (artifact history + diffs + corrections), Corrections, Job Watch (live
+// phase events + streamed tokens + interruption notes + controls), Reviews,
+// and the read-only inspector (events, artifacts, memory, daydream, runtime,
+// and one job's full trace). Live updates use Server-Sent Events:
+// /ui/events/stream for the dashboard and /ui/jobs/{id}/stream for the watch
+// view.
 package ui
 
 import (
@@ -22,8 +24,10 @@ import (
 	"time"
 
 	"github.com/tcs76321/athanor/internal/artifact"
+	"github.com/tcs76321/athanor/internal/config"
 	"github.com/tcs76321/athanor/internal/corrections"
 	"github.com/tcs76321/athanor/internal/digest"
+	"github.com/tcs76321/athanor/internal/evaluation"
 	"github.com/tcs76321/athanor/internal/firstuse"
 	"github.com/tcs76321/athanor/internal/hitl"
 	"github.com/tcs76321/athanor/internal/interruptions"
@@ -65,12 +69,16 @@ type Deps struct {
 	Artifacts     *artifact.Store
 	Corrections   *corrections.Repo
 	Reviews       *review.Repo
+	Eval          *evaluation.Repo
 	HITL          *hitl.Service
 	Interviews    *interview.Repo
 	Interruptions *interruptions.Repo
 	Strategy      *strategy.Repo
 	Freezer       Freezer
 	Engine        Enqueuer
+	// Config is read-only. The inspector shows personas, limits, and the
+	// budget shape; it never writes configuration.
+	Config *config.Config
 	// Indexer runs the bounded pre-index on the first-use project create.
 	// nil is valid: the job starts without a populated Dormant Index.
 	Indexer RepoPreindexer
@@ -97,7 +105,7 @@ func (u *UI) Hub() *Hub { return u.hub }
 // Register mounts the UI routes.
 func (u *UI) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /ui", u.handleDashboard)
-	mux.HandleFunc("GET /ui/events", u.handleDashboardStream)
+	mux.HandleFunc("GET /ui/events/stream", u.handleDashboardStream)
 	mux.HandleFunc("GET /ui/projects", u.handleProjects)
 	mux.HandleFunc("GET /ui/projects/new", u.handleNewProject)
 	mux.HandleFunc("POST /ui/projects", u.handleProjectCreate)
@@ -120,6 +128,14 @@ func (u *UI) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /ui/artifacts/{id}/review", u.handleReviewCreate)
 	mux.HandleFunc("GET /ui/artifacts/{id}/diff", u.handleDiff)
 	mux.HandleFunc("POST /ui/approvals/{id}", u.handleApproval)
+	mux.HandleFunc("GET /ui/events", u.handleEvents)
+	mux.HandleFunc("GET /ui/artifacts", u.handleArtifactIndex)
+	mux.HandleFunc("GET /ui/memory", u.handleMemory)
+	mux.HandleFunc("GET /ui/memory/compacted/{id}", u.handleCompacted)
+	mux.HandleFunc("GET /ui/memory/chunks/{id}", u.handleChunk)
+	mux.HandleFunc("GET /ui/daydream", u.handleDaydream)
+	mux.HandleFunc("GET /ui/runtime", u.handleRuntime)
+	mux.HandleFunc("GET /ui/jobs/{id}/trace", u.handleTrace)
 }
 
 // --- Hub ---
@@ -1051,7 +1067,14 @@ var funcs = template.FuncMap{
 		}
 		return t.Format("Jan 2 2006")
 	},
-	"prettyEvent":   prettyEvent,
+	"prettyEvent": prettyEvent,
+	"tojson": func(v any) string {
+		b, err := json.MarshalIndent(v, "", "  ")
+		if err != nil {
+			return ""
+		}
+		return string(b)
+	},
 	"interviewDone": func(s string) bool { return s == "approved" || s == "skipped" },
 	"stateClass": func(v any) string {
 		s := fmt.Sprint(v)

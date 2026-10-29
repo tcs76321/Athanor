@@ -378,6 +378,33 @@ func TestLineDiffBuildsValidEditScript(t *testing.T) {
 	}
 }
 
+// TestInspectorPagesRender proves the read-only inspector surfaces are
+// reachable and expose the recorded internals.
+func TestInspectorPagesRender(t *testing.T) {
+	fx := setup(t)
+	for _, tc := range []struct {
+		path string
+		want string
+	}{
+		{"/ui/events", "Every recorded step"},
+		{"/ui/events?category=jobs&level=info", "Events"},
+		{"/ui/artifacts", "Every artifact"},
+		{"/ui/memory", "Compacted memory"},
+		{"/ui/daydream", "Daydream"},
+		{"/ui/runtime", "Personas"},
+		{"/ui/jobs/" + fx.job.ID + "/trace", "Model calls"},
+	} {
+		status, body := get(t, fx.ts.URL+tc.path)
+		if status != http.StatusOK {
+			t.Errorf("GET %s = %d, want 200", tc.path, status)
+			continue
+		}
+		if !strings.Contains(body, tc.want) {
+			t.Errorf("GET %s body missing %q", tc.path, tc.want)
+		}
+	}
+}
+
 // TestDashboardShowsDigest proves the morning-digest strip renders.
 func TestDashboardShowsDigest(t *testing.T) {
 	fx := setup(t)

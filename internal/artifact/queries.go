@@ -92,6 +92,32 @@ func (a *Store) ListAccepted(ctx context.Context, limit int) ([]Artifact, error)
 	return out, rows.Err()
 }
 
+// ListRecent returns up to limit artifacts of any status, newest first. It is
+// the read-only inspector's enumeration; the domain paths use the
+// status-specific queries above.
+func (a *Store) ListRecent(ctx context.Context, limit int) ([]Artifact, error) {
+	q := artifactSelect + ` ORDER BY created_at DESC, id DESC`
+	args := []any{}
+	if limit > 0 {
+		q += ` LIMIT ?`
+		args = append(args, limit)
+	}
+	rows, err := a.db.DB().QueryContext(ctx, q, args...)
+	if err != nil {
+		return nil, fmt.Errorf("listing recent artifacts: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	var out []Artifact
+	for rows.Next() {
+		art, err := scanArtifact(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, art)
+	}
+	return out, rows.Err()
+}
+
 // LatestAcceptedByProject returns the project's most recently accepted
 // artifact, or ErrNotFound when the project has no accepted artifact
 // yet. Used by §13.1 Phase 6 (Comparing) to find the "previous" side

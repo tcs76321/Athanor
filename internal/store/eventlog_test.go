@@ -195,6 +195,56 @@ func TestQueryEventsFilters(t *testing.T) {
 // TestQueryEventsAfterIDAndLatest pins the streaming delta cursor
 // (known-issues M9): AfterID selects strictly-newer events, and LatestEventID
 // returns the tail without loading the table.
+func TestQueryEventsDescBeforeLevelQuery(t *testing.T) {
+	s, _ := openTemp(t)
+	requireMigrated(t, s)
+	ctx := context.Background()
+
+	id1, _ := s.AppendEvent(ctx, Event{Category: "jobs", Data: map[string]any{"event": "one", "note": "needle"}})
+	id2, _ := s.AppendEvent(ctx, Event{Category: "jobs", Level: EventWarn, Data: map[string]any{"event": "two", "note": "ordinary"}})
+	id3, _ := s.AppendEvent(ctx, Event{Category: "context", Data: map[string]any{"event": "three", "note": "100%"}})
+
+	desc, err := s.QueryEvents(ctx, EventFilter{Desc: true, Limit: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(desc) != 3 || desc[0].ID != id3 || desc[2].ID != id1 {
+		t.Fatalf("desc ids = %v", []int64{desc[0].ID, desc[1].ID, desc[2].ID})
+	}
+
+	older, err := s.QueryEvents(ctx, EventFilter{Desc: true, BeforeID: id2, Limit: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(older) != 1 || older[0].ID != id1 {
+		t.Errorf("before id2 = %+v, want only id1", older)
+	}
+
+	warn, err := s.QueryEvents(ctx, EventFilter{Level: "warn"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(warn) != 1 || warn[0].ID != id2 {
+		t.Errorf("level filter = %+v, want the warn row", warn)
+	}
+
+	found, err := s.QueryEvents(ctx, EventFilter{Query: "needle"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(found) != 1 || found[0].ID != id1 {
+		t.Errorf("query filter = %+v, want the needle row", found)
+	}
+
+	literal, err := s.QueryEvents(ctx, EventFilter{Query: "100%"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(literal) != 1 || literal[0].ID != id3 {
+		t.Errorf("literal %% filter = %+v, want the 100%% row only", literal)
+	}
+}
+
 func TestQueryEventsAfterIDAndLatest(t *testing.T) {
 	s, _ := openTemp(t)
 	requireMigrated(t, s)

@@ -835,6 +835,11 @@ type Backup struct {
 type Logging struct {
 	Level      string   `yaml:"level"`
 	Categories []string `yaml:"categories"`
+	// CaptureLLMPayloads stores the exact assembled prompt messages and the
+	// model's visible response on every `llm_call` event. Default off: the
+	// event log normally carries counts, not repository bytes. When enabled,
+	// the trace page can show every token; the log grows with the work.
+	CaptureLLMPayloads bool `yaml:"capture_llm_payloads"`
 }
 
 // JobPod configures per-job tool allowlists and Job Pod image

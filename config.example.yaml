@@ -319,6 +319,10 @@ backup:
 
 logging:
   level: info
+  # Store the exact prompt messages and visible response on every llm_call
+  # event. Off by default (the log normally carries counts, not repository
+  # bytes); enable it when you want the trace page to show every token.
+  capture_llm_payloads: false
   categories:
     - jobs
     - recovery

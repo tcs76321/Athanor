@@ -22,6 +22,16 @@ New entries are appended at the top. Do not rewrite history.
   issues), a watch view with persisted event history and pretty live events,
   and rendered error pages instead of plain text. Proofs:
   `TestReviewQueuePage`, `TestArtifactView`, `TestPagesRender`.
+- **A read-only inspector over the daemon's internals.** `Inspect` exposes the
+  full event log with newest-first pagination and category/level/job/project/
+  text filters; a job trace with task analysis, model calls, tool actions,
+  evaluations, artifacts, context/memory events, strategy, and timeline;
+  every artifact; compacted memory, chunks, the Dormant Index, and embeddings;
+  daydream logs; and runtime personas, budget, alarms, and HITL history.
+  Token counts are always shown; exact prompt/response text is opt-in via
+  `logging.capture_llm_payloads`. [Inspector](docs/ui-inspector.md); proofs:
+  `TestInspectorPagesRender`, `TestQueryEventsDescBeforeLevelQuery`,
+  `TestCaptureLLMPayloads`.
 
 ### Qualification ladder — 2026-10-29
 

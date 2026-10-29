@@ -471,7 +471,7 @@ func (e *Engine) call(ctx context.Context, j job.Job, p project.Project, t proje
 	for _, s := range res.Sections {
 		sections = append(sections, map[string]any{"name": s.Name, "tokens": s.Tokens})
 	}
-	e.audit(ctx, j.ID, map[string]any{
+	callAudit := map[string]any{
 		"event": "llm_call", "phase": phase, "persona": role, "model": persona.Model,
 		"temperature": temperature, "prompt_tokens": resp.PromptTokens,
 		"completion_tokens":       resp.CompletionTokens,
@@ -490,7 +490,17 @@ func (e *Engine) call(ctx context.Context, j job.Job, p project.Project, t proje
 		"budget_sec":        int64(budget / time.Second),
 		// F4 follow-up D3: the residency bound (§12.5).
 		"keep_alive": req.KeepAlive,
-	})
+	}
+	// Opt-in full payload capture (logging.capture_llm_payloads): the trace
+	// inspector can then show the exact tokens, not only counts.
+	if e.cfg.Logging.CaptureLLMPayloads {
+		callAudit["prompt_messages"] = res.Messages
+		callAudit["response"] = resp.Content
+		if resp.Thinking != "" {
+			callAudit["thinking"] = resp.Thinking
+		}
+	}
+	e.audit(ctx, j.ID, callAudit)
 
 	// M6-T7 (§18.3, ADR-0038): audit which corrections were injected, at
 	// what token price, and whether the ladder dropped the tier. Only a
@@ -728,7 +738,8 @@ func (e *Engine) phasePlan(ctx context.Context, j job.Job) error {
 	}
 	e.audit(ctx, j.ID, map[string]any{
 		"event": "task_analysis", "parsed": a.Parsed,
-		"units": len(a.Units), "deliberate": len(a.Deliberate()),
+		"unit_count": len(a.Units), "deliberate": len(a.Deliberate()),
+		"units_detail": a.Units,
 	})
 	_, err = e.jobs.Transition(ctx, j.ID, job.StateDiverging)
 	return err

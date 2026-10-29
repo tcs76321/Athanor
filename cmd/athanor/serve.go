@@ -394,6 +394,8 @@ func run(configPath, addr, stateDir string, container bool) error {
 		Store: st, Projects: projectRepo, Jobs: job.NewRepository(st),
 		Artifacts: artifactStore, Corrections: correctionsRepo, HITL: hitlSvc,
 		Reviews:       review.NewRepo(st),
+		Eval:          evaluation.NewRepo(st),
+		Config:        cfg,
 		Interviews:    interview.NewRepo(st),
 		Interruptions: interruptionsRepo, Strategy: strategyRepo,
 		Freezer: killSwitch, Engine: eng, Indexer: indexer,
