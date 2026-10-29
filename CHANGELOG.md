@@ -42,6 +42,12 @@ New entries are appended at the top. Do not rewrite history.
   [ADR-0083](docs/adr/0083-repository-working-set-pack.md); proofs:
   `TestRepositoryWorkingSetIsPinnedAndDeduped`,
   `TestWorkingSetIsAutoForCodeOnly`, `TestContextProviderWorkingSet`.
+- **The active/dormant swap runs in the normal code loop.** A code job now
+  seeds the top-ranked project chunk through `ChunkStore.Swap` (byte-exact,
+  persisted) before reading the active chunk; the rest of the pack follows.
+  `active_chunk_swapped` audits the chosen chunk. [ADR-0083 amendment](docs/adr/0083-repository-working-set-pack.md);
+  proofs: `TestWorkingSetIsAutoForCodeOnly`,
+  `TestContextProviderWorkingSet`.
 - **Compacted project memory reaches prompts.** The engine now queries the MCE
   retriever for project-scoped compacted memos and renders them in tier 5
   (`memory_in_prompt: true`, top-K 8), audited as `memory_injected`. This closes

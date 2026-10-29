@@ -10,8 +10,9 @@ import (
 
 // fakeWorkingSet is a ContextProvider that also exposes the optional P0 pack.
 type fakeWorkingSet struct {
-	chunk prompt.ChunkText
-	calls int
+	chunk     prompt.ChunkText
+	calls     int
+	seedCalls int
 }
 
 func (f *fakeWorkingSet) ActiveChunk(context.Context, ContextQuery) (prompt.ChunkText, bool, error) {
@@ -25,6 +26,11 @@ func (f *fakeWorkingSet) DormantIndex(context.Context, ContextQuery) ([]prompt.I
 func (f *fakeWorkingSet) WorkingSet(context.Context, ContextQuery, int, int) ([]prompt.ChunkText, error) {
 	f.calls++
 	return []prompt.ChunkText{f.chunk}, nil
+}
+
+func (f *fakeWorkingSet) SeedActive(context.Context, ContextQuery, int) (prompt.ChunkText, bool, error) {
+	f.seedCalls++
+	return f.chunk, true, nil
 }
 
 // TestWorkingSetIsAutoForCodeOnly pins the shipped default: a code job gets
@@ -42,6 +48,9 @@ func TestWorkingSetIsAutoForCodeOnly(t *testing.T) {
 	if provider.calls == 0 {
 		t.Fatal("code job did not request the working set")
 	}
+	if provider.seedCalls == 0 {
+		t.Fatal("code job did not drive the active-chunk swap")
+	}
 	found := false
 	for _, p := range env.ollama.promptTexts() {
 		if strings.Contains(p, "func main() {}") {
@@ -54,9 +63,11 @@ func TestWorkingSetIsAutoForCodeOnly(t *testing.T) {
 	}
 
 	provider.calls = 0
+	provider.seedCalls = 0
 	textJob := env.submit(t)
 	env.eng.Run(context.Background(), textJob)
-	if provider.calls != 0 {
-		t.Errorf("text job requested the working set %d times; auto is code-only", provider.calls)
+	if provider.calls != 0 || provider.seedCalls != 0 {
+		t.Errorf("text job used the working set (%d calls, %d seeds); auto is code-only",
+			provider.calls, provider.seedCalls)
 	}
 }

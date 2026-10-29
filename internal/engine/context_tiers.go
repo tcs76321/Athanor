@@ -63,6 +63,15 @@ type WorkingSetProvider interface {
 	WorkingSet(ctx context.Context, q ContextQuery, maxChunks, maxBytes int) ([]prompt.ChunkText, error)
 }
 
+// ActiveSeeder is the optional engine-driven §10.1 swap: choose the top-ranked
+// project chunk and make it the job's active chunk (byte-exact, persisted).
+// The engine calls it for a code job before reading ActiveChunk, so the swap
+// path is exercised by the normal loop rather than only by the unused route.
+// A nil/false result leaves the existing active chunk in place.
+type ActiveSeeder interface {
+	SeedActive(ctx context.Context, q ContextQuery, maxBytes int) (prompt.ChunkText, bool, error)
+}
+
 // Eviction is the outcome of one §10.4 force-eviction (ADR-0022 §5).
 type Eviction struct {
 	// Tiers is what the seam moved to Dormant, lowest priority first.
@@ -311,12 +320,30 @@ func (e *Engine) promptTiersFor(ctx context.Context, j job.Job, p project.Projec
 	if e.ctxProvider == nil {
 		return pt
 	}
-	chunk, ok, err := e.ctxProvider.ActiveChunk(ctx, q)
-	switch {
-	case err != nil:
-		slog.Warn("engine: reading active chunk", "job", j.ID, "err", err)
-	case ok:
-		pt.ActiveChunk = &chunk
+	// P1: for a code job with the pack enabled, drive the §10.1 swap from the
+	// same ranking the pack uses. The active pointer is persisted, so the MCE's
+	// byte-exact swap path is part of the normal loop, not just the route.
+	if seeder, ok := e.ctxProvider.(ActiveSeeder); ok && e.cfg != nil &&
+		e.cfg.ContextEngine.WorkingSetEnabled(p.Archetype) {
+		chunk, seeded, serr := seeder.SeedActive(ctx, q, e.cfg.ContextEngine.SeedActiveMaxBytes)
+		switch {
+		case serr != nil:
+			slog.Warn("engine: seeding active chunk", "job", j.ID, "err", serr)
+		case seeded:
+			pt.ActiveChunk = &chunk
+			e.auditCat(ctx, j.ID, "context", map[string]any{
+				"event": "active_chunk_swapped", "chunk_id": chunk.ID, "path": chunk.RelPath,
+			})
+		}
+	}
+	if pt.ActiveChunk == nil {
+		chunk, ok, err := e.ctxProvider.ActiveChunk(ctx, q)
+		switch {
+		case err != nil:
+			slog.Warn("engine: reading active chunk", "job", j.ID, "err", err)
+		case ok:
+			pt.ActiveChunk = &chunk
+		}
 	}
 	idx, err := e.ctxProvider.DormantIndex(ctx, q)
 	if err != nil {

@@ -166,6 +166,18 @@ func TestContextProviderWorkingSet(t *testing.T) {
 	if err != nil || len(foreign) != 0 {
 		t.Errorf("foreign working set = (%d, %v), want (0, nil)", len(foreign), err)
 	}
+
+	// The engine-driven swap persists the top chunk as the job's active chunk.
+	seeded, ok, err := p.SeedActive(ctx, engine.ContextQuery{
+		JobID: "job-1", ProjectID: "p1", Query: "repo",
+	}, 1<<20)
+	if err != nil || !ok || seeded.RelPath != "repo.go" {
+		t.Fatalf("SeedActive = (%+v, %v, %v), want repo.go", seeded, ok, err)
+	}
+	active, ok, err := p.store.Active(ctx, "job-1")
+	if err != nil || !ok || active.ID != seeded.ID {
+		t.Errorf("active = (%+v, %v, %v), want the seeded chunk", active, ok, err)
+	}
 }
 
 // TestContextProviderIncludesProjectIndex proves the F5 (ADR-0059) union: the

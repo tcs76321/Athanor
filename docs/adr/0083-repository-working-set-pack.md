@@ -51,6 +51,18 @@ relevant files.
    bytes, and chunk IDs, so a post-mortem can tell "the file was not retrieved"
    from "the model ignored it."
 
+## Amendment (P1, 2026-10-28) — the engine drives the active chunk
+
+The pack gives the model many chunk bodies, but the §10.1 active/dormant pointer
+was still only reachable through `seed_active_chunk` or the unused
+`context_swap` route. For a code job with the pack enabled, the engine now asks
+the provider to `SeedActive`: it ranks the same project chunks, takes the first
+that fits `seed_active_max_bytes`, and calls `ChunkStore.Swap`, persisting the
+active pointer byte-exactly. The prompt then renders that chunk as the active
+chunk and the remaining pack after it. `active_chunk_swapped` records the chunk
+and path. The `context_swap` route remains for the benchmark/test surface; it is
+no longer the only way the swap mechanism runs.
+
 ## Consequences
 
 - A code job now sees the bodies of the most relevant files before it plans or

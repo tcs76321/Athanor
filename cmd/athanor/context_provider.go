@@ -170,8 +170,61 @@ func (p *contextProvider) WorkingSet(ctx context.Context, q engine.ContextQuery,
 	return out, nil
 }
 
-// Compile-time proof that the adapter satisfies the optional P0 seam.
+// SeedActive makes the top-ranked project chunk the job's active chunk
+// (byte-exact, persisted). It is the engine-driven §10.1 swap; the same
+// ranking as the working-set pack is used, but the active pointer is what is
+// persisted so a crash resumes the same working set.
+func (p *contextProvider) SeedActive(ctx context.Context, q engine.ContextQuery,
+	maxBytes int) (prompt.ChunkText, bool, error) {
+	if !p.enabled || p.store == nil || p.retriever == nil || q.JobID == "" || q.ProjectID == "" {
+		return prompt.ChunkText{}, false, nil
+	}
+	if maxBytes <= 0 {
+		maxBytes = 16384
+	}
+	hits, err := p.retriever.Query(ctx, mce.QueryOptions{
+		Query: q.Query,
+		Scope: mce.Scope{ProjectID: q.ProjectID},
+		TopK:  8,
+	})
+	if err != nil {
+		return prompt.ChunkText{}, false, err
+	}
+	try := func(id string) (prompt.ChunkText, bool, error) {
+		rec, gerr := p.store.Get(ctx, id)
+		if gerr != nil || len(rec.Content) == 0 || len(rec.Content) > maxBytes {
+			return prompt.ChunkText{}, false, nil
+		}
+		res, serr := p.store.Swap(ctx, q.JobID, rec.ID)
+		if serr != nil {
+			return prompt.ChunkText{}, false, serr
+		}
+		return chunkText(res.Loaded), true, nil
+	}
+	for _, hit := range hits {
+		if hit.Kind != mce.SourceChunk {
+			continue
+		}
+		if chunk, ok, err := try(hit.ID); ok || err != nil {
+			return chunk, ok, err
+		}
+	}
+	// Before summaries are ready, fall back to the most recent project chunks.
+	entries, err := p.store.IndexForProject(ctx, q.ProjectID, "", 8)
+	if err != nil {
+		return prompt.ChunkText{}, false, err
+	}
+	for _, e := range entries {
+		if chunk, ok, err := try(e.ChunkID); ok || err != nil {
+			return chunk, ok, err
+		}
+	}
+	return prompt.ChunkText{}, false, nil
+}
+
+// Compile-time proof that the adapter satisfies the optional P0 seams.
 var _ engine.WorkingSetProvider = (*contextProvider)(nil)
+var _ engine.ActiveSeeder = (*contextProvider)(nil)
 
 // DormantIndex returns the §10.1 Dormant Index for the job (§11.2 §10): the
 // job's own chunks first, then the ranked, bounded project-repository rows,
