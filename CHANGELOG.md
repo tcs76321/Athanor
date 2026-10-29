@@ -42,6 +42,10 @@ New entries are appended at the top. Do not rewrite history.
   [ADR-0083](docs/adr/0083-repository-working-set-pack.md); proofs:
   `TestRepositoryWorkingSetIsPinnedAndDeduped`,
   `TestWorkingSetIsAutoForCodeOnly`, `TestContextProviderWorkingSet`.
+- **Diagnostics-only `bonsai9b` model label.** `bonsai-2:9b` (Qwen3.5 9B,
+  262k context, Q2) is selectable for focused screens via
+  `-model bonsai9b`, but is deliberately outside `probeModels` so the frozen v2
+  roster and protocol tests are unchanged.
 - **Checksummed release + install path (F8 first slice).** `make release` builds
   a host-native tarball and `SHA256SUMS`; `install-release.sh` verifies the
   checksum before installing, writes the Core config, checks/pulls the images,

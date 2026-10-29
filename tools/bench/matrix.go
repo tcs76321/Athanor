@@ -138,6 +138,13 @@ var probeModels = []probeModel{
 	{Label: "ornith35b", Model: "ornith-1.5:35b", Family: "qwen35", ContextTarget: 32768},
 }
 
+// diagnosticModels are model labels that are explicitly NOT part of the frozen
+// roster. They are selectable by `-model` for focused screens, but the protocol
+// tests compare probeModels to the roster and must not see them.
+var diagnosticModels = []probeModel{
+	{Label: "bonsai9b", Model: "bonsai-2:9b", Family: "qwen35", ContextTarget: 32768},
+}
+
 // judgeModels are the offline judges that score every artifact. In this
 // design they are the full model roster (each model is judged by all
 // others); "independence" is enforced where it matters — the in-engine
@@ -152,7 +159,7 @@ var judgeModels = []string{
 // familyForTag returns the declared family for a model tag known to the
 // matrix, or "" when unknown.
 func familyForTag(tag string) string {
-	for _, m := range probeModels {
+	for _, m := range append(probeModels, diagnosticModels...) {
 		if m.Model == tag {
 			return m.Family
 		}
@@ -160,9 +167,9 @@ func familyForTag(tag string) string {
 	return ""
 }
 
-// modelByLabel resolves a matrix model by its filesystem label.
+// modelByLabel resolves a matrix or diagnostics-only model by its label.
 func modelByLabel(label string) (probeModel, bool) {
-	for _, m := range probeModels {
+	for _, m := range append(probeModels, diagnosticModels...) {
 		if m.Label == label {
 			return m, true
 		}
