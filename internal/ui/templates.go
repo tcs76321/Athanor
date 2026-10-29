@@ -5,24 +5,88 @@ package ui
 // step). html/template auto-escapes every interpolated value.
 
 const css = `
-body{font:14px/1.5 ui-monospace,Menlo,monospace;margin:0;background:#0f1115;color:#d7dae0}
-header{padding:10px 16px;background:#171a21;border-bottom:1px solid #262b36;display:flex;gap:16px;align-items:center}
-header a{color:#8ab4f8;text-decoration:none}
-nav a{margin-right:12px}
-main{padding:16px;max-width:1100px}
-h1{font-size:18px}h2{font-size:15px;margin-top:22px;color:#a9b1bd}
-table{border-collapse:collapse;width:100%}th,td{text-align:left;padding:3px 8px;border-bottom:1px solid #222731}
-th{color:#8b93a1;font-weight:600}
-form{margin:6px 0;padding:6px;border:1px solid #222731;border-radius:6px}
-input,select,textarea{background:#0b0d11;color:#d7dae0;border:1px solid #2b3240;border-radius:4px;padding:3px}
-button{background:#233;border:1px solid #345;color:#cfe;border-radius:4px;padding:3px 8px;cursor:pointer}
-pre{background:#0b0d11;border:1px solid #222731;padding:8px;overflow:auto}
-.del{color:#ff8b8b}.add{color:#8bffa8}
-.muted{color:#7b8494}
-#tokens{white-space:pre-wrap}
+:root{
+  --bg:#0c0f14;--panel:#131822;--panel2:#1a2130;--line:#242d3b;
+  --text:#dde3ec;--muted:#8b96a8;--accent:#7aa2f7;--accent2:#9d7cf7;
+  --ok:#7ee2a8;--warn:#f2c46d;--bad:#ff8f8f;--radius:10px;
+}
+*{box-sizing:border-box}
+html{color-scheme:dark}
+body{margin:0;background:var(--bg);color:var(--text);
+  font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+.skip{position:absolute;left:-9999px;top:0;background:var(--panel2);padding:8px 12px;z-index:10}
+.skip:focus{left:12px;top:8px}
+header{position:sticky;top:0;z-index:5;display:flex;gap:18px;align-items:center;
+  padding:10px 20px;background:rgba(19,24,34,.92);backdrop-filter:blur(8px);
+  border-bottom:1px solid var(--line)}
+.brand{font-weight:700;letter-spacing:.03em;color:var(--text)}
+.brand span{color:var(--accent)}
+nav{display:flex;gap:2px;flex-wrap:wrap}
+nav a{padding:6px 11px;border-radius:999px;color:var(--muted);font-size:14px}
+nav a:hover{background:var(--panel2);color:var(--text);text-decoration:none}
+nav a[aria-current="page"]{background:var(--panel2);color:var(--text)}
+main{max-width:1120px;margin:0 auto;padding:26px 20px 72px}
+h1{font-size:26px;line-height:1.2;margin:0 0 6px;letter-spacing:-.01em}
+h2{font-size:16px;margin:26px 0 10px;color:#b9c3d3;letter-spacing:.01em}
+h3{font-size:14px;margin:16px 0 6px;color:#b9c3d3}
+p{margin:6px 0}
+.sub{color:var(--muted);margin:0 0 18px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+  padding:16px 18px;margin:0 0 18px}
+.card h2{margin-top:0}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin-bottom:8px}
+.stat{display:block;color:var(--text)}
+.stat .n{font-size:28px;font-weight:650;letter-spacing:-.02em;line-height:1.1}
+.stat .l{color:var(--muted);font-size:13px;text-transform:uppercase;letter-spacing:.06em}
+.stat:hover{text-decoration:none;border-color:#33405a}
+.pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:12px;
+  border:1px solid var(--line);background:var(--panel2);color:var(--muted);white-space:nowrap}
+.pill.ok{color:var(--ok);border-color:#24523a;background:#122019}
+.pill.warn{color:var(--warn);border-color:#5a4a24;background:#1f1a10}
+.pill.bad{color:var(--bad);border-color:#5a2b2b;background:#201313}
+.pill.run{color:var(--accent);border-color:#2b3f66;background:#121a28}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--muted);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.05em}
+tbody tr:hover{background:rgba(255,255,255,.015)}
+.muted{color:var(--muted)}
+.mono,pre,code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+pre{background:#0a0d12;border:1px solid var(--line);border-radius:8px;padding:12px;
+  overflow:auto;font-size:13px;line-height:1.45;max-height:60vh}
+code{background:#0a0d12;border:1px solid var(--line);border-radius:4px;padding:1px 5px;font-size:13px}
+.del{color:var(--bad)}.add{color:var(--ok)}
+form{margin:0}
+label{display:block;margin:12px 0 2px;font-size:13px;color:#b9c3d3}
+input,select,textarea{width:100%;background:#0a0d12;color:var(--text);
+  border:1px solid #2c3748;border-radius:7px;padding:8px 10px;font:inherit;font-size:14px}
+input[type=checkbox]{width:auto;margin-right:6px}
+textarea{resize:vertical}
+button,.btn{display:inline-block;background:#22304a;border:1px solid #34456a;color:#dbe7ff;
+  border-radius:7px;padding:7px 13px;font:inherit;font-size:14px;cursor:pointer;margin:8px 6px 0 0}
+button:hover,.btn:hover{background:#2a3a58;text-decoration:none}
+button.secondary,.btn.secondary{background:var(--panel2);border-color:var(--line);color:var(--text)}
+button.danger{background:#3a1d22;border-color:#5a2b2b;color:#ffd7d7}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
+.row>*{flex:1 1 180px}
+.actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px}
+.empty{padding:18px;border:1px dashed var(--line);border-radius:8px;color:var(--muted);text-align:center}
+.split{display:grid;grid-template-columns:1.6fr 1fr;gap:18px}
+@media(max-width:820px){.split{grid-template-columns:1fr}header{padding:10px 14px;gap:10px}main{padding:20px 14px 56px}}
+.ev{border-left:2px solid var(--line);padding:4px 0 4px 10px;margin:6px 0;font-size:13px}
+.ev b{color:#c7d3e6;font-weight:600}
+#events{max-height:52vh;overflow:auto}
 `
 
 const dashboardJS = `
+const path=location.pathname;
+document.querySelectorAll('header nav a').forEach(a=>{
+  const href=a.getAttribute('href');
+  const active=href==='/ui'?path==='/ui':path===href||path.startsWith(href+'/');
+  if(active)a.setAttribute('aria-current','page');
+});
 const es=new EventSource('/ui/events');
 es.addEventListener('event',e=>{
   let p; try{p=JSON.parse(e.data)}catch(_){return}
@@ -55,40 +119,126 @@ streams.addEventListener('event',e=>{
 // template.Must or evaluate as an action — both closed by keeping it in data.
 func document(body string) string {
 	return `<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><title>{{.Title}} — Athanor</title>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Title}} — Athanor</title>
 <style>` + css + `</style></head>
 <body>
-<header><b>Athanor</b><nav><a href="/ui">Dashboard</a><a href="/ui/projects">Projects</a><a href="/ui/corrections">Corrections</a><a href="/ui/statistics">Statistics</a></nav></header>
-<main>` + body + `</main>
+<a class="skip" href="#main">Skip to content</a>
+<header>
+  <a class="brand" href="/ui">Athanor<span>.</span></a>
+  <nav aria-label="Main">
+    <a href="/ui">Dashboard</a>
+    <a href="/ui/projects">Projects</a>
+    <a href="/ui/reviews">Reviews</a>
+    <a href="/ui/corrections">Corrections</a>
+    <a href="/ui/statistics">Statistics</a>
+  </nav>
+</header>
+<main id="main">` + body + `</main>
 <script>` + dashboardJS + `</script>
 </body></html>`
 }
 
+const reviewsBody = `
+<h1>Review queue</h1>
+<p class="sub">Accepted work with no human review. The queue is blinded: kind and project, no model or content.</p>
+{{if .Queue}}
+<div class="grid">
+{{range .Queue}}
+  <div class="card">
+    <div><span class="pill">{{.Artifact.Kind}}</span> <span class="muted">v{{.Artifact.Version}}</span></div>
+    <h3><a href="/ui/artifacts/{{.Artifact.ID}}">Review this {{.Artifact.Kind}}</a></h3>
+    <div class="muted">{{.ProjectName}}</div>
+    <div class="muted">{{.Artifact.CreatedAt | ts}}</div>
+  </div>
+{{end}}
+</div>
+{{else}}<div class="empty">Nothing to review. Accepted artifacts appear here until a human rates them.</div>{{end}}
+
+<h2>Recent reviews</h2>
+{{if .Recent}}
+<table><thead><tr><th>When</th><th>Artifact</th><th>Score</th><th>Accepted</th><th>Note</th></tr></thead><tbody>
+{{range .Recent}}<tr>
+  <td class="muted">{{.CreatedAt}}</td>
+  <td><a href="/ui/artifacts/{{.ArtifactID}}" class="mono">{{.ArtifactID | short}}</a></td>
+  <td>{{printf "%.2f" .Score}}</td>
+  <td>{{if .Accepted}}<span class="pill ok">yes</span>{{else}}<span class="pill bad">no</span>{{end}}</td>
+  <td class="muted">{{.Note}}</td>
+</tr>{{end}}
+</tbody></table>
+{{else}}<div class="empty">No reviews recorded yet.</div>{{end}}
+`
+
+const errorBody = `
+<h1>Something went wrong</h1>
+<div class="card">
+  <p class="del">{{.Error}}</p>
+  <p class="muted">The daemon is still running. Nothing was changed by this request.</p>
+  <div class="actions"><a class="btn" href="/ui">Back to dashboard</a></div>
+</div>
+`
+
 const dashboardBody = `
 <h1>Dashboard</h1>
-<p><a href="/ui/projects/new">+ New project</a></p>
-<p>Power: {{if .Frozen}}<b>FROZEN (kill switch)</b>{{else}}active{{end}}</p>
-<h2>Active jobs</h2>
-<table><thead><tr><th>Job</th><th>Project</th><th>Phase</th><th></th></tr></thead><tbody>
-{{range .Active}}<tr><td><a href="/ui/jobs/{{.ID}}">{{.ID | short}}</a></td><td>{{.ProjectID | short}}</td><td id="phase-{{.ID}}">{{.State}}</td><td><a href="/ui/jobs/{{.ID}}">watch</a></td></tr>
-{{else}}<tr><td colspan="4" class="muted">none</td></tr>{{end}}
-</tbody></table>
-<h2>Pending approvals</h2>
+<p class="sub">What needs you, and what the machine is doing.</p>
+<div class="grid">
+  <div class="card stat"><div class="n">{{len .Active}}</div><div class="l">active jobs</div></div>
+  <a class="card stat" href="/ui/reviews"><div class="n">{{.ReviewCount}}</div><div class="l">artifacts to review</div></a>
+  <div class="card stat"><div class="n">{{len .Pending}}</div><div class="l">pending approvals</div></div>
+  <div class="card stat"><div class="n">{{if .Frozen}}Frozen{{else}}Active{{end}}</div><div class="l">kill switch</div></div>
+</div>
+
+{{if .Pending}}
+<div class="card">
+<h2>Needs your decision</h2>
 {{range .Pending}}
-<form method="post" action="/ui/approvals/{{.ID}}">
-<div>{{.Type}} / {{.Severity}} — job {{.JobID | short}}</div>
-<div class="muted">{{.PayloadJSON}}</div>
-<button name="action" value="approve">Approve</button>
-<button name="action" value="reject">Reject</button>
-<button name="action" value="defer">Defer 1h</button>
-<input type="text" name="note" placeholder="note">
+<form method="post" action="/ui/approvals/{{.ID}}" class="ev">
+  <div><b>{{.Type}}</b> <span class="pill {{if eq .Severity "critical"}}bad{{else}}warn{{end}}">{{.Severity}}</span>
+    <span class="muted">job {{.JobID | short}}</span></div>
+  <div class="muted mono">{{.PayloadJSON}}</div>
+  <div class="actions">
+    <button name="action" value="approve">Approve</button>
+    <button name="action" value="reject" class="secondary">Reject</button>
+    <button name="action" value="defer" class="secondary">Defer 1h</button>
+    <input type="text" name="note" placeholder="note (optional)" style="flex:1 1 220px">
+  </div>
 </form>
-{{else}}<p class="muted">none</p>{{end}}
-<h2>Recently finished</h2>
-<table><thead><tr><th>Job</th><th>State</th><th>Finished</th></tr></thead><tbody>
-{{range .Terminal}}<tr><td><a href="/ui/jobs/{{.ID}}">{{.ID | short}}</a></td><td>{{.State}}</td><td>{{if .FinishedAt}}{{.FinishedAt | ts}}{{end}}</td></tr>
-{{else}}<tr><td colspan="3" class="muted">none</td></tr>{{end}}
+{{end}}
+</div>
+{{end}}
+
+{{if .ReviewCount}}
+<div class="card">
+  <b>{{.ReviewCount}} accepted artifact(s) waiting for a review.</b>
+  <span class="muted">The queue is blinded: kind and project only.</span>
+  <div class="actions"><a class="btn" href="/ui/reviews">Open review queue</a></div>
+</div>
+{{end}}
+
+<h2>Active jobs</h2>
+{{if .Active}}
+<table><thead><tr><th>Job</th><th>Project</th><th>Phase</th><th></th></tr></thead><tbody>
+{{range .Active}}<tr>
+  <td><a href="/ui/jobs/{{.ID}}" class="mono">{{.ID | short}}</a></td>
+  <td>{{index $.ProjectNames .ProjectID}}</td>
+  <td><span class="pill {{stateClass .State}}" id="phase-{{.ID}}">{{.State}}</span></td>
+  <td><a href="/ui/jobs/{{.ID}}">watch</a></td>
+</tr>{{end}}
 </tbody></table>
+{{else}}<div class="empty">No job is running. Create a project or submit a goal.</div>{{end}}
+
+<h2>Recently finished</h2>
+{{if .Terminal}}
+<table><thead><tr><th>Job</th><th>Project</th><th>State</th><th>Finished</th></tr></thead><tbody>
+{{range .Terminal}}<tr>
+  <td><a href="/ui/jobs/{{.ID}}" class="mono">{{.ID | short}}</a></td>
+  <td>{{index $.ProjectNames .ProjectID}}</td>
+  <td><span class="pill {{stateClass .State}}">{{.State}}</span></td>
+  <td class="muted">{{if .FinishedAt}}{{.FinishedAt | ts}}{{end}}</td>
+</tr>{{end}}
+</tbody></table>
+{{else}}<div class="empty">Nothing finished yet.</div>{{end}}
 `
 
 const projectsBody = `

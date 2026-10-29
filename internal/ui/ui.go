@@ -107,6 +107,7 @@ func (u *UI) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /ui/projects/{id}/goals", u.handleGoalCreate)
 	mux.HandleFunc("POST /ui/projects/{id}/corrections", u.handleCorrectionCreate)
 	mux.HandleFunc("GET /ui/corrections", u.handleCorrections)
+	mux.HandleFunc("GET /ui/reviews", u.handleReviews)
 	mux.HandleFunc("GET /ui/statistics", u.handleStatistics)
 	mux.HandleFunc("POST /ui/corrections/{id}", u.handleCorrectionUpdate)
 	mux.HandleFunc("GET /ui/jobs/{id}", u.handleWatch)
@@ -185,8 +186,78 @@ func (u *UI) handleDashboard(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	frozen := u.deps.Freezer != nil && u.deps.Freezer.Frozen()
+	names := u.projectNames(ctx, active, terminal)
+	reviewCount := 0
+	if u.deps.Reviews != nil {
+		if ids, qerr := u.deps.Reviews.Queue(ctx, 100); qerr == nil {
+			reviewCount = len(ids)
+		}
+	}
 	u.render(w, "Dashboard", dashboardBody, map[string]any{
 		"Active": active, "Terminal": terminal, "Pending": pending, "Frozen": frozen,
+		"ProjectNames": names, "ReviewCount": reviewCount,
+	})
+}
+
+// projectNames resolves the distinct project ids on a page to display names.
+// The store has a single connection (ADR-0027), so callers must pass data that
+// is already drained; Get is called sequentially.
+func (u *UI) projectNames(ctx context.Context, active, terminal []job.Job) map[string]string {
+	names := map[string]string{}
+	for _, j := range active {
+		u.addProjectName(ctx, names, j.ProjectID)
+	}
+	for _, j := range terminal {
+		u.addProjectName(ctx, names, j.ProjectID)
+	}
+	return names
+}
+
+func (u *UI) addProjectName(ctx context.Context, names map[string]string, id string) {
+	if id == "" {
+		return
+	}
+	if _, ok := names[id]; ok {
+		return
+	}
+	names[id] = id
+	if p, err := u.deps.Projects.Get(ctx, id); err == nil {
+		names[id] = p.Name
+	}
+}
+
+// handleReviews renders the blinded human review queue (F4). It lists accepted
+// artifacts with no review yet, newest first, and the recent reviews.
+func (u *UI) handleReviews(w http.ResponseWriter, r *http.Request) {
+	if u.deps.Reviews == nil {
+		u.fail(w, fmt.Errorf("review queue is not configured"))
+		return
+	}
+	ctx := r.Context()
+	ids, err := u.deps.Reviews.Queue(ctx, 50)
+	if err != nil {
+		u.fail(w, err)
+		return
+	}
+	type queueItem struct {
+		Artifact    artifact.Artifact
+		ProjectName string
+	}
+	items := make([]queueItem, 0, len(ids))
+	for _, id := range ids {
+		a, err := u.deps.Artifacts.Get(ctx, id)
+		if err != nil {
+			continue
+		}
+		name := a.ProjectID
+		if p, err := u.deps.Projects.Get(ctx, a.ProjectID); err == nil {
+			name = p.Name
+		}
+		items = append(items, queueItem{Artifact: a, ProjectName: name})
+	}
+	recent, _ := u.deps.Reviews.ListRecent(ctx, 20)
+	u.render(w, "Review queue", reviewsBody, map[string]any{
+		"Queue": items, "Recent": recent,
 	})
 }
 
@@ -849,19 +920,28 @@ func (u *UI) listProjects(ctx context.Context) ([]project.Project, error) {
 // --- rendering ---
 
 func (u *UI) render(w http.ResponseWriter, title, body string, data map[string]any) {
+	u.renderStatus(w, http.StatusOK, title, body, data)
+}
+
+// renderStatus renders the shared shell with an explicit status code. The
+// header must be written after Content-Type is set and before the body.
+func (u *UI) renderStatus(w http.ResponseWriter, status int, title, body string, data map[string]any) {
 	if data == nil {
 		data = map[string]any{}
 	}
 	data["Title"] = title
 	t := template.Must(template.New("page").Funcs(funcs).Parse(document(body)))
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(status)
 	if err := t.Execute(w, data); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }
 
 func (u *UI) fail(w http.ResponseWriter, err error) {
-	http.Error(w, err.Error(), http.StatusBadRequest)
+	u.renderStatus(w, http.StatusBadRequest, "Error", errorBody, map[string]any{
+		"Error": err.Error(),
+	})
 }
 
 var funcs = template.FuncMap{
@@ -883,6 +963,20 @@ var funcs = template.FuncMap{
 		return ""
 	},
 	"join": func(ss []string) string { return strings.Join(ss, ", ") },
+	"stateClass": func(s string) string {
+		switch s {
+		case "completed":
+			return "ok"
+		case "failed", "cancelled":
+			return "bad"
+		case "paused", "awaiting_approval":
+			return "warn"
+		case "queued":
+			return ""
+		default:
+			return "run"
+		}
+	},
 }
 
 func writeSSE(w http.ResponseWriter, event, data string) {

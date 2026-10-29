@@ -378,6 +378,28 @@ func TestLineDiffBuildsValidEditScript(t *testing.T) {
 	}
 }
 
+// TestReviewQueuePage proves the blinded human review queue is reachable and
+// lists an accepted artifact that has no review.
+func TestReviewQueuePage(t *testing.T) {
+	fx := setup(t)
+	ctx := context.Background()
+	if err := fx.ui.deps.Artifacts.SetStatus(ctx, fx.artifact.ID, artifact.StatusCandidate); err != nil {
+		t.Fatal(err)
+	}
+	if err := fx.ui.deps.Artifacts.SetStatus(ctx, fx.artifact.ID, artifact.StatusAccepted); err != nil {
+		t.Fatal(err)
+	}
+	status, body := get(t, fx.ts.URL+"/ui/reviews")
+	if status != http.StatusOK {
+		t.Fatalf("status = %d, want 200", status)
+	}
+	for _, want := range []string{"Review queue", "Review this", "demo"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("review queue missing %q", want)
+		}
+	}
+}
+
 // TestNewProjectPage proves the first-use GUI form is reachable and points at
 // the project-create POST route.
 func TestNewProjectPage(t *testing.T) {
