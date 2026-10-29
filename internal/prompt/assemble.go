@@ -164,9 +164,13 @@ func taskContext(t Task) string {
 	b.WriteString("TASK\n")
 	fmt.Fprintf(&b, "title: %s\n", t.Title)
 	if t.Description != "" {
-		fmt.Fprintf(&b, "description: %s", t.Description)
+		fmt.Fprintf(&b, "description: %s\n", t.Description)
 	}
-	return b.String()
+	if t.TestCommand != "" {
+		b.WriteString("verification command (the artifact must pass this):\n")
+		b.WriteString(t.TestCommand)
+	}
+	return strings.TrimRight(b.String(), "\n")
 }
 
 // criteria renders acceptance criteria as a numbered list. Input order is

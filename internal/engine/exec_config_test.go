@@ -46,6 +46,16 @@ func TestRun_CodeArchetypeUsesConfiguredTestCommand(t *testing.T) {
 	if testCalls == 0 {
 		t.Fatal("no RunTests calls; the code evaluation path did not run")
 	}
+	foundCmd := false
+	for _, p := range env.ollama.promptTexts() {
+		if strings.Contains(p, "go test ./...") {
+			foundCmd = true
+			break
+		}
+	}
+	if !foundCmd {
+		t.Error("configured test command did not reach the code prompt")
+	}
 }
 
 // TestRun_DataArchetypePromptIncludesSchema pins the P0 data fix: the schema is

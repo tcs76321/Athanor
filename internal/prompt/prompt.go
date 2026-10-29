@@ -76,6 +76,11 @@ type Project struct {
 type Task struct {
 	Title       string
 	Description string
+	// TestCommand is the project's resolved verification command for a code
+	// task. It is shown to the model because the artifact is judged by it; a
+	// hidden import path or file name is a fairness bug, not a capability
+	// signal (the X-code sqlite-migration finding). Empty for non-code tasks.
+	TestCommand string
 }
 
 // Input is everything a prompt can depend on. Zero-valued optional

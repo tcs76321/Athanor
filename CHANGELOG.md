@@ -42,6 +42,12 @@ New entries are appended at the top. Do not rewrite history.
   [ADR-0083](docs/adr/0083-repository-working-set-pack.md); proofs:
   `TestRepositoryWorkingSetIsPinnedAndDeduped`,
   `TestWorkingSetIsAutoForCodeOnly`, `TestContextProviderWorkingSet`.
+- **A code prompt includes the verification command.** The resolved test
+  command is rendered in the pinned task section, so a test that imports
+  `migrator.py` no longer hides the required module name from the model. This
+  is a fairness fix for the `x-code-sqlite-migration` finding, not a corpus
+  edit. Proofs: `TestTaskContextShowsVerificationCommand`,
+  `TestRun_CodeArchetypeUsesConfiguredTestCommand`.
 - **Focused X-code diagnostic: 4/6, up from 0/6.** The P0 working-set pack was
   injected in every code job (45 chunks / 12.4 KiB total); four of six X-code
   tasks passed their external checks, including both held-out tasks. The two

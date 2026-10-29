@@ -293,7 +293,7 @@ func (e *Engine) call(ctx context.Context, j job.Job, p project.Project, t proje
 	res, err := prompt.Assemble(prompt.Input{
 		Phase:                  phase,
 		Project:                prompt.Project{Name: p.Name, Archetype: p.Archetype, Goal: p.Goal},
-		Task:                   prompt.Task{Title: t.Title, Description: t.Description},
+		Task:                   prompt.Task{Title: t.Title, Description: t.Description, TestCommand: p.TestCommand()},
 		Criteria:               t.Criteria,
 		DataSchema:             p.Execution.DataSchema,
 		EvaluationInstructions: planInstructions(extraInstructions, plan, isJudgmentPhase(phase)),
