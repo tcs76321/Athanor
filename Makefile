@@ -15,7 +15,7 @@ export CGO_ENABLED
 # tag-less binary can never silently run.
 GO_TAGS = -tags sqlite_fts5
 
-.PHONY: build test test-race test-integration integration-images vet lint check vuln tidy tidy-check fuzz cover cover-check run clean hooks bench probe-micro probe probe-judge probe-anchor probe-report probe-bundle probe-reconcile probe-measure jobpod-image core-image core-smoke install soak soak-mini soak-ladder
+.PHONY: build test test-race test-integration integration-images vet lint check vuln tidy tidy-check fuzz cover cover-check run clean hooks bench probe-micro probe probe-judge probe-anchor probe-report probe-bundle probe-reconcile probe-measure jobpod-image core-image core-smoke bench-core-focused install soak soak-mini soak-ladder
 
 build:
 	go build $(GO_TAGS) -o bin/athanor ./cmd/athanor
@@ -193,6 +193,13 @@ bench-core-stop:
 
 bench-core-status:
 	@BENCH_OUT=$(BENCH_OUT) ./scripts/bench-core.sh status
+
+# Focused Core Pod diagnostic: one pass over BENCH_ONLY (default: the six
+# X-code tasks), fresh state volume, images rebuilt. Set BENCH_OUT to keep the
+# results; the default is gitignored.
+BENCH_FOCUSED_OUT ?= tools/bench/results/bench-core-focused
+bench-core-focused:
+	BENCH_OUT=$(BENCH_FOCUSED_OUT) sh scripts/bench-core-focused.sh
 
 # The four memory sequences. The three correction/insight scripts are runnable;
 # the compaction script is reported as partial until the filler driver lands.
