@@ -33,6 +33,7 @@ demo. A claim without a proof is either removed or marked as a target.
 | The active/dormant swap runs in the normal code loop | ADR-0083 amendment | `internal/engine/context_tiers.go` (`ActiveSeeder`); `TestWorkingSetIsAutoForCodeOnly`; `TestContextProviderWorkingSet` (SeedActive persists) | **proven** |
 | Cancel stops the phase and commits `cancelled` | ADR-0087 | `internal/engine/engine.go` (`Cancel`, `EnqueueContext`); `TestCancelStopsRunningJob` | **proven** |
 | The Core Pod boots and serves in CI | ADR-0078, P1 plan | `scripts/core-smoke.sh` (`make core-smoke`); `.github/workflows/ci.yml` `core-smoke` job; local run 2026-10-28 | **proven locally; CI job added** |
+| A loopback `/status` reports jobs, freeze, and alarms | P1 plan | `internal/server/server.go`; `TestStatusSnapshot`, `TestStatusUnconfigured` | **proven** |
 | The benchmark reports MCE mechanism metrics | ADR-0075 | `tools/bench/telemetry.go` (dormant rows, working-set chunks/bytes, memory hits, compactions, kv warn/critical); `TestFillTelemetry` | **instrumented; full-run report pending** |
 
 ## Rule

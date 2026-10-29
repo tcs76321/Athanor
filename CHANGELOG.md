@@ -42,6 +42,11 @@ New entries are appended at the top. Do not rewrite history.
   [ADR-0083](docs/adr/0083-repository-working-set-pack.md); proofs:
   `TestRepositoryWorkingSetIsPinnedAndDeduped`,
   `TestWorkingSetIsAutoForCodeOnly`, `TestContextProviderWorkingSet`.
+- **A loopback `/status` snapshot.** `GET /status` reports the daemon version,
+  uptime, goroutines, freeze state, job counts by state, and active alarms on
+  the same loopback listener as `/healthz` and the UI. It is unauthenticated by
+  design (local API posture); a server without a provider answers 503. Proofs:
+  `TestStatusSnapshot`, `TestStatusUnconfigured`.
 - **The Core Pod has an executable smoke.** `make core-smoke` boots the image,
   waits for `/healthz`, creates a metadata-only project, checks `/ui`, and tears
   down its own container/volumes. A CI job builds both images and runs it, so

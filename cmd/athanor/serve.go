@@ -306,6 +306,31 @@ func run(configPath, addr, stateDir string, container bool) error {
 	hitlSvc.SetApprover(hitl.TypeStrategyInsight, insightActivator{repo: strategyRepo}.Approve)
 	srv := server.New(version)
 	srv.SetControl(killSwitch)
+	srv.SetStatusProvider(func(ctx context.Context) (any, error) {
+		counts := map[string]int{}
+		rows, err := st.DB().QueryContext(ctx, `SELECT state, COUNT(*) FROM jobs GROUP BY state`)
+		if err != nil {
+			return nil, err
+		}
+		defer func() { _ = rows.Close() }()
+		for rows.Next() {
+			var state string
+			var n int
+			if err := rows.Scan(&state, &n); err != nil {
+				return nil, err
+			}
+			counts[state] = n
+		}
+		if err := rows.Err(); err != nil {
+			return nil, err
+		}
+		activeAlarms, _ := alarmSvc.Active(ctx)
+		return map[string]any{
+			"frozen": killSwitch.Frozen(),
+			"jobs":   counts,
+			"alarms": len(activeAlarms),
+		}, nil
+	})
 	// ADR-0011: apply the configured external-API Host-header allowlist.
 	// The config defaults fill the §D1 loopback set, so this is a no-op
 	// unless the operator overrides network.external_api_host_allowlist —

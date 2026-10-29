@@ -23,10 +23,15 @@ type Control interface {
 }
 
 // Server holds daemon-wide HTTP state.
+// StatusProvider returns a JSON-serializable snapshot of daemon state for the
+// loopback /status surface. It is optional: a server without one answers 503.
+type StatusProvider func(ctx context.Context) (any, error)
+
 type Server struct {
 	version       string
 	started       time.Time
 	control       Control
+	status        StatusProvider
 	mux           *http.ServeMux
 	hostAllowlist hostAllowlist
 	// origins is the set of browser Origin values the cross-site guard
@@ -59,8 +64,12 @@ func New(version string) *Server {
 	s.hostAllowlist = hl
 	s.origins = hl.originSet()
 	s.mux.HandleFunc("/healthz", s.handleHealthz)
+	s.mux.HandleFunc("/status", s.handleStatus)
 	return s
 }
+
+// SetStatusProvider attaches the /status snapshot. A nil provider answers 503.
+func (s *Server) SetStatusProvider(p StatusProvider) { s.status = p }
 
 // SetHostAllowlist replaces the default allowlist.
 // An empty list disables the check (documented
@@ -143,6 +152,35 @@ func (s *Server) handleHealthz(w http.ResponseWriter, r *http.Request) {
 		Uptime:        uptime.Round(time.Second).String(),
 		UptimeSeconds: uptime.Seconds(),
 		Goroutines:    runtime.NumGoroutine(),
+	})
+}
+
+// handleStatus reports an operator-facing snapshot on the same loopback-only
+// listener as the UI. It is intentionally unauthenticated, like the rest of the
+// external API (ARCHITECTURE §21.8): a local process can already inspect the
+// state directory, and remote access is SSH port forwarding.
+func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.Header().Set("Allow", http.MethodGet)
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if s.status == nil {
+		http.Error(w, `{"error":"status provider is not configured"}`, http.StatusServiceUnavailable)
+		return
+	}
+	snapshot, err := s.status(r.Context())
+	if err != nil {
+		http.Error(w, `{"error":"status snapshot failed"}`, http.StatusInternalServerError)
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"status":         "ok",
+		"version":        s.version,
+		"uptime_seconds": time.Since(s.started).Seconds(),
+		"goroutines":     runtime.NumGoroutine(),
+		"detail":         snapshot,
 	})
 }
 

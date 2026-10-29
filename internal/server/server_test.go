@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -81,6 +82,52 @@ func TestHealthzMethodNotAllowed(t *testing.T) {
 	}
 	if allow := resp.Header.Get("Allow"); allow != http.MethodGet {
 		t.Errorf("Allow header = %q, want GET", allow)
+	}
+}
+
+// TestStatusSnapshot pins the P1 operator surface: /status wraps the provider
+// snapshot in the daemon envelope and stays loopback/JSON.
+func TestStatusSnapshot(t *testing.T) {
+	srv := New("test-version")
+	srv.SetStatusProvider(func(context.Context) (any, error) {
+		return map[string]any{"frozen": false, "jobs": map[string]int{"running": 1}, "alarms": 0}, nil
+	})
+	ts := disableAllowlistForTest(t, srv, httptest.NewServer(srv.Handler()))
+
+	resp, err := http.Get(ts.URL + "/status")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200", resp.StatusCode)
+	}
+	var body struct {
+		Status string         `json:"status"`
+		Detail map[string]any `json:"detail"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	if body.Status != "ok" || body.Detail["frozen"] != false {
+		t.Errorf("status body = %+v", body)
+	}
+	jobs, ok := body.Detail["jobs"].(map[string]any)
+	if !ok || jobs["running"] != float64(1) {
+		t.Errorf("jobs = %+v, want running=1", body.Detail["jobs"])
+	}
+}
+
+func TestStatusUnconfigured(t *testing.T) {
+	srv := New("test-version")
+	ts := disableAllowlistForTest(t, srv, httptest.NewServer(srv.Handler()))
+	resp, err := http.Get(ts.URL + "/status")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusServiceUnavailable {
+		t.Errorf("status = %d, want 503", resp.StatusCode)
 	}
 }
 
