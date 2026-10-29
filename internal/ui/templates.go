@@ -233,6 +233,18 @@ const artifactBody = `
 <h1>Artifact {{.Artifact.ID | short}} <span class="muted">{{.Artifact.Kind}} v{{.Artifact.Version}} / {{.Artifact.Status}}</span></h1>
 <p class="muted">project {{.Artifact.ProjectID | short}} · job {{.Artifact.JobID | short}} · commit {{.Artifact.GitCommit | short}}</p>
 <pre>{{.Content}}</pre>
+<h2>Review</h2>
+<form method="post" action="/ui/artifacts/{{.Artifact.ID}}/review">
+<div><label>score (0–1) <input name="score" size="6" value="1.0" required></label>
+<label><input type="checkbox" name="accepted" value="1" checked> accepted</label></div>
+<div><label>note <input name="note" size="70" placeholder="what worked, what is missing"></label></div>
+<button>Record review</button>
+</form>
+<h2>Previous reviews</h2>
+<table><thead><tr><th>When</th><th>Reviewer</th><th>Score</th><th>Accepted</th><th>Note</th></tr></thead><tbody>
+{{range .Reviews}}<tr><td>{{.CreatedAt}}</td><td>{{.Reviewer}}</td><td>{{printf "%.2f" .Score}}</td><td>{{.Accepted}}</td><td>{{.Note}}</td></tr>
+{{else}}<tr><td colspan="5" class="muted">none</td></tr>{{end}}
+</tbody></table>
 `
 
 const diffBody = `

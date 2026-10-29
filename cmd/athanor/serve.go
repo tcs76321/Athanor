@@ -36,6 +36,7 @@ import (
 	"github.com/tcs76321/athanor/internal/policy"
 	"github.com/tcs76321/athanor/internal/power"
 	"github.com/tcs76321/athanor/internal/project"
+	"github.com/tcs76321/athanor/internal/review"
 	"github.com/tcs76321/athanor/internal/scheduler"
 	"github.com/tcs76321/athanor/internal/server"
 	"github.com/tcs76321/athanor/internal/store"
@@ -361,6 +362,7 @@ func run(configPath, addr, stateDir string, container bool) error {
 	externalAPI.SetTaskResetter(sched)
 	externalAPI.SetHITL(hitlSvc)
 	externalAPI.SetInterview(interview.NewRepo(st))
+	externalAPI.SetReviews(review.NewRepo(st))
 	externalAPI.SetPusher(gitPusher{projects: projectRepo, hitl: hitlRepo})
 	externalAPI.SetCorrections(correctionsRepo)
 	externalAPI.SetStrategy(strategyRepo)
@@ -387,6 +389,7 @@ func run(configPath, addr, stateDir string, container bool) error {
 	webUI := ui.New(ui.Deps{
 		Store: st, Projects: projectRepo, Jobs: job.NewRepository(st),
 		Artifacts: artifactStore, Corrections: correctionsRepo, HITL: hitlSvc,
+		Reviews:       review.NewRepo(st),
 		Interviews:    interview.NewRepo(st),
 		Interruptions: interruptionsRepo, Strategy: strategyRepo,
 		Freezer: killSwitch, Engine: eng, Indexer: indexer,

@@ -37,6 +37,7 @@ demo. A claim without a proof is either removed or marked as a target.
 | A daemon state dir reduces to the soak report shape | `docs/evidence-pipeline.md` §7.1 | `tools/bench/evidence.go` (`evidence` subcommand); `TestEvidenceRows`; live run on a retained state dir | **proven for the reducer; daemon `athanor evidence` wrapper remains** |
 | API and UI share one project-create/pre-index path | P2-0 | `internal/firstuse`; `TestCreateRunsPreindexThenStartsTheJob`; API/UI adapter tests remain green | **proven** |
 | A project can be clarified and planned before its first job | ADR-0088 | `internal/interview`; `TestInterviewPlanApprovalStartsWork`; `TestProjectInterviewPage` | **proven** |
+| Accepted artifacts can be reviewed with provenance | ADR-0089 | `internal/review`; `TestArtifactReviewRoundTrip`; UI artifact page review form | **proven** |
 | The benchmark reports MCE mechanism metrics | ADR-0075 | `tools/bench/telemetry.go` (dormant rows, working-set chunks/bytes, memory hits, compactions, kv warn/critical); `TestFillTelemetry` | **instrumented; full-run report pending** |
 | The working-set pack improves repo-scale X-code | ADR-0083 | focused 2026-10-29 diagnostic: **4/6 vs 0/6**, 45 chunks / 12.4 KiB injected; [findings](probes/bench-xcode-p0.md) | **directional; Core Pod rerun pending** |
 | A code prompt includes the verification command | ADR-0065, P0 fairness | `internal/prompt` (`Task.TestCommand`); `TestTaskContextShowsVerificationCommand`; `TestRun_CodeArchetypeUsesConfiguredTestCommand` | **proven** |

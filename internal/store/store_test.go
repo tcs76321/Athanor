@@ -45,8 +45,8 @@ func TestMigrateAppliesEmbeddedSchema(t *testing.T) {
 	if err := Migrate(db, migrations.FS, t.TempDir()); err != nil {
 		t.Fatalf("Migrate: %v", err)
 	}
-	if got := s.Version(); got != 29 {
-		t.Fatalf("version = %d, want 29", got)
+	if got := s.Version(); got != 30 {
+		t.Fatalf("version = %d, want 30", got)
 	}
 
 	wantTables := []string{

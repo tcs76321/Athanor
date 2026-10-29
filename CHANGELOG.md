@@ -42,6 +42,11 @@ New entries are appended at the top. Do not rewrite history.
   [ADR-0083](docs/adr/0083-repository-working-set-pack.md); proofs:
   `TestRepositoryWorkingSetIsPinnedAndDeduped`,
   `TestWorkingSetIsAutoForCodeOnly`, `TestContextProviderWorkingSet`.
+- **Artifact review queue (F4 first slice).** Accepted artifacts can be reviewed
+  with a score, rubric, note, and provenance; the blinded queue lists accepted
+  artifacts with no review. API and artifact page share the store. Migration
+  0030 adds `artifact_reviews`. [ADR-0089](docs/adr/0089-artifact-review-queue.md);
+  proofs: `TestReviewQueueAndCreate`, `TestArtifactReviewRoundTrip`.
 - **Project interview + plan gate (F3 first slice).** A metadata-only project
   has a resumable, archetype-specific interview and a deterministic plan built
   from the goal, criteria, test command, and answers. The first job starts only

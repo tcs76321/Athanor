@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"html/template"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -27,6 +28,7 @@ import (
 	"github.com/tcs76321/athanor/internal/interview"
 	"github.com/tcs76321/athanor/internal/job"
 	"github.com/tcs76321/athanor/internal/project"
+	"github.com/tcs76321/athanor/internal/review"
 	"github.com/tcs76321/athanor/internal/store"
 	"github.com/tcs76321/athanor/internal/strategy"
 )
@@ -60,6 +62,7 @@ type Deps struct {
 	Jobs          *job.Repository
 	Artifacts     *artifact.Store
 	Corrections   *corrections.Repo
+	Reviews       *review.Repo
 	HITL          *hitl.Service
 	Interviews    *interview.Repo
 	Interruptions *interruptions.Repo
@@ -111,6 +114,7 @@ func (u *UI) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /ui/jobs/{id}/note", u.handleNote)
 	mux.HandleFunc("POST /ui/jobs/{id}/control", u.handleControl)
 	mux.HandleFunc("GET /ui/artifacts/{id}", u.handleArtifact)
+	mux.HandleFunc("POST /ui/artifacts/{id}/review", u.handleReviewCreate)
 	mux.HandleFunc("GET /ui/artifacts/{id}/diff", u.handleDiff)
 	mux.HandleFunc("POST /ui/approvals/{id}", u.handleApproval)
 }
@@ -737,9 +741,40 @@ func (u *UI) handleArtifact(w http.ResponseWriter, r *http.Request) {
 		u.fail(w, err)
 		return
 	}
+	var reviews []review.Review
+	if u.deps.Reviews != nil {
+		reviews, _ = u.deps.Reviews.ListByArtifact(ctx, id)
+	}
 	u.render(w, "Artifact "+a.ID, artifactBody, map[string]any{
-		"Artifact": a, "Content": string(content),
+		"Artifact": a, "Content": string(content), "Reviews": reviews,
 	})
+}
+
+func (u *UI) handleReviewCreate(w http.ResponseWriter, r *http.Request) {
+	if u.deps.Reviews == nil {
+		u.fail(w, fmt.Errorf("review queue is not configured"))
+		return
+	}
+	_ = r.ParseForm()
+	score, err := strconv.ParseFloat(r.FormValue("score"), 64)
+	if err != nil {
+		u.fail(w, fmt.Errorf("score must be a number between 0 and 1"))
+		return
+	}
+	art, err := u.deps.Artifacts.Get(r.Context(), r.PathValue("id"))
+	if err != nil {
+		u.fail(w, err)
+		return
+	}
+	if _, err := u.deps.Reviews.Create(r.Context(), review.CreateInput{
+		ArtifactID: art.ID, JobID: art.JobID, ProjectID: art.ProjectID,
+		Score: score, Accepted: r.FormValue("accepted") != "",
+		Blinded: true, Note: r.FormValue("note"),
+	}); err != nil {
+		u.fail(w, err)
+		return
+	}
+	http.Redirect(w, r, "/ui/artifacts/"+art.ID, http.StatusSeeOther)
 }
 
 func (u *UI) handleDiff(w http.ResponseWriter, r *http.Request) {

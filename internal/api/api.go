@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/tcs76321/athanor/internal/alarms"
@@ -22,6 +23,7 @@ import (
 	"github.com/tcs76321/athanor/internal/interview"
 	"github.com/tcs76321/athanor/internal/job"
 	"github.com/tcs76321/athanor/internal/project"
+	"github.com/tcs76321/athanor/internal/review"
 	"github.com/tcs76321/athanor/internal/store"
 	"github.com/tcs76321/athanor/internal/strategy"
 )
@@ -105,6 +107,15 @@ type Interview interface {
 	Decide(ctx context.Context, projectID, status string) (interview.Interview, error)
 }
 
+// ReviewStore is the F4 review queue surface. The concrete implementation is
+// *review.Repo.
+type ReviewStore interface {
+	Create(ctx context.Context, in review.CreateInput) (review.Review, error)
+	ListByArtifact(ctx context.Context, artifactID string) ([]review.Review, error)
+	ListRecent(ctx context.Context, limit int) ([]review.Review, error)
+	Queue(ctx context.Context, limit int) ([]string, error)
+}
+
 // HITL is the surface the M6-T4 queue routes use (ADR-0035). The concrete
 // implementation is *hitl.Service.
 type HITL interface {
@@ -179,6 +190,7 @@ type API struct {
 	resetter    TaskResetter
 	hitl        HITL
 	interview   Interview
+	reviews     ReviewStore
 	pusher      Pusher
 	corrections Corrections
 	strategy    Strategy
@@ -250,6 +262,9 @@ func (a *API) SetHITL(h HITL) { a.hitl = h }
 // 503 on the interview routes.
 func (a *API) SetInterview(i Interview) { a.interview = i }
 
+// SetReviews wires the F4 review queue.
+func (a *API) SetReviews(r ReviewStore) { a.reviews = r }
+
 // SetPusher wires the M6-T5 push-request path (ADR-0036). A daemon that does
 // not wire one answers 503 on POST /projects/{id}/push.
 func (a *API) SetPusher(p Pusher) { a.pusher = p }
@@ -288,6 +303,11 @@ func (a *API) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /projects/{id}/artifacts", a.handleArtifacts)
 	mux.HandleFunc("GET /jobs/{id}", a.handleJobGet)
 	mux.HandleFunc("GET /jobs/{id}/events", a.handleJobEvents)
+	// F4: human review of accepted artifacts.
+	mux.HandleFunc("POST /artifacts/{id}/review", a.handleReviewCreate)
+	mux.HandleFunc("GET /artifacts/{id}/reviews", a.handleReviewList)
+	mux.HandleFunc("GET /reviews/queue", a.handleReviewQueue)
+	mux.HandleFunc("GET /reviews", a.handleReviewRecent)
 	// M4-T4: synchronous export on operator request.
 	mux.HandleFunc("POST /exports/{id}", a.handleExport)
 	// M5-T8: synchronous repository indexing on operator request.
@@ -631,6 +651,113 @@ func (a *API) handleProjectIndex(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, sum)
+}
+
+type reviewRequest struct {
+	Score    float64        `json:"score"`
+	Accepted bool           `json:"accepted"`
+	Blinded  *bool          `json:"blinded,omitempty"`
+	Note     string         `json:"note,omitempty"`
+	Rubric   map[string]int `json:"rubric,omitempty"`
+}
+
+func (a *API) handleReviewCreate(w http.ResponseWriter, r *http.Request) {
+	if a.reviews == nil {
+		writeError(w, http.StatusServiceUnavailable, "review queue is not configured")
+		return
+	}
+	art, err := a.artifacts.Get(r.Context(), r.PathValue("id"))
+	if err != nil {
+		writeError(w, http.StatusNotFound, err.Error())
+		return
+	}
+	var req reviewRequest
+	if !decodeBody(w, r, &req) {
+		return
+	}
+	blinded := true
+	if req.Blinded != nil {
+		blinded = *req.Blinded
+	}
+	rv, err := a.reviews.Create(r.Context(), review.CreateInput{
+		ArtifactID: art.ID, JobID: art.JobID, ProjectID: art.ProjectID,
+		Score: req.Score, Accepted: req.Accepted, Blinded: blinded,
+		Rubric: req.Rubric, Note: req.Note,
+		Provenance: map[string]string{
+			"kind": string(art.Kind), "version": strconv.Itoa(art.Version),
+		},
+	})
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusCreated, rv)
+}
+
+func (a *API) handleReviewList(w http.ResponseWriter, r *http.Request) {
+	if a.reviews == nil {
+		writeError(w, http.StatusServiceUnavailable, "review queue is not configured")
+		return
+	}
+	reviews, err := a.reviews.ListByArtifact(r.Context(), r.PathValue("id"))
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"reviews": reviews})
+}
+
+func (a *API) handleReviewRecent(w http.ResponseWriter, r *http.Request) {
+	if a.reviews == nil {
+		writeError(w, http.StatusServiceUnavailable, "review queue is not configured")
+		return
+	}
+	limit := queryLimit(r, 50)
+	reviews, err := a.reviews.ListRecent(r.Context(), limit)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"reviews": reviews})
+}
+
+func (a *API) handleReviewQueue(w http.ResponseWriter, r *http.Request) {
+	if a.reviews == nil {
+		writeError(w, http.StatusServiceUnavailable, "review queue is not configured")
+		return
+	}
+	ids, err := a.reviews.Queue(r.Context(), queryLimit(r, 20))
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	type blindItem struct {
+		ID        string `json:"id"`
+		Kind      string `json:"kind"`
+		ProjectID string `json:"project_id"`
+		CreatedAt string `json:"created_at"`
+	}
+	out := make([]blindItem, 0, len(ids))
+	for _, id := range ids {
+		art, err := a.artifacts.Get(r.Context(), id)
+		if err != nil {
+			continue
+		}
+		out = append(out, blindItem{
+			ID: art.ID, Kind: string(art.Kind), ProjectID: art.ProjectID,
+			CreatedAt: art.CreatedAt.UTC().Format(time.RFC3339),
+		})
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"queue": out})
+}
+
+func queryLimit(r *http.Request, def int) int {
+	if v := r.URL.Query().Get("limit"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			return n
+		}
+	}
+	return def
 }
 
 // finalKind maps archetype → §9.1 kind, mirroring engine.finalKindFor.

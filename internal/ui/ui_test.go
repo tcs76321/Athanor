@@ -18,6 +18,7 @@ import (
 	"github.com/tcs76321/athanor/internal/interview"
 	"github.com/tcs76321/athanor/internal/job"
 	"github.com/tcs76321/athanor/internal/project"
+	"github.com/tcs76321/athanor/internal/review"
 	"github.com/tcs76321/athanor/internal/store"
 	"github.com/tcs76321/athanor/migrations"
 )
@@ -107,9 +108,9 @@ func setup(t *testing.T) *fixtures {
 	eng := &fakeEngine{}
 	webUI := New(Deps{
 		Store: s, Projects: projects, Jobs: jobs, Artifacts: arts,
-		Corrections: corrRepo, HITL: hitlSvc, Interviews: interview.NewRepo(s),
-		Interruptions: interRepo,
-		Freezer:       fakeFreezer{}, Engine: eng, DefaultTTL: time.Hour,
+		Corrections: corrRepo, HITL: hitlSvc, Reviews: review.NewRepo(s),
+		Interviews: interview.NewRepo(s), Interruptions: interRepo,
+		Freezer: fakeFreezer{}, Engine: eng, DefaultTTL: time.Hour,
 	})
 	mux := http.NewServeMux()
 	webUI.Register(mux)
