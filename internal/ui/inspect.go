@@ -263,6 +263,20 @@ type dormantRow struct {
 	ChunkID, Summary, Status, CreatedAt string
 }
 
+type embeddingRow struct {
+	OwnerID, SourceKind, Model, ProjectID, JobID, CreatedAt string
+	Dim                                                     int
+}
+
+type sourceRow struct {
+	ProjectID, Relpath, Lang, Status, IndexedAt string
+	Size, Chunks                                int
+}
+
+type activeRow struct {
+	ScopeID, ChunkID, UpdatedAt string
+}
+
 func (u *UI) handleMemory(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	compacted := queryRows(ctx, u.deps.Store.DB(), `
@@ -287,6 +301,24 @@ func (u *UI) handleMemory(w http.ResponseWriter, r *http.Request) {
 		var d dormantRow
 		return d, rows.Scan(&d.ChunkID, &d.Summary, &d.Status, &d.CreatedAt)
 	})
+	embeddings := queryRows(ctx, u.deps.Store.DB(), `
+		SELECT owner_id, source_kind, model, dim, COALESCE(project_id,''), COALESCE(job_id,''), created_at
+		  FROM memory_embeddings ORDER BY created_at DESC LIMIT 25`, func(rows *sql.Rows) (embeddingRow, error) {
+		var e embeddingRow
+		return e, rows.Scan(&e.OwnerID, &e.SourceKind, &e.Model, &e.Dim, &e.ProjectID, &e.JobID, &e.CreatedAt)
+	})
+	sources := queryRows(ctx, u.deps.Store.DB(), `
+		SELECT project_id, relpath, lang, size, chunks, status, indexed_at
+		  FROM indexed_sources ORDER BY indexed_at DESC LIMIT 25`, func(rows *sql.Rows) (sourceRow, error) {
+		var s sourceRow
+		return s, rows.Scan(&s.ProjectID, &s.Relpath, &s.Lang, &s.Size, &s.Chunks, &s.Status, &s.IndexedAt)
+	})
+	active := queryRows(ctx, u.deps.Store.DB(), `
+		SELECT scope_id, chunk_id, updated_at
+		  FROM context_active ORDER BY updated_at DESC LIMIT 25`, func(rows *sql.Rows) (activeRow, error) {
+		var a activeRow
+		return a, rows.Scan(&a.ScopeID, &a.ChunkID, &a.UpdatedAt)
+	})
 	var counts struct{ Compacted, Chunks, Dormant, Embeddings int }
 	_ = u.deps.Store.DB().QueryRowContext(ctx, `
 		SELECT (SELECT COUNT(*) FROM compacted_memory),
@@ -296,7 +328,7 @@ func (u *UI) handleMemory(w http.ResponseWriter, r *http.Request) {
 		Scan(&counts.Compacted, &counts.Chunks, &counts.Dormant, &counts.Embeddings)
 	u.render(w, "Memory", memoryBody, map[string]any{
 		"Compacted": compacted, "Chunks": chunks, "Dormant": dormant, "Counts": counts,
-		"Tab": "memory",
+		"Embeddings": embeddings, "Sources": sources, "Active": active, "Tab": "memory",
 	})
 }
 
@@ -405,6 +437,10 @@ type personaRow struct {
 	ContextTarget       int
 }
 
+type stateRow struct {
+	Key, Value string
+}
+
 func (u *UI) handleRuntime(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	var personas []personaRow
@@ -441,16 +477,23 @@ func (u *UI) handleRuntime(w http.ResponseWriter, r *http.Request) {
 		var h hitlRow
 		return h, rows.Scan(&h.ID, &h.Type, &h.Severity, &h.Status, &h.JobID, &h.CreatedAt)
 	})
-	var counts struct{ Jobs, Events, Artifacts, Corrections, Outcomes int }
+	var counts struct{ Jobs, Events, Artifacts, Corrections, Outcomes, State, Quarantined int }
 	_ = u.deps.Store.DB().QueryRowContext(ctx, `
 		SELECT (SELECT COUNT(*) FROM jobs), (SELECT COUNT(*) FROM events),
 		       (SELECT COUNT(*) FROM artifacts), (SELECT COUNT(*) FROM corrections),
-		       (SELECT COUNT(*) FROM strategy_outcomes)`).
-		Scan(&counts.Jobs, &counts.Events, &counts.Artifacts, &counts.Corrections, &counts.Outcomes)
+		       (SELECT COUNT(*) FROM strategy_outcomes),
+		       (SELECT COUNT(*) FROM system_state), (SELECT COUNT(*) FROM quarantined_files)`).
+		Scan(&counts.Jobs, &counts.Events, &counts.Artifacts, &counts.Corrections,
+			&counts.Outcomes, &counts.State, &counts.Quarantined)
+	state := queryRows(ctx, u.deps.Store.DB(), `
+		SELECT key, value FROM system_state ORDER BY key LIMIT 100`, func(rows *sql.Rows) (stateRow, error) {
+		var s stateRow
+		return s, rows.Scan(&s.Key, &s.Value)
+	})
 	u.render(w, "Runtime", runtimeBody, map[string]any{
 		"Personas": personas, "Budget": bstatus, "HasBudget": hasBudget,
 		"Alarms": alarms, "Decisions": decisions, "Counts": counts,
-		"ConfigPath": configPath(u.deps.Config), "Tab": "runtime",
+		"State": state, "ConfigPath": configPath(u.deps.Config), "Tab": "runtime",
 	})
 }
 

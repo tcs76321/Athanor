@@ -639,4 +639,17 @@ const statisticsBody = `
 </tbody></table>
 {{else}}<div class="empty">No strategy insights yet. They appear after enough outcomes accumulate.</div>{{end}}
 <p class="muted">Promote/mute from the CLI: <code>athanor strategy promote|mute -id &lt;id&gt;</code>.</p>
+
+<h2>Outcomes</h2>
+{{if .Outcomes}}
+<table><thead><tr><th>Job</th><th>Result</th><th>Score</th><th>Tokens</th><th>Wall</th><th>Arm</th><th>Reasoning</th><th>Refine / reframe</th></tr></thead><tbody>
+{{range .Outcomes}}<tr>
+  <td><a href="/ui/jobs/{{.JobID}}/trace" class="mono">{{.JobID | short}}</a></td>
+  <td><span class="pill {{if eq .Result "accepted_new"}}ok{{else if eq .Result "failed"}}bad{{end}}">{{.Result}}</span></td>
+  <td>{{printf "%.2f" .Score}}</td><td>{{.TokenCost}}</td><td>{{.WallTime}}</td>
+  <td>{{if .ThinkArm}}<span class="pill">{{.ThinkArm}}</span>{{end}}</td>
+  <td>{{.ReasoningTokens}}</td><td>{{.Refines}} / {{.Reframes}}</td>
+</tr>{{end}}
+</tbody></table>
+{{else}}<div class="empty">No captured outcomes yet.</div>{{end}}
 `

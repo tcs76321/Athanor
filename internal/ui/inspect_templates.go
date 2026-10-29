@@ -228,6 +228,41 @@ const memoryBody = inspectTabs + `
 </tr>{{end}}
 </tbody></table>
 {{else}}<div class="empty">The Dormant Index is empty.</div>{{end}}
+
+<h2>Indexed sources</h2>
+{{if .Sources}}
+<table><thead><tr><th>Project</th><th>Path</th><th>Lang</th><th>Size</th><th>Chunks</th><th>Status</th><th>Indexed</th></tr></thead><tbody>
+{{range .Sources}}<tr>
+  <td><a href="/ui/projects/{{.ProjectID}}" class="mono">{{.ProjectID | short}}</a></td>
+  <td class="mono">{{.Relpath}}</td><td>{{.Lang}}</td><td>{{.Size}}</td><td>{{.Chunks}}</td>
+  <td><span class="pill {{if eq .Status "ok"}}ok{{else if eq .Status "failed"}}bad{{end}}">{{.Status}}</span></td>
+  <td class="muted">{{.IndexedAt}}</td>
+</tr>{{end}}
+</tbody></table>
+{{else}}<div class="empty">No indexed sources.</div>{{end}}
+
+<h2>Embeddings</h2>
+{{if .Embeddings}}
+<table><thead><tr><th>Owner</th><th>Source</th><th>Model</th><th>Dim</th><th>Project</th><th>Created</th></tr></thead><tbody>
+{{range .Embeddings}}<tr>
+  <td class="mono">{{.OwnerID | short}}</td><td>{{.SourceKind}}</td><td class="mono">{{.Model}}</td>
+  <td>{{.Dim}}</td>
+  <td>{{if .ProjectID}}<a href="/ui/projects/{{.ProjectID}}" class="mono">{{.ProjectID | short}}</a>{{end}}</td>
+  <td class="muted">{{.CreatedAt}}</td>
+</tr>{{end}}
+</tbody></table>
+{{else}}<div class="empty">No embeddings.</div>{{end}}
+
+<h2>Active chunks</h2>
+{{if .Active}}
+<table><thead><tr><th>Scope</th><th>Chunk</th><th>Updated</th></tr></thead><tbody>
+{{range .Active}}<tr>
+  <td class="mono">{{.ScopeID}}</td>
+  <td><a href="/ui/memory/chunks/{{.ChunkID}}" class="mono">{{.ChunkID | short}}</a></td>
+  <td class="muted">{{.UpdatedAt}}</td>
+</tr>{{end}}
+</tbody></table>
+{{else}}<div class="empty">No active chunks.</div>{{end}}
 `
 
 const memoryDetailBody = `
@@ -265,6 +300,8 @@ const runtimeBody = inspectTabs + `
   <div class="card stat"><div class="n">{{.Counts.Events}}</div><div class="l">events</div></div>
   <div class="card stat"><div class="n">{{.Counts.Artifacts}}</div><div class="l">artifacts</div></div>
   <div class="card stat"><div class="n">{{.Counts.Outcomes}}</div><div class="l">outcomes</div></div>
+  <div class="card stat"><div class="n">{{.Counts.State}}</div><div class="l">state rows</div></div>
+  <div class="card stat"><div class="n">{{.Counts.Quarantined}}</div><div class="l">quarantined files</div></div>
 </div>
 
 <h2>Personas</h2>
@@ -304,6 +341,14 @@ const runtimeBody = inspectTabs + `
 </tr>{{end}}
 </tbody></table>
 {{else}}<div class="empty">No HITL requests.</div>{{end}}
+
+<h2>System state</h2>
+{{if .State}}
+<table><thead><tr><th>Key</th><th>Value</th></tr></thead><tbody>
+{{range .State}}<tr><td class="mono">{{.Key}}</td>
+<td><details><summary>open</summary><pre>{{.Value}}</pre></details></td></tr>{{end}}
+</tbody></table>
+{{else}}<div class="empty">No per-job state rows.</div>{{end}}
 
 {{if .ConfigPath}}<p class="muted">config: <code>{{.ConfigPath}}</code></p>{{end}}
 `

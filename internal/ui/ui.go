@@ -561,6 +561,7 @@ func (u *UI) handleStatistics(w http.ResponseWriter, r *http.Request) {
 	}
 	u.render(w, "Statistics", statisticsBody, map[string]any{
 		"Insights": insights, "Jobs": len(outcomes), "Accepted": accepted, "Tokens": tokens,
+		"Outcomes": outcomes,
 	})
 }
 

@@ -26,8 +26,9 @@ New entries are appended at the top. Do not rewrite history.
   full event log with newest-first pagination and category/level/job/project/
   text filters; a job trace with task analysis, model calls, tool actions,
   evaluations, artifacts, context/memory events, strategy, and timeline;
-  every artifact; compacted memory, chunks, the Dormant Index, and embeddings;
-  daydream logs; and runtime personas, budget, alarms, and HITL history.
+  every artifact; compacted memory, chunks, the Dormant Index, embeddings,
+  indexed sources, and active chunks; daydream logs; strategy outcomes; and
+  runtime personas, budget, alarms, HITL history, and system state.
   Token counts are always shown; exact prompt/response text is opt-in via
   `logging.capture_llm_payloads`. [Inspector](docs/ui-inspector.md); proofs:
   `TestInspectorPagesRender`, `TestQueryEventsDescBeforeLevelQuery`,
