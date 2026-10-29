@@ -60,7 +60,7 @@ start)
 		echo "bench-core: missing config $config (run make bench-config)" >&2
 		exit 1
 	fi
-	mkdir -p "$out/tokens" "$out/workspace" "$out/out"
+	mkdir -p "$out/tokens" "$out/scratch" "$out/workspace" "$out/out"
 	podman volume inspect "$state_vol" >/dev/null 2>&1 ||
 		podman volume create "$state_vol" >/dev/null
 	sock=$(machine_sock)
@@ -73,6 +73,7 @@ start)
 		-v "$config:/etc/athanor/config.yaml:ro" \
 		-v "$state_vol:/var/lib/athanor/state" \
 		-v "$out/tokens:/var/lib/athanor/state/tokens" \
+		-v "$out/scratch:/var/lib/athanor/state/scratch" \
 		-v "$out/workspace:/var/lib/athanor/workspace" \
 		-v "$out:/bench" \
 		-v "$root:/bench/repo:ro" \

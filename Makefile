@@ -169,7 +169,8 @@ bench-config:
 		-model $(BENCH_MODEL) -arm full -judge-model $(BENCH_JUDGE) \
 		-ollama http://host.containers.internal:11434 -addr 127.0.0.1:7420 \
 		-jobpod-image athanor-jobpod:latest \
-		-token-host-dir $(abspath $(BENCH_OUT))/tokens -soak > $(BENCH_CONFIG)
+		-token-host-dir $(abspath $(BENCH_OUT))/tokens \
+		-scratch-host-dir $(abspath $(BENCH_OUT))/scratch -soak > $(BENCH_CONFIG)
 
 # The full benchmark on the shipped runtime: ONE canonical persona set, one
 # pass, <=12h hard cap. The probe runs inside the Core Pod and reads the named

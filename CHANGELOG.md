@@ -57,6 +57,11 @@ New entries are appended at the top. Do not rewrite history.
   is a fairness fix for the `x-code-sqlite-migration` finding, not a corpus
   edit. Proofs: `TestTaskContextShowsVerificationCommand`,
   `TestRun_CodeArchetypeUsesConfiguredTestCommand`.
+- **Core Pod benchmark wiring fixed.** The generated benchmark config now sets
+  `job_pod.scratch_host_dir` and the Core runner mounts it, so a Job Pod can see
+  the staged repository snapshot. Without this the Core run failed code tasks
+  that passed on the host, because the Podman machine could not see the Core
+  container's state path. Proof: `make bench-core-focused` (Core Pod run).
 - **Focused X-code diagnostic: 4/6, up from 0/6.** The P0 working-set pack was
   injected in every code job (45 chunks / 12.4 KiB total); four of six X-code
   tasks passed their external checks, including both held-out tasks. The two

@@ -965,6 +965,7 @@ func printConfig(args []string) {
 	gates := fs.Bool("gates", false, "enable the F5 code acceptance gates")
 	jobPodImage := fs.String("jobpod-image", "athanor-jobpod:latest", "Job Pod base image (job_pod.image)")
 	tokenHostDir := fs.String("token-host-dir", "", "Podman-machine-visible token base (Core Pod only)")
+	scratchHostDir := fs.String("scratch-host-dir", "", "Podman-machine-visible repository snapshot base (Core Pod only)")
 	soak := fs.Bool("soak", false, "compress time-triggered schedules (Core Pod / soak shape)")
 	_ = fs.Parse(args)
 
@@ -982,5 +983,5 @@ func printConfig(args []string) {
 		os.Exit(2)
 	}
 	fmt.Print(probeConfigYAML(m, a, *seed, *addr, *noReflect,
-		probePolicy{JudgeMode: *judgeMode, JudgeModel: *judgeModel, AltModel: *altModel, OllamaURL: *ollamaURL, CodeGates: *gates, JobPodImage: *jobPodImage, TokenHostDir: *tokenHostDir, Soak: *soak}))
+		probePolicy{JudgeMode: *judgeMode, JudgeModel: *judgeModel, AltModel: *altModel, OllamaURL: *ollamaURL, CodeGates: *gates, JobPodImage: *jobPodImage, TokenHostDir: *tokenHostDir, ScratchHostDir: *scratchHostDir, Soak: *soak}))
 }

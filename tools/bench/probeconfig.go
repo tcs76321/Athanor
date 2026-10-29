@@ -38,6 +38,10 @@ type probePolicy struct {
 	// TokenHostDir is the Podman-machine-visible token base (Core Pod only).
 	// Empty keeps the host-binary behavior (mount the local token dir).
 	TokenHostDir string
+	// ScratchHostDir is the host-visible repository-snapshot base in Core Pod
+	// mode. Without it the Core's staged snapshot is invisible to the Podman
+	// machine, and Job Pod tests run without the repository.
+	ScratchHostDir string
 	// Soak compresses the time-triggered subsystem schedules (backup, HITL
 	// TTL) so a short deadline run still exercises them (M8-T31).
 	Soak bool
@@ -208,11 +212,12 @@ limits:
 job_pod:
   image: %q
   token_host_dir: %q
+  scratch_host_dir: %q
   default_tools:
     - execute_code
     - run_tests
     - lint
-`, orDefault(p.JobPodImage, "athanor-jobpod:latest"), p.TokenHostDir)
+`, orDefault(p.JobPodImage, "athanor-jobpod:latest"), p.TokenHostDir, p.ScratchHostDir)
 	// M8-T31: a soak run must exercise the time-triggered subsystems within a
 	// short window, so their schedules are compressed. The production
 	// backup.schedule (`0 3 * * *`) stays pinned by internal/backup's cron test.
