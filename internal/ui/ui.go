@@ -14,7 +14,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
-	"log/slog"
 	"net/http"
 	"strings"
 	"sync"
@@ -22,6 +21,7 @@ import (
 
 	"github.com/tcs76321/athanor/internal/artifact"
 	"github.com/tcs76321/athanor/internal/corrections"
+	"github.com/tcs76321/athanor/internal/firstuse"
 	"github.com/tcs76321/athanor/internal/hitl"
 	"github.com/tcs76321/athanor/internal/interruptions"
 	"github.com/tcs76321/athanor/internal/job"
@@ -41,6 +41,15 @@ type Enqueuer interface{ Enqueue(jobID string) }
 // an empty Dormant Index.
 type RepoPreindexer interface {
 	Preindex(ctx context.Context, projectID, path string) error
+}
+
+// uiPreindexer adapts the UI's error-only pre-index seam to firstuse's
+// counter-returning one. The UI does not render the counters; the service still
+// audits them.
+type uiPreindexer struct{ inner RepoPreindexer }
+
+func (u uiPreindexer) IndexOnceSummary(ctx context.Context, projectID, path string) (firstuse.Summary, error) {
+	return firstuse.Summary{}, u.inner.Preindex(ctx, projectID, path)
 }
 
 // Deps wires the UI to the daemon's stores and services.
@@ -219,42 +228,31 @@ func (u *UI) handleProjectCreate(w http.ResponseWriter, r *http.Request) {
 		u.render(w, "New project", newProjectBody, values)
 		return
 	}
-	p, task, err := u.deps.Projects.Create(r.Context(), name, archetype, goal, repo, criteria)
+	deps := firstuse.Deps{
+		Projects: u.deps.Projects, Jobs: u.deps.Jobs, Engine: u.deps.Engine,
+		Events: u.deps.Store, Freezer: u.deps.Freezer,
+	}
+	if u.deps.Indexer != nil {
+		deps.Indexer = uiPreindexer{inner: u.deps.Indexer}
+	}
+	var execution *project.Execution
+	if testCmd != "" {
+		execution = &project.Execution{TestCommand: testCmd}
+	}
+	res, err := firstuse.Create(r.Context(), deps, firstuse.Input{
+		Name: name, Archetype: archetype, Goal: goal,
+		RepositoryPath: repo, Criteria: criteria, Execution: execution, Start: start,
+	})
 	if err != nil {
 		values["Error"] = err.Error()
 		u.render(w, "New project", newProjectBody, values)
 		return
-	}
-	if testCmd != "" {
-		if err := u.deps.Projects.SetExecution(r.Context(), p.ID, project.Execution{TestCommand: testCmd}); err != nil {
-			values["Error"] = err.Error()
-			u.render(w, "New project", newProjectBody, values)
-			return
-		}
 	}
 	if !start {
-		http.Redirect(w, r, "/ui/projects/"+p.ID, http.StatusSeeOther)
+		http.Redirect(w, r, "/ui/projects/"+res.Project.ID, http.StatusSeeOther)
 		return
 	}
-	// The first job must not run against an empty Dormant Index. The bounded
-	// pass is best-effort: an indexer failure degrades context, it does not
-	// cancel the work the human just asked for.
-	if repo != "" && u.deps.Indexer != nil {
-		ictx, cancel := context.WithTimeout(r.Context(), 5*time.Minute)
-		ierr := u.deps.Indexer.Preindex(ictx, p.ID, repo)
-		cancel()
-		if ierr != nil {
-			slog.Warn("ui: repository pre-index failed", "project", p.ID, "repo", repo, "err", ierr)
-		}
-	}
-	j, err := u.deps.Jobs.Create(r.Context(), task.ID, p.ID)
-	if err != nil {
-		values["Error"] = err.Error()
-		u.render(w, "New project", newProjectBody, values)
-		return
-	}
-	u.deps.Engine.Enqueue(j.ID)
-	http.Redirect(w, r, "/ui/jobs/"+j.ID, http.StatusSeeOther)
+	http.Redirect(w, r, "/ui/jobs/"+res.JobID, http.StatusSeeOther)
 }
 
 // splitCriteria turns a textarea (one criterion per line) into the API's

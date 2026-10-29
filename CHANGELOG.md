@@ -42,6 +42,11 @@ New entries are appended at the top. Do not rewrite history.
   [ADR-0083](docs/adr/0083-repository-working-set-pack.md); proofs:
   `TestRepositoryWorkingSetIsPinnedAndDeduped`,
   `TestWorkingSetIsAutoForCodeOnly`, `TestContextProviderWorkingSet`.
+- **One project-create path for API and UI.** `internal/firstuse.Create` now
+  owns create → execution override → bounded pre-index → first job → enqueue →
+  audit. The API and UI adapt their indexer seams to it, so the first-use form
+  and the CLI/API cannot drift. Proofs: `internal/firstuse` tests; the existing
+  API pre-index and UI handler tests remain green.
 - **A state-dir evidence reducer.** `athanor-probe evidence -state-dir <dir>`
   reads a daemon state directory and writes `results.json`/`results.csv`/
   `report.md` in the same shape as the soak, using the existing telemetry,

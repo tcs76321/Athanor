@@ -7,7 +7,7 @@ package api
 import (
 	"context"
 	"encoding/json"
-	"log/slog"
+	"errors"
 	"net/http"
 	"time"
 
@@ -16,6 +16,7 @@ import (
 	"github.com/tcs76321/athanor/internal/control"
 	"github.com/tcs76321/athanor/internal/corrections"
 	"github.com/tcs76321/athanor/internal/decompose"
+	"github.com/tcs76321/athanor/internal/firstuse"
 	"github.com/tcs76321/athanor/internal/hitl"
 	"github.com/tcs76321/athanor/internal/job"
 	"github.com/tcs76321/athanor/internal/project"
@@ -55,6 +56,18 @@ type IndexRunner interface {
 // POST /projects/{id}/index.
 type BoundedIndexRunner interface {
 	IndexOnceSummary(ctx context.Context, projectID, path string) (IndexSummary, error)
+}
+
+// firstUseIndexer adapts the API's IndexSummary to the shared firstuse service
+// so the two surfaces report the same counters.
+type firstUseIndexer struct{ inner BoundedIndexRunner }
+
+func (f firstUseIndexer) IndexOnceSummary(ctx context.Context, projectID, path string) (firstuse.Summary, error) {
+	s, err := f.inner.IndexOnceSummary(ctx, projectID, path)
+	return firstuse.Summary{
+		Discovered: s.Discovered, Indexed: s.Indexed, Skipped: s.Skipped,
+		Chunks: s.Chunks, Summarized: s.Summarized,
+	}, err
 }
 
 // Decomposer is the surface the M6-T1 `POST /projects/{id}/decompose`
@@ -365,93 +378,47 @@ func (a *API) handleProjectCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// M9-T5: project create starts the first goal by default, so a fresh
-	// project is not left with an unrun task. The kill switch still gates
-	// new work; a frozen daemon refuses an immediately-starting create but
-	// allows an explicit start:false metadata create.
+	// project is not left with an unrun task. A metadata-only create is
+	// explicitly start:false.
 	start := req.Start == nil || *req.Start
-	if start && a.freezer.Frozen() {
-		writeError(w, http.StatusConflict,
-			"daemon is frozen: no new work is accepted (unfreeze with a reason first, §22.2)")
-		return
+	deps := firstuse.Deps{
+		Projects: a.projects, Jobs: a.jobs, Engine: a.engine,
+		Events: a.db, Freezer: a.freezer,
 	}
-	p, task, err := a.projects.Create(r.Context(), req.Name, req.Archetype, req.Goal, req.RepositoryPath, req.Criteria)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
+	if bounded, ok := a.indexer.(BoundedIndexRunner); ok {
+		deps.Indexer = firstUseIndexer{inner: bounded}
 	}
-	// F3-T4: apply the optional §6.2 execution override after the create
-	// transaction. Setting it is a separate write so the common path
-	// (no override) stays one transaction.
+	var execution *project.Execution
 	if req.Execution != nil {
 		ex := executionFromRequest(req.Execution)
-		if err := a.projects.SetExecution(r.Context(), p.ID, ex); err != nil {
-			writeError(w, http.StatusInternalServerError, err.Error())
-			return
-		}
-		p.Execution = ex
+		execution = &ex
 	}
-
-	// First-use on-ramp: a repository-backed project's first job must not run
-	// against an empty Dormant Index. Run one bounded index pass before the
-	// job is enqueued. It is deliberately bounded (index_batch_*) and
-	// best-effort: a failed or timed-out pass degrades context, it does not
-	// block the work. The full pass remains POST /projects/{id}/index.
-	var (
-		index        *IndexSummary
-		indexWarning string
-	)
-	if start && p.RepositoryPath != "" && a.indexer != nil {
-		if bounded, ok := a.indexer.(BoundedIndexRunner); ok {
-			ictx, cancel := context.WithTimeout(r.Context(), 5*time.Minute)
-			sum, ierr := bounded.IndexOnceSummary(ictx, p.ID, p.RepositoryPath)
-			cancel()
-			if ierr != nil {
-				indexWarning = "repository pre-index failed: " + ierr.Error()
-				slog.Warn("project create: repository pre-index failed",
-					"project", p.ID, "repo", p.RepositoryPath, "err", ierr)
-			} else {
-				index = &sum
-			}
-		} else {
-			indexWarning = "repository pre-index skipped: indexer does not support a bounded pass"
+	res, err := firstuse.Create(r.Context(), deps, firstuse.Input{
+		Name: req.Name, Archetype: req.Archetype, Goal: req.Goal,
+		RepositoryPath: req.RepositoryPath, Criteria: req.Criteria,
+		Execution: execution, Start: start,
+	})
+	if err != nil {
+		status := http.StatusBadRequest
+		if errors.Is(err, firstuse.ErrFrozen) {
+			status = http.StatusConflict
 		}
+		writeError(w, status, err.Error())
+		return
 	}
-
-	var jobID string
-	if start {
-		j, err := a.jobs.Create(r.Context(), task.ID, task.ProjectID)
-		if err != nil {
-			writeError(w, http.StatusInternalServerError, err.Error())
-			return
-		}
-		a.engine.Enqueue(j.ID)
-		jobID = j.ID
-	}
-	// Audit the pre-index under the §28.1 `context` category. This is the
-	// evidence a post-mortem needs to tell "the job was blind" from "the
-	// repository was indexed but ranked nothing relevant".
-	if a.db != nil && (index != nil || indexWarning != "") {
-		data := map[string]any{"event": "repo_preindex", "repo": p.RepositoryPath}
-		if index != nil {
-			data["discovered"] = index.Discovered
-			data["indexed"] = index.Indexed
-			data["skipped"] = index.Skipped
-			data["chunks"] = index.Chunks
-			data["summarized"] = index.Summarized
-		}
-		if indexWarning != "" {
-			data["warning"] = indexWarning
-		}
-		if _, err := a.db.AppendEvent(r.Context(), store.Event{
-			Category: "context", ProjectID: p.ID, JobID: jobID, Data: data,
-		}); err != nil {
-			slog.Warn("project create: auditing repository pre-index", "project", p.ID, "err", err)
+	var index *IndexSummary
+	if res.Index != nil {
+		index = &IndexSummary{
+			Discovered: res.Index.Discovered, Indexed: res.Index.Indexed,
+			Skipped: res.Index.Skipped, Chunks: res.Index.Chunks,
+			Summarized: res.Index.Summarized,
 		}
 	}
 	writeJSON(w, http.StatusCreated, projectResponse{
-		ID: p.ID, Name: p.Name, Archetype: p.Archetype, Goal: p.Goal,
-		RepositoryPath: p.RepositoryPath, TaskID: task.ID, JobID: jobID,
-		Index: index, IndexWarning: indexWarning,
+		ID: res.Project.ID, Name: res.Project.Name, Archetype: res.Project.Archetype,
+		Goal: res.Project.Goal, RepositoryPath: res.Project.RepositoryPath,
+		TaskID: res.Task.ID, JobID: res.JobID,
+		Index: index, IndexWarning: res.IndexWarning,
 	})
 }
 

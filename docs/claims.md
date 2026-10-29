@@ -35,6 +35,7 @@ demo. A claim without a proof is either removed or marked as a target.
 | The Core Pod boots and serves in CI | ADR-0078, P1 plan | `scripts/core-smoke.sh` (`make core-smoke`); `.github/workflows/ci.yml` `core-smoke` job; local run 2026-10-28 | **proven locally; CI job added** |
 | A loopback `/status` reports jobs, freeze, and alarms | P1 plan | `internal/server/server.go`; `TestStatusSnapshot`, `TestStatusUnconfigured` | **proven** |
 | A daemon state dir reduces to the soak report shape | `docs/evidence-pipeline.md` §7.1 | `tools/bench/evidence.go` (`evidence` subcommand); `TestEvidenceRows`; live run on a retained state dir | **proven for the reducer; daemon `athanor evidence` wrapper remains** |
+| API and UI share one project-create/pre-index path | P2-0 | `internal/firstuse`; `TestCreateRunsPreindexThenStartsTheJob`; API/UI adapter tests remain green | **proven** |
 | The benchmark reports MCE mechanism metrics | ADR-0075 | `tools/bench/telemetry.go` (dormant rows, working-set chunks/bytes, memory hits, compactions, kv warn/critical); `TestFillTelemetry` | **instrumented; full-run report pending** |
 
 ## Rule
