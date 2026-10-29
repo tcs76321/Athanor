@@ -1,0 +1,93 @@
+version: 2
+
+inference:
+  default_backend: ollama
+  ollama_url: "http://localhost:11434"
+  json_format: true
+  judgment_seed: "off"
+  max_output_tokens: 4096
+  think: false
+  keep_alive: "5m"
+
+network:
+  external_api_host_allowlist:
+    - "127.0.0.1:7420"
+
+personas:
+  wide:
+    model: "ornith-1.5:9b"
+    family: "qwen35"
+    context_target: 32768
+    temperature: 0.7
+  tall:
+    model: "ornith-1.5:9b"
+    family: "qwen35"
+    context_target: 16384
+    temperature: 0.2
+  main:
+    model: "ornith-1.5:9b"
+    family: "qwen35"
+    context_target: 32768
+    temperature: 0.4
+  security:
+    model: "granite4.2:3b"
+    family: "granite"
+    context_target: 32768
+    temperature: 0.0
+  alternative:
+    model: "ornith-1.5:9b"
+    family: "qwen35"
+    context_target: 32768
+    temperature: 0.8
+
+execution:
+  divergence_candidates: 3
+  require_tests_for_code: false
+  require_documentation_for_code: false
+  dag_decomposition: false
+  phase_wall_time_budgets:
+    planning: "900s"
+    diverging: "900s"
+    evaluating: "900s"
+    synthesizing: "900s"
+    comparing: "600s"
+    default: "900s"
+
+context_engine:
+  # F5 (ADR-0059): seed the top-ranked repository chunk into the full-fidelity
+  # working set (tier 3) so a repo-backed task actually sees its repository.
+  seed_active_chunk: true
+  seed_active_max_bytes: 16384
+  repository_index_limit: 20
+  # The vector half must be on for the benchmark to measure the MCE's hybrid
+  # retrieval; empty would silently degrade query_memory to FTS-only.
+  memory_embedding_model: "nomic-embed-text:latest"
+  memory_search_top_k: 8
+
+limits:
+  max_concurrent_jobs: 1
+
+job_pod:
+  image: "athanor-jobpod:latest"
+  token_host_dir: ""
+  default_tools:
+    - execute_code
+    - run_tests
+    - lint
+
+backup:
+  auto: true
+  schedule: "*/15 * * * *"
+  max_local_backups: 5
+
+hitl:
+  default_ttl: "5m"
+  expiry_interval: "30s"
+
+# M8-T30: a short corpus run cannot reach the production cohort floor (20), so
+# the soak lowers it enough to mine technique insights from a single session.
+strategy_analysis:
+  min_cohort_size: 8
+  min_accept_rate_delta: 0.15
+  technique_min_accept_delta: 0.15
+  auto_activate_techniques: true

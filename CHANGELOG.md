@@ -42,6 +42,13 @@ New entries are appended at the top. Do not rewrite history.
   [ADR-0083](docs/adr/0083-repository-working-set-pack.md); proofs:
   `TestRepositoryWorkingSetIsPinnedAndDeduped`,
   `TestWorkingSetIsAutoForCodeOnly`, `TestContextProviderWorkingSet`.
+- **Focused X-code diagnostic: 4/6, up from 0/6.** The P0 working-set pack was
+  injected in every code job (45 chunks / 12.4 KiB total); four of six X-code
+  tasks passed their external checks, including both held-out tasks. The two
+  failures are a hanging threadpool test and a sqlite-migration task whose test
+  requires `migrator.py` while the task text does not state the filename — not
+  missing-context failures. The read-only recon loop is deferred until a
+  corrected contract is measured. [Findings](docs/probes/bench-xcode-p0.md).
 - **One project-create path for API and UI.** `internal/firstuse.Create` now
   owns create → execution override → bounded pre-index → first job → enqueue →
   audit. The API and UI adapt their indexer seams to it, so the first-use form
