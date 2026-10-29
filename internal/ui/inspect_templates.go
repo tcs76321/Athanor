@@ -1,7 +1,7 @@
 package ui
 
 // Read-only inspector pages (events, artifacts, trace, memory, daydream,
-// runtime). These expose what the daemon actually records; nothing here writes.
+// runtime). These expose what the Core actually records; nothing here writes.
 
 const inspectTabs = `
 <div class="tabs">
@@ -60,7 +60,7 @@ const eventsBody = inspectTabs + `
 
 const artifactIndexBody = inspectTabs + `
 <h1>Artifacts</h1>
-<p class="sub">Every artifact the daemon has produced, newest first, whatever its status.</p>
+<p class="sub">Every artifact the Core has produced, newest first, whatever its status.</p>
 {{if .Artifacts}}
 <table><thead><tr><th>Kind</th><th>Version</th><th>Status</th><th>Project</th><th>Job</th><th>Created</th><th></th></tr></thead><tbody>
 {{range .Artifacts}}<tr>
@@ -305,7 +305,12 @@ insights: {{.InsightsJSON}}</pre>
 
 const runtimeBody = inspectTabs + `
 <h1>Runtime</h1>
-<p class="sub">Read-only view of the daemon's personas, budget, alarms, and decision history.</p>
+<p class="sub">Read-only view of the Core's personas, budget, alarms, and decision history.</p>
+<div class="card"><dl class="kv">
+  <dt>supported runtime</dt><dd>Core Pod (ADR-0078)</dd>
+  <dt>serving process</dt><dd>{{.Runtime}}</dd>
+  <dt>version</dt><dd>{{.Version}}</dd>
+</dl></div>
 <div class="grid">
   <div class="card stat"><div class="n">{{.Counts.Jobs}}</div><div class="l">jobs</div></div>
   <div class="card stat"><div class="n">{{.Counts.Events}}</div><div class="l">events</div></div>

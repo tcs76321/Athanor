@@ -390,12 +390,18 @@ func run(configPath, addr, stateDir string, container bool) error {
 	// M7-T3 (§22.3): the alarm queue (GET /alarms).
 	externalAPI.SetAlarms(alarmSvc)
 	// M6-T8 (ADR-0039): the local web UI. Its hub is the engine's token sink.
+	runtimeLabel := "Core Pod"
+	if !(&osProbes{}).InContainer() {
+		runtimeLabel = "host (development)"
+	}
 	webUI := ui.New(ui.Deps{
 		Store: st, Projects: projectRepo, Jobs: job.NewRepository(st),
 		Artifacts: artifactStore, Corrections: correctionsRepo, HITL: hitlSvc,
 		Reviews:       review.NewRepo(st),
 		Eval:          evaluation.NewRepo(st),
 		Config:        cfg,
+		Runtime:       runtimeLabel,
+		Version:       version,
 		Interviews:    interview.NewRepo(st),
 		Interruptions: interruptionsRepo, Strategy: strategyRepo,
 		Freezer: killSwitch, Engine: eng, Indexer: indexer,

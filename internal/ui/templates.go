@@ -28,6 +28,7 @@ nav{display:flex;gap:2px;flex-wrap:wrap}
 nav a{padding:6px 11px;border-radius:999px;color:var(--muted);font-size:14px}
 nav a:hover{background:var(--panel2);color:var(--text);text-decoration:none}
 nav a[aria-current="page"]{background:var(--panel2);color:var(--text)}
+.meta{margin-left:auto;display:flex;gap:8px;align-items:center;color:var(--muted);font-size:12px}
 main{max-width:1120px;margin:0 auto;padding:26px 20px 72px}
 h1{font-size:26px;line-height:1.2;margin:0 0 6px;letter-spacing:-.01em}
 h2{font-size:16px;margin:26px 0 10px;color:#b9c3d3;letter-spacing:.01em}
@@ -156,6 +157,10 @@ func document(body string) string {
     <a href="/ui/statistics">Statistics</a>
     <a href="/ui/events">Inspect</a>
   </nav>
+  <div class="meta">
+    {{if .Runtime}}<span class="pill">{{.Runtime}}</span>{{end}}
+    {{if .Version}}<span>{{.Version}}</span>{{end}}
+  </div>
 </header>
 <main id="main">` + body + `</main>
 <script>` + dashboardJS + `</script>
@@ -196,7 +201,7 @@ const errorBody = `
 <h1>Something went wrong</h1>
 <div class="card">
   <p class="del">{{.Error}}</p>
-  <p class="muted">The daemon is still running. Nothing was changed by this request.</p>
+  <p class="muted">The Core is still running. Nothing was changed by this request.</p>
   <div class="actions"><a class="btn" href="/ui">Back to dashboard</a></div>
 </div>
 `

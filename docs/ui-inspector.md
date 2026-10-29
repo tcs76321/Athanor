@@ -1,6 +1,6 @@
 # The read-only inspector
 
-Athanor's GUI exposes what the daemon actually records. The inspector is
+Athanor's GUI exposes what the Core actually records. The inspector is
 **read-only**: it can start, pause, cancel, and review work through the normal
 surfaces, but it never edits the event log, artifacts, memory, or configuration.
 

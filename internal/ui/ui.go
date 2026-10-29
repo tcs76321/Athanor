@@ -1,5 +1,5 @@
 // Package ui serves Athanor's local web UI (ROADMAP M6-T8; ARCHITECTURE §27)
-// on the daemon's loopback listener. It is dependency-free: html/template,
+// on the Core's loopback listener. It is dependency-free: html/template,
 // SSE, and net/http only.
 //
 // Pages: Dashboard (jobs + pending approvals + power/freeze), Projects
@@ -61,7 +61,7 @@ func (u uiPreindexer) IndexOnceSummary(ctx context.Context, projectID, path stri
 	return firstuse.Summary{}, u.inner.Preindex(ctx, projectID, path)
 }
 
-// Deps wires the UI to the daemon's stores and services.
+// Deps wires the UI to the Core's stores and services.
 type Deps struct {
 	Store         *store.Store
 	Projects      *project.Repo
@@ -79,6 +79,11 @@ type Deps struct {
 	// Config is read-only. The inspector shows personas, limits, and the
 	// budget shape; it never writes configuration.
 	Config *config.Config
+	// Runtime and Version identify the process serving the UI: "Core Pod" in
+	// the supported runtime, "host (development)" under `serve`. They are
+	// display-only.
+	Runtime string
+	Version string
 	// Indexer runs the bounded pre-index on the first-use project create.
 	// nil is valid: the job starts without a populated Dormant Index.
 	Indexer RepoPreindexer
@@ -1009,6 +1014,12 @@ func (u *UI) renderStatus(w http.ResponseWriter, status int, title, body string,
 		data = map[string]any{}
 	}
 	data["Title"] = title
+	if _, ok := data["Runtime"]; !ok {
+		data["Runtime"] = u.deps.Runtime
+	}
+	if _, ok := data["Version"]; !ok {
+		data["Version"] = u.deps.Version
+	}
 	t := template.Must(template.New("page").Funcs(funcs).Parse(document(body)))
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(status)
