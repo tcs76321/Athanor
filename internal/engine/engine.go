@@ -644,6 +644,7 @@ func jobScratchKeys(jobID string) []string {
 		reflectProposalPrefix + jobID,
 		refineCounterPrefix + jobID,
 		evictionStateKey(jobID),
+		analysisPrefix + jobID,
 	}
 }
 

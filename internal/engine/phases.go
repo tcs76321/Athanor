@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/tcs76321/athanor/internal/analysis"
 	"github.com/tcs76321/athanor/internal/artifact"
 	"github.com/tcs76321/athanor/internal/config"
 	"github.com/tcs76321/athanor/internal/job"
@@ -712,7 +713,7 @@ func (e *Engine) phasePlan(ctx context.Context, j job.Job) error {
 	plan := e.planFor(ctx, j, p, t)
 	role := e.roleFor(plan, llm.PhasePlanning, llm.RoleTall)
 	planTask := t
-	planTask.Description = strings.TrimRight(t.Description, "\n") + "\n\n" + difficultyRequest
+	planTask.Description = strings.TrimRight(t.Description, "\n") + "\n\n" + difficultyRequest + "\n\n" + analysisRequest
 	resp, err := e.call(ctx, j, p, planTask, llm.PhasePlanning, role, "", nil)
 	if err != nil {
 		return err
@@ -721,6 +722,14 @@ func (e *Engine) phasePlan(ctx context.Context, j job.Job) error {
 		e.setDifficultyHint(ctx, j.ID, d)
 		e.audit(ctx, j.ID, map[string]any{"event": "difficulty_hint", "difficulty": d})
 	}
+	a := analysis.Parse(resp.Content)
+	if err := e.setAnalysis(ctx, j.ID, a); err != nil {
+		slog.Error("engine: storing task analysis", "job", j.ID, "err", err)
+	}
+	e.audit(ctx, j.ID, map[string]any{
+		"event": "task_analysis", "parsed": a.Parsed,
+		"units": len(a.Units), "deliberate": len(a.Deliberate()),
+	})
 	_, err = e.jobs.Transition(ctx, j.ID, job.StateDiverging)
 	return err
 }
@@ -728,6 +737,15 @@ func (e *Engine) phasePlan(ctx context.Context, j job.Job) error {
 // difficultyRequest is the F4-T2 planning instruction. It is a constant so
 // the parser and the prompt cannot drift.
 const difficultyRequest = "End your plan with a final line exactly of the form `DIFFICULTY: easy` or `DIFFICULTY: hard`, judging whether this task is routine or genuinely hard. Keep it to one line."
+
+// analysisRequest is the ADR-0090 planning instruction. It is a constant so
+// the parser and the prompt cannot drift. The model is asked for a bounded
+// decomposition; a malformed or absent block degrades to one direct unit.
+const analysisRequest = "Then emit exactly one fenced ```analysis block containing JSON of the form " +
+	`{"units":[{"goal":"...","mode":"direct|deliberate","reason":"...","falsifier":"..."}]}. ` +
+	"Use at most five units. Default every unit to \"direct\"; use \"deliberate\" only for a part " +
+	"you expect to be wrong or that has hidden constraints. The falsifier is the cheapest check " +
+	"that would reveal that unit is wrong. No prose inside the block."
 
 // parseDifficultyHint extracts the F4-T2 `DIFFICULTY: easy|hard` marker from
 // the planning output. It scans lines case-insensitively and returns the

@@ -1,6 +1,6 @@
 # ADR 0090 — Task analysis sets a contemplation budget the loop revises
 
-**Status:** Proposed — S0 implemented; S1–S4 open · **Date:** 2026-10-29 ·
+**Status:** Proposed — S0–S1 implemented; S2–S4 open · **Date:** 2026-10-29 ·
 **Refs:** ARCHITECTURE §8.2 (state rules), §13.1 Phase 1 (planning), §19.3
 (comparison), §24 (power and idle policy); [ADR-0044](0044-compute-policy-seam.md)
 (compute-policy seam), [ADR-0064](0064-cognitive-operations.md) (operation
@@ -154,7 +154,13 @@ allocation, not a fresh pot.
 the wire can carry `"low"|"medium"|"high"`; `inference.think_level` selects it;
 `Response.Thinking`/`ReasoningTokens` record the returned trace (an estimate —
 Ollama's `eval_count` includes reasoning); judgment phases remain forced off.
-Behavior is unchanged unless `think_level` is set. S1–S4 remain open.
+Behavior is unchanged unless `think_level` is set.
+
+**S1 landed (2026-10-29):** planning emits a fenced `analysis` block; the
+lenient parser (`internal/analysis`) produces units with a **default-direct**
+mode and a falsifier, and the engine persists it in `system_state` with a
+`task_analysis` audit row. A malformed block degrades to one direct unit. The
+analysis is not yet consumed by the regulator; S2–S4 remain open.
 
 | Step | Change | Behavior |
 |---|---|---|

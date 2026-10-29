@@ -10,6 +10,15 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Task analysis — 2026-10-29
+
+- **Planning now emits a structured decomposition.** A fenced `analysis` block
+  is parsed leniently into units with a **default `direct`** mode and a
+  falsifier; the result is persisted in `system_state` and audited as
+  `task_analysis`. A malformed or absent block degrades to one direct unit, so
+  the planner stays a proposer (M9-T2b). Not yet consumed by the regulator
+  (ADR-0090 S2). Proofs: `TestParseFailsSafe`, `TestAnalysisStateRoundTrip`.
+
 ### Thinking wire — 2026-10-29
 
 - **A bool cannot say "how much."** `llm.ThinkMode` replaces `Request.Think
