@@ -99,10 +99,25 @@ document.querySelectorAll('header nav a').forEach(a=>{
 const es=new EventSource('/ui/events/stream');
 es.addEventListener('event',e=>{
   let p; try{p=JSON.parse(e.data)}catch(_){return}
-  if(p.category!=='jobs'||!p.job_id)return;
   let d; try{d=JSON.parse(p.data)}catch(_){return}
   if(d.event==='transition'&&d.to){const el=document.getElementById('phase-'+p.job_id);if(el)el.textContent=d.to}
+  let title='',body='';
+  if(d.event==='hitl_request'){title='Approval needed';body=(d.type||'')+' ('+(d.severity||'')+')'}
+  else if(d.event==='job_failed'){title='Job failed';body=d.error||'a job failed'}
+  else if(d.event==='alarm_raised'){title='Athanor alarm';body=d.message||''}
+  if(title&&'Notification' in window&&Notification.permission==='granted'){
+    try{new Notification('Athanor · '+title,{body:String(body).slice(0,180)})}catch(_){}
+  }
 });
+async function refreshAlerts(){
+  try{
+    const r=await fetch('/ui/notifications/count',{cache:'no-store'});
+    const c=await r.json();
+    const el=document.getElementById('alert-count');
+    if(el){el.textContent=String(c.total||0);el.hidden=!c.total}
+  }catch(_){}
+}
+refreshAlerts();setInterval(refreshAlerts,30000);
 `
 
 const watchJS = `
@@ -152,7 +167,9 @@ func document(body string) string {
   <nav aria-label="Main">
     <a href="/ui">Dashboard</a>
     <a href="/ui/projects">Projects</a>
+    <a href="/ui/setup">Setup</a>
     <a href="/ui/reviews">Reviews</a>
+    <a href="/ui/notifications">Alerts <span class="pill" id="alert-count" hidden></span></a>
     <a href="/ui/corrections">Corrections</a>
     <a href="/ui/statistics">Statistics</a>
     <a href="/ui/events">Inspect</a>
@@ -195,6 +212,64 @@ const reviewsBody = `
 </tr>{{end}}
 </tbody></table>
 {{else}}<div class="empty">No reviews recorded yet.</div>{{end}}
+`
+
+const notificationsBody = `
+<h1>Notifications</h1>
+<p class="sub">What needs you, in one place. Desktop notifications are opt-in and stay local.</p>
+<div class="actions">
+  <button id="enable-notifications">Enable desktop notifications</button>
+  <span id="notify-status" class="muted"></span>
+</div>
+<div class="grid">
+  <a class="card stat" href="/ui"><div class="n">{{.Counts.Pending}}</div><div class="l">pending approvals</div></a>
+  <a class="card stat" href="/ui/reviews"><div class="n">{{.Counts.Reviews}}</div><div class="l">artifacts to review</div></a>
+  <a class="card stat" href="#alarms"><div class="n">{{.Counts.Alarms}}</div><div class="l">active alarms</div></a>
+  <a class="card stat" href="#failures"><div class="n">{{.Counts.Failures}}</div><div class="l">failed jobs (24h)</div></a>
+</div>
+
+<h2>Pending approvals</h2>
+{{if .Pending}}<div class="card">{{range .Pending}}<div class="ev"><a href="/ui">{{.}}</a></div>{{end}}
+<div class="actions"><a class="btn" href="/ui">Decide on the dashboard</a></div></div>
+{{else}}<div class="empty">Nothing waiting for approval.</div>{{end}}
+
+<h2>Review queue</h2>
+{{if .Reviews}}<div class="card">{{range .Reviews}}<div class="ev">{{.}}</div>{{end}}
+<div class="actions"><a class="btn" href="/ui/reviews">Open review queue</a></div></div>
+{{else}}<div class="empty">No accepted work waiting for a review.</div>{{end}}
+
+<h2 id="alarms">Active alarms</h2>
+{{if .Alarms}}
+<table><thead><tr><th>Level</th><th>Category</th><th>Message</th><th>When</th></tr></thead><tbody>
+{{range .Alarms}}<tr>
+  <td><span class="pill {{if eq .Level "critical"}}bad{{else if eq .Level "alert"}}warn{{end}}">{{.Level}}</span></td>
+  <td>{{.Category}}</td><td>{{.Message}}</td><td class="muted">{{.CreatedAt}}</td>
+</tr>{{end}}
+</tbody></table>
+{{else}}<div class="empty">No active alarms.</div>{{end}}
+
+<h2 id="failures">Failed jobs (24h)</h2>
+{{if .Failures}}
+<table><thead><tr><th>Job</th><th>Project</th><th>When</th></tr></thead><tbody>
+{{range .Failures}}<tr>
+  <td><a href="/ui/jobs/{{.ID}}/trace" class="mono">{{.ID | short}}</a></td>
+  <td><a href="/ui/projects/{{.ProjectID}}">{{.ProjectID | short}}</a></td>
+  <td class="muted">{{.UpdatedAt}}</td>
+</tr>{{end}}
+</tbody></table>
+{{else}}<div class="empty">No failed jobs in the last 24 hours.</div>{{end}}
+
+<script>
+const nb=document.getElementById('enable-notifications');
+const ns=document.getElementById('notify-status');
+function setNotifyStatus(){
+  if(!('Notification' in window)){nb.disabled=true;nb.textContent='Desktop notifications unavailable';return}
+  if(Notification.permission==='granted'){nb.textContent='Desktop notifications enabled';nb.disabled=true}
+  else if(Notification.permission==='denied'){nb.textContent='Desktop notifications blocked in the browser';nb.disabled=true}
+  else{ns.textContent='The browser will ask for permission.'}
+}
+if(nb){nb.addEventListener('click',()=>{Notification.requestPermission().then(setNotifyStatus)});setNotifyStatus()}
+</script>
 `
 
 const errorBody = `

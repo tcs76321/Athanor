@@ -22,6 +22,16 @@ New entries are appended at the top. Do not rewrite history.
   issues), a watch view with persisted event history and pretty live events,
   and rendered error pages instead of plain text. Proofs:
   `TestReviewQueuePage`, `TestArtifactView`, `TestPagesRender`.
+- **Setup and notifications close the first-use loop.** `/ui/setup` lists the
+  installed Ollama models and persona mapping, runs a bounded, resumable
+  qualification (four judge pairs for `security`, three deterministic generator
+  cases for `main`, configured + largest alternative), and renders the advisory
+  routing proposal as a copyable config snippet. It never writes config.
+  `/ui/notifications` plus a header badge shows pending approvals, the review
+  queue, active alarms, and failed jobs; the dashboard SSE raises a local browser
+  notification for approvals, failures, alarms, and deferrals when permission is
+  granted. Proofs: `TestSetupPageRenders`,
+  `TestQualificationRunsAgainstFakeOllama`, `TestNotificationsPageAndCount`.
 - **Runtime identity is visible.** The page header shows whether the serving
   process is the **Core Pod** or the unsupported host dev path, plus the
   version; the Runtime inspector states the supported runtime. User-facing text

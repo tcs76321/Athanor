@@ -96,6 +96,9 @@ type Deps struct {
 type UI struct {
 	deps Deps
 	hub  *Hub
+	// qualMu/qualRunning guard the one in-process qualification worker.
+	qualMu      sync.Mutex
+	qualRunning bool
 }
 
 // New builds a UI.
@@ -123,6 +126,10 @@ func (u *UI) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /ui/projects/{id}/corrections", u.handleCorrectionCreate)
 	mux.HandleFunc("GET /ui/corrections", u.handleCorrections)
 	mux.HandleFunc("GET /ui/reviews", u.handleReviews)
+	mux.HandleFunc("GET /ui/notifications", u.handleNotifications)
+	mux.HandleFunc("GET /ui/notifications/count", u.handleNotificationCount)
+	mux.HandleFunc("GET /ui/setup", u.handleSetup)
+	mux.HandleFunc("POST /ui/setup/qualify", u.handleQualifyStart)
 	mux.HandleFunc("GET /ui/statistics", u.handleStatistics)
 	mux.HandleFunc("POST /ui/corrections/{id}", u.handleCorrectionUpdate)
 	mux.HandleFunc("GET /ui/jobs/{id}", u.handleWatch)
@@ -1054,6 +1061,9 @@ var funcs = template.FuncMap{
 		return ""
 	},
 	"join": func(ss []string) string { return strings.Join(ss, ", ") },
+	"gib": func(n int64) string {
+		return fmt.Sprintf("%.1f GiB", float64(n)/(1<<30))
+	},
 	"when": func(v any) string {
 		var t time.Time
 		switch x := v.(type) {

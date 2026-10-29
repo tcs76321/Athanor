@@ -170,6 +170,10 @@ athanor models -qualification <file>       # or reuse a precomputed measurements
 # apply the proposal by editing config.yaml (the human is the gate)
 ```
 
+The Core UI's **Setup** page (`/ui/setup`) shows the same inventory, runs a
+bounded resumable qualification against the Core's Ollama URL, and renders the
+routing proposal as a copyable snippet. Applying it is still a config edit.
+
 The ladder enumerates installed models that fit, runs a small **grounded**
 instrument (deterministic generator checks + fixed-label judge pairs), and
 persists every case so a rerun resumes. It is a machine-local screen, not the

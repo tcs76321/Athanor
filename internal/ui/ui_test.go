@@ -2,6 +2,7 @@ package ui
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -12,11 +13,13 @@ import (
 	"time"
 
 	"github.com/tcs76321/athanor/internal/artifact"
+	"github.com/tcs76321/athanor/internal/config"
 	"github.com/tcs76321/athanor/internal/corrections"
 	"github.com/tcs76321/athanor/internal/hitl"
 	"github.com/tcs76321/athanor/internal/interruptions"
 	"github.com/tcs76321/athanor/internal/interview"
 	"github.com/tcs76321/athanor/internal/job"
+	"github.com/tcs76321/athanor/internal/onboard"
 	"github.com/tcs76321/athanor/internal/project"
 	"github.com/tcs76321/athanor/internal/review"
 	"github.com/tcs76321/athanor/internal/store"
@@ -402,6 +405,125 @@ func TestInspectorPagesRender(t *testing.T) {
 		if !strings.Contains(body, tc.want) {
 			t.Errorf("GET %s body missing %q", tc.path, tc.want)
 		}
+	}
+}
+
+// TestSetupPageRenders proves the onboarding surface is reachable.
+func TestSetupPageRenders(t *testing.T) {
+	fx := setup(t)
+	status, body := get(t, fx.ts.URL+"/ui/setup")
+	if status != http.StatusOK {
+		t.Fatalf("status = %d, want 200", status)
+	}
+	for _, want := range []string{"Setup", "Model inventory", "Personas", "Qualification"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("setup page missing %q", want)
+		}
+	}
+}
+
+func TestQualMeasurementsFromState(t *testing.T) {
+	s := newQualState()
+	s.Results["security|m|c1"] = true
+	s.Results["security|m|c2"] = false
+	s.Results["main|m|c3"] = true
+	ms := qualMeasurementsFromState(s)
+	if len(ms) != 2 {
+		t.Fatalf("measurements = %+v, want 2", ms)
+	}
+	for _, m := range ms {
+		switch m.Role {
+		case "security":
+			if m.Samples != 2 || m.Score != 0.5 {
+				t.Errorf("security measurement = %+v", m)
+			}
+		case "main":
+			if m.Samples != 1 || m.Score != 1 {
+				t.Errorf("main measurement = %+v", m)
+			}
+		}
+	}
+}
+
+// TestQualificationRunsAgainstFakeOllama exercises the bounded worker end to
+// end without a real model.
+func TestQualificationRunsAgainstFakeOllama(t *testing.T) {
+	fx := setup(t)
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/chat" {
+			http.NotFound(w, r)
+			return
+		}
+		var body struct {
+			Messages []struct {
+				Content string `json:"content"`
+			} `json:"messages"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		prompt := ""
+		if len(body.Messages) > 0 {
+			prompt = body.Messages[0].Content
+		}
+		answer := "A"
+		if strings.Contains(prompt, "17 * 23") {
+			answer = "391"
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"message": map[string]string{"content": answer},
+			"done":    true,
+		})
+	}))
+	defer ts.Close()
+
+	cfg, err := config.Default()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.Inference.OllamaURL = ts.URL
+	cfg.Personas.Security.Model = "fake"
+	cfg.Personas.Main.Model = "fake"
+	fx.ui.deps.Config = cfg
+
+	state := newQualState()
+	roles := []onboard.Role{{Role: "security", Model: "fake"}, {Role: "main", Model: "fake"}}
+	models := []onboard.Model{{Name: "fake", SizeBytes: 1}}
+	fx.ui.runQualification(context.Background(), cfg, roles, models, &state)
+
+	if state.Running {
+		t.Error("qualification still marked running")
+	}
+	if state.Total == 0 || state.Done != state.Total {
+		t.Errorf("done/total = %d/%d, want a complete run", state.Done, state.Total)
+	}
+	ms := qualMeasurementsFromState(state)
+	if len(ms) != 2 {
+		t.Fatalf("measurements = %+v, want security and main", ms)
+	}
+}
+
+// TestNotificationsPageAndCount proves the in-app notification surface and the
+// header badge JSON.
+func TestNotificationsPageAndCount(t *testing.T) {
+	fx := setup(t)
+	status, body := get(t, fx.ts.URL+"/ui/notifications")
+	if status != http.StatusOK {
+		t.Fatalf("status = %d, want 200", status)
+	}
+	for _, want := range []string{"Notifications", "Pending approvals", "Enable desktop notifications"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("notifications page missing %q", want)
+		}
+	}
+	_, raw := get(t, fx.ts.URL+"/ui/notifications/count")
+	var counts map[string]int
+	if err := json.Unmarshal([]byte(raw), &counts); err != nil {
+		t.Fatalf("count JSON: %v (%q)", err, raw)
+	}
+	if counts["pending"] < 1 {
+		t.Errorf("pending = %d, want at least the fixture approval", counts["pending"])
+	}
+	if counts["total"] < 1 {
+		t.Errorf("total = %d, want at least 1", counts["total"])
 	}
 }
 
