@@ -487,6 +487,13 @@ Memory objects are profiled across three axes to determine their treatment:
 | **Temporal State** | `active` (current step), `recent` (current job), `episodic` (past jobs), `archival` |
 | **Semantic Relevance** | `direct`, `tangential`, `dormant` (calculated dynamically per task via vector similarity) |
 
+> **Implementation status (P1, ADR-0085).** The MCE retriever is now a prompt
+> producer: project-scoped compacted memos are retrieved into tier 5
+> (episodic), bounded by `context_engine.memory_search_top_k`, and audited as
+> `memory_injected`. Chunk hits remain the Dormant Index / working-set
+> producers. Retrieval is deterministic and model-free; the engine consumes the
+> retriever directly, not through the model or a loopback HTTP call.
+
 ### 10.3 Treatment Matrix & Temperature Invariants
 
 To prevent compaction corruption (hallucination, drift, paraphrasing), **all context manipulation operations strictly use Temperature 0.0**.

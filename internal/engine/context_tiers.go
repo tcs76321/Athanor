@@ -13,6 +13,7 @@ import (
 	"github.com/tcs76321/athanor/internal/config"
 	"github.com/tcs76321/athanor/internal/corrections"
 	"github.com/tcs76321/athanor/internal/job"
+	"github.com/tcs76321/athanor/internal/mce"
 	"github.com/tcs76321/athanor/internal/project"
 	"github.com/tcs76321/athanor/internal/prompt"
 	"github.com/tcs76321/athanor/internal/toolenvelope"
@@ -239,6 +240,7 @@ type promptTiers struct {
 	DormantIndex  []prompt.IndexLine
 	Corrections   []string
 	CorrectionIDs []string
+	Episodic      []string
 }
 
 // maxInjectedCorrections caps how many corrections retrieval feeds the
@@ -275,10 +277,40 @@ func (e *Engine) promptTiersFor(ctx context.Context, j job.Job, p project.Projec
 			}
 		}
 	}
+	q := e.contextQuery(j, t)
+	// P1: compacted project memory reaches the prompt. The retriever returns
+	// memo hits (rendered here) and chunk hits (already represented by the
+	// Dormant Index / working set), so only memos are rendered.
+	if e.memorySource != nil && e.cfg != nil && e.cfg.ContextEngine.MemoryInPromptEnabled() {
+		limit := e.cfg.ContextEngine.MemorySearchTopK
+		if limit <= 0 {
+			limit = 8
+		}
+		hits, merr := e.memorySource.RelevantMemory(ctx, j.ProjectID, q.Query, limit)
+		if merr != nil {
+			slog.Warn("engine: reading project memory", "job", j.ID, "err", merr)
+		} else {
+			ids := make([]string, 0, len(hits))
+			bytes := 0
+			for _, h := range hits {
+				if h.Kind != mce.SourceMemo || strings.TrimSpace(h.Content) == "" {
+					continue
+				}
+				pt.Episodic = append(pt.Episodic, "[memory] "+strings.TrimSpace(h.Content))
+				ids = append(ids, h.ID)
+				bytes += len(h.Content)
+			}
+			if len(ids) > 0 {
+				e.auditCat(ctx, j.ID, "context", map[string]any{
+					"event": "memory_injected", "project": j.ProjectID,
+					"hits": len(ids), "bytes": bytes, "memory_ids": ids,
+				})
+			}
+		}
+	}
 	if e.ctxProvider == nil {
 		return pt
 	}
-	q := e.contextQuery(j, t)
 	chunk, ok, err := e.ctxProvider.ActiveChunk(ctx, q)
 	switch {
 	case err != nil:

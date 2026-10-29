@@ -120,6 +120,9 @@ context_engine:
   # single query returns.
   memory_embedding_model: ""
   memory_search_top_k: 8
+  # memory_in_prompt retrieves project-scoped compacted memory into tier 5.
+  # It is on by default; set false for a memory-free prompt.
+  memory_in_prompt: true
   # M5-T8 repository indexing (ADR-0028 §8). index_batch_files caps the
   # files one pass processes; index_batch_chunks caps summary + embedding
   # model calls per pass; index_embed_bytes is the content prefix in an

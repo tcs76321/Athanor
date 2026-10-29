@@ -247,6 +247,11 @@ type ContextEngine struct {
 	// hits a single query returns; it must be positive.
 	MemoryEmbeddingModel string `yaml:"memory_embedding_model"`
 	MemorySearchTopK     int    `yaml:"memory_search_top_k"`
+	// MemoryInPrompt controls whether the engine retrieves compacted memory
+	// (query_memory over the project scope) into tier 5. It defaults on: the
+	// retrieval engine is only useful if the generation loop consumes it. An
+	// empty/absent pointer means true; set false to keep prompts memory-free.
+	MemoryInPrompt *bool `yaml:"memory_in_prompt"`
 	// M5-T8 repository indexing (ADR-0028 §8). IndexBatchFiles bounds the
 	// files a single pass processes; IndexBatchChunks bounds the summary +
 	// embedding model calls per pass; IndexEmbedBytes is the content prefix
@@ -303,6 +308,11 @@ func (c *ContextEngine) LosslessSwapping() bool {
 // tier 3 when a job has no active chunk (ADR-0059).
 func (c *ContextEngine) SeedActiveChunkEnabled() bool {
 	return Val(c.SeedActiveChunk, false)
+}
+
+// MemoryInPromptEnabled resolves memory_in_prompt (default true).
+func (c *ContextEngine) MemoryInPromptEnabled() bool {
+	return Val(c.MemoryInPrompt, true)
 }
 
 // Working-set modes (P0). `auto` is the shipped default: code jobs get the

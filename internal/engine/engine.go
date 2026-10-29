@@ -48,6 +48,7 @@ import (
 	"github.com/tcs76321/athanor/internal/interruptions"
 	"github.com/tcs76321/athanor/internal/job"
 	"github.com/tcs76321/athanor/internal/llm"
+	"github.com/tcs76321/athanor/internal/mce"
 	"github.com/tcs76321/athanor/internal/policy"
 	"github.com/tcs76321/athanor/internal/project"
 	"github.com/tcs76321/athanor/internal/store"
@@ -141,6 +142,14 @@ type CorrectionSource interface {
 	MarkApplied(ctx context.Context, id string) error
 }
 
+// MemorySource is the §10.2 retrieval seam (M5-T7): project-scoped compacted
+// memory and dormant chunk hits from the hybrid FTS5/vector retriever. The
+// engine renders compacted memos into tier 5; chunk hits remain the Dormant
+// Index / working-set producers. A nil source leaves tier 5 empty.
+type MemorySource interface {
+	RelevantMemory(ctx context.Context, projectID, query string, limit int) ([]mce.MemoryHit, error)
+}
+
 // TokenSink receives incremental model output for the live watch view
 // (M6-T8c, §20.3). The production implementation is the UI hub; nil makes
 // every call non-streaming (the pre-T8 path).
@@ -207,6 +216,9 @@ type Engine struct {
 	// corrections are ranked and rendered into §11.2 position 8. nil leaves
 	// tier 4 empty (byte-identical to pre-M6-T7).
 	correctionSource CorrectionSource
+	// memorySource is the §10.2 retrieval seam (M5-T7): compacted project
+	// memory is rendered into tier 5. nil leaves tier 5 empty.
+	memorySource MemorySource
 	// tokenSink receives incremental model output for the watch view
 	// (M6-T8c). nil selects the non-streaming call path.
 	tokenSink TokenSink
@@ -314,6 +326,10 @@ func (e *Engine) SetCorrectionSink(s CorrectionSink) { e.corrections = s }
 // SetCorrectionSource wires the §18.3 injection seam (M6-T7). A nil source
 // leaves the corrections tier empty.
 func (e *Engine) SetCorrectionSource(s CorrectionSource) { e.correctionSource = s }
+
+// SetMemorySource wires the §10.2 retrieval seam (M5-T7). A nil source leaves
+// the episodic tier empty.
+func (e *Engine) SetMemorySource(s MemorySource) { e.memorySource = s }
 
 // SetTokenSink wires the live token stream (M6-T8c). A nil sink makes every
 // model call non-streaming.

@@ -26,6 +26,9 @@ type mceRuntime struct {
 	// Store is the dormant chunk store (migration 0009). M5-T3 and M5-T8 are
 	// its call sites.
 	Store *mce.ChunkStore
+	// Retriever is the hybrid FTS5/vector query engine over the same store
+	// (M5-T7). The engine's memory seam consumes it in tier 5.
+	Retriever *mce.Retriever
 	// Summarizer produces Dormant Index summaries (ADR-0021 §7).
 	Summarizer mce.Summarizer
 	// LosslessSwapping mirrors context_engine.enable_lossless_swapping; when
@@ -60,6 +63,7 @@ func startMCE(st *store.Store, registry *llm.Registry, client *llm.Client, cfg c
 	}
 	return &mceRuntime{
 		Store:             mce.NewChunkStore(st),
+		Retriever:         mce.NewRetriever(st),
 		Summarizer:        newMCESummarizer(registry, client),
 		LosslessSwapping:  cfg.LosslessSwapping(),
 		SummarizerPersona: llm.RoleWide,

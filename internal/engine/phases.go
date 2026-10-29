@@ -301,6 +301,7 @@ func (e *Engine) call(ctx context.Context, j job.Job, p project.Project, t proje
 		ActiveChunk:            tiers.ActiveChunk,
 		WorkingSet:             tiers.WorkingSet,
 		Corrections:            tiers.Corrections,
+		Episodic:               tiers.Episodic,
 		Candidates:             tiers.Candidates,
 		DormantIndex:           tiers.DormantIndex,
 		InterruptionNotes:      notes,
