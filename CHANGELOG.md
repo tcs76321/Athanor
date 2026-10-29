@@ -22,7 +22,12 @@ New entries are appended at the top. Do not rewrite history.
   issues), a watch view with persisted event history and pretty live events,
   and rendered error pages instead of plain text. Proofs:
   `TestReviewQueuePage`, `TestArtifactView`, `TestPagesRender`.
-- **A read-only inspector over the daemon's internals.** `Inspect` exposes the
+- **Runtime identity is visible.** The page header shows whether the serving
+  process is the **Core Pod** or the unsupported host dev path, plus the
+  version; the Runtime inspector states the supported runtime. User-facing text
+  says "Core", not "daemon". The 0.0.0 plan now defines the browser happy path
+  as a gate, not a soft goal. [0.0.0 plan](docs/0.0.0-plan.md).
+- **A read-only inspector over the Core's internals.** `Inspect` exposes the
   full event log with newest-first pagination and category/level/job/project/
   text filters; a job trace with task analysis, model calls, tool actions,
   evaluations, artifacts, context/memory events, strategy, and timeline;
