@@ -26,6 +26,7 @@ demo. A claim without a proof is either removed or marked as a target.
 | A declared data schema is never silently omitted | P0 plan | `tools/bench/runner.go` (`dataSchemaFor`); `TestDataSchemaForFailsLoudly` | **proven** |
 | A data task sees its schema as a pinned requirement | ADR-0070 amendment | `internal/prompt/data_schema_test.go`; `TestRun_DataArchetypePromptIncludesSchema` | **proven** |
 | The engine and benchmark agree on a single wrapped JSON value | ADR-0070 amendment | `internal/verify/schema.go` (`extractJSONValue`); `TestDataSchemaExtractsFencedAndProse` | **proven** |
+| Synthesis does not discard a verified candidate (all hard-verifier archetypes) | ADR-0068 amendment | `internal/engine/phases.go`; `TestSynthesizeFallsBackForDeclaredChecks` | **proven** |
 
 ## Rule
 

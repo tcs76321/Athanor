@@ -42,6 +42,21 @@ substitutes bytes that *also* passed the real tests, so it can only ever make
 acceptance more honest, never weaker. The deterministic verifier remains the
 load-bearing acceptance signal.
 
+## Amendment (P0, 2026-10-28) — the fallback is not code-only
+
+The v2 trace showed a `text` job with the same shape as the original code
+defect: candidate 1 passed every declared check, synthesis rewrote a different
+artifact, the final failed `must_contain`, and the job ended `failed` while the
+benchmark's external check passed. ADR-0068's decision was implemented only for
+`code`.
+
+The fallback now runs for **every archetype with a hard verifier** — code tests,
+declared text/document checks, and the data JSON Schema. After the rewrite is
+normalized (code only), the final artifact is verified; if the source candidate
+passed and the final is hard-failed, the candidate's bytes become the final and
+`synthesis_fallback_to_candidate` records the archetype and candidate ID. An
+archetype with no hard verifier (media) is unchanged.
+
 ## Consequences
 
 - Code jobs accept a candidate that passed the real tests instead of failing

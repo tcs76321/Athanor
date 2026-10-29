@@ -656,20 +656,23 @@ func (e *Engine) phaseSynthesize(ctx context.Context, j job.Job) error {
 	content := resp.Content
 	if p.Archetype == project.ArchetypeCode {
 		content = normalizeCode(content)
-		// M8-T26b: never discard a verified candidate. If the rewrite fails
-		// the deterministic verifier while the source candidate passed the real
-		// tests, keep the candidate's bytes as the final artifact. A candidate
-		// that passed real tests is valid by Gate G3, so this can only ever
-		// make acceptance more honest, never weaker.
-		if passed {
-			if ver, _, verr := e.verifyCandidate(ctx, j, p, t, content, 0); verr == nil {
-				e.auditVerification(ctx, j.ID, "final", ver)
-				if ver.HardDecisive() && !ver.HardPassed {
-					content = string(candidateContent)
-					e.audit(ctx, j.ID, map[string]any{
-						"event": "synthesis_fallback_to_candidate", "candidate_id": candidate.ID,
-					})
-				}
+	}
+	// M8-T26b / P0: never discard a verified candidate. If the rewrite fails
+	// the deterministic verifier while the source candidate passed it, keep
+	// the candidate's bytes as the final artifact. This applies to every
+	// archetype with a hard verifier (code tests, declared text/document
+	// checks, data schema), not only code: the v2 trace showed a text job
+	// whose passing candidate was rewritten into a final that failed a
+	// declared check, ending `failed` while the external check passed.
+	if passed {
+		if ver, _, verr := e.verifyCandidate(ctx, j, p, t, content, 0); verr == nil {
+			e.auditVerification(ctx, j.ID, "final", ver)
+			if ver.HardDecisive() && !ver.HardPassed {
+				content = string(candidateContent)
+				e.audit(ctx, j.ID, map[string]any{
+					"event": "synthesis_fallback_to_candidate", "candidate_id": candidate.ID,
+					"archetype": p.Archetype,
+				})
 			}
 		}
 	}

@@ -68,6 +68,10 @@ type countingOllama struct {
 	// every non-planning, non-judgment phase (diverging, synthesizing).
 	// F4 follow-up tests use it to return fenced code.
 	genericContent string
+	// synthesisContent, when non-empty, overrides genericContent for the
+	// synthesizing phase. Tests use it to degrade a passing candidate and
+	// prove the synthesis fallback keeps the candidate bytes.
+	synthesisContent string
 }
 
 func newCountingOllama(t *testing.T) *countingOllama {
@@ -126,6 +130,9 @@ func newCountingOllama(t *testing.T) *countingOllama {
 		}
 		if o.genericContent != "" && phase != "PLANNING" {
 			content = o.genericContent
+		}
+		if phase == "SYNTHESIS" && o.synthesisContent != "" {
+			content = o.synthesisContent
 		}
 		// M3-T2 commit 2.4: sleep for the configured delay
 		// after reading the request body, but only if the
@@ -239,6 +246,14 @@ func (o *countingOllama) setGeneric(content string) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	o.genericContent = content
+}
+
+// setSynthesis configures only the synthesizing response, so a test can make
+// synthesis degrade a candidate that passed evaluation.
+func (o *countingOllama) setSynthesis(content string) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.synthesisContent = content
 }
 
 type testEnv struct {

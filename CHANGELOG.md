@@ -33,7 +33,13 @@ New entries are appended at the top. Do not rewrite history.
   fenced/prose-wrapped JSON value, matching the benchmark's `json_extract`, so
   the engine and the independent scorer agree. [ADR-0070 amendment](docs/adr/0070-declared-checks.md);
   proofs: `TestDataSchemaIsPinnedAndRendered`,
-  `TestDataSchema_ExtractsFencedAndProse`, `TestRun_DataArchetypePromptIncludesSchema`.
+  `TestDataSchemaExtractsFencedAndProse`, `TestRun_DataArchetypePromptIncludesSchema`.
+- **Synthesis keeps a verified candidate for every hard-verifier archetype.**
+  The ADR-0068 fallback was code-only; a text job could pass every declared
+  check at the candidate stage yet fail after synthesis, while the benchmark's
+  external check passed. The fallback now covers code tests, declared
+  text/document checks, and the data schema. [ADR-0068 amendment](docs/adr/0068-synthesis-keeps-passing-candidate.md);
+  proof: `TestSynthesizeFallsBackForDeclaredChecks`.
 
 ### First-use fixes — 2026-10-27
 
