@@ -92,6 +92,32 @@ func TestCreateRefusesWhenFrozen(t *testing.T) {
 	}
 }
 
+func TestStartProjectCreatesOneJob(t *testing.T) {
+	deps, eng := newDeps(t, nil, frozen(false))
+	res, err := Create(context.Background(), deps, Input{
+		Name: "plan-first", Archetype: "text", Goal: "Write a short project brief.",
+		Start: false,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.JobID != "" {
+		t.Fatalf("metadata create started a job: %s", res.JobID)
+	}
+	jobID, err := StartProject(context.Background(), deps, res.Project.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if jobID == "" || len(eng.ids) != 1 {
+		t.Fatalf("start = %q / enqueued %v, want one job", jobID, eng.ids)
+	}
+	// Re-approval must not create a second job.
+	again, err := StartProject(context.Background(), deps, res.Project.ID)
+	if err != nil || again != jobID || len(eng.ids) != 1 {
+		t.Errorf("repeat start = (%q, %v) / enqueued %v, want the same job", again, err, eng.ids)
+	}
+}
+
 func TestCreateDegradesOnIndexFailure(t *testing.T) {
 	idx := &fakeIndexer{err: errors.New("index unavailable")}
 	deps, eng := newDeps(t, idx, frozen(false))

@@ -67,7 +67,7 @@ func TestJobStateCheckMigration(t *testing.T) {
 	s, _ := openTemp(t)
 	db := s.DB()
 
-	if err := Migrate(db, migrationsExcept(t, "0004", "0005", "0006", "0007", "0008", "0009", "0010", "0011", "0012", "0013", "0014", "0015", "0016", "0017", "0018", "0019", "0020", "0021", "0022", "0023", "0024", "0025", "0026", "0027", "0028"), ""); err != nil {
+	if err := Migrate(db, migrationsExcept(t, "0004", "0005", "0006", "0007", "0008", "0009", "0010", "0011", "0012", "0013", "0014", "0015", "0016", "0017", "0018", "0019", "0020", "0021", "0022", "0023", "0024", "0025", "0026", "0027", "0028", "0029"), ""); err != nil {
 		t.Fatalf("migrating to v3: %v", err)
 	}
 	if got := VersionOf(t, db); got != 3 {
@@ -93,8 +93,8 @@ func TestJobStateCheckMigration(t *testing.T) {
 	if err := Migrate(db, migrations.FS, t.TempDir()); err != nil {
 		t.Fatalf("applying 0004: %v", err)
 	}
-	if got := VersionOf(t, db); got != 28 {
-		t.Fatalf("version = %d after 0004, want 28", got)
+	if got := VersionOf(t, db); got != 29 {
+		t.Fatalf("version = %d after 0004, want 29", got)
 	}
 
 	// The pre-existing job row was preserved by the copy.
@@ -190,7 +190,7 @@ func TestJobStateCheckMigrationRejectsDirtyState(t *testing.T) {
 	s, _ := openTemp(t)
 	db := s.DB()
 
-	if err := Migrate(db, migrationsExcept(t, "0004", "0005", "0006", "0007", "0008", "0009", "0010", "0011", "0012", "0013", "0014", "0015", "0016", "0017", "0018", "0019", "0020", "0021", "0022", "0023", "0024", "0025", "0026", "0027", "0028"), ""); err != nil {
+	if err := Migrate(db, migrationsExcept(t, "0004", "0005", "0006", "0007", "0008", "0009", "0010", "0011", "0012", "0013", "0014", "0015", "0016", "0017", "0018", "0019", "0020", "0021", "0022", "0023", "0024", "0025", "0026", "0027", "0028", "0029"), ""); err != nil {
 		t.Fatalf("migrating to v3: %v", err)
 	}
 	if _, err := db.Exec(

@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -18,6 +19,7 @@ import (
 	"github.com/tcs76321/athanor/internal/decompose"
 	"github.com/tcs76321/athanor/internal/firstuse"
 	"github.com/tcs76321/athanor/internal/hitl"
+	"github.com/tcs76321/athanor/internal/interview"
 	"github.com/tcs76321/athanor/internal/job"
 	"github.com/tcs76321/athanor/internal/project"
 	"github.com/tcs76321/athanor/internal/store"
@@ -94,6 +96,15 @@ type TaskResetter interface {
 	Reset(ctx context.Context, taskID string) ([]string, error)
 }
 
+// Interview is the F3 project interview surface. The concrete implementation
+// is *interview.Repo.
+type Interview interface {
+	Ensure(ctx context.Context, projectID string, questions []interview.Question) (interview.Interview, error)
+	Get(ctx context.Context, projectID string) (interview.Interview, bool, error)
+	SaveAnswers(ctx context.Context, projectID string, answers map[string]string, plan string) (interview.Interview, error)
+	Decide(ctx context.Context, projectID, status string) (interview.Interview, error)
+}
+
 // HITL is the surface the M6-T4 queue routes use (ADR-0035). The concrete
 // implementation is *hitl.Service.
 type HITL interface {
@@ -167,6 +178,7 @@ type API struct {
 	scheduler   Scheduler
 	resetter    TaskResetter
 	hitl        HITL
+	interview   Interview
 	pusher      Pusher
 	corrections Corrections
 	strategy    Strategy
@@ -234,6 +246,10 @@ func (a *API) SetTaskResetter(r TaskResetter) { a.resetter = r }
 // wire one answers 503 on the queue routes.
 func (a *API) SetHITL(h HITL) { a.hitl = h }
 
+// SetInterview wires the F3 project interview. A daemon without one answers
+// 503 on the interview routes.
+func (a *API) SetInterview(i Interview) { a.interview = i }
+
 // SetPusher wires the M6-T5 push-request path (ADR-0036). A daemon that does
 // not wire one answers 503 on POST /projects/{id}/push.
 func (a *API) SetPusher(p Pusher) { a.pusher = p }
@@ -264,6 +280,10 @@ func (a *API) SetAlarms(s Alarms) { a.alarms = s }
 func (a *API) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /projects", a.handleProjectCreate)
 	mux.HandleFunc("GET /projects/{id}", a.handleProjectGet)
+	mux.HandleFunc("GET /projects/{id}/interview", a.handleInterview)
+	mux.HandleFunc("POST /projects/{id}/interview", a.handleInterviewSave)
+	mux.HandleFunc("POST /projects/{id}/interview/approve", a.handleInterviewApprove)
+	mux.HandleFunc("POST /projects/{id}/interview/skip", a.handleInterviewSkip)
 	mux.HandleFunc("POST /projects/{id}/goals", a.handleGoalSubmit)
 	mux.HandleFunc("GET /projects/{id}/artifacts", a.handleArtifacts)
 	mux.HandleFunc("GET /jobs/{id}", a.handleJobGet)
@@ -419,6 +439,109 @@ func (a *API) handleProjectCreate(w http.ResponseWriter, r *http.Request) {
 		Goal: res.Project.Goal, RepositoryPath: res.Project.RepositoryPath,
 		TaskID: res.Task.ID, JobID: res.JobID,
 		Index: index, IndexWarning: res.IndexWarning,
+	})
+}
+
+// firstUseDeps builds the shared create/start dependencies.
+func (a *API) firstUseDeps() firstuse.Deps {
+	return firstuse.Deps{
+		Projects: a.projects, Jobs: a.jobs, Engine: a.engine,
+		Events: a.db, Freezer: a.freezer,
+	}
+}
+
+func (a *API) firstTask(ctx context.Context, projectID string) (project.Task, error) {
+	tasks, err := a.projects.TasksByProject(ctx, projectID)
+	if err != nil {
+		return project.Task{}, err
+	}
+	if len(tasks) == 0 {
+		return project.Task{}, fmt.Errorf("project has no task")
+	}
+	return tasks[0], nil
+}
+
+func (a *API) handleInterview(w http.ResponseWriter, r *http.Request) {
+	if a.interview == nil {
+		writeError(w, http.StatusServiceUnavailable, "project interview is not configured")
+		return
+	}
+	p, err := a.projects.Get(r.Context(), r.PathValue("id"))
+	if err != nil {
+		writeError(w, http.StatusNotFound, err.Error())
+		return
+	}
+	in, err := a.interview.Ensure(r.Context(), p.ID, interview.Questions(p.Archetype))
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, in)
+}
+
+type interviewSaveRequest struct {
+	Answers map[string]string `json:"answers"`
+}
+
+func (a *API) handleInterviewSave(w http.ResponseWriter, r *http.Request) {
+	if a.interview == nil {
+		writeError(w, http.StatusServiceUnavailable, "project interview is not configured")
+		return
+	}
+	p, err := a.projects.Get(r.Context(), r.PathValue("id"))
+	if err != nil {
+		writeError(w, http.StatusNotFound, err.Error())
+		return
+	}
+	task, err := a.firstTask(r.Context(), p.ID)
+	if err != nil {
+		writeError(w, http.StatusConflict, err.Error())
+		return
+	}
+	var req interviewSaveRequest
+	if !decodeBody(w, r, &req) {
+		return
+	}
+	questions := interview.Questions(p.Archetype)
+	plan := interview.BuildPlan(interview.PlanInput{
+		Name: p.Name, Archetype: p.Archetype, Goal: p.Goal,
+		Criteria: task.Criteria, TestCommand: p.TestCommand(),
+		Answers: req.Answers, Questions: questions,
+	})
+	in, err := a.interview.SaveAnswers(r.Context(), p.ID, req.Answers, plan)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, in)
+}
+
+func (a *API) handleInterviewApprove(w http.ResponseWriter, r *http.Request) {
+	a.handleInterviewDecision(w, r, interview.StatusApproved)
+}
+
+func (a *API) handleInterviewSkip(w http.ResponseWriter, r *http.Request) {
+	a.handleInterviewDecision(w, r, interview.StatusSkipped)
+}
+
+func (a *API) handleInterviewDecision(w http.ResponseWriter, r *http.Request, status string) {
+	if a.interview == nil {
+		writeError(w, http.StatusServiceUnavailable, "project interview is not configured")
+		return
+	}
+	projectID := r.PathValue("id")
+	in, err := a.interview.Decide(r.Context(), projectID, status)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	jobID, err := firstuse.StartProject(r.Context(), a.firstUseDeps(), projectID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"interview": in, "job_id": jobID,
 	})
 }
 

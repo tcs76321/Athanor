@@ -12,6 +12,7 @@ import (
 	"github.com/tcs76321/athanor/internal/control"
 	"github.com/tcs76321/athanor/internal/engine"
 	"github.com/tcs76321/athanor/internal/evaluation"
+	"github.com/tcs76321/athanor/internal/interview"
 	"github.com/tcs76321/athanor/internal/job"
 	"github.com/tcs76321/athanor/internal/llm"
 	"github.com/tcs76321/athanor/internal/power"
@@ -84,6 +85,7 @@ func newHarness(t *testing.T) *harness {
 	srv := server.New("test")
 	srv.SetControl(freezer)
 	apiServer := New(projects, jobs, artifacts, eng, freezer, st)
+	apiServer.SetInterview(interview.NewRepo(st))
 	apiServer.Register(srv.Mux())
 	// Disable the ADR-0011 Host-header allowlist for
 	// tests that are not about the middleware. The

@@ -42,6 +42,15 @@ New entries are appended at the top. Do not rewrite history.
   [ADR-0083](docs/adr/0083-repository-working-set-pack.md); proofs:
   `TestRepositoryWorkingSetIsPinnedAndDeduped`,
   `TestWorkingSetIsAutoForCodeOnly`, `TestContextProviderWorkingSet`.
+- **Project interview + plan gate (F3 first slice).** A metadata-only project
+  has a resumable, archetype-specific interview and a deterministic plan built
+  from the goal, criteria, test command, and answers. The first job starts only
+  on approve or skip; re-approval reuses the existing job. API
+  (`/projects/{id}/interview`) and UI
+  (`/ui/projects/{id}/interview`) share the state. Migration 0029 adds
+  `project_interviews`. [ADR-0088](docs/adr/0088-project-interview-plan-gate.md);
+  proofs: `TestInterviewIsResumableAndApproves`,
+  `TestInterviewPlanApprovalStartsWork`, `TestProjectInterviewPage`.
 - **A code prompt includes the verification command.** The resolved test
   command is rendered in the pinned task section, so a test that imports
   `migrator.py` no longer hides the required module name from the model. This

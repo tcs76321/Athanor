@@ -122,9 +122,30 @@ const newProjectBody = `
 <p class="muted">A repository-backed code project is indexed once before the first job. The full pass remains available through the CLI.</p>
 `
 
+const interviewBody = `
+<h1>Plan: {{.Project.Name}}</h1>
+<p class="muted">{{.Project.Goal}}</p>
+<p>Status: <b>{{.Interview.Status}}</b></p>
+<h2>Clarify (optional, resumable)</h2>
+<form method="post" action="/ui/projects/{{.Project.ID}}/interview">
+{{range .Questions}}
+<div><label>{{.Prompt}}<br><textarea name="{{.ID}}" rows="2" cols="80">{{index $.Answers .ID}}</textarea></label>
+{{if .Help}}<span class="muted">{{.Help}}</span>{{end}}</div>
+{{end}}
+<button>Save answers and build plan</button>
+</form>
+<h2>Plan</h2>
+{{if .Plan}}<pre>{{.Plan}}</pre>{{else}}<p class="muted">Answer the questions and save, or skip the interview to use the goal and criteria as the plan.</p>{{end}}
+<h2>Decision</h2>
+<form method="post" action="/ui/projects/{{.Project.ID}}/interview/approve"><button>Approve plan and start work</button></form>
+<form method="post" action="/ui/projects/{{.Project.ID}}/interview/skip"><button>Skip interview and start work</button></form>
+<p><a href="/ui/projects/{{.Project.ID}}">back to project</a></p>
+`
+
 const projectBody = `
 <h1>{{.Project.Name}} <span class="muted">({{.Project.Archetype}})</span></h1>
 <p class="muted">{{.Project.Goal}}</p>
+<p><a href="/ui/projects/{{.Project.ID}}/interview">Plan / interview</a></p>
 <h2>New goal</h2>
 <form method="post" action="/ui/projects/{{.Project.ID}}/goals">
 <div><label>goal <textarea name="goal" rows="3" cols="80" minlength="20" maxlength="500" required></textarea></label></div>

@@ -61,6 +61,36 @@ type Input struct {
 	Start          bool
 }
 
+// StartProject starts the first task that has no job yet. It is the F3
+// approval path: the project and task were created metadata-only, and the
+// operator has now approved (or skipped) the plan. A project whose task already
+// has a job returns that job instead of creating a duplicate.
+func StartProject(ctx context.Context, deps Deps, projectID string) (string, error) {
+	tasks, err := deps.Projects.TasksByProject(ctx, projectID)
+	if err != nil {
+		return "", err
+	}
+	if len(tasks) == 0 {
+		return "", errors.New("firstuse: project has no task to start")
+	}
+	t := tasks[0]
+	existing, err := deps.Jobs.ByTask(ctx, t.ID)
+	if err != nil {
+		return "", err
+	}
+	if len(existing) > 0 {
+		return existing[0].ID, nil
+	}
+	j, err := deps.Jobs.Create(ctx, t.ID, t.ProjectID)
+	if err != nil {
+		return "", fmt.Errorf("creating first job: %w", err)
+	}
+	if deps.Engine != nil {
+		deps.Engine.Enqueue(j.ID)
+	}
+	return j.ID, nil
+}
+
 // Result is the created project/task plus the optional pre-index outcome.
 type Result struct {
 	Project      project.Project

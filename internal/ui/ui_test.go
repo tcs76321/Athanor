@@ -15,6 +15,7 @@ import (
 	"github.com/tcs76321/athanor/internal/corrections"
 	"github.com/tcs76321/athanor/internal/hitl"
 	"github.com/tcs76321/athanor/internal/interruptions"
+	"github.com/tcs76321/athanor/internal/interview"
 	"github.com/tcs76321/athanor/internal/job"
 	"github.com/tcs76321/athanor/internal/project"
 	"github.com/tcs76321/athanor/internal/store"
@@ -106,8 +107,9 @@ func setup(t *testing.T) *fixtures {
 	eng := &fakeEngine{}
 	webUI := New(Deps{
 		Store: s, Projects: projects, Jobs: jobs, Artifacts: arts,
-		Corrections: corrRepo, HITL: hitlSvc, Interruptions: interRepo,
-		Freezer: fakeFreezer{}, Engine: eng, DefaultTTL: time.Hour,
+		Corrections: corrRepo, HITL: hitlSvc, Interviews: interview.NewRepo(s),
+		Interruptions: interRepo,
+		Freezer:       fakeFreezer{}, Engine: eng, DefaultTTL: time.Hour,
 	})
 	mux := http.NewServeMux()
 	webUI.Register(mux)
@@ -169,6 +171,21 @@ func TestProjectTitleEscaped(t *testing.T) {
 	}
 	if !strings.Contains(body, "&lt;script&gt;") {
 		t.Fatal("project name was not HTML-escaped in the rendered title")
+	}
+}
+
+// TestProjectInterviewPage proves the F3 page renders the questions and the
+// approval path; the API test covers the state transition.
+func TestProjectInterviewPage(t *testing.T) {
+	fx := setup(t)
+	status, body := get(t, fx.ts.URL+"/ui/projects/"+fx.project.ID+"/interview")
+	if status != http.StatusOK {
+		t.Fatalf("status = %d, want 200", status)
+	}
+	for _, want := range []string{"Plan:", "Save answers", "Approve plan", "Skip interview"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("interview page missing %q\n%s", want, body)
+		}
 	}
 }
 

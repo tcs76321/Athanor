@@ -28,6 +28,7 @@ import (
 	"github.com/tcs76321/athanor/internal/internalapi"
 	"github.com/tcs76321/athanor/internal/internalapi/runner"
 	"github.com/tcs76321/athanor/internal/interruptions"
+	"github.com/tcs76321/athanor/internal/interview"
 	"github.com/tcs76321/athanor/internal/job"
 	"github.com/tcs76321/athanor/internal/jobpod"
 	"github.com/tcs76321/athanor/internal/llm"
@@ -359,6 +360,7 @@ func run(configPath, addr, stateDir string, container bool) error {
 	// known-issues H8: the operator reset seam behind POST /tasks/{id}/reset.
 	externalAPI.SetTaskResetter(sched)
 	externalAPI.SetHITL(hitlSvc)
+	externalAPI.SetInterview(interview.NewRepo(st))
 	externalAPI.SetPusher(gitPusher{projects: projectRepo, hitl: hitlRepo})
 	externalAPI.SetCorrections(correctionsRepo)
 	externalAPI.SetStrategy(strategyRepo)
@@ -385,6 +387,7 @@ func run(configPath, addr, stateDir string, container bool) error {
 	webUI := ui.New(ui.Deps{
 		Store: st, Projects: projectRepo, Jobs: job.NewRepository(st),
 		Artifacts: artifactStore, Corrections: correctionsRepo, HITL: hitlSvc,
+		Interviews:    interview.NewRepo(st),
 		Interruptions: interruptionsRepo, Strategy: strategyRepo,
 		Freezer: killSwitch, Engine: eng, Indexer: indexer,
 		DefaultTTL: cfg.HITL.DefaultTTL.D(),

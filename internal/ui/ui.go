@@ -24,6 +24,7 @@ import (
 	"github.com/tcs76321/athanor/internal/firstuse"
 	"github.com/tcs76321/athanor/internal/hitl"
 	"github.com/tcs76321/athanor/internal/interruptions"
+	"github.com/tcs76321/athanor/internal/interview"
 	"github.com/tcs76321/athanor/internal/job"
 	"github.com/tcs76321/athanor/internal/project"
 	"github.com/tcs76321/athanor/internal/store"
@@ -60,6 +61,7 @@ type Deps struct {
 	Artifacts     *artifact.Store
 	Corrections   *corrections.Repo
 	HITL          *hitl.Service
+	Interviews    *interview.Repo
 	Interruptions *interruptions.Repo
 	Strategy      *strategy.Repo
 	Freezer       Freezer
@@ -95,6 +97,10 @@ func (u *UI) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /ui/projects/new", u.handleNewProject)
 	mux.HandleFunc("POST /ui/projects", u.handleProjectCreate)
 	mux.HandleFunc("GET /ui/projects/{id}", u.handleProject)
+	mux.HandleFunc("GET /ui/projects/{id}/interview", u.handleInterviewPage)
+	mux.HandleFunc("POST /ui/projects/{id}/interview", u.handleInterviewSave)
+	mux.HandleFunc("POST /ui/projects/{id}/interview/approve", u.handleInterviewApprove)
+	mux.HandleFunc("POST /ui/projects/{id}/interview/skip", u.handleInterviewSkip)
 	mux.HandleFunc("POST /ui/projects/{id}/goals", u.handleGoalCreate)
 	mux.HandleFunc("POST /ui/projects/{id}/corrections", u.handleCorrectionCreate)
 	mux.HandleFunc("GET /ui/corrections", u.handleCorrections)
@@ -287,6 +293,94 @@ func (u *UI) handleProject(w http.ResponseWriter, r *http.Request) {
 	u.render(w, "Project "+p.Name, projectBody, map[string]any{
 		"Project": p, "Artifacts": arts, "Corrections": corr,
 	})
+}
+
+// interviewState loads the project, its first task, and the resumable
+// interview row. The plan is generated only when the operator saves answers;
+// this page can be revisited at any time.
+func (u *UI) interviewState(ctx context.Context, projectID string) (project.Project, project.Task, interview.Interview, error) {
+	if u.deps.Interviews == nil {
+		return project.Project{}, project.Task{}, interview.Interview{}, fmt.Errorf("project interview is not configured")
+	}
+	p, err := u.deps.Projects.Get(ctx, projectID)
+	if err != nil {
+		return project.Project{}, project.Task{}, interview.Interview{}, err
+	}
+	tasks, err := u.deps.Projects.TasksByProject(ctx, projectID)
+	if err != nil {
+		return project.Project{}, project.Task{}, interview.Interview{}, err
+	}
+	if len(tasks) == 0 {
+		return project.Project{}, project.Task{}, interview.Interview{}, fmt.Errorf("project has no task")
+	}
+	in, err := u.deps.Interviews.Ensure(ctx, projectID, interview.Questions(p.Archetype))
+	return p, tasks[0], in, err
+}
+
+func (u *UI) handleInterviewPage(w http.ResponseWriter, r *http.Request) {
+	p, task, in, err := u.interviewState(r.Context(), r.PathValue("id"))
+	if err != nil {
+		u.fail(w, err)
+		return
+	}
+	u.render(w, "Plan "+p.Name, interviewBody, map[string]any{
+		"Project": p, "Task": task, "Interview": in,
+		"Questions": in.Questions, "Plan": in.Plan, "Answers": in.Answers,
+	})
+}
+
+func (u *UI) handleInterviewSave(w http.ResponseWriter, r *http.Request) {
+	p, task, in, err := u.interviewState(r.Context(), r.PathValue("id"))
+	if err != nil {
+		u.fail(w, err)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		u.fail(w, err)
+		return
+	}
+	answers := map[string]string{}
+	for _, q := range in.Questions {
+		if v := strings.TrimSpace(r.FormValue(q.ID)); v != "" {
+			answers[q.ID] = v
+		}
+	}
+	plan := interview.BuildPlan(interview.PlanInput{
+		Name: p.Name, Archetype: p.Archetype, Goal: p.Goal,
+		Criteria: task.Criteria, TestCommand: p.TestCommand(),
+		Answers: answers, Questions: in.Questions,
+	})
+	if _, err := u.deps.Interviews.SaveAnswers(r.Context(), p.ID, answers, plan); err != nil {
+		u.fail(w, err)
+		return
+	}
+	http.Redirect(w, r, "/ui/projects/"+p.ID+"/interview", http.StatusSeeOther)
+}
+
+func (u *UI) handleInterviewApprove(w http.ResponseWriter, r *http.Request) {
+	u.decideInterview(w, r, interview.StatusApproved)
+}
+
+func (u *UI) handleInterviewSkip(w http.ResponseWriter, r *http.Request) {
+	u.decideInterview(w, r, interview.StatusSkipped)
+}
+
+func (u *UI) decideInterview(w http.ResponseWriter, r *http.Request, status string) {
+	projectID := r.PathValue("id")
+	if _, err := u.deps.Interviews.Decide(r.Context(), projectID, status); err != nil {
+		u.fail(w, err)
+		return
+	}
+	deps := firstuse.Deps{
+		Projects: u.deps.Projects, Jobs: u.deps.Jobs, Engine: u.deps.Engine,
+		Events: u.deps.Store, Freezer: u.deps.Freezer,
+	}
+	jobID, err := firstuse.StartProject(r.Context(), deps, projectID)
+	if err != nil {
+		u.fail(w, err)
+		return
+	}
+	http.Redirect(w, r, "/ui/jobs/"+jobID, http.StatusSeeOther)
 }
 
 // handleGoalCreate submits a follow-up goal to an existing project from the
