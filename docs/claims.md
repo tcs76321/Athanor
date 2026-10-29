@@ -38,6 +38,7 @@ demo. A claim without a proof is either removed or marked as a target.
 | API and UI share one project-create/pre-index path | P2-0 | `internal/firstuse`; `TestCreateRunsPreindexThenStartsTheJob`; API/UI adapter tests remain green | **proven** |
 | A project can be clarified and planned before its first job | ADR-0088 | `internal/interview`; `TestInterviewPlanApprovalStartsWork`; `TestProjectInterviewPage` | **proven** |
 | Accepted artifacts can be reviewed with provenance | ADR-0089 | `internal/review`; `TestArtifactReviewRoundTrip`; UI artifact page review form | **proven** |
+| A release is checksummed and the installer verifies it | `docs/install-release.md` | `scripts/release.sh`; `scripts/install-release.sh -check-only`; local tarball run 2026-10-29 | **proven for SHA-256; signatures are 1.0.0** |
 | The benchmark reports MCE mechanism metrics | ADR-0075 | `tools/bench/telemetry.go` (dormant rows, working-set chunks/bytes, memory hits, compactions, kv warn/critical); `TestFillTelemetry` | **instrumented; full-run report pending** |
 | The working-set pack improves repo-scale X-code | ADR-0083 | host diagnostic **4/6**; clean Core Pod rerun **3/6** (vs 0/6 in v2), 45 chunks / 12.4 KiB injected; [findings](probes/bench-xcode-p0.md) | **directional; one model, one pass** |
 | A code prompt includes the verification command | ADR-0065, P0 fairness | `internal/prompt` (`Task.TestCommand`); `TestTaskContextShowsVerificationCommand`; `TestRun_CodeArchetypeUsesConfiguredTestCommand` | **proven** |

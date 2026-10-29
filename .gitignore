@@ -12,6 +12,7 @@
 
 # Compiled daemon
 /bin/
+/dist/
 
 # Coverage output (make cover)
 /cover.out

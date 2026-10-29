@@ -15,10 +15,15 @@ export CGO_ENABLED
 # tag-less binary can never silently run.
 GO_TAGS = -tags sqlite_fts5
 
-.PHONY: build test test-race test-integration integration-images vet lint check vuln tidy tidy-check fuzz cover cover-check run clean hooks bench probe-micro probe probe-judge probe-anchor probe-report probe-bundle probe-reconcile probe-measure jobpod-image core-image core-smoke bench-core-focused install soak soak-mini soak-ladder
+.PHONY: build release test test-race test-integration integration-images vet lint check vuln tidy tidy-check fuzz cover cover-check run clean hooks bench probe-micro probe probe-judge probe-anchor probe-report probe-bundle probe-reconcile probe-measure jobpod-image core-image core-smoke bench-core-focused install soak soak-mini soak-ladder
 
 build:
 	go build $(GO_TAGS) -o bin/athanor ./cmd/athanor
+
+# Host-native release tarball + SHA256SUMS (F8 first slice). Build each OS/arch
+# on its own runner; see scripts/release.sh.
+release:
+	VERSION=$(VERSION) sh scripts/release.sh
 
 # Job Pod base image (M7-T7). Build once per machine; set job_pod.image to
 # $(JOBPOD_IMAGE) in config.yaml. Hardened at run time by the pod manager.

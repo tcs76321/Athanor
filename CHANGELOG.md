@@ -42,6 +42,11 @@ New entries are appended at the top. Do not rewrite history.
   [ADR-0083](docs/adr/0083-repository-working-set-pack.md); proofs:
   `TestRepositoryWorkingSetIsPinnedAndDeduped`,
   `TestWorkingSetIsAutoForCodeOnly`, `TestContextProviderWorkingSet`.
+- **Checksummed release + install path (F8 first slice).** `make release` builds
+  a host-native tarball and `SHA256SUMS`; `install-release.sh` verifies the
+  checksum before installing, writes the Core config, checks/pulls the images,
+  and starts the Core Pod. `-check-only` is the release smoke. Signatures and
+  auto-update remain 1.0.0 distribution work. [install-release.md](docs/install-release.md).
 - **Artifact review queue (F4 first slice).** Accepted artifacts can be reviewed
   with a score, rubric, note, and provenance; the blinded queue lists accepted
   artifacts with no review. API and artifact page share the store. Migration
