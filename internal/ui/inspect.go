@@ -531,7 +531,7 @@ func (u *UI) handleRuntime(w http.ResponseWriter, r *http.Request) {
 	u.render(w, "Runtime", runtimeBody, map[string]any{
 		"Personas": personas, "Budget": bstatus, "HasBudget": hasBudget,
 		"Alarms": alarms, "Decisions": decisions, "Counts": counts,
-		"State": state, "Quarantine": quarantine,
+		"State": state, "Quarantine": quarantine, "Config": u.deps.Config,
 		"ConfigPath": configPath(u.deps.Config), "Tab": "runtime",
 	})
 }

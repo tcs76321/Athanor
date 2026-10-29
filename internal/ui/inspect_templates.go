@@ -372,5 +372,10 @@ const runtimeBody = inspectTabs + `
 </tbody></table>
 {{else}}<div class="empty">No per-job state rows.</div>{{end}}
 
+<h2>Effective configuration</h2>
+{{if .Config}}
+<details><summary>show all values</summary><pre>{{tojson .Config}}</pre></details>
+{{else}}<div class="empty">Configuration is not available to the UI.</div>{{end}}
+
 {{if .ConfigPath}}<p class="muted">config: <code>{{.ConfigPath}}</code></p>{{end}}
 `
