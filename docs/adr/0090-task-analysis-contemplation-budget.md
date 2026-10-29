@@ -2,9 +2,10 @@
 
 **Status:** Proposed — first slice not implemented · **Date:** 2026-10-29 ·
 **Refs:** ARCHITECTURE §8.2 (state rules), §13.1 Phase 1 (planning), §19.3
-(comparison); [ADR-0044](0044-compute-policy-seam.md) (compute-policy seam),
-[ADR-0064](0064-cognitive-operations.md) (operation vocabulary),
-[ADR-0074](0074-attempt-escalation.md) (attempt escalation);
+(comparison), §24 (power and idle policy); [ADR-0044](0044-compute-policy-seam.md)
+(compute-policy seam), [ADR-0064](0064-cognitive-operations.md) (operation
+vocabulary), [ADR-0074](0074-attempt-escalation.md) (attempt escalation),
+[ADR-0077](0077-two-day-cycle.md) (continuous operation);
 `docs/qualification-smoke-m9.md` (planner self-assessment),
 `docs/probes/gf4-closeout.md` (level-based thinking),
 `docs/probes/m3-t7-quality-probe.md` (runaway reasoning).
@@ -39,6 +40,15 @@ Three measured findings constrain any design here:
 So neither "always think" nor "let the planner decide" is safe. The loop needs a
 budget it can spend on evidence and revise when the evidence changes — including
 the case where the task looked easy and only later proves wrong.
+
+**A soak is a measurement instrument, not the operating mode.** Real Athanor runs
+overnight as a stream of interleaved jobs — interactive work, memory
+consolidation, indexing, daydreaming — under sleep/wake and power policy. A soak
+is a bounded batch of independent jobs with a fixed pass count and a wall-clock
+cap, so a design that treats the job as the top-level budget can look correct in
+a soak and be unbounded in a night. This ADR therefore scopes contemplation
+inside a **horizon** budget (see item 11); the per-job allowance below is an
+allocation, not a fresh pot.
 
 ## Decision
 
@@ -80,7 +90,11 @@ the case where the task looked easy and only later proves wrong.
    | `refine(unit)` | failure is attributed to a unit that has not been refined |
    | `reframe` | the same failure signature repeated, or the failure is frame-level |
    | `probe` | the failure reason is ambiguous; run the cheapest check first |
-   | `terminate` | budget exhausted, or no progress across iterations |
+   | `defer` | the horizon budget is spent right now; keep the state and resume later |
+   | `abandon` | effort is exhausted or the frame is wrong and out of budget; fail with a reason |
+
+   `defer` and `abandon` are different outcomes. A job that runs out of *night*
+   is not a failed job; a job that runs out of *ideas* is.
 
 6. **Refine is capped; then reframe.** At most one `refine` per unit per job.
    A second identical failure is evidence the frame is wrong, and more thinking
@@ -111,6 +125,28 @@ the case where the task looked easy and only later proves wrong.
     `contemplation_spend`, and `regulator_decision` events record the unit,
     decision, reason, and tokens, so the spend can be attributed after the fact.
 
+11. **Budget scope is horizon-first.** Contemplation draws from three nested
+    scopes, and only the outermost is a real limit:
+
+    | Scope | Controls | Refills |
+    |---|---|---|
+    | per call | `max_output_tokens`, phase wall time | new call |
+    | per job | deliberate units, attempts, reflection | new job |
+    | **per horizon** | tokens, wall time, energy across all jobs | time (a night, a day, a week) |
+
+    A job's allowance is **allocated from** the remaining horizon budget; it is
+    never an independent pot. The horizon budget is a rate plus a reserve, not a
+    single number: an interactive reserve that background work may not touch,
+    a background share that may be preempted, and an absolute ceiling that is
+    raised only by an explicit operator action or an earned, bounded grant. It
+    never compounds automatically.
+
+    When the horizon budget is spent, background and daydream work **defers**
+    (state kept, requeued later); interactive work may ask the operator to
+    extend. Exhaustion is not a job failure. The horizon budget itself — fields,
+    defaults, preemption, and accounting — is a separate decision, because it
+    governs indexing and daydreaming too, not only contemplation.
+
 ## First slice
 
 | Step | Change | Behavior |
@@ -123,13 +159,16 @@ the case where the task looked easy and only later proves wrong.
 
 Tests required by S1/S2: analysis parse and fail-safe single unit; default
 `direct`; judgment exemption; `refine` once then `reframe` on a repeated
-signature; budget exhaustion terminates with a reason; a resumed job keeps its
-spent budget; `think: off` produces byte-identical request flags to today.
+signature; horizon exhaustion **defers** while effort exhaustion **abandons**; a
+resumed job keeps its spent allocation; `think: off` produces byte-identical
+request flags to today.
 
 Metrics to report before any claim: deliberate-unit spend per job, refine→pass
 rate, reframe→pass rate, and **wasted deliberation** (deliberate units that were
 already correct). A policy that thinks more and passes the same tasks is a cost
-regression, not an improvement.
+regression, not an improvement. Across a night, the metric is accepted outcomes
+per unit of horizon budget, plus interactive latency — not pass rate on a fixed
+six-task slice.
 
 ## Consequences
 
@@ -148,12 +187,22 @@ regression, not an improvement.
 - The regulator stays deterministic: a pure classification over the analysis,
   the verifier reasons, the failure signature, and the remaining budget. No
   extra model call is needed to decide.
+- **A per-job allowance is not a budget.** Without the horizon layer, a long
+  night multiplies the allowance by the job count and the policy looks cheaper
+  than it is. S1 must read the horizon allocation before it grants anything;
+  implementing S1 against a job-local counter would bake in the soak shape.
+- The frozen corpus remains the compass, not the objective. A change that helps
+  six X-code jobs but starves overnight interactive work is a regression even if
+  the corpus pass rate rises.
 
 ## Alternatives rejected
 
 - **A separate reasoning axis on the plan, alongside candidates and reflection.**
   It cannot express "this part needs it and that part does not," and it makes the
   budget a decision instead of a resource the loop spends and revises.
+- **The job as the top-level budget.** It is the soak's unit, not the product's.
+  A night of jobs would each get a fresh allowance, and budget exhaustion would
+  read as failure instead of deferral.
 - **Always-on thinking.** Known empty-output and cost failure modes (M3-T7,
   G-F4); no termination signal.
 - **The planner's budget is authoritative.** M9-T2b shows weak planners

@@ -15,9 +15,12 @@ New entries are appended at the top. Do not rewrite history.
 - **Task analysis sets a contemplation budget the loop revises.** Proposed
   [ADR-0090](docs/adr/0090-task-analysis-contemplation-budget.md): Phase 1
   emits units, per-unit `direct`/`deliberate`, and a falsifier; the evaluation
-  checkpoint settles, refines, reframes, probes, or terminates; refine is capped
-  at one per unit, after which a repeated failure changes the frame rather than
-  the reasoning allowance. Not implemented; inert until `inference.think: auto`.
+  checkpoint settles, refines, reframes, probes, defers, or abandons; refine is
+  capped at one per unit, after which a repeated failure changes the frame rather
+  than the reasoning allowance. The per-job allowance is allocated from a
+  horizon budget, not a fresh pot, and horizon exhaustion defers instead of
+  failing — the soak is a measurement instrument, not the operating mode. Not
+  implemented; inert until `inference.think: auto`.
 
 ### P0 reliability — 2026-10-28
 
