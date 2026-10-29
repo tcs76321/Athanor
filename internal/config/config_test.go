@@ -924,7 +924,7 @@ func TestUnenforcedKnobRejected(t *testing.T) {
 		yaml string
 		name string
 	}{
-		{"version: 2\nlimits:\n  max_tasks_per_hour: 5\n", "limits.max_tasks_per_hour"},
+		{"version: 2\nlimits:\n  max_total_recoveries_per_job: 5\n", "limits.max_total_recoveries_per_job"},
 		{"version: 2\nrecovery:\n  max_context_compactions: 9\n", "recovery.max_context_compactions"},
 		{"version: 2\nagent:\n  max_proactive_tasks_per_day: 3\n", "agent.max_proactive_tasks_per_day"},
 		{"version: 2\nnetwork:\n  browser_mode_requires_approval: false\n", "network.browser_mode_requires_approval"},

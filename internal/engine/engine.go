@@ -42,6 +42,7 @@ import (
 	"time"
 
 	"github.com/tcs76321/athanor/internal/artifact"
+	"github.com/tcs76321/athanor/internal/budget"
 	"github.com/tcs76321/athanor/internal/config"
 	"github.com/tcs76321/athanor/internal/corrections"
 	"github.com/tcs76321/athanor/internal/evaluation"
@@ -231,6 +232,9 @@ type Engine struct {
 	// policy is the F4-T1 compute/model-selection seam (ADR-0044). nil uses
 	// policy.Default, which reproduces pre-F4 behavior exactly.
 	policy policy.Policy
+	// horizon is the ADR-0091 budget ledger. nil disables accounting, which
+	// is the pre-ledger behavior.
+	horizon *budget.Ledger
 	// history is the F4-T2 outcome-history seam: recent per-archetype
 	// outcome statistics feed the policy's familiarity signal. nil leaves
 	// the signal absent (the criteria heuristic still applies).
@@ -357,6 +361,10 @@ func (e *Engine) SetStrategyInsightSource(s StrategyInsightSource) { e.insights 
 // SetPolicy wires the F4-T1 compute/model-selection seam (ADR-0044). A nil
 // policy uses policy.Default, so behavior is unchanged until one is set.
 func (e *Engine) SetPolicy(p policy.Policy) { e.policy = p }
+
+// SetBudgetLedger wires the ADR-0091 horizon ledger. A nil ledger, or disabled
+// budget settings, leaves admission unchanged.
+func (e *Engine) SetBudgetLedger(l *budget.Ledger) { e.horizon = l }
 
 // StrategyHistory is the F4-T2 history seam: recent per-archetype outcome
 // statistics so the policy can treat a familiar task class as easy. A nil
@@ -787,6 +795,23 @@ func (e *Engine) EnqueueContext(ctx context.Context, jobID string) {
 			delete(e.cancelled, jobID)
 			e.cancelMu.Unlock()
 		}()
+		// ADR-0091: reserve the horizon grant before competing for a slot, so
+		// a deferred job waits without holding the single execution slot.
+		if j, err := e.jobs.Get(ctx, jobID); err == nil && j.State == job.StateQueued {
+			for {
+				ok, wait := e.admitHorizon(ctx, jobID)
+				if ok {
+					break
+				}
+				timer := time.NewTimer(wait)
+				select {
+				case <-ctx.Done():
+					timer.Stop()
+					return
+				case <-timer.C:
+				}
+			}
+		}
 		for {
 			if ctx.Err() != nil {
 				return
@@ -969,6 +994,9 @@ func (e *Engine) Run(ctx context.Context, jobID string) {
 				// keeps `system_state` bounded while a paused job keeps
 				// its suppression for the resume.
 				e.clearJobScratch(ctx, jobID)
+				// ADR-0091: close the horizon grant with actual spend before
+				// any teardown that can block.
+				e.settleHorizon(ctx, jobID)
 				// M6-T10 (§13.3): capture the immutable outcome before any
 				// teardown that can block. stopPod can take seconds on a real
 				// pod, and an offline collector must never observe a terminal
@@ -982,6 +1010,15 @@ func (e *Engine) Run(ctx context.Context, jobID string) {
 				e.stopPod(ctx, jobID)
 			}
 			return
+		}
+
+		// ADR-0091: a direct Run (Recover, tests) may not have gone through
+		// Enqueue's admission. Reserve before the first phase; a deferred job
+		// stays queued.
+		if j.State == job.StateQueued {
+			if ok, _ := e.admitHorizon(ctx, jobID); !ok {
+				return
+			}
 		}
 
 		// §22.1 / §24: the kill switch or the power policy can stop work.
@@ -1022,6 +1059,7 @@ func (e *Engine) Run(ctx context.Context, jobID string) {
 					})
 					e.signalTerminal(cctx, jobID, job.StateCancelled)
 				}
+				e.settleHorizon(cctx, jobID)
 				e.stopPod(cctx, jobID)
 				cancel()
 				return
@@ -1041,6 +1079,7 @@ func (e *Engine) Run(ctx context.Context, jobID string) {
 				// failed job (the loop-top terminal branch clears the
 				// success/compare paths).
 				e.clearJobScratch(ctx, jobID)
+				e.settleHorizon(ctx, jobID)
 				// M2-T4b.5 (ADR-0024 §2): a failed job is terminal too; stop
 				// its pod now. The failure path used to return without
 				// teardown, leaving the pod for the next boot's sweep.

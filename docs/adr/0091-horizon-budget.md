@@ -1,6 +1,6 @@
 # ADR 0091 — Work draws from a horizon budget with an interactive reserve
 
-**Status:** Proposed — not implemented · **Date:** 2026-10-29 ·
+**Status:** Accepted — first slice implemented · **Date:** 2026-10-29 ·
 **Refs:** ARCHITECTURE §17.2 (daydream constraints), §24 (power and idle),
 §28.2 (token accounting); [ADR-0051](0051-power-supervisor.md) (power
 supervisor), [ADR-0072](0072-single-slot-execution.md) (single-slot execution),
@@ -121,6 +121,20 @@ budget:
 
 The numbers are illustrative. The invariants are: the reserve is protected, the
 grant is bounded, and the ceiling is explicit.
+
+## Implementation status
+
+First slice (2026-10-29): migration 0031 (`budget_windows`, `budget_grants`),
+`internal/budget` (window math, bucket ceilings, reserve/settle/release),
+config (`budget.*`), admission before the execution slot, settlement on every
+terminal path, and `limits.max_tasks_per_hour` enforced at the same gate. The
+ledger is inert while both ceilings are 0.
+
+Still open: background classification (all jobs are interactive today),
+mid-job deferral (`Spend` records but does not yet pause at the boundary),
+preemption of an in-flight background job, the operator grant path, and the
+`/status` budget surface. A wall-time ceiling is recorded but not yet enforced
+mid-job; it is reserved per grant so the aggregate is bounded.
 
 ## Consequences
 

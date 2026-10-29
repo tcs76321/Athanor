@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/tcs76321/athanor/internal/budget"
 	"github.com/tcs76321/athanor/internal/jobpod"
 	"github.com/tcs76321/athanor/internal/toolenvelope"
 	"gopkg.in/yaml.v3"
@@ -58,6 +59,7 @@ type Config struct {
 	Version          int              `yaml:"version"`
 	Agent            Agent            `yaml:"agent"`
 	Power            Power            `yaml:"power"`
+	Budget           Budget           `yaml:"budget"`
 	Inference        Inference        `yaml:"inference"`
 	Personas         Personas         `yaml:"personas"`
 	ContextEngine    ContextEngine    `yaml:"context_engine"`
@@ -100,6 +102,46 @@ type Power struct {
 	DaydreamOnIdle               *bool    `yaml:"daydream_on_idle"`
 	DaydreamMaxConcurrent        int      `yaml:"daydream_max_concurrent"`
 	DaydreamMaxWallTimeMinutes   int      `yaml:"daydream_max_wall_time_minutes"`
+}
+
+// Budget is the horizon accounting policy (ADR-0091). A zero tokens_per_window
+// and zero wall_time_per_window disable the ledger, preserving pre-ADR behavior.
+type Budget struct {
+	// Window is the accounting period (default 24h).
+	Window Duration `yaml:"window"`
+	// WindowStart anchors the window in local time ("HH:MM", default 18:00).
+	WindowStart string `yaml:"window_start"`
+	// TokensPerWindow is the accounting-unit ceiling. 0 disables token
+	// accounting.
+	TokensPerWindow int64 `yaml:"tokens_per_window"`
+	// WallTimePerWindow caps wall time independently of tokens. nil or 0
+	// disables the wall cap; the pointer distinguishes "unset" from an
+	// explicit duration (the Duration parser rejects 0).
+	WallTimePerWindow *Duration `yaml:"wall_time_per_window,omitempty"`
+	// InteractiveReservePercent is the share background work may not touch.
+	InteractiveReservePercent int `yaml:"interactive_reserve_percent"`
+	// BackgroundSharePercent is background's share. It must sum to 100 with
+	// the reserve when set.
+	BackgroundSharePercent int `yaml:"background_share_percent"`
+	// MaxGrantTokens bounds one job's allocation. 0 means no per-grant cap.
+	MaxGrantTokens int64 `yaml:"max_grant_tokens"`
+}
+
+// BudgetSettings resolves the config into the pure budget representation.
+func (c Config) BudgetSettings() budget.Settings {
+	var wall time.Duration
+	if c.Budget.WallTimePerWindow != nil {
+		wall = time.Duration(*c.Budget.WallTimePerWindow)
+	}
+	return budget.Settings{
+		Window:        time.Duration(c.Budget.Window),
+		WindowStart:   c.Budget.WindowStart,
+		Tokens:        c.Budget.TokensPerWindow,
+		Wall:          wall,
+		ReservePct:    c.Budget.InteractiveReservePercent,
+		BackgroundPct: c.Budget.BackgroundSharePercent,
+		MaxGrant:      c.Budget.MaxGrantTokens,
+	}
 }
 
 // Inference selects backends and gates cloud usage.

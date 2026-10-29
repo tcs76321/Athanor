@@ -10,6 +10,17 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Horizon budget — 2026-10-29
+
+- **A ledger, not a per-job allowance.** Migration 0031 adds
+  `budget_windows`/`budget_grants`; `internal/budget` implements the fixed
+  window, the interactive reserve, and reserve/settle/release. Admission runs
+  before the execution slot, so a deferred job waits without holding it, and
+  settlement closes the grant with measured token spend on every terminal path.
+  `limits.max_tasks_per_hour` is enforced at the same gate. The ledger is inert
+  while both ceilings are 0. [ADR-0091](docs/adr/0091-horizon-budget.md); proofs:
+  `TestReserveSettleRelease`, `TestHorizonAdmissionDefersThenSettles`.
+
 ### Diagnostics — 2026-10-29
 
 - **`bonsai-2:9b` quantization screen: 2/6 on the X-code slice.** Same six tasks

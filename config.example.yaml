@@ -31,6 +31,18 @@ power:
   daydream_max_concurrent: 2       # not yet enforced (ARCHITECTURE §29 note)
   daydream_max_wall_time_minutes: 30
 
+# Horizon accounting (ADR-0091). Both ceilings default to 0, which disables
+# the ledger and preserves pre-ledger behavior. Tokens are the accounting unit;
+# wall time is an independent cap.
+budget:
+  window: "24h"
+  window_start: "18:00"            # anchors a night + the following day (local)
+  tokens_per_window: 0             # e.g. 2000000 to enable
+  # wall_time_per_window: "10h"    # optional independent wall-time cap
+  interactive_reserve_percent: 40  # background may not cross this reserve
+  background_share_percent: 60
+  max_grant_tokens: 200000
+
 inference:
   default_backend: ollama      # only ollama is implemented; "cloud" is reserved
   ollama_url: "http://127.0.0.1:11434"

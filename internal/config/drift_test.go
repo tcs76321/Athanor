@@ -37,7 +37,6 @@ func TestConfigFieldsAreConsumed(t *testing.T) {
 	leaves := leafYAMLNames(reflect.TypeOf(cfg).Elem(), nil)
 	unimplemented := map[string]bool{
 		// Rejected by validateUnenforced when set to a non-default value.
-		"MaxTasksPerHour":                             true,
 		"MaxTotalRecoveriesPerJob":                    true,
 		"MaxToolCallRetries":                          true,
 		"MaxLoopInterventions":                        true,

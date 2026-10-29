@@ -70,6 +70,24 @@ func applyDefaults(c *Config) {
 	setInt(&c.Power.DaydreamMaxConcurrent, 2)
 	setInt(&c.Power.DaydreamMaxWallTimeMinutes, 30)
 
+	// ADR-0091: a 24h window anchored at 18:00 local groups a night and the
+	// following day. Token/wall ceilings default to 0 (disabled), so an
+	// existing deployment keeps its pre-ledger behavior until the operator
+	// sets a budget.
+	if c.Budget.Window == 0 {
+		c.Budget.Window = Duration(24 * time.Hour)
+	}
+	setStr(&c.Budget.WindowStart, "18:00")
+	if c.Budget.InteractiveReservePercent == 0 {
+		c.Budget.InteractiveReservePercent = 40
+	}
+	if c.Budget.BackgroundSharePercent == 0 {
+		c.Budget.BackgroundSharePercent = 100 - c.Budget.InteractiveReservePercent
+	}
+	if c.Budget.MaxGrantTokens == 0 {
+		c.Budget.MaxGrantTokens = 200000
+	}
+
 	setStr(&c.Inference.DefaultBackend, "ollama")
 	// The Core runs as a host binary, so Ollama is reached on host loopback.
 	// A containerized Core would override this with the container→host alias

@@ -18,6 +18,7 @@ import (
 	"github.com/tcs76321/athanor/internal/api"
 	"github.com/tcs76321/athanor/internal/artifact"
 	"github.com/tcs76321/athanor/internal/backup"
+	"github.com/tcs76321/athanor/internal/budget"
 	"github.com/tcs76321/athanor/internal/config"
 	"github.com/tcs76321/athanor/internal/control"
 	"github.com/tcs76321/athanor/internal/corrections"
@@ -304,6 +305,9 @@ func run(configPath, addr, stateDir string, container bool) error {
 		eng.SetPolicy(policy.Default{})
 	}
 	eng.SetStrategyHistory(strategyRepo)
+	// ADR-0091: horizon budget. The ledger is inert while
+	// budget.tokens_per_window and wall_time_per_window are both 0.
+	eng.SetBudgetLedger(budget.New(st.DB()))
 	// M6-T11 (§13.4): promoting a strategy insight is HITL-gated.
 	hitlSvc.SetApprover(hitl.TypeStrategyInsight, insightActivator{repo: strategyRepo}.Approve)
 	srv := server.New(version)

@@ -386,6 +386,9 @@ func validateCross(c *Config) error {
 	if c.Airlock.PromptInjectionLongUserPromptThresholdBytes < 1 {
 		return fmt.Errorf("airlock.prompt_injection_long_user_prompt_threshold_bytes must be ≥ 1, got %d", c.Airlock.PromptInjectionLongUserPromptThresholdBytes)
 	}
+	if err := c.BudgetSettings().Validate(); err != nil {
+		return err
+	}
 	if err := validateUnenforced(c); err != nil {
 		return err
 	}
@@ -403,7 +406,6 @@ func validateUnenforced(c *Config) error {
 		got  int
 		def  int
 	}{
-		{"limits.max_tasks_per_hour", c.Limits.MaxTasksPerHour, 20},
 		{"limits.max_total_recoveries_per_job", c.Limits.MaxTotalRecoveriesPerJob, 8},
 		{"recovery.max_tool_call_retries", c.Recovery.MaxToolCallRetries, 2},
 		{"recovery.max_loop_interventions", c.Recovery.MaxLoopInterventions, 1},
