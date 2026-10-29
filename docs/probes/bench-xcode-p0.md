@@ -79,6 +79,27 @@ filename, and candidates produced a differently named or incomplete module. That
 is a task-contract/harness fairness issue first, a capability issue second. The
 model had the repository working set; it did not have the required module name.
 
+## Core Pod rerun (2026-10-29) and the module-name defect
+
+The first Core Pod rerun produced **2/6** (repo-ratelimit and
+bugfix-pipeline passed). Interpreter and diff3 were scored 1.0 by the engine
+but ended `failed`; their event traces show a consistent
+`ModuleNotFoundError: No module named 'exprlang' / 'merge3'`. The engine
+materialized every single-file candidate as `/tmp/work/solution.py`, while the
+test command imported a named module. The test command was visible to the model
+after the fairness fix, but the harness still wrote the wrong filename.
+
+A follow-up engine fix infers the module name from the test command
+(`from exprlang import …` → `exprlang.py`) and stages the single-file candidate
+under that name. This is still a harness fix, not a corpus edit: the candidate
+must be a correct importable module. A final Core Pod rerun is required before
+comparing the runtime to the host result; the 2/6 run is not a Core-runtime
+regression claim.
+
+Threadpool and sqlite-migration continued to fail: the former on a candidate
+test hang, the latter on the same import/module-name class. The module-name fix
+targets the latter; threadpool remains a candidate-deadlock/test-hang finding.
+
 ## Decision
 
 1. **Do not implement the bounded read-only recon loop yet.** The pack moved the

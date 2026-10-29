@@ -48,6 +48,16 @@ func (e *Engine) runCodeInPod(ctx context.Context, j job.Job, p project.Project,
 	if ferr != nil {
 		return fmt.Errorf("parsing code candidate tree: %w", ferr)
 	}
+	// A single-file candidate is staged under the module name its test command
+	// imports (e.g. `from exprlang import …` → exprlang.py). The historical
+	// solution.py shorthand is only correct when the test itself imports
+	// solution. This is a harness-naming fix, not a corpus edit: the task still
+	// has to produce a correct module.
+	if len(files) == 1 && files[0].Path == "solution.py" {
+		if name := candidateModuleName(p.TestCommand()); name != "" {
+			files[0].Path = name
+		}
+	}
 	// ADR-0065: overlay the candidate on the task's fixture tree so the test
 	// command runs against the merged project, not the candidate alone.
 	if fx := p.Execution.FixturePath; fx != "" {
@@ -119,6 +129,64 @@ func candidateFiles(content string) ([]toolenvelope.File, error) {
 		return toolenvelope.DecodeFiles([]byte(content))
 	}
 	return []toolenvelope.File{{Path: "solution.py", Content: content}}, nil
+}
+
+// candidateModuleName infers the file name a single-file code candidate should
+// be staged under from the test command. `from exprlang import evaluate` means
+// exprlang.py; `import solution` means solution.py. A dotted module path or a
+// command with no import stays solution.py. The inference is deliberately
+// conservative: a wrong name should fall back, not invent a package layout.
+func candidateModuleName(testCommand string) string {
+	// `from <module> import …` is the strongest signal; it appears in the
+	// sqlite/interpreter/merge tasks whose tests import a named module.
+	if i := strings.Index(testCommand, "from "); i >= 0 {
+		rest := testCommand[i+len("from "):]
+		if j := strings.Index(rest, " import"); j > 0 {
+			mod := strings.TrimSpace(rest[:j])
+			if isPlainModule(mod) {
+				return mod + ".py"
+			}
+			// A dotted module needs a package layout the engine does not
+			// invent; fall back to solution.py rather than misnaming it.
+			return ""
+		}
+	}
+	// A bare `import <module>` is the next signal. Multi-import lines
+	// (`import sqlite3, tempfile`) are skipped because the first token is a
+	// standard library and the candidate is usually imported explicitly later.
+	if i := strings.Index(testCommand, "import "); i >= 0 {
+		rest := testCommand[i+len("import "):]
+		end := len(rest)
+		for k, r := range rest {
+			if r == ' ' || r == ',' || r == ';' || r == '\n' || r == '\'' || r == '"' {
+				end = k
+				break
+			}
+		}
+		mod := strings.TrimSpace(rest[:end])
+		if isPlainModule(mod) && !strings.ContainsAny(rest[end:], ",") {
+			return mod + ".py"
+		}
+	}
+	return ""
+}
+
+// isPlainModule reports whether s is a single Python identifier, not a dotted
+// path or a standard-library-looking multi-import token.
+func isPlainModule(s string) bool {
+	if s == "" || strings.Contains(s, ".") {
+		return false
+	}
+	for i, r := range s {
+		if r == '_' || (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') {
+			continue
+		}
+		if i > 0 && r >= '0' && r <= '9' {
+			continue
+		}
+		return false
+	}
+	return true
 }
 
 // normalizeCode unwraps a single markdown code fence if the model wrapped the

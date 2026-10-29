@@ -51,6 +51,11 @@ New entries are appended at the top. Do not rewrite history.
   `project_interviews`. [ADR-0088](docs/adr/0088-project-interview-plan-gate.md);
   proofs: `TestInterviewIsResumableAndApproves`,
   `TestInterviewPlanApprovalStartsWork`, `TestProjectInterviewPage`.
+- **A single-file candidate is staged under the module its test imports.**
+  `from exprlang import …` now writes `exprlang.py`, not `solution.py`; dotted
+  modules are left alone rather than misnamed. This closes the Core rerun's
+  `ModuleNotFoundError` class without editing the frozen corpus. Proof:
+  `TestCandidateModuleName`.
 - **A code prompt includes the verification command.** The resolved test
   command is rendered in the pinned task section, so a test that imports
   `migrator.py` no longer hides the required module name from the model. This

@@ -21,3 +21,21 @@ func TestCandidateFiles(t *testing.T) {
 		t.Error("hostile marker path accepted, want an error")
 	}
 }
+
+// TestCandidateModuleName pins the harness naming fix: a test importing a
+// named module stages the single-file candidate under that name.
+func TestCandidateModuleName(t *testing.T) {
+	cases := []struct{ cmd, want string }{
+		{`python -c "from exprlang import evaluate, ExprError"`, "exprlang.py"},
+		{`python -c "from migrator import apply"`, "migrator.py"},
+		{`python -c "import solution; assert solution.fib(1)"`, "solution.py"},
+		{`python -c "import sqlite3, tempfile, os"`, ""},
+		{`pytest -q`, ""},
+		{`python -c "from bank.account import Account"`, ""},
+	}
+	for _, c := range cases {
+		if got := candidateModuleName(c.cmd); got != c.want {
+			t.Errorf("candidateModuleName(%q) = %q, want %q", c.cmd, got, c.want)
+		}
+	}
+}
