@@ -164,14 +164,16 @@ podman ps -a | grep athanor-job-          # zero after work settles
 
 ```bash
 athanor models                             # inventory + advisory routing
-# qualification data (manual today):
-make probe-measure PROBE_OUT=<results tree>   # writes measurements.json
-athanor models -qualification <...>/measurements.json
+athanor models -ladder                     # bounded grounded screen on this machine (resumable)
+# writes <config dir>/qualification.json + measurements.json
+athanor models -qualification <file>       # or reuse a precomputed measurements file
 # apply the proposal by editing config.yaml (the human is the gate)
 ```
 
-⚠️ The shipped qualification ladder (run on *this* machine's models, bounded,
-resumable) is a to-build item; today this is manual.
+The ladder enumerates installed models that fit, runs a small **grounded**
+instrument (deterministic generator checks + fixed-label judge pairs), and
+persists every case so a rerun resumes. It is a machine-local screen, not the
+frozen benchmark: the probe/frozen corpus remains the full qualification.
 
 ### C6. First project
 

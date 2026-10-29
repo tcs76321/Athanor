@@ -6,7 +6,9 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/tcs76321/athanor/internal/config"
 	"github.com/tcs76321/athanor/internal/onboard"
@@ -32,6 +34,12 @@ func runModels(args []string) error {
 	fs := flag.NewFlagSet("models", flag.ContinueOnError)
 	configPath := fs.String("config", "config.yaml", "path to config.yaml")
 	qualPath := fs.String("qualification", "", "optional JSON file of per-role qualification measurements")
+	ladder := fs.Bool("ladder", false, "run the bounded qualification ladder over installed models")
+	ladderState := fs.String("ladder-state", "", "ladder state file (default <config dir>/qualification.json)")
+	ladderMax := fs.Int("ladder-max-models", 3, "maximum candidate models per role")
+	ladderRoles := fs.String("ladder-roles", "security,main", "comma-separated roles to qualify")
+	ladderTimeout := fs.Duration("ladder-case-timeout", 90*time.Second, "per-case model timeout")
+	ladderWall := fs.Duration("ladder-wall", 15*time.Minute, "total ladder wall-time budget")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -50,8 +58,30 @@ func runModels(args []string) error {
 		return fmt.Errorf("listing installed models from %s: %w", cfg.Inference.OllamaURL, err)
 	}
 
+	mem, _ := probes.TotalMemoryBytes(ctx)
+	roles, families := modelRoles(cfg, models)
+
 	var measurements []onboard.Measurement
-	if *qualPath != "" {
+	switch {
+	case *ladder:
+		fitting := make([]onboard.Model, 0, len(models))
+		for _, m := range models {
+			if onboard.Fit(m, int64(mem), modelReserveBytes) {
+				fitting = append(fitting, m)
+			}
+		}
+		statePath := *ladderState
+		if statePath == "" {
+			statePath = filepath.Join(filepath.Dir(*configPath), "qualification.json")
+		}
+		measurements, err = runLadder(ctx, cfg, fitting, roles, ladderOptions{
+			StatePath: statePath, Roles: splitCSV(*ladderRoles),
+			MaxModels: *ladderMax, CaseTimeout: *ladderTimeout, Wall: *ladderWall,
+		})
+		if err != nil {
+			return fmt.Errorf("qualification ladder: %w", err)
+		}
+	case *qualPath != "":
 		raw, err := os.ReadFile(*qualPath)
 		if err != nil {
 			return fmt.Errorf("reading qualification file: %w", err)
@@ -61,12 +91,10 @@ func runModels(args []string) error {
 		}
 	}
 
-	mem, _ := probes.TotalMemoryBytes(ctx)
-	roles, families := modelRoles(cfg, models)
 	got := onboard.Assess(roles, families, models,
 		int64(mem), modelReserveBytes, measurements, modelRoutingOptions())
 
-	printModelAssessment(cfg, got, *qualPath != "")
+	printModelAssessment(cfg, got, *qualPath != "" || *ladder)
 	return nil
 }
 

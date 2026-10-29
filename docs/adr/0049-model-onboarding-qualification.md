@@ -1,6 +1,6 @@
 # ADR 0049 — Model onboarding & qualification (proposed)
 
-**Status:** Proposed — not implemented · **Date:** 2026-10-05 · **Refs:**
+**Status:** Partially implemented — inventory, routing, and the bounded ladder · **Date:** 2026-10-05 · **Refs:**
 ARCHITECTURE §12 (personas), §12.3 (context feasibility), §12.5 (model
 lifecycle), §13.4 (strategy analysis); ROADMAP §7 backlog; [F4 plan](../f4-plan.md);
 [docs/model-routing.md](../model-routing.md)
@@ -43,6 +43,20 @@ Add a **model onboarding & qualification** capability:
 
 Timing: an initial pass is a natural `athanor doctor` step; the recurring pass
 is a Daydreaming action (AC power, low priority, yields to real work).
+
+## Implementation status
+
+- **Inventory + routing (M9-T2):** `internal/onboard` maps configured personas to
+  the installed catalog, computes fit, and emits an advisory proposal
+  (`onboard.Route`, `athanor models`). Applying it remains a config edit.
+- **Bounded ladder (F2, 2026-10-29):** `athanor models -ladder` screens installed
+  models that fit with a small **grounded** instrument — deterministic generator
+  checks and fixed-label artifact pairs — persists each case in
+  `<config dir>/qualification.json`, resumes on rerun, and feeds the existing
+  `onboard.Route` proposal. It is a machine-local screen, not the frozen corpus.
+- **Still open:** Job Pod generator pass@k in the ladder (the probe remains the
+  full generator measurement), periodic re-qualification as a Daydreaming
+  action, and HITL apply-with-audit rather than a manual edit.
 
 ## Consequences
 

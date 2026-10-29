@@ -10,6 +10,17 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Qualification ladder — 2026-10-29
+
+- **`athanor models -ladder`.** A bounded, resumable, grounded screen over the
+  installed models that fit: four deterministic generator cases and six
+  fixed-label judge pairs, scored locally (no judge model). Each case is saved
+  to `<config dir>/qualification.json`, so an interrupted run resumes; the
+  resulting `measurements.json` feeds the existing `onboard.Route` proposal.
+  It is a machine-local screen, not the frozen corpus. [ADR-0049](docs/adr/0049-model-onboarding-qualification.md);
+  proofs: `TestScoreGen`, `TestLadderStateResumesAndAggregates`,
+  `TestLadderChatReadsContent`.
+
 ### Arm-tagged outcomes — 2026-10-29
 
 - **Falsifier execution is narrowed to the declared verifier.** A
