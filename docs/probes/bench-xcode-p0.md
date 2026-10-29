@@ -92,13 +92,31 @@ after the fairness fix, but the harness still wrote the wrong filename.
 A follow-up engine fix infers the module name from the test command
 (`from exprlang import …` → `exprlang.py`) and stages the single-file candidate
 under that name. This is still a harness fix, not a corpus edit: the candidate
-must be a correct importable module. A final Core Pod rerun is required before
-comparing the runtime to the host result; the 2/6 run is not a Core-runtime
-regression claim.
+must be a correct importable module.
 
-Threadpool and sqlite-migration continued to fail: the former on a candidate
-test hang, the latter on the same import/module-name class. The module-name fix
-targets the latter; threadpool remains a candidate-deadlock/test-hang finding.
+### Final Core Pod rerun
+
+With the scratch mount and module-name fixes, the clean Core run produced
+**3/6** (50%):
+
+| Task | Host diagnostic | Core Pod final |
+|---|---|---|
+| `x-code-repo-ratelimit` | ✅ | ✅ |
+| `x-code-bugfix-pipeline` | ✅ | ✅ |
+| `x-code-interpreter` | ✅ | ❌ real parser `NameError` |
+| `x-code-diff3` | ✅ | ✅ |
+| `x-code-threadpool` | ❌ | ❌ real threadpool test failure (no longer a hang) |
+| `x-code-sqlite-migration` | ❌ | ❌ real checksum/rollback logic failure (the import now succeeds) |
+
+Raw evidence: [`runs/bench-xcode-core-20261029/`](runs/bench-xcode-core-20261029/)
+(report, results, config, metrics).
+
+The import class is closed: sqlite-migration now reaches its assertions and
+fails on checksum/rollback semantics; threadpool fails its test instead of
+hanging. The Core Pod run is 3/6 versus the host diagnostic's 4/6; one pass and
+one model, so this is directional, not a runtime regression claim. It also
+confirms the remaining failures are candidate logic, not missing repository
+context.
 
 ## Decision
 
