@@ -10,6 +10,15 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Design — 2026-10-29
+
+- **Task analysis sets a contemplation budget the loop revises.** Proposed
+  [ADR-0090](docs/adr/0090-task-analysis-contemplation-budget.md): Phase 1
+  emits units, per-unit `direct`/`deliberate`, and a falsifier; the evaluation
+  checkpoint settles, refines, reframes, probes, or terminates; refine is capped
+  at one per unit, after which a repeated failure changes the frame rather than
+  the reasoning allowance. Not implemented; inert until `inference.think: auto`.
+
 ### P0 reliability — 2026-10-28
 
 - **Comparison guard diagnostics.** The `comparison` event now carries the
