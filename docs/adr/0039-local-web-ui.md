@@ -26,7 +26,8 @@ loopback-only; remote access is SSH port forwarding (§21.8).
 ### 2. SSE for live updates
 
 - `/ui/events` streams every new event; the dashboard script updates a job's
-  phase cell from `transition` rows.
+  phase cell from `transition` rows. (Amended 2026-10-29: the SSE endpoint moved
+  to `/ui/events/stream`; `/ui/events` is now the read-only inspector.)
 - `/ui/jobs/{id}/stream` multiplexes streamed model tokens (`event: token`)
   and that job's new events (`event: event`).
 

@@ -333,14 +333,25 @@ const runtimeBody = inspectTabs + `
 
 <h2>Human decisions</h2>
 {{if .Decisions}}
-<table><thead><tr><th>Type</th><th>Severity</th><th>Status</th><th>Job</th><th>When</th></tr></thead><tbody>
+<table><thead><tr><th>Type</th><th>Severity</th><th>Status</th><th>Job</th><th>When</th><th>Payload</th></tr></thead><tbody>
 {{range .Decisions}}<tr>
   <td>{{.Type}}</td><td>{{.Severity}}</td><td>{{.Status}}</td>
   <td>{{if .JobID}}<a href="/ui/jobs/{{.JobID}}/trace" class="mono">{{.JobID | short}}</a>{{end}}</td>
   <td class="muted">{{.CreatedAt}}</td>
+  <td><details><summary>open</summary><pre>{{.Payload}}</pre></details></td>
 </tr>{{end}}
 </tbody></table>
 {{else}}<div class="empty">No HITL requests.</div>{{end}}
+
+<h2>Quarantined files</h2>
+{{if .Quarantine}}
+<table><thead><tr><th>Path</th><th>Reason</th><th>Pipeline</th><th>Size</th><th>When</th></tr></thead><tbody>
+{{range .Quarantine}}<tr>
+  <td class="mono">{{.Relpath}}</td><td>{{.Reason}}</td><td>{{.Pipeline}}</td>
+  <td>{{.Size}}</td><td class="muted">{{.IngestedAt}}</td>
+</tr>{{end}}
+</tbody></table>
+{{else}}<div class="empty">No quarantined files.</div>{{end}}
 
 <h2>System state</h2>
 {{if .State}}

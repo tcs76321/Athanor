@@ -2,6 +2,22 @@
 
 **Status:** design note / proposal · **Date:** 2026-10-05 · **Refs:** ARCHITECTURE §20, §22, §27; ADR-0039 (local web UI); `internal/ui`
 
+## 0. Implementation status — 2026-10-29
+
+The shipped surface now includes the first-use shell (design system, responsive
+layout, nav, rendered errors), a **needs-you dashboard** with a 24-hour digest
+and recently accepted work, the **blinded review queue**, **project work
+history** (tasks → jobs), the **artifact presentation** surface (what/run/cost/
+known issues), a **watch timeline** with persisted events, and a read-only
+**inspector**: full event log with filters, per-job trace (analysis, model
+calls, tool actions, evaluations, context/memory, strategy), every artifact,
+compacted memory, chunks, Dormant Index, embeddings, indexed sources, active
+chunks, daydream logs, strategy outcomes, and runtime personas/budget/alarms/
+HITL/system state. See [ui-inspector.md](ui-inspector.md).
+
+Token counts are always recorded. Exact prompt/response text is opt-in via
+`logging.capture_llm_payloads` (default off).
+
 The UI is Athanor's face for a machine that runs unattended. This note records
 what ships today, the intended views (§27), the gaps, and a design direction
 that respects the project's constraints (loopback-only, no new dependencies,
@@ -11,7 +27,7 @@ that respects the project's constraints (loopback-only, no new dependencies,
 
 | Route | View | Notes |
 |---|---|---|
-| `GET /ui` | **Dashboard** | active/terminal jobs, pending approvals, freeze state; live phase via `/ui/events` (SSE) |
+| `GET /ui` | **Dashboard** | active/terminal jobs, pending approvals, freeze state, 24-hour digest, recently accepted; live phase via `/ui/events/stream` (SSE) |
 | `GET /ui/projects`, `/ui/projects/{id}` | **Projects** | artifact history with an LCS diff against the superseded version |
 | `GET /ui/corrections`, `POST` | **Corrections** | the mandatory §18.4 rejection form; mute/edit/promote |
 | `GET /ui/statistics` | **Statistics** | read-only; strategy insights with evidence |

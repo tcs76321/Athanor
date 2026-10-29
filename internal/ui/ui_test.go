@@ -405,6 +405,33 @@ func TestInspectorPagesRender(t *testing.T) {
 	}
 }
 
+// TestEventsInspectorShowsRawEvents proves the event inspector exposes the
+// recorded row and honors the text/job filters.
+func TestEventsInspectorShowsRawEvents(t *testing.T) {
+	fx := setup(t)
+	ctx := context.Background()
+	if _, err := fx.ui.deps.Store.AppendEvent(ctx, store.Event{
+		Category: "jobs", JobID: fx.job.ID,
+		Data: map[string]any{"event": "test_marker", "detail": "unique_needle"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	_, body := get(t, fx.ts.URL+"/ui/events?job="+fx.job.ID)
+	for _, want := range []string{"test_marker", "unique_needle", "raw event"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("events inspector missing %q", want)
+		}
+	}
+	_, filtered := get(t, fx.ts.URL+"/ui/events?q=unique_needle")
+	if !strings.Contains(filtered, "test_marker") {
+		t.Error("text filter did not return the matching event")
+	}
+	_, none := get(t, fx.ts.URL+"/ui/events?q=no_such_needle")
+	if !strings.Contains(none, "No events match") {
+		t.Error("empty filter state missing")
+	}
+}
+
 // TestDashboardShowsDigest proves the morning-digest strip renders.
 func TestDashboardShowsDigest(t *testing.T) {
 	fx := setup(t)

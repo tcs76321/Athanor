@@ -429,7 +429,12 @@ type alarmRow struct {
 }
 
 type hitlRow struct {
-	ID, Type, Severity, Status, JobID, CreatedAt string
+	ID, Type, Severity, Status, JobID, CreatedAt, Payload string
+}
+
+type quarantineRow struct {
+	Relpath, Reason, Pipeline, IngestedAt string
+	Size                                  int
 }
 
 type personaRow struct {
@@ -472,10 +477,16 @@ func (u *UI) handleRuntime(w http.ResponseWriter, r *http.Request) {
 		return a, rows.Scan(&a.ID, &a.Category, &a.Level, &a.Message, &a.Status, &a.CreatedAt)
 	})
 	decisions := queryRows(ctx, u.deps.Store.DB(), `
-		SELECT id, type, severity, status, COALESCE(job_id,''), created_at
+		SELECT id, type, severity, status, COALESCE(job_id,''), created_at, payload_json
 		  FROM hitl_requests ORDER BY created_at DESC LIMIT 25`, func(rows *sql.Rows) (hitlRow, error) {
 		var h hitlRow
-		return h, rows.Scan(&h.ID, &h.Type, &h.Severity, &h.Status, &h.JobID, &h.CreatedAt)
+		return h, rows.Scan(&h.ID, &h.Type, &h.Severity, &h.Status, &h.JobID, &h.CreatedAt, &h.Payload)
+	})
+	quarantine := queryRows(ctx, u.deps.Store.DB(), `
+		SELECT relpath, reason, source_size, pipeline, ingested_at
+		  FROM quarantined_files ORDER BY ingested_at DESC LIMIT 25`, func(rows *sql.Rows) (quarantineRow, error) {
+		var q quarantineRow
+		return q, rows.Scan(&q.Relpath, &q.Reason, &q.Size, &q.Pipeline, &q.IngestedAt)
 	})
 	var counts struct{ Jobs, Events, Artifacts, Corrections, Outcomes, State, Quarantined int }
 	_ = u.deps.Store.DB().QueryRowContext(ctx, `
@@ -493,7 +504,8 @@ func (u *UI) handleRuntime(w http.ResponseWriter, r *http.Request) {
 	u.render(w, "Runtime", runtimeBody, map[string]any{
 		"Personas": personas, "Budget": bstatus, "HasBudget": hasBudget,
 		"Alarms": alarms, "Decisions": decisions, "Counts": counts,
-		"State": state, "ConfigPath": configPath(u.deps.Config), "Tab": "runtime",
+		"State": state, "Quarantine": quarantine,
+		"ConfigPath": configPath(u.deps.Config), "Tab": "runtime",
 	})
 }
 
