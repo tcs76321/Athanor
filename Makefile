@@ -15,7 +15,7 @@ export CGO_ENABLED
 # tag-less binary can never silently run.
 GO_TAGS = -tags sqlite_fts5
 
-.PHONY: build test test-race test-integration integration-images vet lint check vuln tidy tidy-check fuzz cover cover-check run clean hooks bench probe-micro probe probe-judge probe-anchor probe-report probe-bundle probe-reconcile probe-measure jobpod-image core-image install soak soak-mini soak-ladder
+.PHONY: build test test-race test-integration integration-images vet lint check vuln tidy tidy-check fuzz cover cover-check run clean hooks bench probe-micro probe probe-judge probe-anchor probe-report probe-bundle probe-reconcile probe-measure jobpod-image core-image core-smoke install soak soak-mini soak-ladder
 
 build:
 	go build $(GO_TAGS) -o bin/athanor ./cmd/athanor
@@ -34,6 +34,12 @@ CORE_IMAGE ?= athanor-core:latest
 VERSION ?= 0.0.0-dev
 core-image:
 	podman build -t $(CORE_IMAGE) --build-arg VERSION=$(VERSION) -f deploy/core.Containerfile .
+
+# Core Pod smoke (P1): boot the supported runtime, wait for health, exercise
+# one metadata-only project create and the UI, then tear down. No Ollama and no
+# Job Pod are required. CI runs this after building both images.
+core-smoke:
+	sh scripts/core-smoke.sh
 
 # Install the binary (and, optionally, a headless service unit): `make install`
 # or `sh scripts/install.sh --service` (M7-T7/T8).

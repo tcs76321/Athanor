@@ -92,6 +92,31 @@ jobs:
       - name: Coverage floor
         run: make cover-check
 
+  # Core Pod smoke (P1): the supported runtime must boot, answer /healthz,
+  # create a metadata-only project, and render /ui. No Ollama or Job Pod is
+  # required. The host-binary tests above do not exercise the container.
+  core-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.27.2'
+      - name: Install podman (if absent)
+        run: |
+          if ! command -v podman >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y podman
+          fi
+      - name: Build images
+        run: |
+          make build
+          make jobpod-image
+          make core-image
+      - name: Core Pod smoke
+        run: make core-smoke
+
   # Behavioral integration probes (M2 hardening, M2-T4b exec, M4 gateway).
   # These bring up real rootless Podman pods and, for the gateway probes,
   # reach the real internet, so they are deliberately NOT part of `make

@@ -42,6 +42,11 @@ New entries are appended at the top. Do not rewrite history.
   [ADR-0083](docs/adr/0083-repository-working-set-pack.md); proofs:
   `TestRepositoryWorkingSetIsPinnedAndDeduped`,
   `TestWorkingSetIsAutoForCodeOnly`, `TestContextProviderWorkingSet`.
+- **The Core Pod has an executable smoke.** `make core-smoke` boots the image,
+  waits for `/healthz`, creates a metadata-only project, checks `/ui`, and tears
+  down its own container/volumes. A CI job builds both images and runs it, so
+  the supported runtime is no longer tested only by hand. Proof:
+  `scripts/core-smoke.sh` (local run 2026-10-28).
 - **Cancel is cooperative and terminal.** The UI/engine cancel path cancels a
   per-job phase context, commits `cancelled` from the job goroutine, audits
   `job_cancelled`, and stops the pod instead of letting a long LLM or test call
