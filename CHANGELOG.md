@@ -10,6 +10,18 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### GUI — 2026-10-29
+
+- **The 0.0.0 GUI is a usable first-use surface.** A shared design system
+  (cards, status pills, responsive layout, focus states, skip link), an
+  `aria-current` nav, a dashboard that leads with what needs the operator
+  (approvals, review queue, active work, recently accepted artifacts), a
+  blinded review queue, project work history (tasks → jobs), the artifact
+  presentation surface (what was built / how to run / what it cost / known
+  issues), a watch view with persisted event history and pretty live events,
+  and rendered error pages instead of plain text. Proofs:
+  `TestReviewQueuePage`, `TestArtifactView`, `TestPagesRender`.
+
 ### Qualification ladder — 2026-10-29
 
 - **`athanor models -ladder`.** A bounded, resumable, grounded screen over the

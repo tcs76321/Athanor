@@ -188,6 +188,13 @@ func (u *UI) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	}
 	frozen := u.deps.Freezer != nil && u.deps.Freezer.Frozen()
 	names := u.projectNames(ctx, active, terminal)
+	var recentArts []artifact.Artifact
+	if u.deps.Artifacts != nil {
+		recentArts, _ = u.deps.Artifacts.ListAccepted(ctx, 5)
+	}
+	for _, a := range recentArts {
+		u.addProjectName(ctx, names, a.ProjectID)
+	}
 	reviewCount := 0
 	if u.deps.Reviews != nil {
 		if ids, qerr := u.deps.Reviews.Queue(ctx, 100); qerr == nil {
@@ -196,7 +203,7 @@ func (u *UI) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	}
 	u.render(w, "Dashboard", dashboardBody, map[string]any{
 		"Active": active, "Terminal": terminal, "Pending": pending, "Frozen": frozen,
-		"ProjectNames": names, "ReviewCount": reviewCount,
+		"ProjectNames": names, "ReviewCount": reviewCount, "RecentArtifacts": recentArts,
 	})
 }
 
@@ -1015,7 +1022,32 @@ var funcs = template.FuncMap{
 		}
 		return ""
 	},
-	"join":          func(ss []string) string { return strings.Join(ss, ", ") },
+	"join": func(ss []string) string { return strings.Join(ss, ", ") },
+	"when": func(v any) string {
+		var t time.Time
+		switch x := v.(type) {
+		case time.Time:
+			t = x
+		case *time.Time:
+			if x == nil {
+				return ""
+			}
+			t = *x
+		default:
+			return ""
+		}
+		if t.IsZero() {
+			return ""
+		}
+		now := time.Now()
+		if t.Year() == now.Year() && t.YearDay() == now.YearDay() {
+			return t.Format("15:04")
+		}
+		if t.Year() == now.Year() {
+			return t.Format("Jan 2 15:04")
+		}
+		return t.Format("Jan 2 2006")
+	},
 	"prettyEvent":   prettyEvent,
 	"interviewDone": func(s string) bool { return s == "approved" || s == "skipped" },
 	"stateClass": func(v any) string {

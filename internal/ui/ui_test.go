@@ -398,6 +398,13 @@ func TestReviewQueuePage(t *testing.T) {
 			t.Errorf("review queue missing %q", want)
 		}
 	}
+	// The dashboard surfaces accepted work, not only active jobs.
+	_, dash := get(t, fx.ts.URL+"/ui")
+	for _, want := range []string{"Recently accepted", "document"} {
+		if !strings.Contains(dash, want) {
+			t.Errorf("dashboard missing %q", want)
+		}
+	}
 }
 
 // TestNewProjectPage proves the first-use GUI form is reachable and points at

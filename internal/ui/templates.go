@@ -163,7 +163,7 @@ const reviewsBody = `
     <div><span class="pill">{{.Artifact.Kind}}</span> <span class="muted">v{{.Artifact.Version}}</span></div>
     <h3><a href="/ui/artifacts/{{.Artifact.ID}}">Review this {{.Artifact.Kind}}</a></h3>
     <div class="muted">{{.ProjectName}}</div>
-    <div class="muted">{{.Artifact.CreatedAt | ts}}</div>
+    <div class="muted">{{.Artifact.CreatedAt | when}}</div>
   </div>
 {{end}}
 </div>
@@ -235,7 +235,7 @@ const dashboardBody = `
 <table><thead><tr><th>Job</th><th>Project</th><th>Phase</th><th></th></tr></thead><tbody>
 {{range .Active}}<tr>
   <td><a href="/ui/jobs/{{.ID}}" class="mono">{{.ID | short}}</a></td>
-  <td>{{index $.ProjectNames .ProjectID}}</td>
+  <td><a href="/ui/projects/{{.ProjectID}}">{{index $.ProjectNames .ProjectID}}</a></td>
   <td><span class="pill {{stateClass .State}}" id="phase-{{.ID}}">{{.State}}</span></td>
   <td><a href="/ui/jobs/{{.ID}}">watch</a></td>
 </tr>{{end}}
@@ -247,12 +247,25 @@ const dashboardBody = `
 <table><thead><tr><th>Job</th><th>Project</th><th>State</th><th>Finished</th></tr></thead><tbody>
 {{range .Terminal}}<tr>
   <td><a href="/ui/jobs/{{.ID}}" class="mono">{{.ID | short}}</a></td>
-  <td>{{index $.ProjectNames .ProjectID}}</td>
+  <td><a href="/ui/projects/{{.ProjectID}}">{{index $.ProjectNames .ProjectID}}</a></td>
   <td><span class="pill {{stateClass .State}}">{{.State}}</span></td>
-  <td class="muted">{{if .FinishedAt}}{{.FinishedAt | ts}}{{end}}</td>
+  <td class="muted">{{if .FinishedAt}}{{.FinishedAt | when}}{{end}}</td>
 </tr>{{end}}
 </tbody></table>
 {{else}}<div class="empty">Nothing finished yet.</div>{{end}}
+
+<h2>Recently accepted</h2>
+{{if .RecentArtifacts}}
+<table><thead><tr><th>Kind</th><th>Project</th><th>Version</th><th>Accepted</th><th></th></tr></thead><tbody>
+{{range .RecentArtifacts}}<tr>
+  <td><span class="pill">{{.Kind}}</span></td>
+  <td><a href="/ui/projects/{{.ProjectID}}">{{index $.ProjectNames .ProjectID}}</a></td>
+  <td>v{{.Version}}</td>
+  <td class="muted">{{.CreatedAt | when}}</td>
+  <td><a href="/ui/artifacts/{{.ID}}">open</a></td>
+</tr>{{end}}
+</tbody></table>
+{{else}}<div class="empty">No accepted artifacts yet.</div>{{end}}
 `
 
 const projectsBody = `
@@ -266,7 +279,7 @@ const projectsBody = `
   <td><span class="pill">{{.Archetype}}</span></td>
   <td><span class="pill">{{.Status}}</span></td>
   <td class="muted">{{.Goal}}</td>
-  <td class="muted">{{.CreatedAt | ts}}</td>
+  <td class="muted">{{.CreatedAt | when}}</td>
 </tr>{{end}}
 </tbody></table>
 {{else}}<div class="empty">No projects yet. <a href="/ui/projects/new">Create the first one.</a></div>{{end}}
@@ -355,7 +368,7 @@ const projectBody = `
     <div><div class="l muted">Status</div><div><span class="pill">{{.Project.Status}}</span></div></div>
     <div><div class="l muted">Repository</div><div class="mono">{{if .Project.RepositoryPath}}{{.Project.RepositoryPath}}{{else}}—{{end}}</div></div>
     <div><div class="l muted">Test command</div><div class="mono">{{if .Project.TestCommand}}{{.Project.TestCommand}}{{else}}—{{end}}</div></div>
-    <div><div class="l muted">Created</div><div>{{.Project.CreatedAt | ts}}</div></div>
+    <div><div class="l muted">Created</div><div>{{.Project.CreatedAt | when}}</div></div>
   </div>
 </div>
 
@@ -371,7 +384,7 @@ const projectBody = `
     <td><a href="/ui/jobs/{{.ID}}" class="mono">{{.ID | short}}</a></td>
     <td><span class="pill {{stateClass .State}}">{{.State}}</span></td>
     <td>{{.Attempt}}</td>
-    <td class="muted">{{if .StartedAt}}{{.StartedAt | ts}}{{end}}</td>
+    <td class="muted">{{if .StartedAt}}{{.StartedAt | when}}{{end}}</td>
   </tr>{{end}}
   </tbody></table>
   {{else}}<p class="muted">No job yet. Approve the plan or submit a goal.</p>{{end}}
@@ -460,7 +473,7 @@ const correctionsBody = `
 const watchBody = `
 <h1>Job <span class="mono">{{.Job.ID | short}}</span>
   <span class="pill {{stateClass .Job.State}}">{{.Job.State}}</span></h1>
-<p class="sub">{{.ProjectName}} · task <span class="mono">{{.Job.TaskID | short}}</span>
+<p class="sub"><a href="/ui/projects/{{.Job.ProjectID}}">{{.ProjectName}}</a> · task <span class="mono">{{.Job.TaskID | short}}</span>
   {{if .Job.PausedFrom}}· paused from {{.Job.PausedFrom}}{{end}}</p>
 <div id="watch" data-job="{{.Job.ID}}"></div>
 
