@@ -595,6 +595,12 @@ func (u *UI) handleControl(w http.ResponseWriter, r *http.Request) {
 		if j.State.Terminal() {
 			return
 		}
+		// Prefer the engine's cancellation path: it cancels the phase context
+		// and commits `cancelled` from the job goroutine, so a long LLM or pod
+		// call stops instead of continuing against an already-cancelled row.
+		if c, ok := u.deps.Engine.(interface{ Cancel(string) bool }); ok && c.Cancel(id) {
+			break
+		}
 		if _, err := u.deps.Jobs.Transition(ctx, id, job.StateCancelled); err != nil {
 			u.fail(w, err)
 			return

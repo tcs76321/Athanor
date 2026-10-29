@@ -42,6 +42,12 @@ New entries are appended at the top. Do not rewrite history.
   [ADR-0083](docs/adr/0083-repository-working-set-pack.md); proofs:
   `TestRepositoryWorkingSetIsPinnedAndDeduped`,
   `TestWorkingSetIsAutoForCodeOnly`, `TestContextProviderWorkingSet`.
+- **Cancel is cooperative and terminal.** The UI/engine cancel path cancels a
+  per-job phase context, commits `cancelled` from the job goroutine, audits
+  `job_cancelled`, and stops the pod instead of letting a long LLM or test call
+  run to completion. `EnqueueContext` makes the concurrency wait cancellable.
+  [ADR-0087](docs/adr/0087-cooperative-job-cancellation.md); proof:
+  `TestCancelStopsRunningJob`.
 - **The active/dormant swap runs in the normal code loop.** A code job now
   seeds the top-ranked project chunk through `ChunkStore.Swap` (byte-exact,
   persisted) before reading the active chunk; the rest of the pack follows.

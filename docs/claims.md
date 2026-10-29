@@ -31,6 +31,7 @@ demo. A claim without a proof is either removed or marked as a target.
 | The working-set pack is byte-capped, pinned, and never truncated | ADR-0083 | `TestRepositoryWorkingSetIsPinnedAndDeduped`; `TestContextProviderWorkingSet` (cap/foreign scope) | **proven** |
 | Compacted project memory reaches the prompt | ADR-0085 | `internal/engine/engine.go` (`MemorySource`); `TestMemoryReachesEpisodicTier`; `memory_injected` audit | **proven** |
 | The active/dormant swap runs in the normal code loop | ADR-0083 amendment | `internal/engine/context_tiers.go` (`ActiveSeeder`); `TestWorkingSetIsAutoForCodeOnly`; `TestContextProviderWorkingSet` (SeedActive persists) | **proven** |
+| Cancel stops the phase and commits `cancelled` | ADR-0087 | `internal/engine/engine.go` (`Cancel`, `EnqueueContext`); `TestCancelStopsRunningJob` | **proven** |
 | The benchmark reports MCE mechanism metrics | ADR-0075 | `tools/bench/telemetry.go` (dormant rows, working-set chunks/bytes, memory hits, compactions, kv warn/critical); `TestFillTelemetry` | **instrumented; full-run report pending** |
 
 ## Rule

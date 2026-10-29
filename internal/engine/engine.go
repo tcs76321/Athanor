@@ -250,6 +250,11 @@ type Engine struct {
 	draining atomic.Bool
 	mu       sync.Mutex // guards running set to avoid double-running a job
 	running  map[string]bool
+	// cancelMu guards per-job cancel funcs and the user-cancel set. A job is
+	// cancellable only while its Run goroutine is alive.
+	cancelMu  sync.Mutex
+	cancels   map[string]context.CancelFunc
+	cancelled map[string]bool
 	// onTerminal is invoked when a job reaches a terminal state, so the
 	// M6-T2 scheduler can advance the job's task graph (ADR-0033). A nil
 	// seam is the M1 walking-skeleton default: nothing observes the
@@ -310,6 +315,8 @@ func New(cfg *config.Config, db *store.Store, jobs *job.Repository, projects *pr
 		ctxProvider:  ctxProvider,
 		podLifecycle: podLifecycle,
 		running:      map[string]bool{},
+		cancels:      map[string]context.CancelFunc{},
+		cancelled:    map[string]bool{},
 	}
 }
 
@@ -759,30 +766,79 @@ func (openFreezer) Frozen() bool { return false }
 // under contention, which is exactly what the §24 throttle promises
 // it will not do.
 func (e *Engine) Enqueue(jobID string) {
+	e.EnqueueContext(context.Background(), jobID)
+}
+
+// EnqueueContext is Enqueue with a caller-owned lifetime. Cancelling ctx while
+// the job is waiting for a slot abandons the wait cleanly; cancelling it while
+// the job is running cancels the phase context (use Cancel to mark the job
+// cancelled rather than failed).
+func (e *Engine) EnqueueContext(ctx context.Context, jobID string) {
 	go func() {
 		defer atomic.AddInt64(&e.inFlight, -1)
+		jobCtx, cancel := context.WithCancel(ctx)
+		e.cancelMu.Lock()
+		e.cancels[jobID] = cancel
+		e.cancelMu.Unlock()
+		defer func() {
+			cancel()
+			e.cancelMu.Lock()
+			delete(e.cancels, jobID)
+			delete(e.cancelled, jobID)
+			e.cancelMu.Unlock()
+		}()
 		for {
+			if ctx.Err() != nil {
+				return
+			}
 			max := e.cap.MaxConcurrentJobs()
 			if max < 1 {
 				max = 1
 			}
-			// Try to reserve a slot with a single CAS. If
-			// the cap is exceeded, sleep and retry; if the
-			// CAS lost a race, retry immediately so we
-			// do not burn a sleep cycle on a transient
-			// race.
+			// Try to reserve a slot with a single CAS. If the cap is
+			// exceeded, wait cancellably; if the CAS lost a race, retry
+			// immediately so we do not burn a wait cycle.
 			cur := atomic.LoadInt64(&e.inFlight)
 			if cur >= int64(max) {
-				time.Sleep(50 * time.Millisecond)
+				timer := time.NewTimer(50 * time.Millisecond)
+				select {
+				case <-ctx.Done():
+					timer.Stop()
+					return
+				case <-timer.C:
+				}
 				continue
 			}
 			if !atomic.CompareAndSwapInt64(&e.inFlight, cur, cur+1) {
 				continue
 			}
-			e.Run(context.Background(), jobID)
+			e.Run(jobCtx, jobID)
 			return
 		}
 	}()
+}
+
+// Cancel asks a running job to stop. It marks the cancellation so Run commits
+// `cancelled` (not `failed`) when the phase returns context.Canceled, then
+// cancels the job's context. It reports false when no job goroutine owns the
+// id (already terminal or never enqueued).
+func (e *Engine) Cancel(jobID string) bool {
+	e.cancelMu.Lock()
+	e.cancelled[jobID] = true
+	cancel := e.cancels[jobID]
+	e.cancelMu.Unlock()
+	if cancel == nil {
+		return false
+	}
+	cancel()
+	return true
+}
+
+// wasUserCancelled reports whether Cancel marked this job.
+func (e *Engine) wasUserCancelled(jobID string) bool {
+	e.cancelMu.Lock()
+	defer e.cancelMu.Unlock()
+	return e.cancelled[jobID]
 }
 
 // Recover resumes every active job after a daemon restart or an unfreeze
@@ -951,6 +1007,23 @@ func (e *Engine) Run(ctx context.Context, jobID string) {
 
 		if err := e.step(ctx, j); err != nil {
 			if errors.Is(err, ErrPaused) {
+				return
+			}
+			// A user Cancel is a terminal `cancelled`, not a failure. The
+			// phase context is already canceled, so commit on a detached,
+			// bounded context; the pod teardown follows below.
+			if errors.Is(err, context.Canceled) && e.wasUserCancelled(jobID) {
+				cctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+				if _, terr := e.jobs.Transition(cctx, jobID, job.StateCancelled); terr != nil {
+					slog.Error("engine: marking job cancelled", "job", jobID, "err", terr)
+				} else {
+					e.audit(cctx, jobID, map[string]any{
+						"event": "job_cancelled", "state": string(j.State),
+					})
+					e.signalTerminal(cctx, jobID, job.StateCancelled)
+				}
+				e.stopPod(cctx, jobID)
+				cancel()
 				return
 			}
 			slog.Error("engine: phase failed", "job", jobID, "state", j.State, "err", err)
