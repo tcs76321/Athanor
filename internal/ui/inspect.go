@@ -132,6 +132,11 @@ type traceAction struct {
 	Tool, Status, RequestJSON, ResponseJSON, CreatedAt string
 }
 
+type traceCheck struct {
+	TS, Name, Summary, DataJSON string
+	Passed                      string
+}
+
 func (u *UI) handleTrace(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	id := r.PathValue("id")
@@ -171,6 +176,7 @@ func (u *UI) handleTrace(w http.ResponseWriter, r *http.Request) {
 	views := views(events)
 	var calls []traceModelCall
 	var contextEvents []eventView
+	var checks []traceCheck
 	var units []traceUnit
 	totalTokens := 0
 	for _, e := range views {
@@ -188,6 +194,13 @@ func (u *UI) handleTrace(w http.ResponseWriter, r *http.Request) {
 			"chunks_stored", "active_chunk_swapped", "chunk_swapped",
 			"dormant_index_sourced", "repo_preindex", "working_set_injected":
 			contextEvents = append(contextEvents, e)
+		case "verification", "tests_ran", "code_executed", "lint_run_failed",
+			"hallucinated_path", "research_fetch", "reader_mode_applied",
+			"reader_mode_rejected", "pod_log":
+			checks = append(checks, traceCheck{
+				TS: e.TS.Format("15:04:05"), Name: e.Name, Summary: e.Summary,
+				DataJSON: e.DataJSON, Passed: parsePassed(e.DataJSON),
+			})
 		}
 	}
 	traceEvents := views
@@ -207,7 +220,7 @@ func (u *UI) handleTrace(w http.ResponseWriter, r *http.Request) {
 		"Notes": notes, "Units": units, "Tab": "events",
 		"EventCount": len(views), "TotalTokens": totalTokens,
 		"Capture": u.deps.Config != nil && u.deps.Config.Logging.CaptureLLMPayloads,
-		"Actions": actions,
+		"Actions": actions, "Checks": checks,
 	})
 }
 
@@ -245,6 +258,20 @@ func parseUnits(raw string) []traceUnit {
 	}
 	_ = json.Unmarshal([]byte(raw), &d)
 	return d.Units
+}
+
+// parsePassed renders a boolean `passed` field when the event carries one.
+func parsePassed(raw string) string {
+	var d struct {
+		Passed *bool `json:"passed"`
+	}
+	if json.Unmarshal([]byte(raw), &d) != nil || d.Passed == nil {
+		return ""
+	}
+	if *d.Passed {
+		return "pass"
+	}
+	return "fail"
 }
 
 // --- memory inspector ---

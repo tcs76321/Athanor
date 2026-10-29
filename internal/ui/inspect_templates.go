@@ -126,8 +126,19 @@ const traceBody = inspectTabs + `
 </tbody></table>
 {{else}}<div class="empty">No model calls recorded.</div>{{end}}
 
-<h2>Tool actions</h2>
+<h2>Checks and tool calls</h2>
+{{if .Checks}}
+<table><thead><tr><th>Check</th><th>Result</th><th>When</th><th>Detail</th></tr></thead><tbody>
+{{range .Checks}}<tr>
+  <td>{{.Name}}<div class="muted">{{.Summary}}</div></td>
+  <td>{{if eq .Passed "pass"}}<span class="pill ok">pass</span>{{else if eq .Passed "fail"}}<span class="pill bad">fail</span>{{else}}<span class="pill">—</span>{{end}}</td>
+  <td class="muted">{{.TS}}</td>
+  <td><details><summary>open</summary><pre>{{.DataJSON}}</pre></details></td>
+</tr>{{end}}
+</tbody></table>
+{{else}}<div class="empty">No checks or tool calls recorded.</div>{{end}}
 {{if .Actions}}
+<h3>Persisted action rows</h3>
 <table><thead><tr><th>Seq</th><th>Tool</th><th>Status</th><th>When</th><th>Request / response</th></tr></thead><tbody>
 {{range .Actions}}<tr>
   <td>{{.Seq}}</td><td class="mono">{{.Tool}}</td>
@@ -139,7 +150,7 @@ const traceBody = inspectTabs + `
   </details></td>
 </tr>{{end}}
 </tbody></table>
-{{else}}<div class="empty">No tool actions recorded.</div>{{end}}
+{{end}}
 
 <h2>Evaluation records</h2>
 {{if .Evals}}
