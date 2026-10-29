@@ -1,6 +1,6 @@
 # ADR 0090 — Task analysis sets a contemplation budget the loop revises
 
-**Status:** Proposed — S0–S2 and S4 implemented; S3 open · **Date:** 2026-10-29 ·
+**Status:** Proposed — S0–S4 resolved (S3 narrowed to the declared verifier) · **Date:** 2026-10-29 ·
 **Refs:** ARCHITECTURE §8.2 (state rules), §13.1 Phase 1 (planning), §19.3
 (comparison), §24 (power and idle policy); [ADR-0044](0044-compute-policy-seam.md)
 (compute-policy seam), [ADR-0064](0064-cognitive-operations.md) (operation
@@ -172,9 +172,15 @@ addressing labels, not separate jobs.
 **S4 landed (2026-10-29):** migration 0032 adds the arm tag to
 `strategy_outcomes`: dominant think arm, estimated reasoning tokens, deliberate
 units, refines, and reframes. A later selection layer can estimate uplift per
-arm without re-reading the event log. S3 (executing a per-unit falsifier) stays
-open: it needs a command contract and a containment review, and the analysis
-falsifier is currently prose.
+arm without re-reading the event log.
+
+**S3 narrowed (2026-10-29):** executing a model-proposed falsifier command would
+add an unallowlisted command surface inside the Job Pod, which Gate G1 and the
+airlock rules exist to prevent. For `code`, the probe is therefore the task's
+**operator-declared verification command**, already run by the deterministic
+verifier during evaluation. Model-proposed commands are never executed. A
+per-unit command contract would need an explicit allowlist and a Gate G1 review,
+and is deferred rather than silently granted.
 
 | Step | Change | Behavior |
 |---|---|---|

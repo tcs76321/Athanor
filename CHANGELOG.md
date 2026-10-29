@@ -12,6 +12,11 @@ New entries are appended at the top. Do not rewrite history.
 
 ### Arm-tagged outcomes — 2026-10-29
 
+- **Falsifier execution is narrowed to the declared verifier.** A
+  model-proposed command would be an unallowlisted command surface inside the
+  Job Pod; for `code` the probe is the task's operator-declared verification
+  command, already run by the deterministic verifier. A per-unit command
+  contract needs an allowlist and a Gate G1 review. ADR-0090 S3.
 - **The loop's reasoning spend is now in the outcome record.** Migration 0032
   adds the dominant think arm, estimated reasoning tokens, deliberate-unit
   count, and regulator refine/reframe moves to `strategy_outcomes`, derived
