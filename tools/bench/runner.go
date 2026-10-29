@@ -391,6 +391,27 @@ func projectCreateBody(g sampleGoal, name string) map[string]any {
 	}
 }
 
+// dataSchemaFor reads a data task's declared JSON Schema. The corpus path is
+// resolved against the probe's working directory (the repo root in the Core
+// Pod), and an unreadable schema is an error: silently omitting data_schema
+// disables the engine's deterministic data verifier and turns a harness fault
+// into a false capability result.
+func dataSchemaFor(g sampleGoal) (string, error) {
+	sp, ok := g.Checks["json_schema"].(string)
+	if !ok || sp == "" {
+		return "", nil
+	}
+	abs, err := filepath.Abs(sp)
+	if err != nil {
+		return "", fmt.Errorf("data schema path %q: %w", sp, err)
+	}
+	b, err := os.ReadFile(abs)
+	if err != nil {
+		return "", fmt.Errorf("data schema %s: %w", abs, err)
+	}
+	return string(b), nil
+}
+
 // runOne submits a single job and collects its metrics. Collection
 // failures are non-fatal: the row still records what the HTTP surface
 // returned.
@@ -456,12 +477,14 @@ func (r *runnerConfig) runOne(g sampleGoal, m probeModel, a arm, run int, stateD
 	if c := checksToExecution(g.Checks); c != nil {
 		exec["checks"] = c
 	}
-	if sp, ok := g.Checks["json_schema"].(string); ok && sp != "" {
-		if abs, err := filepath.Abs(sp); err == nil {
-			if b, rerr := os.ReadFile(abs); rerr == nil {
-				exec["data_schema"] = string(b)
-			}
-		}
+	if schema, serr := dataSchemaFor(g); serr != nil {
+		// A missing schema used to silently disable the engine's only
+		// deterministic data verifier; that must be a run error, not a
+		// row that looks like a capability failure.
+		mx.Error = serr.Error()
+		return mx
+	} else if schema != "" {
+		exec["data_schema"] = schema
 	}
 	if len(exec) > 0 {
 		body["execution"] = exec
