@@ -26,6 +26,9 @@ const defaultTimeout = 10 * time.Minute
 type Message struct {
 	Role    string `json:"role"` // "system" | "user" | "assistant"
 	Content string `json:"content"`
+	// Thinking is Ollama's hidden-reasoning trace on a response. It is empty
+	// on requests and is never rendered into a prompt.
+	Thinking string `json:"thinking,omitempty"`
 }
 
 // Request is one model call resolved for a persona.
@@ -56,11 +59,12 @@ type Request struct {
 	// parser rejects quickly.
 	MaxTokens int
 	// Think controls a thinking-capable model's reasoning phase (Ollama's
-	// `think`). nil leaves it to the model; false disables reasoning so
-	// the answer fits the token cap. The M3-T7 smoke found ornith-1.5:9b
-	// spent the entire num_predict budget on thinking, leaving the visible
-	// content empty.
-	Think *bool
+	// `think`). nil leaves it to the model. false disables reasoning so the
+	// answer fits the token cap; a level ("low"|"medium"|"high") requests a
+	// bounded amount where the model supports level-based thinking. The M3-T7
+	// smoke found ornith-1.5:9b spent the entire num_predict budget on
+	// thinking, leaving the visible content empty.
+	Think *ThinkMode
 	// KeepAlive is Ollama's `keep_alive` duration for this call (§12.5): how
 	// long the model stays resident afterward. Empty omits the field
 	// (Ollama's default). A cross-family judge swaps rather than
@@ -72,7 +76,12 @@ type Request struct {
 type Response struct {
 	Content          string
 	PromptTokens     int // Ollama prompt_eval_count
-	CompletionTokens int // Ollama eval_count
+	CompletionTokens int // Ollama eval_count (includes hidden reasoning)
+	// Thinking is the hidden-reasoning trace when the model emitted one.
+	Thinking string
+	// ReasoningTokens is an estimate derived from Thinking (see
+	// ReasoningTokens); Ollama does not report a separate count.
+	ReasoningTokens int
 }
 
 // Client talks to one Ollama server over its native HTTP API.
@@ -123,13 +132,13 @@ func (c *Client) acquire(ctx context.Context) (func(), error) {
 // chatRequest/chatResponse mirror Ollama's /api/chat schema. Options
 // carry the persona's load-time knobs (§12.3).
 type chatRequest struct {
-	Model     string    `json:"model"`
-	Messages  []Message `json:"messages"`
-	Stream    bool      `json:"stream"`
-	Format    any       `json:"format,omitempty"`
-	Think     *bool     `json:"think,omitempty"`
-	KeepAlive string    `json:"keep_alive,omitempty"`
-	Options   chatOpts  `json:"options"`
+	Model     string     `json:"model"`
+	Messages  []Message  `json:"messages"`
+	Stream    bool       `json:"stream"`
+	Format    any        `json:"format,omitempty"`
+	Think     *ThinkMode `json:"think,omitempty"`
+	KeepAlive string     `json:"keep_alive,omitempty"`
+	Options   chatOpts   `json:"options"`
 }
 
 type chatOpts struct {
@@ -211,6 +220,8 @@ func (c *Client) Chat(ctx context.Context, req Request) (Response, error) {
 		Content:          cr.Message.Content,
 		PromptTokens:     cr.PromptEvalCount,
 		CompletionTokens: cr.EvalCount,
+		Thinking:         cr.Message.Thinking,
+		ReasoningTokens:  ReasoningTokens(cr.Message.Thinking),
 	}, nil
 }
 
@@ -260,6 +271,7 @@ func (c *Client) Stream(ctx context.Context, req Request, onToken func(string)) 
 	}
 
 	var content strings.Builder
+	var thinking strings.Builder
 	var last chatResponse
 	sawDone := false
 	dec := json.NewDecoder(resp.Body)
@@ -280,6 +292,9 @@ func (c *Client) Stream(ctx context.Context, req Request, onToken func(string)) 
 				onToken(cr.Message.Content)
 			}
 		}
+		if cr.Message.Thinking != "" {
+			thinking.WriteString(cr.Message.Thinking)
+		}
 		last = cr
 		if cr.Done {
 			sawDone = true
@@ -298,6 +313,8 @@ func (c *Client) Stream(ctx context.Context, req Request, onToken func(string)) 
 		Content:          content.String(),
 		PromptTokens:     last.PromptEvalCount,
 		CompletionTokens: last.EvalCount,
+		Thinking:         thinking.String(),
+		ReasoningTokens:  ReasoningTokens(thinking.String()),
 	}, nil
 }
 

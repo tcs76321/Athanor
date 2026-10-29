@@ -45,6 +45,11 @@ func validateRaw(c *Config) error {
 	if c.Inference.MaxOutputTokens < 0 {
 		return fmt.Errorf("inference.max_output_tokens must be >= 0, got %d", c.Inference.MaxOutputTokens)
 	}
+	switch l := c.Inference.ThinkLevel; l {
+	case "", "off", "low", "medium", "high":
+	default:
+		return fmt.Errorf("inference.think_level must be off|low|medium|high (or empty), got %q", l)
+	}
 	if k := c.Inference.KeepAlive; k != "" {
 		if _, err := time.ParseDuration(k); err != nil {
 			return fmt.Errorf("inference.keep_alive must be a duration like \"5m\" (or empty), got %q", k)

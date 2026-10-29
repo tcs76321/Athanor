@@ -94,12 +94,11 @@ func TestChatSendsPersonaOptions(t *testing.T) {
 // (json.Decode leaves absent struct fields untouched).
 func TestChatForwardsSeedAndFormat(t *testing.T) {
 	seed := int64(123456789)
-	noThink := false
 	ts, captured := fakeOllama(t, http.StatusOK, okChatResponse())
 	c := NewClient(ts.URL, nil)
 	if _, err := c.Chat(context.Background(), Request{
 		Model: "qwen3.8:27b-mlx", Messages: []Message{{Role: "user", Content: "judge"}},
-		Temperature: 0, ContextTarget: 8192, Seed: &seed, Format: "json", MaxTokens: 4096, Think: &noThink,
+		Temperature: 0, ContextTarget: 8192, Seed: &seed, Format: "json", MaxTokens: 4096, Think: Off(),
 	}); err != nil {
 		t.Fatalf("Chat() err = %v", err)
 	}
@@ -112,8 +111,21 @@ func TestChatForwardsSeedAndFormat(t *testing.T) {
 	if captured.Options.NumPredict != 4096 {
 		t.Errorf("request num_predict = %d, want 4096", captured.Options.NumPredict)
 	}
-	if captured.Think == nil || *captured.Think {
-		t.Errorf("request think = %v, want false", captured.Think)
+	if captured.Think == nil || captured.Think.Enabled || captured.Think.Level != "" {
+		t.Errorf("request think = %+v, want off", captured.Think)
+	}
+
+	// Level mode: the wire value is a string, not a bool.
+	tsLevel, capturedLevel := fakeOllama(t, http.StatusOK, okChatResponse())
+	cLevel := NewClient(tsLevel.URL, nil)
+	if _, err := cLevel.Chat(context.Background(), Request{
+		Model: "qwen3.8:27b-mlx", Messages: []Message{{Role: "user", Content: "x"}},
+		Think: At("medium"),
+	}); err != nil {
+		t.Fatalf("Chat(level) err = %v", err)
+	}
+	if capturedLevel.Think == nil || capturedLevel.Think.Level != "medium" {
+		t.Errorf("request think = %+v, want level medium", capturedLevel.Think)
 	}
 
 	// Unset: a fresh server so the assertion is not masked by the values
@@ -269,5 +281,27 @@ func TestSetMaxConcurrentSerializesCalls(t *testing.T) {
 	wg.Wait()
 	if maxInFlight != 1 {
 		t.Errorf("max in-flight calls = %d, want 1", maxInFlight)
+	}
+}
+
+// TestChatAccountsReasoningTrace pins the S0 accounting: when Ollama returns a
+// hidden-reasoning trace, the response exposes it and records an estimate. The
+// estimate is advisory; eval_count remains the authoritative completion count.
+func TestChatAccountsReasoningTrace(t *testing.T) {
+	r := okChatResponse()
+	r.Message.Thinking = "check the assumption, then compute the result"
+	ts, _ := fakeOllama(t, http.StatusOK, r)
+	resp, err := NewClient(ts.URL, nil).Chat(context.Background(), Request{
+		Model: "m", Messages: []Message{{Role: "user", Content: "x"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.Thinking != r.Message.Thinking {
+		t.Errorf("thinking = %q, want the returned trace", resp.Thinking)
+	}
+	want := (len(r.Message.Thinking) + 3) / 4
+	if resp.ReasoningTokens != want {
+		t.Errorf("reasoning tokens = %d, want %d", resp.ReasoningTokens, want)
 	}
 }

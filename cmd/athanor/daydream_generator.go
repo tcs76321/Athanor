@@ -18,14 +18,13 @@ type llmDaydreamGenerator struct {
 
 // Generate performs one bounded generation for Proactive Documentation.
 func (g llmDaydreamGenerator) Generate(ctx context.Context, prompt string) (string, error) {
-	off := false
 	resp, err := g.client.Chat(ctx, llm.Request{
 		Model:         g.model,
 		Messages:      []llm.Message{{Role: "user", Content: prompt}},
 		Temperature:   g.temperature,
 		ContextTarget: g.contextTarget,
 		MaxTokens:     2048,
-		Think:         &off,
+		Think:         llm.Off(),
 	})
 	if err != nil {
 		return "", err

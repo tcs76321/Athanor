@@ -422,12 +422,9 @@ func (e *Engine) call(ctx context.Context, j job.Job, p project.Project, t proje
 	// F4-T8: `think` is a per-phase decision. Judgment phases (evaluating,
 	// comparing) must not spend the token budget on hidden reasoning — a
 	// thinking-capable model can burn num_predict on reasoning and emit
-	// nothing usable (the M3-T7 runaway). Generation follows config.
-	think := e.cfg.Inference.Think
-	if isJudgmentPhase(phase) {
-		off := false
-		think = &off
-	}
+	// nothing usable (the M3-T7 runaway). Generation follows config; a
+	// configured level is passed as a level, not a boolean (ADR-0090 S0).
+	think := resolveThink(e.cfg.Inference, phase)
 
 	req := llm.Request{
 		Model:         persona.Model,
@@ -476,8 +473,11 @@ func (e *Engine) call(ctx context.Context, j job.Job, p project.Project, t proje
 	e.audit(ctx, j.ID, map[string]any{
 		"event": "llm_call", "phase": phase, "persona": role, "model": persona.Model,
 		"temperature": temperature, "prompt_tokens": resp.PromptTokens,
-		"completion_tokens": resp.CompletionTokens, "estimated_prompt_tokens": res.TotalToken,
-		"sections": sections,
+		"completion_tokens":       resp.CompletionTokens,
+		"reasoning_tokens":        resp.ReasoningTokens,
+		"thinking_chars":          len(resp.Thinking),
+		"estimated_prompt_tokens": res.TotalToken,
+		"sections":                sections,
 		// M3-T7.1: generation provenance for reproducibility/audit.
 		// `seed` is null when judgment_seed is off (Ollama draws a
 		// random seed); `format` names the constrained format

@@ -703,12 +703,35 @@ func isJudgmentPhase(phase string) bool {
 	return phase == llm.PhaseEvaluating || phase == llm.PhaseComparing
 }
 
-// thinkFlag renders a *bool Think for the audit log (nil when unset).
-func thinkFlag(t *bool) any {
+// thinkFlag renders a *ThinkMode for the audit log: a level string, a boolean,
+// or nil when unset.
+func thinkFlag(t *llm.ThinkMode) any {
 	if t == nil {
 		return nil
 	}
-	return *t
+	if t.Level != "" {
+		return t.Level
+	}
+	return t.Enabled
+}
+
+// resolveThink maps configuration and phase to the wire control. Judgment
+// phases are always off (F4-T8); a configured level applies to generation
+// only. An empty level keeps the boolean Think setting.
+func resolveThink(in config.Inference, phase string) *llm.ThinkMode {
+	if isJudgmentPhase(phase) {
+		return llm.Off()
+	}
+	switch in.ThinkLevel {
+	case "off":
+		return llm.Off()
+	case "low", "medium", "high":
+		return llm.At(in.ThinkLevel)
+	}
+	if in.Think != nil && *in.Think {
+		return llm.At("")
+	}
+	return llm.Off()
 }
 
 // recordFailureCorrection captures a phase failure as a runtime_error

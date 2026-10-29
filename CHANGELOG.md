@@ -10,6 +10,16 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Thinking wire — 2026-10-29
+
+- **A bool cannot say "how much."** `llm.ThinkMode` replaces `Request.Think
+  *bool`, emitting `false` or `"low"|"medium"|"high"` to match the model's
+  declared controls (the G-F4 qwen confound). `inference.think_level` selects
+  the level; judgment phases stay forced off. `Response.Thinking` and an
+  estimated `ReasoningTokens` expose the hidden trace, and the `llm_call` audit
+  records both. Behavior is unchanged unless `think_level` is set. Proofs:
+  `TestChatForwardsSeedAndFormat`, `TestChatAccountsReasoningTrace`.
+
 ### Horizon budget — 2026-10-29
 
 - **A ledger, not a per-job allowance.** Migration 0031 adds

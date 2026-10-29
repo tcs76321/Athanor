@@ -175,6 +175,10 @@ type Inference struct {
 	// consume the output-token budget and leave the visible content empty
 	// (M3-T7 smoke). Set true to allow reasoning.
 	Think *bool `yaml:"think"`
+	// ThinkLevel selects level-based thinking where the model supports it
+	// (Ollama /api/show `thinking.values`): off|low|medium|high. Empty uses
+	// the boolean Think setting. Judgment phases stay off regardless.
+	ThinkLevel string `yaml:"think_level"`
 	// JudgmentSeed controls sampler-seed pinning on Temperature-0
 	// judgment calls (M3-T7.1). JudgmentSeedOff (default) leaves the
 	// seed unset so Ollama draws a random one per request;

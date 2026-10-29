@@ -64,6 +64,10 @@ inference:
   # think controls a thinking-capable model's reasoning phase. false
   # (default) keeps calls bounded and cheap; true allows reasoning.
   think: false
+  # think_level selects level-based thinking where the model supports it
+  # (Ollama /api/show thinking.values): off|low|medium|high. Empty uses the
+  # boolean above. Judgment phases are always off.
+  think_level: ""
   # judgment_seed controls sampler-seed pinning on Temperature-0
   # judgment calls: "off" (default, random seed per request) or
   # "derived" (a deterministic seed derived from the job, phase, and
