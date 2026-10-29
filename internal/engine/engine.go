@@ -34,7 +34,9 @@ package engine
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
+	"runtime/debug"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -871,6 +873,16 @@ func (e *Engine) Run(ctx context.Context, jobID string) {
 		delete(e.running, jobID)
 		e.mu.Unlock()
 	}()
+	// A panic in a phase is contained to this job. Without this, a nil map,
+	// a bad index, or a parser panic in any phase would kill the daemon —
+	// the opposite of the §23 endurance posture. The handler commits the
+	// failure, records a correction, and tears the pod down; the process
+	// keeps running and the job is diagnosable from the event log.
+	defer func() {
+		if r := recover(); r != nil {
+			e.handleJobPanic(jobID, r)
+		}
+	}()
 
 	for {
 		j, err := e.jobs.Get(ctx, jobID)
@@ -959,4 +971,54 @@ func (e *Engine) Run(ctx context.Context, jobID string) {
 			_ = e.jobs.SetRecoveryFlag(ctx, jobID, "")
 		}
 	}
+}
+
+// handleJobPanic contains a panic from one job's goroutine. It records the
+// panic and the phase it happened in, fails the job if it is still active,
+// captures the runtime-error correction, and stops the job's pod. The daemon
+// itself keeps running: a single bad phase must not take down work that is
+// already in flight or queued.
+//
+// The context is detached from the (possibly canceled) phase context so the
+// post-mortem rows are still written, and bounded so a wedged database cannot
+// hold the goroutine indefinitely. A second panic in this handler is logged
+// by the deferred guard rather than escaping.
+func (e *Engine) handleJobPanic(jobID string, recovered any) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	stack := debug.Stack()
+	if len(stack) > 8<<10 {
+		stack = stack[:8<<10]
+	}
+	slog.Error("engine: job panicked",
+		"job", jobID, "panic", fmt.Sprint(recovered), "stack", string(stack))
+
+	defer func() {
+		if r := recover(); r != nil {
+			slog.Error("engine: panic handler itself failed", "job", jobID, "panic", fmt.Sprint(r))
+		}
+	}()
+
+	j, err := e.jobs.Get(ctx, jobID)
+	if err != nil {
+		slog.Error("engine: loading panicked job", "job", jobID, "err", err)
+		e.stopPod(ctx, jobID)
+		return
+	}
+	e.audit(ctx, jobID, map[string]any{
+		"event": "job_panicked", "phase": string(j.State), "panic": fmt.Sprint(recovered),
+	})
+	if !j.State.Terminal() {
+		if _, terr := e.jobs.Transition(ctx, jobID, job.StateFailed); terr != nil {
+			slog.Error("engine: failing panicked job", "job", jobID, "err", terr)
+		} else {
+			e.signalTerminal(ctx, jobID, job.StateFailed)
+			e.recordFailureCorrection(ctx, jobID, j.ProjectID, j.State,
+				fmt.Errorf("panic: %v", recovered))
+			e.captureOutcome(ctx, jobID)
+			e.clearJobScratch(ctx, jobID)
+		}
+	}
+	e.stopPod(ctx, jobID)
 }
