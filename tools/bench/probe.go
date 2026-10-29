@@ -178,6 +178,8 @@ func main() {
 		runMeasure(os.Args[2:])
 	case "memory":
 		runMemory(os.Args[2:])
+	case "evidence":
+		runEvidence(os.Args[2:])
 	case "verify-models":
 		runVerifyModels(os.Args[2:])
 	default:
@@ -201,6 +203,7 @@ commands:
   reconcile re-read outcomes from the state DB to repair missed rows, then re-run report
   measure   write onboard measurements.json from a results tree + anchor (M9-T2b)
   memory    run the memory scripts (sequence: task -> correction/insight -> task)
+  evidence  reduce a daemon state dir into the soak report/CSV (read-only; F5)
   verify-models check the frozen protocol roster against the local Ollama digests
 
 Run each command with -h for its flags. Protocol:

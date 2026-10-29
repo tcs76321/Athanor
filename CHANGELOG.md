@@ -42,6 +42,12 @@ New entries are appended at the top. Do not rewrite history.
   [ADR-0083](docs/adr/0083-repository-working-set-pack.md); proofs:
   `TestRepositoryWorkingSetIsPinnedAndDeduped`,
   `TestWorkingSetIsAutoForCodeOnly`, `TestContextProviderWorkingSet`.
+- **A state-dir evidence reducer.** `athanor-probe evidence -state-dir <dir>`
+  reads a daemon state directory and writes `results.json`/`results.csv`/
+  `report.md` in the same shape as the soak, using the existing telemetry,
+  verification, candidate, and outcome reducers. This is the first F5 slice:
+  real use and soaks now share one report path. Proof: `TestEvidenceRows`;
+  live run over a retained 80-job state dir.
 - **A loopback `/status` snapshot.** `GET /status` reports the daemon version,
   uptime, goroutines, freeze state, job counts by state, and active alarms on
   the same loopback listener as `/healthz` and the UI. It is unauthenticated by

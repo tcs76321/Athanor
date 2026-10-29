@@ -96,9 +96,12 @@ adjustments become policy; **global** or **untested** proposals stay queued
 
 ## 7. Implementation steps
 
-1. `evidence` subcommand + state-dir reducer over `jobs`/`strategy_outcomes`/
-   `events`; tests against a fixture DB. Read the state from the **Core Pod's
-   mounted volume** (the only supported runtime, ADR-0078).
+1. **Landed (P2/F5a, 2026-10-28):** `athanor-probe evidence -state-dir <dir>`
+   reduces `jobs`/`strategy_outcomes`/`events` into the same `jobMetrics` rows
+   and `results.json`/`results.csv`/`report.md` the soak uses
+   (`tools/bench/evidence.go`, `TestEvidenceRows`). It is read-only and works
+   against a Core Pod's mounted state volume. The daemon-side `athanor evidence`
+   wrapper remains (step 6).
 2. Downstream-use joins (git commit, export/push, re-run, correction) as label
    columns.
 3. Review-queue export (sampled, blinded) + ratings store.
