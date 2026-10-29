@@ -470,6 +470,12 @@ Critical artifacts (source code, test outputs, exact user constraints) are never
 - **Dormant Chunks:** Held intact in fast local storage (SQLite/RAM).
 - **Dormant Index:** A table of contents provided to the LLM in the prompt. Contains chunk IDs, summaries (1-line), and metadata (file path, line range, type).
 - **Context Swap (engine-executed):** The Core keeps one chunk active. When the assembled context exceeds the §10.4 pressure budget, the engine force-evicts the lowest-priority tier and may load a dormant chunk perfectly intact. The model cannot invoke the swap itself (ADR-0080); it sees the Active Chunk and the Dormant Index.
+- **Repository working-set pack (P0):** for code jobs, the engine also retrieves
+  a bounded set of ranked project chunk **bodies** and renders them in tier 3,
+  after the active chunk (ADR-0083). The pack is full-fidelity, pinned, and hard
+  capped by `context_engine.working_set_max_bytes` / `working_set_max_chunks`;
+  it is retrieval, not a model tool call. `working_set_mode: auto` enables it
+  for `code` only. A chunk that does not fit is skipped, never sliced.
 
 ### 10.2 The N-Dimensional Context Gradient
 
@@ -573,6 +579,11 @@ User prompts **cannot override** static security constraints. Meta-prompts **can
 14. Strategy Notes (short versioned lines derived from *active* StrategyInsights only; see §13.4)
 15. Interruption Queue Notes (user notes from live watch mode)
 ```
+
+For a `code` job, position 7 is followed by the **repository working-set
+pack**: ranked, byte-capped project chunk bodies in the same tier (ADR-0083).
+It is not a separate §11.2 tier; it is additional pinned context, and a chunk
+that does not fit the configured cap is skipped rather than sliced.
 
 The final prompt includes token accounting for each section, logged to the `EventLog`.
 

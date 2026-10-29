@@ -26,8 +26,9 @@ import (
 // provider reports empty tiers rather than a working set the operator
 // switched off. That is the same gate the context_swap route uses (501).
 type contextProvider struct {
-	store   *mce.ChunkStore
-	enabled bool
+	store     *mce.ChunkStore
+	retriever *mce.Retriever
+	enabled   bool
 	// F5 (ADR-0059): the repository Dormant Index bound and the opt-in
 	// tier-3 seeding bounds, resolved from context_engine at boot.
 	repositoryLimit int
@@ -49,6 +50,7 @@ func newContextProvider(store *mce.ChunkStore, enabled bool, ce config.ContextEn
 	}
 	return &contextProvider{
 		store:           store,
+		retriever:       store.Retriever(),
 		enabled:         enabled,
 		repositoryLimit: limit,
 		seedActive:      ce.SeedActiveChunkEnabled(),
@@ -106,6 +108,70 @@ func (p *contextProvider) ActiveChunk(ctx context.Context, q engine.ContextQuery
 	}
 	return chunkText(res.Loaded), true, nil
 }
+
+// WorkingSet returns the P0 repository pack: the top-ranked project chunk
+// bodies that fit the byte cap, excluding the job's active chunk (the prompt
+// renderer dedupes as a second defence) and any chunk that would overflow the
+// cap. Retrieval is FTS5 bm25 over the summary index plus the optional vector
+// half; no model call is made. A nil/disabled provider returns no pack, which
+// keeps the pre-P0 prompt byte-identical.
+func (p *contextProvider) WorkingSet(ctx context.Context, q engine.ContextQuery,
+	maxChunks, maxBytes int) ([]prompt.ChunkText, error) {
+	if !p.enabled || p.store == nil || p.retriever == nil || q.ProjectID == "" ||
+		maxChunks <= 0 || maxBytes <= 0 {
+		return nil, nil
+	}
+	activeID := ""
+	if rec, ok, err := p.store.Active(ctx, q.JobID); err == nil && ok {
+		activeID = rec.ID
+	}
+	hits, err := p.retriever.Query(ctx, mce.QueryOptions{
+		Query: q.Query,
+		Scope: mce.Scope{ProjectID: q.ProjectID},
+		TopK:  maxChunks * 2,
+	})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]prompt.ChunkText, 0, maxChunks)
+	seen := map[string]bool{}
+	used := 0
+	add := func(id string) {
+		if id == "" || id == activeID || seen[id] || len(out) >= maxChunks {
+			return
+		}
+		rec, err := p.store.Get(ctx, id)
+		if err != nil || len(rec.Content) == 0 {
+			return
+		}
+		if used+len(rec.Content) > maxBytes {
+			return
+		}
+		seen[id] = true
+		out = append(out, chunkText(rec))
+		used += len(rec.Content)
+	}
+	for _, hit := range hits {
+		if hit.Kind == mce.SourceChunk {
+			add(hit.ID)
+		}
+	}
+	// Before summaries are ready the FTS index has no text to match, so a
+	// fresh project would get no pack. Fall back to the most recently updated
+	// project chunks; the caps still bound it and the prompt still marks the
+	// content as data.
+	if len(out) == 0 {
+		if entries, ierr := p.store.IndexForProject(ctx, q.ProjectID, "", maxChunks*2); ierr == nil {
+			for _, e := range entries {
+				add(e.ChunkID)
+			}
+		}
+	}
+	return out, nil
+}
+
+// Compile-time proof that the adapter satisfies the optional P0 seam.
+var _ engine.WorkingSetProvider = (*contextProvider)(nil)
 
 // DormantIndex returns the §10.1 Dormant Index for the job (§11.2 §10): the
 // job's own chunks first, then the ranked, bounded project-repository rows,

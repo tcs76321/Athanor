@@ -150,6 +150,20 @@ func applyDefaults(c *Config) {
 	if c.ContextEngine.SeedActiveMaxBytes == 0 {
 		c.ContextEngine.SeedActiveMaxBytes = 16384
 	}
+	// P0 repository working-set pack: auto = code jobs only. The caps are
+	// hard; the pack is full-fidelity and pinned in tier 3.
+	if c.ContextEngine.WorkingSetMode == "" {
+		c.ContextEngine.WorkingSetMode = WorkingSetAuto
+	}
+	if c.ContextEngine.WorkingSetMaxBytes == 0 {
+		c.ContextEngine.WorkingSetMaxBytes = 32768
+	}
+	if c.ContextEngine.WorkingSetMaxChunks == 0 {
+		c.ContextEngine.WorkingSetMaxChunks = 8
+	}
+	if c.ContextEngine.WorkingSetPhases == nil {
+		c.ContextEngine.WorkingSetPhases = []string{}
+	}
 
 	setInt(&c.Execution.DivergenceCandidates, 3)
 	setInt(&c.Execution.MaxHardTaskVariations, 10)

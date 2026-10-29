@@ -139,6 +139,15 @@ context_engine:
   repository_index_limit: 20
   seed_active_chunk: false
   seed_active_max_bytes: 16384
+  # P0 repository working-set pack. `auto` puts the top-ranked project chunk
+  # bodies into tier 3 for code jobs only; `on` does it for every archetype,
+  # `off` disables it. The pack is full-fidelity and pinned, so the byte/chunk
+  # caps are hard. Phases default to planning, diverging, reflecting, and
+  # synthesizing; evaluation/comparison work on a candidate, not the repo.
+  working_set_mode: auto
+  working_set_max_bytes: 32768
+  working_set_max_chunks: 8
+  working_set_phases: []
 
 execution:
   divergence_candidates: 3

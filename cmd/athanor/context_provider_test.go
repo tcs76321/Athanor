@@ -119,6 +119,55 @@ func TestContextProviderMapsActiveChunkAndIndex(t *testing.T) {
 	}
 }
 
+// TestContextProviderWorkingSet proves the P0 adapter: ranked project chunk
+// bodies reach tier 3, the byte cap is enforced, and a foreign project scope
+// yields nothing.
+func TestContextProviderWorkingSet(t *testing.T) {
+	st := openMigrated(t)
+	if err := store.Migrate(st.DB(), migrations.FS, ""); err != nil {
+		t.Fatal(err)
+	}
+	cs := mce.NewChunkStore(st)
+	ctx := context.Background()
+	chunks := division.New(division.Options{}).Divide("repo.go", "go",
+		[]byte("package repo\n\nfunc R() {}\n"))
+	if _, err := cs.PutSource(ctx, mce.SourceRef{RelPath: "repo.go", ProjectID: "p1"}, chunks); err != nil {
+		t.Fatal(err)
+	}
+	// The retriever ranks over the summary index, which the indexing
+	// pipeline fills; a direct update is the test's stand-in for it.
+	if _, err := st.DB().Exec(
+		`UPDATE dormant_index SET summary='repo function', summary_status='ready' WHERE chunk_id=?`,
+		chunks[0].ID); err != nil {
+		t.Fatal(err)
+	}
+
+	p := newContextProvider(cs, true, config.ContextEngine{})
+	got, err := p.WorkingSet(ctx, engine.ContextQuery{
+		ProjectID: "p1", Query: "repo",
+	}, 8, 1<<20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) == 0 || got[0].RelPath != "repo.go" {
+		t.Fatalf("working set = %+v, want repo.go", got)
+	}
+	if got[0].Text != string(chunks[0].Content) {
+		t.Errorf("working-set text = %q, want bytes %q", got[0].Text, chunks[0].Content)
+	}
+
+	// A one-byte cap refuses every chunk rather than truncating one.
+	capped, err := p.WorkingSet(ctx, engine.ContextQuery{ProjectID: "p1", Query: "repo"}, 8, 1)
+	if err != nil || len(capped) != 0 {
+		t.Errorf("capped working set = (%d, %v), want (0, nil)", len(capped), err)
+	}
+	// A different project cannot see p1's chunks.
+	foreign, err := p.WorkingSet(ctx, engine.ContextQuery{ProjectID: "p2", Query: "repo"}, 8, 1<<20)
+	if err != nil || len(foreign) != 0 {
+		t.Errorf("foreign working set = (%d, %v), want (0, nil)", len(foreign), err)
+	}
+}
+
 // TestContextProviderIncludesProjectIndex proves the F5 (ADR-0059) union: the
 // Dormant Index carries the job's own chunks plus the project's repository
 // chunks, and the project rows require a ProjectID.

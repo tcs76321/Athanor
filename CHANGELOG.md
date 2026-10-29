@@ -34,6 +34,14 @@ New entries are appended at the top. Do not rewrite history.
   the engine and the independent scorer agree. [ADR-0070 amendment](docs/adr/0070-declared-checks.md);
   proofs: `TestDataSchemaIsPinnedAndRendered`,
   `TestDataSchemaExtractsFencedAndProse`, `TestRun_DataArchetypePromptIncludesSchema`.
+- **Code jobs see a repository working set.** Ranked project chunk bodies now
+  render in pinned prompt tier 3 for code jobs (`working_set_mode: auto`),
+  hard-capped at 32 KiB / 8 chunks and never sliced. Retrieval is the existing
+  FTS5/vector retriever; no model call and no model-invoked tool. The section
+  is framed as data, and `working_set_sourced` records what was published.
+  [ADR-0083](docs/adr/0083-repository-working-set-pack.md); proofs:
+  `TestRepositoryWorkingSetIsPinnedAndDeduped`,
+  `TestWorkingSetIsAutoForCodeOnly`, `TestContextProviderWorkingSet`.
 - **Synthesis keeps a verified candidate for every hard-verifier archetype.**
   The ADR-0068 fallback was code-only; a text job could pass every declared
   check at the candidate stage yet fail after synthesis, while the benchmark's

@@ -267,6 +267,18 @@ type ContextEngine struct {
 	RepositoryIndexLimit int   `yaml:"repository_index_limit"`
 	SeedActiveChunk      *bool `yaml:"seed_active_chunk"`
 	SeedActiveMaxBytes   int   `yaml:"seed_active_max_bytes"`
+	// P0 repository working-set pack. The Dormant Index only names chunks;
+	// this pack puts the top-ranked project chunk bodies into tier 3 so a
+	// code job can see the files it is asked to change. `auto` enables it
+	// for the code archetype only; `on` enables it for every archetype;
+	// `off` disables it. The byte and chunk caps are hard: the pack is
+	// full-fidelity and pinned, so it must never be allowed to blow the
+	// context floor. Phases that are not listed do not receive the pack
+	// (evaluation/comparison default to the candidate, not the repository).
+	WorkingSetMode      string   `yaml:"working_set_mode"`
+	WorkingSetMaxBytes  int      `yaml:"working_set_max_bytes"`
+	WorkingSetMaxChunks int      `yaml:"working_set_max_chunks"`
+	WorkingSetPhases    []string `yaml:"working_set_phases"`
 }
 
 // IndexEmbedBytesValue resolves index_embed_bytes, applying the documented
@@ -291,6 +303,64 @@ func (c *ContextEngine) LosslessSwapping() bool {
 // tier 3 when a job has no active chunk (ADR-0059).
 func (c *ContextEngine) SeedActiveChunkEnabled() bool {
 	return Val(c.SeedActiveChunk, false)
+}
+
+// Working-set modes (P0). `auto` is the shipped default: code jobs get the
+// pack, other archetypes do not.
+const (
+	WorkingSetAuto = "auto"
+	WorkingSetOn   = "on"
+	WorkingSetOff  = "off"
+)
+
+// WorkingSetEnabled reports whether the repository working-set pack is active
+// for an archetype. The zero value is `auto` (code only).
+func (c *ContextEngine) WorkingSetEnabled(archetype string) bool {
+	switch c.WorkingSetMode {
+	case WorkingSetOn:
+		return true
+	case WorkingSetOff:
+		return false
+	default:
+		return archetype == "code"
+	}
+}
+
+// WorkingSetMaxBytesValue resolves the pack byte cap (default 32 KiB).
+func (c *ContextEngine) WorkingSetMaxBytesValue() int {
+	if c.WorkingSetMaxBytes <= 0 {
+		return 32768
+	}
+	return c.WorkingSetMaxBytes
+}
+
+// WorkingSetMaxChunksValue resolves the pack chunk cap (default 8).
+func (c *ContextEngine) WorkingSetMaxChunksValue() int {
+	if c.WorkingSetMaxChunks <= 0 {
+		return 8
+	}
+	return c.WorkingSetMaxChunks
+}
+
+// WorkingSetPhase reports whether a phase receives the pack. The default set
+// is the generation/reasoning phases; evaluation and comparison work on a
+// candidate, and self-refine works on a failing candidate, so none of them
+// gets repository bytes by default.
+func (c *ContextEngine) WorkingSetPhase(phase string) bool {
+	if len(c.WorkingSetPhases) == 0 {
+		switch phase {
+		case "planning", "diverging", "reflecting", "synthesizing":
+			return true
+		default:
+			return false
+		}
+	}
+	for _, p := range c.WorkingSetPhases {
+		if p == phase {
+			return true
+		}
+	}
+	return false
 }
 
 // Execution configures the dialectical loop (§13, §19).

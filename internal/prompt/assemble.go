@@ -56,6 +56,7 @@ func renderSections(in Input) ([]sectionSpec, error) {
 		{SectionAcceptanceCriteria, TierTaskCriteria, criteria(in.Criteria)},
 		{SectionDataSchema, TierTaskCriteria, dataSchemaSection(in.DataSchema)},
 		{SectionActiveChunk, TierWorkingSet, activeChunkOrEmpty(in.ActiveChunk)},
+		{SectionRepositoryWorkingSet, TierWorkingSet, repositoryWorkingSetSection(in.ActiveChunk, in.WorkingSet)},
 		{SectionCorrections, TierCorrections, correctionsSection(in.Corrections)},
 		{SectionEpisodic, TierEpisodic, episodicSection(in.Episodic)},
 		{SectionDormantIndex, TierDormantIndex, dormantIndexSection(in.DormantIndex)},

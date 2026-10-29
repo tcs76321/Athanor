@@ -271,7 +271,7 @@ func (e *Engine) call(ctx context.Context, j job.Job, p project.Project, t proje
 	// envelope, the persisted suppression set, and the assembly ceiling
 	// before assembling. A nil ContextProvider leaves tiers 3 and 6
 	// empty, which is the pre-T5 assembler exactly.
-	tiers := e.promptTiersFor(ctx, j, t, candidates)
+	tiers := e.promptTiersFor(ctx, j, p, t, phase, candidates)
 	suppressed := e.loadSuppressedTiers(ctx, j.ID)
 	ceiling := ceilingFor(e.cfg.ContextEngine, persona.ContextTarget)
 	// M6-T8c (§20.4): a queued interruption note is injected at this safe
@@ -299,6 +299,7 @@ func (e *Engine) call(ctx context.Context, j job.Job, p project.Project, t proje
 		EvaluationInstructions: planInstructions(extraInstructions, plan, isJudgmentPhase(phase)),
 		Tools:                  tiers.Tools,
 		ActiveChunk:            tiers.ActiveChunk,
+		WorkingSet:             tiers.WorkingSet,
 		Corrections:            tiers.Corrections,
 		Candidates:             tiers.Candidates,
 		DormantIndex:           tiers.DormantIndex,

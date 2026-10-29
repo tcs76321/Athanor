@@ -27,6 +27,8 @@ demo. A claim without a proof is either removed or marked as a target.
 | A data task sees its schema as a pinned requirement | ADR-0070 amendment | `internal/prompt/data_schema_test.go`; `TestRun_DataArchetypePromptIncludesSchema` | **proven** |
 | The engine and benchmark agree on a single wrapped JSON value | ADR-0070 amendment | `internal/verify/schema.go` (`extractJSONValue`); `TestDataSchemaExtractsFencedAndProse` | **proven** |
 | Synthesis does not discard a verified candidate (all hard-verifier archetypes) | ADR-0068 amendment | `internal/engine/phases.go`; `TestSynthesizeFallsBackForDeclaredChecks` | **proven** |
+| A code job's prompt contains ranked repository file bodies | ADR-0083 | `cmd/athanor/context_provider_test.go` (`WorkingSet`); `TestWorkingSetIsAutoForCodeOnly`; `TestRepositoryWorkingSetIsPinnedAndDeduped` | **proven in tests; benchmark delta pending** |
+| The working-set pack is byte-capped, pinned, and never truncated | ADR-0083 | `TestRepositoryWorkingSetIsPinnedAndDeduped`; `TestContextProviderWorkingSet` (cap/foreign scope) | **proven** |
 
 ## Rule
 

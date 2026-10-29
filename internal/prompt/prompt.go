@@ -35,6 +35,7 @@ const (
 	SectionAcceptanceCriteria     = "acceptance_criteria"
 	SectionDataSchema             = "data_schema"
 	SectionActiveChunk            = "active_chunk"
+	SectionRepositoryWorkingSet   = "repository_working_set"
 	SectionCorrections            = "corrections"
 	SectionEpisodic               = "episodic_context"
 	SectionDormantIndex           = "dormant_index"
@@ -112,6 +113,11 @@ type Input struct {
 	// ActiveChunk is the §10.1 active division chunk — §11.2 §7, tier 3
 	// (never evicted). Nil when no working set exists.
 	ActiveChunk *ChunkText
+	// WorkingSet is the P0 repository pack: ranked project chunk bodies
+	// rendered in tier 3 after the active chunk. The slice is already
+	// byte-capped by the provider; the assembler preserves its order and
+	// dedupes by chunk ID. Nil keeps the pre-P0 prompt byte-identical.
+	WorkingSet []ChunkText
 	// Candidates are the prior outputs a phase works on (synthesize,
 	// compare) — §11.2 §12, tier 3 (never evicted). Replaces the
 	// pre-T5 practice of concatenating candidate bytes into the §13

@@ -45,6 +45,16 @@ func (e *ContentMismatchError) Error() string {
 	return fmt.Sprintf("mce: chunk %s hash mismatch: recorded %s, actual %s", e.ID, e.WantHash, e.GotHash)
 }
 
+// Retriever returns the hybrid retrieval engine over this store's database.
+// It is the accessor the cmd/ adapter uses to build a repository working set
+// without exposing the store's internals; a nil store yields nil.
+func (c *ChunkStore) Retriever() *Retriever {
+	if c == nil {
+		return nil
+	}
+	return NewRetriever(c.db)
+}
+
 // SourceRef attributes a divided source to an optional project and job.
 type SourceRef struct {
 	// RelPath is the workspace-relative path the chunks were divided from.

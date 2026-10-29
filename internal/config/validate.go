@@ -119,6 +119,30 @@ func validateRaw(c *Config) error {
 	if v := c.ContextEngine.SeedActiveMaxBytes; v < 0 {
 		return fmt.Errorf("context_engine.seed_active_max_bytes must be positive, got %d", v)
 	}
+	// P0 repository working-set pack: an unknown mode is a typo, and a
+	// zero/negative cap would either disable the feature silently or let a
+	// pinned tier blow the context floor. Empty phases means the built-in
+	// generation set.
+	switch c.ContextEngine.WorkingSetMode {
+	case "", WorkingSetAuto, WorkingSetOn, WorkingSetOff:
+	default:
+		return fmt.Errorf("context_engine.working_set_mode must be auto, on, or off, got %q", c.ContextEngine.WorkingSetMode)
+	}
+	if c.ContextEngine.WorkingSetMaxBytes < 0 {
+		return fmt.Errorf("context_engine.working_set_max_bytes must be positive, got %d", c.ContextEngine.WorkingSetMaxBytes)
+	}
+	if c.ContextEngine.WorkingSetMaxChunks < 0 {
+		return fmt.Errorf("context_engine.working_set_max_chunks must be positive, got %d", c.ContextEngine.WorkingSetMaxChunks)
+	}
+	validPhases := map[string]bool{
+		"planning": true, "diverging": true, "evaluating": true,
+		"refining": true, "reflecting": true, "synthesizing": true, "comparing": true,
+	}
+	for _, p := range c.ContextEngine.WorkingSetPhases {
+		if !validPhases[p] {
+			return fmt.Errorf("context_engine.working_set_phases contains unknown phase %q", p)
+		}
+	}
 	// Invariant §4.3: all compaction runs at Temp 0.0. Enforced here so no
 	// configuration can weaken it.
 	if t := c.ContextEngine.CompactionTemperature; t != 0 {

@@ -54,6 +54,14 @@ type ContextProvider interface {
 	DormantIndex(ctx context.Context, q ContextQuery) ([]prompt.IndexLine, error)
 }
 
+// WorkingSetProvider is the optional P0 extension: the ranked, byte-capped
+// project chunk bodies that form the repository working set. It is a separate
+// interface so every pre-P0 fake (and a daemon with the MCE disabled) keeps
+// satisfying ContextProvider without a stub method.
+type WorkingSetProvider interface {
+	WorkingSet(ctx context.Context, q ContextQuery, maxChunks, maxBytes int) ([]prompt.ChunkText, error)
+}
+
 // Eviction is the outcome of one §10.4 force-eviction (ADR-0022 §5).
 type Eviction struct {
 	// Tiers is what the seam moved to Dormant, lowest priority first.
@@ -226,6 +234,7 @@ func (e *Engine) toolManifest(t project.Task) []string {
 type promptTiers struct {
 	Tools         []string
 	ActiveChunk   *prompt.ChunkText
+	WorkingSet    []prompt.ChunkText
 	Candidates    []prompt.CandidateArtifact
 	DormantIndex  []prompt.IndexLine
 	Corrections   []string
@@ -248,8 +257,8 @@ func renderCorrection(r corrections.Record) string {
 // degrade to empty tiers with a warning — the M5-T2 posture (a missing
 // chunk must not fail a job that can otherwise proceed); they are never
 // silently presented as "no working set" without the log line.
-func (e *Engine) promptTiersFor(ctx context.Context, j job.Job, t project.Task,
-	candidates []prompt.CandidateArtifact) promptTiers {
+func (e *Engine) promptTiersFor(ctx context.Context, j job.Job, p project.Project, t project.Task,
+	phase string, candidates []prompt.CandidateArtifact) promptTiers {
 
 	pt := promptTiers{Tools: e.toolManifest(t), Candidates: candidates}
 	// M6-T7 (§18.3, ADR-0038): retrieval is deterministic — severity, then
@@ -288,6 +297,31 @@ func (e *Engine) promptTiersFor(ctx context.Context, j job.Job, t project.Task,
 			e.auditCat(ctx, j.ID, "context", map[string]any{
 				"event": "dormant_index_sourced", "project": j.ProjectID,
 				"rows": len(idx), "limit": q.Limit,
+			})
+		}
+	}
+	// P0 repository working set: full-fidelity project chunk bodies in tier 3
+	// for the configured archetypes/phases. The optional interface keeps
+	// pre-P0 providers and the MCE-off path working unchanged.
+	if ws, ok := e.ctxProvider.(WorkingSetProvider); ok && e.cfg != nil &&
+		e.cfg.ContextEngine.WorkingSetEnabled(p.Archetype) &&
+		e.cfg.ContextEngine.WorkingSetPhase(phase) {
+		chunks, werr := ws.WorkingSet(ctx, q,
+			e.cfg.ContextEngine.WorkingSetMaxChunksValue(),
+			e.cfg.ContextEngine.WorkingSetMaxBytesValue())
+		if werr != nil {
+			slog.Warn("engine: reading repository working set", "job", j.ID, "err", werr)
+		} else if len(chunks) > 0 {
+			pt.WorkingSet = chunks
+			ids := make([]string, 0, len(chunks))
+			bytes := 0
+			for _, c := range chunks {
+				ids = append(ids, c.ID)
+				bytes += len(c.Text)
+			}
+			e.auditCat(ctx, j.ID, "context", map[string]any{
+				"event": "working_set_sourced", "project": j.ProjectID,
+				"phase": phase, "chunks": len(chunks), "bytes": bytes, "chunk_ids": ids,
 			})
 		}
 	}
