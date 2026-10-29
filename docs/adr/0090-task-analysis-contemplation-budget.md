@@ -144,8 +144,9 @@ allocation, not a fresh pot.
     When the horizon budget is spent, background and daydream work **defers**
     (state kept, requeued later); interactive work may ask the operator to
     extend. Exhaustion is not a job failure. The horizon budget itself — fields,
-    defaults, preemption, and accounting — is a separate decision, because it
-    governs indexing and daydreaming too, not only contemplation.
+    defaults, preemption, and accounting — is
+    [ADR-0091](0091-horizon-budget.md), because it governs indexing and
+    daydreaming too, not only contemplation.
 
 ## First slice
 

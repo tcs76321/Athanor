@@ -19,7 +19,11 @@ New entries are appended at the top. Do not rewrite history.
   capped at one per unit, after which a repeated failure changes the frame rather
   than the reasoning allowance. The per-job allowance is allocated from a
   horizon budget, not a fresh pot, and horizon exhaustion defers instead of
-  failing — the soak is a measurement instrument, not the operating mode. Not
+  failing — the soak is a measurement instrument, not the operating mode. The
+  ledger, reserve, and deferral rules are
+  [ADR-0091](docs/adr/0091-horizon-budget.md): tokens are the accounting unit,
+  wall time is the cap, background work cannot touch the interactive reserve,
+  and a benchmark must declare a budget and report whether it bound. Not
   implemented; inert until `inference.think: auto`.
 
 ### P0 reliability — 2026-10-28
