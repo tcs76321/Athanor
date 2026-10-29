@@ -10,6 +10,15 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Diagnostics — 2026-10-29
+
+- **`bonsai-2:9b` quantization screen: 2/6 on the X-code slice.** Same six tasks
+  and host runtime as the `ornith9b` diagnostic, but Q2_0 instead of Q4_K_M. On
+  the two tasks both solve it is ~9% faster and ~25% cheaper, but it fails
+  `repo-ratelimit` and `interpreter` and times out `sqlite-migration` at the
+  20-minute job budget. Quicker when right, slower when wrong; accepted outcomes
+  per budget is the metric. [Findings](docs/probes/bench-xcode-p0.md).
+
 ### Design — 2026-10-29
 
 - **Task analysis sets a contemplation budget the loop revises.** Proposed

@@ -1,6 +1,6 @@
 # X-code focus after the P0 working-set pack
 
-**Status:** diagnostic run · **Date:** 2026-10-29 · **Model:** `ornith9b` (generator) / `granite4.2:3b` (judge) · **Corpus:** v2 X-code slice, one pass
+**Status:** diagnostic run · **Date:** 2026-10-29 · **Models:** `ornith9b` (generator), plus a `bonsai9b` quantization screen / `granite4.2:3b` (judge) · **Corpus:** v2 X-code slice, one pass
 **Raw evidence:** [`runs/bench-xcode-p0-20261029/`](runs/bench-xcode-p0-20261029/) (report, results, config, metrics)
 
 This is a focused diagnostic, not the frozen headline run: six X-code tasks, one
@@ -117,6 +117,39 @@ hanging. The Core Pod run is 3/6 versus the host diagnostic's 4/6; one pass and
 one model, so this is directional, not a runtime regression claim. It also
 confirms the remaining failures are candidate logic, not missing repository
 context.
+
+## Quantization diagnostic: `bonsai-2:9b` (2026-10-29)
+
+A second model was screened on the same six tasks and the same host runtime to
+separate model quality from the harness fixes. `bonsai-2:9b` is Qwen3.5 9B at
+**Q2_0** with a 262k native window; the probe pins `context_target: 32768` and
+`think: false`, so the window is not exercised. It is a diagnostics-only label,
+outside the frozen v2 roster.
+
+| Task | `ornith9b` (Q4_K_M) | `bonsai9b` (Q2_0) |
+|---|---|---|
+| `x-code-repo-ratelimit` | ✅ 62.8 s / 18.4k tok | ❌ 147.8 s / 51.5k tok |
+| `x-code-bugfix-pipeline` | ✅ 53.5 s / 15.9k tok | ✅ 49.8 s / 14.1k tok |
+| `x-code-interpreter` | ✅ 164.1 s / 20.7k tok | ❌ 888.6 s / 110.8k tok |
+| `x-code-diff3` | ✅ 155.7 s / 27.6k tok | ✅ 132.3 s / 18.3k tok |
+| `x-code-threadpool` | ❌ 1126.2 s / 40.9k tok | ❌ 394.1 s / 59.5k tok |
+| `x-code-sqlite-migration` | ❌ 346.2 s / 56.9k tok | ❌ timed out at 20 m |
+
+Result: **2/6 (33%)** versus `ornith9b`'s 4/6 on the same host run.
+
+On the two tasks both models solve, bonsai is ~9% faster (190.9 s vs 209.2 s) and
+uses ~25% fewer tokens (32.5k vs 43.5k); on `bugfix-pipeline`, which ran the same
+eight calls, completion throughput was ~20% higher. That is the expected Q2
+advantage. It is swamped by the failure paths: `interpreter` took 5.4× as long
+and still failed, and `sqlite-migration` consumed the full 20-minute job budget
+without producing a scoreable artifact.
+
+The honest summary is **quicker when it is right, slower when it is wrong**. A
+fast wrong answer pays the whole retry budget, so tokens/second is not the
+metric — accepted outcomes per unit of budget is. This run is model evidence, not
+a working-set or Core Pod claim, and it does not change the frozen v2 result.
+
+Raw evidence: [`runs/bench-bonsai-xcode-20261029/`](runs/bench-bonsai-xcode-20261029/).
 
 ## Decision
 
