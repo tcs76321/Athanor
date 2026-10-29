@@ -422,6 +422,43 @@ func TestSetupPageRenders(t *testing.T) {
 	}
 }
 
+// TestSetupPageWithModels proves the live inventory and persona rows render
+// against the configured Ollama endpoint.
+func TestSetupPageWithModels(t *testing.T) {
+	fx := setup(t)
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/tags" {
+			http.NotFound(w, r)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"models": []map[string]any{{
+				"name": "fake:latest", "size": 1234567,
+				"details": map[string]string{"family": "qwen"},
+			}},
+		})
+	}))
+	defer ts.Close()
+
+	cfg, err := config.Default()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.Inference.OllamaURL = ts.URL
+	cfg.Personas.Security.Model = "fake:latest"
+	fx.ui.deps.Config = cfg
+
+	status, body := get(t, fx.ts.URL+"/ui/setup")
+	if status != http.StatusOK {
+		t.Fatalf("status = %d, want 200", status)
+	}
+	for _, want := range []string{"fake:latest", "Model inventory", "Run qualification", "security"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("setup page missing %q", want)
+		}
+	}
+}
+
 func TestQualMeasurementsFromState(t *testing.T) {
 	s := newQualState()
 	s.Results["security|m|c1"] = true
