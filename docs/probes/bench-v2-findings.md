@@ -3,8 +3,21 @@
 **Status:** measured · **Corpus:** [frozen v2](../frozen-corpus-v2.md) (41 H/X deterministic + 4 memory + 6 human) · **Run:** Core Pod, one canonical persona set, full arm, one pass
 **Raw evidence:** [`docs/probes/runs/bench-v2-20261025/`](runs/bench-v2-20261025/) (report, results CSV/JSON, per-job metrics)
 
-This is the first full v2 slice. The headline uses the probe's **external**
-deterministic checks, not the engine's own accept or judge.
+This is the first full v2 slice. The non-code headline uses the probe's
+**external** deterministic checks; the code rows in this baseline use engine
+acceptance (see the correction below).
+
+> **Measurement correction (2026-10-29).** The 18 code rows in this baseline are
+> labeled by **engine acceptance** (`completed` + `winner=new`), not by an
+> independent test runner. The results record no per-candidate test outcome, so
+> the X-code 0/6 is six engine failures — it is not proof that the six
+> candidates failed their frozen tests. A focused 2026-10-29 X-code diagnostic
+> after the P0 working-set and harness fixes measured **4/6 on the host dev
+> runtime and 3/6 on the Core Pod**
+> ([bench-xcode-p0](bench-xcode-p0.md)). [ADR-0092](../adr/0092-benchmark-label-integrity.md)
+> changes the code label to the recorded `tests_ran` outcome and reports engine
+> accept separately; the next full run replaces this baseline as the capability
+> number. Do not quote 30/41 or 0/6 X-code as the current tree's result.
 
 ## Run shape
 
@@ -43,11 +56,15 @@ passes are document/text/adversarial (`x-doc-spec-from-code`,
 ## Code acceptance is deterministic
 
 - **12 code accepts; 12 decided without the LLM judge** (100%).
-- All 12 are H-tier. The 6 X code tasks failed their real tests
+- All 12 are H-tier. The 6 X code tasks were **not accepted by the engine**
   (`x-code-repo-ratelimit`, `x-code-bugfix-pipeline`, `x-code-interpreter`,
-  `x-code-diff3`, `x-code-threadpool`, `x-code-sqlite-migration`).
+  `x-code-diff3`, `x-code-threadpool`, `x-code-sqlite-migration`). This baseline
+  does not record a per-candidate test outcome, so it cannot separate a test
+  failure from a later engine failure.
 - The judge was not consulted for a single code accept, which is the
-  verification-first posture working as designed.
+  verification-first posture working as designed. This is the engine's
+  deterministic verifier, not an independent probe check; the new code label
+  (ADR-0092) makes that distinction explicit.
 
 ## Mechanism telemetry
 
@@ -71,8 +88,10 @@ passes are document/text/adversarial (`x-doc-spec-from-code`,
 - **T-c is insufficient:** one pass per task cannot separate model
   nondeterminism from input nondeterminism.
 - The `x-code-interpreter`, `x-code-diff3`, and `x-code-sqlite-migration`
-  rows show an evaluation score of 1.0 but a failed external check. That is
-  exactly why the headline uses external checks: the judge is not the label.
+  rows show an evaluation score of 1.0 but were not accepted. The score is the
+  LLM rubric score, not the frozen test result (`evaluate.go` overrides the
+  pass flag for a hard verifier but not the score). For code rows this baseline
+  has no independent test label; ADR-0092 adds it.
 - `text-level-rewrite`, `doc-migration-guide`, and `x-text-multi-constraint`
   passed their external checks but the engine ended `failed`; those are
   engine-side failures worth a separate look, not capability failures.
@@ -88,17 +107,22 @@ passes are document/text/adversarial (`x-doc-spec-from-code`,
 | Data | 0/6 (0%) | 0/5 (0%) |
 
 Not a regression claim: v2 removed the easy tier, replaced the code floor with
-repo-scale X tasks, and changed the scoring to external checks. The useful
-comparison is qualitative: **H is solid, X code is not there yet, and data is
-still failing.**
+repo-scale X tasks, and changed **non-code** scoring to external checks. Code
+rows in this baseline still use engine accept. The useful comparison is
+qualitative: **H is solid, X code was not accepted in this baseline, and data is
+still failing** — with the X-code and data numbers both predating the P0
+fixes.
 
 ## What to do next
 
-1. **X code is the capability target.** Repo-scale, multi-file, hidden-edge-case
-   tasks are 0/6. Use the failure packets to separate model limits from harness
-   friction (repo staging, test command, candidate overlay).
+1. **X code is the capability target.** This baseline did not accept the six
+   X-code tasks; the 2026-10-29 focused run then measured 4/6 host / 3/6 Core.
+   The next full run labels each code row by its recorded frozen test
+   (ADR-0092) so a test pass and an engine rejection are visibly different.
 2. **Data is 0/5.** This repeated the v1 result; audit whether the failure is
-   the JSON-only output contract, schema extraction, or the verifier.
+   the JSON-only output contract, schema extraction, or the verifier. The P0
+   fixes pinned the schema in the prompt and resolved the v2 schema-path leak;
+   this baseline predates both.
 3. **Investigate the engine-failed-but-check-passed rows.** A job should not
    end `failed` when its candidate passes the external check; those are engine
    or harness bugs, not capability.

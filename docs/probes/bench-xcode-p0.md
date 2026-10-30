@@ -39,6 +39,14 @@ Failing: `x-code-threadpool`, `x-code-sqlite-migration`.
 This is directional: six tasks, one model, one pass, and the held-out pair is
 too small to generalize from. Do not treat it as a benchmark-version result.
 
+> **Label note (ADR-0092).** These six rows were labeled by engine acceptance
+> (`completed` + `winner=new`) at the time of the run. Four host / three Core
+> accepts mean the engine's code verifier saw a passing frozen test and the
+> engine completed; they do **not** mean the probe independently re-ran the
+> test. The benchmark now records `tests_ran` as the code label and reports
+> engine accept separately, so a future run can show a test pass the engine
+> rejected.
+
 ## Mechanism telemetry
 
 From the run's report:

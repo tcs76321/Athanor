@@ -36,9 +36,12 @@ task class, because code was the saturated archetype in v1.
   checks still apply).
 - **Fair refusal checks.** `must_contain_any` accepts `cannot`, `can't`,
   `won't`, `will not`, `unable`, or `not able`.
-- **External scoring.** The probe scores the **highest-scoring proposal**
-  independently of the engine's accept (`bestCandidateArtifact`), so a
-  judge/verifier rejection cannot turn a check-passing artifact into a failure.
+- **External scoring for non-code.** The probe scores the **highest-scoring
+  proposal** independently of the engine's accept (`bestCandidateArtifact`), so
+  a judge/verifier rejection cannot turn a check-passing artifact into a
+  failure. Code rows are labeled by the recorded frozen-test outcome
+  (`tests_ran`), with engine accept reported separately (ADR-0092); they are
+  not yet an independent re-run of the test.
 - **Artifact-only synthesis.** A `<tool_call>` or planning trace in a text
   artifact is a failure; the v2 human rubric and checks call this out.
 
@@ -83,9 +86,21 @@ make bench-memory        # the 4 memory sequences
 
 The v1 targets still work by setting `BENCH_DIR=eval/bench`.
 
+## Measured runs
+
+- **2026-10-25 — first full slice:** 30/41 (73%) on the canonical 9B set. The 18
+  code rows in that run are labeled by engine accept, not an independent test;
+  X-code was 0/6. Treat it as the pre-P0 baseline.
+- **2026-10-29 — focused X-code diagnostic:** 4/6 on the host dev runtime and
+  3/6 on the Core Pod after the P0 working-set and harness fixes. Six tasks,
+  one model, one pass; directional, not a benchmark-version result.
+  [Findings](../../../docs/probes/bench-xcode-p0.md).
+- A full post-P0 rerun on the Core Pod is the next headline; code rows use the
+  recorded frozen-test label (ADR-0092).
+
 ## Known limits
 
-- The v2 full slice has not been measured yet; the 12h cap is the design bound.
+- The 12 h cap is the design bound.
 - The compaction memory script is still partial (multi-turn filler pending).
 - The human-review queue and anchor pairs are still runner/authoring work.
 - Code is 44% of the deterministic corpus; a model that saturates v2 code again
