@@ -299,6 +299,7 @@ type codeLabelRow struct {
 	EngineAccept         int
 	TestPassNotAccepted  int
 	TestMissing          int
+	Legacy               int
 	LegacyEngineAccepted int
 }
 
@@ -324,8 +325,11 @@ func codeLabelTable(metrics []jobMetrics) []codeLabelRow {
 		if m.CodeTestPassed == nil {
 			if m.LabelVersion == benchLabelVersion {
 				r.TestMissing++
-			} else if m.State == "completed" && m.Winner == "new" {
-				r.LegacyEngineAccepted++
+			} else {
+				r.Legacy++
+				if m.State == "completed" && m.Winner == "new" {
+					r.LegacyEngineAccepted++
+				}
 			}
 			continue
 		}
@@ -366,13 +370,13 @@ func renderCodeLabels(metrics []jobMetrics) string {
 	b.WriteString("engine's accept. Engine accept is reported separately; a test-passing\n")
 	b.WriteString("candidate the engine rejected is a system decision, not a capability\n")
 	b.WriteString("failure. A post-ADR-0092 code row with no recorded test is counted as\n")
-	b.WriteString("test-missing; legacy rows fall back to engine accept and are counted in\n")
-	b.WriteString("the last column (ADR-0092).\n\n")
-	b.WriteString("| model | arm | code rows | test pass | engine accept | test pass, not accepted | test missing | legacy engine accepts |\n")
-	b.WriteString("|---|---|---|---|---|---|---|---|\n")
+	b.WriteString("test-missing; legacy rows fall back to engine accept, are counted in the\n")
+	b.WriteString("legacy-rows column, and show an engine accept in the last column (ADR-0092).\n\n")
+	b.WriteString("| model | arm | code rows | test pass | engine accept | test pass, not accepted | test missing | legacy rows | legacy engine accepts |\n")
+	b.WriteString("|---|---|---|---|---|---|---|---|---|\n")
 	for _, r := range rows {
-		fmt.Fprintf(&b, "| %s | %s | %d | %d | %d | %d | %d | %d |\n",
-			r.Model, r.Arm, r.Rows, r.TestPass, r.EngineAccept, r.TestPassNotAccepted, r.TestMissing, r.LegacyEngineAccepted)
+		fmt.Fprintf(&b, "| %s | %s | %d | %d | %d | %d | %d | %d | %d |\n",
+			r.Model, r.Arm, r.Rows, r.TestPass, r.EngineAccept, r.TestPassNotAccepted, r.TestMissing, r.Legacy, r.LegacyEngineAccepted)
 	}
 	return b.String()
 }
