@@ -156,10 +156,54 @@ type tierPassRow struct {
 	Pass int
 }
 
-// jobPassed is the deterministic acceptance signal for one job: the task's
-// non-code checks when it has them, else the engine's accept (a completed job
-// whose winning artifact is new). M8-T21.
+// passSource names the label jobPassed uses for a row. ADR-0092: a code row
+// with a recorded `tests_ran` outcome is labeled by that test, not by the
+// engine's accept; a non-code row is labeled by its deterministic checks; a
+// legacy row without either label falls back to engine acceptance.
+func passSource(m jobMetrics) string {
+	if m.Archetype == "code" {
+		if m.CodeTestPassed != nil {
+			return "code_test"
+		}
+		if m.LabelVersion == benchLabelVersion {
+			return "code_test_missing"
+		}
+	}
+	if m.CheckPass != nil {
+		return "checks"
+	}
+	return "engine_accept"
+}
+
+// benchmarkCheckPassed is the benchmark's own label, never engine acceptance.
+// It is used by the diagnostics table to surface a candidate that passed its
+// frozen test or checks but did not become the engine's winner.
+func benchmarkCheckPassed(m jobMetrics) bool {
+	if m.Archetype == "code" && m.CodeTestPassed != nil {
+		return *m.CodeTestPassed
+	}
+	if m.CheckPass != nil {
+		return *m.CheckPass
+	}
+	return false
+}
+
+// jobPassed is the deterministic acceptance signal for one job: the recorded
+// frozen-test outcome for code (ADR-0092), the task's non-code checks when it
+// has them, else engine acceptance for legacy rows that predate both labels.
+// M8-T21.
 func jobPassed(m jobMetrics) bool {
+	if m.Archetype == "code" {
+		if m.CodeTestPassed != nil {
+			return *m.CodeTestPassed
+		}
+		if m.LabelVersion == benchLabelVersion {
+			// A post-ADR-0092 code row with no recorded test did not
+			// produce a passing frozen test. Do not silently fall back to
+			// engine acceptance.
+			return false
+		}
+	}
 	if m.CheckPass != nil {
 		return *m.CheckPass
 	}
@@ -243,6 +287,96 @@ func heldOutSummary(metrics []jobMetrics) []heldOutRow {
 	return out
 }
 
+// codeLabelRow is one (model, arm) cell for the code-label comparison. The
+// benchmark label is the recorded frozen-test outcome; engine accept is shown
+// separately so a test-passing candidate the engine rejected is visible
+// (ADR-0092).
+type codeLabelRow struct {
+	Model                string
+	Arm                  string
+	Rows                 int
+	TestPass             int
+	EngineAccept         int
+	TestPassNotAccepted  int
+	TestMissing          int
+	LegacyEngineAccepted int
+}
+
+// codeLabelTable groups code rows by (model, arm). Post-ADR-0092 rows with no
+// recorded `tests_ran` outcome are counted as test-missing; legacy rows still
+// use engine acceptance and are counted separately rather than silently mixed
+// into the test label.
+func codeLabelTable(metrics []jobMetrics) []codeLabelRow {
+	type key struct{ model, arm string }
+	agg := map[key]*codeLabelRow{}
+	var order []key
+	for _, m := range metrics {
+		if m.Archetype != "code" {
+			continue
+		}
+		k := key{m.ModelLabel, m.Arm}
+		if _, ok := agg[k]; !ok {
+			agg[k] = &codeLabelRow{Model: m.ModelLabel, Arm: m.Arm}
+			order = append(order, k)
+		}
+		r := agg[k]
+		r.Rows++
+		if m.CodeTestPassed == nil {
+			if m.LabelVersion == benchLabelVersion {
+				r.TestMissing++
+			} else if m.State == "completed" && m.Winner == "new" {
+				r.LegacyEngineAccepted++
+			}
+			continue
+		}
+		if *m.CodeTestPassed {
+			r.TestPass++
+		}
+		if m.State == "completed" && m.Winner == "new" {
+			r.EngineAccept++
+		}
+		if *m.CodeTestPassed && (m.State != "completed" || m.Winner != "new") {
+			r.TestPassNotAccepted++
+		}
+	}
+	sort.Slice(order, func(i, j int) bool {
+		if order[i].model != order[j].model {
+			return order[i].model < order[j].model
+		}
+		return order[i].arm < order[j].arm
+	})
+	out := make([]codeLabelRow, 0, len(order))
+	for _, k := range order {
+		out = append(out, *agg[k])
+	}
+	return out
+}
+
+// renderCodeLabels renders the code test-vs-accept table. It is deliberately
+// separate from the headline: a test pass is capability, an engine accept is a
+// system decision (ADR-0092).
+func renderCodeLabels(metrics []jobMetrics) string {
+	rows := codeLabelTable(metrics)
+	if len(rows) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString("## Code test label vs engine accept\n\n")
+	b.WriteString("The code label is the recorded frozen-test outcome (`tests_ran`), not the\n")
+	b.WriteString("engine's accept. Engine accept is reported separately; a test-passing\n")
+	b.WriteString("candidate the engine rejected is a system decision, not a capability\n")
+	b.WriteString("failure. A post-ADR-0092 code row with no recorded test is counted as\n")
+	b.WriteString("test-missing; legacy rows fall back to engine accept and are counted in\n")
+	b.WriteString("the last column (ADR-0092).\n\n")
+	b.WriteString("| model | arm | code rows | test pass | engine accept | test pass, not accepted | test missing | legacy engine accepts |\n")
+	b.WriteString("|---|---|---|---|---|---|---|---|\n")
+	for _, r := range rows {
+		fmt.Fprintf(&b, "| %s | %s | %d | %d | %d | %d | %d | %d |\n",
+			r.Model, r.Arm, r.Rows, r.TestPass, r.EngineAccept, r.TestPassNotAccepted, r.TestMissing, r.LegacyEngineAccepted)
+	}
+	return b.String()
+}
+
 // renderReport renders the markdown findings skeleton over all collected
 // metrics. It fills the tables mechanically; interpretation and the ADR
 // trigger stay with the human writing the findings.
@@ -288,6 +422,11 @@ func renderReport(metrics []jobMetrics) string {
 			rate = float64(r.Pass) / float64(r.N) * 100
 		}
 		fmt.Fprintf(&b, "| %s | %s | %d | %d | %.0f%% |\n", label, r.Arm, r.N, r.Pass, rate)
+	}
+
+	if labels := renderCodeLabels(metrics); labels != "" {
+		b.WriteString("\n")
+		b.WriteString(labels)
 	}
 
 	b.WriteString("\n## T-b — judge-confidence calibration (all arms)\n\n")
@@ -336,15 +475,16 @@ func renderReport(metrics []jobMetrics) string {
 		fmt.Fprintf(&b, "WARNING: %d comparison(s) had cross_family_ok=false — the judge shared the generator's family.\n", mismatched)
 	}
 
-	b.WriteString("\n## Decision diagnostics — external check passed but not accepted\n\n")
-	b.WriteString("These rows passed the benchmark's own deterministic check yet the engine did not\n")
-	b.WriteString("complete with a new winner. The guard columns show whether the §19.3 guard\n")
-	b.WriteString("downgraded a supported `new`, or the judge itself declined.\n\n")
+	b.WriteString("\n## Decision diagnostics — benchmark check/test passed but not accepted\n\n")
+	b.WriteString("These rows passed the benchmark's own deterministic check or recorded frozen\n")
+	b.WriteString("test yet the engine did not complete with a new winner. The guard columns\n")
+	b.WriteString("show whether the §19.3 guard downgraded a supported `new`, or the judge\n")
+	b.WriteString("itself declined. Code rows use the recorded test outcome (ADR-0092).\n\n")
 	b.WriteString("| goal | model | state | winner | pre | post | thr | prev | final pass | final conf | reason |\n")
 	b.WriteString("|---|---|---|---|---|---|---|---|---|---|---|\n")
 	anomalies := 0
 	for _, m := range metrics {
-		if m.CheckPass == nil || !*m.CheckPass || (m.State == "completed" && m.Winner == "new") {
+		if !benchmarkCheckPassed(m) || (m.State == "completed" && m.Winner == "new") {
 			continue
 		}
 		anomalies++

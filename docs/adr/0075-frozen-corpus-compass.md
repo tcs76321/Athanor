@@ -134,6 +134,18 @@ v2 is cut at **0.0.0** as the hard H/X instrument
 v1 remains the pilot baseline. This is a **new version**, not an edit; a change
 to v2 is v3 at 1.0.0.
 
+## Amendment — 2026-10-29: code labels are recorded test outcomes
+
+The v2 implementation scored a code row by engine acceptance (`completed` +
+`winner=new`), not by the frozen test. The 2026-10-25 full run therefore
+reported X-code 0/6 as six engine failures without recording whether any
+candidate passed its test; the 2026-10-29 focused diagnostic showed 4/6 on the
+host and 3/6 on the Core Pod after the P0 fixes. [ADR-0092](0092-benchmark-label-integrity.md)
+makes the code label the recorded `tests_ran` outcome, reports engine accept
+separately, always scores the best candidate for non-code checks, and resolves
+corpus paths to the version-local copy. The 2026-10-25 numbers stay as a
+historical baseline; the next full run is the post-P0 headline.
+
 ## Consequences
 
 - The current 15-task corpus is **insufficient**: it lacks long-context,

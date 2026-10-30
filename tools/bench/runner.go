@@ -420,7 +420,7 @@ func (r *runnerConfig) runOne(g sampleGoal, m probeModel, a arm, run int, stateD
 		GoalName: g.Name, GoalNumber: g.Number, Archetype: g.Archetype, Tier: tierOf(g.Source),
 		ModelLabel: m.Label, Model: m.Model, Family: m.Family, Arm: a.Name, Run: run,
 		HeldOut: g.HeldOut, ContextDemand: g.ContextDemand, Category: g.Category,
-		Bench: strings.HasPrefix(g.Source, "bench:"),
+		Bench: strings.HasPrefix(g.Source, "bench:"), LabelVersion: benchLabelVersion,
 	}
 	name := fmt.Sprintf("%s-%s-%s-r%d-%d", g.Name, m.Label, a.Name, run, time.Now().UnixNano()%1_000_000)
 
@@ -569,22 +569,26 @@ func (r *runnerConfig) runOne(g sampleGoal, m probeModel, a arm, run int, stateD
 	mx.fillVerification(db)
 	mx.fillDecisionDiagnostics(db)
 	mx.fillTelemetry(db)
+	mx.fillCodeTest(db)
+	mx.EngineAccepted = mx.State == "completed" && mx.Winner == "new"
 	if txt, err := readArtifact(stateDir, mx.ArtifactID); err == nil {
 		mx.ArtifactText = txt
 	}
-	// External scoring: when the engine accepted nothing, score the best
-	// candidate with the task's own checks. The engine's judge/verifier is a
-	// system decision; the benchmark's non-code gate must not depend on it.
-	if mx.ArtifactText == "" && len(g.Checks) > 0 {
-		if id, txt, err := bestCandidateArtifact(db, stateDir, mx.JobID); err == nil && txt != "" {
-			mx.ArtifactID, mx.ArtifactText = id, txt
-		}
+	// The benchmark checks score the best candidate, not only the artifact
+	// the engine accepted (ADR-0075 §4, ADR-0092). Keep ArtifactText for the
+	// judge packets; use a separate text for the checks. Before ADR-0092 the
+	// fallback ran only when the engine accepted nothing, so an accepted-but-
+	// weaker artifact could hide a check-passing candidate.
+	checkID, checkText := mx.ArtifactID, mx.ArtifactText
+	if len(g.Checks) > 0 {
+		checkID, checkText = checkArtifactText(db, stateDir, mx.JobID, mx.ArtifactID, mx.ArtifactText)
 	}
-	// M8-T21: apply the task's deterministic non-code checks to the accepted
-	// artifact (or the best candidate when the engine accepted none). Code
-	// tasks carry no `checks` (their test command is the check).
-	if len(g.Checks) > 0 && mx.ArtifactText != "" {
-		pass, results := runChecks(g.Checks, mx.ArtifactText)
+	mx.ScoredArtifactID = checkID
+	// M8-T21: apply the task's deterministic non-code checks to the best
+	// candidate. Code tasks carry no `checks` (their frozen test command is
+	// the check, recorded as `tests_ran`).
+	if len(g.Checks) > 0 && checkText != "" {
+		pass, results := runChecks(g.Checks, checkText)
 		mx.CheckPass = &pass
 		for _, r := range results {
 			if r.Advisory {
@@ -594,6 +598,7 @@ func (r *runnerConfig) runOne(g sampleGoal, m probeModel, a arm, run int, stateD
 			}
 		}
 	}
+	mx.PassSource = passSource(mx)
 	return mx
 }
 
@@ -725,6 +730,8 @@ func writeCSV(path string, metrics []jobMetrics) error {
 		"guard_pre_winner", "guard_post_winner", "guard_threshold", "has_previous",
 		"final_record_passed", "final_record_confidence", "final_record_better",
 		"final_verifier_applied", "final_verifier_hard", "final_verifier_passed",
+		"code_test_ran", "code_test_passed", "code_test_total", "code_test_passed_count",
+		"engine_accepted", "pass_source", "label_version", "scored_artifact_id",
 		"decide_reason", "job_id", "error"}
 	if err := w.Write(header); err != nil {
 		return err
@@ -742,6 +749,10 @@ func writeCSV(path string, metrics []jobMetrics) error {
 		if m.FinalRecordPassed != nil {
 			finalRecordPassed = strconv.FormatBool(*m.FinalRecordPassed)
 		}
+		codeTestPassed := ""
+		if m.CodeTestPassed != nil {
+			codeTestPassed = strconv.FormatBool(*m.CodeTestPassed)
+		}
 		if err := w.Write([]string{
 			m.GoalName, m.Archetype, m.Tier, strconv.FormatBool(m.HeldOut),
 			m.ContextDemand, m.Category, m.ModelLabel, m.Arm, strconv.Itoa(m.Run), m.State, m.Winner,
@@ -755,6 +766,9 @@ func writeCSV(path string, metrics []jobMetrics) error {
 			strconv.FormatFloat(m.FinalRecordConfidence, 'f', 4, 64),
 			strconv.FormatBool(m.FinalRecordBetter), strconv.Itoa(m.FinalVerifierApplied),
 			strconv.FormatBool(m.FinalVerifierHard), strconv.FormatBool(m.FinalVerifierPassed),
+			strconv.FormatBool(m.CodeTestRan), codeTestPassed, strconv.Itoa(m.CodeTestTotal),
+			strconv.Itoa(m.CodeTestPassedCount), strconv.FormatBool(m.EngineAccepted),
+			m.PassSource, m.LabelVersion, m.ScoredArtifactID,
 			m.DecideReason, m.JobID, m.Error,
 		}); err != nil {
 			return err

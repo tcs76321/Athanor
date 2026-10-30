@@ -95,6 +95,19 @@ Full tables, mechanism metrics, caveats, and next steps:
 [bench-v2-findings.md](probes/bench-v2-findings.md); raw outputs under
 [`docs/probes/runs/bench-v2-20261025/`](probes/runs/bench-v2-20261025/).
 
+**Measurement erratum (2026-10-29).** The 18 code rows in this run are labeled
+by engine acceptance, not by a recorded frozen-test outcome; the 0/6 X-code
+result is therefore six engine failures, not six proven test failures. The
+2026-10-29 focused X-code diagnostic measured 4/6 on the host and 3/6 on the
+Core Pod after the P0 fixes. Code rows now use the recorded `tests_ran` outcome
+and report engine accept separately ([ADR-0092](adr/0092-benchmark-label-integrity.md)).
+
+**Path erratum.** `data-json-normalize` and `data-h-schema-validate` declare
+their `json_schema` under `eval/bench/fixtures` (v1). The v2 loader resolves a
+declared sibling path to the version-local v2 copy when it exists, so v2 runs
+read the pinned v2 schemas; the v2 YAML itself is unchanged (frozen). v3 must
+correct the two declarations.
+
 ## Run
 
 ```bash

@@ -41,6 +41,65 @@ func TestCorpusSummary(t *testing.T) {
 	}
 }
 
+// TestCodeTestOutcomeIsTheLabel is the ADR-0092 integrity test: a code row is
+// labeled by the recorded frozen-test outcome, not by the engine's accept. A
+// test-passing candidate the engine rejected is a capability pass; a completed
+// engine accept whose candidate failed the test is a capability failure.
+func TestCodeTestOutcomeIsTheLabel(t *testing.T) {
+	pass, fail := true, false
+	rows := []jobMetrics{
+		{Archetype: "code", Tier: "X", Arm: "full", State: "failed", Winner: "none", CodeTestPassed: &pass},
+		{Archetype: "code", Tier: "X", Arm: "full", State: "completed", Winner: "new", CodeTestPassed: &fail},
+	}
+	if !jobPassed(rows[0]) {
+		t.Error("a code row with a passing recorded test must pass even when the engine did not accept")
+	}
+	if jobPassed(rows[1]) {
+		t.Error("a completed engine accept whose candidate failed the test must not pass")
+	}
+	if got := passSource(rows[0]); got != "code_test" {
+		t.Errorf("pass source = %q, want code_test", got)
+	}
+
+	// Legacy rows (no recorded test outcome and no label version) keep the
+	// historical engine-accept label so old results.json files still re-render.
+	legacy := jobMetrics{Archetype: "code", Tier: "H", Arm: "full", State: "completed", Winner: "new"}
+	if !jobPassed(legacy) {
+		t.Error("legacy code row should fall back to engine accept")
+	}
+	if got := passSource(legacy); got != "engine_accept" {
+		t.Errorf("legacy pass source = %q, want engine_accept", got)
+	}
+
+	// A post-ADR-0092 row with no tests_ran event is test-missing, not an
+	// engine accept. It must not silently pass because the engine completed.
+	missing := jobMetrics{Archetype: "code", Tier: "H", Arm: "full",
+		State: "completed", Winner: "new", LabelVersion: benchLabelVersion}
+	if jobPassed(missing) {
+		t.Error("code row with no recorded test must not pass on engine acceptance")
+	}
+	if got := passSource(missing); got != "code_test_missing" {
+		t.Errorf("missing-test pass source = %q, want code_test_missing", got)
+	}
+}
+
+// TestReportSurfacesCodeTestMismatch pins the diagnostic that made the 0/6
+// X-code claim ambiguous: a recorded test pass that the engine did not accept
+// is shown, not hidden behind the engine's state.
+func TestReportSurfacesCodeTestMismatch(t *testing.T) {
+	pass := true
+	out := renderReport([]jobMetrics{{
+		GoalName: "x-code-synthetic", Archetype: "code", Tier: "X", Arm: "full",
+		ModelLabel: "m1", State: "failed", Winner: "none", CodeTestPassed: &pass,
+	}})
+	if !strings.Contains(out, "## Code test label vs engine accept") {
+		t.Error("report is missing the code test-vs-accept table")
+	}
+	if !strings.Contains(out, "x-code-synthetic") {
+		t.Error("report did not surface the test-pass-but-not-accepted row")
+	}
+}
+
 func TestArmTable(t *testing.T) {
 	metrics := []jobMetrics{
 		mk("a", "single", 1, 0.4, 0.5, 0, "new", 100),

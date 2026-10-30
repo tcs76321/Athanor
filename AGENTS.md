@@ -213,7 +213,10 @@ signing flow); signatures are not required for the agent's commits.
   context-heavy tasks, multi-session memory scripts, and mechanism metrics
   (retrieval hit, context/KV, compaction, tokens, latency), not just pass rates.
 - The **headline metric uses frozen external checks**, never the engine's own
-  verifier/judge; internal decisions are reported separately.
+  verifier/judge; internal decisions are reported separately. A **code row is
+  labeled by the recorded frozen-test outcome** (`tests_ran`), not by engine
+  acceptance; `engine_accepted` is reported separately
+  ([ADR-0092](docs/adr/0092-benchmark-label-integrity.md)).
 - Run the **smoke subset** after any change to the engine surface
   (`internal/engine`, `internal/policy`, `internal/verify`, `internal/mce`,
   `internal/prompt`, `internal/scheduler`, the LLM client) and note the delta;

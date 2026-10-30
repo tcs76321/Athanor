@@ -114,7 +114,7 @@ func renderLeaderboard(metrics []jobMetrics) string {
 	}
 	var b strings.Builder
 	b.WriteString("## Model leaderboard (ADR-0073)\n\n")
-	b.WriteString("Grounded pass rate (deterministic checks / engine accept), cost, and wall-time percentiles per model.\n\n")
+	b.WriteString("Grounded pass rate (benchmark checks / recorded code test; engine accept is reported separately), cost, and wall-time percentiles per model.\n\n")
 	b.WriteString("| model | family | jobs | pass | rate | mean score | tok/job | tok/pass | p50 wall (s) | p95 wall (s) | calls/job |\n")
 	b.WriteString("|---|---|---|---|---|---|---|---|---|---|---|\n")
 	for _, r := range rows {

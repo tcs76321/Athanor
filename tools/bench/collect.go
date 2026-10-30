@@ -69,6 +69,32 @@ type jobMetrics struct {
 	// semantic checks reported but never gating. M8-T18/T21.
 	CheckFailures []string `json:"check_failures,omitempty"`
 	CheckAdvisory []string `json:"check_advisory,omitempty"`
+	// CodeTestRan is true when the engine recorded at least one `tests_ran`
+	// event for a code job. CodeTestPassed is the benchmark's code label: true
+	// when any candidate's frozen test command exited successfully. It is nil
+	// for non-code rows and legacy runs that predate the event. ADR-0092.
+	CodeTestRan         bool   `json:"code_test_ran,omitempty"`
+	CodeTestPassed      *bool  `json:"code_test_passed,omitempty"`
+	CodeTestTotal       int    `json:"code_test_total,omitempty"`
+	CodeTestPassedCount int    `json:"code_test_passed_count,omitempty"`
+	CodeTestCommand     string `json:"code_test_command,omitempty"`
+	// EngineAccepted is the engine's own accept signal (completed + winner
+	// new). It is reported separately from the benchmark label so a test pass
+	// cannot be conflated with an engine accept (ADR-0092).
+	EngineAccepted bool `json:"engine_accepted,omitempty"`
+	// PassSource names the label jobPassed uses: code_test, checks,
+	// code_test_missing, or engine_accept (legacy rows without a recorded
+	// label). ADR-0092.
+	PassSource string `json:"pass_source,omitempty"`
+	// LabelVersion marks rows collected under the ADR-0092 label rules. It
+	// lets a new code row with no `tests_ran` event be labeled test-missing
+	// rather than silently falling back to engine acceptance. Legacy rows
+	// leave it empty.
+	LabelVersion string `json:"label_version,omitempty"`
+	// ScoredArtifactID is the artifact the benchmark checks actually scored;
+	// for tasks with checks it is the best candidate, not necessarily the
+	// engine's accepted artifact.
+	ScoredArtifactID string `json:"scored_artifact_id,omitempty"`
 	// Benchmark v1 metadata, carried so the report can split the held-out
 	// slice from tuning and group by context demand. M8-T21 / ADR-0075.
 	HeldOut       bool   `json:"held_out,omitempty"`
@@ -83,6 +109,9 @@ type jobMetrics struct {
 	// produced no events (e.g. it errored before execution).
 	Telemetry *jobTelemetry `json:"telemetry,omitempty"`
 }
+
+// benchLabelVersion marks rows collected under the ADR-0092 label rules.
+const benchLabelVersion = "adr-0092"
 
 // openResultsDB opens the daemon's SQLite database read-only so the probe
 // can read captured outcomes without disturbing the writer. WAL mode
@@ -220,6 +249,17 @@ func bestCandidateArtifact(db *sql.DB, stateDir, jobID string) (id, text string,
 	return "", "", nil
 }
 
+// checkArtifactText chooses the artifact the benchmark's deterministic checks
+// score: the best candidate when one is readable, else the engine's accepted
+// artifact. Keeping the accepted artifact for judge packets and scoring the
+// best candidate for checks is the ADR-0075 §4 / ADR-0092 rule.
+func checkArtifactText(db *sql.DB, stateDir, jobID, acceptedID, acceptedText string) (id, text string) {
+	if bestID, bestText, err := bestCandidateArtifact(db, stateDir, jobID); err == nil && bestText != "" {
+		return bestID, bestText
+	}
+	return acceptedID, acceptedText
+}
+
 // loadDivergenceJaccard returns the most recent `divergence_jaccard`
 // event's (avg_jaccard, candidates) for a job. The engine records one
 // event per divergence cycle; the last cycle is the one whose candidates
@@ -310,6 +350,79 @@ func (m *jobMetrics) fillVerification(db *sql.DB) {
 	m.VerifierApplied = v.VerifierApplied
 	m.VerifierPassed = v.VerifierPassed
 	m.CrossFamilyOK = v.CrossFamilyOK
+}
+
+// codeTestOutcome is the reduction of a job's `tests_ran` events. The engine
+// emits one per code candidate whose frozen test command ran, with the exit
+// status and command; the probe uses it as the code label independent of the
+// engine's accept decision (ADR-0092).
+type codeTestOutcome struct {
+	Ran     int
+	Passed  int
+	Command string
+}
+
+// loadCodeTestOutcome reads the job's `tests_ran` events. The boolean is false
+// when the job has no such event (a non-code job, or a legacy run before the
+// event existed).
+func loadCodeTestOutcome(db *sql.DB, jobID string) (codeTestOutcome, bool) {
+	if db == nil || jobID == "" {
+		return codeTestOutcome{}, false
+	}
+	rows, err := db.Query(
+		`SELECT data_json FROM events WHERE job_id = ? AND category = 'jobs' ORDER BY id`, jobID)
+	if err != nil {
+		return codeTestOutcome{}, false
+	}
+	defer func() { _ = rows.Close() }()
+	var out codeTestOutcome
+	found := false
+	for rows.Next() {
+		var d string
+		if err := rows.Scan(&d); err != nil {
+			return codeTestOutcome{}, false
+		}
+		var m struct {
+			Event   string `json:"event"`
+			Passed  bool   `json:"passed"`
+			Command string `json:"command"`
+		}
+		if json.Unmarshal([]byte(d), &m) != nil || m.Event != "tests_ran" {
+			continue
+		}
+		found = true
+		out.Ran++
+		if m.Passed {
+			out.Passed++
+		}
+		if out.Command == "" {
+			out.Command = m.Command
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return codeTestOutcome{}, false
+	}
+	return out, found
+}
+
+// fillCodeTest records the frozen-test label for a code row. A non-code row
+// leaves CodeTestPassed nil. A post-ADR-0092 code row with no `tests_ran`
+// event is reported as code_test_missing by jobPassed, not as an engine
+// accept; a legacy row without label_version falls back to engine accept.
+func (m *jobMetrics) fillCodeTest(db *sql.DB) {
+	if m.Archetype != "code" {
+		return
+	}
+	out, ok := loadCodeTestOutcome(db, m.JobID)
+	if !ok {
+		return
+	}
+	passed := out.Passed > 0
+	m.CodeTestRan = true
+	m.CodeTestPassed = &passed
+	m.CodeTestTotal = out.Ran
+	m.CodeTestPassedCount = out.Passed
+	m.CodeTestCommand = out.Command
 }
 
 // comparisonRow is the P0 diagnostic subset of the engine's `comparison`

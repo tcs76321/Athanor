@@ -10,6 +10,32 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Benchmark integrity — 2026-10-29
+
+- **Code rows are labeled by the recorded frozen test, not engine acceptance.**
+  The probe reads the engine's per-candidate `tests_ran` events; `code_test_passed`
+  is true when any candidate's frozen test passed, and `engine_accepted` is
+  reported separately. The report shows test pass vs engine accept and surfaces
+  a test-passing candidate the engine rejected. A post-ADR-0092 code row with
+  no recorded test is `code_test_missing`, not a silent engine accept; legacy
+  rows without the event keep the historical engine-accept label, visibly.
+  [ADR-0092](docs/adr/0092-benchmark-label-integrity.md);
+  proofs: `TestCodeTestOutcomeIsTheLabel`, `TestLoadCodeTestOutcome`,
+  `TestReportSurfacesCodeTestMismatch`.
+- **Non-code checks always score the best candidate.** The v2 "highest-scoring
+  proposal" rule now applies even when the engine accepted a weaker artifact;
+  the accepted artifact is kept for judge packets. The scored artifact is
+  recorded as `scored_artifact_id`. Proof: `TestBestCandidateArtifact`.
+- **Corpus fixture and schema paths resolve version-locally.** The two v2 data
+  tasks that declared their `json_schema` under v1 now read the pinned v2
+  copy; the frozen YAML and digest are unchanged. Proofs:
+  `TestCorpusSchemaPathsResolveWithinVersion`, `TestVersionLocalPath`.
+- **The benchmark status is reconciled.** The 2026-10-25 full v2 run is labeled
+  a pre-P0 baseline whose code rows are engine accepts; the 2026-10-29 focused
+  X-code diagnostic (4/6 host, 3/6 Core) is recorded alongside it. README,
+  `eval/bench/v2/README.md`, `frozen-corpus-v2.md`, `bench-v2-findings.md`,
+  `bench-xcode-p0.md`, `docs/claims.md`, and the run ledger now agree.
+
 ### GUI — 2026-10-29
 
 - **The 0.0.0 GUI is a usable first-use surface.** A shared design system
