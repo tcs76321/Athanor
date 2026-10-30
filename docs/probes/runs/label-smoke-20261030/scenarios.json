@@ -1,0 +1,27 @@
+[
+  {
+    "name": "freeze-unfreeze",
+    "pass": true,
+    "detail": "freeze → frozen; reasonless unfreeze rejected; reasoned unfreeze → running"
+  },
+  {
+    "name": "ui-pages",
+    "pass": true,
+    "detail": "dashboard, statistics, projects, corrections render"
+  },
+  {
+    "name": "ui-sse",
+    "pass": true,
+    "detail": "SSE stream opened (200, text/event-stream)"
+  },
+  {
+    "name": "push-local-remote",
+    "pass": true,
+    "detail": "approved push delivered athanor/2525885d-ed72-49d4-89a3-2cccc94eea7a to a local bare remote"
+  },
+  {
+    "name": "backup-restore",
+    "pass": true,
+    "detail": "snapshot athanor-v0032-20261030T040443Z.db restored and read back (1 project(s))"
+  }
+]

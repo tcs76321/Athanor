@@ -1,0 +1,83 @@
+[
+  {
+    "goal_name": "x-code-bugfix-pipeline",
+    "goal_number": 28,
+    "archetype": "code",
+    "model_label": "ornith9b",
+    "model": "ornith-1.5:9b",
+    "family": "qwen35",
+    "arm": "full",
+    "run": 1,
+    "job_id": "27a700fc-e3ba-4678-be2a-5797e80fbed6",
+    "state": "completed",
+    "artifact_id": "94edd233-9e4c-47cb-8d2d-fed839dc638f",
+    "winner": "new",
+    "confidence": 1,
+    "score": 1,
+    "token_cost": 17326,
+    "wall_ms": 58266,
+    "retries": 0,
+    "reflection_loops": 0,
+    "diversity": 0.6212235475182762,
+    "candidates": 3,
+    "judge_called": false,
+    "verifier_applied": 1,
+    "verifier_passed": true,
+    "cross_family_ok": true,
+    "decide_reason": "§19.3 guard satisfied: at least one EvaluationRecord met better_than_previous + confidence \u003e threshold; LLM verdict honored",
+    "guard_pre_winner": "new",
+    "guard_post_winner": "new",
+    "guard_threshold": 0.7,
+    "final_record_passed": true,
+    "final_record_confidence": 1,
+    "final_verifier_applied": 1,
+    "final_verifier_hard": true,
+    "final_verifier_passed": true,
+    "tier": "X",
+    "code_test_ran": true,
+    "code_test_passed": true,
+    "code_test_total": 3,
+    "code_test_passed_count": 2,
+    "code_test_command": "python -c 'from pipeline import parse_csv, total_by_category, top_categories\nrows = parse_csv(\"name,amount,category\\n\\\"Ada, Jr.\\\",10,a\\nSam,5,b\\nAda,2,a\\n\")\nassert rows[0][\"name\"] == \"Ada, Jr.\", rows\nassert total_by_category(rows) == {\"a\": 12, \"b\": 5}, total_by_category(rows)\nassert top_categories({\"b\": 10, \"a\": 5}, 1) == [\"b\"]\nassert top_categories({\"b\": 10, \"a\": 5}, 2) == [\"b\", \"a\"]'\n",
+    "engine_accepted": true,
+    "pass_source": "code_test",
+    "label_version": "adr-0092",
+    "scored_artifact_id": "94edd233-9e4c-47cb-8d2d-fed839dc638f",
+    "held_out": true,
+    "context_demand": "repo",
+    "bench": true,
+    "telemetry": {
+      "calls": 8,
+      "prompt_tokens": 15305,
+      "completion_tokens": 2021,
+      "by_phase_calls": {
+        "diverging": 3,
+        "evaluating": 3,
+        "planning": 1,
+        "synthesizing": 1
+      },
+      "by_phase_tokens": {
+        "diverging": 6830,
+        "evaluating": 5957,
+        "planning": 2478,
+        "synthesizing": 2061
+      },
+      "by_persona_tokens": {
+        "alternative": 2368,
+        "main": 6523,
+        "security": 5957,
+        "tall": 2478
+      },
+      "models": [
+        "granite4.2:3b",
+        "ornith-1.5:9b"
+      ],
+      "candidate_raise": 1,
+      "kv_pressure": 8,
+      "git_committed": 1,
+      "dormant_index_rows": 48,
+      "working_set_chunks": 25,
+      "working_set_bytes": 5720
+    }
+  }
+]

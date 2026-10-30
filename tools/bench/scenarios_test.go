@@ -38,13 +38,17 @@ func fakeDaemon(t *testing.T) *httptest.Server {
 			_ = json.NewEncoder(w).Encode(map[string]bool{"frozen": false})
 		}
 	})
-	for _, p := range []string{"/ui", "/ui/statistics", "/ui/projects", "/ui/corrections"} {
+	// /ui/events is the inspector's HTML page; the dashboard SSE stream is
+	// /ui/events/stream (the route moved when the inspector landed). Keeping
+	// the old path as HTML makes a regression fail the SSE scenario instead
+	// of passing against the fake.
+	for _, p := range []string{"/ui", "/ui/statistics", "/ui/projects", "/ui/corrections", "/ui/events"} {
 		mux.HandleFunc(p, func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
 			_, _ = w.Write([]byte("<html><head><title>Athanor</title></head></html>"))
 		})
 	}
-	mux.HandleFunc("/ui/events", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/ui/events/stream", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.WriteHeader(http.StatusOK)
 		if f, ok := w.(http.Flusher); ok {

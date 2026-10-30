@@ -36,6 +36,12 @@ New entries are appended at the top. Do not rewrite history.
   X-code diagnostic (4/6 host, 3/6 Core) is recorded alongside it. README,
   `eval/bench/v2/README.md`, `frozen-corpus-v2.md`, `bench-v2-findings.md`,
   `bench-xcode-p0.md`, `docs/claims.md`, and the run ledger now agree.
+- **The conformance SSE scenario follows the inspector route move.** It opens
+  `/ui/events/stream`, not `/ui/events` (the inspector's HTML page); the fake
+  daemon exposes both, so a regression fails instead of passing against a stale
+  fake. Proof: `TestScenarioUIPagesAndSSE`. The focused live smoke (one X-code
+  task) then reported 5/5 conformance and populated the code label (3 tests
+  ran, 2 passed; engine accepted): [run](docs/probes/runs/label-smoke-20261030/report.md).
 
 ### GUI — 2026-10-29
 

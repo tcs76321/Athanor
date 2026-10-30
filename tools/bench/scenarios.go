@@ -110,9 +110,9 @@ func scenarioUIPages(baseURL string) scenarioResult {
 func scenarioUISSE(baseURL string) scenarioResult {
 	const name = "ui-sse"
 	client := &http.Client{Timeout: 5 * time.Second}
-	resp, err := client.Get(baseURL + "/ui/events")
+	resp, err := client.Get(baseURL + "/ui/events/stream")
 	if err != nil {
-		return scenarioResult{Name: name, Detail: "open /ui/events: " + err.Error()}
+		return scenarioResult{Name: name, Detail: "open /ui/events/stream: " + err.Error()}
 	}
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
