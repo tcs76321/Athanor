@@ -132,6 +132,16 @@ func TestLoadCodeTestOutcome(t *testing.T) {
 		t.Errorf("counts = %d/%d, want 2/1", m.CodeTestPassedCount, m.CodeTestTotal)
 	}
 
+	// DAG runs join several job ids; aggregate every leaf's tests.
+	if _, err := db.Exec(`INSERT INTO events (job_id, category, data_json) VALUES
+		('j2','jobs','{"event":"tests_ran","candidate":0,"passed":true,"command":"python -c dag"}')`); err != nil {
+		t.Fatal(err)
+	}
+	agg, ok := loadCodeTestOutcome(db, "j1,j2")
+	if !ok || agg.Ran != 3 || agg.Passed != 2 {
+		t.Errorf("DAG aggregate = %+v (ok=%t), want 3 ran / 2 passed", agg, ok)
+	}
+
 	// A non-code row never gets a code-test label.
 	nonCode := jobMetrics{Archetype: "document", JobID: "j1"}
 	nonCode.fillCodeTest(db)

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -369,38 +370,47 @@ func loadCodeTestOutcome(db *sql.DB, jobID string) (codeTestOutcome, bool) {
 	if db == nil || jobID == "" {
 		return codeTestOutcome{}, false
 	}
-	rows, err := db.Query(
-		`SELECT data_json FROM events WHERE job_id = ? AND category = 'jobs' ORDER BY id`, jobID)
-	if err != nil {
-		return codeTestOutcome{}, false
-	}
-	defer func() { _ = rows.Close() }()
 	var out codeTestOutcome
 	found := false
-	for rows.Next() {
-		var d string
-		if err := rows.Scan(&d); err != nil {
-			return codeTestOutcome{}, false
-		}
-		var m struct {
-			Event   string `json:"event"`
-			Passed  bool   `json:"passed"`
-			Command string `json:"command"`
-		}
-		if json.Unmarshal([]byte(d), &m) != nil || m.Event != "tests_ran" {
+	// DAG runs join several job ids with commas; aggregate every leaf.
+	for _, id := range strings.Split(jobID, ",") {
+		id = strings.TrimSpace(id)
+		if id == "" {
 			continue
 		}
-		found = true
-		out.Ran++
-		if m.Passed {
-			out.Passed++
+		rows, err := db.Query(
+			`SELECT data_json FROM events WHERE job_id = ? AND category = 'jobs' ORDER BY id`, id)
+		if err != nil {
+			return codeTestOutcome{}, false
 		}
-		if out.Command == "" {
-			out.Command = m.Command
+		for rows.Next() {
+			var d string
+			if err := rows.Scan(&d); err != nil {
+				_ = rows.Close()
+				return codeTestOutcome{}, false
+			}
+			var m struct {
+				Event   string `json:"event"`
+				Passed  bool   `json:"passed"`
+				Command string `json:"command"`
+			}
+			if json.Unmarshal([]byte(d), &m) != nil || m.Event != "tests_ran" {
+				continue
+			}
+			found = true
+			out.Ran++
+			if m.Passed {
+				out.Passed++
+			}
+			if out.Command == "" {
+				out.Command = m.Command
+			}
 		}
-	}
-	if err := rows.Err(); err != nil {
-		return codeTestOutcome{}, false
+		if err := rows.Err(); err != nil {
+			_ = rows.Close()
+			return codeTestOutcome{}, false
+		}
+		_ = rows.Close()
 	}
 	return out, found
 }

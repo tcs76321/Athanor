@@ -18,7 +18,8 @@ New entries are appended at the top. Do not rewrite history.
   reported separately. The report shows test pass vs engine accept and surfaces
   a test-passing candidate the engine rejected. A post-ADR-0092 code row with
   no recorded test is `code_test_missing`, not a silent engine accept; legacy
-  rows without the event keep the historical engine-accept label, visibly.
+  rows without the event keep the historical engine-accept label, visibly. A
+  DAG run aggregates `tests_ran` across every leaf job.
   [ADR-0092](docs/adr/0092-benchmark-label-integrity.md);
   proofs: `TestCodeTestOutcomeIsTheLabel`, `TestLoadCodeTestOutcome`,
   `TestReportSurfacesCodeTestMismatch`.
