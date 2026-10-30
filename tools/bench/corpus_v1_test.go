@@ -25,9 +25,13 @@ const (
 )
 
 // repoPath resolves a corpus-relative path (fixtures, schemas) from this
-// package's directory.
+// package's directory. A path the loader already resolved relative to this
+// CWD (e.g. a version-local rewrite) is returned unchanged.
 func repoPath(p string) string {
 	if filepath.IsAbs(p) {
+		return p
+	}
+	if _, err := os.Stat(p); err == nil {
 		return p
 	}
 	return filepath.Join("..", "..", p)

@@ -1,6 +1,10 @@
 package main
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"testing"
+)
 
 // TestLoadCorpus proves the M8-T16 bridge: eval/bench/tasks.yaml loads into
 // probe goals with ids, tiers, and per-task test commands intact.
@@ -49,6 +53,33 @@ func TestLoadCorpus(t *testing.T) {
 	}
 	if code == 0 {
 		t.Error("no code tasks loaded")
+	}
+}
+
+// TestVersionLocalPath pins the freeze-boundary resolver: a sibling-version
+// path rewrites to the version-local copy only when that copy exists; an
+// already-local path, an absolute path, or a missing local copy is unchanged.
+func TestVersionLocalPath(t *testing.T) {
+	root := t.TempDir()
+	local := filepath.Join(root, "fixtures", "data", "schema.json")
+	if err := os.MkdirAll(filepath.Dir(local), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(local, []byte("{}"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := versionLocalPath(root, "eval/bench/fixtures/data/schema.json"); got != local {
+		t.Errorf("sibling path = %q, want %q", got, local)
+	}
+	alreadyLocal := "eval/bench/v2/fixtures/data-json-normalize/schema.json"
+	if got := versionLocalPath("eval/bench/v2", alreadyLocal); got != alreadyLocal {
+		t.Errorf("already-local path changed to %q", got)
+	}
+	if got := versionLocalPath(root, "/absolute/schema.json"); got != "/absolute/schema.json" {
+		t.Errorf("absolute path changed to %q", got)
+	}
+	if got := versionLocalPath(root, "eval/bench/fixtures/missing/schema.json"); got != "eval/bench/fixtures/missing/schema.json" {
+		t.Errorf("missing local copy = %q, want the declared path", got)
 	}
 }
 

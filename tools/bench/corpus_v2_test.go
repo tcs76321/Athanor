@@ -20,6 +20,34 @@ const (
 	benchV2Reference = "../../eval/bench/v2/reference"
 )
 
+// TestCorpusSchemaPathsResolveWithinVersion pins the freeze boundary: a v2
+// task's schema must resolve to the pinned v2 fixture, not to a sibling v1
+// file the v2 digest does not cover. The loader rewrites the two known v2
+// declarations; this test fails if a new task reintroduces the leak.
+func TestCorpusSchemaPathsResolveWithinVersion(t *testing.T) {
+	goals, err := loadCorpus(benchV2Tasks)
+	if err != nil {
+		t.Fatalf("load corpus: %v", err)
+	}
+	found := 0
+	for _, g := range goals {
+		p, ok := g.Checks["json_schema"].(string)
+		if !ok || p == "" {
+			continue
+		}
+		found++
+		if !strings.Contains(filepath.ToSlash(p), "eval/bench/v2/") {
+			t.Errorf("%s: schema path %q is outside the v2 corpus root", g.Name, p)
+		}
+		if _, err := os.Stat(repoPath(p)); err != nil {
+			t.Errorf("%s: schema path %q does not resolve: %v", g.Name, p, err)
+		}
+	}
+	if found == 0 {
+		t.Fatal("no json_schema paths found in v2")
+	}
+}
+
 // TestBenchCorpusV2 pins the hard H/X composition: 41 tasks, no E/M, the
 // designed archetype/tier spread, 10 held-out, and a real deterministic gate.
 func TestBenchCorpusV2(t *testing.T) {

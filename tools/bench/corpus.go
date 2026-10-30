@@ -7,6 +7,8 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -48,6 +50,53 @@ type corpusFile struct {
 	Tasks   []corpusTask `yaml:"tasks"`
 }
 
+// versionLocalPath resolves a corpus-declared path to the corpus version's
+// own copy when one exists. A frozen corpus can otherwise depend on a sibling
+// version's fixture: two v2 data tasks declare their schema under
+// eval/bench/fixtures (v1), and the v2 digest pins only the v2 copies. The
+// content is currently identical, but resolving to the version-local file
+// makes a v2 run independent of v1 without editing the frozen YAML (ADR-0092).
+func versionLocalPath(root, p string) string {
+	if p == "" || filepath.IsAbs(p) {
+		return p
+	}
+	rootClean := filepath.Clean(root)
+	// v1 lives at the benchmark root itself; there is no sibling version to
+	// leak from, so leave its paths unchanged.
+	version := filepath.Base(rootClean)
+	if version == "" || version == "." || version == "bench" {
+		return p
+	}
+	// Corpus paths are declared relative to the benchmark root (eval/bench).
+	// A path already under this version is already local.
+	rel, err := filepath.Rel("eval/bench", filepath.Clean(p))
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return p
+	}
+	if rel == version || strings.HasPrefix(rel, version+string(filepath.Separator)) {
+		return p
+	}
+	candidate := filepath.Join(rootClean, rel)
+	if _, err := os.Stat(candidate); err == nil {
+		return candidate
+	}
+	return p
+}
+
+// normalizeCorpusPaths rewrites a task's fixture and schema paths to the
+// version-local copy when one exists. It is a load-time resolution, not a
+// corpus edit; the digest and task semantics are unchanged.
+func normalizeCorpusPaths(root string, t *corpusTask) {
+	t.Fixture = versionLocalPath(root, t.Fixture)
+	t.Repo = versionLocalPath(root, t.Repo)
+	if t.Checks == nil {
+		return
+	}
+	if p, ok := t.Checks["json_schema"].(string); ok {
+		t.Checks["json_schema"] = versionLocalPath(root, p)
+	}
+}
+
 // loadCorpus reads a bench corpus and converts it to probe goals. Number is
 // the 1-based position (the probe's stable ordering); Source records the tier
 // ("bench:H" etc.) so reports can group by difficulty.
@@ -63,11 +112,13 @@ func loadCorpus(path string) ([]sampleGoal, error) {
 	if len(cf.Tasks) == 0 {
 		return nil, fmt.Errorf("corpus %s has no tasks", path)
 	}
+	root := filepath.Dir(path)
 	out := make([]sampleGoal, 0, len(cf.Tasks))
 	for i, t := range cf.Tasks {
 		if t.ID == "" || t.Goal == "" {
 			return nil, fmt.Errorf("corpus %s: task %d missing id or goal", path, i+1)
 		}
+		normalizeCorpusPaths(root, &t)
 		out = append(out, sampleGoal{
 			Number:        i + 1,
 			Name:          t.ID,
