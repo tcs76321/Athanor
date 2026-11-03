@@ -10,6 +10,14 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Security — 2026-11-02
+
+- **`golang.org/x/net` bumped to v0.62.0.** `govulncheck` flagged
+  GO-2026-6866 (ancestor namespace transitions when rendering raw HTML) and
+  GO-2026-6860 (quadratic text-node coalescing) in v0.55.0, both reached via
+  Reader Mode (`internal/gateway/reader.go`). The bump also moves the indirect
+  `golang.org/x/sys`/`x/text` pins; no API change. `make vuln` is clean.
+
 ### Benchmark integrity — 2026-10-29
 
 - **Code rows are labeled by the recorded frozen test, not engine acceptance.**
