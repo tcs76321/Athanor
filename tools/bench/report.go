@@ -457,11 +457,13 @@ func renderReport(metrics []jobMetrics) string {
 	b.WriteString(renderTelemetryTables(metrics))
 
 	b.WriteString("\n## F4 — verification decisions\n\n")
+	b.WriteString("These are the engine's own accept decisions, reported separately from the\n")
+	b.WriteString("benchmark code label (the recorded frozen-test outcome, ADR-0092).\n\n")
 	accepts, det := verificationSummary(metrics)
 	if accepts == 0 {
-		b.WriteString("No completed code accepts in this run.\n")
+		b.WriteString("No completed engine code accepts in this run.\n")
 	} else {
-		fmt.Fprintf(&b, "Code accepts: %d; decided without the LLM judge: %d (%.0f%%).\n",
+		fmt.Fprintf(&b, "Engine code accepts: %d; decided without the LLM judge: %d (%.0f%%).\n",
 			accepts, det, float64(det)/float64(accepts)*100)
 	}
 	judged := 0
