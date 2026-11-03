@@ -83,6 +83,26 @@ func TestCodeTestOutcomeIsTheLabel(t *testing.T) {
 	}
 }
 
+// TestCodeLabelTable pins the label accounting: test pass, engine accept,
+// test-pass-not-accepted, test-missing, and legacy rows are separate counts.
+func TestCodeLabelTable(t *testing.T) {
+	pass, fail := true, false
+	rows := codeLabelTable([]jobMetrics{
+		{ModelLabel: "m1", Arm: "full", Archetype: "code", State: "failed", CodeTestPassed: &pass, LabelVersion: benchLabelVersion},
+		{ModelLabel: "m1", Arm: "full", Archetype: "code", State: "completed", Winner: "new", CodeTestPassed: &fail, LabelVersion: benchLabelVersion},
+		{ModelLabel: "m1", Arm: "full", Archetype: "code", State: "completed", Winner: "new", LabelVersion: benchLabelVersion},
+		{ModelLabel: "m1", Arm: "full", Archetype: "code", State: "completed", Winner: "new"},
+	})
+	if len(rows) != 1 {
+		t.Fatalf("rows = %d, want 1", len(rows))
+	}
+	r := rows[0]
+	if r.Rows != 4 || r.TestPass != 1 || r.EngineAccept != 1 ||
+		r.TestPassNotAccepted != 1 || r.TestMissing != 1 || r.Legacy != 1 || r.LegacyEngineAccepted != 1 {
+		t.Errorf("label accounting = %+v", r)
+	}
+}
+
 // TestReportSurfacesCodeTestMismatch pins the diagnostic that made the 0/6
 // X-code claim ambiguous: a recorded test pass that the engine did not accept
 // is shown, not hidden behind the engine's state.
