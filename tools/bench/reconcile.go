@@ -102,6 +102,10 @@ func reconcileMetrics(stateDir string, metrics []jobMetrics) (int, error) {
 		m.WallMS = o.WallMS
 		m.Retries = o.Retries
 		m.ReflectionLoops = o.ReflectionLoops
+		// The live collector may have missed the outcome; keep the derived
+		// labels consistent with the winner we just recovered (ADR-0092).
+		m.EngineAccepted = m.State == "completed" && m.Winner == "new"
+		m.PassSource = passSource(*m)
 		updated++
 	}
 	return updated, nil
