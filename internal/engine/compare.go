@@ -57,7 +57,7 @@ func (e *Engine) phaseCompare(ctx context.Context, j job.Job) error {
 		return err
 	}
 
-	final, err := e.artifacts.LatestForJob(ctx, j.ID, finalKindFor(p.Archetype))
+	final, err := e.artifacts.LatestForJob(ctx, j.ID, finalKindFor(capabilityFor(p, t)))
 	if err != nil {
 		return fmt.Errorf("loading final artifact for comparison: %w", err)
 	}

@@ -432,9 +432,10 @@ func (e *Engine) planFor(ctx context.Context, j job.Job, p project.Project, t pr
 
 // planInputs assembles the pure policy input from persisted state.
 func (e *Engine) planInputs(ctx context.Context, j job.Job, p project.Project, t project.Task) policy.Inputs {
+	capability := capabilityFor(p, t)
 	in := policy.Inputs{
 		Features: policy.Features{
-			Archetype:     p.Archetype,
+			Archetype:     capability,
 			CriteriaCount: len(t.Criteria),
 			Difficulty:    e.difficultyHint(ctx, j.ID),
 			JobKey:        j.ID,
@@ -454,13 +455,13 @@ func (e *Engine) planInputs(ctx context.Context, j job.Job, p project.Project, t
 		}
 	}
 	if e.history != nil {
-		if samples, rate, err := e.history.RecentStats(ctx, p.Archetype, 20); err == nil {
+		if samples, rate, err := e.history.RecentStats(ctx, capability, 20); err == nil {
 			in.Features.RecentSamples = samples
 			in.Features.RecentAcceptRate = rate
 		}
 		// M8-T10: per-operation counts feed the exploration floor.
 		if oph, ok := e.history.(StrategyOperationHistory); ok {
-			if m, err := oph.OperationSamples(ctx, p.Archetype, 20); err == nil {
+			if m, err := oph.OperationSamples(ctx, capability, 20); err == nil {
 				in.Features.OperationSamples = m
 			}
 		}
@@ -469,7 +470,7 @@ func (e *Engine) planInputs(ctx context.Context, j job.Job, p project.Project, t
 	// insights are excluded by the lister, so they never reach here.
 	if e.insights != nil {
 		if lister, ok := e.insights.(StrategyInsightLister); ok {
-			if pref := e.preferredDivergencePersona(ctx, lister, p.Archetype); pref != "" {
+			if pref := e.preferredDivergencePersona(ctx, lister, capability); pref != "" {
 				in.Features.PreferredDivergencePersona = pref
 			}
 		}

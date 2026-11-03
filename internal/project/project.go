@@ -49,8 +49,14 @@ const (
 
 // Project is one persisted project row (§6.1).
 type Project struct {
-	ID        string
-	Name      string
+	ID   string
+	Name string
+	// Capabilities is the inferred set of work kinds this project can produce
+	// (ADR-0093). It replaces the single operator-chosen archetype.
+	Capabilities []string
+	// Archetype is the deprecated legacy alias for the primary capability.
+	// It is kept for one migration window so old rows/clients keep working;
+	// no new product surface reads or writes it.
 	Archetype string
 	Goal      string
 	Status    string
@@ -140,23 +146,35 @@ func (c ExecutionChecks) IsZero() bool {
 		!c.NoHeadings && !c.NoPlaceholders && len(c.MinItems) == 0
 }
 
-// DefaultCodeTestCommand is the built-in test command for a `code` project
-// with no override (§6.2). It is a constant so the engine, the docs, and the
-// tests agree; changing it is a behavior change for every code project.
+// DefaultCodeTestCommand is retained as a compatibility constant for callers
+// that still describe the old pytest default. TestCommand no longer invents
+// it: the command is explicit or detected from the repository (ADR-0093).
 const DefaultCodeTestCommand = "pytest -q"
 
+// PrimaryCapability returns the project's canonical primary capability.
+func (p Project) PrimaryCapability() string {
+	if len(p.Capabilities) > 0 {
+		return PrimaryCapability(p.Capabilities)
+	}
+	return PrimaryCapability(CapabilitiesFromArchetype(p.Archetype))
+}
+
 // TestCommand resolves the command the evaluation phase runs in a Job Pod
-// for this project (F3-T4). An explicit execution.test_command wins; a
-// `code` project with no override gets DefaultCodeTestCommand; other
-// archetypes get "" (no test command).
+// (F3-T4, ADR-0093). An explicit execution.test_command wins; otherwise the
+// repository manifest is detected. A missing command is empty: a code task
+// without a detected runner degrades to the judge and is audited, rather than
+// guessing pytest.
 func (p Project) TestCommand() string {
+	return ProjectTestCommand(p)
+}
+
+// ProjectTestCommand is the value form of TestCommand, used by the engine and
+// tests.
+func ProjectTestCommand(p Project) string {
 	if p.Execution.TestCommand != "" {
 		return p.Execution.TestCommand
 	}
-	if p.Archetype == ArchetypeCode {
-		return DefaultCodeTestCommand
-	}
-	return ""
+	return DetectTestCommand(p.RepositoryPath)
 }
 
 // Task is one persisted task row (§7.3, M1 subset plus the M6 DAG fields).
@@ -167,7 +185,11 @@ type Task struct {
 	ParentID    string
 	Title       string
 	Description string
-	Status      string
+	// Capability is the task's primary output kind (ADR-0093): code, data,
+	// document, text, or media. It selects the final artifact kind and the
+	// deterministic verifier set. Empty means "infer/legacy".
+	Capability string
+	Status     string
 	// TaskType is the §7.3 task kind (one_time | recurring | triggered).
 	// Recurring/triggered execution is backlog; every decomposed task is
 	// one_time today (migration 0017).
@@ -208,6 +230,9 @@ type TaskSpec struct {
 	Criteria    []string
 	Budget      dag.Budget
 	Priority    int
+	// Capability is the task's primary output kind. Empty means infer it
+	// from the description and the project's capability set (ADR-0093).
+	Capability string
 }
 
 // Repo persists projects, goals, and tasks.

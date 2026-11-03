@@ -48,7 +48,8 @@ func (e *Engine) selfRefine(ctx context.Context, j job.Job, p project.Project, t
 		return false, fmt.Errorf("reading candidate for self-refine: %w", err)
 	}
 
-	instructions := buildSelfRefineInstructions(rec, p.Archetype)
+	capability := capabilityFor(p, t)
+	instructions := buildSelfRefineInstructions(rec, capability)
 	plan := e.planFor(ctx, j, p, t)
 	role := e.roleFor(plan, llm.PhaseRefining, llm.RoleMain)
 	ctxCandidates := []prompt.CandidateArtifact{{Kind: "candidate", Content: string(content)}}
@@ -57,7 +58,7 @@ func (e *Engine) selfRefine(ctx context.Context, j job.Job, p project.Project, t
 		return false, err
 	}
 	newContent := resp.Content
-	if p.Archetype == project.ArchetypeCode {
+	if capability == project.CapabilityCode {
 		newContent = normalizeCode(newContent)
 	}
 	art, err := e.artifacts.CreateDraftFor(ctx, p.ID, t.ID, j.ID,
@@ -118,7 +119,7 @@ func (e *Engine) bestCandidate(ctx context.Context, j job.Job) (artifact.Artifac
 // buildSelfRefineInstructions composes the targeted-repair prompt: the
 // evaluator's recorded failures plus an instruction to change only what is
 // necessary and return the full artifact.
-func buildSelfRefineInstructions(rec evaluation.Record, archetype string) string {
+func buildSelfRefineInstructions(rec evaluation.Record, capability string) string {
 	var b strings.Builder
 	b.WriteString("SELF-REFINE. The candidate above failed acceptance. Rewrite it to fix exactly these failures:\n")
 	if len(rec.MissingCriteria) > 0 {
@@ -134,7 +135,7 @@ func buildSelfRefineInstructions(rec evaluation.Record, archetype string) string
 		fmt.Fprintf(&b, "  evaluator summary: %q\n", rec.Summary)
 	}
 	b.WriteString("\nKeep what already works; change only what is necessary. Output the full corrected artifact.")
-	if archetype == project.ArchetypeCode {
+	if capability == project.CapabilityCode {
 		b.WriteString(" " + codeOnlyInstruction)
 	}
 	return b.String()

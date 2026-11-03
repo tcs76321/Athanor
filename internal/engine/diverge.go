@@ -44,6 +44,7 @@ func (e *Engine) phaseDivergeN(ctx context.Context, j job.Job) error {
 	if e.cfg == nil {
 		return errors.New("engine: cfg is nil (diverge phase requires config)")
 	}
+	capability := capabilityFor(p, t)
 	// F4-T1c/T2/T5: resolve the plan once here (after planning, so the
 	// difficulty hint is visible), audit it, then use its candidate count,
 	// routed personas, and diversity policy. A nil policy/config reproduces
@@ -62,7 +63,7 @@ func (e *Engine) phaseDivergeN(ctx context.Context, j job.Job) error {
 	e.audit(ctx, j.ID, map[string]any{
 		"event":      "divergence_start",
 		"candidates": n,
-		"archetype":  p.Archetype,
+		"archetype":  capability,
 		"roles":      roles,
 	})
 
@@ -96,7 +97,7 @@ func (e *Engine) phaseDivergeN(ctx context.Context, j job.Job) error {
 			// produce different outputs at the same temperature.
 			candRole := roles[i%len(roles)]
 			seed := fmt.Sprintf("CANDIDATE %d of %d. Produce a solution that differs from any other candidate you might generate for this task.", i+1, n)
-			if p.Archetype == project.ArchetypeCode {
+			if capability == project.ArchetypeCode {
 				seed += "\n" + codeOnlyInstruction
 			}
 			// ADR-0065: a task with a fixture shows its starter/source tree to
@@ -107,7 +108,7 @@ func (e *Engine) phaseDivergeN(ctx context.Context, j job.Job) error {
 			// the goal and could not do the work.
 			if fx := p.Execution.FixturePath; fx != "" {
 				if fixture, ferr := readFixtureTree(fx); ferr == nil && len(fixture) > 0 {
-					seed += "\n\n" + renderFixture(p.Archetype, fixture)
+					seed += "\n\n" + renderFixture(capability, fixture)
 				}
 			}
 			if research != "" {
@@ -124,7 +125,7 @@ func (e *Engine) phaseDivergeN(ctx context.Context, j job.Job) error {
 			// the stored artifact, the eval/compare prompt, and the eventual
 			// git commit are all importable source.
 			content := resp.Content
-			if p.Archetype == project.ArchetypeCode {
+			if capability == project.ArchetypeCode {
 				content = normalizeCode(content)
 			}
 			art, err := e.artifacts.CreateDraftFor(ctx, p.ID, t.ID, j.ID,
@@ -146,7 +147,7 @@ func (e *Engine) phaseDivergeN(ctx context.Context, j job.Job) error {
 			"avg_jaccard": avgJaccard,
 			"floor":       floor,
 			"attempt":     attempt,
-			"archetype":   p.Archetype,
+			"archetype":   capability,
 			"roles":       roles,
 		})
 		if n < 2 || avgJaccard >= floor || attempt >= maxRerolls {

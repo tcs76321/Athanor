@@ -13,6 +13,10 @@ purpose; details live in `ARCHITECTURE.md`, `ROADMAP.md`, and `DEVELOPMENT.md`.
   (selection). The repertoire is never pruned; budget regulates
   invocation, and grounded outcomes (tests, APIs, schema checks) are the
   teacher, human evals the calibration, the LLM judge advisory only.
+- **Capability vs. archetype** — a project has an inferred capability set and
+  each task has one primary capability (`code`, `data`, `document`, `text`,
+  `media`); there is no operator-chosen project archetype
+  ([ADR-0093](docs/adr/0093-project-capabilities-not-archetypes.md)).
 - **HITL boundary** — human approval gates only external or irreversible
   actions. Internal, contained, reversible work (tangents, rewrites,
   candidate churn) proceeds autonomously under budget and success

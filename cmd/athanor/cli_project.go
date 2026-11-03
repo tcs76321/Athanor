@@ -19,14 +19,14 @@ type projectCreateResult struct {
 
 func runProject(args []string) error {
 	if len(args) == 0 || args[0] != "create" {
-		return fmt.Errorf("usage: athanor project create -name NAME -archetype text -goal \"...\"")
+		return fmt.Errorf("usage: athanor project create -name NAME -goal \"...\" [-repo PATH]")
 	}
 	fs := flag.NewFlagSet("project create", flag.ContinueOnError)
 	name := fs.String("name", "", "project name (required)")
-	archetype := fs.String("archetype", "text", "project archetype: text|code|document|data|media")
+	archetype := fs.String("archetype", "", "deprecated compatibility override; normally inferred (code|data|document|text|media)")
 	goal := fs.String("goal", "", "project goal, 20-500 characters (required)")
 	repo := fs.String("repo", "", "repository root the indexer walks (optional)")
-	testCmd := fs.String("test-command", "", "override the code test command (default pytest -q)")
+	testCmd := fs.String("test-command", "", "advanced override; normally detected from the repository")
 	buildCmd := fs.String("build-command", "", "override the build command (optional)")
 	dataSchema := fs.String("data-schema", "", "JSON Schema a data candidate must validate against (optional)")
 	checksJSON := fs.String("checks", "", "declared structural checks for text/document, as a JSON object (optional)")
@@ -40,8 +40,11 @@ func runProject(args []string) error {
 		return fmt.Errorf("-name and -goal are required")
 	}
 	body := map[string]any{
-		"name": *name, "archetype": *archetype, "goal": *goal,
+		"name": *name, "goal": *goal,
 		"acceptance_criteria": criteria, "repository_path": *repo,
+	}
+	if *archetype != "" {
+		body["archetype"] = *archetype
 	}
 	if *testCmd != "" || *buildCmd != "" || *dataSchema != "" || *checksJSON != "" {
 		ex := map[string]any{}

@@ -20,8 +20,8 @@ import (
 // project's execution config, never from the candidate.
 type dataVerifier struct{}
 
-func (dataVerifier) Archetypes() []string { return []string{project.ArchetypeData} }
-func (dataVerifier) Name() string         { return "json-schema" }
+func (dataVerifier) Capabilities() []string { return []string{project.ArchetypeData} }
+func (dataVerifier) Name() string           { return "json-schema" }
 
 func (dataVerifier) Verify(in Input) Verdict {
 	schema := strings.TrimSpace(in.DataSchema)

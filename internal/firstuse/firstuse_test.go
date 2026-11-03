@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"github.com/tcs76321/athanor/internal/job"
@@ -66,6 +67,27 @@ func TestCreateRunsPreindexThenStartsTheJob(t *testing.T) {
 	}
 	if len(eng.ids) != 1 || eng.ids[0] != res.JobID {
 		t.Errorf("enqueued = %v, want %s", eng.ids, res.JobID)
+	}
+}
+
+// TestCreateInfersCapabilities proves the no-archetype product path: the
+// project's capability set and first task kind come from the goal, not a form
+// field (ADR-0093).
+func TestCreateInfersCapabilities(t *testing.T) {
+	deps, _ := newDeps(t, nil, frozen(false))
+	res, err := Create(context.Background(), deps, Input{
+		Name: "inferred", Goal: "Implement a small parser and write the README documentation.",
+		Start: false,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Contains(res.Project.Capabilities, project.CapabilityCode) ||
+		!slices.Contains(res.Project.Capabilities, project.CapabilityDocument) {
+		t.Errorf("capabilities = %v, want code+document", res.Project.Capabilities)
+	}
+	if res.Task.Capability != project.CapabilityCode {
+		t.Errorf("task capability = %q, want code", res.Task.Capability)
 	}
 }
 

@@ -25,8 +25,10 @@ import (
 func (e *Engine) verifyCandidate(ctx context.Context, j job.Job, p project.Project, t project.Task,
 	content string, idx int) (verify.Result, verify.Input, error) {
 
+	capability := capabilityFor(p, t)
 	in := verify.Input{
-		Archetype:  p.Archetype,
+		Capability: capability,
+		Archetype:  capability,
 		Content:    content,
 		Criteria:   t.Criteria,
 		DataSchema: p.Execution.DataSchema,
@@ -38,7 +40,17 @@ func (e *Engine) verifyCandidate(ctx context.Context, j job.Job, p project.Proje
 		in.RequireTests = e.cfg.Execution.RequireTestsForCodeValue()
 		in.RequireDocs = e.cfg.Execution.RequireDocumentationForCodeValue()
 	}
-	if p.Archetype != project.ArchetypeCode || e.runner == nil {
+	if capability != project.CapabilityCode || e.runner == nil {
+		return e.verifierRegistry().Run(in), in, nil
+	}
+	testCommand := p.TestCommand()
+	if testCommand == "" {
+		// ADR-0093: no repository runner is a visible degradation, not a
+		// guessed pytest command and not a hard code gate.
+		in.RequireTests = false
+		e.audit(ctx, j.ID, map[string]any{
+			"event": "tests_skipped", "candidate": idx, "reason": "no test command detected or configured",
+		})
 		return e.verifierRegistry().Run(in), in, nil
 	}
 
@@ -63,7 +75,6 @@ func (e *Engine) verifyCandidate(ctx context.Context, j job.Job, p project.Proje
 		})
 	}
 
-	testCommand := p.TestCommand()
 	in.TestRan = true
 	in.TestCommand = testCommand
 	// §8.1 "tracked sub-state": running_tests is an event, not a column.

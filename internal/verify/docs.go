@@ -31,8 +31,8 @@ import (
 // code change. See ADR-0058.
 type docsVerifier struct{}
 
-func (docsVerifier) Archetypes() []string { return []string{project.ArchetypeCode} }
-func (docsVerifier) Name() string         { return "docs" }
+func (docsVerifier) Capabilities() []string { return []string{project.ArchetypeCode} }
+func (docsVerifier) Name() string           { return "docs" }
 
 func (docsVerifier) Verify(in Input) Verdict {
 	if !in.RequireDocs {

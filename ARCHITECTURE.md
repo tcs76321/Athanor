@@ -17,7 +17,7 @@ An *athanor* is an alchemical furnace designed to burn continuously without inte
 - **Agentic context floors.** Agentic work fails at low context. We enforce strict minimum context windows and recommend model changes rather than cripple the context.
 - **Feedback compounds.** Rejections with structured reasons are stored as `CorrectionRecord`s and injected into future prompts.
 - **Mountains and rivers.** Security constraints never change. Prompts and strategies evolve.
-- **Project-first, not chat-first.** The primary unit of interaction is a bounded project with an archetype and acceptance criteria — not a generic chat window.
+- **Project-first, not chat-first.** The primary unit of interaction is a bounded project with a goal, repository, capabilities, and acceptance criteria — not a generic chat window.
 - **Test and lint everything.** TDD at integration scale. Security tests for adversarial vectors. Scanning at multiple checkpoints.
 - **Append-only audit logs.** Everything leaves a footprint. Prompt regressions tracked. Winning strategies analyzed and reused. Losing strategies analyzed and remembered.
 
@@ -181,7 +181,7 @@ command-line arguments.
 
 ---
 
-## 6. Project Model & Archetypes
+## 6. Project Model & Capabilities
 
 ### 6.1 Project Fields
 
@@ -190,65 +190,52 @@ id: uuid
 name: unique-project-name
 slug: unique-project-slug
 goal: "One sentence describing the objective (20-500 chars)."
-archetype: text | code | document | data | media
+capabilities:                 # inferred from the goal + repository, not chosen
+  - code
+  - document
 repository_path: optional
-documentation:
-  - files
-  - notes
-  - references
-acceptance_criteria:
-  - criterion
-tasks:
-  - task_ids
-preferences:
-  - project_preferences
-corrections:
-  - correction_records
-synopses:
-  - ai_generated_session_summaries
-created_at: timestamp
-updated_at: timestamp
 ```
 
-### 6.2 Artifact Archetypes
+A project has **no operator-selected archetype** ([ADR-0093](docs/adr/0093-project-capabilities-not-archetypes.md)).
+The capability set is a deterministic, auditable inference: a code repository adds
+`code`, a README adds `document`, a goal about JSON/CSV adds `data`, and prose
+goals add `text`. A project can produce several kinds of work over its life.
 
-When creating a project, the user selects an archetype. Each archetype enforces concrete constraints that the Dialectical Engine must respect.
+### 6.2 Task Capabilities
 
-| Archetype | Required Definition |
+Each task has one **primary capability** — the kind of its final artifact. It is
+inferred from the task description, the project capability set, and the
+repository. Tasks in one project may differ: a code project can contain a
+document task, a data task, or a text task without being recreated.
+
+| Capability | Verification |
 |---|---|
-| `text` | Output format, audience, style |
-| `code` | Language, repository path, test framework, build command, run command, linters |
-| `document` | Structure, citation style, export format |
-| `data` | Schema, validation rules, source format |
-| `media` | Toolchain, output format, asset constraints, render command |
+| `code` | Run the repository's detected test command (or an explicit override) and lint; require a passing artifact when the code gates are on |
+| `data` | Validate against the declared JSON Schema; optional declared array checks |
+| `document` | Declared structural checks and parsed criteria |
+| `text` | Declared structural checks and parsed criteria |
+| `media` | Judge-advisory (deterministic verifier deferred) |
 
-Example code archetype:
+The test command is **repository-owned**. Resolution order is an explicit
+execution override (benchmark/tests only) → a detected command
+(`go.mod`, `pyproject.toml`/`pytest.ini`, `package.json`, `Cargo.toml`,
+`Makefile`, `pom.xml`, `build.gradle`, `composer.json`) → no command. A code
+task with no detected command records `tests_skipped` and falls through to the
+judge; it does not invent `pytest -q`.
 
-```yaml
-archetype: code
-language: python
-repo: workspace/projects/example
-test_framework: pytest
-build_command: "python -m build"
-run_command: "python -m example"
-linters:
-  - ruff
-  - mypy
-documentation_required: true
-```
-
-> **Implementation status (F3-T4; checks added M9).** A subset is modeled as
+> **Implementation status (ADR-0093).** Migration 0033 adds
+> `projects.capabilities_json` and `tasks.capability`; the legacy
+> `projects.archetype` column is a read/write compatibility shim for one
+> deprecation window. A subset of execution is modeled as
 > `projects.execution_json` ([ADR-0031](docs/adr/0031-project-execution-config.md)):
-> `test_command` (default `pytest -q` for `code`), `build_command`,
-> `linters`, `fixture_path`, `data_schema` (the JSON Schema a `data`
-> candidate is verified against by `internal/verify`, M9-T3), and `checks`
-> (the declared machine-checkable constraints a `text`/`document` candidate is
-> verified against —
-> [ADR-0070](docs/adr/0070-declared-checks.md)), settable via
-> `athanor project create` and `POST /projects`.
-> The engine runs the resolved test command in the Job Pod. `language` is
-> still closed at `python` in the internal API; `run_command` and
-> `documentation_required` are not yet consulted. See ROADMAP F3.
+> `test_command` (advanced override), `build_command`, `linters`,
+> `fixture_path`, `data_schema` (the JSON Schema a `data` candidate is verified
+> against by `internal/verify`), and `checks` (the declared machine-checkable
+> constraints a `text`/`document` candidate is verified against —
+> [ADR-0070](docs/adr/0070-declared-checks.md)). The UI/API/CLI default path
+> does not expose an archetype or test command. `language` is still closed at
+> `python` in the internal API; `run_command` and `documentation_required` are
+> not yet consulted. See ROADMAP F3.
 
 ---
 
@@ -309,7 +296,7 @@ description: string
 task_type: one_time | recurring | triggered
 schedule: optional cron
 trigger: optional event
-archetype: inherited or overridden
+capability: inferred per task
 required_personas:
   - wide
   - main
@@ -573,7 +560,7 @@ User prompts **cannot override** static security constraints. Meta-prompts **can
 1. Static System Prompt
 2. Security and Tool Constraints
 3. Runtime Policy (phase-specific: divergence, evaluation, etc.)
-4. Project Context (goal, archetype, preferences)
+4. Project Context (goal, capabilities, preferences)
 5. Task Context (description, dependencies, budget)
 6. Acceptance Criteria
 7. Active Code Division Chunk (full fidelity)
@@ -798,7 +785,7 @@ This system is deliberately **separate from the Feedback System (§18)**:
 id: uuid
 job_id: uuid
 project_id: uuid
-archetype: inherited
+capability: code
 exploration_path_id: optional
 signature:
   - phase: diverging
@@ -842,7 +829,7 @@ Both records are written transactionally with the corresponding state transition
 
 Aggregation is **deterministic** (grouping/ranking over `StrategyOutcome`s), run offline — primarily as the Daydreaming *Strategy Mining* action (§17.1). An optional Temp 0.0 `security` pass phrases detected patterns; it never invents numbers.
 
-**Detection.** Outcomes are grouped by signature features (and feature pairs) within a scope (project or global), compared against the baseline for the same archetype/task mix:
+**Detection.** Outcomes are grouped by signature features (and feature pairs) within a scope (project or global), compared against the baseline for the same capability/task mix:
 
 ```text
 insight_candidate if
@@ -863,7 +850,7 @@ polarity: winning | losing
 pattern:
   feature: diverging.persona
   value: alternative
-  context: archetype=code
+  context: capability=code
 evidence:
   cohort_jobs: int
   accept_rate: float
@@ -1166,7 +1153,7 @@ AND evaluator_confidence > threshold
 Where `threshold` is `execution.min_judge_confidence` in the configuration reference (§29).
 
 > **Implementation status (F4).** Evaluation is verification-first
-> ([ADR-0045](docs/adr/0045-verification-first-selection.md)): per-archetype
+> ([ADR-0045](docs/adr/0045-verification-first-selection.md)): per-capability
 > deterministic verifiers run first, the LLM judge is a tiebreaker, and the
 > deciding judge must come from a different model **family** than the
 > generator. `execution.policy.judge_mode` selects the path and now defaults to

@@ -271,6 +271,7 @@ func renderCorrection(r corrections.Record) string {
 func (e *Engine) promptTiersFor(ctx context.Context, j job.Job, p project.Project, t project.Task,
 	phase string, candidates []prompt.CandidateArtifact) promptTiers {
 
+	capability := capabilityFor(p, t)
 	pt := promptTiers{Tools: e.toolManifest(t), Candidates: candidates}
 	// M6-T7 (§18.3, ADR-0038): retrieval is deterministic — severity, then
 	// scope, then recency — so a high-severity project correction outranks
@@ -324,7 +325,7 @@ func (e *Engine) promptTiersFor(ctx context.Context, j job.Job, p project.Projec
 	// same ranking the pack uses. The active pointer is persisted, so the MCE's
 	// byte-exact swap path is part of the normal loop, not just the route.
 	if seeder, ok := e.ctxProvider.(ActiveSeeder); ok && e.cfg != nil &&
-		e.cfg.ContextEngine.WorkingSetEnabled(p.Archetype) {
+		e.cfg.ContextEngine.WorkingSetEnabled(capability) {
 		chunk, seeded, serr := seeder.SeedActive(ctx, q, e.cfg.ContextEngine.SeedActiveMaxBytes)
 		switch {
 		case serr != nil:
@@ -363,7 +364,7 @@ func (e *Engine) promptTiersFor(ctx context.Context, j job.Job, p project.Projec
 	// for the configured archetypes/phases. The optional interface keeps
 	// pre-P0 providers and the MCE-off path working unchanged.
 	if ws, ok := e.ctxProvider.(WorkingSetProvider); ok && e.cfg != nil &&
-		e.cfg.ContextEngine.WorkingSetEnabled(p.Archetype) &&
+		e.cfg.ContextEngine.WorkingSetEnabled(capability) &&
 		e.cfg.ContextEngine.WorkingSetPhase(phase) {
 		chunks, werr := ws.WorkingSet(ctx, q,
 			e.cfg.ContextEngine.WorkingSetMaxChunksValue(),

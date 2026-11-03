@@ -52,7 +52,10 @@ type Deps struct {
 
 // Input is one project create. Start false creates metadata only.
 type Input struct {
-	Name           string
+	Name string
+	// Archetype is the optional legacy machine override. Product callers
+	// leave it empty so CreateInferred derives capabilities from the goal and
+	// repository (ADR-0093). The frozen benchmark still supplies it per task.
 	Archetype      string
 	Goal           string
 	RepositoryPath string
@@ -110,7 +113,14 @@ func Create(ctx context.Context, deps Deps, in Input) (Result, error) {
 		return Result{}, ErrFrozen
 	}
 	start := in.Start
-	p, task, err := deps.Projects.Create(ctx, in.Name, in.Archetype, in.Goal, in.RepositoryPath, in.Criteria)
+	var p project.Project
+	var task project.Task
+	var err error
+	if in.Archetype == "" {
+		p, task, err = deps.Projects.CreateInferred(ctx, in.Name, in.Goal, in.RepositoryPath, in.Criteria)
+	} else {
+		p, task, err = deps.Projects.Create(ctx, in.Name, in.Archetype, in.Goal, in.RepositoryPath, in.Criteria)
+	}
 	if err != nil {
 		return Result{}, err
 	}

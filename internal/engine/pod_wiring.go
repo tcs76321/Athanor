@@ -31,12 +31,13 @@ import (
 //     pod did" — exit code, stdout, stderr, duration).
 //  4. Append an EventLog entry `code_executed`.
 func (e *Engine) runCodeInPod(ctx context.Context, j job.Job, p project.Project, t project.Task, code string) error {
+	capability := capabilityFor(p, t)
 	if e.runner == nil {
 		e.audit(ctx, j.ID, map[string]any{
 			"event":     "code_executed",
 			"skipped":   true,
 			"reason":    "no ToolRunner wired (M1 dev mode)",
-			"archetype": p.Archetype,
+			"archetype": capability,
 		})
 		return nil
 	}
@@ -81,7 +82,7 @@ func (e *Engine) runCodeInPod(ctx context.Context, j job.Job, p project.Project,
 				"event":     "code_executed",
 				"skipped":   true,
 				"reason":    "execute_code not in job envelope",
-				"archetype": p.Archetype,
+				"archetype": capability,
 			})
 			return nil
 		}
@@ -103,7 +104,7 @@ func (e *Engine) runCodeInPod(ctx context.Context, j job.Job, p project.Project,
 		"duration_ms": res.DurationMS,
 		"stdout_len":  len(res.Stdout),
 		"stderr_len":  len(res.Stderr),
-		"archetype":   p.Archetype,
+		"archetype":   capability,
 	})
 	slog.Debug("engine: code executed in pod", "job", j.ID, "exit_code", res.ExitCode, "duration_ms", res.DurationMS)
 	return nil

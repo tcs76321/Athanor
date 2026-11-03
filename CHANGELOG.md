@@ -10,6 +10,34 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Project capabilities — 2026-11-02
+
+- **Projects no longer ask for an archetype or a test command.** A project is a
+  goal, a repository, and criteria. The system infers a capability set
+  (`code`, `data`, `document`, `text`, `media`) from the goal and repository,
+  and each task gets one primary capability (migration 0033:
+  `projects.capabilities_json`, `tasks.capability`). Mixed projects are
+  supported: a code project can contain a document or data task without a new
+  project. [ADR-0093](docs/adr/0093-project-capabilities-not-archetypes.md).
+- **The test command is repository-owned.** It is detected from `go.mod`,
+  `pyproject.toml`/`pytest.ini`, `package.json`, `Cargo.toml`, `Makefile`,
+  `pom.xml`, `build.gradle`, or `composer.json`; an explicit execution override
+  remains for the benchmark and advanced use. A code task with no detected
+  command records `tests_skipped` and falls through to the judge instead of
+  inventing `pytest -q`. Proofs: `TestDetectTestCommand`,
+  `TestCreateInferredPersistsCapabilities`.
+- **The UI/API/CLI default path no longer exposes the taxonomy.** The
+  new-project form asks for name, goal, repository, and criteria; the project
+  page shows inferred capabilities and resolved verification read-only. The
+  legacy `archetype` column and API field remain as a deprecation shim.
+  Proofs: `TestFirstUseCopy`, `TestCreateProjectFromUI`.
+- **The engine selects rubric, final artifact kind, tool defaults, working
+  set, and verifiers from the task capability.** Legacy rows fall back to the
+  project's primary capability; the old `Create` wrapper keeps the historical
+  `pytest -q` compatibility default for pre-0093 callers/tests, while
+  `CreateInferred` is the product path. Proof: `capabilityFor` and the full
+  engine suite.
+
 ### Benchmark — 2026-11-02
 
 - **Post-P0 full v2 slice: 32/41 (78%).** H 23/26 (88%), X 9/15 (60%),

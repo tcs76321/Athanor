@@ -97,7 +97,7 @@ type PlanInput struct {
 func BuildPlan(in PlanInput) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "# Plan: %s\n\n", in.Name)
-	fmt.Fprintf(&b, "**Archetype:** %s\n\n", in.Archetype)
+	fmt.Fprintf(&b, "**Capability:** %s\n\n", in.Archetype)
 	b.WriteString("## Goal\n\n")
 	b.WriteString(strings.TrimSpace(in.Goal))
 	b.WriteString("\n\n## Acceptance criteria\n\n")

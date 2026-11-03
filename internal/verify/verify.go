@@ -22,7 +22,11 @@ import (
 
 // Input is everything a verifier may inspect about one candidate.
 type Input struct {
-	Archetype string
+	// Capability is the task's primary output kind (ADR-0093). Archetype is
+	// the deprecated alias kept for compatibility with pre-0093 callers; when
+	// Capability is empty the registry falls back to Archetype.
+	Capability string
+	Archetype  string
 	// Content is the candidate's bytes.
 	Content string
 	// Criteria are the task's acceptance criteria (free text).
@@ -78,34 +82,34 @@ type Verifier interface {
 	Verify(Input) Verdict
 }
 
-// Registry maps an archetype to the ordered verifiers that apply to it.
+// Registry maps a capability to the ordered verifiers that apply to it.
 type Registry struct {
-	byArchetype map[string][]Verifier
+	byCapability map[string][]Verifier
 }
 
 // NewRegistry builds a registry from explicit verifiers. Use Default for
 // the in-tree set.
 func NewRegistry(vs ...Verifier) *Registry {
-	r := &Registry{byArchetype: map[string][]Verifier{}}
+	r := &Registry{byCapability: map[string][]Verifier{}}
 	for _, v := range vs {
-		// A verifier declares its archetype via the Archetypes interface
-		// below when it is archetype-specific; the default registry wires
+		// A verifier declares its capabilities via the Capabilities interface
+		// below when it is capability-specific; the default registry wires
 		// them explicitly, so this constructor only groups by that.
-		if av, ok := v.(archetypeVerifier); ok {
-			for _, a := range av.Archetypes() {
-				r.byArchetype[a] = append(r.byArchetype[a], v)
+		if av, ok := v.(capabilityVerifier); ok {
+			for _, a := range av.Capabilities() {
+				r.byCapability[a] = append(r.byCapability[a], v)
 			}
 			continue
 		}
-		r.byArchetype[""] = append(r.byArchetype[""], v)
+		r.byCapability[""] = append(r.byCapability[""], v)
 	}
 	return r
 }
 
-// archetypeVerifier is an optional interface a Verifier may implement to
-// declare the archetypes it serves.
-type archetypeVerifier interface {
-	Archetypes() []string
+// capabilityVerifier is an optional interface a Verifier may implement to
+// declare the capabilities it serves.
+type capabilityVerifier interface {
+	Capabilities() []string
 }
 
 // Default is the in-tree verifier set: code gets the real test run, the
@@ -147,15 +151,16 @@ func (r Result) Decisive() bool { return r.Applied > 0 }
 // when HardDecisive is true.
 func (r Result) HardDecisive() bool { return r.HardApplied > 0 }
 
-// For returns the verifiers registered for an archetype.
-func (r *Registry) For(archetype string) []Verifier {
+// For returns the verifiers registered for a capability (legacy name:
+// archetype; the values are the same closed set).
+func (r *Registry) For(capability string) []Verifier {
 	if r == nil {
 		return nil
 	}
-	return r.byArchetype[archetype]
+	return r.byCapability[capability]
 }
 
-// Run applies every verifier for the archetype and aggregates the
+// Run applies every verifier for the capability and aggregates the
 // applicable verdicts. Only applicable verdicts count: an unparsed
 // constraint is silence, not a pass.
 func (r *Registry) Run(in Input) Result {
@@ -163,7 +168,11 @@ func (r *Registry) Run(in Input) Result {
 	out.HardPassed = true
 	var sum float64
 	passed := true
-	for _, v := range r.For(in.Archetype) {
+	capability := in.Capability
+	if capability == "" {
+		capability = in.Archetype
+	}
+	for _, v := range r.For(capability) {
 		vd := v.Verify(in)
 		if !vd.Applied {
 			continue
@@ -195,7 +204,7 @@ func (r *Registry) Run(in Input) Result {
 // pass.
 type testsVerifier struct{}
 
-func (testsVerifier) Archetypes() []string {
+func (testsVerifier) Capabilities() []string {
 	return []string{project.ArchetypeCode}
 }
 func (testsVerifier) Name() string { return "tests" }
@@ -240,7 +249,7 @@ func shortCommand(cmd string) string {
 // linter ran.
 type lintVerifier struct{}
 
-func (lintVerifier) Archetypes() []string {
+func (lintVerifier) Capabilities() []string {
 	return []string{project.ArchetypeCode}
 }
 func (lintVerifier) Name() string { return "lint" }

@@ -154,7 +154,7 @@ func projectContext(p Project) string {
 	var b strings.Builder
 	b.WriteString("PROJECT\n")
 	fmt.Fprintf(&b, "name: %s\n", p.Name)
-	fmt.Fprintf(&b, "archetype: %s\n", p.Archetype)
+	fmt.Fprintf(&b, "capability: %s\n", p.Archetype)
 	fmt.Fprintf(&b, "goal: %s", p.Goal)
 	return b.String()
 }

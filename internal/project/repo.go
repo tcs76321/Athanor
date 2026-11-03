@@ -27,8 +27,8 @@ func CodeArchetypeTools() []string {
 
 // defaultToolsJSON returns the task's allowed_tools_json default for an
 // archetype. Empty is "[]" so the daemon-wide default applies.
-func defaultToolsJSON(archetype string) (string, error) {
-	if archetype != ArchetypeCode {
+func defaultToolsJSON(capability string) (string, error) {
+	if capability != CapabilityCode {
 		return "[]", nil
 	}
 	b, err := json.Marshal(CodeArchetypeTools())
@@ -45,20 +45,63 @@ func (r *Repo) Create(ctx context.Context, name, archetype, goal, repositoryPath
 	if !ValidArchetype(archetype) {
 		return Project{}, Task{}, fmt.Errorf("invalid archetype %q (§6.2: text|code|document|data|media)", archetype)
 	}
+	caps := CapabilitiesFromArchetype(archetype)
+	p, task, err := r.create(ctx, name, archetype, caps, PrimaryCapability(caps), goal, repositoryPath, criteria)
+	if err != nil || archetype != ArchetypeCode {
+		return p, task, err
+	}
+	// Compatibility shim for pre-0093 callers/tests that expect the old
+	// pytest default. The product path is CreateInferred, which detects the
+	// repository command instead of inventing one.
+	if p.Execution.TestCommand == "" {
+		ex := Execution{TestCommand: DefaultCodeTestCommand}
+		if serr := r.SetExecution(ctx, p.ID, ex); serr != nil {
+			return Project{}, Task{}, serr
+		}
+		p.Execution = ex
+	}
+	return p, task, nil
+}
+
+// CreateInferred is the product create path (ADR-0093): the project has no
+// operator-chosen archetype, and both the project capability set and the first
+// task's primary capability are inferred from the goal and repository. The
+// legacy archetype column is written with the primary capability only for
+// compatibility.
+func (r *Repo) CreateInferred(ctx context.Context, name, goal, repositoryPath string, criteria []string) (Project, Task, error) {
+	caps := InferCapabilities(goal, repositoryPath)
+	capability := InferTaskCapability(goal, caps, repositoryPath)
+	return r.create(ctx, name, capability, caps, capability, goal, repositoryPath, criteria)
+}
+
+// create is the shared insert path. archetype is the legacy column value;
+// primary is the first task's capability.
+func (r *Repo) create(ctx context.Context, name, archetype string, caps []string, primary, goal, repositoryPath string, criteria []string) (Project, Task, error) {
 	if err := validateGoalText(goal); err != nil {
 		return Project{}, Task{}, err
 	}
 	if name == "" {
 		return Project{}, Task{}, fmt.Errorf("project name must not be empty")
 	}
+	caps = NormalizeCapabilities(caps)
+	if !ValidCapability(primary) {
+		primary = PrimaryCapability(caps)
+	}
+	if !ValidCapability(archetype) {
+		archetype = primary
+	}
 	projectID, goalID, taskID := ids.New(), ids.New(), ids.New()
 	criteriaJSON, err := marshalCriteria(criteria)
 	if err != nil {
 		return Project{}, Task{}, err
 	}
-	toolsJSON, err := defaultToolsJSON(archetype)
+	toolsJSON, err := defaultToolsJSON(primary)
 	if err != nil {
 		return Project{}, Task{}, err
+	}
+	capsJSON, err := json.Marshal(caps)
+	if err != nil {
+		return Project{}, Task{}, fmt.Errorf("marshalling capabilities: %w", err)
 	}
 
 	tx, err := r.store.DB().BeginTx(ctx, nil)
@@ -68,8 +111,8 @@ func (r *Repo) Create(ctx context.Context, name, archetype, goal, repositoryPath
 	defer func() { _ = tx.Rollback() }()
 
 	if _, err := tx.ExecContext(ctx,
-		`INSERT INTO projects (id, name, archetype, goal, repository_path) VALUES (?, ?, ?, ?, ?)`,
-		projectID, name, archetype, goal, nullIfEmpty(repositoryPath),
+		`INSERT INTO projects (id, name, archetype, goal, repository_path, capabilities_json) VALUES (?, ?, ?, ?, ?, ?)`,
+		projectID, name, archetype, goal, nullIfEmpty(repositoryPath), string(capsJSON),
 	); err != nil {
 		return Project{}, Task{}, fmt.Errorf("inserting project: %w", err)
 	}
@@ -84,8 +127,8 @@ func (r *Repo) Create(ctx context.Context, name, archetype, goal, repositoryPath
 	// config.job_pod.default_tools. M2-T4 commit 4 widens the
 	// signature to accept a per-task override.
 	if _, err := tx.ExecContext(ctx,
-		`INSERT INTO tasks (id, project_id, goal_id, title, acceptance_criteria_json, allowed_tools_json) VALUES (?, ?, ?, ?, ?, ?)`,
-		taskID, projectID, goalID, goal, criteriaJSON, toolsJSON,
+		`INSERT INTO tasks (id, project_id, goal_id, title, acceptance_criteria_json, allowed_tools_json, capability) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		taskID, projectID, goalID, goal, criteriaJSON, toolsJSON, primary,
 	); err != nil {
 		return Project{}, Task{}, fmt.Errorf("inserting task: %w", err)
 	}
@@ -118,7 +161,8 @@ func (r *Repo) SubmitGoal(ctx context.Context, projectID, goalText string, crite
 	if err != nil {
 		return Task{}, err
 	}
-	toolsJSON, err := defaultToolsJSON(p.Archetype)
+	capability := InferTaskCapability(goalText, p.Capabilities, p.RepositoryPath)
+	toolsJSON, err := defaultToolsJSON(capability)
 	if err != nil {
 		return Task{}, err
 	}
@@ -136,8 +180,8 @@ func (r *Repo) SubmitGoal(ctx context.Context, projectID, goalText string, crite
 	// allowed_tools_json defaults to '[]' (migration 0005). See Create
 	// above for the M2-T4 commit 4 widening rationale.
 	if _, err := tx.ExecContext(ctx,
-		`INSERT INTO tasks (id, project_id, goal_id, title, acceptance_criteria_json, allowed_tools_json) VALUES (?, ?, ?, ?, ?, ?)`,
-		taskID, projectID, goalID, goalText, criteriaJSON, toolsJSON,
+		`INSERT INTO tasks (id, project_id, goal_id, title, acceptance_criteria_json, allowed_tools_json, capability) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		taskID, projectID, goalID, goalText, criteriaJSON, toolsJSON, capability,
 	); err != nil {
 		return Task{}, fmt.Errorf("inserting task: %w", err)
 	}
@@ -150,11 +194,11 @@ func (r *Repo) SubmitGoal(ctx context.Context, projectID, goalText string, crite
 // Get loads one project by ID.
 func (r *Repo) Get(ctx context.Context, id string) (Project, error) {
 	var p Project
-	var execJSON, createdAt string
+	var execJSON, capsJSON, createdAt string
 	err := r.store.DB().QueryRowContext(ctx,
-		`SELECT id, name, archetype, goal, status, COALESCE(repository_path, ''), execution_json, created_at
+		`SELECT id, name, archetype, goal, status, COALESCE(repository_path, ''), execution_json, COALESCE(capabilities_json, '[]'), created_at
 		 FROM projects WHERE id = ?`, id,
-	).Scan(&p.ID, &p.Name, &p.Archetype, &p.Goal, &p.Status, &p.RepositoryPath, &execJSON, &createdAt)
+	).Scan(&p.ID, &p.Name, &p.Archetype, &p.Goal, &p.Status, &p.RepositoryPath, &execJSON, &capsJSON, &createdAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Project{}, fmt.Errorf("%w: %s", ErrNotFound, id)
 	}
@@ -164,11 +208,27 @@ func (r *Repo) Get(ctx context.Context, id string) (Project, error) {
 	if err := decodeExecution(id, execJSON, &p.Execution); err != nil {
 		return Project{}, err
 	}
+	p.Capabilities = decodeCapabilities(capsJSON, p.Archetype)
 	var perr error
 	if p.CreatedAt, perr = time.Parse(time.RFC3339, createdAt); perr != nil {
 		return Project{}, fmt.Errorf("parsing project timestamp %q: %w", createdAt, perr)
 	}
 	return p, nil
+}
+
+// decodeCapabilities reads the capability set and falls back to the legacy
+// archetype for rows written before migration 0033.
+func decodeCapabilities(raw, archetype string) []string {
+	var caps []string
+	if raw != "" {
+		if err := json.Unmarshal([]byte(raw), &caps); err != nil {
+			caps = nil
+		}
+	}
+	if len(caps) == 0 {
+		caps = CapabilitiesFromArchetype(archetype)
+	}
+	return NormalizeCapabilities(caps)
 }
 
 // decodeExecution unmarshals projects.execution_json into ex. The column is
@@ -229,7 +289,7 @@ func (r *Repo) SetRepositoryPath(ctx context.Context, id, path string) error {
 // creation. limit ≤ 0 means no limit. It is the M5-T8 idle indexer's work
 // list (ADR-0028 §6).
 func (r *Repo) WithRepository(ctx context.Context, limit int) ([]Project, error) {
-	q := `SELECT id, name, archetype, goal, status, COALESCE(repository_path, ''), execution_json, created_at
+	q := `SELECT id, name, archetype, goal, status, COALESCE(repository_path, ''), execution_json, COALESCE(capabilities_json, '[]'), created_at
 	      FROM projects
 	      WHERE repository_path IS NOT NULL AND repository_path <> ''
 	      ORDER BY created_at`
@@ -246,13 +306,14 @@ func (r *Repo) WithRepository(ctx context.Context, limit int) ([]Project, error)
 	var out []Project
 	for rows.Next() {
 		var p Project
-		var execJSON, createdAt string
-		if err := rows.Scan(&p.ID, &p.Name, &p.Archetype, &p.Goal, &p.Status, &p.RepositoryPath, &execJSON, &createdAt); err != nil {
+		var execJSON, capsJSON, createdAt string
+		if err := rows.Scan(&p.ID, &p.Name, &p.Archetype, &p.Goal, &p.Status, &p.RepositoryPath, &execJSON, &capsJSON, &createdAt); err != nil {
 			return nil, fmt.Errorf("scanning project: %w", err)
 		}
 		if err := decodeExecution(p.ID, execJSON, &p.Execution); err != nil {
 			return nil, err
 		}
+		p.Capabilities = decodeCapabilities(capsJSON, p.Archetype)
 		var perr error
 		if p.CreatedAt, perr = time.Parse(time.RFC3339, createdAt); perr != nil {
 			return nil, fmt.Errorf("parsing project timestamp %q: %w", createdAt, perr)
@@ -305,7 +366,7 @@ func (r *Repo) EnvelopeFor(ctx context.Context, jobID string, defaultEnv toolenv
 // taskColumns is the shared column list for task reads, so the schema and
 // the Go field mapping cannot drift.
 const taskColumns = `id, project_id, COALESCE(goal_id, ''), COALESCE(parent_task_id, ''),
-	title, COALESCE(description, ''), status, task_type, depends_on_json,
+	title, COALESCE(description, ''), COALESCE(capability, ''), status, task_type, depends_on_json,
 	acceptance_criteria_json, budget_json, priority, allowed_tools_json, retry_baseline`
 
 // scanTask reads one row produced by taskColumns.
@@ -313,7 +374,7 @@ func scanTask(row interface{ Scan(...any) error }) (Task, error) {
 	var t Task
 	var depsJSON, criteriaJSON, budgetJSON, allowedToolsJSON string
 	if err := row.Scan(&t.ID, &t.ProjectID, &t.GoalID, &t.ParentID, &t.Title, &t.Description,
-		&t.Status, &t.TaskType, &depsJSON, &criteriaJSON, &budgetJSON, &t.Priority, &allowedToolsJSON,
+		&t.Capability, &t.Status, &t.TaskType, &depsJSON, &criteriaJSON, &budgetJSON, &t.Priority, &allowedToolsJSON,
 		&t.RetryBaseline); err != nil {
 		return Task{}, err
 	}

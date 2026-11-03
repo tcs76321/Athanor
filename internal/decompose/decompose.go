@@ -92,7 +92,7 @@ func (d *Decomposer) Decompose(ctx context.Context, projectID, goalText string, 
 		if !ok {
 			return Result{}, fmt.Errorf("decompose: persona %q missing from registry", role)
 		}
-		verdict := llm.Check(persona, llm.PhasePlanning, p.Archetype, persona.ContextTarget, d.floors)
+		verdict := llm.Check(persona, llm.PhasePlanning, p.PrimaryCapability(), persona.ContextTarget, d.floors)
 		if !verdict.Feasible {
 			d.audit(ctx, map[string]any{
 				"event": "dag_infeasible", "persona": role, "attempt": i + 1,
@@ -177,7 +177,7 @@ func toSpecs(g dag.Graph) []project.TaskSpec {
 func buildMessages(p project.Project, goal string, criteria []string, limits dag.Limits) []llm.Message {
 	var b strings.Builder
 	b.WriteString("Decompose the goal into a dependency-ordered DAG of implementation tasks.\n")
-	fmt.Fprintf(&b, "Project archetype: %s\nProject goal: %s\n", p.Archetype, p.Goal)
+	fmt.Fprintf(&b, "Project capabilities: %s\nProject goal: %s\n", strings.Join(p.Capabilities, ", "), p.Goal)
 	fmt.Fprintf(&b, "Goal to decompose: %s\n", goal)
 	b.WriteString("Acceptance criteria:\n")
 	if len(criteria) == 0 {

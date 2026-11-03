@@ -396,13 +396,14 @@ type projectExecution struct {
 }
 
 type projectResponse struct {
-	ID             string `json:"id"`
-	Name           string `json:"name"`
-	Archetype      string `json:"archetype"`
-	Goal           string `json:"goal"`
-	RepositoryPath string `json:"repository_path,omitempty"`
-	TaskID         string `json:"task_id,omitempty"`
-	JobID          string `json:"job_id,omitempty"`
+	ID             string   `json:"id"`
+	Name           string   `json:"name"`
+	Capabilities   []string `json:"capabilities,omitempty"`
+	Archetype      string   `json:"archetype,omitempty"` // legacy alias for the primary capability
+	Goal           string   `json:"goal"`
+	RepositoryPath string   `json:"repository_path,omitempty"`
+	TaskID         string   `json:"task_id,omitempty"`
+	JobID          string   `json:"job_id,omitempty"`
 	// Index is the bounded repository pass run before the first job when a
 	// repository_path was supplied. Absent when no repository was configured
 	// or the indexer does not support a bounded pass.
@@ -455,8 +456,10 @@ func (a *API) handleProjectCreate(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	writeJSON(w, http.StatusCreated, projectResponse{
-		ID: res.Project.ID, Name: res.Project.Name, Archetype: res.Project.Archetype,
-		Goal: res.Project.Goal, RepositoryPath: res.Project.RepositoryPath,
+		ID: res.Project.ID, Name: res.Project.Name,
+		Capabilities: res.Project.Capabilities,
+		Archetype:    res.Project.PrimaryCapability(),
+		Goal:         res.Project.Goal, RepositoryPath: res.Project.RepositoryPath,
 		TaskID: res.Task.ID, JobID: res.JobID,
 		Index: index, IndexWarning: res.IndexWarning,
 	})
@@ -491,7 +494,7 @@ func (a *API) handleInterview(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, err.Error())
 		return
 	}
-	in, err := a.interview.Ensure(r.Context(), p.ID, interview.Questions(p.Archetype))
+	in, err := a.interview.Ensure(r.Context(), p.ID, interview.Questions(p.PrimaryCapability()))
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -522,9 +525,9 @@ func (a *API) handleInterviewSave(w http.ResponseWriter, r *http.Request) {
 	if !decodeBody(w, r, &req) {
 		return
 	}
-	questions := interview.Questions(p.Archetype)
+	questions := interview.Questions(p.PrimaryCapability())
 	plan := interview.BuildPlan(interview.PlanInput{
-		Name: p.Name, Archetype: p.Archetype, Goal: p.Goal,
+		Name: p.Name, Archetype: p.PrimaryCapability(), Goal: p.Goal,
 		Criteria: task.Criteria, TestCommand: p.TestCommand(),
 		Answers: req.Answers, Questions: questions,
 	})
@@ -608,7 +611,8 @@ func (a *API) handleProjectGet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, projectResponse{
-		ID: p.ID, Name: p.Name, Archetype: p.Archetype, Goal: p.Goal,
+		ID: p.ID, Name: p.Name, Capabilities: p.Capabilities,
+		Archetype: p.PrimaryCapability(), Goal: p.Goal,
 		RepositoryPath: p.RepositoryPath,
 	})
 }

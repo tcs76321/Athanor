@@ -274,7 +274,11 @@ func (a *API) handleJobGet(w http.ResponseWriter, r *http.Request) {
 	// The final artifact is the useful tail of a watch — link it directly.
 	if j.State == job.StateCompleted {
 		if p, perr := a.projects.Get(r.Context(), j.ProjectID); perr == nil {
-			if art, aerr := a.artifacts.LatestForJob(r.Context(), j.ID, finalKind(p.Archetype)); aerr == nil {
+			capability := p.PrimaryCapability()
+			if t, terr := a.projects.Task(r.Context(), j.TaskID); terr == nil && project.ValidCapability(t.Capability) {
+				capability = t.Capability
+			}
+			if art, aerr := a.artifacts.LatestForJob(r.Context(), j.ID, finalKind(capability)); aerr == nil {
 				resp["artifact_id"] = art.ID
 			}
 		}

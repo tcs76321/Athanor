@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -696,9 +697,14 @@ func TestNewProjectPage(t *testing.T) {
 	if status != http.StatusOK {
 		t.Fatalf("status = %d, want 200", status)
 	}
-	for _, want := range []string{"New project", `action="/ui/projects"`, `name="repository_path"`, `name="test_command"`} {
+	for _, want := range []string{"New project", `action="/ui/projects"`, `name="repository_path"`, `name="goal"`, "infers what it can produce"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("new-project page missing %q", want)
+		}
+	}
+	for _, gone := range []string{`name="archetype"`, `name="test_command"`} {
+		if strings.Contains(body, gone) {
+			t.Errorf("new-project page still exposes the old field %s", gone)
 		}
 	}
 }
@@ -709,10 +715,8 @@ func TestCreateProjectFromUI(t *testing.T) {
 	fx := setup(t)
 	form := url.Values{
 		"name":            {"ui-project"},
-		"archetype":       {"code"},
 		"goal":            {"Build a small add function with tests and a docstring."},
 		"repository_path": {"/tmp/repo"},
-		"test_command":    {"pytest -q"},
 		"criteria":        {"pytest passes\ndocstring present"},
 	}
 	resp := postForm(t, fx.ts.URL+"/ui/projects", form)
@@ -728,8 +732,11 @@ func TestCreateProjectFromUI(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if p.Execution.TestCommand != "pytest -q" {
-		t.Errorf("test command = %q, want pytest -q", p.Execution.TestCommand)
+	if p.Execution.TestCommand != "" {
+		t.Errorf("test command = %q, want no explicit command (repository detection only)", p.Execution.TestCommand)
+	}
+	if !slices.Contains(p.Capabilities, project.CapabilityCode) {
+		t.Errorf("capabilities = %v, want code", p.Capabilities)
 	}
 	if len(fx.engine.enqueued) != 0 {
 		t.Errorf("enqueued = %v, want none without start", fx.engine.enqueued)
@@ -744,10 +751,8 @@ func TestCreateProjectFromUIStartsJob(t *testing.T) {
 	fx.ui.deps.Indexer = idx
 	form := url.Values{
 		"name":            {"ui-starts"},
-		"archetype":       {"code"},
 		"goal":            {"Build a small add function with tests and a docstring."},
 		"repository_path": {"/tmp/repo"},
-		"test_command":    {"pytest -q"},
 		"criteria":        {"pytest passes"},
 		"start":           {"1"},
 	}

@@ -29,11 +29,6 @@ func (r *Repo) CreateDAG(ctx context.Context, projectID, goalText string, criter
 	if len(specs) == 0 {
 		return "", nil, fmt.Errorf("decomposition has no tasks")
 	}
-	toolsJSON, err := defaultToolsJSON(p.Archetype)
-	if err != nil {
-		return "", nil, err
-	}
-
 	// Resolve keys to generated IDs first; this also rejects duplicate
 	// keys and unknown references before the transaction opens.
 	idsByKey := make(map[string]string, len(specs))
@@ -90,12 +85,20 @@ func (r *Repo) CreateDAG(ctx context.Context, projectID, goalText string, criter
 		if err != nil {
 			return "", nil, fmt.Errorf("marshalling budget: %w", err)
 		}
+		capability := s.Capability
+		if !ValidCapability(capability) {
+			capability = InferTaskCapability(s.Title+" "+s.Description, p.Capabilities, p.RepositoryPath)
+		}
+		toolsJSON, err := defaultToolsJSON(capability)
+		if err != nil {
+			return "", nil, err
+		}
 		if _, err := tx.ExecContext(ctx,
 			`INSERT INTO tasks (id, project_id, goal_id, parent_task_id, title, description,
-			        depends_on_json, acceptance_criteria_json, budget_json, allowed_tools_json, priority)
-			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			        depends_on_json, acceptance_criteria_json, budget_json, allowed_tools_json, priority, capability)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			idsByKey[s.Key], projectID, goalID, parentID, s.Title, s.Description,
-			string(depsJSON), criteriaJSON, string(budgetJSON), toolsJSON, s.Priority,
+			string(depsJSON), criteriaJSON, string(budgetJSON), toolsJSON, s.Priority, capability,
 		); err != nil {
 			return "", nil, fmt.Errorf("inserting task %q: %w", s.Key, err)
 		}

@@ -389,7 +389,7 @@ const projectsBody = `
 <table><thead><tr><th>Name</th><th>Archetype</th><th>Status</th><th>Goal</th><th>Created</th></tr></thead><tbody>
 {{range .Projects}}<tr>
   <td><a href="/ui/projects/{{.ID}}">{{.Name}}</a></td>
-  <td><span class="pill">{{.Archetype}}</span></td>
+  <td><span class="pill">{{join .Capabilities}}</span></td>
   <td><span class="pill">{{.Status}}</span></td>
   <td class="muted">{{.Goal}}</td>
   <td class="muted">{{.CreatedAt | when}}</td>
@@ -400,24 +400,14 @@ const projectsBody = `
 
 const newProjectBody = `
 <h1>New project</h1>
-<p class="sub">A project holds one goal, its criteria, and the jobs that work on it.</p>
+<p class="sub">A project holds one goal, its criteria, and the jobs that work on it. You do not choose a type: the system infers what it can produce and how to verify it from the goal and repository.</p>
 <div class="actions"><a class="btn secondary" href="/ui/projects">All projects</a></div>
 {{if .Error}}<div class="card"><p class="del">{{.Error}}</p></div>{{end}}
 <div class="card">
 <form method="post" action="/ui/projects">
   <label>Name <input name="name" value="{{.Name}}" required></label>
-  <div class="row">
-    <label>Archetype <select name="archetype">
-      <option value="code" {{if eq .Archetype "code"}}selected{{end}}>code</option>
-      <option value="text" {{if eq .Archetype "text"}}selected{{end}}>text</option>
-      <option value="document" {{if eq .Archetype "document"}}selected{{end}}>document</option>
-      <option value="data" {{if eq .Archetype "data"}}selected{{end}}>data</option>
-      <option value="media" {{if eq .Archetype "media"}}selected{{end}}>media</option>
-    </select></label>
-    <label>Test command (code projects) <input name="test_command" value="{{.TestCommand}}" placeholder="pytest -q"></label>
-  </div>
   <label>Goal <textarea name="goal" rows="2" minlength="20" maxlength="500" required>{{.Goal}}</textarea></label>
-  <label>Repository path (optional, code projects) <input name="repository_path" value="{{.RepositoryPath}}" placeholder="/absolute/path/to/repo"></label>
+  <label>Repository path (optional) <input name="repository_path" value="{{.RepositoryPath}}" placeholder="/absolute/path/to/repo"></label>
   <label>Acceptance criteria (optional, one per line) <textarea name="criteria" rows="4">{{.Criteria}}</textarea></label>
   <div class="actions">
     <button name="start" value="">Create and review plan</button>
@@ -425,7 +415,7 @@ const newProjectBody = `
   </div>
 </form>
 </div>
-<p class="muted">A repository-backed code project is indexed once before the first job. The interview is optional and skippable; approving a plan starts work.</p>
+<p class="muted">A repository-backed project is indexed once before the first job. The interview is optional and skippable; approving a plan starts work.</p>
 `
 
 const interviewBody = `
@@ -471,7 +461,7 @@ const interviewBody = `
 `
 
 const projectBody = `
-<h1>{{.Project.Name}} <span class="pill">{{.Project.Archetype}}</span></h1>
+<h1>{{.Project.Name}} <span class="pill">{{join .Project.Capabilities}}</span></h1>
 <p class="sub">{{.Project.Goal}}</p>
 <div class="actions">
   <a class="btn" href="/ui/projects/{{.Project.ID}}/interview">Plan / interview</a>
@@ -482,8 +472,9 @@ const projectBody = `
 <div class="card">
   <div class="grid">
     <div><div class="l muted">Status</div><div><span class="pill">{{.Project.Status}}</span></div></div>
+    <div><div class="l muted">Capabilities</div><div>{{join .Project.Capabilities}}</div></div>
     <div><div class="l muted">Repository</div><div class="mono wrap">{{if .Project.RepositoryPath}}{{.Project.RepositoryPath}}{{else}}—{{end}}</div></div>
-    <div><div class="l muted">Test command</div><div class="mono">{{if .Project.TestCommand}}{{.Project.TestCommand}}{{else}}—{{end}}</div></div>
+    <div><div class="l muted">Verification</div><div class="mono wrap">{{if .Project.TestCommand}}{{.Project.TestCommand}}{{else}}No test command detected; the judge decides{{end}}</div></div>
     <div><div class="l muted">Created</div><div>{{.Project.CreatedAt | when}}</div></div>
   </div>
 </div>

@@ -313,9 +313,7 @@ func (u *UI) handleProjects(w http.ResponseWriter, r *http.Request) {
 // small: the full project interview (F3) is still to-build, but a human can
 // create a project without touching the CLI.
 func (u *UI) handleNewProject(w http.ResponseWriter, r *http.Request) {
-	u.render(w, "New project", newProjectBody, map[string]any{
-		"Archetype": "code", "Start": true,
-	})
+	u.render(w, "New project", newProjectBody, map[string]any{"Start": true})
 }
 
 // handleProjectCreate creates a project from the UI form, applies the optional
@@ -328,19 +326,13 @@ func (u *UI) handleProjectCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	name := strings.TrimSpace(r.FormValue("name"))
-	archetype := strings.TrimSpace(r.FormValue("archetype"))
-	if archetype == "" {
-		archetype = project.ArchetypeCode
-	}
 	goal := strings.TrimSpace(r.FormValue("goal"))
 	repo := strings.TrimSpace(r.FormValue("repository_path"))
-	testCmd := strings.TrimSpace(r.FormValue("test_command"))
 	criteria := splitCriteria(r.FormValue("criteria"))
 	start := r.FormValue("start") != ""
 
 	values := map[string]any{
-		"Name": name, "Archetype": archetype, "Goal": goal,
-		"RepositoryPath": repo, "TestCommand": testCmd,
+		"Name": name, "Goal": goal, "RepositoryPath": repo,
 		"Criteria": r.FormValue("criteria"), "Start": start,
 	}
 	if name == "" || goal == "" {
@@ -355,13 +347,9 @@ func (u *UI) handleProjectCreate(w http.ResponseWriter, r *http.Request) {
 	if u.deps.Indexer != nil {
 		deps.Indexer = uiPreindexer{inner: u.deps.Indexer}
 	}
-	var execution *project.Execution
-	if testCmd != "" {
-		execution = &project.Execution{TestCommand: testCmd}
-	}
 	res, err := firstuse.Create(r.Context(), deps, firstuse.Input{
-		Name: name, Archetype: archetype, Goal: goal,
-		RepositoryPath: repo, Criteria: criteria, Execution: execution, Start: start,
+		Name: name, Goal: goal,
+		RepositoryPath: repo, Criteria: criteria, Start: start,
 	})
 	if err != nil {
 		values["Error"] = err.Error()
@@ -445,7 +433,7 @@ func (u *UI) interviewState(ctx context.Context, projectID string) (project.Proj
 	if len(tasks) == 0 {
 		return project.Project{}, project.Task{}, interview.Interview{}, fmt.Errorf("project has no task")
 	}
-	in, err := u.deps.Interviews.Ensure(ctx, projectID, interview.Questions(p.Archetype))
+	in, err := u.deps.Interviews.Ensure(ctx, projectID, interview.Questions(p.PrimaryCapability()))
 	return p, tasks[0], in, err
 }
 
@@ -478,7 +466,7 @@ func (u *UI) handleInterviewSave(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	plan := interview.BuildPlan(interview.PlanInput{
-		Name: p.Name, Archetype: p.Archetype, Goal: p.Goal,
+		Name: p.Name, Archetype: p.PrimaryCapability(), Goal: p.Goal,
 		Criteria: task.Criteria, TestCommand: p.TestCommand(),
 		Answers: answers, Questions: in.Questions,
 	})

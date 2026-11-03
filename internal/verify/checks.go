@@ -23,7 +23,7 @@ import (
 // scorer, so the benchmark never trusts the engine's own verifier.
 type checksVerifier struct{}
 
-func (checksVerifier) Archetypes() []string {
+func (checksVerifier) Capabilities() []string {
 	return []string{project.ArchetypeText, project.ArchetypeDocument}
 }
 func (checksVerifier) Name() string { return "checks" }

@@ -182,8 +182,7 @@ frozen benchmark: the probe/frozen corpus remains the full qualification.
 ### C6. First project
 
 ```bash
-athanor project create -name first -archetype code \
-  -goal "..." -test-command "pytest -q"   # starts the first job; prints its id
+athanor project create -name first -goal "..." -repo /path/to/repo   # infers capabilities and the test command; starts the first job
 athanor job watch -job <JOB_ID>
 athanor goal submit -project <ID> -goal "..." -criteria "..."   # optional follow-up
 ```
@@ -195,9 +194,10 @@ this flow.
 > **Code projects need tools.** The shipped daemon default is
 > `job_pod.default_tools: []`. `project create` and `goal submit` now give a
 > `code` task the three execution tools (`execute_code`, `run_tests`, `lint`)
-> as a per-task default (M9-T4); other archetypes stay tool-free and explicit.
+> as a per-task default (M9-T4); other capabilities stay tool-free and explicit.
 > Without those tools the real test command cannot run and the code acceptance
-> gate rejects every candidate.
+> gate rejects every candidate. The test command itself is detected from the
+> repository (ADR-0093); there is no user-entered default.
 
 ### C7. Daily review (today)
 

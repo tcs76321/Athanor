@@ -16,7 +16,7 @@ import (
 // handles it.
 type structureVerifier struct{}
 
-func (structureVerifier) Archetypes() []string {
+func (structureVerifier) Capabilities() []string {
 	return []string{project.ArchetypeText, project.ArchetypeDocument}
 }
 func (structureVerifier) Name() string { return "structure" }

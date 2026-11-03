@@ -109,10 +109,11 @@ func (e *Engine) captureProfile(ctx context.Context, j job.Job) {
 		return
 	}
 	plan := e.planFor(ctx, j, p, t)
+	capability := capabilityFor(p, t)
 	e.auditComputePlan(ctx, j.ID, "profile", plan)
 	if _, err := e.strategy.CreateProfile(ctx, strategy.Profile{
-		JobID: j.ID, ProjectID: p.ID, Archetype: p.Archetype,
-		Signature: e.strategySignature(p.Archetype, plan),
+		JobID: j.ID, ProjectID: p.ID, Archetype: capability,
+		Signature: e.strategySignature(capability, plan),
 	}); err != nil {
 		slog.Error("engine: capturing strategy profile", "job", j.ID, "err", err)
 	}

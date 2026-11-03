@@ -87,13 +87,16 @@ approvals, on every screen.
 
 **First run.** Replace the CLI-only path with a guided flow: environment check
 (`doctor` results), persona/model mapping with pull buttons, then *create the
-first project* (name, goal, archetype, criteria) — **never a chat box** (§30.3).
-End state: a project queued or running, and a clear "what happens next".
+first project* (name, goal, optional repository, criteria) — **never a chat
+box** (§30.3). The user does not choose an archetype; the system infers the
+capability set and shows it read-only (ADR-0093). End state: a project queued or
+running, and a clear "what happens next".
 
-**Submit a goal.** A form with archetype-specific fields (§6.2: language/repo/
-test command for `code`; structure/citation for `document`). Show the resolved
-budget and the compute plan (once F4 lands, show "N candidates / verifier-first"
-so the user understands the cost).
+**Submit a goal.** A form with the goal and optional criteria. Show the inferred
+task capability and the resolved verification (the detected repository test
+command, schema, or declared checks) read-only, plus the resolved budget and
+compute plan once F4 lands ("N candidates / verifier-first") so the user
+understands the cost.
 
 **Watch a job.** Phase tree with the current phase highlighted; live token
 stream; tool-call log with input/output; test output; candidate cards with

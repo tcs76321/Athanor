@@ -250,13 +250,18 @@ func (e *Engine) call(ctx context.Context, j job.Job, p project.Project, t proje
 	// delta, retry directive) apply to every call the job makes. They come from
 	// the same pure plan the phase used, so they are consistent across phases.
 	plan := e.planFor(ctx, j, p, t)
+	capability := capabilityFor(p, t)
 
 	// M1-T2: feasibility before every call — never silently reduce.
 	// M5-T4: this is the §12.6 pre-assembly gate (what the *window*
 	// must be); the per-call §10.4 pressure gate below is its
 	// complement (what goes *in* the window).
-	verdict := llm.Check(persona, phase, p.Archetype, persona.ContextTarget, e.cfg.ContextEngine)
+	verdict := llm.Check(persona, phase, capability, persona.ContextTarget, e.cfg.ContextEngine)
 	if !verdict.Feasible {
+		slog.Warn("engine: context floor violation",
+			"job", j.ID, "phase", phase, "capability", capability,
+			"persona", role, "required", verdict.Required,
+			"available", verdict.Available, "target", persona.ContextTarget)
 		if _, err := e.jobs.Transition(ctx, j.ID, job.StatePaused); err != nil {
 			return llm.Response{}, err
 		}
@@ -293,7 +298,7 @@ func (e *Engine) call(ctx context.Context, j job.Job, p project.Project, t proje
 
 	res, err := prompt.Assemble(prompt.Input{
 		Phase:                  phase,
-		Project:                prompt.Project{Name: p.Name, Archetype: p.Archetype, Goal: p.Goal},
+		Project:                prompt.Project{Name: p.Name, Archetype: capability, Goal: p.Goal},
 		Task:                   prompt.Task{Title: t.Title, Description: t.Description, TestCommand: p.TestCommand()},
 		Criteria:               t.Criteria,
 		DataSchema:             p.Execution.DataSchema,
@@ -560,15 +565,15 @@ func (e *Engine) pendingInterruptions(ctx context.Context, jobID string) ([]stri
 	return texts, ids
 }
 
-// finalKindFor maps a project archetype to the artifact kind its final
-// output takes (§6.2 → §9.1).
-func finalKindFor(archetype string) artifact.Kind {
-	switch archetype {
-	case project.ArchetypeCode:
+// finalKindFor maps a task capability to the artifact kind its final output
+// takes (§9.1).
+func finalKindFor(capability string) artifact.Kind {
+	switch capability {
+	case project.CapabilityCode:
 		return artifact.KindCode
-	case project.ArchetypeData:
+	case project.CapabilityData:
 		return artifact.KindDataset
-	case project.ArchetypeMedia:
+	case project.CapabilityMedia:
 		return artifact.KindMedia
 	default: // text, document
 		return artifact.KindDocument
@@ -653,9 +658,10 @@ func (e *Engine) phaseSynthesize(ctx context.Context, j job.Job) error {
 	// M5-T5: the proposal bytes ride §11.2 §12 (tier 3, never evicted)
 	// instead of being concatenated into the §13 instructions.
 	plan := e.planFor(ctx, j, p, t)
+	capability := capabilityFor(p, t)
 	role := e.roleFor(plan, llm.PhaseSynthesizing, llm.RoleMain)
 	instructions := "Refine the divergence proposal below into the final artifact for this task."
-	if p.Archetype == project.ArchetypeCode {
+	if capability == project.CapabilityCode {
 		instructions += " " + codeOnlyInstruction
 	}
 	resp, err := e.call(ctx, j, p, t, llm.PhaseSynthesizing, role, instructions,
@@ -667,7 +673,7 @@ func (e *Engine) phaseSynthesize(ctx context.Context, j job.Job) error {
 	// F4 follow-up (A1): the synthesized final must also be raw source for a
 	// code archetype, so the accepted artifact and its git commit are clean.
 	content := resp.Content
-	if p.Archetype == project.ArchetypeCode {
+	if capability == project.ArchetypeCode {
 		content = normalizeCode(content)
 	}
 	// M8-T26b / P0: never discard a verified candidate. If the rewrite fails
@@ -684,13 +690,13 @@ func (e *Engine) phaseSynthesize(ctx context.Context, j job.Job) error {
 				content = string(candidateContent)
 				e.audit(ctx, j.ID, map[string]any{
 					"event": "synthesis_fallback_to_candidate", "candidate_id": candidate.ID,
-					"archetype": p.Archetype,
+					"archetype": capability,
 				})
 			}
 		}
 	}
 
-	kind := finalKindFor(p.Archetype)
+	kind := finalKindFor(capability)
 	if prev, err := e.artifacts.LatestForJob(ctx, j.ID, kind); err == nil {
 		if _, err := e.artifacts.NewVersion(ctx, prev.ID, []byte(content)); err != nil {
 			return fmt.Errorf("versioning final artifact: %w", err)
