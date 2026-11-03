@@ -92,7 +92,7 @@ func (u *UI) handleNotifications(w http.ResponseWriter, r *http.Request) {
 
 func shortID(id string) string {
 	if len(id) > 12 {
-		return id[:12]
+		return id[:8] + "…"
 	}
 	return id
 }

@@ -1027,6 +1027,11 @@ func (u *UI) renderStatus(w http.ResponseWriter, status int, title, body string,
 	if _, ok := data["Version"]; !ok {
 		data["Version"] = u.deps.Version
 	}
+	if _, ok := data["DevRuntime"]; !ok {
+		// The host process is a client/development surface (ADR-0078); show
+		// the warning unless this is the supported Core Pod.
+		data["DevRuntime"] = u.deps.Runtime != "" && !strings.EqualFold(u.deps.Runtime, "Core Pod")
+	}
 	t := template.Must(template.New("page").Funcs(funcs).Parse(document(body)))
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(status)
@@ -1045,7 +1050,7 @@ func (u *UI) fail(w http.ResponseWriter, err error) {
 var funcs = template.FuncMap{
 	"short": func(s string) string {
 		if len(s) > 12 {
-			return s[:12]
+			return s[:8] + "…"
 		}
 		return s
 	},
@@ -1064,6 +1069,22 @@ var funcs = template.FuncMap{
 	"gib": func(n int64) string {
 		return fmt.Sprintf("%.1f GiB", float64(n)/(1<<30))
 	},
+	"plural": func(n int, one, many string) string {
+		if n == 1 {
+			return one
+		}
+		return many
+	},
+	"resultLabel": func(s string) string {
+		switch s {
+		case "accepted_new":
+			return "accepted — new winner"
+		case "accepted_previous":
+			return "accepted — previous kept"
+		default:
+			return s
+		}
+	},
 	"when": func(v any) string {
 		var t time.Time
 		switch x := v.(type) {
@@ -1074,6 +1095,14 @@ var funcs = template.FuncMap{
 				return ""
 			}
 			t = *x
+		case string:
+			// Stored timestamps are RFC3339 strings; a non-timestamp string
+			// is returned unchanged so the helper cannot blank a label.
+			parsed, err := time.Parse(time.RFC3339Nano, x)
+			if err != nil {
+				return x
+			}
+			t = parsed
 		default:
 			return ""
 		}

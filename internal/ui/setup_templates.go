@@ -20,7 +20,7 @@ const setupBody = `
 </div>
 {{else if .Models}}
 <table><thead><tr><th>Model</th><th>Size</th><th>Family</th></tr></thead><tbody>
-{{range .Models}}<tr><td class="mono">{{.Name}}</td><td>{{gib .SizeBytes}}</td><td>{{.Family}}</td></tr>{{end}}
+{{range .Models}}<tr><td class="mono">{{.Name}}</td><td>{{gib .SizeBytes}}</td><td>{{if .Family}}{{.Family}}{{else}}—{{end}}</td></tr>{{end}}
 </tbody></table>
 {{else}}<div class="empty">No models are installed. Pull one with <code>ollama pull &lt;model&gt;</code>, then reload.</div>{{end}}
 
@@ -35,7 +35,7 @@ const setupBody = `
 </tbody></table>
 {{else}}<div class="empty">Configuration is not available to the UI.</div>{{end}}
 
-<h2>Qualification</h2>
+<h2>Qualification (optional)</h2>
 {{if .State.Running}}
 <div class="card">
   <p><b>{{.State.Done}} / {{.State.Total}}</b> cases complete.</p>
@@ -44,7 +44,7 @@ const setupBody = `
 </div>
 {{else}}
 <div class="card">
-  <p>Runs four fixed-label judge pairs for <code>security</code> and three deterministic generator cases for <code>main</code>, against the configured model plus the largest installed alternative. It is a machine-local screen, not the frozen benchmark.</p>
+  <p>Runs four fixed-label judge pairs for <code>security</code> and three deterministic generator cases for <code>main</code>, against the configured model plus the largest installed alternative. It is a machine-local screen, not the frozen benchmark. You can use the configured personas without running it.</p>
   {{if .State.Error}}<p class="del">{{.State.Error}}</p>{{end}}
   {{if .Stale}}<p class="muted">A previous run looks stale; starting again resets it.</p>{{end}}
   <form method="post" action="/ui/setup/qualify">

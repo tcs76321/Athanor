@@ -383,6 +383,63 @@ func TestLineDiffBuildsValidEditScript(t *testing.T) {
 
 // TestInspectorPagesRender proves the read-only inspector surfaces are
 // reachable and expose the recorded internals.
+// TestFirstUseCopy covers the dashboard copy fixes: the kill switch reads as a
+// state, not as an enabled control, and singular counts are not "artifact(s)".
+func TestFirstUseCopy(t *testing.T) {
+	fx := setup(t)
+	_, body := get(t, fx.ts.URL+"/ui")
+	for _, want := range []string{"Not frozen", "artifacts to review", "Notifications", "review-count"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("dashboard missing %q", want)
+		}
+	}
+	if strings.Contains(body, "artifact(s)") {
+		t.Error("dashboard still contains the artifact(s) placeholder")
+	}
+}
+
+// TestHostDevBanner proves the supported-runtime warning appears only under the
+// host development process, not under the Core Pod.
+func TestHostDevBanner(t *testing.T) {
+	fx := setup(t)
+	fx.ui.deps.Runtime = "host (development)"
+	_, body := get(t, fx.ts.URL+"/ui")
+	if !strings.Contains(body, "Development runtime") {
+		t.Error("host dev page is missing the supported-runtime banner")
+	}
+	fx.ui.deps.Runtime = "Core Pod"
+	_, body = get(t, fx.ts.URL+"/ui")
+	if strings.Contains(body, "Development runtime") {
+		t.Error("Core Pod page should not show the host dev banner")
+	}
+}
+
+// TestLongRepositoryPathWraps pins the layout fix: the project metadata path
+// must be in a wrapping element so it cannot overlap the Created column.
+func TestLongRepositoryPathWraps(t *testing.T) {
+	fx := setup(t)
+	_, body := get(t, fx.ts.URL+"/ui/projects/"+fx.project.ID)
+	if !strings.Contains(body, `class="mono wrap"`) {
+		t.Error("project repository path is not marked as wrapping")
+	}
+}
+
+func TestResultLabel(t *testing.T) {
+	if got := funcs["resultLabel"].(func(string) string)("accepted_new"); got != "accepted — new winner" {
+		t.Errorf("accepted_new label = %q", got)
+	}
+	if got := funcs["resultLabel"].(func(string) string)("accepted_previous"); got != "accepted — previous kept" {
+		t.Errorf("accepted_previous label = %q", got)
+	}
+	plural := funcs["plural"].(func(int, string, string) string)
+	if got := plural(1, "artifact", "artifacts"); got != "artifact" {
+		t.Errorf("plural(1) = %q", got)
+	}
+	if got := plural(2, "artifact", "artifacts"); got != "artifacts" {
+		t.Errorf("plural(2) = %q", got)
+	}
+}
+
 func TestInspectorPagesRender(t *testing.T) {
 	fx := setup(t)
 	for _, tc := range []struct {

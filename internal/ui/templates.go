@@ -36,9 +36,14 @@ h3{font-size:14px;margin:16px 0 6px;color:#b9c3d3}
 p{margin:6px 0}
 .sub{color:var(--muted);margin:0 0 18px}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
-  padding:16px 18px;margin:0 0 18px}
+  padding:16px 18px;margin:0 0 18px;min-width:0}
 .card h2{margin-top:0}
+.banner{background:#1f1a10;border-bottom:1px solid #5a4a24;color:#f2c46d;
+  padding:8px 20px;font-size:13px;text-align:center}
+.banner a{color:#ffd88a}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin-bottom:8px}
+.grid>*{min-width:0}
+.wrap{overflow-wrap:anywhere;word-break:break-word}
 .stat{display:block;color:var(--text)}
 .stat .n{font-size:28px;font-weight:650;letter-spacing:-.02em;line-height:1.1}
 .stat .l{color:var(--muted);font-size:13px;text-transform:uppercase;letter-spacing:.06em}
@@ -57,7 +62,8 @@ tbody tr:hover{background:rgba(255,255,255,.015)}
 .mono,pre,code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
 pre{background:#0a0d12;border:1px solid var(--line);border-radius:8px;padding:12px;
   overflow:auto;font-size:13px;line-height:1.45;max-height:60vh}
-code{background:#0a0d12;border:1px solid var(--line);border-radius:4px;padding:1px 5px;font-size:13px}
+code{background:#0a0d12;border:1px solid var(--line);border-radius:4px;padding:1px 5px;font-size:13px;
+  overflow-wrap:anywhere}
 .del{color:var(--bad)}.add{color:var(--ok)}
 form{margin:0}
 label{display:block;margin:12px 0 2px;font-size:13px;color:#b9c3d3}
@@ -86,7 +92,7 @@ details{border:1px solid var(--line);border-radius:8px;padding:6px 10px;margin:6
 summary{cursor:pointer;color:#c7d3e6}
 .kv{display:grid;grid-template-columns:170px 1fr;gap:4px 12px;margin:0}
 .kv dt{color:var(--muted)}
-.kv dd{margin:0}
+.kv dd{margin:0;min-width:0;overflow-wrap:anywhere}
 `
 
 const dashboardJS = `
@@ -115,6 +121,8 @@ async function refreshAlerts(){
     const c=await r.json();
     const el=document.getElementById('alert-count');
     if(el){el.textContent=String(c.total||0);el.hidden=!c.total}
+    const rv=document.getElementById('review-count');
+    if(rv){rv.textContent=String(c.reviews||0);rv.hidden=!c.reviews}
   }catch(_){}
 }
 refreshAlerts();setInterval(refreshAlerts,30000);
@@ -124,7 +132,7 @@ const watchJS = `
 const root=document.getElementById('watch');const jobID=root.dataset.job;
 const pre=document.getElementById('tokens');
 let stick=true;
-pre.addEventListener('scroll',()=>{stick=pre.scrollTop+pre.clientHeight>=pre.scrollHeight-24});
+if(pre){pre.addEventListener('scroll',()=>{stick=pre.scrollTop+pre.clientHeight>=pre.scrollHeight-24})}
 function evLine(p){
   let d={};try{d=JSON.parse(p.data)}catch(_){}
   const label=d.event||p.category||'event';
@@ -136,6 +144,7 @@ function evLine(p){
 }
 const streams=new EventSource('/ui/jobs/'+jobID+'/stream');
 streams.addEventListener('token',e=>{
+  if(!pre)return;
   let t; try{t=JSON.parse(e.data)}catch(_){return}
   pre.textContent+=t;
   if(stick)pre.scrollTop=pre.scrollHeight;
@@ -168,8 +177,8 @@ func document(body string) string {
     <a href="/ui">Dashboard</a>
     <a href="/ui/projects">Projects</a>
     <a href="/ui/setup">Setup</a>
-    <a href="/ui/reviews">Reviews</a>
-    <a href="/ui/notifications">Alerts <span class="pill" id="alert-count" hidden></span></a>
+    <a href="/ui/reviews">Reviews <span class="pill" id="review-count" hidden></span></a>
+    <a href="/ui/notifications">Notifications <span class="pill" id="alert-count" hidden></span></a>
     <a href="/ui/corrections">Corrections</a>
     <a href="/ui/statistics">Statistics</a>
     <a href="/ui/events">Inspect</a>
@@ -179,6 +188,7 @@ func document(body string) string {
     {{if .Version}}<span>{{.Version}}</span>{{end}}
   </div>
 </header>
+{{if .DevRuntime}}<div class="banner">Development runtime: this is the unsupported host process. The supported runtime is the Core Pod — run <code>sh scripts/install.sh</code> for the real setup, or continue here for development.</div>{{end}}
 <main id="main">` + body + `</main>
 <script>` + dashboardJS + `</script>
 </body></html>`
@@ -204,7 +214,7 @@ const reviewsBody = `
 {{if .Recent}}
 <table><thead><tr><th>When</th><th>Artifact</th><th>Score</th><th>Accepted</th><th>Note</th></tr></thead><tbody>
 {{range .Recent}}<tr>
-  <td class="muted">{{.CreatedAt}}</td>
+  <td class="muted">{{.CreatedAt | when}}</td>
   <td><a href="/ui/artifacts/{{.ArtifactID}}" class="mono">{{.ArtifactID | short}}</a></td>
   <td>{{printf "%.2f" .Score}}</td>
   <td>{{if .Accepted}}<span class="pill ok">yes</span>{{else}}<span class="pill bad">no</span>{{end}}</td>
@@ -222,10 +232,10 @@ const notificationsBody = `
   <span id="notify-status" class="muted"></span>
 </div>
 <div class="grid">
-  <a class="card stat" href="/ui"><div class="n">{{.Counts.Pending}}</div><div class="l">pending approvals</div></a>
-  <a class="card stat" href="/ui/reviews"><div class="n">{{.Counts.Reviews}}</div><div class="l">artifacts to review</div></a>
-  <a class="card stat" href="#alarms"><div class="n">{{.Counts.Alarms}}</div><div class="l">active alarms</div></a>
-  <a class="card stat" href="#failures"><div class="n">{{.Counts.Failures}}</div><div class="l">failed jobs (24h)</div></a>
+  <a class="card stat" href="/ui"><div class="n">{{.Counts.Pending}}</div><div class="l">{{plural .Counts.Pending "pending approval" "pending approvals"}}</div></a>
+  <a class="card stat" href="/ui/reviews"><div class="n">{{.Counts.Reviews}}</div><div class="l">{{plural .Counts.Reviews "artifact" "artifacts"}} to review</div></a>
+  <a class="card stat" href="#alarms"><div class="n">{{.Counts.Alarms}}</div><div class="l">{{plural .Counts.Alarms "active alarm" "active alarms"}}</div></a>
+  <a class="card stat" href="#failures"><div class="n">{{.Counts.Failures}}</div><div class="l">{{plural .Counts.Failures "failed job" "failed jobs"}} (24h)</div></a>
 </div>
 
 <h2>Pending approvals</h2>
@@ -243,7 +253,7 @@ const notificationsBody = `
 <table><thead><tr><th>Level</th><th>Category</th><th>Message</th><th>When</th></tr></thead><tbody>
 {{range .Alarms}}<tr>
   <td><span class="pill {{if eq .Level "critical"}}bad{{else if eq .Level "alert"}}warn{{end}}">{{.Level}}</span></td>
-  <td>{{.Category}}</td><td>{{.Message}}</td><td class="muted">{{.CreatedAt}}</td>
+  <td>{{.Category}}</td><td>{{.Message}}</td><td class="muted">{{.CreatedAt | when}}</td>
 </tr>{{end}}
 </tbody></table>
 {{else}}<div class="empty">No active alarms.</div>{{end}}
@@ -254,7 +264,7 @@ const notificationsBody = `
 {{range .Failures}}<tr>
   <td><a href="/ui/jobs/{{.ID}}/trace" class="mono">{{.ID | short}}</a></td>
   <td><a href="/ui/projects/{{.ProjectID}}">{{.ProjectID | short}}</a></td>
-  <td class="muted">{{.UpdatedAt}}</td>
+  <td class="muted">{{.UpdatedAt | when}}</td>
 </tr>{{end}}
 </tbody></table>
 {{else}}<div class="empty">No failed jobs in the last 24 hours.</div>{{end}}
@@ -286,10 +296,10 @@ const dashboardBody = `
 <p class="sub">What needs you, and what the machine is doing.</p>
 <div class="actions"><a class="btn" href="/ui/projects/new">+ New project</a></div>
 <div class="grid">
-  <div class="card stat"><div class="n">{{len .Active}}</div><div class="l">active jobs</div></div>
-  <a class="card stat" href="/ui/reviews"><div class="n">{{.ReviewCount}}</div><div class="l">artifacts to review</div></a>
-  <div class="card stat"><div class="n">{{len .Pending}}</div><div class="l">pending approvals</div></div>
-  <div class="card stat"><div class="n">{{if .Frozen}}Frozen{{else}}Active{{end}}</div><div class="l">kill switch</div></div>
+  <div class="card stat"><div class="n">{{len .Active}}</div><div class="l">{{plural (len .Active) "active job" "active jobs"}}</div></div>
+  <a class="card stat" href="/ui/reviews"><div class="n">{{.ReviewCount}}</div><div class="l">{{plural .ReviewCount "artifact" "artifacts"}} to review</div></a>
+  <div class="card stat"><div class="n">{{len .Pending}}</div><div class="l">{{plural (len .Pending) "pending approval" "pending approvals"}}</div></div>
+  <div class="card stat"><div class="n">{{if .Frozen}}Frozen{{else}}Not frozen{{end}}</div><div class="l">kill switch</div></div>
 </div>
 
 <h2>Last 24 hours</h2>
@@ -327,7 +337,7 @@ const dashboardBody = `
 
 {{if .ReviewCount}}
 <div class="card">
-  <b>{{.ReviewCount}} accepted artifact(s) waiting for a review.</b>
+  <b>{{.ReviewCount}} accepted {{plural .ReviewCount "artifact" "artifacts"}} waiting for a review.</b>
   <span class="muted">The queue is blinded: kind and project only.</span>
   <div class="actions"><a class="btn" href="/ui/reviews">Open review queue</a></div>
 </div>
@@ -343,7 +353,7 @@ const dashboardBody = `
   <td><a href="/ui/jobs/{{.ID}}">watch</a></td>
 </tr>{{end}}
 </tbody></table>
-{{else}}<div class="empty">No job is running. Create a project or submit a goal.</div>{{end}}
+{{else}}<div class="empty">No job is running. <a href="/ui/projects/new">Create a project</a> to get started.</div>{{end}}
 
 <h2>Recently finished</h2>
 {{if .Terminal}}
@@ -391,6 +401,7 @@ const projectsBody = `
 const newProjectBody = `
 <h1>New project</h1>
 <p class="sub">A project holds one goal, its criteria, and the jobs that work on it.</p>
+<div class="actions"><a class="btn secondary" href="/ui/projects">All projects</a></div>
 {{if .Error}}<div class="card"><p class="del">{{.Error}}</p></div>{{end}}
 <div class="card">
 <form method="post" action="/ui/projects">
@@ -403,11 +414,11 @@ const newProjectBody = `
       <option value="data" {{if eq .Archetype "data"}}selected{{end}}>data</option>
       <option value="media" {{if eq .Archetype "media"}}selected{{end}}>media</option>
     </select></label>
-    <label>Test command <input name="test_command" value="{{.TestCommand}}" placeholder="pytest -q"></label>
+    <label>Test command (code projects) <input name="test_command" value="{{.TestCommand}}" placeholder="pytest -q"></label>
   </div>
-  <label>Goal <input name="goal" value="{{.Goal}}" minlength="20" maxlength="500" required></label>
-  <label>Repository path <input name="repository_path" value="{{.RepositoryPath}}" placeholder="/absolute/path/to/repo"></label>
-  <label>Acceptance criteria (one per line) <textarea name="criteria" rows="4">{{.Criteria}}</textarea></label>
+  <label>Goal <textarea name="goal" rows="2" minlength="20" maxlength="500" required>{{.Goal}}</textarea></label>
+  <label>Repository path (optional, code projects) <input name="repository_path" value="{{.RepositoryPath}}" placeholder="/absolute/path/to/repo"></label>
+  <label>Acceptance criteria (optional, one per line) <textarea name="criteria" rows="4">{{.Criteria}}</textarea></label>
   <div class="actions">
     <button name="start" value="">Create and review plan</button>
     <button name="start" value="1" class="secondary">Create and start now</button>
@@ -463,13 +474,14 @@ const projectBody = `
 <p class="sub">{{.Project.Goal}}</p>
 <div class="actions">
   <a class="btn" href="/ui/projects/{{.Project.ID}}/interview">Plan / interview</a>
+  <a class="btn secondary" href="#submit-goal">Submit a goal</a>
   <a class="btn secondary" href="/ui/projects">All projects</a>
 </div>
 
 <div class="card">
   <div class="grid">
     <div><div class="l muted">Status</div><div><span class="pill">{{.Project.Status}}</span></div></div>
-    <div><div class="l muted">Repository</div><div class="mono">{{if .Project.RepositoryPath}}{{.Project.RepositoryPath}}{{else}}—{{end}}</div></div>
+    <div><div class="l muted">Repository</div><div class="mono wrap">{{if .Project.RepositoryPath}}{{.Project.RepositoryPath}}{{else}}—{{end}}</div></div>
     <div><div class="l muted">Test command</div><div class="mono">{{if .Project.TestCommand}}{{.Project.TestCommand}}{{else}}—{{end}}</div></div>
     <div><div class="l muted">Created</div><div>{{.Project.CreatedAt | when}}</div></div>
   </div>
@@ -494,7 +506,7 @@ const projectBody = `
 </div>
 {{else}}<div class="empty">No tasks yet.</div>{{end}}
 
-<h2>Submit a goal</h2>
+<h2 id="submit-goal">Submit a goal</h2>
 <div class="card">
 <form method="post" action="/ui/projects/{{.Project.ID}}/goals">
   <label>goal <textarea name="goal" rows="3" minlength="20" maxlength="500" required></textarea></label>
@@ -524,7 +536,7 @@ const projectBody = `
 </tbody></table>
 {{else}}<div class="empty">No corrections for this project.</div>{{end}}
 
-<h2>Reject / correct an artifact (§18.4)</h2>
+<h2>Reject / correct an artifact</h2>
 <div class="card">
 <form method="post" action="/ui/projects/{{.Project.ID}}/corrections">
   <label>artifact id <input name="artifact_id" placeholder="artifact uuid"></label>
@@ -593,7 +605,11 @@ const watchBody = `
 <div class="split">
   <div>
     <h2>Live output</h2>
+    {{if .Job.State.Terminal}}
+    <div class="empty">This job is finished. Live token output is shown while a job runs and is not retained here; open the artifact or the full trace.</div>
+    {{else}}
     <pre id="tokens"></pre>
+    {{end}}
   </div>
   <div>
     <h2>Events</h2>
@@ -605,7 +621,7 @@ const watchBody = `
 </div>
 
 <div class="card">
-  <h2>Interruptions (§20.4)</h2>
+  <h2>Interruptions</h2>
   <form method="post" action="/ui/jobs/{{.Job.ID}}/note">
     <label>note <input name="note" placeholder="injected at the next safe point"></label>
     <button>Queue note</button>
@@ -646,14 +662,14 @@ const artifactBody = `
       {{if .Project}}
         {{if .Project.TestCommand}}<p>Test: <code>{{.Project.TestCommand}}</code></p>
         {{else}}<p class="muted">No test command is configured for this project.</p>{{end}}
-        {{if .Project.RepositoryPath}}<p>Repository: <code>{{.Project.RepositoryPath}}</code></p>{{end}}
+        {{if .Project.RepositoryPath}}<p>Repository: <code class="wrap">{{.Project.RepositoryPath}}</code></p>{{end}}
       {{else}}<p class="muted">Project metadata is unavailable.</p>{{end}}
     </div>
 
     <div class="card">
       <h2>What it cost</h2>
       {{if .HasOutcome}}
-        <p><b>{{.Outcome.TokenCost}}</b> tokens · {{.Outcome.WallTime}} · {{.Outcome.Result}}</p>
+        <p><b>{{.Outcome.TokenCost}}</b> tokens · {{.Outcome.WallTime}} · {{resultLabel .Outcome.Result}}</p>
         {{if .Outcome.ThinkArm}}<p class="muted">reasoning arm: {{.Outcome.ThinkArm}} · {{.Outcome.ReasoningTokens}} estimated reasoning tokens</p>{{end}}
       {{else}}<p class="muted">No captured outcome for this job.</p>{{end}}
     </div>
@@ -707,7 +723,7 @@ const statisticsBody = `
   <div class="card stat"><div class="n">{{.Accepted}}</div><div class="l">accepted</div></div>
   <div class="card stat"><div class="n">{{.Tokens}}</div><div class="l">tokens spent</div></div>
 </div>
-<h2>Strategy insights (§13.4)</h2>
+<h2>Strategy insights</h2>
 {{if .Insights}}
 <table><thead><tr><th>Polarity</th><th>Status</th><th>Feature</th><th>Cohort</th><th>Accept / baseline</th><th>Statement</th></tr></thead><tbody>
 {{range .Insights}}<tr>
