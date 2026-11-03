@@ -69,7 +69,7 @@ Full topology, isolation rules, and every subsystem are documented in [`ARCHITEC
 **Optional:**
 - ClamAV (file scanning) and YARA (rule-based detection)
 - Python (for skill development)
-- Language toolchains for Job Pods; media tools for media archetypes
+- Language toolchains for Job Pods; media tools for media capabilities
 
 > **macOS note:** Podman runs inside a VM (`podman machine`) on macOS. Athanor's Host Adapter accounts for this overhead automatically.
 
@@ -144,7 +144,7 @@ Then watch it work in real time from the Watch View, or queue it and check the M
 
 - **0.0.0 capability + packaging (M9).** The self-refine repair loop
   (`execution.self_refine`, on by default) feeds the failing test's output back
-  into a re-verified repair; the `data` archetype has a deterministic JSON-Schema
+  into a re-verified repair; the `data` capability has a deterministic JSON-Schema
   verifier (`execution.data_schema`); a task the planner flags hard — *or* one the
   model keeps failing — raises divergence candidates; and `make core-image` builds
   the **Core Pod** OCI image ([ADR-0069](docs/adr/0069-core-pod-packaging.md)).

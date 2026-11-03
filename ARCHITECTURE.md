@@ -1546,7 +1546,7 @@ Tools are constrained, audited, and available only to Job Pods and the Core orch
 > envelope. **The model cannot invoke any of them:** the engine decides when to
 > run an operation on a candidate; the prompt states this explicitly. A `code`
 > project's tasks carry `execute_code`, `run_tests`, and `lint` as a per-task
-> default (M9-T4) so the real test command can run; other archetypes stay
+> default (M9-T4) so the real test command can run; other capabilities stay
 > tool-free unless the operator opts in. The agent reads repositories today
 > through the M5-T8 indexing pipeline and `query_memory`. **Git-as-undo is live
 > Core-side** (F3-T5,
@@ -1640,7 +1640,7 @@ Skills return structured results:
 
 **Security View:** Quarantined files, scan failures, prompt-injection detections, alarm history, kill switch, sandbox status.
 
-**Statistics:** Approval rate, rejection rate and categories, token usage by persona/project, job success rate, test pass rate, average job duration, budget usage, Daydreaming productivity (artifacts proposed, corrections derived, memory compacted), strategy win rates by persona/phase/archetype, active strategy insights with inline evidence.
+**Statistics:** Approval rate, rejection rate and categories, token usage by persona/project, job success rate, test pass rate, average job duration, budget usage, Daydreaming productivity (artifacts proposed, corrections derived, memory compacted), strategy win rates by persona/phase/capability, active strategy insights with inline evidence.
 
 **Settings:** Models and personas, context minimums, power policy, network allowlist, backup schedule, cloud fallback, token budgets, telemetry preferences, workspace paths, security level, Daydreaming config.
 
@@ -1802,7 +1802,7 @@ execution:
   # ceiling ("for hard tasks: up to 10").
   max_hard_task_variations: 10
   judge_persona: security
-  # F5 code acceptance gates (ADR-0058): a code-archetype candidate cannot
+  # F5 code acceptance gates (ADR-0058): a code-capability candidate cannot
   # pass unless its test command ran and passed (require_tests_for_code) or
   # it carries a documentation construct (require_documentation_for_code).
   # Both default true; set either false to restore the pre-F5 behavior.
@@ -1934,7 +1934,7 @@ hitl:
 - Python (for skills development).
 - ClamAV (for file scanning).
 - Language-specific toolchains (for Job Pods).
-- Media tools (for media archetypes).
+- Media tools (for media capabilities).
 
 > **macOS:** Podman runs inside a VM (`podman machine`). Athanor's memory budgeting and sleep/wake coordination account for the VM automatically; expect somewhat higher baseline overhead than on Linux.
 
@@ -1976,7 +1976,7 @@ The first-run flow does not open a generic chat. It creates a project.
 ```yaml
 name: unique
 goal: "One sentence describing the objective."
-archetype: text | code | document | data | media
+capabilities: inferred (read-only)
 initial_documents: optional
 acceptance_criteria: optional
 start_immediately: boolean
