@@ -97,7 +97,7 @@ func TestCodeLabelTable(t *testing.T) {
 		t.Fatalf("rows = %d, want 1", len(rows))
 	}
 	r := rows[0]
-	if r.Rows != 4 || r.TestPass != 1 || r.EngineAccept != 1 ||
+	if r.Rows != 4 || r.TestPass != 1 || r.EngineAccept != 3 ||
 		r.TestPassNotAccepted != 1 || r.TestMissing != 1 || r.Legacy != 1 || r.LegacyEngineAccepted != 1 {
 		t.Errorf("label accounting = %+v", r)
 	}

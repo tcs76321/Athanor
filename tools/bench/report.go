@@ -322,6 +322,9 @@ func codeLabelTable(metrics []jobMetrics) []codeLabelRow {
 		}
 		r := agg[k]
 		r.Rows++
+		if m.State == "completed" && m.Winner == "new" {
+			r.EngineAccept++
+		}
 		if m.CodeTestPassed == nil {
 			if m.LabelVersion == benchLabelVersion {
 				r.TestMissing++
@@ -335,9 +338,6 @@ func codeLabelTable(metrics []jobMetrics) []codeLabelRow {
 		}
 		if *m.CodeTestPassed {
 			r.TestPass++
-		}
-		if m.State == "completed" && m.Winner == "new" {
-			r.EngineAccept++
 		}
 		if *m.CodeTestPassed && (m.State != "completed" || m.Winner != "new") {
 			r.TestPassNotAccepted++
