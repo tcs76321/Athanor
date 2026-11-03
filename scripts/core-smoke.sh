@@ -69,12 +69,14 @@ case "$health" in
 esac
 
 # A metadata-only project exercises the API, config, and state volume without
-# requiring a model or a Job Pod. start:false is load-bearing here.
+# requiring a model or a Job Pod. start:false is load-bearing here. The body has
+# no archetype: the product path infers capabilities from the goal and
+# repository (ADR-0093), and the response must expose the inferred set.
 created=$(curl -fsS --max-time 10 -X POST "http://$ADDR/projects" \
     -H 'Content-Type: application/json' \
-    -d '{"name":"core-smoke","archetype":"text","goal":"Smoke the Core Pod HTTP surface without starting work.","start":false}')
+    -d '{"name":"core-smoke","goal":"Write a short summary of the Core Pod smoke run.","start":false}')
 case "$created" in
-    *'"id"'*) ;;
+    *'"id"'*'"capabilities"'*) ;;
     *) echo "core-smoke: project create failed: $created" >&2; exit 1 ;;
 esac
 
@@ -82,6 +84,20 @@ ui=$(curl -fsS --max-time 5 "http://$ADDR/ui")
 case "$ui" in
     *"Athanor"*) ;;
     *) echo "core-smoke: /ui did not render" >&2; exit 1 ;;
+esac
+
+# The first-use form must not ask the operator for the taxonomy or the test
+# command; both are inferred (ADR-0093).
+form=$(curl -fsS --max-time 5 "http://$ADDR/ui/projects/new")
+case "$form" in
+    *'name="archetype"'*|*'name="test_command"'*)
+        echo "core-smoke: /ui/projects/new still exposes an archetype or test command" >&2
+        exit 1
+        ;;
+esac
+case "$form" in
+    *'name="goal"'*) ;;
+    *) echo "core-smoke: /ui/projects/new did not render the goal field" >&2; exit 1 ;;
 esac
 
 echo "core-smoke: ok"
