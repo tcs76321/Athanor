@@ -35,6 +35,11 @@ New entries are appended at the top. Do not rewrite history.
   proposal" rule now applies even when the engine accepted a weaker artifact;
   the accepted artifact is kept for judge packets. The scored artifact is
   recorded as `scored_artifact_id`. Proof: `TestBestCandidateArtifact`.
+- **Onboarding measurements use the benchmark label.** `measure`'s generator
+  accept rate now uses `jobPassed` (recorded code test / non-code checks / legacy
+  engine accept) instead of `winner new|previous`, so qualification cannot count
+  an engine accept the frozen test rejected (ADR-0092). Proof:
+  `TestGeneratorMeasurementsUseBenchmarkLabel`.
 - **Corpus fixture and schema paths resolve version-locally.** The two v2 data
   tasks that declared their `json_schema` under v1 now read the pinned v2
   copy; the frozen YAML and digest are unchanged. Proofs:

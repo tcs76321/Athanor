@@ -25,6 +25,7 @@ demo. A claim without a proof is either removed or marked as a target.
 | Engine acceptance is reported separately from the benchmark label | ADR-0092 | `jobMetrics.EngineAccepted`; report code test-vs-accept table; `TestReportSurfacesCodeTestMismatch` | **proven** |
 | A v2 corpus schema/fixture path resolves to the version-local copy when one exists | ADR-0092 | `tools/bench/corpus.go` (`versionLocalPath`); `TestCorpusSchemaPathsResolveWithinVersion`, `TestVersionLocalPath` | **proven** |
 | Non-code benchmark checks score the best candidate, not only the accepted artifact | ADR-0092 | `tools/bench/collect.go` (`checkArtifactText`); `TestCheckArtifactTextPrefersBestCandidate` | **proven** |
+| Onboarding generator measurements use the benchmark label, not engine acceptance | ADR-0092 | `tools/bench/measure.go` (`generatorMeasurements`); `TestGeneratorMeasurementsUseBenchmarkLabel` | **proven** |
 | A job panic is contained to one job | ADR-0086 | `internal/engine/panic_test.go`; `job_panicked` event | **proven** |
 | The benchmark records comparison-guard diagnostics | AGENTS (honest evidence), P0 plan | `tools/bench/collect.go` (`comparisonRow`); `TestLoadComparisonDiagnostics`; report decision-diagnostics section | **proven** |
 | A declared data schema is never silently omitted | P0 plan | `tools/bench/runner.go` (`dataSchemaFor`); `TestDataSchemaForFailsLoudly` | **proven** |

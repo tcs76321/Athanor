@@ -53,9 +53,12 @@ func runMeasure(args []string) {
 }
 
 // generatorMeasurements aggregates the accept rate per generator model.
-// "Accepted" mirrors collect.go: a winner of new|previous. Samples is the
-// number of collected jobs for that model across every arm and run, so a
-// repeated qualification run raises the sample count rather than replacing it.
+// "Accepted" is jobPassed — the same benchmark label as the headline (recorded
+// code test, non-code checks, legacy engine accept) — so qualification cannot
+// count an engine accept that the frozen test or checks rejected (ADR-0092).
+// Samples is the number of collected jobs for that model across every arm and
+// run, so a repeated qualification run raises the sample count rather than
+// replacing it.
 func generatorMeasurements(metrics []jobMetrics, role string) []onboard.Measurement {
 	type agg struct{ accepted, total int }
 	byModel := map[string]*agg{}
@@ -69,7 +72,7 @@ func generatorMeasurements(metrics []jobMetrics, role string) []onboard.Measurem
 			byModel[m.Model] = a
 		}
 		a.total++
-		if m.Winner == "new" || m.Winner == "previous" {
+		if jobPassed(m) {
 			a.accepted++
 		}
 	}
