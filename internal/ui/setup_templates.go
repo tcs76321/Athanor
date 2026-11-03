@@ -10,7 +10,9 @@ const setupBody = `
   <dt>version</dt><dd>{{.Version}}</dd>
   <dt>config</dt><dd><code>{{.ConfigPath}}</code></dd>
   {{if .OllamaURL}}<dt>Ollama</dt><dd><code>{{.OllamaURL}}</code></dd>{{end}}
-</dl></div>
+</dl>
+<p class="muted">On the host, the installer config is <code>~/.config/athanor/config.yaml</code>; restart the Core Pod after editing it.</p>
+</div>
 
 <h2>Model inventory</h2>
 {{if .ModelsErr}}
