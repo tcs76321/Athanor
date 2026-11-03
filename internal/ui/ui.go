@@ -1085,6 +1085,16 @@ var funcs = template.FuncMap{
 			return s
 		}
 	},
+	"interviewLabel": func(s string) string {
+		switch s {
+		case "questions":
+			return "awaiting answers"
+		case "plan_ready":
+			return "plan ready"
+		default:
+			return s
+		}
+	},
 	"when": func(v any) string {
 		var t time.Time
 		switch x := v.(type) {

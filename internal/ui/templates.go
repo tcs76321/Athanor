@@ -431,8 +431,9 @@ const newProjectBody = `
 const interviewBody = `
 <h1>Plan: {{.Project.Name}}</h1>
 <p class="sub">{{.Project.Goal}}</p>
+<div class="actions"><a class="btn secondary" href="/ui/projects/{{.Project.ID}}">Back to project</a></div>
 <p>Status:
-  <span class="pill {{if interviewDone .Interview.Status}}ok{{else}}warn{{end}}">{{.Interview.Status}}</span>
+  <span class="pill {{if interviewDone .Interview.Status}}ok{{else}}warn{{end}}">{{interviewLabel .Interview.Status}}</span>
 </p>
 
 {{if not (interviewDone .Interview.Status)}}
@@ -463,7 +464,7 @@ const interviewBody = `
     <form method="post" action="/ui/projects/{{.Project.ID}}/interview/skip"><button class="secondary">Skip interview and start work</button></form>
     </div>
   {{else}}
-    <p>This plan is <b>{{.Interview.Status}}</b>. Work has started.</p>
+    <p>This plan is <b>{{interviewLabel .Interview.Status}}</b>. Work has started.</p>
     <div class="actions"><a class="btn" href="/ui/projects/{{.Project.ID}}">Back to project</a></div>
   {{end}}
 </div>
