@@ -210,7 +210,7 @@ func run(configPath, addr, stateDir string, container bool) error {
 	// reads the MCE working set through the ContextProvider adapter.
 	// A database without migration 0009 fails here rather than at first
 	// ingest.
-	mceRT, err := startMCE(st, registry, llmClient, cfg.ContextEngine)
+	mceRT, err := startMCE(st, registry, llmClient, cfg.ContextEngine, cfg.Inference.MaxOutputTokens)
 	if err != nil {
 		return fmt.Errorf("starting mce: %w", err)
 	}

@@ -48,14 +48,14 @@ func TestStartMCERequiresMigratedStore(t *testing.T) {
 	reg := testRegistry(t)
 	client := llm.NewClient("http://127.0.0.1:1", nil)
 
-	if _, err := startMCE(st, reg, client, config.ContextEngine{}); err == nil {
+	if _, err := startMCE(st, reg, client, config.ContextEngine{}, 4096); err == nil {
 		t.Fatal("startMCE on an unmigrated database returned a nil error")
 	}
 
 	if err := store.Migrate(st.DB(), migrations.FS, ""); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
-	rt, err := startMCE(st, reg, client, config.ContextEngine{})
+	rt, err := startMCE(st, reg, client, config.ContextEngine{}, 4096)
 	if err != nil {
 		t.Fatalf("startMCE after migrate: %v", err)
 	}
@@ -96,7 +96,7 @@ func TestStartMCEReflectsSwappingFlag(t *testing.T) {
 		t.Fatal(err)
 	}
 	rt, err := startMCE(st, testRegistry(t), llm.NewClient("http://127.0.0.1:1", nil),
-		config.ContextEngine{EnableLosslessSwapping: boolPtr(false)})
+		config.ContextEngine{EnableLosslessSwapping: boolPtr(false)}, 4096)
 	if err != nil {
 		t.Fatal(err)
 	}

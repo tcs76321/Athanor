@@ -28,9 +28,11 @@ type fakeClient struct {
 	replies []string
 	errs    []error
 	calls   int
+	lastReq llm.Request
 }
 
-func (f *fakeClient) Chat(_ context.Context, _ llm.Request) (llm.Response, error) {
+func (f *fakeClient) Chat(_ context.Context, req llm.Request) (llm.Response, error) {
+	f.lastReq = req
 	i := f.calls
 	f.calls++
 	if i < len(f.errs) && f.errs[i] != nil {
@@ -75,7 +77,7 @@ func harness(t *testing.T, client LLMClient, floors config.ContextEngine) (*Deco
 		t.Fatal(err)
 	}
 	d := New(client, testRegistry(t), repo, s, floors,
-		dag.Limits{MaxTasks: 10, MaxDepth: 5, MaxTotalJobs: 10}, time.Minute)
+		dag.Limits{MaxTasks: 10, MaxDepth: 5, MaxTotalJobs: 10}, time.Minute, 4096)
 	return d, repo, s, p.ID
 }
 
@@ -107,6 +109,9 @@ func TestDecomposeTallSuccess(t *testing.T) {
 	}
 	if fake.calls != 1 {
 		t.Errorf("calls = %d, want 1", fake.calls)
+	}
+	if fake.lastReq.MaxTokens != 4096 {
+		t.Errorf("max tokens = %d, want the configured runaway guard 4096", fake.lastReq.MaxTokens)
 	}
 	tasks, err := repo.TasksByGoal(context.Background(), res.GoalID)
 	if err != nil || len(tasks) != 2 {

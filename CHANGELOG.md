@@ -10,6 +10,16 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Fixes — 2026-11-02
+
+- **Background LLM calls are bounded by `inference.max_output_tokens`.** MCE
+  compaction (the security persona) and DAG decomposition called the model with
+  no `num_predict` cap, so a looping generation ran until the 10-minute HTTP
+  timeout and kept generating after the client gave up — sustained CPU with no
+  visible job. Both now pass the configured cap. Proofs:
+  `TestMCECompactorUsesSecurityAtZeroTemperature` (asserts `num_predict`) and
+  `TestDecomposeTallSuccess` (asserts `max_tokens`).
+
 ### Project capabilities — 2026-11-02
 
 - **Projects no longer ask for an archetype or a test command.** A project is a

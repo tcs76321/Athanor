@@ -47,7 +47,8 @@ type mceRuntime struct {
 // startMCE constructs the MCE runtime and verifies the MCE tables exist, so a
 // daemon whose database predates the MCE fails loudly at boot instead of at
 // first use.
-func startMCE(st *store.Store, registry *llm.Registry, client *llm.Client, cfg config.ContextEngine) (*mceRuntime, error) {
+func startMCE(st *store.Store, registry *llm.Registry, client *llm.Client, cfg config.ContextEngine,
+	maxOutputTokens int) (*mceRuntime, error) {
 	var probe int
 	if err := st.DB().QueryRowContext(context.Background(),
 		`SELECT COUNT(*) FROM context_chunks`).Scan(&probe); err != nil {
@@ -57,7 +58,7 @@ func startMCE(st *store.Store, registry *llm.Registry, client *llm.Client, cfg c
 		`SELECT COUNT(*) FROM compacted_memory`).Scan(&probe); err != nil {
 		return nil, fmt.Errorf("mce: compacted_memory not present (migration 0012): %w", err)
 	}
-	compactor, err := newMCECompactor(registry, client, cfg)
+	compactor, err := newMCECompactor(registry, client, cfg, maxOutputTokens)
 	if err != nil {
 		return nil, err
 	}

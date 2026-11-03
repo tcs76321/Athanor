@@ -57,18 +57,24 @@ type Decomposer struct {
 	floors   config.ContextEngine
 	limits   dag.Limits
 	timeout  time.Duration
+	// maxTokens caps one decomposition call (Ollama num_predict). It comes
+	// from inference.max_output_tokens: a planning call with no cap can
+	// generate until the HTTP timeout and pin the machine (ADR-0091).
+	maxTokens int
 }
 
 // New wires a Decomposer. floors supplies the §12.6 context floors; limits
 // bounds the accepted graph; a non-positive timeout falls back to 10m.
 func New(client LLMClient, registry *llm.Registry, projects *project.Repo,
-	events *store.Store, floors config.ContextEngine, limits dag.Limits, timeout time.Duration) *Decomposer {
+	events *store.Store, floors config.ContextEngine, limits dag.Limits, timeout time.Duration,
+	maxTokens int) *Decomposer {
 	if timeout <= 0 {
 		timeout = 10 * time.Minute
 	}
 	return &Decomposer{
 		client: client, registry: registry, projects: projects,
 		events: events, floors: floors, limits: limits, timeout: timeout,
+		maxTokens: maxTokens,
 	}
 }
 
@@ -108,6 +114,7 @@ func (d *Decomposer) Decompose(ctx context.Context, projectID, goalText string, 
 			Messages:      buildMessages(p, goalText, criteria, d.limits),
 			Temperature:   llm.ResolveTemperature(llm.PhasePlanning, persona.Temperature, nil),
 			ContextTarget: persona.ContextTarget,
+			MaxTokens:     d.maxTokens,
 		})
 		cancel()
 		if err != nil {

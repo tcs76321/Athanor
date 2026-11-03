@@ -18,6 +18,11 @@ import (
 type mceCompactor struct {
 	registry *llm.Registry
 	client   *llm.Client
+	// maxTokens caps one compaction call (Ollama num_predict). Compaction is
+	// a background task: without this cap a looping generation runs until the
+	// HTTP timeout and keeps the machine busy (inference.max_output_tokens,
+	// ADR-0091).
+	maxTokens int
 }
 
 // Compile-time proof that the adapter satisfies the MCE seam.
@@ -26,12 +31,13 @@ var _ mce.Compactor = (*mceCompactor)(nil)
 // newMCECompactor builds the adapter and re-asserts the §10.3 invariant that
 // config validation already enforces, so a programming error cannot silently
 // bypass it.
-func newMCECompactor(registry *llm.Registry, client *llm.Client, ce config.ContextEngine) (*mceCompactor, error) {
+func newMCECompactor(registry *llm.Registry, client *llm.Client, ce config.ContextEngine,
+	maxTokens int) (*mceCompactor, error) {
 	if ce.CompactionTemperature != mce.CompactionTemperature {
 		return nil, fmt.Errorf("mce compactor: context_engine.compaction_temperature must be %v, got %v",
 			mce.CompactionTemperature, ce.CompactionTemperature)
 	}
-	return &mceCompactor{registry: registry, client: client}, nil
+	return &mceCompactor{registry: registry, client: client, maxTokens: maxTokens}, nil
 }
 
 // Compact requests one compaction at temp 0.0 on the security persona. The
@@ -66,6 +72,7 @@ func (c *mceCompactor) Compact(ctx context.Context, item mce.MemoryItem, kind mc
 		Messages:      messages,
 		Temperature:   mce.CompactionTemperature,
 		ContextTarget: persona.ContextTarget,
+		MaxTokens:     c.maxTokens,
 	})
 	if err != nil {
 		return "", err

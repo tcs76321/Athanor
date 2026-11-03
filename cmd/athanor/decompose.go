@@ -26,7 +26,8 @@ func newDecomposer(cfg *config.Config, client *llm.Client, registry *llm.Registr
 	if !ok || timeout <= 0 {
 		timeout = 10 * time.Minute
 	}
-	return decompose.New(client, registry, projects, events, cfg.ContextEngine, limits, timeout)
+	return decompose.New(client, registry, projects, events, cfg.ContextEngine, limits, timeout,
+		cfg.Inference.MaxOutputTokens)
 }
 
 // compile-time proof that *llm.Client satisfies the decomposer's seam.

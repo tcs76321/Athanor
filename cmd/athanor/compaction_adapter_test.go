@@ -26,6 +26,7 @@ type compactionCapture struct {
 	Options struct {
 		Temperature float64 `json:"temperature"`
 		NumCtx      int     `json:"num_ctx"`
+		NumPredict  int     `json:"num_predict"`
 	} `json:"options"`
 }
 
@@ -47,7 +48,7 @@ func compactionServer(t *testing.T, captured *compactionCapture, reply string) *
 func TestMCECompactorUsesSecurityAtZeroTemperature(t *testing.T) {
 	var captured compactionCapture
 	srv := compactionServer(t, &captured, `"line one\nline two\nline three"`)
-	comp, err := newMCECompactor(testRegistry(t), llm.NewClient(srv.URL, nil), config.ContextEngine{})
+	comp, err := newMCECompactor(testRegistry(t), llm.NewClient(srv.URL, nil), config.ContextEngine{}, 4096)
 	if err != nil {
 		t.Fatalf("newMCECompactor: %v", err)
 	}
@@ -70,6 +71,9 @@ func TestMCECompactorUsesSecurityAtZeroTemperature(t *testing.T) {
 	if captured.Options.Temperature != 0.0 {
 		t.Errorf("temperature = %v, want 0.0 (§10.3)", captured.Options.Temperature)
 	}
+	if captured.Options.NumPredict != 4096 {
+		t.Errorf("num_predict = %d, want the configured runaway guard 4096", captured.Options.NumPredict)
+	}
 	if len(captured.Messages) != 2 || captured.Messages[0].Role != "system" {
 		t.Fatalf("messages = %+v, want system+user", captured.Messages)
 	}
@@ -86,7 +90,7 @@ func TestMCECompactorUsesSecurityAtZeroTemperature(t *testing.T) {
 func TestMCECompactorSemanticKind(t *testing.T) {
 	var captured compactionCapture
 	srv := compactionServer(t, &captured, `"decision: keep it simple"`)
-	comp, err := newMCECompactor(testRegistry(t), llm.NewClient(srv.URL, nil), config.ContextEngine{})
+	comp, err := newMCECompactor(testRegistry(t), llm.NewClient(srv.URL, nil), config.ContextEngine{}, 4096)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -104,7 +108,7 @@ func TestMCECompactorSemanticKind(t *testing.T) {
 
 // TestMCECompactorTemplateVersions pins the content-address key half.
 func TestMCECompactorTemplateVersions(t *testing.T) {
-	comp, err := newMCECompactor(testRegistry(t), llm.NewClient("http://127.0.0.1:1", nil), config.ContextEngine{})
+	comp, err := newMCECompactor(testRegistry(t), llm.NewClient("http://127.0.0.1:1", nil), config.ContextEngine{}, 4096)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -120,7 +124,7 @@ func TestMCECompactorTemplateVersions(t *testing.T) {
 // the §10.3 invariant.
 func TestNewMCECompactorRejectsNonZeroTemperature(t *testing.T) {
 	if _, err := newMCECompactor(testRegistry(t), llm.NewClient("http://127.0.0.1:1", nil),
-		config.ContextEngine{CompactionTemperature: 0.5}); err == nil {
+		config.ContextEngine{CompactionTemperature: 0.5}, 4096); err == nil {
 		t.Fatal("non-zero compaction temperature was accepted")
 	}
 }
@@ -138,7 +142,7 @@ func TestMCECompactorRefusesOversizeInput(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	comp, err := newMCECompactor(reg, llm.NewClient("http://127.0.0.1:1", nil), config.ContextEngine{})
+	comp, err := newMCECompactor(reg, llm.NewClient("http://127.0.0.1:1", nil), config.ContextEngine{}, 4096)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -39,7 +39,7 @@ func TestServeCompositionProvidesMCEContext(t *testing.T) {
 		t.Fatal(err)
 	}
 	rt, err := startMCE(st, testRegistry(t), llm.NewClient("http://127.0.0.1:1", nil),
-		config.ContextEngine{EnableLosslessSwapping: boolPtr(true)})
+		config.ContextEngine{EnableLosslessSwapping: boolPtr(true)}, 4096)
 	if err != nil {
 		t.Fatalf("startMCE: %v", err)
 	}
