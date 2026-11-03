@@ -33,6 +33,7 @@ numbers.
 | Focused X-code after P0: 4/6 host, 3/6 Core; two remaining failures are candidate logic | `docs/probes/bench-xcode-p0.md` | `bench-xcode-p0-20261029/report.md`, `bench-xcode-core-20261029/report.md` | raw state not retained; committed report/results under `runs/` |
 | Quantization screen: `bonsai-2:9b` 2/6 on the same X-code slice; faster only when right | `docs/probes/bench-xcode-p0.md` | `bench-bonsai-xcode-20261029/report.md` | raw state not retained; committed report/results under `runs/` |
 | ADR-0092 label smoke: one X-code task; `code_test_passed=true` (3 ran, 2 passed), engine accept true; conformance 5/5 | [ADR-0092](../../adr/0092-benchmark-label-integrity.md), CHANGELOG | `label-smoke-20261030/report.md` | `tools/bench/results/label-smoke-2/` (gitignored) |
+| v2 post-P0 full slice: 32/41; X-code 4/6; data 3/5; code 16/18, 0 label mismatches; document regressed on five `max_words` | `docs/probes/bench-v2-p0-findings.md` | `bench-v2-p0-20261102/report.md` | `tools/bench/results/bench-v2-p0/out/` (gitignored) |
 | Model qualification + routing recommendation (granite4.2:3b best judge; gemma12b/granite3b) | `docs/qualification-smoke-m9.md` | `gen-smoke-m9/report.md`, `gen-smoke-m9-2/` | `results/gen-smoke-m9*/` |
 | Engine throughput: M3 = 1.94× M1 per-job, 9 LLM calls/job | `docs/benchmarks/engine-m1.txt`, `engine-m3.txt` | *(not probe output; `make bench`)* | — |
 | Declared checks mirror the corpus scorer (ADR-0070) | `docs/adr/0070-declared-checks.md` | `eval/bench/tasks.yaml` | — |

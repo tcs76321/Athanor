@@ -17,7 +17,9 @@ acceptance (see the correction below).
 > ([bench-xcode-p0](bench-xcode-p0.md)). [ADR-0092](../adr/0092-benchmark-label-integrity.md)
 > changes the code label to the recorded `tests_ran` outcome and reports engine
 > accept separately; the next full run replaces this baseline as the capability
-> number. Do not quote 30/41 or 0/6 X-code as the current tree's result.
+> number. Do not quote 30/41 or 0/6 X-code as the current tree's result. That
+> run is [bench-v2-p0-findings](bench-v2-p0-findings.md): **32/41 (78%)**,
+> X-code 4/6, code 16/18, data 3/5, document 8/13.
 
 ## Run shape
 

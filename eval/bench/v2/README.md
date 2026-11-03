@@ -95,8 +95,10 @@ The v1 targets still work by setting `BENCH_DIR=eval/bench`.
   3/6 on the Core Pod after the P0 working-set and harness fixes. Six tasks,
   one model, one pass; directional, not a benchmark-version result.
   [Findings](../../../docs/probes/bench-xcode-p0.md).
-- A full post-P0 rerun on the Core Pod is the next headline; code rows use the
-  recorded frozen-test label (ADR-0092).
+- **2026-11-02 — post-P0 full slice:** **32/41 (78%)** on the Core Pod: H 23/26,
+  X 9/15, code 16/18 (X-code 4/6), data 3/5, document 8/13, text 5/5.
+  Code rows use the recorded frozen-test label; 16 test passes, 16 engine
+  accepts, 0 test-pass/engine-reject mismatches. [Findings](../../../docs/probes/bench-v2-p0-findings.md).
 
 ## Known limits
 

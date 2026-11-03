@@ -10,6 +10,31 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Benchmark — 2026-11-02
+
+- **Post-P0 full v2 slice: 32/41 (78%).** H 23/26 (88%), X 9/15 (60%),
+  code 16/18 (89%; **X-code 4/6**), data 3/5 (60%; up from 0/5), document
+  8/13 (62%; down from 13/13), text 5/5. The aggregate is +2 over the pre-P0
+  baseline, but the shape is a trade: code/X/data improved and five document
+  tasks regressed on `max_words`. All 18 code rows carry the recorded
+  `tests_ran` label: 16 test passes, 16 engine accepts, **0 mismatches**, all
+  accepted without the judge. 50 m 43 s, 623,677 tokens. One pass, n=41;
+  directional, not statistical. [Findings](docs/probes/bench-v2-p0-findings.md);
+  raw evidence in `docs/probes/runs/bench-v2-p0-20261102/`.
+
+### GUI — 2026-11-02
+
+- **First-use GUI polish from a real-state review.** Repository paths wrap
+  instead of overlapping the metadata columns; the kill-switch card reads
+  `Not frozen`/`Frozen`; counts singularize; the nav has a review badge and
+  says `Notifications`; the host-dev process shows a supported-runtime banner;
+  finished jobs show a live-output empty state instead of a blank box; accepted
+  outcomes read as human labels; the project page links `Submit a goal`; the
+  new-project form uses a goal textarea and marks code-only fields; the setup
+  qualification is marked optional. Proofs: `TestFirstUseCopy`,
+  `TestHostDevBanner`, `TestLongRepositoryPathWraps`, `TestPlural`,
+  `TestResultLabel`.
+
 ### Security — 2026-11-02
 
 - **`golang.org/x/net` bumped to v0.62.0.** `govulncheck` flagged

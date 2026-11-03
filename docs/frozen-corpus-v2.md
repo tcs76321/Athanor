@@ -108,6 +108,19 @@ declared sibling path to the version-local v2 copy when it exists, so v2 runs
 read the pinned v2 schemas; the v2 YAML itself is unchanged (frozen). v3 must
 correct the two declarations.
 
+## Post-P0 full run (2026-11-02)
+
+**32/41 (78%)** deterministic on the canonical `ornith-1.5:9b` persona set:
+H 23/26 (88%), X 9/15 (60%), held-out 6/10 (60%), tuning 26/31 (84%); code
+16/18 (89%; X-code **4/6**), data 3/5 (60%), document 8/13 (62%), text 5/5.
+Code rows are labeled by the recorded `tests_ran` outcome: 16 test passes,
+16 engine accepts, 0 test-pass/engine-reject mismatches; all 16 accepts were
+decided without the LLM judge. 50 m 43 s, 623,677 tokens. The aggregate is +2
+over the 2026-10-25 baseline, but document regressed on five `max_words`
+checks. Full tables and caveats:
+[bench-v2-p0-findings.md](probes/bench-v2-p0-findings.md); raw outputs under
+[`docs/probes/runs/bench-v2-p0-20261102/`](probes/runs/bench-v2-p0-20261102/).
+
 ## Run
 
 ```bash

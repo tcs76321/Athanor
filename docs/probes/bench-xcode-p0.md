@@ -45,7 +45,8 @@ too small to generalize from. Do not treat it as a benchmark-version result.
 > engine completed; they do **not** mean the probe independently re-ran the
 > test. The benchmark now records `tests_ran` as the code label and reports
 > engine accept separately, so a future run can show a test pass the engine
-> rejected.
+> rejected. The full post-P0 v2 slice confirmed **X-code 4/6** (and 16/18 code
+> overall, 0 label mismatches): [bench-v2-p0-findings](bench-v2-p0-findings.md).
 
 ## Mechanism telemetry
 
