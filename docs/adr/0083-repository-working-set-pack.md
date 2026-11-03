@@ -79,6 +79,18 @@ no longer the only way the swap mechanism runs.
 - `working_set_mode: auto` is a behavior change for code jobs. It is gated by
   the 0.0.0 capability measurement; `off` restores the pre-P0 prompt.
 
+## Amendment — 2026-11-02: the pack's measured effect
+
+The Context above quotes the pre-P0 v2 baseline (X-code 0/6). The pack was then
+injected in every code job and the focused 2026-10-29 diagnostic measured
+**4/6 on the host dev runtime and 3/6 on the Core Pod**, with 45 chunks / 12.4
+KiB injected ([bench-xcode-p0](../probes/bench-xcode-p0.md)). The two remaining
+failures were candidate logic and a task-contract issue, not missing repository
+context, so the read-only recon loop stayed deferred. Read the 0/6 as the
+historical motivation for the pack, not as the current X-code result. The full
+post-P0 v2 run is the headline; code rows label on the recorded frozen test
+([ADR-0092](0092-benchmark-label-integrity.md)).
+
 ## Alternatives rejected
 
 - **Model-invoked `read_file`/`search`.** The larger capability jump, but it
