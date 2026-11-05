@@ -166,6 +166,26 @@ func (f *fakeExporter) ExportOne(_ context.Context, id string) (string, bool, er
 	return "/tmp/export/" + id, true, nil
 }
 
+type fakeResetter struct{ called string }
+
+func (f *fakeResetter) Reset(_ context.Context, taskID string) ([]string, error) {
+	f.called = taskID
+	return []string{taskID}, nil
+}
+
+func TestTaskReset(t *testing.T) {
+	fx := setup(t)
+	fr := &fakeResetter{}
+	fx.ui.deps.TaskResetter = fr
+	resp := postForm(t, fx.ts.URL+"/ui/tasks/"+fx.task.ID+"/reset", url.Values{})
+	if resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("reset status = %d", resp.StatusCode)
+	}
+	if fr.called != fx.task.ID {
+		t.Fatalf("reset called for %q, want %q", fr.called, fx.task.ID)
+	}
+}
+
 func TestArtifactExport(t *testing.T) {
 	fx := setup(t)
 	fe := &fakeExporter{}

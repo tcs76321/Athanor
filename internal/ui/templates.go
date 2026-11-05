@@ -453,6 +453,11 @@ const projectBody = `
     <span class="pill">{{.Task.Status}}</span></h3>
   {{if .Task.Criteria}}<p class="muted">Criteria: {{join .Task.Criteria}}</p>{{end}}
   {{if .Task.DependsOn}}<p class="muted">Depends on: {{range .Task.DependsOn}}<span class="pill mono">{{short .}}</span> {{end}}</p>{{end}}
+  {{if eq .Task.Status "blocked"}}
+  <form method="post" action="/ui/tasks/{{.Task.ID}}/reset" class="actions">
+    <button class="secondary small" data-confirm="Reset this blocked task and its blocked dependents to pending?">Reset blocked task</button>
+  </form>
+  {{end}}
   {{if .Jobs}}
   <table><thead><tr><th>Job</th><th>State</th><th>Attempt</th><th>Started</th></tr></thead><tbody>
   {{range .Jobs}}<tr>

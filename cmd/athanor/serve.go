@@ -416,8 +416,9 @@ func run(configPath, addr, stateDir string, container bool) error {
 			&discoveryGenerator{client: llmClient, cfg: cfg},
 			discovery.NewStore(st),
 		),
-		Scheduler:  sched,
-		ConfigPath: configPath,
+		Scheduler:    sched,
+		TaskResetter: sched,
+		ConfigPath:   configPath,
 		Doctor: func(ctx context.Context) doctor.Report {
 			dcfg := cfg
 			if !(&osProbes{}).InContainer() {

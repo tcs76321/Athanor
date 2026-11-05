@@ -64,6 +64,11 @@ type Hardware struct {
 	CPUs             int
 }
 
+// TaskResetter is the operator recovery surface for blocked tasks.
+type TaskResetter interface {
+	Reset(ctx context.Context, taskID string) ([]string, error)
+}
+
 // Enqueuer starts a job (the engine). Used by retry/resume.
 type Enqueuer interface{ Enqueue(jobID string) }
 
@@ -126,6 +131,9 @@ type Deps struct {
 	// Scheduler starts a decomposed goal's ready tasks. nil falls back to
 	// starting only the first task.
 	Scheduler Scheduler
+	// TaskResetter returns a blocked task and its blocked dependents to
+	// pending. nil hides the reset control.
+	TaskResetter TaskResetter
 	// DefaultTTL is applied to defer decisions made without an explicit
 	// duration.
 	DefaultTTL time.Duration
@@ -226,6 +234,7 @@ func (u *UI) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /ui/projects/{id}/onboarding", u.handleProjectOnboarding)
 	mux.HandleFunc("POST /ui/projects/{id}/onboarding", u.handleProjectOnboardingPost)
 	mux.HandleFunc("POST /ui/projects/{id}/goals", u.handleGoalCreate)
+	mux.HandleFunc("POST /ui/tasks/{id}/reset", u.handleTaskReset)
 	mux.HandleFunc("POST /ui/projects/{id}/corrections", u.handleCorrectionCreate)
 	mux.HandleFunc("GET /ui/corrections", u.handleCorrections)
 	mux.HandleFunc("GET /ui/reviews", u.handleReviews)
@@ -666,6 +675,26 @@ func (u *UI) decideInterview(w http.ResponseWriter, r *http.Request, status stri
 // project page. It creates the M1 task/job and enqueues it, then redirects to
 // the watch view. The full project interview (F3) is still to-build; this is
 // the minimal human loop.
+// handleTaskReset returns a blocked task and its blocked dependents to
+// pending through the scheduler's operator recovery path.
+func (u *UI) handleTaskReset(w http.ResponseWriter, r *http.Request) {
+	if u.deps.TaskResetter == nil {
+		u.fail(w, fmt.Errorf("task recovery is not configured"))
+		return
+	}
+	id := r.PathValue("id")
+	t, err := u.deps.Projects.Task(r.Context(), id)
+	if err != nil {
+		u.fail(w, err)
+		return
+	}
+	if _, err := u.deps.TaskResetter.Reset(r.Context(), id); err != nil {
+		u.fail(w, err)
+		return
+	}
+	http.Redirect(w, r, "/ui/projects/"+t.ProjectID+"#work", http.StatusSeeOther)
+}
+
 func (u *UI) handleGoalCreate(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
 		u.fail(w, fmt.Errorf("invalid form: %w", err))
