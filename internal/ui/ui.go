@@ -71,6 +71,7 @@ type Deps struct {
 	Reviews       *review.Repo
 	Eval          *evaluation.Repo
 	HITL          *hitl.Service
+	HITLRepo      *hitl.Repo
 	Interviews    *interview.Repo
 	Interruptions *interruptions.Repo
 	Strategy      *strategy.Repo

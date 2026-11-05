@@ -7,6 +7,7 @@ const projectOnboardingBody = `
   <a class="btn secondary" href="/ui/projects/{{.Project.ID}}">Back to project</a>
   <a class="btn secondary" href="/ui/projects/{{.Project.ID}}/interview">Classic interview</a>
 </div>
+{{if .Requested}}<div class="notice">Access request queued in the Inbox. The host stays unused until the allowlist is updated in config.yaml.</div>{{end}}
 
 <div class="grid onboard-grid">
   <div class="card">
@@ -46,6 +47,13 @@ const projectOnboardingBody = `
           <div class="row row-middle">
             <span class="mono wrap">{{.URL}}</span>
             {{if .Allowed}}<span class="pill ok">allowed</span>{{else}}<span class="pill warn">needs access</span>{{end}}
+            {{if not .Allowed}}
+            <form method="post" action="/ui/projects/{{$.Project.ID}}/onboarding" class="inline-form">
+              <input type="hidden" name="action" value="request_access">
+              <input type="hidden" name="source" value="{{.URL}}">
+              <button class="small secondary">Request access</button>
+            </form>
+            {{end}}
           </div>
           {{end}}
           <p class="muted">A source marked “needs access” stays unused until its domain is added to <code>network.allow_list</code> in config.yaml. Athanor will not fetch it silently.</p>

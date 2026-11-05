@@ -57,6 +57,10 @@ const (
 	TypeTaskEscalation  = "task_escalation"
 	TypeGitPush         = "git_push"
 	TypeStrategyInsight = "strategy_insight"
+	// TypeNetworkAccess requests a new egress allowlist entry for a research
+	// source. Approval records the decision; the operator applies the config
+	// change (the UI does not rewrite network policy silently).
+	TypeNetworkAccess = "network_access"
 )
 
 // Request is one §20.2 HITL request.

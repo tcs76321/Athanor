@@ -398,6 +398,7 @@ func run(configPath, addr, stateDir string, container bool) error {
 	webUI := ui.New(ui.Deps{
 		Store: st, Projects: projectRepo, Jobs: job.NewRepository(st),
 		Artifacts: artifactStore, Corrections: correctionsRepo, HITL: hitlSvc,
+		HITLRepo:      hitlRepo,
 		Reviews:       review.NewRepo(st),
 		Eval:          evaluation.NewRepo(st),
 		Config:        cfg,

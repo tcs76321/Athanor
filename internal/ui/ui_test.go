@@ -113,6 +113,7 @@ func setup(t *testing.T) *fixtures {
 	webUI := New(Deps{
 		Store: s, Projects: projects, Jobs: jobs, Artifacts: arts,
 		Corrections: corrRepo, HITL: hitlSvc, Reviews: review.NewRepo(s),
+		HITLRepo:   hitlRepo,
 		Interviews: interview.NewRepo(s), Interruptions: interRepo,
 		Freezer: fakeFreezer{}, Engine: eng, DefaultTTL: time.Hour,
 	})

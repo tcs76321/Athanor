@@ -13,6 +13,7 @@ import (
 
 	"github.com/tcs76321/athanor/internal/config"
 	"github.com/tcs76321/athanor/internal/discovery"
+	"github.com/tcs76321/athanor/internal/hitl"
 	"github.com/tcs76321/athanor/internal/project"
 	"github.com/tcs76321/athanor/internal/store"
 )
@@ -184,6 +185,7 @@ func (u *UI) handleProjectOnboarding(w http.ResponseWriter, r *http.Request) {
 		"Project": p, "Brief": brief, "Session": sess, "HasSession": hasSession,
 		"Run": run, "Stage": stage, "Selected": selected, "Plan": plan,
 		"Status": brief.Status, "Sources": sourceStatuses(brief.Sources, u.deps.Config),
+		"Requested": r.URL.Query().Get("requested") != "",
 	})
 }
 
@@ -237,6 +239,36 @@ func (u *UI) handleProjectOnboardingPost(w http.ResponseWriter, r *http.Request)
 			u.fail(w, err)
 			return
 		}
+	case "request_access":
+		source := strings.TrimSpace(r.FormValue("source"))
+		host := ""
+		if u, perr := url.Parse(source); perr == nil {
+			host = strings.ToLower(u.Hostname())
+		}
+		if source == "" || host == "" {
+			u.fail(w, fmt.Errorf("a valid source URL is required"))
+			return
+		}
+		if u.deps.HITLRepo == nil {
+			u.fail(w, fmt.Errorf("the approval queue is not configured"))
+			return
+		}
+		payload, _ := json.Marshal(map[string]any{
+			"host": host, "url": source, "project": p.ID,
+			"instruction": "Add this host to network.allow_list in config.yaml, then restart or reload the Core. The UI does not rewrite network policy.",
+		})
+		expires := time.Now().Add(24 * time.Hour)
+		if _, err := u.deps.HITLRepo.Create(ctx, hitl.Request{
+			ProjectID: p.ID, Type: hitl.TypeNetworkAccess,
+			Severity: hitl.SeverityHigh, PayloadJSON: string(payload),
+			ExpiresAt: &expires,
+		}); err != nil {
+			u.fail(w, err)
+			return
+		}
+		u.auditProject(p.ID, "network_access_requested", map[string]any{"host": host, "url": source})
+		http.Redirect(w, r, "/ui/projects/"+p.ID+"/onboarding?requested=1", http.StatusSeeOther)
+		return
 	case "approve":
 		if err := u.approveProjectPlan(ctx, p, brief); err != nil {
 			u.fail(w, err)

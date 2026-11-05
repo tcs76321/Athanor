@@ -96,6 +96,26 @@ func TestProjectOnboardingDiscoveryFlow(t *testing.T) {
 	}
 
 	resp = postForm(t, fx.ts.URL+"/ui/projects/"+fx.project.ID+"/onboarding", url.Values{
+		"action": {"request_access"}, "source": {"https://example.com/report"},
+	})
+	if resp.StatusCode != 303 {
+		t.Fatalf("request access status = %d", resp.StatusCode)
+	}
+	reqs, err := fx.repo.List(context.Background(), 20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	foundAccess := false
+	for _, req := range reqs {
+		if req.Type == "network_access" && strings.Contains(req.PayloadJSON, "example.com") {
+			foundAccess = true
+		}
+	}
+	if !foundAccess {
+		t.Fatal("network access request was not queued")
+	}
+
+	resp = postForm(t, fx.ts.URL+"/ui/projects/"+fx.project.ID+"/onboarding", url.Values{
 		"action":      {"discover"},
 		"goal":        {"make money online"},
 		"constraints": {"two hours a day\nno ads"},
