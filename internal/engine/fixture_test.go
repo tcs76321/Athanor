@@ -16,7 +16,7 @@ func TestReadFixtureTree(t *testing.T) {
 	mustWrite(t, filepath.Join(root, ".git", "HEAD"), "ref: refs/heads/main\n")
 	mustWrite(t, filepath.Join(root, "bin.dat"), "a\x00b")
 
-	files, err := readFixtureTree(root)
+	files, err := readFixtureTree(root, "")
 	if err != nil {
 		t.Fatalf("readFixtureTree: %v", err)
 	}
@@ -36,8 +36,22 @@ func TestReadFixtureTree(t *testing.T) {
 }
 
 func TestReadFixtureTreeRejectsMissing(t *testing.T) {
-	if _, err := readFixtureTree(filepath.Join(t.TempDir(), "nope")); err == nil {
+	if _, err := readFixtureTree(filepath.Join(t.TempDir(), "nope"), ""); err == nil {
 		t.Error("missing fixture root accepted, want an error")
+	}
+}
+
+func TestReadFixtureTreeRejectsEscapeFromAllowedRoot(t *testing.T) {
+	root := t.TempDir()
+	allowed := filepath.Join(root, "allowed")
+	outside := filepath.Join(root, "outside")
+	mustWrite(t, filepath.Join(allowed, "ok.py"), "x=1\n")
+	mustWrite(t, filepath.Join(outside, "secret.py"), "secret\n")
+	if _, err := readFixtureTree(outside, allowed); err == nil {
+		t.Error("fixture outside the approved root accepted, want an error")
+	}
+	if _, err := readFixtureTree(allowed, allowed); err != nil {
+		t.Errorf("fixture equal to the approved root rejected: %v", err)
 	}
 }
 

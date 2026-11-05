@@ -471,6 +471,11 @@ func (r *runnerConfig) runOne(g sampleGoal, m probeModel, a arm, run int, stateD
 		if g.Fixture != "" {
 			if abs, err := filepath.Abs(g.Fixture); err == nil {
 				exec["fixture_path"] = abs
+				// ADR-0065 containment: the fixture must live under an
+				// approved root. The corpus fixtures live beside each other,
+				// so their parent directory is the boundary; a code task's
+				// repository copy is a separate output tree.
+				exec["fixture_root"] = filepath.Dir(abs)
 			}
 		}
 	}

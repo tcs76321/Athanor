@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/tcs76321/athanor/internal/project"
 	"github.com/tcs76321/athanor/internal/toolenvelope"
 )
 
@@ -21,13 +22,23 @@ const (
 
 // readFixtureTree reads a starter tree into a text file tree (ADR-0065). It is
 // containment-safe: it never follows a symlink, skips VCS/dependency
-// directories, and enforces the size/length bounds above. A non-regular,
-// oversized, or binary entry is skipped (a fixture is curated text). Result
-// paths are relative to root and sanitized.
-func readFixtureTree(root string) ([]toolenvelope.File, error) {
+// directories, enforces the size/length bounds above, and — when allowRoot is
+// non-empty — requires the canonical fixture root to live under it. A
+// non-regular, oversized, or binary entry is skipped (a fixture is curated
+// text). Result paths are relative to root and sanitized.
+func readFixtureTree(root, allowRoot string) ([]toolenvelope.File, error) {
 	canon, err := filepath.EvalSymlinks(root)
 	if err != nil {
 		return nil, fmt.Errorf("fixture root %s: %w", root, err)
+	}
+	if allowRoot != "" {
+		allowed, aerr := filepath.EvalSymlinks(allowRoot)
+		if aerr != nil {
+			return nil, fmt.Errorf("fixture root boundary %s: %w", allowRoot, aerr)
+		}
+		if canon != allowed && !strings.HasPrefix(canon, allowed+string(os.PathSeparator)) {
+			return nil, fmt.Errorf("fixture root %s escapes the allowed root %s", canon, allowed)
+		}
 	}
 	info, err := os.Stat(canon)
 	if err != nil {
@@ -125,6 +136,16 @@ func renderFixture(archetype string, files []toolenvelope.File) string {
 		fmt.Fprintf(&b, "\n=== FILE: %s ===\n%s\n", f.Path, f.Content)
 	}
 	return b.String()
+}
+
+// fixtureRootFor resolves the containment boundary for a project's fixture:
+// the explicit fixture_root wins, then the repository path. An empty result
+// means the fixture has no approved boundary and the caller refuses it.
+func fixtureRootFor(p project.Project) string {
+	if p.Execution.FixtureRoot != "" {
+		return p.Execution.FixtureRoot
+	}
+	return p.RepositoryPath
 }
 
 // overlayFiles merges a candidate tree over a fixture tree: a candidate file

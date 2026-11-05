@@ -30,6 +30,8 @@ func runProject(args []string) error {
 	buildCmd := fs.String("build-command", "", "override the build command (optional)")
 	dataSchema := fs.String("data-schema", "", "JSON Schema a data candidate must validate against (optional)")
 	checksJSON := fs.String("checks", "", "declared structural checks for text/document, as a JSON object (optional)")
+	fixturePath := fs.String("fixture-path", "", "immutable starter tree shown to the model (optional)")
+	fixtureRoot := fs.String("fixture-root", "", "containment root for -fixture-path (defaults to the repository)")
 	var criteria criteriaFlag
 	fs.Var(&criteria, "criteria", "acceptance criteria, separated by ';'")
 	addr := fs.String("addr", defaultAddr, "daemon address")
@@ -46,13 +48,20 @@ func runProject(args []string) error {
 	if *archetype != "" {
 		body["archetype"] = *archetype
 	}
-	if *testCmd != "" || *buildCmd != "" || *dataSchema != "" || *checksJSON != "" {
+	if *testCmd != "" || *buildCmd != "" || *dataSchema != "" || *checksJSON != "" ||
+		*fixturePath != "" || *fixtureRoot != "" {
 		ex := map[string]any{}
 		if *testCmd != "" {
 			ex["test_command"] = *testCmd
 		}
 		if *buildCmd != "" {
 			ex["build_command"] = *buildCmd
+		}
+		if *fixturePath != "" {
+			ex["fixture_path"] = *fixturePath
+		}
+		if *fixtureRoot != "" {
+			ex["fixture_root"] = *fixtureRoot
 		}
 		if *dataSchema != "" {
 			ex["data_schema"] = *dataSchema

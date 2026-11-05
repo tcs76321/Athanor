@@ -86,6 +86,11 @@ type Execution struct {
 	// Distinct from RepositoryPath, which is the evolving git-as-undo output
 	// target. Empty means no fixture. Read only through airlock containment.
 	FixturePath string `json:"fixture_path,omitempty"`
+	// FixtureRoot bounds FixturePath when the fixture is not inside the
+	// repository (the benchmark's corpus fixtures are the motivating case).
+	// Empty means "use RepositoryPath as the root"; when both are empty the
+	// fixture is refused rather than reading an arbitrary host path.
+	FixtureRoot string `json:"fixture_root,omitempty"`
 	// DataSchema is the JSON Schema a `data` candidate must validate against
 	// (M9-T3). Operator-supplied (never from the model); empty means the LLM
 	// judge decides, as before.

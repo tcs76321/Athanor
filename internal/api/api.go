@@ -388,6 +388,8 @@ type projectExecution struct {
 	Linters      []string `json:"linters"`
 	// FixturePath is the immutable starter tree for a code task (ADR-0065).
 	FixturePath string `json:"fixture_path"`
+	// FixtureRoot bounds FixturePath when it is outside the repository.
+	FixtureRoot string `json:"fixture_root"`
 	// DataSchema is the JSON Schema a data task must validate against (M9-T3).
 	DataSchema string `json:"data_schema"`
 	// Checks is the operator-declared machine-checkable constraint set
@@ -578,6 +580,7 @@ func executionFromRequest(req *projectExecution) project.Execution {
 		BuildCommand: req.BuildCommand,
 		Linters:      req.Linters,
 		FixturePath:  req.FixturePath,
+		FixtureRoot:  req.FixtureRoot,
 		DataSchema:   req.DataSchema,
 		Checks:       req.Checks,
 	}
