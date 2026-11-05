@@ -1,6 +1,7 @@
 # ADR 0094 — Project discovery is a portfolio, not a dialectical winner
 
-**Status:** Accepted — first implementation slice · **Date:** 2026-11-04 ·
+**Status:** Accepted — first implementation slice; amended by
+[ADR-0097](0097-ai-plan-candidates.md) · **Date:** 2026-11-04 ·
 **Refs:** ARCHITECTURE §15 (brainstorming workflow), §13 (dialectical engine),
 §19 (evaluation), §21.5 (gateway); [ADR-0032](0032-dag-decomposition.md),
 [ADR-0061](0061-harder-benchmark.md), [ADR-0093](0093-project-capabilities-not-archetypes.md).
@@ -44,8 +45,11 @@ falls through the generic pipeline also inherits code-centric planning language
    confidence separately from the score. The model is told not to invent
    market sizes or citations.
 5. **The human chooses.** Selecting an option is a recorded project decision.
-   Approval generates a deterministic 30-day plan and a dependency-ordered task
-   graph. The operator can re-run discovery or choose a different direction.
+   Approval generates a 30-day plan and a dependency-ordered task graph. The
+   operator can re-run discovery or choose a different direction. **Amended by
+   [ADR-0097](0097-ai-plan-candidates.md):** the operator may ask the model for
+   three plan candidates and select one; the deterministic plan remains the
+   fallback.
 6. **The engine still executes.** Discovery does not accept artifacts or bypass
    verification; the plan's tasks go through the normal engine, Job Pods,
    verifiers, and HITL gates.

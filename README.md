@@ -138,7 +138,7 @@ Then watch it work in real time from the Watch View, or queue it and check the M
 | Workflow | You provide | Athanor delivers |
 |---|---|---|
 | **Code** | A goal + repository | DAG of tasks → test-driven implementation candidates run in Job Pods → evaluated, compared, committed on an agent-created branch |
-| **Explore** | An exploratory goal | A guided brief → a portfolio of scored directions across industries/niches → the direction you choose → a 30-day plan and its first tasks |
+| **Explore** | An exploratory goal | A guided brief → a portfolio of scored directions across industries/niches → the direction you choose → three AI-drafted 30-day plans (deterministic plan as fallback) → the plan you approve |
 | **Research** | A question + allowlisted domains | Reader Mode extraction (no JS), cited summaries, contradiction analysis, report artifact |
 
 ## Status
@@ -160,11 +160,22 @@ Then watch it work in real time from the Watch View, or queue it and check the M
   success criteria, and the sources Athanor may read. Exploratory goals get a
   **portfolio** of scored directions (industries, niches, customers, wedges,
   first experiments) instead of one generated document; the operator chooses a
-  direction and approves a 30-day plan that creates dependency-ordered tasks.
-  The legacy interview remains available. Discovery uses the `tall` persona,
-  is bounded, and never invents market data; only human-approved sources are
-  fetched through the gateway. See [ADR-0094](docs/adr/0094-project-discovery-portfolio.md)
-  and [ADR-0095](docs/adr/0095-first-class-gui-and-onboarding.md).
+  direction, can ask for **three AI-authored 30-day plans**, and approves one
+  that creates dependency-ordered tasks. The deterministic plan remains the
+  zero-cost fallback. The legacy interview remains available. Discovery and
+  planning use the `tall` persona, are bounded, and never invent market data;
+  only human-approved sources are fetched through the gateway. See
+  [ADR-0094](docs/adr/0094-project-discovery-portfolio.md),
+  [ADR-0095](docs/adr/0095-first-class-gui-and-onboarding.md), and
+  [ADR-0097](docs/adr/0097-ai-plan-candidates.md).
+
+- **Capacity-aware concurrency and large hosts.** The shipped default is still
+  one job and one resident model, but `limits.max_concurrent_jobs` is now a real
+  operator ceiling: the autonomous power profile may use it, while interactive
+  use throttles back to one job; inference stays independently serialized. The
+  doctor reports an NVIDIA GPU when the host probe can see one, and the
+  [Linux/GPU guide](docs/linux-gpu.md) covers the 32 GiB / 1080 Ti class.
+  [ADR-0096](docs/adr/0096-capacity-aware-concurrency.md).
 
 - **0.0.0 capability + packaging (M9).** The self-refine repair loop
   (`execution.self_refine`, on by default) feeds the failing test's output back
@@ -263,7 +274,7 @@ Gate G7 human checkpoints (the combined validation soak, the fresh-install timin
 ## Documentation
 
 - **[ARCHITECTURE.md](ARCHITECTURE.md)** — the complete design: topology, object model, MCE, personas, dialectical engine, security, configuration reference, testing strategy.
-- **[docs/](docs/)** — implementation notes ([SQLite setup](docs/sqlite-setup.md), [ADRs](docs/adr/), [known issues](docs/known-issues.md)).
+- **[docs/](docs/)** — implementation notes ([SQLite setup](docs/sqlite-setup.md), [ADRs](docs/adr/), [known issues](docs/known-issues.md)). Linux/GPU hosts: [docs/linux-gpu.md](docs/linux-gpu.md).
 - **[docs/cognitive-operations.md](docs/cognitive-operations.md)** — the cognitive-operations catalog and the repertoire/learned-selection model ([ADR-0064](docs/adr/0064-cognitive-operations.md)).
 - **[eval/bench/](eval/bench/README.md)** — the harder, deterministic-first benchmark corpus ([ADR-0061](docs/adr/0061-harder-benchmark.md)).
 - **[spikes/](spikes/)** — throwaway validation code.

@@ -34,6 +34,9 @@ document job, not a discovery portfolio.
      sources, success), discovery for exploratory goals, selection, a 30-day
      plan, and approval. It complements — does not delete — the deterministic
      interview.
+      **Amended by [ADR-0097](0097-ai-plan-candidates.md):** after a direction
+      is chosen, the operator can ask for three AI-authored plan candidates and
+      select one; the deterministic plan remains the fallback.
 3. **The GUI performs first-run diagnostics and resource planning.** The
    environment step calls `internal/doctor` through a `cmd/` probe adapter; it
    does not ask the operator to run a CLI command. A dedicated resources step

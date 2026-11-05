@@ -38,10 +38,14 @@ the main 1.0.0 focus** ([1.0.0-direction.md](1.0.0-direction.md)).
      step; today `athanor models` is inventory + advisory only).
 5. **First project** (still tutorial-mode: tooltips, stateful, dismissible):
    - **Project → goals → tasks.**
-   - **Project initialisation** (🔨): a resumable clarifying interview, then a
-     **plan/brief artifact the user approves**. It can take ~10 minutes and is
-     skippable. It is the first human eval.
-6. **Work begins** under the approved plan (single-slot: one job at a time).
+   - **Project initialisation** (🔨): a resumable brief and, for exploratory
+     goals, a scored portfolio of directions. After a direction is chosen, the
+     operator can ask for three AI-authored 30-day plans and approve one
+     ([ADR-0097](adr/0097-ai-plan-candidates.md)), or use the deterministic
+     plan. It can take ~10 minutes and is skippable. It is the first human eval.
+6. **Work begins** under the approved plan (single-slot by default; the
+   autonomous profile may use a higher operator ceiling,
+   [ADR-0096](adr/0096-capacity-aware-concurrency.md)).
 7. The user watches, steps away, comes back, **asks for a presentation**, and
    reviews (human eval). The presentation is a distinct surface (🔨): what was
    built, how to run it, known-broken, and what it cost.

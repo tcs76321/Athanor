@@ -1,6 +1,7 @@
 # ADR 0072 — Single-slot execution: one job, one model, one pod
 
-**Status:** Accepted · **Date:** 2026-10-16 · **Refs:**
+**Status:** Accepted — amended by
+[ADR-0096](0096-capacity-aware-concurrency.md) · **Date:** 2026-10-16 · **Refs:**
 ARCHITECTURE §8 (job state machine), §10.4 (KV/eviction), §12.5 (model
 lifecycle), §24 (power & idle);
 [ADR-0071](0071-git-as-undo-containment.md) (containment);
@@ -54,6 +55,12 @@ a time — held only by luck.
   parallelism; single-slot execution makes that search simple and cheap.
 - A deployment that wants job parallelism is out of scope by decision, not by
   accident.
+
+**Amended 2026-11-04 by [ADR-0096](0096-capacity-aware-concurrency.md).** The
+default stays 1 and inference stays serialized, but `limits.max_concurrent_jobs`
+is now a real operator ceiling: the autonomous profile may use it, and the
+interactive profile still throttles to one job. "Out of scope" above is
+superseded; "conservative by default" is not.
 
 ## Alternatives rejected
 

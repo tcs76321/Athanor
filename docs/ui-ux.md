@@ -18,8 +18,10 @@ The GUI foundation and two-level onboarding are now implemented
 - **Project onboarding and discovery.** `/ui/projects/{id}/onboarding` runs a
   resumable brief (goal, limits, sources, success), a portfolio discovery pass
   (`internal/discovery`, [ADR-0094](adr/0094-project-discovery-portfolio.md)),
-  a selection, and a deterministic 30-day plan that creates tasks. The legacy
-  interview remains.
+  a selection, then either three AI-authored 30-day plans
+  (`internal/planning`, [ADR-0097](adr/0097-ai-plan-candidates.md)) or the
+  deterministic plan; approval creates the task graph. The legacy interview
+  remains.
 - **Reading and search.** Safe Markdown rendering for artifacts and plans;
   global search over projects, artifacts, jobs, events, and surfaces; HTMX live
   search; a sitemap and command palette.

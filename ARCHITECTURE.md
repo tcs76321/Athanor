@@ -973,7 +973,10 @@ divergence/evaluation phases choose one winner, while discovery preserves many
 distinct options for a human to choose. The operator briefs the project
 (limits, sources, success), Athanor generates a scored portfolio through the
 `tall` persona, the operator selects a direction, and approval creates the
-dependency-ordered plan. See
+dependency-ordered plan. After selection, `internal/planning` can ask the model
+for three reviewable 30-day plans and the operator chooses one before approval;
+the deterministic plan remains the fallback
+([ADR-0097](docs/adr/0097-ai-plan-candidates.md)). See
 [ADR-0094](docs/adr/0094-project-discovery-portfolio.md).
 
 ---
@@ -1498,11 +1501,14 @@ power:
 | System sleep | Flush state and pause containers gracefully |
 | System wake | Resume from checkpoint |
 
-> **Single-slot (ADR-0072).** Job concurrency is fixed at **1** for every
-> profile: one job, one model call, one Job Pod at a time, so the intended
-> operating mode (one large model resident at the largest context) is a
-> guarantee, not a hope delegated to the inference server. The `autonomous`
-> profile raises daydreaming and CPU quota, not job count.
+> **Capacity-aware concurrency (ADR-0072, amended by ADR-0096).** The default
+> remains one job, one model call, and one Job Pod at a time, so the intended
+> operating mode (one large model resident at the largest context) is the
+> first-use guarantee. `limits.max_concurrent_jobs` is an operator ceiling: the
+> autonomous profile may use it, while the interactive profile throttles back to
+> one job. `limits.max_concurrent_llm_calls` remains independently serialized
+> and should stay at 1 on a single-GPU/small-RAM host. The `autonomous` profile
+> raises daydreaming and CPU quota, not job count.
 
 ---
 
@@ -1854,7 +1860,10 @@ strategy_analysis:
   technique_min_accept_delta: 0.20
 
 limits:
+  # Operator ceiling. 1 is the default; the autonomous profile may use more,
+  # the interactive profile throttles to one job (ADR-0096).
   max_concurrent_jobs: 1
+  # Keep at 1 on a single-GPU/small-RAM host so one model stays resident.
   max_concurrent_llm_calls: 1
   max_concurrent_fetches: 5
   max_tasks_per_hour: 20

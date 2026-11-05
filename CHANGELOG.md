@@ -10,6 +10,31 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### AI plans, capacity-aware concurrency, and GPU visibility — 2026-11-04
+
+- **AI-authored plan candidates.** After choosing a discovery direction, the
+  onboarding flow can generate three distinct 30-day plans (fastest validation,
+  deepest quality, lowest cost), validate and score them deterministically, and
+  let the operator select one before approval creates tasks. Sessions are
+  durable and option-scoped, so a plan generated for one direction cannot be
+  approved after the operator chooses another; the deterministic plan remains
+  the fallback. Migration 0035 adds `plan_sessions` and `plan_candidates`.
+  [ADR-0097](docs/adr/0097-ai-plan-candidates.md). Proofs:
+  `internal/planning` tests; `TestProjectOnboardingAIPlanFlow`,
+  `TestProjectOnboardingIgnoresStalePlanAfterDirectionChange`.
+- **Capacity-aware concurrency.** `limits.max_concurrent_jobs` is now a real
+  operator ceiling applied by `power.Ceiling`: the shipped default stays 1, the
+  autonomous profile may use the configured value, and the interactive profile
+  throttles back to one job. Inference serialization is unchanged.
+  [ADR-0096](docs/adr/0096-capacity-aware-concurrency.md). Proof:
+  `TestCeilingRespectsInteractiveAndOperatorMax`.
+- **GPU visibility and a Linux/GPU guide.** `doctor` reports an NVIDIA GPU and
+  its VRAM through `nvidia-smi` when the host probe can see it, says explicitly
+  when it is running inside the Core Pod, and the new
+  [Linux/GPU guide](docs/linux-gpu.md) covers the CachyOS / 32 GiB / 1080 Ti
+  class. Proofs: `TestRunReportsGPU`, `TestRunReportsGPUNotVisibleFromCore`,
+  `TestRunReportsNoGPU`.
+
 ### GUI, onboarding, and discovery — 2026-11-04
 
 - **First-class GUI foundation.** The local UI now has a persistent rail
