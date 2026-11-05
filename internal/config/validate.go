@@ -457,6 +457,9 @@ func (c *Config) Warnings() []string {
 	if c.Inference.CloudEnabled {
 		out = append(out, "inference.cloud_enabled=true has no effect in 0.0.0 (no cloud client); the daemon uses Ollama")
 	}
+	if c.Limits.MaxConcurrentJobs > 1 {
+		out = append(out, "limits.max_concurrent_jobs > 1: SQLite access is serialized on one connection (ADR-0003), so job/DB throughput will not scale linearly; keep inference at one call unless the host is sized for it")
+	}
 	return out
 }
 

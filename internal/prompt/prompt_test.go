@@ -211,6 +211,9 @@ func TestEstimateTokensDeterministic(t *testing.T) {
 	if got := EstimateTokens("abcde"); got != 2 {
 		t.Errorf("EstimateTokens(5 bytes) = %d, want 2 (round up)", got)
 	}
+	if got := EstimateTokens("你好世界"); got < 4 {
+		t.Errorf("EstimateTokens(CJK) = %d, want at least one token per rune (4)", got)
+	}
 }
 
 func sectionNames(ss []Section) []string {

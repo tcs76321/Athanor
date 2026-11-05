@@ -37,6 +37,23 @@ jobs:
       - name: Test (race detector)
         run: make test-race
 
+  # The supported host matrix includes macOS; the Linux job cannot catch a
+  # darwin-only build/tag regression. Podman probes are not run here (GitHub's
+  # macOS runners cannot nest a rootless Podman VM), but the full host test
+  # suite and vet must stay green on the primary development platform.
+  macos:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.27.2'
+      - name: Vet
+        run: make vet
+      - name: Test (race detector)
+        run: make test-race
+
   lint:
     runs-on: ubuntu-latest
     steps:

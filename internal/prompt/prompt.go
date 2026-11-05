@@ -19,6 +19,8 @@
 package prompt
 
 import (
+	"unicode/utf8"
+
 	"github.com/tcs76321/athanor/internal/llm"
 )
 
@@ -178,10 +180,19 @@ type Result struct {
 	Messages    []llm.Message
 }
 
-// EstimateTokens is the token accounting approximation: ~4 bytes per
-// token, deterministic and dependency-free. §28.2 requires per-section
-// accounting to be logged consistently; exact tokenizer fidelity is not a
-// goal (the §10.4 KV-cache monitor uses the same count).
+// EstimateTokens is the token accounting approximation: ~4 bytes per token
+// for ASCII, with a rune-count floor for multibyte text. The floor prevents a
+// CJK or emoji prompt (where one rune can be a token but occupies 3–4 bytes)
+// from being under-counted, which would let an over-window prompt reach Ollama
+// and be silently truncated at num_ctx. Deterministic and dependency-free.
 func EstimateTokens(s string) int {
-	return (len(s) + 3) / 4
+	if s == "" {
+		return 0
+	}
+	est := (len(s) + 3) / 4
+	runes := utf8.RuneCountInString(s)
+	if runes != len(s) && runes > est {
+		est = runes
+	}
+	return est
 }

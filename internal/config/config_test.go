@@ -942,6 +942,19 @@ func TestUnenforcedKnobRejected(t *testing.T) {
 	}
 }
 
+// TestConcurrentJobsWarning names the SQLite serialization trade-off instead
+// of implying that max_concurrent_jobs > 1 makes DB work parallel.
+func TestConcurrentJobsWarning(t *testing.T) {
+	cfg, err := Parse([]byte("version: 2\nlimits:\n  max_concurrent_jobs: 2\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	warns := cfg.Warnings()
+	if !strings.Contains(strings.Join(warns, " "), "SQLite access is serialized") {
+		t.Errorf("warnings = %v, want the SQLite serialization warning", warns)
+	}
+}
+
 // TestCloudBackendWarns pins D6: cloud stays accepted as a reserved,
 // non-default value but the daemon warns; it is never silently used.
 func TestCloudBackendWarns(t *testing.T) {
