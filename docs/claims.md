@@ -74,6 +74,8 @@ demo. A claim without a proof is either removed or marked as a target.
 | Code prompts follow the planner/repository language | ADR-0101 | `internal/engine/language.go`, `internal/project/language.go`; `TestParseLanguageHint`, `TestDetectLanguageFromCommand`, `TestCodeInstructionNamesLanguage` | **proven for the deterministic paths; a live multi-language run is follow-up** |
 | A fixture must live under `fixture_root` or the repository | ADR-0101 | `internal/engine/fixture.go`; `TestReadFixtureTreeRejectsEscapeFromAllowedRoot` | **proven** |
 | Multibyte prompts are not under-counted by the token estimator | P0 review | `internal/prompt/prompt.go`; `TestEstimateTokensDeterministic` | **proven** |
+| Qualification runs inside the setup wizard with visible percent/progress | first-use review | `internal/ui/onboarding.go`, `internal/ui/onboarding_templates.go`, `internal/ui/setup.go`; `TestWelcomeQualificationShowsInlineProgress`, `TestWelcomeQualificationStartsInline` | **proven** |
+
 
 | Embedding models are never persona candidates | ADR-0049, ADR-0099 | `onboard.IsChatModel`; `TestEmbeddingModelsAreNotPersonaCandidates` | **proven** |
 | `limits.max_concurrent_jobs` is a real ceiling subject to the power profile | ADR-0096 | `power.Ceiling`; `TestCeilingRespectsInteractiveAndOperatorMax` | **proven** |

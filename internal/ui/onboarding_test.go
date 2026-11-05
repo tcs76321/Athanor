@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/tcs76321/athanor/internal/config"
 	"github.com/tcs76321/athanor/internal/doctor"
@@ -120,6 +121,120 @@ func TestOnboardingAdvancesAndCompletes(t *testing.T) {
 	_ = resp.Body.Close()
 	if resp.StatusCode != http.StatusSeeOther || resp.Header.Get("Location") != "/ui" {
 		t.Fatalf("completed welcome = %d %q, want 303 /ui", resp.StatusCode, resp.Header.Get("Location"))
+	}
+}
+
+func TestQualificationViewPercentAndEstimate(t *testing.T) {
+	started := time.Now().Add(-10 * time.Second)
+	v := qualificationViewFor(qualState{
+		Running: true, StartedAt: started, Total: 10, Done: 3,
+		Results: map[string]bool{"a": true, "b": true, "c": true},
+	}, false)
+	if v.Percent != 30 || v.Done != 3 || v.Total != 10 {
+		t.Errorf("view = %+v, want 30%% (3/10)", v)
+	}
+	if v.Remaining == "" {
+		t.Error("running view has no remaining estimate")
+	}
+	if v.Complete {
+		t.Error("running view should not be complete")
+	}
+}
+
+func TestWelcomeQualificationShowsInlineProgress(t *testing.T) {
+	u := newEmptyUI(t)
+	state := newQualState()
+	state.Running = true
+	state.StartedAt = time.Now().Add(-8 * time.Second)
+	state.Total = 10
+	state.Done = 4
+	for i := 0; i < 4; i++ {
+		state.Results[qualCaseKey("main", "m", string(rune('a'+i)))] = true
+	}
+	u.saveQualState(context.Background(), state)
+
+	mux := http.NewServeMux()
+	u.Register(mux)
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+
+	resp, err := http.Get(ts.URL + "/ui/welcome?step=qualify")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	raw, _ := io.ReadAll(resp.Body)
+	body := string(raw)
+	for _, want := range []string{
+		"Running qualification", "40%", "4 / 10", `data-auto-refresh="2000"`,
+		"Continue while it runs",
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("qualification step missing %q", want)
+		}
+	}
+	if strings.Contains(body, "Open setup and qualification") {
+		t.Error("qualification step still sends the operator out to Setup")
+	}
+}
+
+func TestWelcomeQualificationStartsInline(t *testing.T) {
+	u := newEmptyUI(t)
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/tags":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"models": []map[string]any{{
+					"name": "fake:latest", "size": 1234,
+					"details": map[string]string{"family": "fake"},
+				}},
+			})
+		case "/api/chat":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"message": map[string]string{"content": "A"},
+				"done":    true,
+			})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer ts.Close()
+	cfg, err := config.Default()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.Inference.OllamaURL = ts.URL
+	cfg.Personas.Security.Model = "fake:latest"
+	cfg.Personas.Main.Model = "fake:latest"
+	u.deps.Config = cfg
+
+	mux := http.NewServeMux()
+	u.Register(mux)
+	uiTS := httptest.NewServer(mux)
+	defer uiTS.Close()
+
+	resp := postForm(t, uiTS.URL+"/ui/welcome", url.Values{
+		"step": {"qualify"}, "action": {"run_qualify"},
+	})
+	if resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("start status = %d, want 303", resp.StatusCode)
+	}
+	if loc := resp.Header.Get("Location"); loc != "/ui/welcome?step=qualify" {
+		t.Fatalf("start location = %q, want the wizard step (not Setup)", loc)
+	}
+	state := u.loadQualState(context.Background())
+	if state.Total == 0 {
+		t.Errorf("state = %+v, want a persisted qualification plan", state)
+	}
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		u.qualMu.Lock()
+		running := u.qualRunning
+		u.qualMu.Unlock()
+		if !running {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
 }
 

@@ -12,6 +12,14 @@ New entries are appended at the top. Do not rewrite history.
 
 ### Acceptance, feedback, language, and containment hardening — 2026-11-05
 
+- **Qualification now runs inside the setup wizard.** The Qualification step
+  starts the bounded run in place, shows a percent progress bar, elapsed time,
+  and an estimated remaining time, and auto-refreshes every 2 seconds. It no
+  longer sends the operator to the separate Setup page; the run is resumable
+  and Continue can be pressed while it runs. Proofs:
+  `TestWelcomeQualificationShowsInlineProgress`,
+  `TestWelcomeQualificationStartsInline`, `TestQualificationViewPercentAndEstimate`.
+
 - **Cost-aware ties cannot overturn a hard verifier failure.** The F4-T6
   tie-break now uses the final artifact's record, requires a known previous
   score, and is skipped when a decisive hard verifier failed; the reward-hacking

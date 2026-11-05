@@ -42,6 +42,60 @@ func (s qualState) stale() bool {
 	return s.Running && time.Since(s.StartedAt) > qualTTL
 }
 
+// qualificationView is the wizard-facing progress snapshot. The wizard polls
+// the page while a run is active; the percent and estimate are derived from
+// the persisted case count, not a separate in-memory counter.
+type qualificationView struct {
+	Running         bool
+	Done            int
+	Total           int
+	Percent         int
+	Elapsed         string
+	Remaining       string
+	Error           string
+	Stale           bool
+	Complete        bool
+	HasMeasurements bool
+}
+
+// qualificationViewFor builds the progress view. A run with no plan yet
+// (Total == 0) renders as "starting"; a finished run with every case done is
+// 100% even if the worker has not persisted Running=false yet.
+func qualificationViewFor(s qualState, hasMeasurements bool) qualificationView {
+	v := qualificationView{
+		Running: s.Running, Done: s.Done, Total: s.Total,
+		Error: s.Error, Stale: s.stale(), HasMeasurements: hasMeasurements,
+	}
+	if v.Total > 0 {
+		v.Percent = v.Done * 100 / v.Total
+		if v.Percent > 100 {
+			v.Percent = 100
+		}
+	}
+	if s.Running && v.Total > 0 && v.Done >= v.Total {
+		v.Percent = 100
+	}
+	if !s.StartedAt.IsZero() {
+		end := time.Now()
+		if !s.Running && !s.FinishedAt.IsZero() {
+			end = s.FinishedAt
+		}
+		elapsed := end.Sub(s.StartedAt)
+		if elapsed > 0 {
+			v.Elapsed = elapsed.Round(time.Second).String()
+		}
+		if s.Running && v.Done > 0 && v.Total > v.Done {
+			perCase := elapsed / time.Duration(v.Done)
+			remaining := perCase * time.Duration(v.Total-v.Done)
+			if remaining > 0 {
+				v.Remaining = remaining.Round(time.Second).String()
+			}
+		}
+	}
+	v.Complete = !s.Running && v.Total > 0 && v.Done >= v.Total
+	return v
+}
+
 func qualCaseKey(role, model, caseID string) string {
 	return role + "|" + model + "|" + caseID
 }
@@ -110,8 +164,10 @@ func (u *UI) handleSetup(w http.ResponseWriter, r *http.Request) {
 	data["Roles"] = roles
 	data["State"] = state
 	data["Stale"] = stale
+	hasMeasurements := false
 	if cfg != nil {
 		ms := qualMeasurementsFromState(state)
+		hasMeasurements = len(ms) > 0
 		data["Measurements"] = ms
 		if len(ms) > 0 {
 			recs := onboard.Route(setupOnboardRoles(roles), families, ms, setupRoutingOptions())
@@ -119,6 +175,7 @@ func (u *UI) handleSetup(w http.ResponseWriter, r *http.Request) {
 			data["Apply"] = applyYAML(recs)
 		}
 	}
+	data["Qualification"] = qualificationViewFor(state, hasMeasurements)
 	if u.deps.ModelAudit != "" {
 		var audit onboard.Audit
 		if err := json.Unmarshal([]byte(u.deps.ModelAudit), &audit); err == nil {
@@ -170,33 +227,62 @@ func (u *UI) handleQualifyStart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_ = r.ParseForm()
-	state := u.loadQualState(r.Context())
-	if state.Running && !state.stale() {
-		http.Redirect(w, r, "/ui/setup", http.StatusSeeOther)
+	if _, _, err := u.startQualification(r.Context(), cfg, r.FormValue("fresh") != ""); err != nil {
+		u.fail(w, err)
 		return
 	}
-	if state.stale() || r.FormValue("fresh") != "" {
+	http.Redirect(w, r, "/ui/setup", http.StatusSeeOther)
+}
+
+// startQualification initializes a bounded run, persists the visible state
+// before returning, then starts the worker. Persisting first removes the race
+// where the redirect renders the "Start" button again before the goroutine has
+// written Running=true.
+func (u *UI) startQualification(ctx context.Context, cfg *config.Config, fresh bool) (qualState, bool, error) {
+	if cfg == nil {
+		return qualState{}, false, fmt.Errorf("configuration is not available to the UI")
+	}
+	state := u.loadQualState(ctx)
+	if state.Running && !state.stale() {
+		return state, false, nil
+	}
+	if state.stale() || fresh {
 		state = newQualState()
 	}
 	u.qualMu.Lock()
 	if u.qualRunning {
 		u.qualMu.Unlock()
-		http.Redirect(w, r, "/ui/setup", http.StatusSeeOther)
-		return
+		return state, false, nil
 	}
 	u.qualRunning = true
 	u.qualMu.Unlock()
 
 	roles, models := setupRolesAndModels(cfg)
-	go func() {
+	state.Running = true
+	state.StartedAt = time.Now()
+	state.Error = ""
+	if state.Results == nil {
+		state.Results = map[string]bool{}
+	}
+	state.Done = len(state.Results)
+	state.Total = qualificationPlan(roles, models)
+	u.saveQualState(ctx, state)
+	runState := state
+	if state.Results != nil {
+		runState.Results = make(map[string]bool, len(state.Results))
+		for k, v := range state.Results {
+			runState.Results[k] = v
+		}
+	}
+	go func(runState qualState) {
 		defer func() {
 			u.qualMu.Lock()
 			u.qualRunning = false
 			u.qualMu.Unlock()
 		}()
-		u.runQualification(context.Background(), cfg, roles, models, &state)
-	}()
-	http.Redirect(w, r, "/ui/setup", http.StatusSeeOther)
+		u.runQualification(context.Background(), cfg, roles, models, &runState)
+	}(state)
+	return state, true, nil
 }
 
 // setupRolesAndModels picks the two roles and two models per role the UI

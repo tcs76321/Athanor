@@ -256,8 +256,9 @@ func (u *UI) welcomeData(ctx context.Context, st onboardingState) map[string]any
 		hw = u.deps.Hardware(ctx)
 	}
 	measurements := []onboard.Measurement{}
+	qual := u.loadQualState(ctx)
 	if u.deps.Store != nil {
-		measurements = qualMeasurementsFromState(u.loadQualState(ctx))
+		measurements = qualMeasurementsFromState(qual)
 	}
 	fitModels := models
 	if names := measuredModelNames(u.deps.ModelAudit); len(names) > 0 {
@@ -285,6 +286,7 @@ func (u *UI) welcomeData(ctx context.Context, st onboardingState) map[string]any
 		"Suggestions": suggestions, "Resources": resources, "Hardware": hw,
 		"Budget": budget, "ConfigPath": u.deps.ConfigPath,
 		"HasMeasurements": len(measurements) > 0,
+		"Qualification":   qualificationViewFor(qual, len(measurements) > 0),
 		"OllamaURL": func() string {
 			if u.deps.Config == nil {
 				return ""
@@ -730,6 +732,16 @@ func (u *UI) handleWelcomePost(w http.ResponseWriter, r *http.Request) {
 		model := strings.TrimSpace(r.FormValue("model"))
 		if model != "" {
 			u.startPull(model)
+		}
+	case "run_qualify":
+		if u.deps.Config == nil {
+			u.fail(w, fmt.Errorf("configuration is not available to the UI"))
+			return
+		}
+		st.Step = "qualify"
+		if _, _, err := u.startQualification(ctx, u.deps.Config, false); err != nil {
+			u.fail(w, err)
+			return
 		}
 	case "apply_personas":
 		if err := u.applyPersonas(ctx); err != nil {
