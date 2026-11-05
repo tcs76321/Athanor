@@ -80,9 +80,12 @@ func (u *UI) handleSearch(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewEncoder(w).Encode(map[string]any{"query": q, "results": results})
 		return
 	}
-	u.render(w, "Search", searchBody, map[string]any{
-		"Query": q, "Results": results, "Count": len(results),
-	})
+	data := map[string]any{"Query": q, "Results": results, "Count": len(results)}
+	if r.Header.Get("HX-Request") == "true" {
+		u.renderPartial(w, searchResultsBody, data)
+		return
+	}
+	u.render(w, "Search", searchBody, data)
 }
 
 func (u *UI) search(r *http.Request, q string) []searchResult {

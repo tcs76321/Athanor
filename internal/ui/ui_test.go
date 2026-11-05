@@ -200,12 +200,12 @@ func TestPagesRender(t *testing.T) {
 		path string
 		want string
 	}{
-		{"/ui", "Dashboard"},
+		{"/ui", "Home"},
 		{"/ui/projects", "demo"},
 		{"/ui/projects/" + fx.project.ID, "Submit a goal"},
 		{"/ui/corrections", "Corrections"},
 		{"/ui/statistics", "captured outcomes"},
-		{"/ui/jobs/" + fx.job.ID, "Live output"},
+		{"/ui/jobs/" + fx.job.ID, "Live activity"},
 		{"/ui/artifacts/" + fx.artifact.ID + "/diff", "line TWO"},
 	} {
 		status, body := get(t, fx.ts.URL+tc.path)
@@ -389,7 +389,7 @@ func TestLineDiffBuildsValidEditScript(t *testing.T) {
 func TestFirstUseCopy(t *testing.T) {
 	fx := setup(t)
 	_, body := get(t, fx.ts.URL+"/ui")
-	for _, want := range []string{"Not frozen", "artifacts to review", "Inbox", "review-count"} {
+	for _, want := range []string{"Not frozen", "Needs you", "Inbox", "review-count"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("dashboard missing %q", want)
 		}

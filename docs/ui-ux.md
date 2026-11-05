@@ -2,7 +2,35 @@
 
 **Status:** design note / proposal · **Date:** 2026-10-05 · **Refs:** ARCHITECTURE §20, §22, §27; ADR-0039 (local web UI); `internal/ui`
 
-## 0. Implementation status — 2026-10-29
+## 0. Implementation status — 2026-11-04
+
+The GUI foundation and two-level onboarding are now implemented
+([ADR-0095](adr/0095-first-class-gui-and-onboarding.md)):
+
+- **Shell and design system.** A persistent rail (Home, Inbox, Projects,
+  Library, Insights, System), Monokai as the base theme plus Ember Paper and
+  four alternatives, embedded CSS/JS, a strict CSP, and a vendored HTMX.
+- **Machine onboarding.** `/ui/welcome` checks the Core/Ollama/models, pulls
+  missing persona models explicitly, offers qualification, records preferences,
+  and completes durably. The installer prints and opens the URL.
+- **Project onboarding and discovery.** `/ui/projects/{id}/onboarding` runs a
+  resumable brief (goal, limits, sources, success), a portfolio discovery pass
+  (`internal/discovery`, [ADR-0094](adr/0094-project-discovery-portfolio.md)),
+  a selection, and a deterministic 30-day plan that creates tasks. The legacy
+  interview remains.
+- **Reading and search.** Safe Markdown rendering for artifacts and plans;
+  global search over projects, artifacts, jobs, events, and surfaces; HTMX live
+  search; a sitemap and command palette.
+- **Work surfaces.** Home combines project work and a 24-hour digest; the
+  project page has tabs; the watch view has a phase stepper, candidate cards,
+  live activity, and raw output behind a disclosure.
+
+Remaining polish is tracked in the implementation plan: richer candidate
+comparison, a dedicated Security/Network view (currently events filters),
+density controls, and a full visual QA pass at 4K.
+
+## 0a. Prior implementation status — 2026-10-29
+
 
 The shipped surface now includes the first-use shell (design system, responsive
 layout, nav, rendered errors), a **needs-you dashboard** with a 24-hour digest

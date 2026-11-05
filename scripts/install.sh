@@ -16,12 +16,14 @@ CONTAINER="${CONTAINER:-athanor-core}"
 INSTALL_SERVICE=0
 HOST_MODE=0
 NO_BUILD=0
+NO_OPEN=0
 for arg in "$@"; do
     case "$arg" in
         --service) INSTALL_SERVICE=1 ;;
         --host) HOST_MODE=1 ;;
         --no-build) NO_BUILD=1 ;;
-        *) echo "usage: $0 [--service] [--host] [--no-build]" >&2; exit 2 ;;
+        --no-open) NO_OPEN=1 ;;
+        *) echo "usage: $0 [--service] [--host] [--no-build] [--no-open]" >&2; exit 2 ;;
     esac
 done
 
@@ -141,5 +143,13 @@ if [ "$INSTALL_SERVICE" = "1" ]; then
 fi
 
 echo "installed athanor to $PREFIX/athanor"
+echo "First-run setup: http://127.0.0.1:7420/ui/welcome"
+if [ "$NO_OPEN" = "0" ]; then
+    if command -v open >/dev/null 2>&1; then
+        open "http://127.0.0.1:7420/ui/welcome" >/dev/null 2>&1 || true
+    elif command -v xdg-open >/dev/null 2>&1; then
+        xdg-open "http://127.0.0.1:7420/ui/welcome" >/dev/null 2>&1 || true
+    fi
+fi
 echo "Core Pod log: podman logs $CONTAINER"
 echo "stop: podman stop $CONTAINER"

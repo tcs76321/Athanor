@@ -302,11 +302,53 @@ func (u *UI) handleDashboard(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	day, _ := digest.Build(ctx, u.deps.Store, time.Now().Add(-24*time.Hour), time.Now())
-	u.render(w, "Dashboard", dashboardBody, map[string]any{
+	var cards []projectCard
+	projects, perr := u.listProjects(ctx)
+	if perr == nil {
+		for _, p := range projects {
+			cards = append(cards, u.projectCard(ctx, p))
+		}
+	}
+	u.render(w, "Home", dashboardBody, map[string]any{
 		"Active": active, "Terminal": terminal, "Pending": pending, "Frozen": frozen,
 		"ProjectNames": names, "ReviewCount": reviewCount, "RecentArtifacts": recentArts,
-		"Digest": day,
+		"Digest": day, "Projects": cards,
 	})
+}
+
+// projectCard is the dashboard's per-project summary: the latest job, the
+// onboarding status, and the artifact count. Kept to a few bounded queries so
+// the home page does not fan out across the whole graph.
+type projectCard struct {
+	Project       project.Project
+	LastState     string
+	LastJobID     string
+	Onboarding    string
+	ArtifactCount int
+	TaskCount     int
+}
+
+func (u *UI) projectCard(ctx context.Context, p project.Project) projectCard {
+	c := projectCard{Project: p, Onboarding: "legacy"}
+	if u.deps.Store == nil {
+		return c
+	}
+	var jobID, state string
+	if err := u.deps.Store.DB().QueryRowContext(ctx,
+		`SELECT id, state FROM jobs WHERE project_id = ? ORDER BY created_at DESC LIMIT 1`, p.ID).
+		Scan(&jobID, &state); err == nil {
+		c.LastJobID, c.LastState = jobID, state
+	}
+	var onboarding string
+	if err := u.deps.Store.DB().QueryRowContext(ctx,
+		`SELECT status FROM project_briefs WHERE project_id = ?`, p.ID).Scan(&onboarding); err == nil {
+		c.Onboarding = onboarding
+	}
+	_ = u.deps.Store.DB().QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM artifacts WHERE project_id = ?`, p.ID).Scan(&c.ArtifactCount)
+	_ = u.deps.Store.DB().QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM tasks WHERE project_id = ?`, p.ID).Scan(&c.TaskCount)
+	return c
 }
 
 // projectNames resolves the distinct project ids on a page to display names.
@@ -668,10 +710,44 @@ func (u *UI) handleWatch(w http.ResponseWriter, r *http.Request) {
 	if p, err := u.deps.Projects.Get(ctx, j.ProjectID); err == nil {
 		projectName = p.Name
 	}
+	phase := j.State
+	if phase == job.StatePaused && j.PausedFrom != "" {
+		phase = j.PausedFrom
+	}
+	if phase == job.StateAwaitingApproval && j.AwaitingFrom != "" {
+		phase = j.AwaitingFrom
+	}
 	u.render(w, "Watch "+id, watchBody, map[string]any{
 		"Job": j, "Artifacts": arts, "Notes": notes, "Events": events,
-		"ProjectName": projectName,
+		"ProjectName": projectName, "Phases": watchPhases, "Phase": string(phase),
+		"PhaseIndex": phaseIndex(phase), "LastEvent": lastEventName(events),
 	})
+}
+
+// watchPhases is the §8.1 working sequence shown as the watch stepper.
+var watchPhases = []job.State{
+	job.StateContextBuilding, job.StatePlanning, job.StateDiverging,
+	job.StateEvaluating, job.StateReflecting, job.StateSynthesizing, job.StateComparing,
+}
+
+func phaseIndex(s job.State) int {
+	for i, p := range watchPhases {
+		if p == s {
+			return i
+		}
+	}
+	if s == job.StateCompleted {
+		return len(watchPhases)
+	}
+	return -1
+}
+
+func lastEventName(events []store.EventRecord) string {
+	if len(events) == 0 {
+		return ""
+	}
+	// Events arrive newest-first from the query in handleWatch's caller.
+	return prettyEvent(events[0].DataJSON)
 }
 
 // handleJobStream is the watch view's SSE stream: token chunks plus new job
@@ -1118,6 +1194,21 @@ func (u *UI) fail(w http.ResponseWriter, err error) {
 	u.renderStatus(w, http.StatusBadRequest, "Error", errorBody, map[string]any{
 		"Error": err.Error(),
 	})
+}
+
+// renderPartial writes one template fragment (used by HTMX). It sets no page
+// shell and no CSP headers: the fragment is swapped into an existing document
+// whose policy is already in force.
+func (u *UI) renderPartial(w http.ResponseWriter, body string, data map[string]any) {
+	if data == nil {
+		data = map[string]any{}
+	}
+	t := template.Must(template.New("partial").Funcs(funcs).Parse(body))
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := t.Execute(w, data); err != nil {
+		slog.Error("ui: rendering partial", "err", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 }
 
 var funcs = template.FuncMap{

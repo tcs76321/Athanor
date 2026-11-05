@@ -2,7 +2,9 @@
 
 # ⚗️ Athanor
 
-### An alchemical furnace for your thoughts and code.
+### The alchemical LLM furnace.
+
+### A local-first workshop for goals that need more than one answer.
 
 **Local-first · Container-native · Semi-autonomous · Built to burn 24/7**
 
@@ -77,12 +79,13 @@ Full topology, isolation rules, and every subsystem are documented in [`ARCHITEC
 
 > **Install (M7-T7/T8; ADR-0078):** the supported runtime is the **Core Pod**.
 > From a clone, `sh scripts/install.sh` builds the Job Pod and Core images if
-> missing, writes a Core Pod config, starts the container, and waits for
-> `/healthz`. Add `--service` for a systemd user unit / launchd agent that
-> supervises the container. The host binary is the client and a development
-> tool; `make run` / `athanor serve` is an unsupported dev escape hatch
-> (`install.sh --host --service` keeps the old host service for development
-> only).
+> missing, writes a Core Pod config, starts the container, waits for
+> `/healthz`, prints `http://127.0.0.1:7420/ui/welcome`, and opens the first-run
+> wizard (use `--no-open` on a headless host). Add `--service` for a systemd
+> user unit / launchd agent that supervises the container. The host binary is
+> the client and a development tool; `make run` / `athanor serve` is an
+> unsupported dev escape hatch (`install.sh --host --service` keeps the old
+> host service for development only).
 >
 > **Vocabulary.** The **Core Pod** is the long-lived container that runs the
 > orchestration process (the "Core"); **Job Pods** are ephemeral and isolated.
@@ -135,12 +138,30 @@ Then watch it work in real time from the Watch View, or queue it and check the M
 | Workflow | You provide | Athanor delivers |
 |---|---|---|
 | **Code** | A goal + repository | DAG of tasks → test-driven implementation candidates run in Job Pods → evaluated, compared, committed on an agent-created branch |
-| **Brainstorm** | An exploratory goal | Scored option sets with strengths/weaknesses/risks, assumptions, questions, and recommended next tasks |
+| **Explore** | An exploratory goal | A guided brief → a portfolio of scored directions across industries/niches → the direction you choose → a 30-day plan and its first tasks |
 | **Research** | A question + allowlisted domains | Reader Mode extraction (no JS), cited summaries, contradiction analysis, report artifact |
 
 ## Status
 
 ### What works today (M0–M8 code-complete; M9 — 0.0.0 — in progress)
+
+- **First-class GUI foundation + onboarding (0.0.x).** The local UI is now a
+  project-centric workshop: a side rail with Home, Inbox, Projects, Library,
+  Insights, and System; a Monokai base theme (with Ember Paper and other
+  themes in Settings); safe Markdown reading for artifacts and plans; global
+  search; and a first-run wizard (`/ui/welcome`) that checks the Core and
+  Ollama, pulls persona models, runs the optional qualification, and hands the
+  operator to their first project. The supported runtime remains the Core Pod.
+- **Project onboarding, discovery, and research limits.** Creating a project
+  now continues into a guided brief: clarify the outcome, the limits, the
+  success criteria, and the sources Athanor may read. Exploratory goals get a
+  **portfolio** of scored directions (industries, niches, customers, wedges,
+  first experiments) instead of one generated document; the operator chooses a
+  direction and approves a 30-day plan that creates dependency-ordered tasks.
+  The legacy interview remains available. Discovery uses the `tall` persona,
+  is bounded, and never invents market data; only human-approved sources are
+  fetched through the gateway. See [ADR-0094](docs/adr/0094-project-discovery-portfolio.md)
+  and [ADR-0095](docs/adr/0095-first-class-gui-and-onboarding.md).
 
 - **0.0.0 capability + packaging (M9).** The self-refine repair loop
   (`execution.self_refine`, on by default) feeds the failing test's output back

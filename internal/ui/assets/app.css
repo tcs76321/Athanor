@@ -516,6 +516,23 @@ main {
   text-transform: uppercase;
   margin-bottom: 6px;
 }
+.hero {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-5);
+  padding: clamp(20px, 2.4vw, 34px);
+  margin-bottom: var(--space-5);
+  background: linear-gradient(135deg, var(--panel), var(--bg-raised));
+}
+.hero h1 { font-size: var(--step-3); margin: 0 0 var(--space-2); }
+.hero .lede { margin: 0; }
+.hero .actions { margin-top: 0; flex: none; }
+.meta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: var(--space-2) 0; }
+.project-card h3 { margin: var(--space-1) 0; }
+.project-card h3 a { color: var(--text); }
+.project-card .actions { margin-top: auto; }
+.project-card { display: flex; flex-direction: column; }
 
 /* ---------- layout helpers ---------- */
 .grid { display: grid; gap: var(--space-4); }
@@ -765,6 +782,19 @@ td .actions { margin-top: 0; }
 /* progress */
 .progress { height: 6px; background: var(--panel-3); border-radius: var(--radius-pill); overflow: hidden; }
 .progress > span { display: block; height: 100%; background: var(--accent); border-radius: inherit; transition: width 300ms var(--ease); }
+.phase-track { display: flex; flex-wrap: wrap; gap: 6px; margin: var(--space-3) 0; }
+.phase-node {
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  color: var(--faint);
+  background: var(--bg-raised);
+  font-size: 0.76rem;
+  font-weight: 600;
+  letter-spacing: .02em;
+}
+.phase-node.done { color: var(--muted); border-color: var(--border-strong); }
+.phase-node.current { color: var(--accent-ink); background: var(--accent); border-color: var(--accent); }
 
 /* timeline / events */
 .timeline { display: grid; gap: 0; }
@@ -974,6 +1004,7 @@ details[open] summary { margin-bottom: var(--space-2); }
   .topbar .search { width: 100%; margin-left: 0; }
   .topbar { flex-wrap: wrap; }
   .page-head { flex-direction: column; align-items: stretch; }
+  .hero { flex-direction: column; align-items: stretch; }
   main { padding: 18px 14px 56px; }
 }
 @media (max-width: 640px) {

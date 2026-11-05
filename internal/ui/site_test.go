@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -86,6 +87,31 @@ func TestSearchFindsProjectsAndReturnsJSON(t *testing.T) {
 	}
 	if !strings.Contains(body, `"results"`) || !strings.Contains(body, `"url":"/ui/projects/`) {
 		t.Errorf("json search missing a project result: %s", body)
+	}
+}
+
+func TestSearchHTMXReturnsFragment(t *testing.T) {
+	fx := setup(t)
+	req, err := http.NewRequest(http.MethodGet, fx.ts.URL+"/ui/search?q=demo", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("HX-Request", "true")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	raw, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := string(raw)
+	if strings.Contains(body, "<html") || strings.Contains(body, "<main") {
+		t.Fatalf("HTMX search returned a full page:\n%s", body)
+	}
+	if !strings.Contains(body, "demo") || !strings.Contains(body, "Project") {
+		t.Fatalf("HTMX search fragment missing the result:\n%s", body)
 	}
 }
 

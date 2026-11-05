@@ -73,11 +73,38 @@ const searchBody = `
 <h1>Search</h1>
 <p class="sub">{{if .Query}}{{.Count}} result{{if ne .Count 1}}s{{end}} for “{{.Query}}”{{else}}Search projects, artifacts, jobs, events, and pages.{{end}}</p>
 <div class="card">
-<form method="get" action="/ui/search" role="search" class="row">
-  <input type="search" name="q" value="{{.Query}}" placeholder="Search everything…" aria-label="Search">
+<form method="get" action="/ui/search" role="search" class="row"
+      hx-get="/ui/search" hx-target="#search-results" hx-swap="innerHTML"
+      hx-trigger="input changed delay:300ms from:input, submit" hx-push-url="true">
+  <input id="search-input" type="search" name="q" value="{{.Query}}" placeholder="Search everything…" aria-label="Search">
   <button class="primary">Search</button>
 </form>
 </div>
+<div id="search-results">
+{{if .Results}}
+<div class="card flush">
+<div class="table-wrap">
+<table>
+<thead><tr><th>Kind</th><th>Result</th><th>Detail</th></tr></thead>
+<tbody>
+{{range .Results}}<tr>
+  <td><span class="pill">{{.Kind}}</span></td>
+  <td><a href="{{.URL}}">{{.Label}}</a></td>
+  <td class="muted">{{.Detail}}</td>
+</tr>{{end}}
+</tbody>
+</table>
+</div>
+</div>
+{{else if .Query}}
+<div class="empty"><strong>No matches.</strong><br>Try a project name, an artifact kind, a job id, or a page name.</div>
+{{else}}
+<div class="empty"><strong>Start typing.</strong><br>The command palette (⌘K / Ctrl-K) opens the same index from anywhere.</div>
+{{end}}
+</div>
+`
+
+const searchResultsBody = `
 {{if .Results}}
 <div class="card flush">
 <div class="table-wrap">

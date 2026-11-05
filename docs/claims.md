@@ -51,6 +51,14 @@ demo. A claim without a proof is either removed or marked as a target.
 | The working-set pack improves repo-scale X-code | ADR-0083 | host diagnostic **4/6**; clean Core Pod rerun **3/6**; full post-P0 Core Pod slice **4/6** (vs 0/6 pre-P0), 45 chunks / 11.9 KiB injected; [findings](probes/bench-v2-p0-findings.md) | **directional; one model, one pass** |
 | A code prompt includes the verification command | ADR-0065, P0 fairness | `internal/prompt` (`Task.TestCommand`); `TestTaskContextShowsVerificationCommand`; `TestRun_CodeArchetypeUsesConfiguredTestCommand` | **proven** |
 | A single-file candidate is staged under the module the test imports | ADR-0065, P0 fairness | `internal/engine/pod_wiring.go` (`candidateModuleName`); `TestCandidateModuleName` | **proven** |
+| A fresh install is guided through machine onboarding | ADR-0095 | `/ui/welcome`; `TestFirstRunRedirectsToWelcome`, `TestWelcomeRendersBareShell`, `TestOnboardingAdvancesAndCompletes` | **proven** |
+| A project can be briefed, explored as a portfolio, and planned before work | ADR-0094, ADR-0095 | `internal/discovery`; `TestProjectOnboardingDiscoveryFlow`, `TestStoreRoundTripAndSelect`, `TestDedupeAndValidate` | **proven with a fake generator; a live-model run is the demo** |
+| Discovery is a portfolio, not a single-winner loop | ADR-0094 | `internal/discovery` (no engine comparison); `TestScoreIsDeterministicAndOrdered` | **proven by structure** |
+| A short, honest goal is accepted | ADR-0094 | `goals` 3-character floor; `TestCreateValidation`, `TestSubmitGoal` | **proven** |
+| The UI serves embedded assets with a strict CSP and no inline scripts/styles | ADR-0095 | `/ui/assets/*`; `TestAssetsAreEmbeddedAndCached`, `TestCSPAndNoInlineScripts` | **proven** |
+| Artifacts and plans are readable Markdown without raw HTML | ADR-0095 | `internal/ui/markdown.go`; `TestRenderMarkdownEscapesHTML`, `TestRenderMarkdownRejectsUnsafeLinks` | **proven** |
+| A queued cancel commits `cancelled` and does not underflow the engine cap | ADR-0087, this pass | `internal/engine/control_race_test.go`; `TestCancelQueuedJobCommitsCancelled`, `TestAbandonedWaitDoesNotUnderflowInFlight` | **proven** |
+| An external pause during a phase is honored, not failed | this pass | `TestExternalPauseDuringPhaseDoesNotFailJob` | **proven** |
 
 ## Rule
 

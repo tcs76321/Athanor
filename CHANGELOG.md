@@ -10,6 +10,32 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### GUI, onboarding, and discovery — 2026-11-04
+
+- **First-class GUI foundation.** The local UI now has a persistent rail
+  (Home, Inbox, Projects, Library, Insights, System), a Monokai base theme with
+  Ember Paper and four alternatives in Settings, embedded CSS/JS, a strict CSP,
+  a safe Markdown reader for artifacts and plans, global search + sitemap +
+  command palette, HTMX-enhanced search, a project-centered Home with a 24-hour
+  digest, project tabs, and a Watch view with a phase stepper and candidate
+  cards. [ADR-0095](docs/adr/0095-first-class-gui-and-onboarding.md).
+- **Machine onboarding.** `/ui/welcome` is a once-per-computer wizard:
+  environment checks, explicit persona-model pulls, the optional bounded
+  qualification, preferences, and a handoff to the first project. The installer
+  prints and opens the URL (`--no-open` for headless hosts).
+- **Project onboarding + discovery.** A project now continues into a resumable
+  brief (goal, limits, sources, success), a **portfolio** of scored directions
+  across industries and niches, a human selection, and a deterministic 30-day
+  plan that creates a dependency-ordered task graph. The legacy interview
+  remains. Discovery is a separate portfolio stage, not the single-winner
+  dialectical loop. [ADR-0094](docs/adr/0094-project-discovery-portfolio.md).
+- **Goal floor relaxed.** Goals may be 3 characters; the onboarding brief
+  supplies depth. Migration 0034 rebuilds `goals` and adds `project_briefs`,
+  `discovery_sessions`, and `discovery_options`.
+- **Engine control-plane fixes.** Queued cancellation now commits `cancelled`
+  (and no longer underflows the concurrency counter), and an external pause
+  during a phase is honored instead of failing the job.
+
 ### Fixes — 2026-11-02
 
 - **Background LLM calls are bounded by `inference.max_output_tokens`.** MCE

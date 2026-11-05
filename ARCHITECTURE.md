@@ -967,6 +967,15 @@ next_tasks:
   - task_definition
 ```
 
+**Implementation (0.0.x):** `internal/discovery` implements the portfolio
+contract. It is deliberately **not** the dialectical loop: the loop's
+divergence/evaluation phases choose one winner, while discovery preserves many
+distinct options for a human to choose. The operator briefs the project
+(limits, sources, success), Athanor generates a scored portfolio through the
+`tall` persona, the operator selects a direction, and approval creates the
+dependency-ordered plan. See
+[ADR-0094](docs/adr/0094-project-discovery-portfolio.md).
+
 ---
 
 ## 16. Research Workflow
