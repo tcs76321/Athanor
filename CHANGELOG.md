@@ -10,6 +10,17 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Model composition design — 2026-11-05
+
+- **Fixed personas are superseded by a model composition space.** An attempt is
+  a model × stance × context view × focus × params × tools tuple; a
+  deliberation is a graph of attempts plus aggregation, deterministic
+  verification, and a budget. The user owns pool membership; Athanor owns the
+  ranked roster and casting, seeded by an Athanor-shaped qualification suite
+  and updated by grounded outcomes per user, computer, project, and job. The
+  five role names survive as presets only. Behavior is unchanged until the
+  shadow-mode policy lands. [ADR-0104](docs/adr/0104-composition-space-not-personas.md).
+
 ### Household modes and operator control — 2026-11-05
 
 - **Athanor now has an explicit household mode.** Deep is unattended work with

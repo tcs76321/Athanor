@@ -2,6 +2,13 @@
 
 **Status:** design note / thesis · **Date:** 2026-10-05 · **Refs:** [model tiers](model-tiers.md), [LOM/LAM + RLVR](lom-lam-integration.md), [self-improvement](self-improvement.md), [F4 plan](f4-plan.md), [M3-T7 results](probes/m3-t7-quality-probe-results.md)
 
+> **Update (2026-11-05).** The durable direction is now stated in
+> [ADR-0104](adr/0104-composition-space-not-personas.md): the five role names
+> in this note are presets over a model composition space, not the runtime
+> ontology. Selection is scoped per user, computer, project, and job, seeded by
+> an Athanor-shaped qualification suite and updated by grounded outcomes. Read
+> this note for the original routing argument; read ADR-0104 for the model.
+
 The system should not be "one model, everywhere." It should choose **which
 model, for which phase, for this user, right now**, and learn that choice from
 its own outcomes. This note argues the case, maps it onto what Athanor already
