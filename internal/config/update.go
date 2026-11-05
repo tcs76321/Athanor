@@ -67,43 +67,7 @@ func UpdatePersonas(path string, updates map[string]PersonaConfig) error {
 	if err != nil {
 		return fmt.Errorf("encoding config: %w", err)
 	}
-	dir := filepath.Dir(path)
-	mode := os.FileMode(0o600)
-	if st, err := os.Stat(path); err == nil {
-		mode = st.Mode().Perm()
-	}
-	tmp, err := os.CreateTemp(dir, ".athanor-config-*.yaml")
-	if err != nil {
-		return fmt.Errorf("creating temporary config: %w", err)
-	}
-	tmpName := tmp.Name()
-	defer func() { _ = os.Remove(tmpName) }()
-	if err := tmp.Chmod(mode); err != nil {
-		_ = tmp.Close()
-		return fmt.Errorf("setting temporary config mode: %w", err)
-	}
-	if _, err := tmp.Write(out); err != nil {
-		_ = tmp.Close()
-		return fmt.Errorf("writing temporary config: %w", err)
-	}
-	if err := tmp.Close(); err != nil {
-		return fmt.Errorf("closing temporary config: %w", err)
-	}
-	// Validate the exact bytes that will replace the file.
-	if _, err := Load(tmpName); err != nil {
-		return fmt.Errorf("validating updated config: %w", err)
-	}
-	backup := path + ".bak"
-	if err := os.WriteFile(backup, data, mode); err != nil {
-		return fmt.Errorf("writing config backup: %w", err)
-	}
-	if err := os.Rename(tmpName, path); err != nil {
-		return fmt.Errorf("replacing config: %w", err)
-	}
-	// Keep the backup timestamped for the audit trail.
-	stamped := fmt.Sprintf("%s.%s", backup, time.Now().UTC().Format("20060102T150405Z"))
-	_ = os.Rename(backup, stamped)
-	return nil
+	return writeConfigFile(path, out, data)
 }
 
 // JobPodResources is the operator-editable slice of the Job Pod limits.
@@ -193,6 +157,51 @@ func UpdateJobPodResources(path string, r JobPodResources) error {
 	if err := os.Rename(tmpName, path); err != nil {
 		return fmt.Errorf("replacing config: %w", err)
 	}
+	stamped := fmt.Sprintf("%s.%s", backup, time.Now().UTC().Format("20060102T150405Z"))
+	_ = os.Rename(backup, stamped)
+	return nil
+}
+
+func writeConfigFile(path string, out, original []byte) error {
+	dir := filepath.Dir(path)
+	mode := os.FileMode(0o600)
+	if st, err := os.Stat(path); err == nil {
+		mode = st.Mode().Perm()
+	}
+	tmp, err := os.CreateTemp(dir, ".athanor-config-*.yaml")
+	if err != nil {
+		return fmt.Errorf("creating temporary config: %w", err)
+	}
+	tmpName := tmp.Name()
+	defer func() { _ = os.Remove(tmpName) }()
+	if err := tmp.Chmod(mode); err != nil {
+		_ = tmp.Close()
+		return fmt.Errorf("setting temporary config mode: %w", err)
+	}
+	if _, err := tmp.Write(out); err != nil {
+		_ = tmp.Close()
+		return fmt.Errorf("writing temporary config: %w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		return fmt.Errorf("closing temporary config: %w", err)
+	}
+	// Validate the exact bytes that will replace the file.
+	if _, err := Load(tmpName); err != nil {
+		return fmt.Errorf("validating updated config: %w", err)
+	}
+	backup := path + ".bak"
+	if err := os.WriteFile(backup, original, mode); err != nil {
+		return fmt.Errorf("writing config backup: %w", err)
+	}
+	if err := os.Rename(tmpName, path); err != nil {
+		// The Core Pod mounts a single config file into the container. A
+		// rename over that mount point returns EBUSY/EXDEV, so fall back to
+		// writing through the mount. The backup above is the recovery path.
+		if werr := os.WriteFile(path, out, mode); werr != nil {
+			return fmt.Errorf("replacing config (mounted file): %w", werr)
+		}
+	}
+	// Keep the backup timestamped for the audit trail.
 	stamped := fmt.Sprintf("%s.%s", backup, time.Now().UTC().Format("20060102T150405Z"))
 	_ = os.Rename(backup, stamped)
 	return nil
