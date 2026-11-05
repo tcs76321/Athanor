@@ -1,6 +1,9 @@
 package onboard
 
-import "sort"
+import (
+	"fmt"
+	"sort"
+)
 
 // Assignment is Athanor's automatic persona selection for one role.
 type Assignment struct {
@@ -17,6 +20,13 @@ type Assignment struct {
 // system does not grade its own lineage. It never claims a cross-family judge
 // when only one family is installed.
 func AutoAssign(roles []Role, models []Model, availableBytes, reserveBytes int64) []Assignment {
+	return AutoAssignWithScores(roles, models, nil, availableBytes, reserveBytes)
+}
+
+// AutoAssignWithScores is AutoAssign plus optional per-role qualification
+// scores keyed "role|model". A measured role prefers the highest score; an
+// unmeasured role falls back to size. Family constraints still apply.
+func AutoAssignWithScores(roles []Role, models []Model, scores map[string]float64, availableBytes, reserveBytes int64) []Assignment {
 	if len(models) == 0 {
 		return nil
 	}
@@ -45,18 +55,62 @@ func AutoAssign(roles []Role, models []Model, availableBytes, reserveBytes int64
 	})
 	smallest := fitting[len(fitting)-1]
 
+	// ranked returns role-specific order: measured models first by score, then
+	// the unmeasured by size. An unmeasured role is exactly the old behavior.
+	ranked := func(role string) []Model {
+		out := append([]Model(nil), fitting...)
+		if len(scores) == 0 {
+			return out
+		}
+		measured := false
+		for _, m := range out {
+			if _, ok := scores[role+"|"+m.Name]; ok {
+				measured = true
+				break
+			}
+		}
+		if !measured {
+			return out
+		}
+		sort.SliceStable(out, func(i, j int) bool {
+			si, iok := scores[role+"|"+out[i].Name]
+			sj, jok := scores[role+"|"+out[j].Name]
+			if iok != jok {
+				return iok
+			}
+			if iok && si != sj {
+				return si > sj
+			}
+			if out[i].SizeBytes != out[j].SizeBytes {
+				return out[i].SizeBytes > out[j].SizeBytes
+			}
+			return out[i].Name < out[j].Name
+		})
+		return out
+	}
+	reason := func(role, model, fallback string) string {
+		if s, ok := scores[role+"|"+model]; ok {
+			return fmt.Sprintf("highest measured score for this role (%.2f)", s)
+		}
+		return fallback
+	}
+
 	byRole := map[string]Assignment{}
 	family := func(m Model) string { return m.Family }
 
-	// tall: the largest model.
-	tall := fitting[0]
-	byRole["tall"] = Assignment{Model: tall.Name, Family: family(tall), Reason: "largest installed model for hard reasoning"}
+	// tall: the best measured (else largest) model.
+	tallRanked := ranked("tall")
+	tall := tallRanked[0]
+	byRole["tall"] = Assignment{Model: tall.Name, Family: family(tall), Reason: reason("tall", tall.Name, "largest installed model for hard reasoning")}
 	// main: the next distinct model, else tall.
 	main := tall
-	if len(fitting) > 1 {
-		main = fitting[1]
+	for _, m := range ranked("main") {
+		if m.Name != tall.Name {
+			main = m
+			break
+		}
 	}
-	byRole["main"] = Assignment{Model: main.Name, Family: family(main), Reason: "largest remaining model for normal execution"}
+	byRole["main"] = Assignment{Model: main.Name, Family: family(main), Reason: reason("main", main.Name, "largest remaining model for normal execution")}
 	// wide: the smallest model for fast ingestion.
 	byRole["wide"] = Assignment{Model: smallest.Name, Family: family(smallest), Reason: "smallest installed model for fast ingestion"}
 
@@ -68,10 +122,10 @@ func AutoAssign(roles []Role, models []Model, availableBytes, reserveBytes int64
 			generatorFamilies[a.Family] = true
 		}
 	}
-	judge := pickDifferent(fitting, generatorFamilies)
+	judge := pickDifferent(ranked("security"), generatorFamilies)
 	judgeReason := "largest model from a family outside the generator roles (cross-family judgment)"
 	if judge == nil {
-		judge = pickDifferent(fitting, map[string]bool{family(tall): true, family(main): true})
+		judge = pickDifferent(ranked("security"), map[string]bool{family(tall): true, family(main): true})
 		judgeReason = "no cross-family judge available; using the largest different model"
 	}
 	if judge == nil {
@@ -84,16 +138,17 @@ func AutoAssign(roles []Role, models []Model, availableBytes, reserveBytes int64
 	// If every family is already used, sharing the main model's family is
 	// preferable to sharing the judge's family (the judge's cross-family
 	// guarantee is the stronger one).
-	alt := pickDifferent(fitting, map[string]bool{
+	altRanked := ranked("alternative")
+	alt := pickDifferent(altRanked, map[string]bool{
 		family(tall): true, family(main): true, byRole["security"].Family: true,
 	})
 	altReason := "different family from main/tall/judge for an orthogonal candidate"
 	if alt == nil {
-		alt = pickSameFamily(fitting, family(main))
+		alt = pickSameFamily(altRanked, family(main))
 		altReason = "shares the main model's family; no unused family remains for a separate alternative"
 	}
 	if alt == nil {
-		alt = pickDifferent(fitting, map[string]bool{family(tall): true})
+		alt = pickDifferent(altRanked, map[string]bool{family(tall): true})
 		altReason = "different family from the tall model for an orthogonal candidate"
 	}
 	if alt == nil {

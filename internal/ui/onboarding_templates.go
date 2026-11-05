@@ -160,6 +160,7 @@ const welcomeBody = `
     {{end}}
 
     <h2>Athanor's selection</h2>
+    <p class="muted">{{if .HasMeasurements}}The selection uses your stored qualification measurements where available, then falls back to size.{{else}}The selection is size- and family-based. Run the bounded qualification in <a href="/ui/setup">Setup</a> to rank models by measured performance.{{end}}</p>
     {{if .Assignments}}
     {{if eq .Applied "personas"}}<div class="notice">Persona assignment saved to <code>{{.ConfigPath}}</code>. Restart the Core (or the host process) to load it; the running registry keeps the current models until then.</div>{{end}}
     <div class="card flush"><div class="table-wrap">

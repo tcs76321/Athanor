@@ -249,7 +249,11 @@ func (u *UI) welcomeData(ctx context.Context, st onboardingState) map[string]any
 	if u.deps.Hardware != nil {
 		hw = u.deps.Hardware(ctx)
 	}
-	assignments := u.autoAssignments(roles, models, hw)
+	measurements := []onboard.Measurement{}
+	if u.deps.Store != nil {
+		measurements = qualMeasurementsFromState(u.loadQualState(ctx))
+	}
+	assignments := u.autoAssignments(roles, models, hw, measurements)
 	suggestions := u.pullSuggestions(roles)
 	resources := recommendedResources(hw, u.deps.Config)
 	budget := budgetFor(models, hw, resources)
@@ -262,6 +266,7 @@ func (u *UI) welcomeData(ctx context.Context, st onboardingState) map[string]any
 		"PersonaGuides": personaGuides, "Assignments": assignments,
 		"Suggestions": suggestions, "Resources": resources, "Hardware": hw,
 		"Budget": budget, "ConfigPath": u.deps.ConfigPath,
+		"HasMeasurements": len(measurements) > 0,
 		"OllamaURL": func() string {
 			if u.deps.Config == nil {
 				return ""
@@ -272,9 +277,16 @@ func (u *UI) welcomeData(ctx context.Context, st onboardingState) map[string]any
 }
 
 // autoAssignments converts the UI's catalog to the deterministic selector.
-func (u *UI) autoAssignments(roles []setupRole, models []setupModel, hw Hardware) []onboard.Assignment {
+func (u *UI) autoAssignments(roles []setupRole, models []setupModel, hw Hardware, measurements []onboard.Measurement) []onboard.Assignment {
 	if len(models) == 0 {
 		return nil
+	}
+	scores := map[string]float64{}
+	for _, m := range measurements {
+		key := m.Role + "|" + m.Model
+		if m.Score > scores[key] {
+			scores[key] = m.Score
+		}
 	}
 	oroles := make([]onboard.Role, 0, len(roles))
 	for _, r := range roles {
@@ -290,7 +302,7 @@ func (u *UI) autoAssignments(roles []setupRole, models []setupModel, hw Hardware
 		omodels = append(omodels, onboard.Model{Name: m.Name, SizeBytes: m.SizeBytes, Family: m.Family})
 	}
 	reserve := int64(2 << 30)
-	return onboard.AutoAssign(oroles, omodels, int64(hw.TotalMemoryBytes), reserve)
+	return onboard.AutoAssignWithScores(oroles, omodels, scores, int64(hw.TotalMemoryBytes), reserve)
 }
 
 // pullSuggestions lists configured persona models that are not installed,
@@ -561,7 +573,11 @@ func (u *UI) applyPersonas(ctx context.Context) error {
 	if u.deps.Hardware != nil {
 		hw = u.deps.Hardware(ctx)
 	}
-	assignments := u.autoAssignments(roles, models, hw)
+	measurements := []onboard.Measurement{}
+	if u.deps.Store != nil {
+		measurements = qualMeasurementsFromState(u.loadQualState(ctx))
+	}
+	assignments := u.autoAssignments(roles, models, hw, measurements)
 	if len(assignments) == 0 {
 		return fmt.Errorf("no models are installed to assign")
 	}

@@ -59,6 +59,33 @@ func TestAutoAssignSingleModel(t *testing.T) {
 	}
 }
 
+func TestAutoAssignUsesMeasuredScores(t *testing.T) {
+	roles := []Role{{Role: "tall"}, {Role: "main"}, {Role: "security"}, {Role: "alternative"}}
+	models := []Model{
+		{Name: "large", SizeBytes: 9 << 30, Family: "gemma"},
+		{Name: "mid", SizeBytes: 5 << 30, Family: "qwen"},
+		{Name: "other", SizeBytes: 4 << 30, Family: "muse"},
+	}
+	scores := map[string]float64{
+		"tall|mid": 0.9, "tall|large": 0.4,
+		"main|large": 0.8, "main|mid": 0.2,
+	}
+	got := AutoAssignWithScores(roles, models, scores, 32<<30, 2<<30)
+	by := map[string]Assignment{}
+	for _, a := range got {
+		by[a.Role] = a
+	}
+	if by["tall"].Model != "mid" {
+		t.Errorf("tall = %q, want the higher measured model mid", by["tall"].Model)
+	}
+	if by["main"].Model != "large" {
+		t.Errorf("main = %q, want large (measured 0.8)", by["main"].Model)
+	}
+	if by["security"].Family == by["tall"].Family || by["security"].Family == by["main"].Family {
+		t.Errorf("security family = %q, must differ from generators", by["security"].Family)
+	}
+}
+
 func TestAutoAssignUnknownMemoryStillSelects(t *testing.T) {
 	roles := []Role{{Role: "tall"}, {Role: "security"}}
 	models := []Model{
