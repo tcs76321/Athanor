@@ -64,7 +64,7 @@ const welcomeBody = `
     <h1>Resources.</h1>
     <p class="lede">Athanor detected the host capacity below. The Job Pod limits are a sandbox budget, not the model budget: Ollama runs on the host, while each ephemeral pod gets its own memory, CPU, /tmp, and PID cap. The recommended values are prefilled; verify or change them.</p>
     <div class="grid cols-3 tight">
-      <div class="card stat"><div class="n">{{if .Resources.TotalMemoryGiB}}{{printf "%.0f" .Resources.TotalMemoryGiB}}{{else}}?{{end}}</div><div class="l">GiB host RAM</div></div>
+      <div class="card stat"><div class="n">{{if .Resources.TotalMemoryGiB}}{{printf "%.0f" .Resources.TotalMemoryGiB}}{{else}}?{{end}}</div><div class="l">GiB runtime RAM</div></div>
       <div class="card stat"><div class="n">{{if .Resources.CPUs}}{{.Resources.CPUs}}{{else}}?{{end}}</div><div class="l">CPU cores</div></div>
       <div class="card stat"><div class="n">{{if .Resources.FreeDiskGiB}}{{printf "%.0f" .Resources.FreeDiskGiB}}{{else}}?{{end}}</div><div class="l">GiB free disk</div></div>
     </div>
@@ -74,7 +74,7 @@ const welcomeBody = `
         <input type="hidden" name="step" value="resources">
         <label for="memory_mb">Job Pod memory (MB)</label>
         <input id="memory_mb" type="number" name="memory_mb" min="256" max="{{.Resources.MemoryMaxMB}}" step="256" value="{{.Resources.MemoryMB}}" required>
-        <div class="field-help">Host RAM minus a {{.Resources.ReserveMB}} MB reserve is the ceiling ({{.Resources.MemoryMaxMB}} MB).</div>
+        <div class="field-help">Runtime memory minus a {{.Resources.ReserveMB}} MB reserve is the ceiling ({{.Resources.MemoryMaxMB}} MB).</div>
         <div class="row">
           <label>CPUs
             <input type="number" name="cpus" min="0.25" max="{{.Resources.CPUsMax}}" step="0.25" value="{{printf "%.2f" .Resources.CPUsAllocated}}" required>

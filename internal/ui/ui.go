@@ -59,9 +59,16 @@ type Exporter interface {
 
 // Hardware is the host capacity reported to the resources step.
 type Hardware struct {
+	// TotalMemoryBytes is the memory available to the container runtime (the
+	// Podman VM on macOS). Job Pod limits are derived from it.
 	TotalMemoryBytes uint64
-	FreeDiskBytes    uint64
-	CPUs             int
+	// HostMemoryBytes is the physical host's memory. Ollama runs on the host,
+	// so model-fit budgets use this when it is known. It falls back to
+	// TotalMemoryBytes in host mode and on hosts where the Core can see the
+	// full machine directly.
+	HostMemoryBytes uint64
+	FreeDiskBytes   uint64
+	CPUs            int
 }
 
 // TaskResetter is the operator recovery surface for blocked tasks.

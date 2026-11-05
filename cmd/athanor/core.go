@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -37,13 +38,16 @@ type coreOptions struct {
 	ScratchDir      string
 	SocketPath      string
 	Addr            string
+	// HostMemoryBytes is the physical host's memory, passed to the Core so
+	// model-fit budgets do not mistake the Podman VM's memory for the host's.
+	HostMemoryBytes uint64
 }
 
 // coreRunArgs is the pure `podman run` argv for a Core Pod. It is separated
 // from the runner so tests can pin the mounts and the loopback publish
 // without a container runtime.
 func coreRunArgs(o coreOptions) []string {
-	return []string{
+	args := []string{
 		"run", "-d",
 		"--name", o.Name,
 		"--security-opt", "label=disable",
@@ -54,8 +58,11 @@ func coreRunArgs(o coreOptions) []string {
 		"-v", o.ScratchDir + ":/var/lib/athanor/state/scratch",
 		"-v", o.WorkspaceVolume + ":/var/lib/athanor/workspace",
 		"-v", o.ConfigPath + ":/etc/athanor/config.yaml",
-		o.Image,
 	}
+	if o.HostMemoryBytes > 0 {
+		args = append(args, "-e", "ATHANOR_HOST_MEMORY_BYTES="+strconv.FormatUint(o.HostMemoryBytes, 10))
+	}
+	return append(args, o.Image)
 }
 
 // coreSocketPath resolves the machine socket the Core Pod mounts. macOS

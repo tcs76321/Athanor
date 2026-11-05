@@ -69,6 +69,12 @@ func runStart(args []string) error {
 	if err != nil {
 		return err
 	}
+	// The Core cannot see the macOS host's memory through the Podman VM. Pass
+	// the physical host capacity so model-fit budgets use the right number;
+	// Job Pod limits still use the runtime's own memory.
+	if mem, ok := newOSProbes().TotalMemoryBytes(context.Background()); ok {
+		opts.HostMemoryBytes = mem
+	}
 	if err := coreUp(context.Background(), opts); err != nil {
 		return err
 	}

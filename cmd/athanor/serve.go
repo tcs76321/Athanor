@@ -12,6 +12,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -434,8 +435,17 @@ func run(configPath, addr, stateDir string, container bool) error {
 		Hardware: func(ctx context.Context) ui.Hardware {
 			p := newOSProbes()
 			mem, _ := p.TotalMemoryBytes(ctx)
+			hostMem := mem
+			if raw := os.Getenv("ATHANOR_HOST_MEMORY_BYTES"); raw != "" {
+				if n, err := strconv.ParseUint(raw, 10, 64); err == nil && n > 0 {
+					hostMem = n
+				}
+			}
 			disk, _ := p.FreeDiskBytes(ctx, stateDir)
-			return ui.Hardware{TotalMemoryBytes: mem, FreeDiskBytes: disk, CPUs: runtime.NumCPU()}
+			return ui.Hardware{
+				TotalMemoryBytes: mem, HostMemoryBytes: hostMem,
+				FreeDiskBytes: disk, CPUs: runtime.NumCPU(),
+			}
 		},
 		DefaultTTL: cfg.HITL.DefaultTTL.D(),
 	})

@@ -78,8 +78,12 @@ type modelBudget struct {
 }
 
 func budgetFor(models []setupModel, hw Hardware, res resourceView) modelBudget {
+	hostBytes := hw.HostMemoryBytes
+	if hostBytes == 0 {
+		hostBytes = hw.TotalMemoryBytes
+	}
 	b := modelBudget{
-		TotalGiB:   float64(hw.TotalMemoryBytes) / (1 << 30),
+		TotalGiB:   float64(hostBytes) / (1 << 30),
 		PodGiB:     float64(res.MemoryMB) / 1024,
 		ReserveGiB: float64(res.ReserveMB) / 1024,
 	}

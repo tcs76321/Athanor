@@ -20,6 +20,7 @@ func TestCoreRunArgs(t *testing.T) {
 		ScratchDir:      "/home/u/.config/athanor/scratch",
 		SocketPath:      "/run/user/1000/podman/podman.sock",
 		Addr:            "127.0.0.1:7420",
+		HostMemoryBytes: 34359738368,
 	}
 	args := strings.Join(coreRunArgs(o), " ")
 	for _, want := range []string{
@@ -32,6 +33,7 @@ func TestCoreRunArgs(t *testing.T) {
 		"-v /home/u/.config/athanor/scratch:/var/lib/athanor/state/scratch",
 		"-v athanor-workspace:/var/lib/athanor/workspace",
 		"-v /home/u/.config/athanor/config.yaml:/etc/athanor/config.yaml",
+		"-e ATHANOR_HOST_MEMORY_BYTES=34359738368",
 		"athanor-core:latest",
 	} {
 		if !strings.Contains(args, want) {

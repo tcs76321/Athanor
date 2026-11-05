@@ -123,6 +123,20 @@ func TestOnboardingAdvancesAndCompletes(t *testing.T) {
 	}
 }
 
+func TestBudgetForUsesHostMemoryNotRuntimeMemory(t *testing.T) {
+	b := budgetFor(
+		[]setupModel{{SizeBytes: 20 << 30}},
+		Hardware{TotalMemoryBytes: 16 << 30, HostMemoryBytes: 32 << 30},
+		resourceView{MemoryMB: 8192, ReserveMB: 2048},
+	)
+	if b.TotalGiB != 32 {
+		t.Errorf("budget total = %.1f GiB, want the 32 GiB host total", b.TotalGiB)
+	}
+	if b.Overcommit {
+		t.Errorf("budget = %+v, want it to fit in host memory", b)
+	}
+}
+
 func TestOnboardingEnvironmentCheckIsFinal(t *testing.T) {
 	if onboardingIndex("environment") != len(onboardingSteps)-2 {
 		t.Fatalf("environment index = %d, want the penultimate step", onboardingIndex("environment"))
@@ -186,7 +200,7 @@ func TestWelcomeResourcesStep(t *testing.T) {
 	t.Cleanup(ts.Close)
 
 	_, body := get(t, ts.URL+"/ui/welcome?step=resources")
-	for _, want := range []string{"Resources.", "GiB host RAM", "CPU cores", "Job Pod memory (MB)", "Save resource limits"} {
+	for _, want := range []string{"Resources.", "GiB runtime RAM", "CPU cores", "Job Pod memory (MB)", "Save resource limits"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("resources step missing %q", want)
 		}
