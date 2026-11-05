@@ -219,6 +219,7 @@ func (e *Engine) phaseReflect(ctx context.Context, j job.Job) error {
 		"unit": decision.UnitID, "reason": decision.Reason,
 		"signature": sig, "implicated": implicated, "iter": iter,
 	})
+	e.captureRegulatorCorrection(ctx, p.ID, j.ID, decision)
 
 	switch decision.Decision {
 	case regulator.Defer:

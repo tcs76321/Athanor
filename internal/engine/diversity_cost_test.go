@@ -7,7 +7,9 @@ import (
 
 	"github.com/tcs76321/athanor/internal/artifact"
 	"github.com/tcs76321/athanor/internal/config"
+	"github.com/tcs76321/athanor/internal/evaluation"
 	"github.com/tcs76321/athanor/internal/store"
+	"github.com/tcs76321/athanor/internal/verify"
 )
 
 // divergencePersonas returns the distinct personas used for a job's
@@ -118,5 +120,48 @@ func TestCostTieWins(t *testing.T) {
 	}
 	if costTieWins(0.90, 0.91, 0.02, 0, 100) {
 		t.Error("unknown new cost must not win")
+	}
+}
+
+// TestCostAwareEligibleRefusesHardVerifierFailure pins the ordering bug that
+// made a cost tie able to overturn a failed real test: a decisive hard failure
+// is authoritative, and an unknown previous score or final score is not a tie.
+func TestCostAwareEligibleRefusesHardVerifierFailure(t *testing.T) {
+	finalRec := evaluation.NewRecord("job-1", "art-1")
+	finalRec.Score = 0.95
+	cases := []struct {
+		name      string
+		ver       verify.Result
+		final     evaluation.Record
+		prevScore float64
+		want      bool
+	}{
+		{
+			name:  "hard verifier failure is never cost-winnable",
+			ver:   verify.Result{HardApplied: 1, HardPassed: false},
+			final: finalRec, prevScore: 0.90, want: false,
+		},
+		{
+			name:  "hard verifier pass is eligible",
+			ver:   verify.Result{HardApplied: 1, HardPassed: true},
+			final: finalRec, prevScore: 0.90, want: true,
+		},
+		{
+			name:  "unknown previous score is not a tie",
+			ver:   verify.Result{Applied: 1, Passed: true},
+			final: finalRec, prevScore: 0, want: false,
+		},
+		{
+			name:  "zero final score is not a tie",
+			ver:   verify.Result{Applied: 1, Passed: true},
+			final: evaluation.NewRecord("job-1", "art-1"), prevScore: 0.90, want: false,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := costAwareEligible(tc.ver, tc.final, tc.prevScore); got != tc.want {
+				t.Errorf("costAwareEligible = %v, want %v", got, tc.want)
+			}
+		})
 	}
 }

@@ -315,6 +315,7 @@ func (e *Engine) evaluateCandidate(ctx context.Context, j job.Job, p project.Pro
 	rec.BetterThanPrevious = verdict.BetterThanPrevious
 	rec.Confidence = verdict.Confidence
 	rec.Summary = verdict.Summary
+	e.captureEvaluationCorrection(ctx, p.ID, j.ID, cand.ID, rec, vin)
 	return e.eval.Create(ctx, rec)
 }
 

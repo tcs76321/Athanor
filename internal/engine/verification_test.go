@@ -112,9 +112,68 @@ func TestVerifierFirst_FailingTestsBlockAcceptance(t *testing.T) {
 	}
 }
 
+// TestVerifierFirst_SameFamilyPreviousArtifactAccepted proves a
+// single-model-family install can still accept later code artifacts. Without
+// this, every task after the first has a previous accepted artifact, no
+// cross-family judge is available, and the verifier-first path would decline
+// an artifact whose real tests pass.
+func TestVerifierFirst_SameFamilyPreviousArtifactAccepted(t *testing.T) {
+	e := newEnvWithCfg(t, func(cfg *config.Config) {
+		cfg.Execution.Policy.JudgeMode = config.JudgeModeVerifier
+		// Make the judge share the generator's family. The default test
+		// config has three personas; this pins the single-family case.
+		cfg.Personas.Security.Model = cfg.Personas.Main.Model
+		cfg.Personas.Security.Family = cfg.Personas.Main.Family
+	})
+	ctx := context.Background()
+	projectID, _, firstJob := e.createProjectTask(t, "code",
+		"Write a Python module that manages a personal book collection.")
+	e.eng.Run(ctx, firstJob)
+
+	first, err := e.jobs.Get(ctx, firstJob)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.State != job.StateCompleted {
+		t.Fatalf("first job state = %s, want completed", first.State)
+	}
+	firstAccepted, err := e.artifacts.LatestAcceptedByProject(ctx, projectID)
+	if err != nil {
+		t.Fatalf("first accepted artifact: %v", err)
+	}
+
+	// Second task under the same project; it now has a previous accepted
+	// artifact and the judge shares the generator's family.
+	task, err := e.projects.SubmitGoal(ctx, projectID,
+		"Extend the book collection module with a search command.", []string{"tests pass"})
+	if err != nil {
+		t.Fatalf("SubmitGoal: %v", err)
+	}
+	secondJob, err := e.jobs.Create(ctx, task.ID, projectID)
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	e.eng.Run(ctx, secondJob.ID)
+
+	second, err := e.jobs.Get(ctx, secondJob.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if second.State != job.StateCompleted {
+		t.Fatalf("second job state = %s, want completed", second.State)
+	}
+	secondAccepted, err := e.artifacts.LatestAcceptedByProject(ctx, projectID)
+	if err != nil {
+		t.Fatalf("second accepted artifact: %v", err)
+	}
+	if secondAccepted.ID == firstAccepted.ID {
+		t.Fatalf("second task did not produce a new accepted artifact (still %s)", firstAccepted.ID)
+	}
+}
+
 // TestVerifierFirst_SameFamilyJudgeDeclines proves the F4-T3 cross-family
-// rule: a judge persona drawn from the generator's family is not consulted,
-// and without decisive deterministic evidence the new artifact is declined
+// rule for an artifact with no decisive deterministic verifier: the judge is
+// not consulted, and without decisive evidence the new artifact is declined
 // with an audited mismatch.
 func TestVerifierFirst_SameFamilyJudgeDeclines(t *testing.T) {
 	e := newEnvWithCfg(t, func(cfg *config.Config) {

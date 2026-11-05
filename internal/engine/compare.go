@@ -144,6 +144,10 @@ func (e *Engine) phaseCompare(ctx context.Context, j job.Job) error {
 	}
 	genRole := e.roleFor(plan, policy.PhaseDiverging, llm.RoleMain)
 	genFamily, judgeFamily, crossOK := e.crossFamily(genRole, judgeRole)
+	// known-issues D1: the final artifact's record describes the bytes actually
+	// being compared. Build it before the decision so the verifier path can
+	// use its deterministic better-than-previous signal.
+	finalRecord := buildFinalEvaluation(j, final, previousID, previousAvgScore, ver)
 
 	var (
 		verdict     comparisonVerdict
@@ -162,7 +166,31 @@ func (e *Engine) phaseCompare(ctx context.Context, j job.Job) error {
 			verdict = comparisonVerdict{Winner: "new", Confidence: 1,
 				Reasons: []string{"deterministic verifier pass (no previous artifact)"}}
 			decided = true
+		case finalRecord.BetterThanPrevious:
+			// A clean pass at or above the previous accepted artifact's score
+			// is decisive. The §19.3 guard still runs below and can only
+			// confirm this record-backed verdict.
+			verdict = comparisonVerdict{Winner: "new", Confidence: 1,
+				Reasons: []string{"deterministic verifier pass at or above the previous accepted score"}}
+			decided = true
 		}
+	}
+	if !decided && plan.JudgeMode == policy.JudgeVerifier &&
+		!crossOK && e.cfg.Execution.RequireCrossFamilyValue() && ver.HardDecisive() && ver.HardPassed {
+		// No cross-family judge is available. The deterministic verifier
+		// passed, so refusing every follow-up artifact would make a
+		// single-model-family install unable to accept any code task after the
+		// first. Accept the verified artifact and record why, instead of
+		// silently turning every later task into a rejected artifact under a
+		// "completed" job.
+		e.audit(ctx, j.ID, map[string]any{
+			"event": "judge_family_mismatch", "generator_family": genFamily,
+			"judge_family": judgeFamily, "judge_role": judgeRole, "generator_role": genRole,
+			"resolution": "deterministic verifier pass; cross-family judge unavailable",
+		})
+		verdict = comparisonVerdict{Winner: "new", Confidence: 1,
+			Reasons: []string{"deterministic verifier pass; no cross-family judge available"}}
+		decided = true
 	}
 	if !decided && plan.JudgeMode == policy.JudgeVerifier &&
 		!crossOK && e.cfg.Execution.RequireCrossFamilyValue() {
@@ -198,7 +226,6 @@ func (e *Engine) phaseCompare(ctx context.Context, j job.Job) error {
 	// persisted after the cost-aware block below so the proposal-based
 	// max-score there is unchanged.
 	threshold := e.cfg.Execution.MinJudge()
-	finalRecord := buildFinalEvaluation(j, final, previousID, previousAvgScore, ver)
 	guardRecords := append(append([]evaluation.Record(nil), records...), finalRecord)
 	preGuardWinner := verdict.Winner
 	verdict = DecideWinner(verdict, guardRecords, threshold, previousID != "")
@@ -216,10 +243,19 @@ func (e *Engine) phaseCompare(ctx context.Context, j job.Job) error {
 
 	// F4-T6 cost-aware acceptance: a quality tie at materially lower token
 	// cost wins. Applied only when the verdict declines the new artifact
-	// (winner "previous") and the new artifact's best score is within the
-	// tie margin of the previous's average score.
-	if e.cfg.Execution.CostAwareEnabled() && previousID != "" && verdict.Winner == "previous" {
-		newScore := e.maxEvaluationScore(ctx, j.ID)
+	// (winner "previous"), the final artifact has no decisive hard-verifier
+	// failure, and both sides have a known quality score. A failed hard
+	// verifier is authoritative (the reward-hacking guard) and must never be
+	// undone by a cost tie.
+	if e.cfg.Execution.CostAwareEnabled() && previousID != "" && verdict.Winner == "previous" &&
+		costAwareEligible(ver, finalRecord, previousAvgScore) {
+		newScore := finalRecord.Score
+		if !ver.Decisive() {
+			// No deterministic verifier applied (e.g. media): fall back to
+			// the best proposal score, which is the only quality signal the
+			// run produced.
+			newScore = e.maxEvaluationScore(ctx, j.ID)
+		}
 		newTokens, _ := e.eventStats(ctx, j.ID)
 		prevTokens := e.jobTokenCost(ctx, previousJobID)
 		if costTieWins(newScore, previousAvgScore, e.cfg.Execution.QualityTieMarginValue(), newTokens, prevTokens) {
@@ -288,6 +324,9 @@ func (e *Engine) phaseCompare(ctx context.Context, j job.Job) error {
 	})
 
 	// §9.3 status transitions.
+	if verdict.Winner != "new" {
+		e.captureComparisonCorrection(ctx, p.ID, j.ID, final.ID, verdict)
+	}
 	switch verdict.Winner {
 	case "new":
 		if previousID != "" {
@@ -397,6 +436,24 @@ func resolveRewardHack(verdict comparisonVerdict, ver verify.Result, hasPrevious
 	verdict.Reasons = append(verdict.Reasons,
 		"reward-hacking guard: deterministic verifier failed; LLM 'new' overridden")
 	return verdict, true
+}
+
+// costAwareEligible reports whether the F4-T6 cost tie-break may run for this
+// comparison. A decisive hard-verifier failure is authoritative: no cost tie
+// may overturn it. The previous side must also have a known score; comparing
+// against an unknown/zero baseline would let any low-scoring artifact win on
+// cost.
+func costAwareEligible(ver verify.Result, finalRecord evaluation.Record, previousAvgScore float64) bool {
+	if ver.HardDecisive() && !ver.HardPassed {
+		return false
+	}
+	if previousAvgScore <= 0 {
+		return false
+	}
+	if finalRecord.Score <= 0 {
+		return false
+	}
+	return true
 }
 
 // costTieWins reports whether the new artifact wins a near-tie on quality by

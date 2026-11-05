@@ -429,11 +429,13 @@ func TestOnJobTerminalFiresForCompletion(t *testing.T) {
 type fakeCorrectionSink struct {
 	calls int
 	in    corrections.CaptureInput
+	all   []corrections.CaptureInput
 }
 
 func (f *fakeCorrectionSink) Capture(_ context.Context, in corrections.CaptureInput) (corrections.Record, error) {
 	f.calls++
 	f.in = in
+	f.all = append(f.all, in)
 	return corrections.Record{ID: "c1"}, nil
 }
 
@@ -454,6 +456,32 @@ func TestPhaseFailureRecordsCorrection(t *testing.T) {
 	}
 	if sink.in.Source != corrections.SourceRuntimeError || sink.in.JobID != jobID {
 		t.Errorf("capture input = %+v, want runtime_error for %s", sink.in, jobID)
+	}
+}
+
+// TestEvaluationFailureRecordsCorrection proves a rejected candidate reaches
+// the correction sink with the specific source (test failure, not a generic
+// runtime error).
+func TestEvaluationFailureRecordsCorrection(t *testing.T) {
+	e := newEnv(t)
+	e.runner.WithExit(1)
+	sink := &fakeCorrectionSink{}
+	e.eng.SetCorrectionSink(sink)
+	jobID := e.submitCode(t)
+	e.eng.Run(context.Background(), jobID)
+
+	if sink.calls == 0 {
+		t.Fatal("no correction captured for a failed code evaluation")
+	}
+	found := false
+	for _, in := range sink.all {
+		if in.Source == corrections.SourceTestFailure && in.JobID == jobID {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("captured sources = %+v, want a test_failure for %s", sink.all, jobID)
 	}
 }
 
