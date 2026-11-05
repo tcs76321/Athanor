@@ -84,6 +84,12 @@ func (w *linuxWatcher) AcquirePowerAssertion() error {
 	if w.cmd != nil {
 		return nil
 	}
+	// The Core Pod is a Debian container without systemd. Holding an OS idle
+	// assertion there is meaningless (the host owns sleep), so absence of the
+	// binary is a no-op rather than a startup warning.
+	if _, err := exec.LookPath("systemd-inhibit"); err != nil {
+		return nil
+	}
 	cmd := exec.Command("systemd-inhibit", "--what=idle:sleep", "--why=athanor autonomous work", "sleep", "infinity")
 	if err := cmd.Start(); err != nil {
 		return err
