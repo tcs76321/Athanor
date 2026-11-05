@@ -12,6 +12,14 @@ New entries are appended at the top. Do not rewrite history.
 
 ### Acceptance, feedback, language, and containment hardening — 2026-11-05
 
+- **The memory budget now describes two real budgets, not a made-up sum.**
+  The host inference budget uses the largest *configured persona* model, host
+  RAM, the OS/apps reserve, and the Podman VM allocation; installed-but-unused
+  models do not count. The Job Pod ceiling is shown separately against runtime
+  memory. Combined host pressure is flagged even when the model alone fits the
+  audit. [ADR-0102](docs/adr/0102-separate-host-and-runtime-memory-budgets.md).
+  Proof: `TestBudgetForSeparatesHostInferenceAndRuntimeSandbox`.
+
 - **Discovery is transparent while it runs.** The project onboarding page
   shows the request summary, model, prompt size, received bytes, current stage,
   a coarse percent, elapsed time, a stage log, and a bounded tail of the raw

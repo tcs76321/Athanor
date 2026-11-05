@@ -114,6 +114,9 @@ type setupModel struct {
 	Name      string
 	SizeBytes int64
 	Family    string
+	// Measured is true when SizeBytes came from the audit's actual loaded
+	// size (weights + KV) rather than the model file on disk.
+	Measured bool
 }
 
 func (u *UI) handleSetup(w http.ResponseWriter, r *http.Request) {

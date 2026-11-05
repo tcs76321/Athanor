@@ -261,17 +261,29 @@ func TestRecommendedResourcesIsAdaptive(t *testing.T) {
 	}
 }
 
-func TestBudgetForUsesHostMemoryNotRuntimeMemory(t *testing.T) {
-	b := budgetFor(
-		[]setupModel{{SizeBytes: 20 << 30}},
-		Hardware{TotalMemoryBytes: 16 << 30, HostMemoryBytes: 32 << 30},
-		resourceView{MemoryMB: 8192, ReserveMB: 2048},
-	)
-	if b.TotalGiB != 32 {
-		t.Errorf("budget total = %.1f GiB, want the 32 GiB host total", b.TotalGiB)
+func TestBudgetForSeparatesHostInferenceAndRuntimeSandbox(t *testing.T) {
+	roles := []setupRole{{Role: "main", Model: "configured"}}
+	models := []setupModel{{Name: "configured", SizeBytes: 6 << 30, Measured: true}}
+	res := resourceView{MemoryMB: 4096, ReserveMB: 2048}
+	b := budgetFor(roles, models, Hardware{TotalMemoryBytes: 8 << 30, HostMemoryBytes: 32 << 30}, res)
+	if b.HostGiB != 32 || b.RuntimeGiB != 8 || b.VmGiB != 8 {
+		t.Errorf("memory shape = %+v, want 32 host / 8 runtime / 8 VM", b)
+	}
+	if b.InferenceGiB != 16 || b.ModelGiB != 6 || !b.ModelFits {
+		t.Errorf("inference budget = %+v, want 6 GiB model in 16 GiB", b)
+	}
+	if b.PodGiB != 4 || b.RuntimeMaxGiB != 6 || !b.RuntimeFits || b.RuntimeHeadroom != 2 {
+		t.Errorf("runtime budget = %+v, want 4 GiB pod in 6 GiB max", b)
 	}
 	if b.Overcommit {
-		t.Errorf("budget = %+v, want it to fit in host memory", b)
+		t.Errorf("total host pressure should fit: %+v", b)
+	}
+	// A model that fits the audit alone can still overcommit the host once the
+	// Podman runtime is counted.
+	models[0].SizeBytes = 20 << 30
+	b = budgetFor(roles, models, Hardware{TotalMemoryBytes: 8 << 30, HostMemoryBytes: 32 << 30}, res)
+	if !b.Overcommit || b.OverBy <= 0 {
+		t.Errorf("20 GiB model + 8 GiB VM + 8 GiB reserve should be overcommitted: %+v", b)
 	}
 }
 
@@ -391,7 +403,7 @@ func TestWelcomeModelsSelfSelectAndApply(t *testing.T) {
 	t.Cleanup(ts.Close)
 
 	_, body := get(t, ts.URL+"/ui/welcome?step=models")
-	for _, want := range []string{"What the roles mean", "Installed models", "Athanor's selection", "large:14b", "Use this assignment", "Memory budget"} {
+	for _, want := range []string{"What the roles mean", "Installed models", "Athanor's selection", "large:14b", "Use this assignment", "Host inference budget", "Runtime sandbox"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("models step missing %q", want)
 		}

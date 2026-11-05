@@ -1535,6 +1535,14 @@ power:
 > power-paused jobs on AC restore or wake. Sleep/wake is detected from a poll
 > gap (a future IOKit/logind adapter is the event-driven upgrade); a
 > power-paused job that survives a restart resumes on the next unpause.
+>
+> **Memory budgets (ADR-0102).** Host inference and runtime sandbox memory are
+> separate budgets. The host budget counts the largest **configured persona**
+> resident size (measured audit when available) against host RAM minus the
+> OS/apps reserve and, on macOS, the Podman VM allocation. Installed-but-unused
+> models do not count. The Job Pod ceiling is inside the runtime and is not
+> added to the host model budget; the UI reports both and flags combined host
+> pressure.
 
 ## 25. Tool Interface
 

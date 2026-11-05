@@ -96,13 +96,21 @@ const welcomeBody = `
     <h1>Personas and models.</h1>
     <p class="lede">Personas are functional roles, not fixed models. Athanor selects one installed model for each role based on size and family, and you can review or replace the assignment. Models are never downloaded without an explicit pull.</p>
     {{if .ModelsErr}}<div class="notice bad">{{.ModelsErr}}</div>{{end}}
-    {{if .Budget.TotalGiB}}
+    {{if .Budget.HostGiB}}
     <div class="card {{if .Budget.Overcommit}}card-accent{{end}}">
       <div class="row row-middle">
-        <div><div class="eyebrow">Memory budget</div><p class="muted">Largest installed model {{printf "%.1f" .Budget.LargestGiB}} GiB + Job Pod {{printf "%.1f" .Budget.PodGiB}} GiB + {{printf "%.1f" .Budget.ReserveGiB}} GiB reserve vs {{printf "%.1f" .Budget.TotalGiB}} GiB host RAM.</p></div>
-        {{if .Budget.Overcommit}}<span class="pill bad">overcommitted</span>{{else}}<span class="pill ok">fits</span>{{end}}
+        <div><div class="eyebrow">Host inference budget</div><p class="muted">{{if .Budget.Model}}Largest configured persona <b>{{.Budget.Model}}</b> uses {{printf "%.1f" .Budget.ModelGiB}} GiB{{if .Budget.ModelMeasured}} measured{{else}} estimated from file size{{end}}. Host {{printf "%.1f" .Budget.HostGiB}} GiB − {{printf "%.1f" .Budget.ReserveGiB}} GiB OS/apps reserve{{if .Budget.VmGiB}} − {{printf "%.1f" .Budget.VmGiB}} GiB Podman runtime{{end}} = {{printf "%.1f" .Budget.InferenceGiB}} GiB for inference.{{else}}No configured persona model found.{{end}}</p></div>
+        {{if .Budget.Model}}{{if .Budget.ModelFits}}<span class="pill ok">model fits budget</span>{{else}}<span class="pill bad">model exceeds budget</span>{{end}}{{end}}
       </div>
-      {{if .Budget.Overcommit}}<p class="del">This combination can thrash the host. Reduce the Job Pod memory in Resources or choose smaller models.</p>{{end}}
+      <p class="muted small">Installed-but-unused models do not count. The measured audit uses the same host reserve; {{if .Budget.ModelMeasured}}this size comes from the audit{{else}}run <code>athanor models -audit</code> for resident size{{end}}.</p>
+      {{if .Budget.Overcommit}}<p class="del">Combined host pressure is {{printf "%.1f" .Budget.OverBy}} GiB over: the model, Podman runtime, and OS reserve together exceed host RAM. Reduce the runtime, lower context, or choose smaller persona models.</p>{{end}}
+    </div>
+    <div class="card {{if not .Budget.RuntimeFits}}card-accent{{end}}">
+      <div class="row row-middle">
+        <div><div class="eyebrow">Runtime sandbox</div><p class="muted">Job Pod ceiling {{printf "%.1f" .Budget.PodGiB}} GiB + {{printf "%.1f" .Budget.RuntimeReserve}} GiB runtime reserve vs {{printf "%.1f" .Budget.RuntimeGiB}} GiB runtime RAM. Headroom {{printf "%.1f" .Budget.RuntimeHeadroom}} GiB.</p></div>
+        {{if .Budget.RuntimeFits}}<span class="pill ok">sandbox fits</span>{{else}}<span class="pill bad">sandbox exceeds runtime</span>{{end}}
+      </div>
+      <p class="muted small">Job Pod memory is inside the Podman runtime, not an additional host model cost. Per-job limits scale from this ceiling by task capability.</p>
     </div>
     {{end}}
 

@@ -46,6 +46,9 @@ budget, plus advice to leave host memory free.
    outside the runtime for macOS and Ollama. It says macOS cannot reserve host
    RAM and tells the operator to keep as much host memory free as possible.
    The Models step compares model + Job Pod + reserve against **host** memory.
+   **Superseded by [ADR-0102](0102-separate-host-and-runtime-memory-budgets.md):**
+   configured-model inference and runtime sandbox budgets are now separate, and
+   the Podman VM is counted as a host allocation.
 5. **Keep the enforcement boundary explicit.** Athanor enforces the runtime and
    Job Pod limits. Ollama's host footprint is a budget contract: one resident
    model (`OLLAMA_MAX_LOADED_MODELS=1`, `OLLAMA_NUM_PARALLEL=1`), a model and

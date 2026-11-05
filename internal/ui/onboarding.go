@@ -70,31 +70,87 @@ type resourceView struct {
 }
 
 type modelBudget struct {
-	TotalGiB   float64
-	LargestGiB float64
-	PodGiB     float64
-	ReserveGiB float64
-	SpareGiB   float64
+	// Host inference budget: the configured persona models run on the host.
+	HostGiB       float64
+	RuntimeGiB    float64
+	VmGiB         float64 // Podman VM allocation, a host cost on macOS
+	ReserveGiB    float64 // OS/apps/Core reserve on the host
+	InferenceGiB  float64 // Host - Reserve - VM
+	Model         string
+	ModelGiB      float64
+	ModelMeasured bool
+	ModelFits     bool
+
+	// Runtime sandbox budget: Job Pods live inside the Podman runtime.
+	PodGiB          float64
+	RuntimeReserve  float64
+	RuntimeMaxGiB   float64
+	RuntimeFits     bool
+	RuntimeHeadroom float64
+
 	Overcommit bool
+	OverBy     float64
 }
 
-func budgetFor(models []setupModel, hw Hardware, res resourceView) modelBudget {
+// hostReserveGiB is the OS/apps/Core reserve used by the measured model audit
+// (ADR-0099). It is deliberately separate from the Job Pod runtime reserve.
+const hostReserveGiB = 8.0
+
+// budgetFor explains two independent memory budgets instead of adding Job Pod
+// memory to host model memory. The host budget is the largest *configured
+// persona* resident size against host RAM minus the OS reserve and the Podman
+// VM allocation. The runtime budget is the Job Pod ceiling against the runtime
+// allocation minus its own reserve. Installed-but-unused models do not enter
+// either budget.
+func budgetFor(roles []setupRole, models []setupModel, hw Hardware, res resourceView) modelBudget {
 	hostBytes := hw.HostMemoryBytes
+	runtimeBytes := hw.TotalMemoryBytes
 	if hostBytes == 0 {
-		hostBytes = hw.TotalMemoryBytes
+		hostBytes = runtimeBytes
+	}
+	if runtimeBytes == 0 {
+		runtimeBytes = hostBytes
 	}
 	b := modelBudget{
-		TotalGiB:   float64(hostBytes) / (1 << 30),
-		PodGiB:     float64(res.MemoryMB) / 1024,
-		ReserveGiB: float64(res.ReserveMB) / 1024,
+		HostGiB:        float64(hostBytes) / (1 << 30),
+		RuntimeGiB:     float64(runtimeBytes) / (1 << 30),
+		ReserveGiB:     hostReserveGiB,
+		PodGiB:         float64(res.MemoryMB) / 1024,
+		RuntimeReserve: float64(res.ReserveMB) / 1024,
 	}
+	if b.HostGiB > b.RuntimeGiB {
+		// A separate Podman VM allocation is itself host memory.
+		b.VmGiB = b.RuntimeGiB
+	}
+	b.InferenceGiB = b.HostGiB - b.ReserveGiB - b.VmGiB
+	if b.InferenceGiB < 0 {
+		b.InferenceGiB = 0
+	}
+	b.RuntimeMaxGiB = b.RuntimeGiB - b.RuntimeReserve
+	if b.RuntimeMaxGiB < 0 {
+		b.RuntimeMaxGiB = 0
+	}
+	b.RuntimeFits = b.PodGiB <= b.RuntimeMaxGiB
+	b.RuntimeHeadroom = b.RuntimeMaxGiB - b.PodGiB
+
+	byName := make(map[string]setupModel, len(models))
 	for _, m := range models {
-		if g := float64(m.SizeBytes) / (1 << 30); g > b.LargestGiB {
-			b.LargestGiB = g
+		byName[m.Name] = m
+	}
+	for _, role := range roles {
+		m, ok := byName[role.Model]
+		if !ok {
+			continue
+		}
+		if g := float64(m.SizeBytes) / (1 << 30); g > b.ModelGiB {
+			b.ModelGiB = g
+			b.Model = m.Name
+			b.ModelMeasured = m.Measured
 		}
 	}
-	b.SpareGiB = b.TotalGiB - b.LargestGiB - b.PodGiB - b.ReserveGiB
-	b.Overcommit = b.TotalGiB > 0 && b.SpareGiB < 0
+	b.ModelFits = b.ModelGiB <= b.InferenceGiB
+	b.OverBy = b.ModelGiB + b.VmGiB + b.ReserveGiB - b.HostGiB
+	b.Overcommit = b.HostGiB > 0 && b.OverBy > 0
 	return b
 }
 
@@ -275,7 +331,7 @@ func (u *UI) welcomeData(ctx context.Context, st onboardingState) map[string]any
 	assignments := u.autoAssignments(roles, fitModels, hw, measurements)
 	suggestions := u.pullSuggestions(roles)
 	resources := recommendedResources(hw)
-	budget := budgetFor(fitModels, hw, resources)
+	budget := budgetFor(roles, models, hw, resources)
 	return map[string]any{
 		"State": st, "Step": st.Step, "Steps": onboardingSteps,
 		"StepIndex": onboardingIndex(st.Step), "StepNumber": onboardingIndex(st.Step) + 1,
@@ -320,6 +376,7 @@ func applyMeasuredSizes(models []setupModel, raw string) []setupModel {
 	for i := range out {
 		if b := sizes[out[i].Name]; b > 0 {
 			out[i].SizeBytes = b
+			out[i].Measured = true
 		}
 	}
 	return out

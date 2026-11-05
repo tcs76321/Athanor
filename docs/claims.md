@@ -77,6 +77,8 @@ demo. A claim without a proof is either removed or marked as a target.
 | Qualification runs inside the setup wizard with visible percent/progress | first-use review | `internal/ui/onboarding.go`, `internal/ui/onboarding_templates.go`, `internal/ui/setup.go`; `TestWelcomeQualificationShowsInlineProgress`, `TestWelcomeQualificationStartsInline` | **proven** |
 | Discovery exposes its live stage, model, bytes, elapsed time, and raw tail | first-use review | `internal/ui/project_onboarding.go`, `internal/discovery/discovery.go`, `cmd/athanor/discovery.go`; `TestProjectOnboardingShowsDiscoveryTransparency`, `TestGenerateReportsDurableProgress` | **proven** |
 | Discovery tolerates real local-model output shapes and a bounded 12k output budget | first-use review | `internal/discovery.Parse`; `TestParseSalvagesTruncatedArray`, `TestParseAcceptsConcatenatedObjects`; live clean-Core run 2026-11-05 | **proven** |
+| Memory budgets separate host inference from the Job Pod runtime and count only configured personas | ADR-0102 | `internal/ui.budgetFor`; `TestBudgetForSeparatesHostInferenceAndRuntimeSandbox` | **proven** |
+
 
 
 
