@@ -238,6 +238,9 @@ type TaskSpec struct {
 	Criteria    []string
 	Budget      dag.Budget
 	Priority    int
+	// AllowedTools optionally overrides the capability default for this task.
+	// It is validated against the closed §25 set by CreateDAG.
+	AllowedTools []string
 	// Capability is the task's primary output kind. Empty means infer it
 	// from the description and the project's capability set (ADR-0093).
 	Capability string

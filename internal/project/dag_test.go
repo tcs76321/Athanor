@@ -74,6 +74,7 @@ func TestCreateDAGRejectsBadSpecs(t *testing.T) {
 		{"unknown parent", []TaskSpec{{Key: "a", ParentKey: "ghost", Title: "a"}}},
 		{"unknown dep", []TaskSpec{{Key: "a", DependsOn: []string{"ghost"}, Title: "a"}}},
 		{"empty key", []TaskSpec{{Key: "", Title: "a"}}},
+		{"invalid tools", []TaskSpec{{Key: "a", Title: "a", AllowedTools: []string{"shell"}}}},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

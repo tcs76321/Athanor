@@ -41,7 +41,7 @@ const projectOnboardingBody = `
 
         <label for="sources">Sources or pages Athanor may read (one per line)</label>
         <textarea id="sources" name="sources" rows="3" placeholder="https://example.com/market-report">{{join .Brief.Sources}}</textarea>
-        <div class="field-help">Only these URLs are fetched through the gateway. A domain outside the allowlist becomes an access request, not a silent fetch.</div>
+        <div class="field-help">These URLs are recorded in the approved plan. Research tasks fetch only allowlisted sources through the gateway; a domain outside the allowlist becomes an access request, not a silent fetch.</div>
         {{if .Sources}}
         <div class="stack">
           {{range .Sources}}

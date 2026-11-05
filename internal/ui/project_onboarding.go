@@ -775,7 +775,20 @@ func buildProjectPlan(p project.Project, b projectBrief, o discovery.Option) (st
 			DependsOn:   []string{"validate", "offer", "outreach"},
 		},
 	}
+	if len(b.Sources) > 0 {
+		specs[0].AllowedTools = []string{"fetch_url"}
+	}
 	return out.String(), specs
+}
+
+// appendTool adds name to list once, preserving order.
+func appendTool(list []string, name string) []string {
+	for _, item := range list {
+		if item == name {
+			return list
+		}
+	}
+	return append(list, name)
 }
 
 func (u *UI) approveProjectPlan(ctx context.Context, p project.Project, b projectBrief) error {
@@ -821,6 +834,7 @@ func (u *UI) approveProjectPlan(ctx context.Context, p project.Project, b projec
 	}
 	if len(specs) > 0 && len(b.Sources) > 0 {
 		specs[0].Description += " Allowed sources (fetch only these): " + strings.Join(b.Sources, " ")
+		specs[0].AllowedTools = appendTool(specs[0].AllowedTools, "fetch_url")
 	}
 	criteria := []string{}
 	if strings.TrimSpace(b.Success) != "" {

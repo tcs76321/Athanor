@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	"github.com/tcs76321/athanor/internal/ids"
+	"github.com/tcs76321/athanor/internal/toolenvelope"
 )
 
 // CreateDAG persists a decomposed task graph for a new goal in one
@@ -90,6 +91,17 @@ func (r *Repo) CreateDAG(ctx context.Context, projectID, goalText string, criter
 			capability = InferTaskCapability(s.Title+" "+s.Description, p.Capabilities, p.RepositoryPath)
 		}
 		toolsJSON, err := defaultToolsJSON(capability)
+		if len(s.AllowedTools) > 0 {
+			if _, terr := toolenvelope.Parse(s.AllowedTools); terr != nil {
+				return "", nil, fmt.Errorf("task %q tool allowlist: %w", s.Key, terr)
+			}
+			raw, merr := json.Marshal(s.AllowedTools)
+			if merr != nil {
+				return "", nil, merr
+			}
+			toolsJSON = string(raw)
+			err = nil
+		}
 		if err != nil {
 			return "", nil, err
 		}

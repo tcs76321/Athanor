@@ -24,6 +24,11 @@ New entries are appended at the top. Do not rewrite history.
   concatenated option objects. A failed run shows the raw tail in the error
   notice. Proofs: `TestParseSalvagesTruncatedArray`,
   `TestParseAcceptsConcatenatedObjects`.
+- **Approved plans actually use their declared sources.** The validation task
+  receives the `fetch_url` tool when the brief names allowlisted sources, and
+  the UI wording now says sources are recorded in the plan and fetched by
+  research tasks rather than implying discovery fetches them. Proof:
+  `TestCreateDAG` invalid-tool coverage and the project onboarding flow.
 
 - **Qualification now runs inside the setup wizard.** The Qualification step
   starts the bounded run in place, shows a percent progress bar, elapsed time,
