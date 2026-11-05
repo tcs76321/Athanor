@@ -141,6 +141,7 @@ func Run(ctx context.Context, cfg *config.Config, opts Options, p Probes) Report
 	r.checkOllama(ctx, cfg, p)
 	r.checkRuntime(cfg, p)
 	r.checkMemory(ctx, p)
+	r.checkGPU(ctx, p)
 	r.checkDisk(ctx, opts, p)
 	r.checkStateDir(opts, p)
 	r.checkJobPodImage(cfg)
@@ -148,6 +149,46 @@ func Run(ctx context.Context, cfg *config.Config, opts Options, p Probes) Report
 	r.checkNetwork(cfg)
 	r.checkPower(cfg)
 	return r
+}
+
+// GPUInfo is optional host GPU information used by the resources and doctor
+// screens. It is deliberately vendor-neutral at this layer.
+type GPUInfo struct {
+	Name      string
+	MemoryMiB int
+}
+
+// gpuProber is an optional Probes extension. A Probes without it simply omits
+// the GPU check.
+type gpuProber interface {
+	GPU(ctx context.Context) (GPUInfo, bool)
+}
+
+// checkGPU reports the GPU that Ollama can use, if one is detectable. A
+// CPU-only host is healthy, not a failure; the row makes the trade-off visible.
+// The Core Pod cannot see the host GPU, so it reports that explicitly rather
+// than claiming the host has no GPU.
+func (r *Report) checkGPU(ctx context.Context, p Probes) {
+	if cd, ok := p.(containerDetector); ok && cd.InContainer() {
+		r.add(Check{Name: "gpu", Status: StatusOK,
+			Detail: "not visible from the Core Pod; run `athanor doctor` on the host for the GPU row"})
+		return
+	}
+	gp, ok := p.(gpuProber)
+	if !ok {
+		return
+	}
+	gpu, found := gp.GPU(ctx)
+	if !found {
+		r.add(Check{Name: "gpu", Status: StatusOK,
+			Detail: "no NVIDIA GPU detected via nvidia-smi; Ollama may use CPU or another GPU backend"})
+		return
+	}
+	detail := gpu.Name
+	if gpu.MemoryMiB > 0 {
+		detail = fmt.Sprintf("%s (%d MiB VRAM)", gpu.Name, gpu.MemoryMiB)
+	}
+	r.add(Check{Name: "gpu", Status: StatusOK, Detail: detail})
 }
 
 // containerDetector is an optional Probes extension: it reports whether the

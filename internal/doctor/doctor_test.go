@@ -113,6 +113,62 @@ func TestRunAllGood(t *testing.T) {
 	}
 }
 
+type gpuProbes struct {
+	*fakeProbes
+	info GPUInfo
+	ok   bool
+}
+
+func (g gpuProbes) GPU(context.Context) (GPUInfo, bool) { return g.info, g.ok }
+
+func TestRunReportsGPU(t *testing.T) {
+	cfg := goodConfig(t)
+	rep := Run(context.Background(), cfg, Options{StateDir: t.TempDir()},
+		gpuProbes{fakeProbes: goodProbes(), info: GPUInfo{Name: "GTX 1080 Ti", MemoryMiB: 11264}, ok: true})
+	found := false
+	for _, c := range rep.Checks {
+		if c.Name == "gpu" {
+			found = true
+			if c.Status != StatusOK || !strings.Contains(c.Detail, "1080 Ti") || !strings.Contains(c.Detail, "11264") {
+				t.Errorf("gpu check = %+v", c)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("gpu check missing")
+	}
+}
+
+func TestRunReportsGPUNotVisibleFromCore(t *testing.T) {
+	p := goodProbes()
+	p.inContainer = true
+	rep := Run(context.Background(), goodConfig(t), Options{StateDir: t.TempDir()},
+		gpuProbes{fakeProbes: p, info: GPUInfo{Name: "GTX 1080 Ti", MemoryMiB: 11264}, ok: true})
+	for _, c := range rep.Checks {
+		if c.Name == "gpu" {
+			if !strings.Contains(c.Detail, "not visible from the Core Pod") {
+				t.Errorf("gpu check in Core = %+v", c)
+			}
+			return
+		}
+	}
+	t.Fatal("gpu check missing")
+}
+
+func TestRunReportsNoGPU(t *testing.T) {
+	rep := Run(context.Background(), goodConfig(t), Options{StateDir: t.TempDir()},
+		gpuProbes{fakeProbes: goodProbes(), ok: false})
+	for _, c := range rep.Checks {
+		if c.Name == "gpu" {
+			if !strings.Contains(c.Detail, "no NVIDIA GPU detected") {
+				t.Errorf("gpu check without a GPU = %+v", c)
+			}
+			return
+		}
+	}
+	t.Fatal("gpu check missing")
+}
+
 func TestRunMissingPodman(t *testing.T) {
 	p := goodProbes()
 	delete(p.paths, "podman")

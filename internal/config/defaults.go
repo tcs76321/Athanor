@@ -288,8 +288,11 @@ func applyDefaults(c *Config) {
 		c.StrategyAnalysis.TechniqueMinAcceptDelta = 0.20
 	}
 
-	// Single-slot execution (ADR-0072): one job at a time, so at most one
-	// model call (and one resident model) is in flight.
+	// Single-slot defaults (ADR-0072, amended by ADR-0096): one job and one
+	// model call by default, so one model stays resident. The operator may
+	// raise max_concurrent_jobs; the power profile still caps interactive use
+	// at one job, and max_concurrent_llm_calls should stay at 1 on a
+	// single-GPU/small-RAM host.
 	setInt(&c.Limits.MaxConcurrentJobs, 1)
 	setInt(&c.Limits.MaxConcurrentLLMCalls, 1)
 	setInt(&c.Limits.MaxConcurrentFetches, 5)

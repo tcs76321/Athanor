@@ -245,10 +245,19 @@ strategy_analysis:
   technique_min_accept_delta: 0.20
 
 limits:
+  # Hard ceiling on concurrent jobs. 1 is the shipped single-slot default;
+  # larger machines can opt in (e.g. 2-4). The ceiling only takes effect in
+  # the autonomous power profile (AC power and idle): the interactive profile
+  # throttles back to one job. Keep max_concurrent_llm_calls low enough for
+  # one resident Ollama model.
   max_concurrent_jobs: 1
+  # Concurrent chat/embedding calls. Keep at 1 for a single-GPU/small-RAM host
+  # so one model stays resident and its context can be used fully. Raise only
+  # when OLLAMA_MAX_LOADED_MODELS / NUM_PARALLEL and RAM allow it.
   max_concurrent_llm_calls: 1
-  # Not yet enforced (see the ARCHITECTURE §29 note): fetch concurrency,
-  # tasks/hour, and total recoveries/job.
+  # max_concurrent_fetches and max_tasks_per_hour are enforced. The remaining
+  # unenforced knob in this block (see the ARCHITECTURE §29 note) is
+  # max_total_recoveries_per_job.
   max_concurrent_fetches: 5
   max_tasks_per_hour: 20
   max_total_recoveries_per_job: 8

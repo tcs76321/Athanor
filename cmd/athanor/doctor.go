@@ -225,3 +225,25 @@ func (osProbes) InContainer() bool {
 	}
 	return false
 }
+
+// GPU reports an NVIDIA GPU through nvidia-smi when available. A 1080 Ti-class
+// Linux host is a supported target; no GPU simply means CPU inference.
+func (osProbes) GPU(ctx context.Context) (doctor.GPUInfo, bool) {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, "nvidia-smi",
+		"--query-gpu=name,memory.total", "--format=csv,noheader,nounits").Output()
+	if err != nil {
+		return doctor.GPUInfo{}, false
+	}
+	line := strings.SplitN(strings.TrimSpace(string(out)), "\n", 2)[0]
+	parts := strings.Split(line, ",")
+	if len(parts) < 2 {
+		return doctor.GPUInfo{}, false
+	}
+	info := doctor.GPUInfo{Name: strings.TrimSpace(parts[0])}
+	if mb, err := strconv.Atoi(strings.TrimSpace(parts[1])); err == nil {
+		info.MemoryMiB = mb
+	}
+	return info, info.Name != ""
+}

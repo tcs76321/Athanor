@@ -154,3 +154,22 @@ func TestConcurrentAccess(t *testing.T) {
 	}
 	wg.Wait()
 }
+
+func TestCeilingRespectsInteractiveAndOperatorMax(t *testing.T) {
+	pm := NewPowerManager(nil)
+	pm.SetProfile(ProfileAutonomous)
+	if got := (Ceiling{Manager: pm, Jobs: 3}).MaxConcurrentJobs(); got != 3 {
+		t.Errorf("autonomous ceiling = %d, want 3", got)
+	}
+	pm.SetProfile(ProfileInteractive)
+	if got := (Ceiling{Manager: pm, Jobs: 3}).MaxConcurrentJobs(); got != 1 {
+		t.Errorf("interactive ceiling = %d, want 1", got)
+	}
+	pm.SetProfile(Profile("unexpected"))
+	if got := (Ceiling{Manager: pm, Jobs: 3}).MaxConcurrentJobs(); got != 1 {
+		t.Errorf("unknown-profile ceiling = %d, want 1", got)
+	}
+	if got := (Ceiling{Jobs: 0}).MaxConcurrentJobs(); got != 1 {
+		t.Errorf("unset ceiling = %d, want 1", got)
+	}
+}

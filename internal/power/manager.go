@@ -20,17 +20,19 @@ type Profile string
 const (
 	// ProfileAutonomous - High resource utilization. Daydreaming (memory
 	// consolidation/indexing, §17) is ACTIVE and the CPU quota is full.
-	// Job concurrency is 1 for every profile (ADR-0072).
+	// Job concurrency stays at the profile floor of 1; the operator's
+	// limits.max_concurrent_jobs ceiling is applied by Ceiling (ADR-0096).
 	ProfileAutonomous Profile = "autonomous"
 
 	// ProfileInteractive - Deferential resource utilization.
-	// Daydreaming is PAUSED and the CPU quota is reduced. Job concurrency is 1.
+	// Daydreaming is PAUSED and the CPU quota is reduced. Job concurrency is
+	// 1, and the Ceiling never raises it above the operator's value.
 	ProfileInteractive Profile = "interactive"
 )
 
 // Limits defines the resource limits for a given profile.
 type Limits struct {
-	MaxConcurrentJobs int     // Concurrent jobs allowed; always 1 (ADR-0072)
+	MaxConcurrentJobs int     // Profile floor; the operator ceiling is applied by Ceiling
 	AllowDaydreaming  bool    // Whether Daydreaming (§17) is enabled
 	CPUQuota          float64 // CPU quota as fraction of total (0.0-1.0)
 }
@@ -92,9 +94,9 @@ func NewPowerManager(watcher OSWatcher) *PowerManager {
 // resolve to the conservative interactive-equivalent limits — the package
 // fails toward less background work, never more (§24 spirit).
 //
-// MaxConcurrentJobs is 1 for every profile: single-slot execution is an
-// invariant (ADR-0072), not a profile knob. The profiles differ only in
-// daydreaming and CPU quota.
+// MaxConcurrentJobs is 1 for every profile: the profile is the conservative
+// floor (ADR-0072), not the operator's ceiling. Ceiling composes the two
+// (ADR-0096). The profiles differ only in daydreaming and CPU quota.
 func profileLimits(p Profile) Limits {
 	switch p {
 	case ProfileAutonomous:
@@ -205,9 +207,9 @@ func (pm *PowerManager) Paused() bool {
 	return pm.paused
 }
 
-// MaxConcurrentJobs returns the current cap on concurrent jobs, sourced
-// from the active profile. Callers (the engine) consult this on every
-// enqueue so profile changes take effect immediately.
+// MaxConcurrentJobs returns the active profile's job floor (1 today). The
+// engine uses Ceiling, which composes this floor with the operator's
+// limits.max_concurrent_jobs ceiling (ADR-0096).
 func (pm *PowerManager) MaxConcurrentJobs() int {
 	pm.mu.RLock()
 	defer pm.mu.RUnlock()
@@ -216,6 +218,29 @@ func (pm *PowerManager) MaxConcurrentJobs() int {
 		return 1
 	}
 	return n
+}
+
+// Ceiling is the engine's capacity-aware job cap. The operator sets a hard
+// ceiling (limits.max_concurrent_jobs); the power profile can reduce it while
+// the machine is interactive, but never raise it. The default ceiling is 1,
+// so the shipped behavior stays single-slot; larger machines can opt in.
+type Ceiling struct {
+	Manager *PowerManager
+	Jobs    int
+}
+
+func (c Ceiling) MaxConcurrentJobs() int {
+	if c.Jobs < 1 {
+		return 1
+	}
+	// Only the autonomous profile may use the operator's full ceiling;
+	// every other profile (interactive, paused, or an unknown value) is
+	// conservative. Read the profile explicitly rather than an unrelated
+	// knob such as CPU quota so the two concerns stay independent.
+	if c.Manager != nil && c.Manager.CurrentProfile() != ProfileAutonomous {
+		return 1
+	}
+	return c.Jobs
 }
 
 // OnProfileChange registers an observer that fires after every profile
