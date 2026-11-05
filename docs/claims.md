@@ -58,6 +58,8 @@ demo. A claim without a proof is either removed or marked as a target.
 | The restart-required state survives navigation and clears only at boot | ADR-0095 | `internal/ui/restart.go`; `TestRestartRequiredBanner`; boot clear in `cmd/athanor/serve.go` | **proven** |
 | An in-flight discovery session survives a restart as failed/interrupted, not silence | ADR-0094 | `discovery.Store.Begin/Complete/Fail`; `TestBeginAndFailAreDurable`; stage logic in `project_onboarding.go` | **proven** |
 | The Core Pod mounts its config read-write so onboarding writes land on the host | ADR-0078, ADR-0095 | `cmd/athanor/core.go` (`coreRunArgs`), `TestCoreRunArgs` | **proven structurally** |
+| A blocked task can be recovered from the UI | known-issues H8 | `handleTaskReset`; `TestTaskReset`; scheduler `Reset` | **proven with a fake resetter** |
+| An accepted artifact can be exported from the reader through egress | ADR-0015, ADR-0039 | `handleArtifactExport`; `TestArtifactExport` | **proven with a fake exporter** |
 | A project can be briefed, explored as a portfolio, and planned before work | ADR-0094, ADR-0095 | `internal/discovery`; `TestProjectOnboardingDiscoveryFlow`, `TestStoreRoundTripAndSelect`, `TestDedupeAndValidate` | **proven with a fake generator; a live-model run is the demo** |
 | Discovery is a portfolio, not a single-winner loop | ADR-0094 | `internal/discovery` (no engine comparison); `TestScoreIsDeterministicAndOrdered` | **proven by structure** |
 | A short, honest goal is accepted | ADR-0094 | `goals` 3-character floor; `TestCreateValidation`, `TestSubmitGoal` | **proven** |

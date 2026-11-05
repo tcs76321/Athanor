@@ -33,6 +33,11 @@ New entries are appended at the top. Do not rewrite history.
   in-flight discovery session is durable (a restart shows interrupted/retry
   instead of silently returning to the brief), the Models step shows a RAM
   budget and flags overcommit, and Watch shows evaluation records.
+- **Project work is more operable.** Blocked tasks get a **Reset blocked task**
+  action (scheduler recovery, with confirmation); task cards show their
+  dependency edges; accepted artifacts can be **exported through the egress
+  airlock** from the reader; and the Watch view shows evaluation records with
+  score, pass/fail, missing criteria, and failed tests.
 - **Project onboarding + discovery.** A project now continues into a resumable
   brief (goal, limits, sources, success), a **portfolio** of scored directions
   across industries and niches, a human selection, and a deterministic 30-day
