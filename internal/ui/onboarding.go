@@ -95,11 +95,11 @@ func budgetFor(models []setupModel, hw Hardware, res resourceView) modelBudget {
 
 var onboardingSteps = []onboardingStep{
 	{"welcome", "Welcome", "What Athanor is and what it will do"},
-	{"environment", "Environment", "Doctor checks run from the GUI"},
 	{"resources", "Resources", "RAM, CPU, and Job Pod limits"},
 	{"models", "Models", "Personas, installed models, and self-selection"},
 	{"qualify", "Qualification", "Optional bounded routing screen"},
 	{"preferences", "Preferences", "Theme and notifications"},
+	{"environment", "Environment", "Final doctor checks before you start"},
 	{"ready", "Ready", "Create the first project"},
 }
 

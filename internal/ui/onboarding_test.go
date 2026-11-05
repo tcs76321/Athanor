@@ -95,11 +95,11 @@ func TestOnboardingAdvancesAndCompletes(t *testing.T) {
 	if resp.StatusCode != http.StatusSeeOther {
 		t.Fatalf("next status = %d", resp.StatusCode)
 	}
-	if loc := resp.Header.Get("Location"); loc != "/ui/welcome?step=environment" {
+	if loc := resp.Header.Get("Location"); loc != "/ui/welcome?step=resources" {
 		t.Fatalf("next location = %q", loc)
 	}
-	if got := u.loadOnboarding(context.Background()).Step; got != "environment" {
-		t.Fatalf("persisted step = %q, want environment", got)
+	if got := u.loadOnboarding(context.Background()).Step; got != "resources" {
+		t.Fatalf("persisted step = %q, want resources", got)
 	}
 
 	resp = postForm(t, ts.URL+"/ui/welcome", url.Values{
@@ -120,6 +120,15 @@ func TestOnboardingAdvancesAndCompletes(t *testing.T) {
 	_ = resp.Body.Close()
 	if resp.StatusCode != http.StatusSeeOther || resp.Header.Get("Location") != "/ui" {
 		t.Fatalf("completed welcome = %d %q, want 303 /ui", resp.StatusCode, resp.Header.Get("Location"))
+	}
+}
+
+func TestOnboardingEnvironmentCheckIsFinal(t *testing.T) {
+	if onboardingIndex("environment") != len(onboardingSteps)-2 {
+		t.Fatalf("environment index = %d, want the penultimate step", onboardingIndex("environment"))
+	}
+	if onboardingIndex("environment") < onboardingIndex("preferences") {
+		t.Fatal("environment checks should run after preferences, as the final readiness summary")
 	}
 }
 

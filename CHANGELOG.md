@@ -10,6 +10,14 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Onboarding readiness order — 2026-11-04
+
+- The first-run wizard now runs the environment/doctor checks **last**, as a
+  final readiness summary after resources, models, qualification, and
+  preferences, instead of making them the second step. Proof:
+  `TestOnboardingEnvironmentCheckIsFinal`; the advance test now moves from
+  Welcome to Resources.
+
 ### AI plans, capacity-aware concurrency, and GPU visibility — 2026-11-04
 
 - **AI-authored plan candidates.** After choosing a discovery direction, the

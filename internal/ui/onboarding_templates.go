@@ -38,8 +38,8 @@ const welcomeBody = `
     </form>
     {{else if eq .Step "environment"}}
     <div class="eyebrow">Step {{.StepNumber}} of {{.StepCount}}</div>
-    <h1>Environment check.</h1>
-    <p class="lede">Athanor runs the first-run doctor here: Podman, Git, Ollama, persona models, memory, disk, state, the Job Pod image, context floors, network posture, and power. No separate CLI command is required.</p>
+    <h1>Final environment check.</h1>
+    <p class="lede">This is the readiness summary: Podman, Git, Ollama, persona models, memory, disk, state, the Job Pod image, context floors, network posture, and power. Fix anything red before you finish. No separate CLI command is required.</p>
     <div class="actions"><a class="btn secondary small" href="/ui/welcome?step=environment">Run checks again</a></div>
     <div class="card flush">
       <div class="table-wrap">
