@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"time"
+	"unicode/utf8"
 
 	"github.com/tcs76321/athanor/internal/dag"
 	"github.com/tcs76321/athanor/internal/store"
@@ -41,9 +42,11 @@ var ErrNotFound = errors.New("project not found")
 // when the project has none (M6-T5 push; ADR-0036).
 var ErrNoRepository = errors.New("project has no repository")
 
-// Goal text length bounds come from the goals table CHECK (§5).
+// Goal text length bounds come from the goals table CHECK (§5). Three
+// characters is the floor: the project onboarding brief supplies depth, and a
+// short, honest goal ("make money online") must not be rejected.
 const (
-	goalMinLen = 20
+	goalMinLen = 3
 	goalMaxLen = 500
 )
 
@@ -246,8 +249,9 @@ func NewRepo(s *store.Store) *Repo {
 }
 
 func validateGoalText(goal string) error {
-	if len(goal) < goalMinLen || len(goal) > goalMaxLen {
-		return fmt.Errorf("goal text must be %d–%d characters, got %d", goalMinLen, goalMaxLen, len(goal))
+	n := utf8.RuneCountInString(goal)
+	if n < goalMinLen || n > goalMaxLen {
+		return fmt.Errorf("goal text must be %d–%d characters, got %d", goalMinLen, goalMaxLen, n)
 	}
 	return nil
 }

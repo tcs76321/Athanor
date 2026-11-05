@@ -87,6 +87,12 @@ type Deps struct {
 	// Indexer runs the bounded pre-index on the first-use project create.
 	// nil is valid: the job starts without a populated Dormant Index.
 	Indexer RepoPreindexer
+	// Discovery is the project-onboarding option portfolio. nil disables the
+	// discovery step (the project still supports the deterministic interview).
+	Discovery Discovery
+	// Scheduler starts a decomposed goal's ready tasks. nil falls back to
+	// starting only the first task.
+	Scheduler Scheduler
 	// DefaultTTL is applied to defer decisions made without an explicit
 	// duration.
 	DefaultTTL time.Duration
@@ -99,11 +105,63 @@ type UI struct {
 	// qualMu/qualRunning guard the one in-process qualification worker.
 	qualMu      sync.Mutex
 	qualRunning bool
+	// themeMu guards the process-wide UI theme. The Core is a single-user
+	// loopback service, so one theme is the right scope; it is persisted in
+	// system_state and applied server-side so first paint is correct without
+	// an inline script (CSP-safe).
+	themeMu sync.RWMutex
+	theme   string
+	// onboardMu guards the in-memory model-pull progress shown by the
+	// first-run wizard. The durable onboarding step lives in system_state.
+	onboardMu sync.Mutex
+	pulls     map[string]*pullProgress
+	// discMu/discRuns track an in-flight discovery pass for the project
+	// onboarding page. The durable portfolio is written when the pass ends.
+	discMu   sync.Mutex
+	discRuns map[string]*discoveryRun
 }
 
 // New builds a UI.
 func New(deps Deps) *UI {
-	return &UI{deps: deps, hub: NewHub()}
+	u := &UI{deps: deps, hub: NewHub(), theme: "monokai", pulls: map[string]*pullProgress{}, discRuns: map[string]*discoveryRun{}}
+	if deps.Store != nil {
+		var saved string
+		if err := deps.Store.DB().QueryRow(
+			`SELECT value FROM system_state WHERE key = ?`, "ui:theme").Scan(&saved); err == nil {
+			if validTheme(saved) {
+				u.theme = saved
+			}
+		}
+	}
+	return u
+}
+
+// Theme returns the active theme id.
+func (u *UI) Theme() string {
+	u.themeMu.RLock()
+	defer u.themeMu.RUnlock()
+	return u.theme
+}
+
+// setTheme validates, stores, and persists a theme.
+func (u *UI) setTheme(id string) error {
+	if !validTheme(id) {
+		return fmt.Errorf("unknown theme %q", id)
+	}
+	u.themeMu.Lock()
+	u.theme = id
+	u.themeMu.Unlock()
+	if u.deps.Store == nil {
+		return nil
+	}
+	_, err := u.deps.Store.DB().Exec(
+		`INSERT INTO system_state (key, value) VALUES (?, ?)
+		 ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+		"ui:theme", id)
+	if err != nil {
+		return fmt.Errorf("persisting theme: %w", err)
+	}
+	return nil
 }
 
 // Hub implements the engine's token sink and fans chunks out to watch-view
@@ -112,6 +170,9 @@ func (u *UI) Hub() *Hub { return u.hub }
 
 // Register mounts the UI routes.
 func (u *UI) Register(mux *http.ServeMux) {
+	mux.HandleFunc("GET /ui/assets/", u.handleAssets)
+	mux.HandleFunc("GET /ui/welcome", u.handleWelcome)
+	mux.HandleFunc("POST /ui/welcome", u.handleWelcomePost)
 	mux.HandleFunc("GET /ui", u.handleDashboard)
 	mux.HandleFunc("GET /ui/events/stream", u.handleDashboardStream)
 	mux.HandleFunc("GET /ui/projects", u.handleProjects)
@@ -122,6 +183,8 @@ func (u *UI) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /ui/projects/{id}/interview", u.handleInterviewSave)
 	mux.HandleFunc("POST /ui/projects/{id}/interview/approve", u.handleInterviewApprove)
 	mux.HandleFunc("POST /ui/projects/{id}/interview/skip", u.handleInterviewSkip)
+	mux.HandleFunc("GET /ui/projects/{id}/onboarding", u.handleProjectOnboarding)
+	mux.HandleFunc("POST /ui/projects/{id}/onboarding", u.handleProjectOnboardingPost)
 	mux.HandleFunc("POST /ui/projects/{id}/goals", u.handleGoalCreate)
 	mux.HandleFunc("POST /ui/projects/{id}/corrections", u.handleCorrectionCreate)
 	mux.HandleFunc("GET /ui/corrections", u.handleCorrections)
@@ -148,6 +211,10 @@ func (u *UI) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /ui/daydream", u.handleDaydream)
 	mux.HandleFunc("GET /ui/runtime", u.handleRuntime)
 	mux.HandleFunc("GET /ui/jobs/{id}/trace", u.handleTrace)
+	mux.HandleFunc("GET /ui/settings", u.handleSettings)
+	mux.HandleFunc("POST /ui/theme", u.handleTheme)
+	mux.HandleFunc("GET /ui/sitemap", u.handleSitemap)
+	mux.HandleFunc("GET /ui/search", u.handleSearch)
 }
 
 // --- Hub ---
@@ -197,6 +264,10 @@ func (h *Hub) Subscribe(jobID string) (<-chan string, func()) {
 
 func (u *UI) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	if u.needsOnboarding(ctx) {
+		http.Redirect(w, r, "/ui/welcome", http.StatusSeeOther)
+		return
+	}
 	active, err := u.deps.Jobs.Active(ctx)
 	if err != nil {
 		u.fail(w, err)
@@ -357,7 +428,7 @@ func (u *UI) handleProjectCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !start {
-		http.Redirect(w, r, "/ui/projects/"+res.Project.ID, http.StatusSeeOther)
+		http.Redirect(w, r, "/ui/projects/"+res.Project.ID+"/onboarding", http.StatusSeeOther)
 		return
 	}
 	http.Redirect(w, r, "/ui/jobs/"+res.JobID, http.StatusSeeOther)
@@ -1015,6 +1086,12 @@ func (u *UI) renderStatus(w http.ResponseWriter, status int, title, body string,
 	if _, ok := data["Version"]; !ok {
 		data["Version"] = u.deps.Version
 	}
+	if _, ok := data["Query"]; !ok {
+		data["Query"] = ""
+	}
+	theme := u.Theme()
+	data["Theme"] = theme
+	data["ThemeLabel"] = themeLabel(theme)
 	if _, ok := data["DevRuntime"]; !ok {
 		// The host process is a client/development surface (ADR-0078); show
 		// the warning unless this is the supported Core Pod.
@@ -1022,6 +1099,14 @@ func (u *UI) renderStatus(w http.ResponseWriter, status int, title, body string,
 	}
 	t := template.Must(template.New("page").Funcs(funcs).Parse(document(body)))
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	// The shell has no inline script or style: everything is served from
+	// /ui/assets. A strict CSP is therefore cheap and closes injection paths
+	// that html/template escaping alone does not (e.g. injected <base>).
+	w.Header().Set("Content-Security-Policy",
+		"default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; font-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Header().Set("Referrer-Policy", "no-referrer")
+	w.Header().Set("X-Frame-Options", "DENY")
 	w.WriteHeader(status)
 	if err := t.Execute(w, data); err != nil {
 		slog.Error("ui: rendering page", "title", title, "err", err)
@@ -1053,7 +1138,9 @@ var funcs = template.FuncMap{
 		}
 		return ""
 	},
-	"join": func(ss []string) string { return strings.Join(ss, ", ") },
+	"join":     func(ss []string) string { return strings.Join(ss, ", ") },
+	"markdown": renderMarkdown,
+	"add":      func(a, b int) int { return a + b },
 	"gib": func(n int64) string {
 		return fmt.Sprintf("%.1f GiB", float64(n)/(1<<30))
 	},

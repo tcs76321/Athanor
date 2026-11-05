@@ -71,8 +71,8 @@ func TestCreateValidation(t *testing.T) {
 	}{
 		{"bad archetype", "x", "astral", validGoal, "archetype"},
 		{"empty name", "", "text", validGoal, "name"},
-		{"short goal", "x", "text", "too short", "20"},
-		{"empty goal", "x", "text", "", "20"},
+		{"short goal", "x", "text", "ab", "3"},
+		{"empty goal", "x", "text", "", "3"},
 	}
 	for _, tc := range cases {
 		if _, _, err := r.Create(ctx, tc.n, tc.a, tc.g, "", nil); err == nil || !strings.Contains(err.Error(), tc.errSubstr) {
@@ -134,8 +134,12 @@ func TestSubmitGoal(t *testing.T) {
 	if _, err := r.SubmitGoal(ctx, "ghost", validGoal, nil); !errors.Is(err, ErrNotFound) {
 		t.Errorf("SubmitGoal(unknown project) = %v, want ErrNotFound", err)
 	}
-	if _, err := r.SubmitGoal(ctx, p.ID, "short", nil); err == nil || !strings.Contains(err.Error(), "20") {
+	if _, err := r.SubmitGoal(ctx, p.ID, "ab", nil); err == nil || !strings.Contains(err.Error(), "3") {
 		t.Errorf("SubmitGoal(short goal) = %v, want length error", err)
+	}
+	// A short, honest goal is valid; onboarding supplies the depth.
+	if _, err := r.SubmitGoal(ctx, p.ID, "make money online", nil); err != nil {
+		t.Errorf("SubmitGoal(make money online) = %v, want accepted", err)
 	}
 }
 

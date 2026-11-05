@@ -39,10 +39,9 @@ const setupBody = `
 
 <h2>Qualification (optional)</h2>
 {{if .State.Running}}
-<div class="card">
+<div class="card" data-auto-refresh="5000">
   <p><b>{{.State.Done}} / {{.State.Total}}</b> cases complete.</p>
   <p class="muted">This page refreshes every 5 seconds. You can leave it; the run is resumable.</p>
-  <script>setTimeout(function(){location.reload()},5000)</script>
 </div>
 {{else}}
 <div class="card">

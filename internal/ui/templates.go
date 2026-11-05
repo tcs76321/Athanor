@@ -4,159 +4,6 @@ package ui
 // request time (small pages; the cost is negligible and avoids an embed
 // step). html/template auto-escapes every interpolated value.
 
-const css = `
-:root{
-  --bg:#0c0f14;--panel:#131822;--panel2:#1a2130;--line:#242d3b;
-  --text:#dde3ec;--muted:#8b96a8;--accent:#7aa2f7;--accent2:#9d7cf7;
-  --ok:#7ee2a8;--warn:#f2c46d;--bad:#ff8f8f;--radius:10px;
-}
-*{box-sizing:border-box}
-html{color-scheme:dark}
-body{margin:0;background:var(--bg);color:var(--text);
-  font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
-a{color:var(--accent);text-decoration:none}
-a:hover{text-decoration:underline}
-:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
-.skip{position:absolute;left:-9999px;top:0;background:var(--panel2);padding:8px 12px;z-index:10}
-.skip:focus{left:12px;top:8px}
-header{position:sticky;top:0;z-index:5;display:flex;gap:18px;align-items:center;
-  padding:10px 20px;background:rgba(19,24,34,.92);backdrop-filter:blur(8px);
-  border-bottom:1px solid var(--line)}
-.brand{font-weight:700;letter-spacing:.03em;color:var(--text)}
-.brand span{color:var(--accent)}
-nav{display:flex;gap:2px;flex-wrap:wrap}
-nav a{padding:6px 11px;border-radius:999px;color:var(--muted);font-size:14px}
-nav a:hover{background:var(--panel2);color:var(--text);text-decoration:none}
-nav a[aria-current="page"]{background:var(--panel2);color:var(--text)}
-.meta{margin-left:auto;display:flex;gap:8px;align-items:center;color:var(--muted);font-size:12px}
-main{max-width:1120px;margin:0 auto;padding:26px 20px 72px}
-h1{font-size:26px;line-height:1.2;margin:0 0 6px;letter-spacing:-.01em}
-h2{font-size:16px;margin:26px 0 10px;color:#b9c3d3;letter-spacing:.01em}
-h3{font-size:14px;margin:16px 0 6px;color:#b9c3d3}
-p{margin:6px 0}
-.sub{color:var(--muted);margin:0 0 18px}
-.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
-  padding:16px 18px;margin:0 0 18px;min-width:0}
-.card h2{margin-top:0}
-.banner{background:#1f1a10;border-bottom:1px solid #5a4a24;color:#f2c46d;
-  padding:8px 20px;font-size:13px;text-align:center}
-.banner a{color:#ffd88a}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin-bottom:8px}
-.grid>*{min-width:0}
-.wrap{overflow-wrap:anywhere;word-break:break-word}
-.stat{display:block;color:var(--text)}
-.stat .n{font-size:28px;font-weight:650;letter-spacing:-.02em;line-height:1.1}
-.stat .l{color:var(--muted);font-size:13px;text-transform:uppercase;letter-spacing:.06em}
-.stat:hover{text-decoration:none;border-color:#33405a}
-.pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:12px;
-  border:1px solid var(--line);background:var(--panel2);color:var(--muted);white-space:nowrap}
-.pill.ok{color:var(--ok);border-color:#24523a;background:#122019}
-.pill.warn{color:var(--warn);border-color:#5a4a24;background:#1f1a10}
-.pill.bad{color:var(--bad);border-color:#5a2b2b;background:#201313}
-.pill.run{color:var(--accent);border-color:#2b3f66;background:#121a28}
-table{width:100%;border-collapse:collapse;font-size:14px}
-th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
-th{color:var(--muted);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.05em}
-tbody tr:hover{background:rgba(255,255,255,.015)}
-.muted{color:var(--muted)}
-.mono,pre,code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
-pre{background:#0a0d12;border:1px solid var(--line);border-radius:8px;padding:12px;
-  overflow:auto;font-size:13px;line-height:1.45;max-height:60vh}
-code{background:#0a0d12;border:1px solid var(--line);border-radius:4px;padding:1px 5px;font-size:13px;
-  overflow-wrap:anywhere}
-.del{color:var(--bad)}.add{color:var(--ok)}
-form{margin:0}
-label{display:block;margin:12px 0 2px;font-size:13px;color:#b9c3d3}
-input,select,textarea{width:100%;background:#0a0d12;color:var(--text);
-  border:1px solid #2c3748;border-radius:7px;padding:8px 10px;font:inherit;font-size:14px}
-input[type=checkbox]{width:auto;margin-right:6px}
-textarea{resize:vertical}
-button,.btn{display:inline-block;background:#22304a;border:1px solid #34456a;color:#dbe7ff;
-  border-radius:7px;padding:7px 13px;font:inherit;font-size:14px;cursor:pointer;margin:8px 6px 0 0}
-button:hover,.btn:hover{background:#2a3a58;text-decoration:none}
-button.secondary,.btn.secondary{background:var(--panel2);border-color:var(--line);color:var(--text)}
-button.danger{background:#3a1d22;border-color:#5a2b2b;color:#ffd7d7}
-.row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
-.row>*{flex:1 1 180px}
-.actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px}
-.empty{padding:18px;border:1px dashed var(--line);border-radius:8px;color:var(--muted);text-align:center}
-.split{display:grid;grid-template-columns:1.6fr 1fr;gap:18px}
-@media(max-width:820px){.split{grid-template-columns:1fr}header{padding:10px 14px;gap:10px}main{padding:20px 14px 56px}}
-.ev{border-left:2px solid var(--line);padding:4px 0 4px 10px;margin:6px 0;font-size:13px}
-.ev b{color:#c7d3e6;font-weight:600}
-#events{max-height:52vh;overflow:auto}
-.tabs{display:flex;gap:4px;flex-wrap:wrap;margin:0 0 18px}
-.tabs a{padding:6px 11px;border:1px solid var(--line);border-radius:999px;color:var(--muted);font-size:14px}
-.tabs a[aria-current="page"]{background:var(--panel2);color:var(--text)}
-details{border:1px solid var(--line);border-radius:8px;padding:6px 10px;margin:6px 0;background:#0f141c}
-summary{cursor:pointer;color:#c7d3e6}
-.kv{display:grid;grid-template-columns:170px 1fr;gap:4px 12px;margin:0}
-.kv dt{color:var(--muted)}
-.kv dd{margin:0;min-width:0;overflow-wrap:anywhere}
-`
-
-const dashboardJS = `
-const path=location.pathname;
-document.querySelectorAll('header nav a').forEach(a=>{
-  const href=a.getAttribute('href');
-  const active=href==='/ui'?path==='/ui':path===href||path.startsWith(href+'/');
-  if(active)a.setAttribute('aria-current','page');
-});
-const es=new EventSource('/ui/events/stream');
-es.addEventListener('event',e=>{
-  let p; try{p=JSON.parse(e.data)}catch(_){return}
-  let d; try{d=JSON.parse(p.data)}catch(_){return}
-  if(d.event==='transition'&&d.to){const el=document.getElementById('phase-'+p.job_id);if(el)el.textContent=d.to}
-  let title='',body='';
-  if(d.event==='hitl_request'){title='Approval needed';body=(d.type||'')+' ('+(d.severity||'')+')'}
-  else if(d.event==='job_failed'){title='Job failed';body=d.error||'a job failed'}
-  else if(d.event==='alarm_raised'){title='Athanor alarm';body=d.message||''}
-  if(title&&'Notification' in window&&Notification.permission==='granted'){
-    try{new Notification('Athanor · '+title,{body:String(body).slice(0,180)})}catch(_){}
-  }
-});
-async function refreshAlerts(){
-  try{
-    const r=await fetch('/ui/notifications/count',{cache:'no-store'});
-    const c=await r.json();
-    const el=document.getElementById('alert-count');
-    if(el){el.textContent=String(c.total||0);el.hidden=!c.total}
-    const rv=document.getElementById('review-count');
-    if(rv){rv.textContent=String(c.reviews||0);rv.hidden=!c.reviews}
-  }catch(_){}
-}
-refreshAlerts();setInterval(refreshAlerts,30000);
-`
-
-const watchJS = `
-const root=document.getElementById('watch');const jobID=root.dataset.job;
-const pre=document.getElementById('tokens');
-let stick=true;
-if(pre){pre.addEventListener('scroll',()=>{stick=pre.scrollTop+pre.clientHeight>=pre.scrollHeight-24})}
-function evLine(p){
-  let d={};try{d=JSON.parse(p.data)}catch(_){}
-  const label=d.event||p.category||'event';
-  const keys=['phase','state','to','winner','passed','score','reason','decision','unit','iter'];
-  const parts=[];
-  for(const k of keys){if(d[k]!==undefined&&d[k]!==''&&parts.length<4)parts.push(k+'='+d[k])}
-  const ts=p.ts?String(p.ts).slice(11,19)+' ':'';
-  return ts+label+(parts.length?' · '+parts.join(' · '):'');
-}
-const streams=new EventSource('/ui/jobs/'+jobID+'/stream');
-streams.addEventListener('token',e=>{
-  if(!pre)return;
-  let t; try{t=JSON.parse(e.data)}catch(_){return}
-  pre.textContent+=t;
-  if(stick)pre.scrollTop=pre.scrollHeight;
-});
-streams.addEventListener('event',e=>{
-  let p; try{p=JSON.parse(e.data)}catch(_){return}
-  const div=document.createElement('div');div.className='ev';
-  div.textContent=evLine(p);
-  document.getElementById('events').prepend(div);
-});
-`
-
 // document wraps a server-rendered body in the shared page shell. The page
 // title is NOT folded into the template source: it is interpolated as
 // {{.Title}} data so html/template escapes it. Folding a dynamic title (e.g.
@@ -165,33 +12,105 @@ streams.addEventListener('event',e=>{
 // template.Must or evaluate as an action — both closed by keeping it in data.
 func document(body string) string {
 	return `<!doctype html>
-<html lang="en"><head><meta charset="utf-8">
+<html lang="en" data-theme="{{.Theme}}" data-base-theme="{{.Theme}}"><head>
+<meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{{.Title}} — Athanor</title>
-<style>` + css + `</style></head>
+<link rel="stylesheet" href="/ui/assets/app.css">
+<script src="/ui/assets/htmx.min.js" defer></script>
+<script src="/ui/assets/app.js" defer></script>
+</head>
 <body>
+{{if .Bare}}` + body + `{{else}}
 <a class="skip" href="#main">Skip to content</a>
-<header>
-  <a class="brand" href="/ui">Athanor<span>.</span></a>
-  <nav aria-label="Main">
-    <a href="/ui">Dashboard</a>
-    <a href="/ui/projects">Projects</a>
-    <a href="/ui/setup">Setup</a>
-    <a href="/ui/reviews">Reviews <span class="pill" id="review-count" hidden></span></a>
-    <a href="/ui/notifications">Notifications <span class="pill" id="alert-count" hidden></span></a>
-    <a href="/ui/corrections">Corrections</a>
-    <a href="/ui/statistics">Statistics</a>
-    <a href="/ui/events">Inspect</a>
-  </nav>
-  <div class="meta">
-    {{if .Runtime}}<span class="pill">{{.Runtime}}</span>{{end}}
-    {{if .Version}}<span>{{.Version}}</span>{{end}}
+<div class="app">
+  <aside class="rail">
+    <a class="brand" href="/ui">
+      <span class="brand-name">Athanor<span class="ember">.</span></span>
+      <span class="brand-tag">the alchemical LLM furnace</span>
+    </a>
+    <nav aria-label="Work">
+      <a href="/ui"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v9h13v-9"/></svg>Home</a>
+      <a href="/ui/notifications"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M4 5h16v12H7l-3 3z"/></svg>Inbox <span class="badge" id="alert-count" hidden></span></a>
+      <a href="/ui/projects"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M3 6h7l2 2h9v11H3z"/></svg>Projects</a>
+      <a href="/ui/artifacts"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M5 3h10l4 4v14H5z"/><path d="M15 3v5h4"/></svg>Library</a>
+      <a href="/ui/reviews">Reviews <span class="badge" id="review-count" hidden></span></a>
+    </nav>
+    <div class="group-label">Insights</div>
+    <nav aria-label="Insights">
+      <a href="/ui/statistics">Statistics</a>
+      <a href="/ui/memory">Memory</a>
+      <a href="/ui/events?category=network">Network</a>
+      <a href="/ui/events?category=security">Security</a>
+      <a href="/ui/daydream">Daydream</a>
+    </nav>
+    <div class="group-label">System</div>
+    <nav aria-label="System">
+      <a href="/ui/setup">Setup</a>
+      <a href="/ui/runtime">Runtime</a>
+      <a href="/ui/events">Events</a>
+      <a href="/ui/corrections">Corrections</a>
+      <a href="/ui/settings">Settings</a>
+      <a href="/ui/sitemap">Sitemap</a>
+    </nav>
+    <div class="spacer"></div>
+    <div class="rail-foot">
+      {{if .Runtime}}<span><span class="dot"></span>{{.Runtime}}</span>{{end}}
+      {{if .Version}}<span>{{.Version}}</span>{{end}}
+    </div>
+  </aside>
+  <div class="work">
+    <div class="topbar">
+      <div class="crumbs"><a href="/ui">Athanor</a><span class="sep">/</span><span>{{.Title}}</span></div>
+      <form class="search" method="get" action="/ui/search" role="search">
+        <input type="search" name="q" placeholder="Search projects, artifacts, jobs…  (⌘K)" aria-label="Search" value="{{.Query}}">
+      </form>
+      <div class="top-actions">
+        <button type="button" class="btn secondary small" data-palette-open>⌘K</button>
+        <a class="btn primary small" href="/ui/projects/new">+ New project</a>
+      </div>
+    </div>
+    {{if .DevRuntime}}<div class="banner">Development runtime: this is the unsupported host process. The supported runtime is the Core Pod — run <code>sh scripts/install.sh</code> for the real setup, or continue here for development.</div>{{end}}
+    <main id="main">` + body + `</main>
   </div>
-</header>
-{{if .DevRuntime}}<div class="banner">Development runtime: this is the unsupported host process. The supported runtime is the Core Pod — run <code>sh scripts/install.sh</code> for the real setup, or continue here for development.</div>{{end}}
-<main id="main">` + body + `</main>
-<script>` + dashboardJS + `</script>
+</div>
+<div class="palette" id="palette" role="dialog" aria-modal="true" aria-label="Command palette" aria-hidden="true">
+  <div class="palette-box">
+    <input id="palette-input" type="search" placeholder="Search or jump to…" autocomplete="off" aria-label="Search or jump to">
+    <div class="palette-results" id="palette-results"></div>
+  </div>
+</div>
+{{end}}
 </body></html>`
+}
+
+// themeNames is the closed set of themes the Settings page may select. The
+// CSS defines every one; an unknown value falls back to monokai.
+var themeNames = []struct{ ID, Label string }{
+	{"monokai", "Monokai (default)"},
+	{"ember", "Ember Paper (warm light)"},
+	{"monokai-light", "Monokai Light"},
+	{"nord", "Nord"},
+	{"solarized-light", "Solarized Light"},
+	{"contrast", "High Contrast"},
+}
+
+func themeLabel(id string) string {
+	for _, t := range themeNames {
+		if t.ID == id {
+			return t.Label
+		}
+	}
+	return themeNames[0].Label
+}
+
+func validTheme(id string) bool {
+	for _, t := range themeNames {
+		if t.ID == id {
+			return true
+		}
+	}
+	return false
 }
 
 const reviewsBody = `
@@ -268,18 +187,6 @@ const notificationsBody = `
 </tr>{{end}}
 </tbody></table>
 {{else}}<div class="empty">No failed jobs in the last 24 hours.</div>{{end}}
-
-<script>
-const nb=document.getElementById('enable-notifications');
-const ns=document.getElementById('notify-status');
-function setNotifyStatus(){
-  if(!('Notification' in window)){nb.disabled=true;nb.textContent='Desktop notifications unavailable';return}
-  if(Notification.permission==='granted'){nb.textContent='Desktop notifications enabled';nb.disabled=true}
-  else if(Notification.permission==='denied'){nb.textContent='Desktop notifications blocked in the browser';nb.disabled=true}
-  else{ns.textContent='The browser will ask for permission.'}
-}
-if(nb){nb.addEventListener('click',()=>{Notification.requestPermission().then(setNotifyStatus)});setNotifyStatus()}
-</script>
 `
 
 const errorBody = `
@@ -328,7 +235,7 @@ const dashboardBody = `
     <button name="action" value="approve">Approve</button>
     <button name="action" value="reject" class="secondary">Reject</button>
     <button name="action" value="defer" class="secondary">Defer 1h</button>
-    <input type="text" name="note" placeholder="note (optional)" style="flex:1 1 220px">
+    <input type="text" name="note" placeholder="note (optional)" class="grow">
   </div>
 </form>
 {{end}}
@@ -400,22 +307,23 @@ const projectsBody = `
 
 const newProjectBody = `
 <h1>New project</h1>
-<p class="sub">A project holds one goal, its criteria, and the jobs that work on it. You do not choose a type: the system infers what it can produce and how to verify it from the goal and repository.</p>
+<p class="sub">A project holds one goal, its criteria, and the work that follows. You do not choose a type: the system infers what it can produce and how to verify it from the goal and repository.</p>
 <div class="actions"><a class="btn secondary" href="/ui/projects">All projects</a></div>
 {{if .Error}}<div class="card"><p class="del">{{.Error}}</p></div>{{end}}
 <div class="card">
 <form method="post" action="/ui/projects">
   <label>Name <input name="name" value="{{.Name}}" required></label>
-  <label>Goal <textarea name="goal" rows="2" minlength="20" maxlength="500" required>{{.Goal}}</textarea></label>
+  <label>Goal <textarea name="goal" rows="2" minlength="3" maxlength="500" required>{{.Goal}}</textarea></label>
+  <div class="field-help">A sentence is enough. The onboarding brief adds the limits, sources, and definition of success before any work starts.</div>
   <label>Repository path (optional) <input name="repository_path" value="{{.RepositoryPath}}" placeholder="/absolute/path/to/repo"></label>
   <label>Acceptance criteria (optional, one per line) <textarea name="criteria" rows="4">{{.Criteria}}</textarea></label>
   <div class="actions">
-    <button name="start" value="">Create and review plan</button>
+    <button name="start" value="" class="primary">Create and continue to onboarding</button>
     <button name="start" value="1" class="secondary">Create and start now</button>
   </div>
 </form>
 </div>
-<p class="muted">A repository-backed project is indexed once before the first job. The interview is optional and skippable; approving a plan starts work.</p>
+<p class="muted">Onboarding asks for clarification, limits, web sources, and success criteria, then explores directions for exploratory goals. Approving a plan starts work. A repository-backed project is indexed once before the first job.</p>
 `
 
 const interviewBody = `
@@ -442,7 +350,7 @@ const interviewBody = `
 {{end}}
 
 <h2>Plan</h2>
-{{if .Plan}}<div class="card"><pre>{{.Plan}}</pre></div>
+{{if .Plan}}<div class="card"><div class="prose">{{markdown .Plan}}</div></div>
 {{else}}<div class="empty">Answer the questions and save, or skip the interview to use the goal and criteria as the plan.</div>{{end}}
 
 <div class="card">
@@ -464,7 +372,8 @@ const projectBody = `
 <h1>{{.Project.Name}} <span class="pill">{{join .Project.Capabilities}}</span></h1>
 <p class="sub">{{.Project.Goal}}</p>
 <div class="actions">
-  <a class="btn" href="/ui/projects/{{.Project.ID}}/interview">Plan / interview</a>
+  <a class="btn" href="/ui/projects/{{.Project.ID}}/onboarding">Onboarding / explore</a>
+  <a class="btn secondary" href="/ui/projects/{{.Project.ID}}/interview">Plan / interview</a>
   <a class="btn secondary" href="#submit-goal">Submit a goal</a>
   <a class="btn secondary" href="/ui/projects">All projects</a>
 </div>
@@ -501,7 +410,7 @@ const projectBody = `
 <h2 id="submit-goal">Submit a goal</h2>
 <div class="card">
 <form method="post" action="/ui/projects/{{.Project.ID}}/goals">
-  <label>goal <textarea name="goal" rows="3" minlength="20" maxlength="500" required></textarea></label>
+  <label>goal <textarea name="goal" rows="3" minlength="3" maxlength="500" required></textarea></label>
   <label>acceptance criteria (one per line) <textarea name="criteria" rows="3"></textarea></label>
   <button>Submit goal</button>
 </form>
@@ -566,8 +475,8 @@ const correctionsBody = `
 <form method="post" action="/ui/corrections/{{.ID}}">
 <button name="status" value="muted" class="secondary">Mute</button>
 <button name="status" value="active">Promote</button>
-<input name="severity" placeholder="severity" style="width:90px">
-<input name="derived_rule" placeholder="rule" style="width:160px">
+<input name="severity" placeholder="severity" class="w-90">
+<input name="derived_rule" placeholder="rule" class="w-160">
 <button name="edit" value="1" class="secondary">Edit</button>
 </form>
 </td></tr>
@@ -630,7 +539,6 @@ const watchBody = `
 {{end}}
 </tbody></table>
 {{else}}<div class="empty">No artifacts yet.</div>{{end}}
-<script>` + watchJS + `</script>
 `
 
 const artifactBody = `
@@ -646,7 +554,7 @@ const artifactBody = `
 <div class="split">
   <div class="card">
     <h2>What was built</h2>
-    <pre>{{.Content}}</pre>
+    {{if eq .Artifact.Kind "code"}}<pre>{{.Content}}</pre>{{else}}<div class="prose">{{markdown .Content}}</div>{{end}}
   </div>
   <div>
     <div class="card">

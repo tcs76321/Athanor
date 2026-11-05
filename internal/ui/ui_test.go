@@ -389,7 +389,7 @@ func TestLineDiffBuildsValidEditScript(t *testing.T) {
 func TestFirstUseCopy(t *testing.T) {
 	fx := setup(t)
 	_, body := get(t, fx.ts.URL+"/ui")
-	for _, want := range []string{"Not frozen", "artifacts to review", "Notifications", "review-count"} {
+	for _, want := range []string{"Not frozen", "artifacts to review", "Inbox", "review-count"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("dashboard missing %q", want)
 		}
@@ -725,9 +725,9 @@ func TestCreateProjectFromUI(t *testing.T) {
 	}
 	loc := resp.Header.Get("Location")
 	if !strings.HasPrefix(loc, "/ui/projects/") {
-		t.Fatalf("Location = %q, want a project page", loc)
+		t.Fatalf("Location = %q, want a project onboarding page", loc)
 	}
-	id := strings.TrimPrefix(loc, "/ui/projects/")
+	id := strings.TrimSuffix(strings.TrimPrefix(loc, "/ui/projects/"), "/onboarding")
 	p, err := fx.ui.deps.Projects.Get(context.Background(), id)
 	if err != nil {
 		t.Fatal(err)

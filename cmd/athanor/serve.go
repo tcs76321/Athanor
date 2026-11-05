@@ -23,6 +23,7 @@ import (
 	"github.com/tcs76321/athanor/internal/control"
 	"github.com/tcs76321/athanor/internal/corrections"
 	"github.com/tcs76321/athanor/internal/daydream"
+	"github.com/tcs76321/athanor/internal/discovery"
 	"github.com/tcs76321/athanor/internal/engine"
 	"github.com/tcs76321/athanor/internal/evaluation"
 	"github.com/tcs76321/athanor/internal/hitl"
@@ -405,6 +406,11 @@ func run(configPath, addr, stateDir string, container bool) error {
 		Interviews:    interview.NewRepo(st),
 		Interruptions: interruptionsRepo, Strategy: strategyRepo,
 		Freezer: killSwitch, Engine: eng, Indexer: indexer,
+		Discovery: discovery.NewService(
+			&discoveryGenerator{client: llmClient, cfg: cfg},
+			discovery.NewStore(st),
+		),
+		Scheduler:  sched,
 		DefaultTTL: cfg.HITL.DefaultTTL.D(),
 	})
 	eng.SetTokenSink(webUI.Hub())
