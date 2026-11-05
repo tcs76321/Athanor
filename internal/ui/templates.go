@@ -71,6 +71,7 @@ func document(body string) string {
       </div>
     </div>
     {{if .DevRuntime}}<div class="banner">Development runtime: this is the unsupported host process. The supported runtime is the Core Pod — run <code>sh scripts/install.sh</code> for the real setup, or continue here for development.</div>{{end}}
+    {{if .RestartRequired}}<div class="banner bad">Configuration saved — restart required: {{.RestartRequired}}. Run <code>{{.RestartHint}}</code> to load it; this process keeps the old values until then.</div>{{end}}
     <main id="main">` + body + `</main>
   </div>
 </div>
@@ -614,6 +615,24 @@ const watchBody = `
       {{end}}
     </div>
     {{else}}<div class="empty">No candidates yet. They appear as the divergence phase produces them.</div>{{end}}
+
+    <h2>Evaluations</h2>
+    {{if .Evaluations}}
+    <div class="grid cols-2">
+      {{range .Evaluations}}
+      <div class="card">
+        <div class="row row-middle">
+          <span class="pill {{if .PassedTests}}ok{{else}}bad{{end}}">{{if .PassedTests}}passed{{else}}failed{{end}}</span>
+          <span class="muted right">score {{printf "%.2f" .Score}} · confidence {{printf "%.2f" .Confidence}}</span>
+        </div>
+        <div class="mono small">{{.ArtifactID | short}}</div>
+        {{if .Summary}}<p class="muted">{{.Summary}}</p>{{end}}
+        {{if .MissingCriteria}}<div class="field-help">Missing: {{join .MissingCriteria}}</div>{{end}}
+        {{if .FailedTests}}<div class="field-help">Failed tests: {{join .FailedTests}}</div>{{end}}
+      </div>
+      {{end}}
+    </div>
+    {{else}}<div class="empty">No evaluation records yet.</div>{{end}}
 
     <h2>Interruptions</h2>
     <div class="card">

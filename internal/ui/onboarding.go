@@ -68,6 +68,31 @@ type resourceView struct {
 	ReserveMB      int
 }
 
+type modelBudget struct {
+	TotalGiB   float64
+	LargestGiB float64
+	PodGiB     float64
+	ReserveGiB float64
+	SpareGiB   float64
+	Overcommit bool
+}
+
+func budgetFor(models []setupModel, hw Hardware, res resourceView) modelBudget {
+	b := modelBudget{
+		TotalGiB:   float64(hw.TotalMemoryBytes) / (1 << 30),
+		PodGiB:     float64(res.MemoryMB) / 1024,
+		ReserveGiB: float64(res.ReserveMB) / 1024,
+	}
+	for _, m := range models {
+		if g := float64(m.SizeBytes) / (1 << 30); g > b.LargestGiB {
+			b.LargestGiB = g
+		}
+	}
+	b.SpareGiB = b.TotalGiB - b.LargestGiB - b.PodGiB - b.ReserveGiB
+	b.Overcommit = b.TotalGiB > 0 && b.SpareGiB < 0
+	return b
+}
+
 var onboardingSteps = []onboardingStep{
 	{"welcome", "Welcome", "What Athanor is and what it will do"},
 	{"environment", "Environment", "Doctor checks run from the GUI"},
@@ -227,6 +252,7 @@ func (u *UI) welcomeData(ctx context.Context, st onboardingState) map[string]any
 	assignments := u.autoAssignments(roles, models, hw)
 	suggestions := u.pullSuggestions(roles)
 	resources := recommendedResources(hw, u.deps.Config)
+	budget := budgetFor(models, hw, resources)
 	return map[string]any{
 		"State": st, "Step": st.Step, "Steps": onboardingSteps,
 		"StepIndex": onboardingIndex(st.Step), "StepNumber": onboardingIndex(st.Step) + 1,
@@ -235,7 +261,7 @@ func (u *UI) welcomeData(ctx context.Context, st onboardingState) map[string]any
 		"Themes": themeNames, "Theme": u.Theme(), "ThemeLabel": themeLabel(u.Theme()),
 		"PersonaGuides": personaGuides, "Assignments": assignments,
 		"Suggestions": suggestions, "Resources": resources, "Hardware": hw,
-		"ConfigPath": u.deps.ConfigPath,
+		"Budget": budget, "ConfigPath": u.deps.ConfigPath,
 		"OllamaURL": func() string {
 			if u.deps.Config == nil {
 				return ""
@@ -554,6 +580,7 @@ func (u *UI) applyPersonas(ctx context.Context) error {
 	if err := config.UpdatePersonas(u.deps.ConfigPath, updates); err != nil {
 		return err
 	}
+	u.markRestartRequired(ctx, "persona assignment changed")
 	if u.deps.Store != nil {
 		cctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
@@ -631,6 +658,7 @@ func (u *UI) handleWelcomePost(w http.ResponseWriter, r *http.Request) {
 			u.fail(w, err)
 			return
 		}
+		u.markRestartRequired(ctx, "Job Pod resource limits changed")
 		if err := u.saveOnboarding(ctx, st); err != nil {
 			u.fail(w, err)
 			return

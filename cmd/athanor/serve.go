@@ -137,6 +137,9 @@ func run(configPath, addr, stateDir string, container bool) error {
 	if err := store.Migrate(st.DB(), migrations.FS, filepath.Join(stateDir, "backups")); err != nil {
 		return fmt.Errorf("migrating database: %w", err)
 	}
+	// A restart consumed any saved config; the new process reads it at boot.
+	// The UI sets this key when it writes config and cannot hot-reload.
+	_, _ = st.DB().Exec(`DELETE FROM system_state WHERE key = 'ui:restart_required'`)
 	// ADR-0082: a crash can leave per-job repository snapshots behind. They
 	// are disposable; a recovered job re-stages one before its next pod start.
 	if err := ClearScratch(stateDir); err != nil {
@@ -551,6 +554,8 @@ func run(configPath, addr, stateDir string, container bool) error {
 	httpSrv := &http.Server{
 		Handler:           srv.Handler(),
 		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		IdleTimeout:       120 * time.Second,
 	}
 	ln, err := net.Listen("tcp", listenAddr)
 	if err != nil {

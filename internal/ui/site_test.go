@@ -159,6 +159,18 @@ func TestSettingsKillSwitch(t *testing.T) {
 	}
 }
 
+func TestRestartRequiredBanner(t *testing.T) {
+	fx := setup(t)
+	fx.ui.markRestartRequired(context.Background(), "persona assignment changed")
+	_, body := get(t, fx.ts.URL+"/ui")
+	if !strings.Contains(body, "restart required") || !strings.Contains(body, "persona assignment changed") {
+		t.Fatalf("restart banner missing:\n%s", body)
+	}
+	if !strings.Contains(body, "restart the athanor serve process") {
+		t.Errorf("restart hint missing for the host runtime")
+	}
+}
+
 func TestCSPAndNoInlineScripts(t *testing.T) {
 	fx := setup(t)
 	resp, err := http.Get(fx.ts.URL + "/ui")

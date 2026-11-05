@@ -230,7 +230,7 @@ func TestWelcomeModelsSelfSelectAndApply(t *testing.T) {
 	t.Cleanup(ts.Close)
 
 	_, body := get(t, ts.URL+"/ui/welcome?step=models")
-	for _, want := range []string{"What the roles mean", "Installed models", "Athanor's selection", "large:14b", "Use this assignment"} {
+	for _, want := range []string{"What the roles mean", "Installed models", "Athanor's selection", "large:14b", "Use this assignment", "Memory budget"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("models step missing %q", want)
 		}

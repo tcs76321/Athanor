@@ -110,6 +110,38 @@ func TestStoreRoundTripAndSelect(t *testing.T) {
 	}
 }
 
+func TestBeginAndFailAreDurable(t *testing.T) {
+	s, err := store.Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+	if err := store.Migrate(s.DB(), migrations.FS, ""); err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	if _, err := s.DB().ExecContext(ctx,
+		`INSERT INTO projects (id, name, archetype, goal) VALUES ('p1','p1','document','make money online')`); err != nil {
+		t.Fatal(err)
+	}
+	ds := NewStore(s)
+	sess, err := ds.Begin(ctx, "p1", "brief")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sess.Status != "generating" {
+		t.Fatalf("status = %q, want generating", sess.Status)
+	}
+	ds.Fail(ctx, sess.ID, "model unavailable")
+	got, ok, err := ds.Get(ctx, "p1")
+	if err != nil || !ok {
+		t.Fatalf("get: ok=%v err=%v", ok, err)
+	}
+	if got.Status != "failed" || got.Error != "model unavailable" {
+		t.Fatalf("failed session = %+v", got)
+	}
+}
+
 func TestBuildPromptMentionsConstraintsAndHonesty(t *testing.T) {
 	p := BuildPrompt(Request{
 		Goal: "make money online", Brief: "2 hours a day",

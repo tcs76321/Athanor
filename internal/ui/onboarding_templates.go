@@ -99,6 +99,15 @@ const welcomeBody = `
     <h1>Personas and models.</h1>
     <p class="lede">Personas are functional roles, not fixed models. Athanor selects one installed model for each role based on size and family, and you can review or replace the assignment. Models are never downloaded without an explicit pull.</p>
     {{if .ModelsErr}}<div class="notice bad">{{.ModelsErr}}</div>{{end}}
+    {{if .Budget.TotalGiB}}
+    <div class="card {{if .Budget.Overcommit}}card-accent{{end}}">
+      <div class="row row-middle">
+        <div><div class="eyebrow">Memory budget</div><p class="muted">Largest installed model {{printf "%.1f" .Budget.LargestGiB}} GiB + Job Pod {{printf "%.1f" .Budget.PodGiB}} GiB + {{printf "%.1f" .Budget.ReserveGiB}} GiB reserve vs {{printf "%.1f" .Budget.TotalGiB}} GiB host RAM.</p></div>
+        {{if .Budget.Overcommit}}<span class="pill bad">overcommitted</span>{{else}}<span class="pill ok">fits</span>{{end}}
+      </div>
+      {{if .Budget.Overcommit}}<p class="del">This combination can thrash the host. Reduce the Job Pod memory in Resources or choose smaller models.</p>{{end}}
+    </div>
+    {{end}}
 
     <h2>What the roles mean</h2>
     <div class="grid cols-3">
@@ -154,10 +163,11 @@ const welcomeBody = `
     {{if .Assignments}}
     {{if eq .Applied "personas"}}<div class="notice">Persona assignment saved to <code>{{.ConfigPath}}</code>. Restart the Core (or the host process) to load it; the running registry keeps the current models until then.</div>{{end}}
     <div class="card flush"><div class="table-wrap">
-      <table><thead><tr><th>Role</th><th>Selected model</th><th>Family</th><th>Why</th></tr></thead><tbody>
+      <table><thead><tr><th>Role</th><th>Selected model</th><th>Context</th><th>Family</th><th>Why</th></tr></thead><tbody>
       {{range .Assignments}}<tr>
         <td><b>{{.Role}}</b></td>
         <td class="mono">{{.Model}}</td>
+        <td>{{if .ContextTarget}}{{.ContextTarget}}{{else}}—{{end}}</td>
         <td>{{if .Family}}{{.Family}}{{else}}—{{end}}</td>
         <td class="muted">{{.Reason}}</td>
       </tr>{{end}}

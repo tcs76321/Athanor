@@ -727,6 +727,10 @@ func (u *UI) handleWatch(w http.ResponseWriter, r *http.Request) {
 	if u.deps.Interruptions != nil {
 		notes, _ = u.deps.Interruptions.List(ctx, id)
 	}
+	var evals []evaluation.Record
+	if u.deps.Eval != nil {
+		evals, _ = u.deps.Eval.ListByJob(ctx, id)
+	}
 	events, err := u.deps.Store.QueryEvents(ctx, store.EventFilter{JobID: id})
 	if err != nil {
 		u.fail(w, err)
@@ -753,6 +757,7 @@ func (u *UI) handleWatch(w http.ResponseWriter, r *http.Request) {
 		"Job": j, "Artifacts": arts, "Notes": notes, "Events": events,
 		"ProjectName": projectName, "Phases": watchPhases, "Phase": string(phase),
 		"PhaseIndex": phaseIndex(phase), "LastEvent": lastEventName(events),
+		"Evaluations": evals,
 	})
 }
 
@@ -1200,6 +1205,10 @@ func (u *UI) renderStatus(w http.ResponseWriter, status int, title, body string,
 	theme := u.Theme()
 	data["Theme"] = theme
 	data["ThemeLabel"] = themeLabel(theme)
+	if reason := u.restartRequired(context.Background()); reason != "" {
+		data["RestartRequired"] = reason
+		data["RestartHint"] = u.restartHint()
+	}
 	if _, ok := data["DevRuntime"]; !ok {
 		// The host process is a client/development surface (ADR-0078); show
 		// the warning unless this is the supported Core Pod.

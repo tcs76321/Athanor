@@ -158,6 +158,7 @@ func (u *UI) handleProjectOnboarding(w http.ResponseWriter, r *http.Request) {
 	}
 	run := u.discoveryRunFor(p.ID)
 	stage := "brief"
+	discoveryError := ""
 	switch {
 	case brief.Status == "approved":
 		stage = "approved"
@@ -165,8 +166,21 @@ func (u *UI) handleProjectOnboarding(w http.ResponseWriter, r *http.Request) {
 		stage = "plan"
 	case hasSession && len(sess.Options) > 0:
 		stage = "choose"
+	case hasSession && sess.Status == "generating":
+		if time.Since(sess.UpdatedAt) > 20*time.Minute {
+			stage = "brief"
+			discoveryError = "The previous discovery run was interrupted. Start it again when you are ready."
+		} else {
+			stage = "generating"
+		}
+	case hasSession && sess.Status == "failed":
+		stage = "brief"
+		discoveryError = sess.Error
 	case run != nil && run.Status == "running":
 		stage = "generating"
+	case run != nil && run.Status == "failed":
+		stage = "brief"
+		discoveryError = run.Error
 	}
 	var selected *discovery.Option
 	if hasSession && sess.SelectedID != "" {
@@ -185,7 +199,7 @@ func (u *UI) handleProjectOnboarding(w http.ResponseWriter, r *http.Request) {
 		"Project": p, "Brief": brief, "Session": sess, "HasSession": hasSession,
 		"Run": run, "Stage": stage, "Selected": selected, "Plan": plan,
 		"Status": brief.Status, "Sources": sourceStatuses(brief.Sources, u.deps.Config),
-		"Requested": r.URL.Query().Get("requested") != "",
+		"Requested": r.URL.Query().Get("requested") != "", "DiscoveryError": discoveryError,
 	})
 }
 

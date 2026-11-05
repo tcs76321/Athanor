@@ -288,20 +288,34 @@ type Store struct{ db *store.Store }
 
 func NewStore(s *store.Store) *Store { return &Store{db: s} }
 
-// Save replaces the project's current session (one active portfolio per
-// project) and inserts its scored options.
-func (s *Store) Save(ctx context.Context, projectID, brief string, opts []Option) (Session, error) {
+// Begin creates a durable, in-progress discovery session before the model
+// call. A Core restart therefore shows "in progress" (or a stale failure)
+// instead of silently returning to the brief.
+func (s *Store) Begin(ctx context.Context, projectID, brief string) (Session, error) {
 	sessionID := ids.New()
-	tx, err := s.db.DB().BeginTx(ctx, nil)
-	if err != nil {
-		return Session{}, err
-	}
-	defer func() { _ = tx.Rollback() }()
-	if _, err := tx.ExecContext(ctx,
-		`INSERT INTO discovery_sessions (id, project_id, status, brief) VALUES (?, ?, 'ready', ?)`,
+	if _, err := s.db.DB().ExecContext(ctx,
+		`INSERT INTO discovery_sessions (id, project_id, status, brief) VALUES (?, ?, 'generating', ?)`,
 		sessionID, projectID, brief); err != nil {
 		return Session{}, fmt.Errorf("creating discovery session: %w", err)
 	}
+	sess, ok, err := s.Get(ctx, projectID)
+	if err != nil {
+		return Session{}, err
+	}
+	if !ok {
+		return Session{}, fmt.Errorf("discovery: session disappeared after begin")
+	}
+	return sess, nil
+}
+
+// Complete replaces a generating session with its scored options and marks it
+// ready. It is transactional: a partial option set is never visible.
+func (s *Store) Complete(ctx context.Context, sessionID string, opts []Option) error {
+	tx, err := s.db.DB().BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
 	for i, o := range opts {
 		id := ids.New()
 		skills, _ := json.Marshal(o.Skills)
@@ -322,20 +336,40 @@ func (s *Store) Save(ctx context.Context, projectID, brief string, opts []Option
 			o.ValidationExperiment, o.TimeToFirstRevenueDays, o.StartupCostUSD,
 			string(skills), o.Competition, string(evidence), string(risks), string(assumptions),
 			o.Confidence, string(scores)); err != nil {
-			return Session{}, fmt.Errorf("saving discovery option: %w", err)
+			return fmt.Errorf("saving discovery option: %w", err)
 		}
 	}
-	if err := tx.Commit(); err != nil {
+	if _, err := tx.ExecContext(ctx,
+		`UPDATE discovery_sessions SET status = 'ready', error = '' WHERE id = ?`, sessionID); err != nil {
+		return fmt.Errorf("marking discovery ready: %w", err)
+	}
+	return tx.Commit()
+}
+
+// Fail marks a generating session failed with a bounded, user-facing reason.
+func (s *Store) Fail(ctx context.Context, sessionID, msg string) {
+	_, _ = s.db.DB().ExecContext(ctx,
+		`UPDATE discovery_sessions SET status = 'failed', error = ? WHERE id = ?`, msg, sessionID)
+}
+
+// Save is the convenience path used by tests and callers that already hold a
+// complete portfolio: begin, complete, return the newest session.
+func (s *Store) Save(ctx context.Context, projectID, brief string, opts []Option) (Session, error) {
+	sess, err := s.Begin(ctx, projectID, brief)
+	if err != nil {
 		return Session{}, err
 	}
-	sess, ok, err := s.Get(ctx, projectID)
+	if err := s.Complete(ctx, sess.ID, opts); err != nil {
+		return Session{}, err
+	}
+	got, ok, err := s.Get(ctx, projectID)
 	if err != nil {
 		return Session{}, err
 	}
 	if !ok {
 		return Session{}, fmt.Errorf("discovery: session disappeared after save")
 	}
-	return sess, nil
+	return got, nil
 }
 
 // Get returns the project's newest session with its options.
@@ -422,20 +456,38 @@ func (s *Service) Generate(ctx context.Context, projectID string, req Request) (
 	if s.gen == nil {
 		return Session{}, fmt.Errorf("discovery: no generator configured")
 	}
-	raw, err := s.gen.Generate(ctx, req)
+	sess, err := s.store.Begin(ctx, projectID, req.Brief)
 	if err != nil {
 		return Session{}, err
+	}
+	fail := func(err error) (Session, error) {
+		s.store.Fail(ctx, sess.ID, err.Error())
+		return Session{}, err
+	}
+	raw, err := s.gen.Generate(ctx, req)
+	if err != nil {
+		return fail(err)
 	}
 	opts, err := Parse(raw)
 	if err != nil {
-		return Session{}, err
+		return fail(err)
 	}
 	opts = Dedupe(opts)
 	if err := Validate(opts); err != nil {
-		return Session{}, err
+		return fail(err)
 	}
 	Score(opts)
-	return s.store.Save(ctx, projectID, req.Brief, opts)
+	if err := s.store.Complete(ctx, sess.ID, opts); err != nil {
+		return fail(err)
+	}
+	got, ok, err := s.store.Get(ctx, projectID)
+	if err != nil {
+		return Session{}, err
+	}
+	if !ok {
+		return Session{}, fmt.Errorf("discovery: session disappeared after completion")
+	}
+	return got, nil
 }
 
 // Get and Select delegate to the store.
