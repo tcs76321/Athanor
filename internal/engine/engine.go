@@ -641,6 +641,7 @@ func (e *Engine) setDifficultyHint(ctx context.Context, jobID, hint string) {
 func jobScratchKeys(jobID string) []string {
 	return []string{
 		difficultyStateKey(jobID),
+		languageStateKey(jobID),
 		reflectCounterPrefix + jobID,
 		reflectProposalPrefix + jobID,
 		refineCounterPrefix + jobID,
@@ -909,12 +910,13 @@ func (e *Engine) finishQueuedCancel(jobID string) {
 // id (already terminal or never enqueued).
 func (e *Engine) Cancel(jobID string) bool {
 	e.cancelMu.Lock()
-	e.cancelled[jobID] = true
 	cancel := e.cancels[jobID]
-	e.cancelMu.Unlock()
 	if cancel == nil {
+		e.cancelMu.Unlock()
 		return false
 	}
+	e.cancelled[jobID] = true
+	e.cancelMu.Unlock()
 	cancel()
 	return true
 }
@@ -1121,6 +1123,8 @@ func (e *Engine) Run(ctx context.Context, jobID string) {
 					})
 					e.signalTerminal(cctx, jobID, job.StateCancelled)
 				}
+				e.captureOutcome(cctx, jobID)
+				e.clearJobScratch(cctx, jobID)
 				e.settleHorizon(cctx, jobID)
 				e.stopPod(cctx, jobID)
 				cancel()
@@ -1233,6 +1237,7 @@ func (e *Engine) handleJobPanic(jobID string, recovered any) {
 				fmt.Errorf("panic: %v", recovered))
 			e.captureOutcome(ctx, jobID)
 			e.clearJobScratch(ctx, jobID)
+			e.settleHorizon(ctx, jobID)
 		}
 	}
 	e.stopPod(ctx, jobID)
