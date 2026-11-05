@@ -531,6 +531,7 @@ func run(configPath, addr, stateDir string, container bool) error {
 	// keeps the API package free of the egress import
 	// (Gate G1 keeps the dependency graph narrow).
 	externalAPI.SetManualExporter(exporter)
+	webUI.SetExporter(exporter)
 
 	// M4-T5: §21.5 Internet Gated Reader. The gateway
 	// is the *only* door between the Core and the

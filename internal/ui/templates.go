@@ -452,6 +452,7 @@ const projectBody = `
   <h3>{{if .Task.Title}}{{.Task.Title}}{{else}}{{.Task.Description}}{{end}}
     <span class="pill">{{.Task.Status}}</span></h3>
   {{if .Task.Criteria}}<p class="muted">Criteria: {{join .Task.Criteria}}</p>{{end}}
+  {{if .Task.DependsOn}}<p class="muted">Depends on: {{range .Task.DependsOn}}<span class="pill mono">{{short .}}</span> {{end}}</p>{{end}}
   {{if .Jobs}}
   <table><thead><tr><th>Job</th><th>State</th><th>Attempt</th><th>Started</th></tr></thead><tbody>
   {{range .Jobs}}<tr>
@@ -673,6 +674,8 @@ const artifactBody = `
   · job <a href="/ui/jobs/{{.Artifact.JobID}}" class="mono">{{.Artifact.JobID | short}}</a>
   {{if .Artifact.GitCommit}}· commit <span class="mono">{{.Artifact.GitCommit | short}}</span>{{end}}
 </p>
+{{if .Exported}}<div class="notice">Export written to the workspace <code>exports/</code> directory.</div>{{end}}
+{{if .CanExport}}<div class="actions"><form method="post" action="/ui/artifacts/{{.Artifact.ID}}/export"><button class="secondary small">Export through the airlock</button></form></div>{{end}}
 
 <div class="split">
   <div class="card">

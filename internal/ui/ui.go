@@ -51,6 +51,12 @@ type Control interface {
 	Unfreeze(ctx context.Context, reason string) error
 }
 
+// Exporter writes one accepted artifact through the egress pipeline.
+// Satisfied by *egress.Exporter.
+type Exporter interface {
+	ExportOne(ctx context.Context, artifactID string) (path string, exported bool, err error)
+}
+
 // Hardware is the host capacity reported to the resources step.
 type Hardware struct {
 	TotalMemoryBytes uint64
@@ -146,6 +152,9 @@ type UI struct {
 	// onboarding page. The durable portfolio is written when the pass ends.
 	discMu   sync.Mutex
 	discRuns map[string]*discoveryRun
+	// exporter is optional: the egress pipeline is wired after the UI is
+	// constructed, so it is a setter rather than a New() field.
+	exporter Exporter
 }
 
 // New builds a UI.
@@ -195,6 +204,10 @@ func (u *UI) setTheme(id string) error {
 // subscribers. Slow subscribers drop chunks rather than block the engine.
 func (u *UI) Hub() *Hub { return u.hub }
 
+// SetExporter wires the egress pipeline after construction. A nil exporter
+// leaves the artifact Export action hidden/disabled.
+func (u *UI) SetExporter(e Exporter) { u.exporter = e }
+
 // Register mounts the UI routes.
 func (u *UI) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /ui/assets/", u.handleAssets)
@@ -227,6 +240,7 @@ func (u *UI) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /ui/jobs/{id}/note", u.handleNote)
 	mux.HandleFunc("POST /ui/jobs/{id}/control", u.handleControl)
 	mux.HandleFunc("GET /ui/artifacts/{id}", u.handleArtifact)
+	mux.HandleFunc("POST /ui/artifacts/{id}/export", u.handleArtifactExport)
 	mux.HandleFunc("POST /ui/artifacts/{id}/review", u.handleReviewCreate)
 	mux.HandleFunc("GET /ui/artifacts/{id}/diff", u.handleDiff)
 	mux.HandleFunc("POST /ui/approvals/{id}", u.handleApproval)
@@ -1081,7 +1095,26 @@ func (u *UI) handleArtifact(w http.ResponseWriter, r *http.Request) {
 	u.render(w, "Artifact "+a.ID, artifactBody, map[string]any{
 		"Artifact": a, "Content": string(content), "Reviews": reviews,
 		"Project": p, "Outcome": outcome, "HasOutcome": hasOutcome, "Issues": issues,
+		"Exported": r.URL.Query().Get("exported") != "", "CanExport": u.exporter != nil,
 	})
+}
+
+// handleArtifactExport runs the egress pipeline synchronously for one
+// artifact and returns to the reader with a result notice.
+func (u *UI) handleArtifactExport(w http.ResponseWriter, r *http.Request) {
+	if u.exporter == nil {
+		u.fail(w, fmt.Errorf("the egress pipeline is not configured"))
+		return
+	}
+	id := r.PathValue("id")
+	if _, exported, err := u.exporter.ExportOne(r.Context(), id); err != nil {
+		u.fail(w, err)
+		return
+	} else if !exported {
+		u.fail(w, fmt.Errorf("artifact is not accepted; export only runs on accepted artifacts"))
+		return
+	}
+	http.Redirect(w, r, "/ui/artifacts/"+id+"?exported=1", http.StatusSeeOther)
 }
 
 func (u *UI) handleReviewCreate(w http.ResponseWriter, r *http.Request) {

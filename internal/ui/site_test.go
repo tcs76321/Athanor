@@ -159,6 +159,26 @@ func TestSettingsKillSwitch(t *testing.T) {
 	}
 }
 
+type fakeExporter struct{ called bool }
+
+func (f *fakeExporter) ExportOne(_ context.Context, id string) (string, bool, error) {
+	f.called = true
+	return "/tmp/export/" + id, true, nil
+}
+
+func TestArtifactExport(t *testing.T) {
+	fx := setup(t)
+	fe := &fakeExporter{}
+	fx.ui.SetExporter(fe)
+	resp := postForm(t, fx.ts.URL+"/ui/artifacts/"+fx.artifact.ID+"/export", url.Values{})
+	if resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("export status = %d", resp.StatusCode)
+	}
+	if !fe.called {
+		t.Fatal("exporter was not called")
+	}
+}
+
 func TestRestartRequiredBanner(t *testing.T) {
 	fx := setup(t)
 	fx.ui.markRestartRequired(context.Background(), "persona assignment changed")
