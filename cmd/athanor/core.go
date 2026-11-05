@@ -53,7 +53,7 @@ func coreRunArgs(o coreOptions) []string {
 		"-v", o.TokenDir + ":/var/lib/athanor/state/tokens",
 		"-v", o.ScratchDir + ":/var/lib/athanor/state/scratch",
 		"-v", o.WorkspaceVolume + ":/var/lib/athanor/workspace",
-		"-v", o.ConfigPath + ":/etc/athanor/config.yaml:ro",
+		"-v", o.ConfigPath + ":/etc/athanor/config.yaml",
 		o.Image,
 	}
 }

@@ -461,7 +461,9 @@ func (s *Service) Generate(ctx context.Context, projectID string, req Request) (
 		return Session{}, err
 	}
 	fail := func(err error) (Session, error) {
-		s.store.Fail(ctx, sess.ID, err.Error())
+		fctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		s.store.Fail(fctx, sess.ID, err.Error())
 		return Session{}, err
 	}
 	raw, err := s.gen.Generate(ctx, req)

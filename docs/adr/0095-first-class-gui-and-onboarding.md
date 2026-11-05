@@ -41,7 +41,10 @@ document job, not a discovery portfolio.
    from host capacity, preserving values already in config. Applying the
    assignment or the limits writes the config atomically with a timestamped
    backup and a validation pass; the running registry keeps the old values
-   until restart, which the UI states explicitly.
+   until restart, which the UI states explicitly. The restart flag is persisted
+   in `system_state` and shown on every page until boot clears it. In the Core
+   Pod the config is mounted read-write so the write lands on the host; host
+   `serve` writes the host file directly.
 4. **Athanor self-selects persona models.** The Models step explains the five
    roles, lists installed models, and shows a deterministic assignment
    (largest for hard reasoning, smallest for ingestion, a different family for

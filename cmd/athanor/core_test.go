@@ -31,7 +31,7 @@ func TestCoreRunArgs(t *testing.T) {
 		"-v /home/u/.config/athanor/tokens:/var/lib/athanor/state/tokens",
 		"-v /home/u/.config/athanor/scratch:/var/lib/athanor/state/scratch",
 		"-v athanor-workspace:/var/lib/athanor/workspace",
-		"-v /home/u/.config/athanor/config.yaml:/etc/athanor/config.yaml:ro",
+		"-v /home/u/.config/athanor/config.yaml:/etc/athanor/config.yaml",
 		"athanor-core:latest",
 	} {
 		if !strings.Contains(args, want) {

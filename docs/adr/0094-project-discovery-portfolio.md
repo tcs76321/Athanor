@@ -36,7 +36,9 @@ falls through the generic pipeline also inherits code-centric planning language
    experiment, cost, time-to-first-revenue, skills, competition, evidence,
    risks, assumptions, and confidence. Deterministic validation rejects
    malformed or non-diverse portfolios; deterministic scoring exposes clarity,
-   evidence, speed, capital fit, and risk.
+   evidence, speed, capital fit, and risk. A session is durable from the moment
+   it starts: a Core restart leaves a `generating` or `failed` state that the
+   UI can show and retry instead of silently dropping the run.
 4. **Evidence is honest.** Only human-approved sources are fetched through the
    §21.5 gateway. A claim without a source stays a claim; the UI shows
    confidence separately from the score. The model is told not to invent

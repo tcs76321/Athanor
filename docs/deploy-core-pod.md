@@ -87,7 +87,7 @@ podman run -d --name athanor-core --security-opt label=disable \
   -v "$HOME/.config/athanor/tokens:/var/lib/athanor/state/tokens" \
   -v "$HOME/.config/athanor/scratch:/var/lib/athanor/state/scratch" \
   -v athanor-workspace:/var/lib/athanor/workspace \
-  -v "$HOME/.config/athanor/config.yaml:/etc/athanor/config.yaml:ro" \
+  -v "$HOME/.config/athanor/config.yaml:/etc/athanor/config.yaml" \
   athanor-core:0.0.0
 ```
 
@@ -95,6 +95,12 @@ The image bakes `CONTAINER_HOST=unix:///run/podman/podman.sock`, so the Core's
 `podman` client talks to the machine socket rather than a local container store.
 If you run an image built before that change, add
 `-e CONTAINER_HOST=unix:///run/podman/podman.sock`.
+
+The config is mounted **read-write** on purpose: the onboarding Resources and
+Models steps may apply an assignment or Job Pod limits. The Core is the trusted
+container, and the write is atomic with a timestamped backup next to the host
+file. A restart (`podman restart athanor-core`) loads the new values; the UI
+shows a restart-required banner until then.
 
 Platform notes:
 

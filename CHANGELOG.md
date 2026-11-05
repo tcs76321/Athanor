@@ -28,7 +28,11 @@ New entries are appended at the top. Do not rewrite history.
   prefills editable Job Pod memory/CPU/tmpfs/PID limits, and the Models step
   explains the roles, lists installed models, and **self-selects a model per
   persona** with an apply-to-config action (atomic write, backup, restart
-  notice).
+  notice). Follow-up hardening: the restart flag persists across pages, the
+  Core Pod config is mounted read-write so the write lands on the host, an
+  in-flight discovery session is durable (a restart shows interrupted/retry
+  instead of silently returning to the brief), the Models step shows a RAM
+  budget and flags overcommit, and Watch shows evaluation records.
 - **Project onboarding + discovery.** A project now continues into a resumable
   brief (goal, limits, sources, success), a **portfolio** of scored directions
   across industries and niches, a human selection, and a deterministic 30-day
