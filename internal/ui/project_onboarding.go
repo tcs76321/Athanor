@@ -682,8 +682,11 @@ func (u *UI) approveProjectPlan(ctx context.Context, p project.Project, b projec
 	var specs []project.TaskSpec
 	goalText := fmt.Sprintf("%s: %s", selected.Title, selected.OneLiner)
 	if u.deps.Planning != nil {
-		if ps, has, perr := u.deps.Planning.Get(ctx, p.ID); perr == nil && has &&
-			ps.Status == "ready" && ps.OptionID == sess.SelectedID &&
+		ps, has, perr := u.deps.Planning.Get(ctx, p.ID)
+		if perr != nil {
+			return fmt.Errorf("reading the selected plan: %w", perr)
+		}
+		if has && ps.Status == "ready" && ps.OptionID == sess.SelectedID &&
 			ps.SelectedIndex >= 0 && ps.SelectedIndex < len(ps.Candidates) {
 			cand := ps.Candidates[ps.SelectedIndex]
 			specs = planning.ToTaskSpecs(cand)
