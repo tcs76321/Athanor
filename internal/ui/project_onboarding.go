@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
@@ -13,6 +14,7 @@ import (
 	"github.com/tcs76321/athanor/internal/config"
 	"github.com/tcs76321/athanor/internal/discovery"
 	"github.com/tcs76321/athanor/internal/project"
+	"github.com/tcs76321/athanor/internal/store"
 )
 
 // Discovery is the option-portfolio surface the project onboarding drives.
@@ -273,6 +275,10 @@ func (u *UI) startDiscovery(p project.Project, brief projectBrief) {
 	u.discRuns[p.ID] = run
 	u.discMu.Unlock()
 
+	u.auditProject(p.ID, "discovery_started", map[string]any{
+		"goal": brief.Goal, "constraints": len(brief.Constraints), "sources": len(brief.Sources),
+	})
+
 	req := discovery.Request{
 		Goal: brief.Goal, Brief: brief.Limitations, Constraints: brief.Constraints,
 		Sources: brief.Sources, Count: 10,
@@ -286,11 +292,34 @@ func (u *UI) startDiscovery(p project.Project, brief projectBrief) {
 		if err != nil {
 			run.Status = "failed"
 			run.Error = err.Error()
+			u.auditProject(p.ID, "discovery_failed", map[string]any{"error": err.Error()})
 			return
 		}
 		run.Status = "done"
 		run.Session = sess
+		u.auditProject(p.ID, "discovery_completed", map[string]any{
+			"session": sess.ID, "options": len(sess.Options),
+		})
 	}()
+}
+
+// auditProject appends a project-scoped event on a short detached context so a
+// cancelled request cannot drop the audit row.
+func (u *UI) auditProject(projectID, event string, data map[string]any) {
+	if u.deps.Store == nil {
+		return
+	}
+	if data == nil {
+		data = map[string]any{}
+	}
+	data["event"] = event
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if _, err := u.deps.Store.AppendEvent(ctx, store.Event{
+		Category: "projects", ProjectID: projectID, Data: data,
+	}); err != nil {
+		slog.Error("ui: auditing project event", "project", projectID, "event", event, "err", err)
+	}
 }
 
 // buildProjectPlan turns the chosen option and the brief into a reviewable
