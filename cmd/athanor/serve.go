@@ -406,7 +406,7 @@ func run(configPath, addr, stateDir string, container bool) error {
 		Version:       version,
 		Interviews:    interview.NewRepo(st),
 		Interruptions: interruptionsRepo, Strategy: strategyRepo,
-		Freezer: killSwitch, Engine: eng, Indexer: indexer,
+		Freezer: killSwitch, Control: killSwitch, Engine: eng, Indexer: indexer,
 		Discovery: discovery.NewService(
 			&discoveryGenerator{client: llmClient, cfg: cfg},
 			discovery.NewStore(st),

@@ -42,6 +42,14 @@ import (
 // Freezer reports the §22 kill-switch state.
 type Freezer interface{ Frozen() bool }
 
+// Control is the optional kill-switch write surface (§22). Satisfied by
+// *control.KillSwitch; nil leaves the Settings control read-only.
+type Control interface {
+	Frozen() bool
+	Freeze(ctx context.Context) error
+	Unfreeze(ctx context.Context, reason string) error
+}
+
 // Enqueuer starts a job (the engine). Used by retry/resume.
 type Enqueuer interface{ Enqueue(jobID string) }
 
@@ -76,6 +84,7 @@ type Deps struct {
 	Interruptions *interruptions.Repo
 	Strategy      *strategy.Repo
 	Freezer       Freezer
+	Control       Control
 	Engine        Enqueuer
 	// Config is read-only. The inspector shows personas, limits, and the
 	// budget shape; it never writes configuration.
@@ -213,6 +222,7 @@ func (u *UI) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /ui/runtime", u.handleRuntime)
 	mux.HandleFunc("GET /ui/jobs/{id}/trace", u.handleTrace)
 	mux.HandleFunc("GET /ui/settings", u.handleSettings)
+	mux.HandleFunc("POST /ui/freeze", u.handleFreeze)
 	mux.HandleFunc("POST /ui/theme", u.handleTheme)
 	mux.HandleFunc("GET /ui/sitemap", u.handleSitemap)
 	mux.HandleFunc("GET /ui/search", u.handleSearch)

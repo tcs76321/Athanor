@@ -44,6 +44,33 @@ const settingsBody = `
   <div class="actions"><a class="btn" href="/ui/runtime">Open runtime</a><a class="btn secondary" href="/ui/setup">Model setup</a></div>
 </div>
 
+<h2 id="system">System</h2>
+<div class="card">
+  <div class="row row-middle">
+    <div>
+      <div class="eyebrow">Kill switch</div>
+      <p class="muted">Freezing stops new work immediately. Unfreezing requires a reason and is audited.</p>
+    </div>
+    <span class="pill {{if .Frozen}}bad{{else}}ok{{end}}">{{if .Frozen}}Frozen{{else}}Not frozen{{end}}</span>
+  </div>
+  {{if .CanControl}}
+  <div class="actions">
+    {{if .Frozen}}
+    <form method="post" action="/ui/freeze">
+      <input type="hidden" name="action" value="unfreeze">
+      <label>reason <input name="reason" required placeholder="why is it safe to resume?"></label>
+      <button class="primary">Unfreeze</button>
+    </form>
+    {{else}}
+    <form method="post" action="/ui/freeze">
+      <input type="hidden" name="action" value="freeze">
+      <button class="danger" data-confirm="Freeze Athanor? Active jobs pause at the next safe point and no new work starts.">Freeze Athanor</button>
+    </form>
+    {{end}}
+  </div>
+  {{else}}<p class="muted">The kill switch is read-only in this runtime.</p>{{end}}
+</div>
+
 <h2>Other preferences</h2>
 <div class="card">
   <p class="muted">Desktop notifications are enabled from the <a href="/ui/notifications">Inbox</a>. Density and font size follow the theme tokens; a compact mode lands with the work-surface pass.</p>

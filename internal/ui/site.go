@@ -2,6 +2,7 @@ package ui
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
@@ -47,10 +48,49 @@ var surfaces = []surface{
 }
 
 func (u *UI) handleSettings(w http.ResponseWriter, r *http.Request) {
+	frozen := u.deps.Freezer != nil && u.deps.Freezer.Frozen()
+	if u.deps.Control != nil {
+		frozen = u.deps.Control.Frozen()
+	}
 	u.render(w, "Settings", settingsBody, map[string]any{
 		"Themes": themeNames, "Theme": u.Theme(), "ThemeLabel": themeLabel(u.Theme()),
-		"ConfigPath": configPath(u.deps.Config),
+		"ConfigPath": configPath(u.deps.Config), "Frozen": frozen,
+		"CanControl": u.deps.Control != nil,
 	})
+}
+
+// handleFreeze drives the §22 kill switch from Settings. A freeze is
+// immediate; unfreeze requires a reason and is audited by the control store.
+func (u *UI) handleFreeze(w http.ResponseWriter, r *http.Request) {
+	if u.deps.Control == nil {
+		u.fail(w, fmt.Errorf("the kill switch is not configured for the UI"))
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		u.fail(w, err)
+		return
+	}
+	switch r.FormValue("action") {
+	case "freeze":
+		if err := u.deps.Control.Freeze(r.Context()); err != nil {
+			u.fail(w, err)
+			return
+		}
+	case "unfreeze":
+		reason := strings.TrimSpace(r.FormValue("reason"))
+		if reason == "" {
+			u.fail(w, fmt.Errorf("an unfreeze reason is required"))
+			return
+		}
+		if err := u.deps.Control.Unfreeze(r.Context(), reason); err != nil {
+			u.fail(w, err)
+			return
+		}
+	default:
+		u.fail(w, fmt.Errorf("unknown freeze action"))
+		return
+	}
+	http.Redirect(w, r, "/ui/settings#system", http.StatusSeeOther)
 }
 
 func (u *UI) handleTheme(w http.ResponseWriter, r *http.Request) {

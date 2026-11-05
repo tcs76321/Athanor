@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -112,6 +114,48 @@ func TestSearchHTMXReturnsFragment(t *testing.T) {
 	}
 	if !strings.Contains(body, "demo") || !strings.Contains(body, "Project") {
 		t.Fatalf("HTMX search fragment missing the result:\n%s", body)
+	}
+}
+
+type fakeControl struct{ frozen bool }
+
+func (f *fakeControl) Frozen() bool { return f.frozen }
+func (f *fakeControl) Freeze(_ context.Context) error {
+	f.frozen = true
+	return nil
+}
+func (f *fakeControl) Unfreeze(_ context.Context, reason string) error {
+	if reason == "" {
+		return fmt.Errorf("reason required")
+	}
+	f.frozen = false
+	return nil
+}
+
+func TestSettingsKillSwitch(t *testing.T) {
+	fx := setup(t)
+	fc := &fakeControl{}
+	fx.ui.deps.Control = fc
+
+	_, body := get(t, fx.ts.URL+"/ui/settings")
+	if !strings.Contains(body, "Freeze Athanor") || !strings.Contains(body, "Not frozen") {
+		t.Fatalf("settings missing the kill-switch control (%.200q)", body)
+	}
+	resp := postForm(t, fx.ts.URL+"/ui/freeze", url.Values{"action": {"freeze"}})
+	if resp.StatusCode != http.StatusSeeOther || !fc.frozen {
+		t.Fatalf("freeze status=%d frozen=%v", resp.StatusCode, fc.frozen)
+	}
+	_, body = get(t, fx.ts.URL+"/ui/settings")
+	if !strings.Contains(body, "Frozen") || !strings.Contains(body, "Unfreeze") {
+		t.Fatalf("frozen settings missing unfreeze (%.200q)", body)
+	}
+	resp = postForm(t, fx.ts.URL+"/ui/freeze", url.Values{"action": {"unfreeze"}, "reason": {""}})
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("empty-reason unfreeze status = %d, want 400", resp.StatusCode)
+	}
+	resp = postForm(t, fx.ts.URL+"/ui/freeze", url.Values{"action": {"unfreeze"}, "reason": {"checked"}})
+	if resp.StatusCode != http.StatusSeeOther || fc.frozen {
+		t.Fatalf("unfreeze status=%d frozen=%v", resp.StatusCode, fc.frozen)
 	}
 }
 
