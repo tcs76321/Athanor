@@ -12,6 +12,13 @@ New entries are appended at the top. Do not rewrite history.
 
 ### Acceptance, feedback, language, and containment hardening — 2026-11-05
 
+- **Discovery is transparent while it runs.** The project onboarding page
+  shows the request summary, model, prompt size, received bytes, current stage,
+  a coarse percent, elapsed time, a stage log, and a bounded tail of the raw
+  model output, refreshing every 2 seconds. It no longer shows a static 35%
+  bar. Proofs: `TestProjectOnboardingShowsDiscoveryTransparency`,
+  `TestDiscoveryProgressMapping`, `TestGenerateReportsDurableProgress`.
+
 - **Qualification now runs inside the setup wizard.** The Qualification step
   starts the bounded run in place, shows a percent progress bar, elapsed time,
   and an estimated remaining time, and auto-refreshes every 2 seconds. It no

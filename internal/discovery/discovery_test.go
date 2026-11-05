@@ -2,6 +2,7 @@ package discovery
 
 import (
 	"context"
+	"encoding/json"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -150,6 +151,49 @@ func TestBuildPromptMentionsConstraintsAndHonesty(t *testing.T) {
 	for _, want := range []string{"make money online", "2 hours a day", "no ads", "example.com", "Do NOT invent"} {
 		if !strings.Contains(p, want) {
 			t.Errorf("prompt missing %q", want)
+		}
+	}
+}
+
+type progressGenerator struct{ raw string }
+
+func (g progressGenerator) Generate(_ context.Context, req Request) (string, error) {
+	req.Report(ProgressEvent{Stage: "model", Detail: "fake model"})
+	return g.raw, nil
+}
+
+func TestGenerateReportsDurableProgress(t *testing.T) {
+	s, err := store.Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+	if err := store.Migrate(s.DB(), migrations.FS, ""); err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	if _, err := s.DB().ExecContext(ctx,
+		`INSERT INTO projects (id, name, archetype, goal) VALUES ('p2','p2','document','make money online')`); err != nil {
+		t.Fatal(err)
+	}
+	opts := sampleOptions()
+	Score(opts)
+	raw, err := json.Marshal(opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	svc := NewService(progressGenerator{raw: string(raw)}, NewStore(s))
+	var stages []string
+	_, err = svc.Generate(ctx, "p2", Request{Goal: "make money online", Progress: func(ev ProgressEvent) {
+		stages = append(stages, ev.Stage)
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	joined := strings.Join(stages, ",")
+	for _, want := range []string{"session", "model", "parse", "validate", "score", "save"} {
+		if !strings.Contains(joined, want) {
+			t.Errorf("progress stages = %q, missing %q", joined, want)
 		}
 	}
 }

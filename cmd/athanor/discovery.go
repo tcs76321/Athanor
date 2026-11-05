@@ -32,16 +32,40 @@ func (g *discoveryGenerator) Generate(ctx context.Context, req discovery.Request
 	if maxTokens <= 0 {
 		maxTokens = 4096
 	}
-	resp, err := g.client.Chat(ctx, llm.Request{
+	prompt := discovery.BuildPrompt(req)
+	req.Report(discovery.ProgressEvent{
+		Stage: "prompt", Detail: "prompt assembled for " + pc.Model, Bytes: len(prompt),
+	})
+	req.Report(discovery.ProgressEvent{
+		Stage: "model", Detail: "waiting for " + pc.Model, Bytes: len(prompt),
+	})
+
+	var streamed int
+	var tail string
+	resp, err := g.client.Stream(ctx, llm.Request{
 		Model:         pc.Model,
-		Messages:      []llm.Message{{Role: "user", Content: discovery.BuildPrompt(req)}},
+		Messages:      []llm.Message{{Role: "user", Content: prompt}},
 		Temperature:   0.8,
 		ContextTarget: pc.ContextTarget,
 		MaxTokens:     maxTokens,
 		Format:        "json",
+	}, func(tok string) {
+		streamed += len(tok)
+		tail += tok
+		if len(tail) > 1200 {
+			tail = tail[len(tail)-1200:]
+		}
+		if streamed%1024 < len(tok) {
+			req.Report(discovery.ProgressEvent{
+				Stage: "streaming", Detail: "receiving model output", Bytes: streamed, Tail: tail,
+			})
+		}
 	})
 	if err != nil {
 		return "", fmt.Errorf("discovery: model call: %w", err)
 	}
+	req.Report(discovery.ProgressEvent{
+		Stage: "response", Detail: "model response complete", Bytes: len(resp.Content), Tail: tail,
+	})
 	return resp.Content, nil
 }

@@ -75,6 +75,8 @@ demo. A claim without a proof is either removed or marked as a target.
 | A fixture must live under `fixture_root` or the repository | ADR-0101 | `internal/engine/fixture.go`; `TestReadFixtureTreeRejectsEscapeFromAllowedRoot` | **proven** |
 | Multibyte prompts are not under-counted by the token estimator | P0 review | `internal/prompt/prompt.go`; `TestEstimateTokensDeterministic` | **proven** |
 | Qualification runs inside the setup wizard with visible percent/progress | first-use review | `internal/ui/onboarding.go`, `internal/ui/onboarding_templates.go`, `internal/ui/setup.go`; `TestWelcomeQualificationShowsInlineProgress`, `TestWelcomeQualificationStartsInline` | **proven** |
+| Discovery exposes its live stage, model, bytes, elapsed time, and raw tail | first-use review | `internal/ui/project_onboarding.go`, `internal/discovery/discovery.go`, `cmd/athanor/discovery.go`; `TestProjectOnboardingShowsDiscoveryTransparency`, `TestGenerateReportsDurableProgress` | **proven** |
+
 
 
 | Embedding models are never persona candidates | ADR-0049, ADR-0099 | `onboard.IsChatModel`; `TestEmbeddingModelsAreNotPersonaCandidates` | **proven** |

@@ -53,10 +53,25 @@ type projectBrief struct {
 }
 
 type discoveryRun struct {
-	Status    string
-	Error     string
-	StartedAt time.Time
-	Session   discovery.Session
+	Status        string
+	Stage         string
+	Detail        string
+	Model         string
+	Error         string
+	StartedAt     time.Time
+	UpdatedAt     time.Time
+	PromptBytes   int
+	ResponseBytes int
+	Options       int
+	Tail          string
+	Steps         []discoveryStep
+	Session       discovery.Session
+}
+
+type discoveryStep struct {
+	Stage  string
+	Detail string
+	At     time.Time
 }
 
 type planRun struct {
@@ -251,6 +266,11 @@ func (u *UI) handleProjectOnboarding(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+	discPercent, discElapsed := discoveryProgress(run)
+	if run == nil && hasSession && sess.Status == "generating" && !sess.UpdatedAt.IsZero() {
+		discPercent = 30
+		discElapsed = time.Since(sess.UpdatedAt).Round(time.Second).String()
+	}
 	var selectedPlan *planning.Candidate
 	if hasPlan && planSess.SelectedIndex >= 0 && planSess.SelectedIndex < len(planSess.Candidates) {
 		selectedPlan = &planSess.Candidates[planSess.SelectedIndex]
@@ -264,6 +284,7 @@ func (u *UI) handleProjectOnboarding(w http.ResponseWriter, r *http.Request) {
 		"Run": run, "Stage": stage, "Selected": selected, "Plan": plan,
 		"Status": brief.Status, "Sources": sourceStatuses(brief.Sources, u.deps.Config),
 		"Requested": r.URL.Query().Get("requested") != "", "DiscoveryError": discoveryError,
+		"DiscoveryPercent": discPercent, "DiscoveryElapsed": discElapsed,
 		"PlanningAvailable": u.deps.Planning != nil,
 		"PlanCandidates":    planSess.Candidates,
 		"SelectedPlan":      selectedPlan, "PlanError": planError,
@@ -444,9 +465,93 @@ func (u *UI) discoveryRunFor(projectID string) *discoveryRun {
 	defer u.discMu.Unlock()
 	if run := u.discRuns[projectID]; run != nil {
 		cp := *run
+		cp.Steps = append([]discoveryStep(nil), run.Steps...)
 		return &cp
 	}
 	return nil
+}
+
+// reportDiscovery applies one generator progress event to the visible run.
+func (u *UI) reportDiscovery(projectID string, ev discovery.ProgressEvent) {
+	u.discMu.Lock()
+	defer u.discMu.Unlock()
+	run := u.discRuns[projectID]
+	if run == nil {
+		return
+	}
+	now := time.Now()
+	run.Stage = ev.Stage
+	if ev.Detail != "" {
+		run.Detail = ev.Detail
+	}
+	run.UpdatedAt = now
+	if ev.Stage == "prompt" {
+		run.PromptBytes = ev.Bytes
+	} else if ev.Bytes > 0 {
+		run.ResponseBytes = ev.Bytes
+	}
+	if ev.Options > 0 {
+		run.Options = ev.Options
+	}
+	if ev.Tail != "" {
+		run.Tail = ev.Tail
+	}
+	if n := len(run.Steps); n == 0 || run.Steps[n-1].Stage != ev.Stage || run.Steps[n-1].Detail != ev.Detail {
+		run.Steps = append(run.Steps, discoveryStep{Stage: ev.Stage, Detail: ev.Detail, At: now})
+		if len(run.Steps) > 14 {
+			run.Steps = run.Steps[len(run.Steps)-14:]
+		}
+	}
+}
+
+// discoveryProgress maps the current discovery stage to a coarse, honest
+// percent. The model call is a single response, so the streaming phase grows
+// with received bytes rather than pretending to know exact completion.
+func discoveryProgress(run *discoveryRun) (int, string) {
+	if run == nil {
+		return 0, ""
+	}
+	stage := run.Stage
+	percent := 0
+	switch stage {
+	case "starting":
+		percent = 5
+	case "session":
+		percent = 10
+	case "prompt":
+		percent = 15
+	case "model":
+		percent = 20
+	case "streaming":
+		percent = 25 + run.ResponseBytes/400
+		if percent > 70 {
+			percent = 70
+		}
+	case "response":
+		percent = 78
+	case "parse":
+		percent = 82
+	case "dedupe":
+		percent = 84
+	case "validate":
+		percent = 86
+	case "score":
+		percent = 90
+	case "save":
+		percent = 95
+	case "done":
+		percent = 100
+	case "failed":
+		percent = 100
+	}
+	if percent > 100 {
+		percent = 100
+	}
+	elapsed := ""
+	if !run.StartedAt.IsZero() {
+		elapsed = time.Since(run.StartedAt).Round(time.Second).String()
+	}
+	return percent, elapsed
 }
 
 func (u *UI) startDiscovery(p project.Project, brief projectBrief) {
@@ -458,17 +563,28 @@ func (u *UI) startDiscovery(p project.Project, brief projectBrief) {
 		u.discMu.Unlock()
 		return
 	}
-	run := &discoveryRun{Status: "running", StartedAt: time.Now()}
+	model := ""
+	if u.deps.Config != nil {
+		if pc, ok := u.deps.Config.Personas.Role("tall"); ok {
+			model = pc.Model
+		} else if pc, ok := u.deps.Config.Personas.Role("main"); ok {
+			model = pc.Model
+		}
+	}
+	run := &discoveryRun{Status: "running", Stage: "starting", Detail: "preparing discovery", Model: model,
+		StartedAt: time.Now(), UpdatedAt: time.Now()}
 	u.discRuns[p.ID] = run
 	u.discMu.Unlock()
 
 	u.auditProject(p.ID, "discovery_started", map[string]any{
 		"goal": brief.Goal, "constraints": len(brief.Constraints), "sources": len(brief.Sources),
+		"model": model,
 	})
 
 	req := discovery.Request{
 		Goal: brief.Goal, Brief: brief.Limitations, Constraints: brief.Constraints,
 		Sources: brief.Sources, Count: 10,
+		Progress: func(ev discovery.ProgressEvent) { u.reportDiscovery(p.ID, ev) },
 	}
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
@@ -478,11 +594,18 @@ func (u *UI) startDiscovery(p project.Project, brief projectBrief) {
 		defer u.discMu.Unlock()
 		if err != nil {
 			run.Status = "failed"
+			run.Stage = "failed"
+			run.Detail = "discovery failed"
 			run.Error = err.Error()
+			run.UpdatedAt = time.Now()
 			u.auditProject(p.ID, "discovery_failed", map[string]any{"error": err.Error()})
 			return
 		}
 		run.Status = "done"
+		run.Stage = "done"
+		run.Detail = "portfolio ready"
+		run.UpdatedAt = time.Now()
+		run.Options = len(sess.Options)
 		run.Session = sess
 		u.auditProject(p.ID, "discovery_completed", map[string]any{
 			"session": sess.ID, "options": len(sess.Options),

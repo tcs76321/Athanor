@@ -125,6 +125,72 @@ func TestHostAllowedSuffixBoundary(t *testing.T) {
 	}
 }
 
+func TestProjectOnboardingShowsDiscoveryTransparency(t *testing.T) {
+	fx := setup(t)
+	sd := &slowDiscovery{started: make(chan struct{}), release: make(chan struct{})}
+	fx.ui.deps.Discovery = sd
+	fx.ui.startDiscovery(fx.project, projectBrief{Goal: "make money online", Constraints: []string{"two hours a day"}})
+	select {
+	case <-sd.started:
+	case <-time.After(time.Second):
+		t.Fatal("discovery did not start")
+	}
+	_, body := get(t, fx.ts.URL+"/ui/projects/"+fx.project.ID+"/onboarding")
+	for _, want := range []string{
+		"Discovery in progress", "What Athanor is doing", "waiting for fake-model",
+		"Athanor is thinking across industries", "target 10 options",
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("transparent discovery page missing %q", want)
+		}
+	}
+	close(sd.release)
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		if run := fx.ui.discoveryRunFor(fx.project.ID); run != nil && run.Status == "done" {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("discovery run did not finish after release")
+}
+
+type slowDiscovery struct {
+	fakeDiscovery
+	started chan struct{}
+	release chan struct{}
+	once    sync.Once
+}
+
+func (s *slowDiscovery) Generate(ctx context.Context, projectID string, req discovery.Request) (discovery.Session, error) {
+	s.once.Do(func() { close(s.started) })
+	req.Report(discovery.ProgressEvent{Stage: "prompt", Detail: "prompt assembled for fake-model", Bytes: 800})
+	req.Report(discovery.ProgressEvent{Stage: "model", Detail: "waiting for fake-model", Bytes: 800})
+	<-s.release
+	return s.fakeDiscovery.Generate(ctx, projectID, req)
+}
+
+func TestDiscoveryProgressMapping(t *testing.T) {
+	cases := []struct {
+		stage string
+		bytes int
+		want  int
+	}{
+		{"starting", 0, 5},
+		{"model", 0, 20},
+		{"streaming", 4000, 35},
+		{"response", 0, 78},
+		{"score", 0, 90},
+		{"done", 0, 100},
+	}
+	for _, c := range cases {
+		got, _ := discoveryProgress(&discoveryRun{Stage: c.stage, ResponseBytes: c.bytes, StartedAt: time.Now()})
+		if got != c.want {
+			t.Errorf("discoveryProgress(%q, %d) = %d, want %d", c.stage, c.bytes, got, c.want)
+		}
+	}
+}
+
 func TestProjectOnboardingDiscoveryFlow(t *testing.T) {
 	fx := setup(t)
 	fd := &fakeDiscovery{}

@@ -71,12 +71,36 @@ const projectOnboardingBody = `
       </form>
     </div>
   {{else if eq .Stage "generating"}}
-    <div class="card" data-auto-refresh="4000">
+    <div class="card" data-auto-refresh="2000">
       <div class="eyebrow">Discovery in progress</div>
       <h2>Athanor is thinking across industries.</h2>
-      <p class="muted">It is generating a portfolio of concrete directions, not one answer. This usually takes a few minutes on a local model. The page refreshes itself; you can leave and come back.</p>
-      <progress class="progress" value="35" max="100">35%</progress>
-      <div class="actions"><a class="btn secondary" href="/ui/projects/{{.Project.ID}}/onboarding">Refresh</a></div>
+      <p class="muted">This is one bounded model pass. The page refreshes every 2 seconds; you can leave and come back, and the result is saved when it finishes.</p>
+      <progress class="progress" value="{{.DiscoveryPercent}}" max="100">{{.DiscoveryPercent}}%</progress>
+      {{if .Run}}
+      <div class="row row-middle"><span class="pill run">{{.DiscoveryPercent}}%</span><span class="muted">{{.DiscoveryElapsed}} elapsed</span></div>
+      <dl class="kv">
+        <dt>stage</dt><dd><code>{{.Run.Stage}}</code> — {{.Run.Detail}}</dd>
+        <dt>model</dt><dd><code>{{.Run.Model}}</code></dd>
+        <dt>prompt</dt><dd>{{.Run.PromptBytes}} chars assembled</dd>
+        <dt>response</dt><dd>{{.Run.ResponseBytes}} chars received{{if .Run.Options}} · {{.Run.Options}} options parsed{{end}}</dd>
+      </dl>
+      <p class="muted">Request: {{.Brief.Goal}}{{if .Brief.Constraints}} · {{len .Brief.Constraints}} constraint(s){{end}}{{if .Brief.Sources}} · {{len .Brief.Sources}} source(s){{end}} · target 10 options.</p>
+      {{if .Run.Steps}}
+      <details open><summary>What Athanor is doing</summary>
+        <ol class="stack">
+        {{range .Run.Steps}}<li><span class="mono">{{ts .At}}</span> <b>{{.Stage}}</b> — {{.Detail}}</li>{{end}}
+        </ol>
+      </details>
+      {{end}}
+      {{if .Run.Tail}}
+      <details><summary>Raw model output (last 1200 chars, display only)</summary>
+        <pre class="wrap">{{.Run.Tail}}</pre>
+      </details>
+      {{end}}
+      {{else}}
+      <p class="muted">This session was started before a Core restart, so live progress is unavailable. Its status is <b>{{.Session.Status}}</b>; start discovery again if it has been running longer than 20 minutes.</p>
+      {{end}}
+      <div class="actions"><a class="btn secondary" href="/ui/projects/{{.Project.ID}}/onboarding">Refresh now</a></div>
     </div>
   {{else if eq .Stage "choose"}}
     <div class="card">

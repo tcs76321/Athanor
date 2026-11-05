@@ -74,6 +74,28 @@ type Request struct {
 	Constraints []string
 	Sources     []string
 	Count       int
+	// Progress is an optional observer for a long discovery call. It is not
+	// used by the pure prompt/parser/scorer; the UI and CLI can attach one to
+	// make the single model call visible while it runs.
+	Progress func(ProgressEvent)
+}
+
+// ProgressEvent is one observable step in a discovery run.
+type ProgressEvent struct {
+	Stage   string
+	Detail  string
+	Bytes   int
+	Options int
+	// Tail is the most recent slice of the model response, when the generator
+	// can stream it. It is display-only and already bounded by the caller.
+	Tail string
+}
+
+// Report emits one progress event when an observer is attached.
+func (r Request) Report(ev ProgressEvent) {
+	if r.Progress != nil {
+		r.Progress(ev)
+	}
 }
 
 // Generator produces a JSON option array from a request.
@@ -456,32 +478,41 @@ func (s *Service) Generate(ctx context.Context, projectID string, req Request) (
 	if s.gen == nil {
 		return Session{}, fmt.Errorf("discovery: no generator configured")
 	}
+	req.Report(ProgressEvent{Stage: "session", Detail: "creating durable discovery session"})
 	sess, err := s.store.Begin(ctx, projectID, req.Brief)
 	if err != nil {
 		return Session{}, err
 	}
 	fail := func(err error) (Session, error) {
+		req.Report(ProgressEvent{Stage: "failed", Detail: err.Error()})
 		fctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		s.store.Fail(fctx, sess.ID, err.Error())
 		return Session{}, err
 	}
+	req.Report(ProgressEvent{Stage: "model", Detail: "asking the model for a portfolio"})
 	raw, err := s.gen.Generate(ctx, req)
 	if err != nil {
 		return fail(err)
 	}
+	req.Report(ProgressEvent{Stage: "response", Detail: "model response received", Bytes: len(raw)})
 	opts, err := Parse(raw)
 	if err != nil {
 		return fail(err)
 	}
+	req.Report(ProgressEvent{Stage: "parse", Detail: "JSON parsed", Options: len(opts)})
 	opts = Dedupe(opts)
+	req.Report(ProgressEvent{Stage: "dedupe", Detail: "duplicate directions removed", Options: len(opts)})
 	if err := Validate(opts); err != nil {
 		return fail(err)
 	}
+	req.Report(ProgressEvent{Stage: "validate", Detail: "portfolio meets the spread rules", Options: len(opts)})
 	Score(opts)
+	req.Report(ProgressEvent{Stage: "score", Detail: "deterministic scores computed", Options: len(opts)})
 	if err := s.store.Complete(ctx, sess.ID, opts); err != nil {
 		return fail(err)
 	}
+	req.Report(ProgressEvent{Stage: "save", Detail: "portfolio persisted", Options: len(opts)})
 	got, ok, err := s.store.Get(ctx, projectID)
 	if err != nil {
 		return Session{}, err
