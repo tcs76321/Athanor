@@ -19,7 +19,7 @@ func TestDetectLanguageFromCommand(t *testing.T) {
 		{"mvn -q test", LanguageJava},
 		{"composer test", LanguagePHP},
 		{"bundle exec rspec", LanguageRuby},
-		{"make test", LanguageShell},
+		{"make test", LanguageUnknown},
 		{"true", LanguageUnknown},
 	}
 	for _, c := range cases {

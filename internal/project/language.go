@@ -135,8 +135,6 @@ func languageFromCommand(cmd string) string {
 		return LanguagePHP
 	case strings.Contains(c, "bundle exec rspec") || strings.Contains(c, "rake test"):
 		return LanguageRuby
-	case strings.Contains(c, "make test"):
-		return LanguageShell
 	default:
 		return LanguageUnknown
 	}
