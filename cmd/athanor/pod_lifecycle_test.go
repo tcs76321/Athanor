@@ -177,8 +177,11 @@ func TestClearScratchRemovesOrphans(t *testing.T) {
 	if err := ClearScratch(state); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := os.Stat(filepath.Join(state, "scratch")); !errors.Is(err, os.ErrNotExist) {
-		t.Errorf("scratch still present after ClearScratch: %v", err)
+	if _, err := os.Stat(filepath.Join(state, "scratch", "old-job")); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("orphan scratch job still present after ClearScratch: %v", err)
+	}
+	if entries, err := os.ReadDir(filepath.Join(state, "scratch")); err == nil && len(entries) != 0 {
+		t.Errorf("scratch root still has %d entries after ClearScratch", len(entries))
 	}
 	if err := ClearScratch(""); err != nil {
 		t.Errorf("ClearScratch(empty) = %v, want nil", err)

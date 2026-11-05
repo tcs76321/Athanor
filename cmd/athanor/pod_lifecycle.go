@@ -148,9 +148,31 @@ func (a *podLifecycleAdapter) Stop(ctx context.Context, jobID string) error {
 // once at daemon boot: a crash can leave snapshots behind, and a recovered job
 // re-stages its snapshot before the next pod start (ADR-0082). The caller
 // treats a failure as non-fatal; the jobs can still run without a repo.
+//
+// The scratch root itself may be a bind mount (the Core Pod mounts a
+// host-visible directory there). Removing the mount point returns EBUSY, so
+// the function clears its children and tolerates a root that cannot be
+// unlinked; the per-job directories are what actually matter.
 func ClearScratch(stateDir string) error {
 	if stateDir == "" {
 		return nil
 	}
-	return os.RemoveAll(filepath.Join(stateDir, "scratch"))
+	root := filepath.Join(stateDir, "scratch")
+	entries, err := os.ReadDir(root)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	var firstErr error
+	for _, entry := range entries {
+		if err := os.RemoveAll(filepath.Join(root, entry.Name())); err != nil && firstErr == nil {
+			firstErr = err
+		}
+	}
+	// Best-effort root removal: absent for a normal directory, EBUSY for a
+	// bind mount. The children are already gone either way.
+	_ = os.Remove(root)
+	return firstErr
 }
