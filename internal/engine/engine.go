@@ -810,7 +810,6 @@ func (e *Engine) Enqueue(jobID string) {
 // cancelled rather than failed).
 func (e *Engine) EnqueueContext(ctx context.Context, jobID string) {
 	go func() {
-		defer atomic.AddInt64(&e.inFlight, -1)
 		jobCtx, cancel := context.WithCancel(ctx)
 		e.cancelMu.Lock()
 		e.cancels[jobID] = cancel
@@ -824,23 +823,25 @@ func (e *Engine) EnqueueContext(ctx context.Context, jobID string) {
 		}()
 		// ADR-0091: reserve the horizon grant before competing for a slot, so
 		// a deferred job waits without holding the single execution slot.
-		if j, err := e.jobs.Get(ctx, jobID); err == nil && j.State == job.StateQueued {
+		if j, err := e.jobs.Get(jobCtx, jobID); err == nil && j.State == job.StateQueued {
 			for {
-				ok, wait := e.admitHorizon(ctx, jobID)
+				ok, wait := e.admitHorizon(jobCtx, jobID)
 				if ok {
 					break
 				}
 				timer := time.NewTimer(wait)
 				select {
-				case <-ctx.Done():
+				case <-jobCtx.Done():
 					timer.Stop()
+					e.finishQueuedCancel(jobID)
 					return
 				case <-timer.C:
 				}
 			}
 		}
 		for {
-			if ctx.Err() != nil {
+			if jobCtx.Err() != nil {
+				e.finishQueuedCancel(jobID)
 				return
 			}
 			max := e.cap.MaxConcurrentJobs()
@@ -854,8 +855,9 @@ func (e *Engine) EnqueueContext(ctx context.Context, jobID string) {
 			if cur >= int64(max) {
 				timer := time.NewTimer(50 * time.Millisecond)
 				select {
-				case <-ctx.Done():
+				case <-jobCtx.Done():
 					timer.Stop()
+					e.finishQueuedCancel(jobID)
 					return
 				case <-timer.C:
 				}
@@ -864,10 +866,41 @@ func (e *Engine) EnqueueContext(ctx context.Context, jobID string) {
 			if !atomic.CompareAndSwapInt64(&e.inFlight, cur, cur+1) {
 				continue
 			}
+			// The slot is reserved: only now is this goroutine allowed to
+			// release it. A deferred decrement at goroutine entry would
+			// decrement a slot that was never acquired whenever the wait was
+			// abandoned, driving inFlight negative and silently raising the
+			// cap for the rest of the process lifetime.
+			defer atomic.AddInt64(&e.inFlight, -1)
 			e.Run(jobCtx, jobID)
 			return
 		}
 	}()
+}
+
+// finishQueuedCancel commits `cancelled` for a job that was cancelled while it
+// was still waiting for a slot. Cancel marks the user-cancel set before it
+// cancels the context, so a caller-owned context cancellation (not a user
+// cancel) leaves the job queued for a later Enqueue instead of cancelling it.
+func (e *Engine) finishQueuedCancel(jobID string) {
+	if !e.wasUserCancelled(jobID) {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	j, err := e.jobs.Get(ctx, jobID)
+	if err != nil || j.State != job.StateQueued {
+		return
+	}
+	if _, err := e.jobs.Transition(ctx, jobID, job.StateCancelled); err != nil {
+		slog.Error("engine: cancelling queued job", "job", jobID, "err", err)
+		return
+	}
+	e.audit(ctx, jobID, map[string]any{
+		"event": "job_cancelled", "state": string(j.State), "reason": "queued",
+	})
+	e.signalTerminal(ctx, jobID, job.StateCancelled)
+	e.settleHorizon(ctx, jobID)
 }
 
 // Cancel asks a running job to stop. It marks the cancellation so Run commits
@@ -1016,25 +1049,7 @@ func (e *Engine) Run(ctx context.Context, jobID string) {
 		}
 		if j.State.Terminal() || j.State == job.StatePaused || j.State == job.StateAwaitingApproval {
 			if j.State.Terminal() {
-				// M5-T5 (ADR-0023 §5): a finished job's evictions are
-				// history, not state. Clearing here (and only here)
-				// keeps `system_state` bounded while a paused job keeps
-				// its suppression for the resume.
-				e.clearJobScratch(ctx, jobID)
-				// ADR-0091: close the horizon grant with actual spend before
-				// any teardown that can block.
-				e.settleHorizon(ctx, jobID)
-				// M6-T10 (§13.3): capture the immutable outcome before any
-				// teardown that can block. stopPod can take seconds on a real
-				// pod, and an offline collector must never observe a terminal
-				// job with no strategy_outcomes row (the M3-T7 code-goal
-				// capture gap F4 deferred).
-				e.captureOutcome(ctx, jobID)
-				// M6-T2 (ADR-0033): let the scheduler advance the graph.
-				e.signalTerminal(ctx, jobID, j.State)
-				// M2-T4b.5 (ADR-0024 §2): a terminal job's Job Pod has no
-				// further use; stop it (idempotent, nil-safe).
-				e.stopPod(ctx, jobID)
+				e.finalizeTerminal(ctx, jobID, j)
 			}
 			return
 		}
@@ -1072,6 +1087,26 @@ func (e *Engine) Run(ctx context.Context, jobID string) {
 		if err := e.step(ctx, j); err != nil {
 			if errors.Is(err, ErrPaused) {
 				return
+			}
+			// An external state write can land while a phase is running:
+			// the UI's pause control, a HITL resume, or a concurrent cancel.
+			// The phase's next transition then fails its compare-and-swap or
+			// the paused-resume invariant. Re-read before treating the error
+			// as a job failure — the job is not broken, it was moved. Without
+			// this, pausing a running job from the UI reliably failed it.
+			if cur, gerr := e.jobs.Get(ctx, jobID); gerr == nil {
+				switch {
+				case cur.State == job.StatePaused || cur.State == job.StateAwaitingApproval:
+					e.audit(ctx, jobID, map[string]any{
+						"event": "phase_aborted_by_external_state",
+						"phase": string(j.State), "to": string(cur.State),
+						"error": err.Error(),
+					})
+					return
+				case cur.State.Terminal():
+					e.finalizeTerminal(ctx, jobID, cur)
+					return
+				}
 			}
 			// A user Cancel is a terminal `cancelled`, not a failure. The
 			// phase context is already canceled, so commit on a detached,
@@ -1126,6 +1161,31 @@ func (e *Engine) Run(ctx context.Context, jobID string) {
 			_ = e.jobs.SetRecoveryFlag(ctx, jobID, "")
 		}
 	}
+}
+
+// finalizeTerminal performs the one-time teardown for a job that has reached a
+// terminal state: clear per-job scratch, settle the horizon grant, capture the
+// strategy outcome, tell the scheduler, and stop the Job Pod. It is idempotent
+// enough to run from either the loop-top terminal branch or an external-state
+// re-read after a failed phase.
+func (e *Engine) finalizeTerminal(ctx context.Context, jobID string, j job.Job) {
+	// M5-T5 (ADR-0023 §5): a finished job's evictions are history, not state.
+	// Clearing here (and only here) keeps `system_state` bounded while a
+	// paused job keeps its suppression for the resume.
+	e.clearJobScratch(ctx, jobID)
+	// ADR-0091: close the horizon grant with actual spend before any teardown
+	// that can block.
+	e.settleHorizon(ctx, jobID)
+	// M6-T10 (§13.3): capture the immutable outcome before any teardown that
+	// can block. stopPod can take seconds on a real pod, and an offline
+	// collector must never observe a terminal job with no strategy_outcomes
+	// row (the M3-T7 code-goal capture gap F4 deferred).
+	e.captureOutcome(ctx, jobID)
+	// M6-T2 (ADR-0033): let the scheduler advance the graph.
+	e.signalTerminal(ctx, jobID, j.State)
+	// M2-T4b.5 (ADR-0024 §2): a terminal job's Job Pod has no further use;
+	// stop it (idempotent, nil-safe).
+	e.stopPod(ctx, jobID)
 }
 
 // handleJobPanic contains a panic from one job's goroutine. It records the
