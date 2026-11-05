@@ -8,12 +8,14 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/tcs76321/athanor/internal/config"
 	"github.com/tcs76321/athanor/internal/discovery"
 	"github.com/tcs76321/athanor/internal/hitl"
+	"github.com/tcs76321/athanor/internal/planning"
 	"github.com/tcs76321/athanor/internal/project"
 	"github.com/tcs76321/athanor/internal/store"
 )
@@ -24,6 +26,14 @@ type Discovery interface {
 	Generate(ctx context.Context, projectID string, req discovery.Request) (discovery.Session, error)
 	Get(ctx context.Context, projectID string) (discovery.Session, bool, error)
 	Select(ctx context.Context, projectID, optionID string) error
+}
+
+// Planning is the AI-authored plan surface. Satisfied by *planning.Service;
+// nil keeps the deterministic plan fallback.
+type Planning interface {
+	Generate(ctx context.Context, projectID, optionID string, req planning.Request) (planning.Session, error)
+	Get(ctx context.Context, projectID string) (planning.Session, bool, error)
+	Select(ctx context.Context, projectID string, index int) error
 }
 
 // Scheduler starts the ready leaves of a decomposed goal. Satisfied by
@@ -47,6 +57,14 @@ type discoveryRun struct {
 	Error     string
 	StartedAt time.Time
 	Session   discovery.Session
+}
+
+type planRun struct {
+	OptionID  string
+	Status    string
+	Error     string
+	StartedAt time.Time
+	Session   planning.Session
 }
 
 // sourceStatus is the allowlist state of one human-supplied research URL.
@@ -156,14 +174,56 @@ func (u *UI) handleProjectOnboarding(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	var planSess planning.Session
+	hasPlan := false
+	if u.deps.Planning != nil {
+		planSess, hasPlan, err = u.deps.Planning.Get(ctx, p.ID)
+		if err != nil {
+			u.fail(w, err)
+			return
+		}
+	}
+	// A plan is scoped to the direction it was generated for. After a reset or
+	// a different pick, an old ready plan must not be shown or approved for the
+	// new direction.
+	if hasPlan && hasSession && sess.SelectedID != "" && planSess.OptionID != "" &&
+		planSess.OptionID != sess.SelectedID {
+		hasPlan = false
+		planSess = planning.Session{}
+	}
+	pRun := u.planRunFor(p.ID)
+	if pRun != nil && pRun.OptionID != sess.SelectedID {
+		pRun = nil
+	}
 	run := u.discoveryRunFor(p.ID)
 	stage := "brief"
 	discoveryError := ""
+	planError := ""
 	switch {
 	case brief.Status == "approved":
 		stage = "approved"
 	case hasSession && sess.SelectedID != "" && brief.Status == "planned":
-		stage = "plan"
+		switch {
+		case hasPlan && planSess.Status == "generating":
+			if time.Since(planSess.UpdatedAt) > 20*time.Minute {
+				stage = "plan"
+				planError = "The previous plan generation was interrupted. Generate again when ready."
+			} else {
+				stage = "generating_plan"
+			}
+		case hasPlan && planSess.Status == "failed":
+			stage = "plan"
+			planError = planSess.Error
+		case hasPlan && len(planSess.Candidates) > 0:
+			stage = "plan"
+		case pRun != nil && pRun.Status == "running":
+			stage = "generating_plan"
+		case pRun != nil && pRun.Status == "failed":
+			stage = "plan"
+			planError = pRun.Error
+		default:
+			stage = "plan"
+		}
 	case hasSession && len(sess.Options) > 0:
 		stage = "choose"
 	case hasSession && sess.Status == "generating":
@@ -191,6 +251,10 @@ func (u *UI) handleProjectOnboarding(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+	var selectedPlan *planning.Candidate
+	if hasPlan && planSess.SelectedIndex >= 0 && planSess.SelectedIndex < len(planSess.Candidates) {
+		selectedPlan = &planSess.Candidates[planSess.SelectedIndex]
+	}
 	plan := ""
 	if selected != nil {
 		plan, _ = buildProjectPlan(p, brief, *selected)
@@ -200,6 +264,9 @@ func (u *UI) handleProjectOnboarding(w http.ResponseWriter, r *http.Request) {
 		"Run": run, "Stage": stage, "Selected": selected, "Plan": plan,
 		"Status": brief.Status, "Sources": sourceStatuses(brief.Sources, u.deps.Config),
 		"Requested": r.URL.Query().Get("requested") != "", "DiscoveryError": discoveryError,
+		"PlanningAvailable": u.deps.Planning != nil,
+		"PlanCandidates":    planSess.Candidates,
+		"SelectedPlan":      selectedPlan, "PlanError": planError,
 	})
 }
 
@@ -248,6 +315,80 @@ func (u *UI) handleProjectOnboardingPost(w http.ResponseWriter, r *http.Request)
 			u.fail(w, err)
 			return
 		}
+		brief.Status = "planned"
+		if err := u.saveBrief(ctx, brief); err != nil {
+			u.fail(w, err)
+			return
+		}
+	case "generate_plans":
+		if u.deps.Planning == nil {
+			u.fail(w, fmt.Errorf("AI planning is not configured"))
+			return
+		}
+		if u.deps.Discovery == nil {
+			u.fail(w, fmt.Errorf("discovery is not configured"))
+			return
+		}
+		sess, ok, derr := u.deps.Discovery.Get(ctx, p.ID)
+		if derr != nil {
+			u.fail(w, derr)
+			return
+		}
+		if !ok || sess.SelectedID == "" {
+			u.fail(w, fmt.Errorf("choose a direction first"))
+			return
+		}
+		var option *discovery.Option
+		for i := range sess.Options {
+			if sess.Options[i].ID == sess.SelectedID {
+				option = &sess.Options[i]
+				break
+			}
+		}
+		if option == nil {
+			u.fail(w, fmt.Errorf("the selected direction is missing"))
+			return
+		}
+		u.startPlanning(p, brief, *option)
+	case "select_plan":
+		if u.deps.Planning == nil {
+			u.fail(w, fmt.Errorf("AI planning is not configured"))
+			return
+		}
+		if u.deps.Discovery == nil {
+			u.fail(w, fmt.Errorf("discovery is not configured"))
+			return
+		}
+		dsess, ok, derr := u.deps.Discovery.Get(ctx, p.ID)
+		if derr != nil {
+			u.fail(w, derr)
+			return
+		}
+		if !ok || dsess.SelectedID == "" {
+			u.fail(w, fmt.Errorf("choose a direction first"))
+			return
+		}
+		psess, has, perr := u.deps.Planning.Get(ctx, p.ID)
+		if perr != nil {
+			u.fail(w, perr)
+			return
+		}
+		if !has || psess.OptionID != dsess.SelectedID {
+			u.fail(w, fmt.Errorf("the plans were generated for a different direction; generate them again"))
+			return
+		}
+		idx, perr := strconv.Atoi(r.FormValue("plan"))
+		if perr != nil {
+			u.fail(w, fmt.Errorf("invalid plan selection"))
+			return
+		}
+		if err := u.deps.Planning.Select(ctx, p.ID, idx); err != nil {
+			u.fail(w, err)
+			return
+		}
+		u.auditProject(p.ID, "plan_selected", map[string]any{
+			"option": dsess.SelectedID, "index": idx, "title": psess.Candidates[idx].Title,
+		})
 		brief.Status = "planned"
 		if err := u.saveBrief(ctx, brief); err != nil {
 			u.fail(w, err)
@@ -345,6 +486,56 @@ func (u *UI) startDiscovery(p project.Project, brief projectBrief) {
 		run.Session = sess
 		u.auditProject(p.ID, "discovery_completed", map[string]any{
 			"session": sess.ID, "options": len(sess.Options),
+		})
+	}()
+}
+
+func (u *UI) planRunFor(projectID string) *planRun {
+	u.planMu.Lock()
+	defer u.planMu.Unlock()
+	if run := u.planRuns[projectID]; run != nil {
+		cp := *run
+		return &cp
+	}
+	return nil
+}
+
+func (u *UI) startPlanning(p project.Project, brief projectBrief, option discovery.Option) {
+	if u.deps.Planning == nil {
+		return
+	}
+	u.planMu.Lock()
+	if run := u.planRuns[p.ID]; run != nil && run.Status == "running" {
+		u.planMu.Unlock()
+		return
+	}
+	run := &planRun{OptionID: option.ID, Status: "running", StartedAt: time.Now()}
+	u.planRuns[p.ID] = run
+	u.planMu.Unlock()
+
+	u.auditProject(p.ID, "plan_started", map[string]any{"option": option.ID, "title": option.Title})
+	req := planning.Request{
+		Goal: brief.Goal, Brief: brief.Limitations, Constraints: brief.Constraints,
+		Sources: brief.Sources, OptionTitle: option.Title, OneLiner: option.OneLiner,
+		Customer: option.Customer, Pain: option.Pain, Wedge: option.Wedge,
+		Offer: option.FirstOffer, Validation: option.ValidationExperiment,
+	}
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Minute)
+		defer cancel()
+		sess, err := u.deps.Planning.Generate(ctx, p.ID, option.ID, req)
+		u.planMu.Lock()
+		defer u.planMu.Unlock()
+		if err != nil {
+			run.Status = "failed"
+			run.Error = err.Error()
+			u.auditProject(p.ID, "plan_failed", map[string]any{"error": err.Error()})
+			return
+		}
+		run.Status = "done"
+		run.Session = sess
+		u.auditProject(p.ID, "plan_completed", map[string]any{
+			"session": sess.ID, "candidates": len(sess.Candidates),
 		})
 	}()
 }
@@ -488,7 +679,23 @@ func (u *UI) approveProjectPlan(ctx context.Context, p project.Project, b projec
 	if selected == nil {
 		return fmt.Errorf("the selected option is missing from the portfolio")
 	}
-	_, specs := buildProjectPlan(p, b, *selected)
+	var specs []project.TaskSpec
+	goalText := fmt.Sprintf("%s: %s", selected.Title, selected.OneLiner)
+	if u.deps.Planning != nil {
+		if ps, has, perr := u.deps.Planning.Get(ctx, p.ID); perr == nil && has &&
+			ps.Status == "ready" && ps.OptionID == sess.SelectedID &&
+			ps.SelectedIndex >= 0 && ps.SelectedIndex < len(ps.Candidates) {
+			cand := ps.Candidates[ps.SelectedIndex]
+			specs = planning.ToTaskSpecs(cand)
+			goalText = fmt.Sprintf("%s: %s", cand.Title, cand.Summary)
+		}
+	}
+	if len(specs) == 0 {
+		_, specs = buildProjectPlan(p, b, *selected)
+	}
+	if len(specs) > 0 && len(b.Sources) > 0 {
+		specs[0].Description += " Allowed sources (fetch only these): " + strings.Join(b.Sources, " ")
+	}
 	criteria := []string{}
 	if strings.TrimSpace(b.Success) != "" {
 		for _, line := range strings.Split(b.Success, "\n") {
@@ -497,7 +704,6 @@ func (u *UI) approveProjectPlan(ctx context.Context, p project.Project, b projec
 			}
 		}
 	}
-	goalText := fmt.Sprintf("%s: %s", selected.Title, selected.OneLiner)
 	if len(goalText) > 500 {
 		goalText = goalText[:500]
 	}

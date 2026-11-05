@@ -37,6 +37,7 @@ import (
 	"github.com/tcs76321/athanor/internal/jobpod"
 	"github.com/tcs76321/athanor/internal/llm"
 	"github.com/tcs76321/athanor/internal/logging"
+	"github.com/tcs76321/athanor/internal/planning"
 	"github.com/tcs76321/athanor/internal/policy"
 	"github.com/tcs76321/athanor/internal/power"
 	"github.com/tcs76321/athanor/internal/project"
@@ -415,6 +416,10 @@ func run(configPath, addr, stateDir string, container bool) error {
 		Discovery: discovery.NewService(
 			&discoveryGenerator{client: llmClient, cfg: cfg},
 			discovery.NewStore(st),
+		),
+		Planning: planning.NewService(
+			&planningGenerator{client: llmClient, cfg: cfg},
+			planning.NewStore(st),
 		),
 		Scheduler:    sched,
 		TaskResetter: sched,

@@ -2,6 +2,7 @@ package ui
 
 import (
 	"context"
+	"fmt"
 	"net/url"
 	"strings"
 	"sync"
@@ -9,6 +10,7 @@ import (
 	"time"
 
 	"github.com/tcs76321/athanor/internal/discovery"
+	"github.com/tcs76321/athanor/internal/planning"
 )
 
 type fakeDiscovery struct {
@@ -49,6 +51,59 @@ func (f *fakeDiscovery) Select(_ context.Context, _, optionID string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.sess.SelectedID = optionID
+	return nil
+}
+
+type fakePlanning struct {
+	mu        sync.Mutex
+	sess      planning.Session
+	has       bool
+	generated bool
+}
+
+func planCandidate(title string) planning.Candidate {
+	return planning.Candidate{
+		Title: title, Summary: "A 30-day plan for " + title,
+		Tasks: []planning.Task{
+			{Title: title + " task", Description: "A concrete first step.", Capability: "document", Criteria: []string{"done"}},
+			{Title: title + " verify", Description: "Verify the first step.", Capability: "document", Criteria: []string{"verified"}},
+		},
+		Confidence: 0.6,
+	}
+}
+
+func (f *fakePlanning) Generate(_ context.Context, projectID, optionID string, _ planning.Request) (planning.Session, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.generated = true
+	f.sess = planning.Session{
+		ID: "ps1", ProjectID: projectID, OptionID: optionID, Status: "ready", SelectedIndex: -1,
+		Candidates: []planning.Candidate{
+			planCandidate("Fastest validation"),
+			planCandidate("Deepest quality"),
+			planCandidate("Lowest cost"),
+		},
+	}
+	f.has = true
+	return f.sess, nil
+}
+
+func (f *fakePlanning) Get(_ context.Context, _ string) (planning.Session, bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.sess, f.has, nil
+}
+
+func (f *fakePlanning) Select(_ context.Context, _ string, index int) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if !f.has || f.sess.Status != "ready" {
+		return fmt.Errorf("plan not ready")
+	}
+	if index < 0 || index >= len(f.sess.Candidates) {
+		return fmt.Errorf("index out of range")
+	}
+	f.sess.SelectedIndex = index
 	return nil
 }
 
@@ -169,5 +224,138 @@ func TestProjectOnboardingDiscoveryFlow(t *testing.T) {
 	}
 	if len(fx.engine.enqueued) == 0 {
 		t.Error("approving the plan did not start the first job")
+	}
+}
+
+// advanceToPlan runs the brief, discovery, and direction selection steps so a
+// test starts at the plan stage with option o1 selected.
+func advanceToPlan(t *testing.T, fx *fixtures, fd *fakeDiscovery) string {
+	t.Helper()
+	fx.ui.deps.Discovery = fd
+	if resp := postForm(t, fx.ts.URL+"/ui/projects/"+fx.project.ID+"/onboarding", url.Values{
+		"action": {"discover"}, "goal": {"make money online"},
+		"constraints": {"two hours a day"}, "sources": {"https://example.com"},
+		"success": {"five customer conversations"},
+	}); resp.StatusCode != 303 {
+		t.Fatalf("discover status = %d", resp.StatusCode)
+	}
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		_, body := get(t, fx.ts.URL+"/ui/projects/"+fx.project.ID+"/onboarding")
+		if strings.Contains(body, "Develop this direction") {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if resp := postForm(t, fx.ts.URL+"/ui/projects/"+fx.project.ID+"/onboarding", url.Values{
+		"action": {"select"}, "option": {"o1"},
+	}); resp.StatusCode != 303 {
+		t.Fatalf("select status = %d", resp.StatusCode)
+	}
+	_, body := get(t, fx.ts.URL+"/ui/projects/"+fx.project.ID+"/onboarding")
+	return body
+}
+
+func TestProjectOnboardingAIPlanFlow(t *testing.T) {
+	fx := setup(t)
+	fd := &fakeDiscovery{}
+	fp := &fakePlanning{}
+	fx.ui.deps.Planning = fp
+
+	body := advanceToPlan(t, fx, fd)
+	if !strings.Contains(body, "Draft three plans") || !strings.Contains(body, "Approve plan and start") {
+		t.Fatalf("plan stage missing generate/approve actions (%.300q)", body)
+	}
+
+	if resp := postForm(t, fx.ts.URL+"/ui/projects/"+fx.project.ID+"/onboarding", url.Values{
+		"action": {"generate_plans"},
+	}); resp.StatusCode != 303 {
+		t.Fatalf("generate status = %d", resp.StatusCode)
+	}
+	deadline := time.Now().Add(3 * time.Second)
+	found := false
+	for time.Now().Before(deadline) {
+		_, body = get(t, fx.ts.URL+"/ui/projects/"+fx.project.ID+"/onboarding")
+		if strings.Contains(body, "Three plans") && strings.Contains(body, "Fastest validation") {
+			found = true
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if !found {
+		t.Fatalf("AI plan candidates never appeared (%.300q)", body)
+	}
+
+	if resp := postForm(t, fx.ts.URL+"/ui/projects/"+fx.project.ID+"/onboarding", url.Values{
+		"action": {"select_plan"}, "plan": {"1"},
+	}); resp.StatusCode != 303 {
+		t.Fatalf("select_plan status = %d", resp.StatusCode)
+	}
+	_, body = get(t, fx.ts.URL+"/ui/projects/"+fx.project.ID+"/onboarding")
+	if !strings.Contains(body, "Chosen plan") || !strings.Contains(body, "Deepest quality") {
+		t.Fatalf("selected plan missing (%.300q)", body)
+	}
+
+	if resp := postForm(t, fx.ts.URL+"/ui/projects/"+fx.project.ID+"/onboarding", url.Values{
+		"action": {"approve"},
+	}); resp.StatusCode != 303 {
+		t.Fatalf("approve status = %d", resp.StatusCode)
+	}
+	tasks, err := fx.ui.deps.Projects.TasksByProject(context.Background(), fx.project.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	foundTask := false
+	for _, task := range tasks {
+		if task.Title == "Deepest quality task" {
+			foundTask = true
+		}
+	}
+	if !foundTask {
+		t.Fatalf("approved tasks do not come from the selected AI plan: %+v", tasks)
+	}
+}
+
+func TestProjectOnboardingIgnoresStalePlanAfterDirectionChange(t *testing.T) {
+	fx := setup(t)
+	fd := &fakeDiscovery{}
+	fp := &fakePlanning{}
+	fx.ui.deps.Planning = fp
+
+	body := advanceToPlan(t, fx, fd)
+	if !strings.Contains(body, "Draft three plans") {
+		t.Fatalf("plan stage missing (%.200q)", body)
+	}
+	if resp := postForm(t, fx.ts.URL+"/ui/projects/"+fx.project.ID+"/onboarding", url.Values{
+		"action": {"generate_plans"},
+	}); resp.StatusCode != 303 {
+		t.Fatalf("generate status = %d", resp.StatusCode)
+	}
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		_, body = get(t, fx.ts.URL+"/ui/projects/"+fx.project.ID+"/onboarding")
+		if strings.Contains(body, "Fastest validation") {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	// Change direction: reset, then choose o2. The o1 plan must disappear.
+	if resp := postForm(t, fx.ts.URL+"/ui/projects/"+fx.project.ID+"/onboarding", url.Values{
+		"action": {"reset"},
+	}); resp.StatusCode != 303 {
+		t.Fatalf("reset status = %d", resp.StatusCode)
+	}
+	if resp := postForm(t, fx.ts.URL+"/ui/projects/"+fx.project.ID+"/onboarding", url.Values{
+		"action": {"select"}, "option": {"o2"},
+	}); resp.StatusCode != 303 {
+		t.Fatalf("select o2 status = %d", resp.StatusCode)
+	}
+	_, body = get(t, fx.ts.URL+"/ui/projects/"+fx.project.ID+"/onboarding")
+	if strings.Contains(body, "Fastest validation") || strings.Contains(body, "Chosen plan") {
+		t.Fatalf("stale plan for the previous direction is still shown (%.300q)", body)
+	}
+	if !strings.Contains(body, "Draft three plans") {
+		t.Fatalf("new direction did not return to the plan prompt (%.300q)", body)
 	}
 }

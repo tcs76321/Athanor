@@ -119,6 +119,9 @@ type Deps struct {
 	// Discovery is the project-onboarding option portfolio. nil disables the
 	// discovery step (the project still supports the deterministic interview).
 	Discovery Discovery
+	// Planning generates AI plan candidates after a direction is chosen. nil
+	// keeps the deterministic 30-day plan.
+	Planning Planning
 	// Doctor runs the §30.2 host/environment checks for the first-run wizard.
 	// nil falls back to the UI-native checks.
 	Doctor func(ctx context.Context) doctor.Report
@@ -160,6 +163,9 @@ type UI struct {
 	// onboarding page. The durable portfolio is written when the pass ends.
 	discMu   sync.Mutex
 	discRuns map[string]*discoveryRun
+	// planMu/planRuns track an in-flight AI plan generation.
+	planMu   sync.Mutex
+	planRuns map[string]*planRun
 	// exporter is optional: the egress pipeline is wired after the UI is
 	// constructed, so it is a setter rather than a New() field.
 	exporter Exporter
@@ -167,7 +173,7 @@ type UI struct {
 
 // New builds a UI.
 func New(deps Deps) *UI {
-	u := &UI{deps: deps, hub: NewHub(), theme: "monokai", pulls: map[string]*pullProgress{}, discRuns: map[string]*discoveryRun{}}
+	u := &UI{deps: deps, hub: NewHub(), theme: "monokai", pulls: map[string]*pullProgress{}, discRuns: map[string]*discoveryRun{}, planRuns: map[string]*planRun{}}
 	if deps.Store != nil {
 		var saved string
 		if err := deps.Store.DB().QueryRow(
