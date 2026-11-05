@@ -62,7 +62,11 @@ func (u *UI) handleTheme(w http.ResponseWriter, r *http.Request) {
 		u.fail(w, err)
 		return
 	}
-	http.Redirect(w, r, "/ui/settings#appearance", http.StatusSeeOther)
+	next := r.FormValue("next")
+	if !strings.HasPrefix(next, "/ui/") {
+		next = "/ui/settings#appearance"
+	}
+	http.Redirect(w, r, next, http.StatusSeeOther)
 }
 
 func (u *UI) handleSitemap(w http.ResponseWriter, r *http.Request) {

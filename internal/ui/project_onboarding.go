@@ -6,9 +6,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
+	"github.com/tcs76321/athanor/internal/config"
 	"github.com/tcs76321/athanor/internal/discovery"
 	"github.com/tcs76321/athanor/internal/project"
 )
@@ -42,6 +44,49 @@ type discoveryRun struct {
 	Error     string
 	StartedAt time.Time
 	Session   discovery.Session
+}
+
+// sourceStatus is the allowlist state of one human-supplied research URL.
+type sourceStatus struct {
+	URL     string
+	Host    string
+	Allowed bool
+}
+
+func sourceStatuses(sources []string, cfg *config.Config) []sourceStatus {
+	out := make([]sourceStatus, 0, len(sources))
+	var allow []string
+	if cfg != nil {
+		allow = cfg.Network.AllowList
+	}
+	for _, raw := range sources {
+		raw = strings.TrimSpace(raw)
+		if raw == "" {
+			continue
+		}
+		host := ""
+		if u, err := url.Parse(raw); err == nil {
+			host = strings.ToLower(u.Hostname())
+		}
+		out = append(out, sourceStatus{URL: raw, Host: host, Allowed: host != "" && hostAllowed(host, allow)})
+	}
+	return out
+}
+
+// hostAllowed applies the gateway's suffix-match rule with an explicit dot
+// boundary, so "wikipedia.org" does not allow "evilwikipedia.org".
+func hostAllowed(host string, allow []string) bool {
+	host = strings.ToLower(strings.TrimSpace(host))
+	for _, entry := range allow {
+		entry = strings.ToLower(strings.TrimSpace(entry))
+		if entry == "" {
+			continue
+		}
+		if host == entry || strings.HasSuffix(host, "."+entry) {
+			return true
+		}
+	}
+	return false
 }
 
 func (u *UI) loadBrief(ctx context.Context, p project.Project) (projectBrief, error) {
@@ -136,7 +181,7 @@ func (u *UI) handleProjectOnboarding(w http.ResponseWriter, r *http.Request) {
 	u.render(w, "Onboarding "+p.Name, projectOnboardingBody, map[string]any{
 		"Project": p, "Brief": brief, "Session": sess, "HasSession": hasSession,
 		"Run": run, "Stage": stage, "Selected": selected, "Plan": plan,
-		"Status": brief.Status,
+		"Status": brief.Status, "Sources": sourceStatuses(brief.Sources, u.deps.Config),
 	})
 }
 
@@ -315,10 +360,14 @@ func buildProjectPlan(p project.Project, b projectBrief, o discovery.Option) (st
 			}
 		}
 	}
+	sourceLine := ""
+	if len(b.Sources) > 0 {
+		sourceLine = " Allowed sources (fetch only these): " + strings.Join(b.Sources, " ")
+	}
 	specs := []project.TaskSpec{
 		{
 			Key: "validate", Title: "Validate demand", Capability: project.CapabilityText,
-			Description: fmt.Sprintf("Run the validation experiment for %q: %s. Record what you learned, including who you spoke to, what they said, and whether they would pay.", o.Title, o.ValidationExperiment),
+			Description: fmt.Sprintf("Run the validation experiment for %q: %s. Record what you learned, including who you spoke to, what they said, and whether they would pay.%s", o.Title, o.ValidationExperiment, sourceLine),
 			Criteria:    criteria,
 		},
 		{

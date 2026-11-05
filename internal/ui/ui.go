@@ -329,7 +329,7 @@ type projectCard struct {
 }
 
 func (u *UI) projectCard(ctx context.Context, p project.Project) projectCard {
-	c := projectCard{Project: p, Onboarding: "legacy"}
+	c := projectCard{Project: p, Onboarding: "not started"}
 	if u.deps.Store == nil {
 		return c
 	}

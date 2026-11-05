@@ -244,9 +244,24 @@ func (u *UI) healthChecks(ctx context.Context, roles []setupRole, models []setup
 			out = append(out, healthCheck{Name: "State", Status: "ok", Detail: "SQLite reachable"})
 		}
 	}
+	if u.deps.Config != nil {
+		if strings.TrimSpace(u.deps.Config.JobPod.Image) == "" {
+			out = append(out, healthCheck{
+				Name: "Job Pod image", Status: "warn",
+				Detail: "no job_pod.image configured",
+				Fix:    "Build the Job Pod image and set job_pod.image; code tasks cannot execute tools without it.",
+			})
+		} else {
+			out = append(out, healthCheck{Name: "Job Pod image", Status: "ok", Detail: u.deps.Config.JobPod.Image})
+		}
+		out = append(out, healthCheck{
+			Name: "Network", Status: "ok",
+			Detail: fmt.Sprintf("default policy %s; %d allowlisted host(s)", u.deps.Config.Network.DefaultPolicy, len(u.deps.Config.Network.AllowList)),
+		})
+	}
 	out = append(out, healthCheck{
 		Name: "Host prerequisites", Status: "warn",
-		Detail: "Podman socket, Job Pod image, memory, and disk are checked by doctor.",
+		Detail: "Podman socket, memory, and disk are checked by doctor.",
 		Fix:    "Run `athanor doctor` in the Core for the full host report.",
 	})
 	return out

@@ -40,6 +40,17 @@ const projectOnboardingBody = `
         <label for="sources">Sources or pages Athanor may read (one per line)</label>
         <textarea id="sources" name="sources" rows="3" placeholder="https://example.com/market-report">{{join .Brief.Sources}}</textarea>
         <div class="field-help">Only these URLs are fetched through the gateway. A domain outside the allowlist becomes an access request, not a silent fetch.</div>
+        {{if .Sources}}
+        <div class="stack">
+          {{range .Sources}}
+          <div class="row row-middle">
+            <span class="mono wrap">{{.URL}}</span>
+            {{if .Allowed}}<span class="pill ok">allowed</span>{{else}}<span class="pill warn">needs access</span>{{end}}
+          </div>
+          {{end}}
+          <p class="muted">A source marked “needs access” stays unused until its domain is added to <code>network.allow_list</code> in config.yaml. Athanor will not fetch it silently.</p>
+        </div>
+        {{end}}
 
         <label for="success">What would make this a success?</label>
         <textarea id="success" name="success" rows="3" placeholder="Five customer conversations, one paid pilot, a decision with evidence.">{{.Brief.Success}}</textarea>
@@ -63,7 +74,7 @@ const projectOnboardingBody = `
       <h2>{{len .Session.Options}} directions</h2>
       <p class="muted">Each option is a different customer and wedge. Scores are deterministic from the option's clarity, evidence, speed, capital, and risk — they are a reading aid, not a verdict. Choose the one you want to develop.</p>
     </div>
-    {{if and .Run (eq .Run.Status "failed")}}<div class="notice bad">{{.Run.Error}}<div class="actions"><a class="btn secondary" href="/ui/projects/{{.Project.ID}}/onboarding">Try again</a></div></div>{{end}}
+    {{if .Run}}{{if eq .Run.Status "failed"}}<div class="notice bad">{{.Run.Error}}<div class="actions"><a class="btn secondary" href="/ui/projects/{{$.Project.ID}}/onboarding">Try again</a></div></div>{{end}}{{end}}
     <div class="grid cols-2">
       {{range .Session.Options}}
       <div class="option">

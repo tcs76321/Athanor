@@ -52,6 +52,24 @@ func (f *fakeDiscovery) Select(_ context.Context, _, optionID string) error {
 	return nil
 }
 
+func TestHostAllowedSuffixBoundary(t *testing.T) {
+	allow := []string{"wikipedia.org", "example.com"}
+	cases := map[string]bool{
+		"wikipedia.org":     true,
+		"en.wikipedia.org":  true,
+		"evilwikipedia.org": false,
+		"example.com":       true,
+		"sub.example.com":   true,
+		"notexample.com":    false,
+		"":                  false,
+	}
+	for host, want := range cases {
+		if got := hostAllowed(host, allow); got != want {
+			t.Errorf("hostAllowed(%q) = %v, want %v", host, got, want)
+		}
+	}
+}
+
 func TestProjectOnboardingDiscoveryFlow(t *testing.T) {
 	fx := setup(t)
 	fd := &fakeDiscovery{}
@@ -63,6 +81,21 @@ func TestProjectOnboardingDiscoveryFlow(t *testing.T) {
 	}
 
 	resp := postForm(t, fx.ts.URL+"/ui/projects/"+fx.project.ID+"/onboarding", url.Values{
+		"action":      {"save"},
+		"goal":        {"make money online"},
+		"constraints": {"two hours a day\nno ads"},
+		"sources":     {"https://example.com"},
+		"success":     {"five customer conversations"},
+	})
+	if resp.StatusCode != 303 {
+		t.Fatalf("save status = %d", resp.StatusCode)
+	}
+	_, body = get(t, fx.ts.URL+"/ui/projects/"+fx.project.ID+"/onboarding")
+	if !strings.Contains(body, "needs access") || !strings.Contains(body, "example.com") {
+		t.Fatalf("research source status missing (%.200q)", body)
+	}
+
+	resp = postForm(t, fx.ts.URL+"/ui/projects/"+fx.project.ID+"/onboarding", url.Values{
 		"action":      {"discover"},
 		"goal":        {"make money online"},
 		"constraints": {"two hours a day\nno ads"},

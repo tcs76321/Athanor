@@ -75,7 +75,7 @@ const searchBody = `
 <div class="card">
 <form method="get" action="/ui/search" role="search" class="row"
       hx-get="/ui/search" hx-target="#search-results" hx-swap="innerHTML"
-      hx-trigger="input changed delay:300ms from:input, submit" hx-push-url="true">
+      hx-trigger="input changed delay:300ms, submit" hx-push-url="true">
   <input id="search-input" type="search" name="q" value="{{.Query}}" placeholder="Search everything…" aria-label="Search">
   <button class="primary">Search</button>
 </form>
