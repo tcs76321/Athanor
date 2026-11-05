@@ -2,14 +2,18 @@ package ui
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/tcs76321/athanor/internal/config"
+	"github.com/tcs76321/athanor/internal/doctor"
 	"github.com/tcs76321/athanor/internal/store"
 	"github.com/tcs76321/athanor/migrations"
 )
@@ -138,5 +142,144 @@ func TestOnboardingSkipIsDurable(t *testing.T) {
 	}
 	if u.needsOnboarding(context.Background()) {
 		t.Fatal("a skipped onboarding still demands attention")
+	}
+}
+
+func TestWelcomeRunsDoctorChecks(t *testing.T) {
+	u := newEmptyUI(t)
+	u.deps.Doctor = func(_ context.Context) doctor.Report {
+		return doctor.Report{Checks: []doctor.Check{
+			{Name: "podman", Status: doctor.StatusOK, Detail: "rootless 5.8"},
+			{Name: "memory", Status: doctor.StatusWarn, Detail: "16 GiB", Remediation: "pull a smaller model"},
+		}}
+	}
+	mux := http.NewServeMux()
+	u.Register(mux)
+	ts := httptest.NewServer(mux)
+	t.Cleanup(ts.Close)
+
+	_, body := get(t, ts.URL+"/ui/welcome?step=environment")
+	for _, want := range []string{"rootless 5.8", "pull a smaller model", "Run checks again", "No separate CLI command"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("environment check missing %q", want)
+		}
+	}
+}
+
+func TestWelcomeResourcesStep(t *testing.T) {
+	u := newEmptyUI(t)
+	u.deps.Hardware = func(_ context.Context) Hardware {
+		return Hardware{TotalMemoryBytes: 32 << 30, FreeDiskBytes: 100 << 30, CPUs: 10}
+	}
+	mux := http.NewServeMux()
+	u.Register(mux)
+	ts := httptest.NewServer(mux)
+	t.Cleanup(ts.Close)
+
+	_, body := get(t, ts.URL+"/ui/welcome?step=resources")
+	for _, want := range []string{"Resources.", "GiB host RAM", "CPU cores", "Job Pod memory (MB)", "Save resource limits"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("resources step missing %q", want)
+		}
+	}
+	if !strings.Contains(body, "32") || !strings.Contains(body, "10") {
+		t.Errorf("resources step did not show detected hardware:\n%s", body)
+	}
+}
+
+func TestWelcomeModelsSelfSelectAndApply(t *testing.T) {
+	fake := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/tags" {
+			http.NotFound(w, r)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"models": []map[string]any{
+			{"name": "small:3b", "size": 2 << 30, "details": map[string]string{"family": "granite"}},
+			{"name": "mid:8b", "size": 5 << 30, "details": map[string]string{"family": "qwen"}},
+			{"name": "large:14b", "size": 9 << 30, "details": map[string]string{"family": "gemma"}},
+			{"name": "alt:12b", "size": 8 << 30, "details": map[string]string{"family": "muse"}},
+		}})
+	}))
+	t.Cleanup(fake.Close)
+	cfg, err := config.Default()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.Inference.OllamaURL = fake.URL
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+	if err := os.WriteFile(path, []byte("version: 2\npersonas:\n  main:\n    model: old-main\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	s, err := store.Open(filepath.Join(dir, "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+	if err := store.Migrate(s.DB(), migrations.FS, ""); err != nil {
+		t.Fatal(err)
+	}
+	u := New(Deps{Store: s, Config: cfg, ConfigPath: path, Runtime: "Core Pod", Version: "test",
+		Hardware: func(_ context.Context) Hardware {
+			return Hardware{TotalMemoryBytes: 32 << 30, CPUs: 10}
+		}})
+	mux := http.NewServeMux()
+	u.Register(mux)
+	ts := httptest.NewServer(mux)
+	t.Cleanup(ts.Close)
+
+	_, body := get(t, ts.URL+"/ui/welcome?step=models")
+	for _, want := range []string{"What the roles mean", "Installed models", "Athanor's selection", "large:14b", "Use this assignment"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("models step missing %q", want)
+		}
+	}
+	// The old persona mapping table must not be the primary content anymore.
+	if strings.Contains(body, "<th>Role</th><th>Model</th><th>Family</th><th>Context</th>") {
+		t.Error("models step still renders the old configured-mapping table")
+	}
+
+	resp := postForm(t, ts.URL+"/ui/welcome", url.Values{"step": {"models"}, "action": {"apply_personas"}})
+	if resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("apply personas status = %d", resp.StatusCode)
+	}
+	got, err := config.Load(path)
+	if err != nil {
+		t.Fatalf("applied config does not load: %v", err)
+	}
+	if got.Personas.Tall.Model != "large:14b" {
+		t.Errorf("tall = %q, want large:14b", got.Personas.Tall.Model)
+	}
+	if got.Personas.Security.Model == "" || got.Personas.Main.Model == "" {
+		t.Errorf("assignment missing roles: %+v", got.Personas)
+	}
+}
+
+func TestWelcomeApplyResources(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+	if err := os.WriteFile(path, []byte("version: 2\njob_pod:\n  image: test-image\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	u := New(Deps{Store: nil, ConfigPath: path})
+	mux := http.NewServeMux()
+	u.Register(mux)
+	ts := httptest.NewServer(mux)
+	t.Cleanup(ts.Close)
+
+	resp := postForm(t, ts.URL+"/ui/welcome", url.Values{
+		"step": {"resources"}, "action": {"apply_resources"},
+		"memory_mb": {"4096"}, "cpus": {"2"}, "tmpfs_mb": {"2048"}, "pids_limit": {"256"},
+	})
+	if resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("apply resources status = %d", resp.StatusCode)
+	}
+	got, err := config.Load(path)
+	if err != nil {
+		t.Fatalf("applied config does not load: %v", err)
+	}
+	if got.JobPod.MemoryMB != 4096 || got.JobPod.CPUs != 2 || got.JobPod.TmpfsMB != 2048 || got.JobPod.PidsLimit != 256 {
+		t.Errorf("resources = %+v", got.JobPod)
 	}
 }

@@ -28,6 +28,7 @@
 
 # Local daemon configuration (copy config.example.yaml to start)
 /config.yaml
+/config.yaml.bak*
 
 # Probe-specific configs are tracked (config-probe.yaml documents the
 # M1-T8 persona mapping); future /config-*.yaml files for other probes

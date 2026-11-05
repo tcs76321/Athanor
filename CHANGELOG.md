@@ -22,7 +22,13 @@ New entries are appended at the top. Do not rewrite history.
 - **Machine onboarding.** `/ui/welcome` is a once-per-computer wizard:
   environment checks, explicit persona-model pulls, the optional bounded
   qualification, preferences, and a handoff to the first project. The installer
-  prints and opens the URL (`--no-open` for headless hosts).
+  prints and opens the URL (`--no-open` for headless hosts). **Updated
+  2026-11-04:** the environment step runs `internal/doctor` through the GUI
+  (no CLI command required), a new resources step detects RAM/CPU/disk and
+  prefills editable Job Pod memory/CPU/tmpfs/PID limits, and the Models step
+  explains the roles, lists installed models, and **self-selects a model per
+  persona** with an apply-to-config action (atomic write, backup, restart
+  notice).
 - **Project onboarding + discovery.** A project now continues into a resumable
   brief (goal, limits, sources, success), a **portfolio** of scored directions
   across industries and niches, a human selection, and a deterministic 30-day

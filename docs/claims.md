@@ -52,6 +52,9 @@ demo. A claim without a proof is either removed or marked as a target.
 | A code prompt includes the verification command | ADR-0065, P0 fairness | `internal/prompt` (`Task.TestCommand`); `TestTaskContextShowsVerificationCommand`; `TestRun_CodeArchetypeUsesConfiguredTestCommand` | **proven** |
 | A single-file candidate is staged under the module the test imports | ADR-0065, P0 fairness | `internal/engine/pod_wiring.go` (`candidateModuleName`); `TestCandidateModuleName` | **proven** |
 | A fresh install is guided through machine onboarding | ADR-0095 | `/ui/welcome`; `TestFirstRunRedirectsToWelcome`, `TestWelcomeRendersBareShell`, `TestOnboardingAdvancesAndCompletes` | **proven** |
+| The first-run environment check runs doctor from the GUI | ADR-0095 | `Deps.Doctor` wired in `cmd/athanor/serve.go`; `TestWelcomeRunsDoctorChecks` | **proven** |
+| Onboarding detects RAM/CPU/disk and proposes editable Job Pod limits | ADR-0095 | `/ui/welcome?step=resources`; `TestWelcomeResourcesStep`, `TestWelcomeApplyResources`, `TestUpdateJobPodResources` | **proven** |
+| Athanor self-selects a model per persona and can apply it safely | ADR-0095 | `onboard.AutoAssign`; `TestAutoAssignPicksLargestAndCrossFamily`, `TestWelcomeModelsSelfSelectAndApply`, `TestUpdatePersonasPreservesAndValidates` | **proven** |
 | A project can be briefed, explored as a portfolio, and planned before work | ADR-0094, ADR-0095 | `internal/discovery`; `TestProjectOnboardingDiscoveryFlow`, `TestStoreRoundTripAndSelect`, `TestDedupeAndValidate` | **proven with a fake generator; a live-model run is the demo** |
 | Discovery is a portfolio, not a single-winner loop | ADR-0094 | `internal/discovery` (no engine comparison); `TestScoreIsDeterministicAndOrdered` | **proven by structure** |
 | A short, honest goal is accepted | ADR-0094 | `goals` 3-character floor; `TestCreateValidation`, `TestSubmitGoal` | **proven** |

@@ -22,33 +22,49 @@ document job, not a discovery portfolio.
    Insights, and System. Power surfaces remain reachable — through the rail
    groups, the sitemap, and global search — but are not in the primary path.
 2. **Two-level onboarding.**
-   - **Machine onboarding** runs once per computer: `/ui/welcome` checks the
-     Core and Ollama, lists persona models, pulls missing ones explicitly,
-     offers the bounded qualification, records preferences, and hands off to
-     the first project. Completion is durable in `system_state`; skip and
-     re-run are explicit.
+   - **Machine onboarding** runs once per computer: `/ui/welcome` runs the
+     doctor checks in-process (Podman, Git, Ollama, models, memory, disk,
+     state, Job Pod image, context floors, network, power), detects host
+     RAM/CPU/disk and proposes editable Job Pod limits, lists installed
+     models, self-selects a model per persona, pulls missing ones only with
+     explicit consent, offers the bounded qualification, records preferences,
+     and hands off to the first project. Completion is durable in
+     `system_state`; skip and re-run are explicit.
    - **Project onboarding** runs per project: a resumable brief (goal, limits,
      sources, success), discovery for exploratory goals, selection, a 30-day
      plan, and approval. It complements — does not delete — the deterministic
      interview.
-3. **Assets are embedded and the CSP is strict.** CSS, JS, and the vendored
+3. **The GUI performs first-run diagnostics and resource planning.** The
+   environment step calls `internal/doctor` through a `cmd/` probe adapter; it
+   does not ask the operator to run a CLI command. A dedicated resources step
+   shows detected RAM/CPU/disk and prefills Job Pod memory/CPU/tmpfs/PID limits
+   from host capacity, preserving values already in config. Applying the
+   assignment or the limits writes the config atomically with a timestamped
+   backup and a validation pass; the running registry keeps the old values
+   until restart, which the UI states explicitly.
+4. **Athanor self-selects persona models.** The Models step explains the five
+   roles, lists installed models, and shows a deterministic assignment
+   (largest for hard reasoning, smallest for ingestion, a different family for
+   the judge and alternative). The operator reviews it and can apply it; the
+   current persona→model table is no longer the primary content of the step.
+5. **Assets are embedded and the CSP is strict.** CSS, JS, and the vendored
    HTMX runtime live under `internal/ui/assets/` and are served from
    `/ui/assets/*`. Inline scripts and styles are removed; pages carry
    `default-src 'self'`, `frame-ancestors 'none'`, and no remote fonts/CDNs.
    HTMX is a static asset, not a Go module, and is the only front-end
    dependency approved for this pass.
-4. **Monokai is the base theme, with a warm editorial light alternative.** The
+6. **Monokai is the base theme, with a warm editorial light alternative.** The
    theme is a process-wide preference stored in `system_state`, applied
    server-side (`data-theme`) so first paint is correct without an inline
    script. Settings offers Monokai, Ember Paper, Monokai Light, Nord,
    Solarized Light, and High Contrast.
-5. **Artifacts and plans are readable.** A small, safe Markdown renderer in
+7. **Artifacts and plans are readable.** A small, safe Markdown renderer in
    `internal/ui/markdown.go` supports the closed subset Athanor emits and
    escapes all source HTML. Raw code artifacts remain `<pre>`.
-6. **Search is the universal escape hatch.** Projects, artifacts, jobs, events,
+8. **Search is the universal escape hatch.** Projects, artifacts, jobs, events,
    and UI surfaces are searchable from `/ui/search` and the command palette;
    the sitemap lists every surface. Nothing is hidden.
-7. **The UI is responsive for large displays, not mobile-first.** The layout
+9. **The UI is responsive for large displays, not mobile-first.** The layout
    targets 1280–3840 px with a 240–300 px rail, a 1680–1900 px content ceiling,
    fluid type, and URL-addressable state so multiple windows are independent.
 

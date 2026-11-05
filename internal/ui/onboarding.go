@@ -7,8 +7,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
+
+	"github.com/tcs76321/athanor/internal/config"
+	"github.com/tcs76321/athanor/internal/doctor"
+	"github.com/tcs76321/athanor/internal/onboard"
+	"github.com/tcs76321/athanor/internal/store"
 )
 
 // Machine onboarding (once per computer). The state lives in system_state so a
@@ -30,10 +36,43 @@ type onboardingStep struct {
 	Note  string
 }
 
+type personaGuide struct {
+	Role    string
+	Title   string
+	Purpose string
+}
+
+var personaGuides = []personaGuide{
+	{"wide", "Wide", "Ingestion, repository reading, and short summaries. It should be fast and cheap."},
+	{"tall", "Tall", "Hard reasoning: planning, decomposition, and difficult design work. It should be the strongest model that fits."},
+	{"main", "Main", "Normal execution and synthesis. The everyday worker."},
+	{"security", "Security", "Evaluation, comparison, and compaction at temperature 0.0. It must not share a family with the generators."},
+	{"alternative", "Alternative", "An orthogonal second opinion for candidate generation. A different family is preferred."},
+}
+
+type pullSuggestion struct {
+	Model  string
+	Reason string
+}
+
+type resourceView struct {
+	TotalMemoryGiB float64
+	FreeDiskGiB    float64
+	CPUs           int
+	MemoryMB       int
+	MemoryMaxMB    int
+	CPUsAllocated  float64
+	CPUsMax        float64
+	TmpfsMB        int
+	PidsLimit      int
+	ReserveMB      int
+}
+
 var onboardingSteps = []onboardingStep{
 	{"welcome", "Welcome", "What Athanor is and what it will do"},
-	{"environment", "Environment", "Core, Ollama, database, and models"},
-	{"models", "Models", "Persona models and one-click pulls"},
+	{"environment", "Environment", "Doctor checks run from the GUI"},
+	{"resources", "Resources", "RAM, CPU, and Job Pod limits"},
+	{"models", "Models", "Personas, installed models, and self-selection"},
 	{"qualify", "Qualification", "Optional bounded routing screen"},
 	{"preferences", "Preferences", "Theme and notifications"},
 	{"ready", "Ready", "Create the first project"},
@@ -145,6 +184,7 @@ func (u *UI) handleWelcome(w http.ResponseWriter, r *http.Request) {
 	}
 	data := u.welcomeData(ctx, st)
 	data["Bare"] = true
+	data["Applied"] = r.URL.Query().Get("applied")
 	u.render(w, "Welcome", welcomeBody, data)
 }
 
@@ -159,7 +199,14 @@ func (u *UI) welcomeData(ctx context.Context, st onboardingState) map[string]any
 		}
 		roles = u.personaRoles(models)
 	}
-	health := u.healthChecks(ctx, roles, models, modelsErr)
+	health := []healthCheck{}
+	if st.Step == "environment" {
+		if u.deps.Doctor != nil {
+			health = doctorChecks(u.deps.Doctor(ctx))
+		} else {
+			health = u.healthChecks(ctx, roles, models, modelsErr)
+		}
+	}
 	u.onboardMu.Lock()
 	pulls := make([]pullView, 0, len(u.pulls))
 	for model, p := range u.pulls {
@@ -173,11 +220,22 @@ func (u *UI) welcomeData(ctx context.Context, st onboardingState) map[string]any
 		})
 	}
 	u.onboardMu.Unlock()
+	hw := Hardware{}
+	if u.deps.Hardware != nil {
+		hw = u.deps.Hardware(ctx)
+	}
+	assignments := u.autoAssignments(roles, models, hw)
+	suggestions := u.pullSuggestions(roles)
+	resources := recommendedResources(hw, u.deps.Config)
 	return map[string]any{
 		"State": st, "Step": st.Step, "Steps": onboardingSteps,
-		"StepIndex": onboardingIndex(st.Step), "Roles": roles, "Models": models,
+		"StepIndex": onboardingIndex(st.Step), "StepNumber": onboardingIndex(st.Step) + 1,
+		"StepCount": len(onboardingSteps), "Roles": roles, "Models": models,
 		"ModelsErr": modelsErr, "Health": health, "Pulls": pulls,
 		"Themes": themeNames, "Theme": u.Theme(), "ThemeLabel": themeLabel(u.Theme()),
+		"PersonaGuides": personaGuides, "Assignments": assignments,
+		"Suggestions": suggestions, "Resources": resources, "Hardware": hw,
+		"ConfigPath": u.deps.ConfigPath,
 		"OllamaURL": func() string {
 			if u.deps.Config == nil {
 				return ""
@@ -185,6 +243,110 @@ func (u *UI) welcomeData(ctx context.Context, st onboardingState) map[string]any
 			return u.deps.Config.Inference.OllamaURL
 		}(),
 	}
+}
+
+// autoAssignments converts the UI's catalog to the deterministic selector.
+func (u *UI) autoAssignments(roles []setupRole, models []setupModel, hw Hardware) []onboard.Assignment {
+	if len(models) == 0 {
+		return nil
+	}
+	oroles := make([]onboard.Role, 0, len(roles))
+	for _, r := range roles {
+		oroles = append(oroles, onboard.Role{Role: r.Role, Model: r.Model, ContextTarget: r.ContextTarget})
+	}
+	if len(oroles) == 0 {
+		for _, name := range []string{"wide", "tall", "main", "security", "alternative"} {
+			oroles = append(oroles, onboard.Role{Role: name})
+		}
+	}
+	omodels := make([]onboard.Model, 0, len(models))
+	for _, m := range models {
+		omodels = append(omodels, onboard.Model{Name: m.Name, SizeBytes: m.SizeBytes, Family: m.Family})
+	}
+	reserve := int64(2 << 30)
+	return onboard.AutoAssign(oroles, omodels, int64(hw.TotalMemoryBytes), reserve)
+}
+
+// pullSuggestions lists configured persona models that are not installed,
+// deduplicated and without role labels; the Models step explains the personas
+// separately so the operator is not asked to map them by hand.
+func (u *UI) pullSuggestions(roles []setupRole) []pullSuggestion {
+	seen := map[string]bool{}
+	out := []pullSuggestion{}
+	for _, r := range roles {
+		if r.Installed || r.Model == "" || seen[r.Model] {
+			continue
+		}
+		seen[r.Model] = true
+		out = append(out, pullSuggestion{Model: r.Model, Reason: "expected by this configuration"})
+	}
+	return out
+}
+
+// recommendedResources proposes Job Pod limits from host capacity, while
+// preserving values already set in config.
+func recommendedResources(hw Hardware, cfg *config.Config) resourceView {
+	totalMB := int(hw.TotalMemoryBytes / (1 << 20))
+	res := resourceView{
+		TotalMemoryGiB: float64(hw.TotalMemoryBytes) / (1 << 30),
+		FreeDiskGiB:    float64(hw.FreeDiskBytes) / (1 << 30),
+		CPUs:           hw.CPUs,
+		MemoryMB:       4096,
+		TmpfsMB:        2048,
+		PidsLimit:      256,
+		CPUsAllocated:  2,
+		CPUsMax:        float64(hw.CPUs),
+	}
+	if res.CPUsMax < 1 {
+		res.CPUsMax = 8
+	}
+	if res.CPUsMax > 16 {
+		res.CPUsMax = 16
+	}
+	if res.CPUs < 4 {
+		res.CPUsAllocated = 1
+	}
+	if totalMB > 0 {
+		proposed := totalMB / 4
+		if proposed < 1024 {
+			proposed = 1024
+		}
+		if proposed > 4096 {
+			proposed = 4096
+		}
+		res.MemoryMB = (proposed / 512) * 512
+		res.MemoryMaxMB = totalMB - 2048
+	} else {
+		res.MemoryMaxMB = 65536
+	}
+	if res.MemoryMaxMB < 1024 {
+		res.MemoryMaxMB = 1024
+	}
+	if res.MemoryMaxMB > 65536 {
+		res.MemoryMaxMB = 65536
+	}
+	res.ReserveMB = 2048
+	if cfg != nil {
+		if cfg.JobPod.MemoryMB > 0 {
+			res.MemoryMB = cfg.JobPod.MemoryMB
+		}
+		if cfg.JobPod.CPUs > 0 {
+			res.CPUsAllocated = cfg.JobPod.CPUs
+		}
+		if cfg.JobPod.TmpfsMB > 0 {
+			res.TmpfsMB = cfg.JobPod.TmpfsMB
+		}
+		if cfg.JobPod.PidsLimit > 0 {
+			res.PidsLimit = cfg.JobPod.PidsLimit
+		}
+	}
+	if res.MemoryMB > res.MemoryMaxMB {
+		res.MemoryMB = res.MemoryMaxMB
+	}
+	if res.CPUsAllocated > res.CPUsMax {
+		res.CPUsAllocated = res.CPUsMax
+	}
+	return res
 }
 
 type healthCheck struct {
@@ -283,6 +445,17 @@ func overallHealth(checks []healthCheck) string {
 	return worst
 }
 
+// doctorChecks adapts the CLI doctor report to the wizard's check rows.
+func doctorChecks(rep doctor.Report) []healthCheck {
+	out := make([]healthCheck, 0, len(rep.Checks))
+	for _, c := range rep.Checks {
+		out = append(out, healthCheck{
+			Name: c.Name, Status: string(c.Status), Detail: c.Detail, Fix: c.Remediation,
+		})
+	}
+	return out
+}
+
 func (u *UI) healthChecks(ctx context.Context, roles []setupRole, models []setupModel, modelsErr string) []healthCheck {
 	var out []healthCheck
 	out = append(out, healthCheck{
@@ -346,6 +519,53 @@ func (u *UI) healthChecks(ctx context.Context, roles []setupRole, models []setup
 	return out
 }
 
+func (u *UI) applyPersonas(ctx context.Context) error {
+	if u.deps.Config == nil {
+		return fmt.Errorf("configuration is not available")
+	}
+	if u.deps.ConfigPath == "" {
+		return fmt.Errorf("config path is not available; cannot apply the assignment")
+	}
+	models, err := fetchModels(ctx, u.deps.Config.Inference.OllamaURL)
+	if err != nil {
+		return fmt.Errorf("reading installed models: %w", err)
+	}
+	roles := u.personaRoles(models)
+	hw := Hardware{}
+	if u.deps.Hardware != nil {
+		hw = u.deps.Hardware(ctx)
+	}
+	assignments := u.autoAssignments(roles, models, hw)
+	if len(assignments) == 0 {
+		return fmt.Errorf("no models are installed to assign")
+	}
+	updates := map[string]config.PersonaConfig{}
+	for _, a := range assignments {
+		pc, ok := u.deps.Config.Personas.Role(a.Role)
+		if !ok {
+			continue
+		}
+		pc.Model = a.Model
+		if a.Family != "" {
+			pc.Family = a.Family
+		}
+		updates[a.Role] = pc
+	}
+	if err := config.UpdatePersonas(u.deps.ConfigPath, updates); err != nil {
+		return err
+	}
+	if u.deps.Store != nil {
+		cctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		data := map[string]any{"event": "personas_applied"}
+		for _, a := range assignments {
+			data[a.Role] = a.Model
+		}
+		_, _ = u.deps.Store.AppendEvent(cctx, store.Event{Category: "inference", Data: data})
+	}
+	return nil
+}
+
 func (u *UI) handleWelcomePost(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
 		u.fail(w, err)
@@ -385,6 +605,38 @@ func (u *UI) handleWelcomePost(w http.ResponseWriter, r *http.Request) {
 		if model != "" {
 			u.startPull(model)
 		}
+	case "apply_personas":
+		if err := u.applyPersonas(ctx); err != nil {
+			u.fail(w, err)
+			return
+		}
+		if err := u.saveOnboarding(ctx, st); err != nil {
+			u.fail(w, err)
+			return
+		}
+		http.Redirect(w, r, "/ui/welcome?step=models&applied=personas", http.StatusSeeOther)
+		return
+	case "apply_resources":
+		mem, merr := strconv.Atoi(r.FormValue("memory_mb"))
+		cpus, cerr := strconv.ParseFloat(r.FormValue("cpus"), 64)
+		tmpfs, terr := strconv.Atoi(r.FormValue("tmpfs_mb"))
+		pids, perr := strconv.Atoi(r.FormValue("pids_limit"))
+		if merr != nil || cerr != nil || terr != nil || perr != nil {
+			u.fail(w, fmt.Errorf("resource values must be numbers"))
+			return
+		}
+		if err := config.UpdateJobPodResources(u.deps.ConfigPath, config.JobPodResources{
+			MemoryMB: mem, CPUs: cpus, TmpfsMB: tmpfs, PidsLimit: pids,
+		}); err != nil {
+			u.fail(w, err)
+			return
+		}
+		if err := u.saveOnboarding(ctx, st); err != nil {
+			u.fail(w, err)
+			return
+		}
+		http.Redirect(w, r, "/ui/welcome?step=resources&applied=resources", http.StatusSeeOther)
+		return
 	}
 	if err := u.saveOnboarding(ctx, st); err != nil {
 		u.fail(w, err)

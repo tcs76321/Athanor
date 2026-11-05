@@ -27,6 +27,7 @@ import (
 	"github.com/tcs76321/athanor/internal/config"
 	"github.com/tcs76321/athanor/internal/corrections"
 	"github.com/tcs76321/athanor/internal/digest"
+	"github.com/tcs76321/athanor/internal/doctor"
 	"github.com/tcs76321/athanor/internal/evaluation"
 	"github.com/tcs76321/athanor/internal/firstuse"
 	"github.com/tcs76321/athanor/internal/hitl"
@@ -48,6 +49,13 @@ type Control interface {
 	Frozen() bool
 	Freeze(ctx context.Context) error
 	Unfreeze(ctx context.Context, reason string) error
+}
+
+// Hardware is the host capacity reported to the resources step.
+type Hardware struct {
+	TotalMemoryBytes uint64
+	FreeDiskBytes    uint64
+	CPUs             int
 }
 
 // Enqueuer starts a job (the engine). Used by retry/resume.
@@ -100,6 +108,15 @@ type Deps struct {
 	// Discovery is the project-onboarding option portfolio. nil disables the
 	// discovery step (the project still supports the deterministic interview).
 	Discovery Discovery
+	// Doctor runs the §30.2 host/environment checks for the first-run wizard.
+	// nil falls back to the UI-native checks.
+	Doctor func(ctx context.Context) doctor.Report
+	// ConfigPath is the file the onboarding may update when applying an
+	// automatic persona assignment. Empty disables write-back.
+	ConfigPath string
+	// Hardware reports host capacity for the resources step. nil leaves the
+	// step with zero/unknown values and recommended defaults.
+	Hardware func(ctx context.Context) Hardware
 	// Scheduler starts a decomposed goal's ready tasks. nil falls back to
 	// starting only the first task.
 	Scheduler Scheduler

@@ -149,9 +149,12 @@ Then watch it work in real time from the Watch View, or queue it and check the M
   project-centric workshop: a side rail with Home, Inbox, Projects, Library,
   Insights, and System; a Monokai base theme (with Ember Paper and other
   themes in Settings); safe Markdown reading for artifacts and plans; global
-  search; and a first-run wizard (`/ui/welcome`) that checks the Core and
-  Ollama, pulls persona models, runs the optional qualification, and hands the
-  operator to their first project. The supported runtime remains the Core Pod.
+  search; and a first-run wizard (`/ui/welcome`) that runs the doctor checks in
+  the browser, detects RAM/CPU/disk and proposes Job Pod resource limits,
+  lists installed models, self-selects a model for each persona (with an
+  apply-to-config option and a restart notice), pulls missing models only with
+  explicit consent, runs the optional qualification, and hands the operator to
+  their first project. The supported runtime remains the Core Pod.
 - **Project onboarding, discovery, and research limits.** Creating a project
   now continues into a guided brief: clarify the outcome, the limits, the
   success criteria, and the sources Athanor may read. Exploratory goals get a

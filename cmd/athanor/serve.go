@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"runtime"
 	"syscall"
 	"time"
 
@@ -24,6 +25,7 @@ import (
 	"github.com/tcs76321/athanor/internal/corrections"
 	"github.com/tcs76321/athanor/internal/daydream"
 	"github.com/tcs76321/athanor/internal/discovery"
+	"github.com/tcs76321/athanor/internal/doctor"
 	"github.com/tcs76321/athanor/internal/engine"
 	"github.com/tcs76321/athanor/internal/evaluation"
 	"github.com/tcs76321/athanor/internal/hitl"
@@ -412,6 +414,20 @@ func run(configPath, addr, stateDir string, container bool) error {
 			discovery.NewStore(st),
 		),
 		Scheduler:  sched,
+		ConfigPath: configPath,
+		Doctor: func(ctx context.Context) doctor.Report {
+			dcfg := cfg
+			if !(&osProbes{}).InContainer() {
+				dcfg = hostDoctorConfig(cfg)
+			}
+			return doctor.Run(ctx, dcfg, doctor.Options{StateDir: stateDir}, newOSProbes())
+		},
+		Hardware: func(ctx context.Context) ui.Hardware {
+			p := newOSProbes()
+			mem, _ := p.TotalMemoryBytes(ctx)
+			disk, _ := p.FreeDiskBytes(ctx, stateDir)
+			return ui.Hardware{TotalMemoryBytes: mem, FreeDiskBytes: disk, CPUs: runtime.NumCPU()}
+		},
 		DefaultTTL: cfg.HITL.DefaultTTL.D(),
 	})
 	eng.SetTokenSink(webUI.Hub())

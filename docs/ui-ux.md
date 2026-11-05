@@ -10,9 +10,11 @@ The GUI foundation and two-level onboarding are now implemented
 - **Shell and design system.** A persistent rail (Home, Inbox, Projects,
   Library, Insights, System), Monokai as the base theme plus Ember Paper and
   four alternatives, embedded CSS/JS, a strict CSP, and a vendored HTMX.
-- **Machine onboarding.** `/ui/welcome` checks the Core/Ollama/models, pulls
-  missing persona models explicitly, offers qualification, records preferences,
-  and completes durably. The installer prints and opens the URL.
+- **Machine onboarding.** `/ui/welcome` runs the doctor checks in the browser,
+  detects RAM/CPU/disk and proposes editable Job Pod limits, lists installed
+  models, self-selects a persona assignment, pulls missing models explicitly,
+  offers qualification, records preferences, and completes durably. The
+  installer prints and opens the URL.
 - **Project onboarding and discovery.** `/ui/projects/{id}/onboarding` runs a
   resumable brief (goal, limits, sources, success), a portfolio discovery pass
   (`internal/discovery`, [ADR-0094](adr/0094-project-discovery-portfolio.md)),
