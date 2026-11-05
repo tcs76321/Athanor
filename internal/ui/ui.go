@@ -34,6 +34,7 @@ import (
 	"github.com/tcs76321/athanor/internal/interruptions"
 	"github.com/tcs76321/athanor/internal/interview"
 	"github.com/tcs76321/athanor/internal/job"
+	"github.com/tcs76321/athanor/internal/operator"
 	"github.com/tcs76321/athanor/internal/project"
 	"github.com/tcs76321/athanor/internal/review"
 	"github.com/tcs76321/athanor/internal/store"
@@ -42,6 +43,12 @@ import (
 
 // Freezer reports the §22 kill-switch state.
 type Freezer interface{ Frozen() bool }
+
+// Operator is the household-mode surface on the dashboard.
+type Operator interface {
+	Status() operator.Status
+	Set(ctx context.Context, mode operator.Mode, hold time.Duration, reason string) error
+}
 
 // Control is the optional kill-switch write surface (§22). Satisfied by
 // *control.KillSwitch; nil leaves the Settings control read-only.
@@ -111,6 +118,7 @@ type Deps struct {
 	Strategy      *strategy.Repo
 	Freezer       Freezer
 	Control       Control
+	Operator      Operator
 	Engine        Enqueuer
 	// Config is read-only. The inspector shows personas, limits, and the
 	// budget shape; it never writes configuration.
@@ -279,6 +287,7 @@ func (u *UI) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /ui/jobs/{id}/trace", u.handleTrace)
 	mux.HandleFunc("GET /ui/settings", u.handleSettings)
 	mux.HandleFunc("POST /ui/freeze", u.handleFreeze)
+	mux.HandleFunc("POST /ui/mode", u.handleMode)
 	mux.HandleFunc("POST /ui/theme", u.handleTheme)
 	mux.HandleFunc("GET /ui/sitemap", u.handleSitemap)
 	mux.HandleFunc("GET /ui/search", u.handleSearch)
@@ -378,8 +387,13 @@ func (u *UI) handleDashboard(w http.ResponseWriter, r *http.Request) {
 			cards = append(cards, u.projectCard(ctx, p))
 		}
 	}
+	var opStatus any
+	if u.deps.Operator != nil {
+		opStatus = u.deps.Operator.Status()
+	}
 	u.render(w, "Home", dashboardBody, map[string]any{
 		"Active": active, "Terminal": terminal, "Pending": pending, "Frozen": frozen,
+		"Operator":     opStatus,
 		"ProjectNames": names, "ReviewCount": reviewCount, "RecentArtifacts": recentArts,
 		"Digest": day, "Projects": cards,
 		"OnboardingPending": !onboarding.Completed && !onboarding.Skipped,
@@ -888,6 +902,53 @@ func (u *UI) handleJobStream(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (u *UI) handleMode(w http.ResponseWriter, r *http.Request) {
+	if u.deps.Operator == nil {
+		u.fail(w, fmt.Errorf("operator mode is not configured"))
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		u.fail(w, fmt.Errorf("invalid mode form: %w", err))
+		return
+	}
+	action := r.FormValue("action")
+	var (
+		mode operator.Mode
+		hold time.Duration
+		why  string
+	)
+	switch action {
+	case "deep":
+		mode = operator.ModeDeep
+	case "full":
+		mode = operator.ModeFull
+	case "lite":
+		mode = operator.ModeLite
+	case "auto":
+		mode = operator.ModeAuto
+	case "stop":
+		mode = operator.ModeStopped
+		why = "operator stop"
+	case "resume":
+		mode = operator.ModeAuto
+	case "use":
+		mode = operator.ModeLite
+		why = "using the computer"
+		hold = 30 * time.Minute
+		if r.FormValue("duration") == "1h" {
+			hold = time.Hour
+		}
+	default:
+		u.fail(w, fmt.Errorf("unknown mode action %q", action))
+		return
+	}
+	if err := u.deps.Operator.Set(r.Context(), mode, hold, why); err != nil {
+		u.fail(w, err)
+		return
+	}
+	http.Redirect(w, r, "/ui", http.StatusSeeOther)
+}
+
 // handleDashboardStream streams every new event; the dashboard script updates
 // a job's phase from `transition` rows.
 func (u *UI) handleDashboardStream(w http.ResponseWriter, r *http.Request) {
@@ -1349,6 +1410,7 @@ var funcs = template.FuncMap{
 		return ""
 	},
 	"join":     func(ss []string) string { return strings.Join(ss, ", ") },
+	"mul":      func(a, b float64) float64 { return a * b },
 	"markdown": renderMarkdown,
 	"add":      func(a, b int) int { return a + b },
 	"gib": func(n int64) string {

@@ -78,6 +78,9 @@ demo. A claim without a proof is either removed or marked as a target.
 | Discovery exposes its live stage, model, bytes, elapsed time, and raw tail | first-use review | `internal/ui/project_onboarding.go`, `internal/discovery/discovery.go`, `cmd/athanor/discovery.go`; `TestProjectOnboardingShowsDiscoveryTransparency`, `TestGenerateReportsDurableProgress` | **proven** |
 | Discovery tolerates real local-model output shapes and a bounded 12k output budget | first-use review | `internal/discovery.Parse`; `TestParseSalvagesTruncatedArray`, `TestParseAcceptsConcatenatedObjects`; live clean-Core run 2026-11-05 | **proven** |
 | Memory budgets separate host inference from the Job Pod runtime and count only configured personas | ADR-0102 | `internal/ui.budgetFor`; `TestBudgetForSeparatesHostInferenceAndRuntimeSandbox` | **proven** |
+| Deep/Full/Lite/Stopped is a persisted household mode with honest resource expectations | ADR-0103 | `internal/operator` (`Status`, `Decide`, `Ceiling`); `TestModeLimits`, `TestTemporaryHoldExpiresToAuto`, `TestCeilingComposition`; dashboard `TestModeControls` | **proven** |
+| Stopped pauses active work (resumable), refuses queued work, and resumes explicitly | ADR-0103 | `internal/engine` (`PauseAll`, `ResumeAll`, operator gate); `TestOperatorGateHoldsQueuedWork`, `TestOperatorGateRejectsEnqueue`, `TestOperatorPauseAllAndResumeAll` | **proven** |
+| Daydreaming runs only in Full | ADR-0103 | `internal/operator.DaydreamAllowed`; `cmd/athanor/daydream.go` mode gate; `TestModeLimits` | **proven structurally** |
 
 
 

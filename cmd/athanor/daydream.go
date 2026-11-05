@@ -66,6 +66,9 @@ type daydreamPower interface{ GetLimits() power.Limits }
 // daydreamFreezer is the §22 kill-switch surface (the engine's Freezer shape).
 type daydreamFreezer interface{ Frozen() bool }
 
+// daydreamMode is the household-mode gate. Daydreaming is Full-only.
+type daydreamMode interface{ DaydreamAllowed() bool }
+
 // daydreamIndexer is the M5-T8 repository-indexing slice the loop consults
 // (ADR-0028 §6). One bounded pass per project per tick, so exploration yields
 // to real work like every other daydream action.
@@ -90,6 +93,9 @@ type daydreamDeps struct {
 	compactor   mce.Compactor
 	power       daydreamPower
 	freezer     daydreamFreezer
+	// mode is the Deep/Full/Lite/Stopped household gate. Daydreaming is a
+	// Full-only filler; nil preserves the pre-operator behavior for tests.
+	mode daydreamMode
 	// projects + indexer drive the §17.1 Repository Exploration action
 	// (M5-T8). Both nil disables it; the M5-T6 consolidation tests construct
 	// a runner without them.
@@ -169,6 +175,9 @@ func (r *daydreamRunner) pass(ctx context.Context) error {
 		return nil
 	}
 	if r.deps.freezer != nil && r.deps.freezer.Frozen() {
+		return nil
+	}
+	if r.deps.mode != nil && !r.deps.mode.DaydreamAllowed() {
 		return nil
 	}
 	active, err := r.deps.jobs.Active(ctx)

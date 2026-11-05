@@ -10,6 +10,25 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Household modes and operator control — 2026-11-05
+
+- **Athanor now has an explicit household mode.** Deep is unattended work with
+  no feedback expected, Full allows work and daydreaming when nothing better is
+  queued, Lite is user-started work only with one job and a halved Job Pod CPU
+  ceiling, and Stopped refuses new work, pauses active jobs (resumable), stops
+  pods, and unloads configured models until an explicit Resume. The dashboard
+  exposes all four, a red Stop, Resume, 30m/1h "use the computer" holds, Auto,
+  and the active reason/allowances. [ADR-0103](docs/adr/0103-household-operating-modes.md).
+  Proofs: `internal/operator` mode/hold/persistence/ceiling tests,
+  `TestOperatorGateHoldsQueuedWork`, `TestOperatorPauseAllAndResumeAll`,
+  `TestDashboardShowsHouseholdMode`, `TestModeControls`.
+- **Auto never claims the user is away without evidence.** Presence comes from
+  an optional host heartbeat (`ATHANOR_PRESENCE_FILE`); a missing or unreadable
+  file means "present", so Auto defaults to Full rather than Deep.
+- **Daydreaming is Full-only**, and the engine consults the operator gate at
+  every phase boundary, including Enqueue, so Stopped work stays queued instead
+  of reserving a slot or an admission grant.
+
 ### Acceptance, feedback, language, and containment hardening — 2026-11-05
 
 - **The memory budget now describes two real budgets, not a made-up sum.**

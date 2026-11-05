@@ -59,7 +59,7 @@ that respects the project's constraints (loopback-only, no new dependencies,
 
 | Route | View | Notes |
 |---|---|---|
-| `GET /ui` | **Dashboard** | active/terminal jobs, pending approvals, freeze state, 24-hour digest, recently accepted; live phase via `/ui/events/stream` (SSE) |
+| `GET /ui` | **Dashboard** | active/terminal jobs, pending approvals, household mode (Deep/Full/Lite/Stopped, Auto, temporary holds), freeze state, 24-hour digest, recently accepted; live phase via `/ui/events/stream` (SSE) |
 | `GET /ui/projects`, `/ui/projects/{id}` | **Projects** | artifact history with an LCS diff against the superseded version |
 | `GET /ui/corrections`, `POST` | **Corrections** | the mandatory §18.4 rejection form; mute/edit/promote |
 | `GET /ui/statistics` | **Statistics** | read-only; strategy insights with evidence |
@@ -72,7 +72,7 @@ Mounted at `/ui` on the loopback listener (ADR-0039); stdlib only.
 
 | §27 view | Status | Gap |
 |---|---|---|
-| Dashboard | ✅ shipped | power/daydream state, resource usage, alarms not surfaced |
+| Dashboard | ✅ shipped | household mode/daydream state and reason surfaced; resource usage and alarms still thin |
 | Watch | ✅ shipped | candidate diff view, evaluation-score timeline are thin |
 | Approvals | ◑ inline | no dedicated queue depth/badge, no risk-level grouping |
 | Projects | ✅ shipped | no task-DAG visualizer |

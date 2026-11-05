@@ -38,6 +38,7 @@ import (
 	"github.com/tcs76321/athanor/internal/jobpod"
 	"github.com/tcs76321/athanor/internal/llm"
 	"github.com/tcs76321/athanor/internal/logging"
+	"github.com/tcs76321/athanor/internal/operator"
 	"github.com/tcs76321/athanor/internal/planning"
 	"github.com/tcs76321/athanor/internal/policy"
 	"github.com/tcs76321/athanor/internal/power"
@@ -168,6 +169,14 @@ func run(configPath, addr, stateDir string, container bool) error {
 	// assertion while autonomous work runs.
 	osPowerWatcher := newOSWatcher()
 	powerMgr := power.NewPowerManager(osPowerWatcher)
+	// Household mode (Deep/Full/Lite/Stopped). The file presence helper is
+	// optional; without it Auto defaults to Full rather than claiming the user
+	// is away.
+	opCtrl, err := operator.New(st, cfg.Limits.MaxConcurrentJobs,
+		operator.FilePresence(os.Getenv("ATHANOR_PRESENCE_FILE")))
+	if err != nil {
+		return fmt.Errorf("loading operator mode: %w", err)
+	}
 	// M2-T2: Job Pod manager. Owns the lifecycle of every Podman
 	// Job Pod. Sweep runs at boot to clean up after a crash or
 	// kill -9. M2-T4b wired the engine↔pod lifecycle (ADR-0024): the
@@ -207,6 +216,8 @@ func run(configPath, addr, stateDir string, container bool) error {
 	// (the artifact store is the source of truth).
 	artifactStore := artifact.NewStore(st, filepath.Join(stateDir, "artifacts"))
 	projectRepo := project.NewRepo(st)
+	podLife := newPodLifecycle(podMgr, cfg, projectRepo, stateDir, cfg.JobPod.ScratchHostDir, gitClient{})
+	podLife.SetModeProvider(func() operator.Mode { return opCtrl.Status().Mode })
 	// One LLM client shared by the engine and the MCE summarizer, so both
 	// talk to the same Ollama endpoint through the same connection pool.
 	llmClient := llm.NewClient(cfg.Inference.OllamaURL, nil)
@@ -241,7 +252,7 @@ func run(configPath, addr, stateDir string, container bool) error {
 		llmClient,
 		registry,
 		killSwitch,
-		power.Ceiling{Manager: powerMgr, Jobs: cfg.Limits.MaxConcurrentJobs},
+		operator.Ceiling{Controller: opCtrl, Base: power.Ceiling{Manager: powerMgr, Jobs: cfg.Limits.MaxConcurrentJobs}},
 		// M2-T4: the engine's window onto the internal API.
 		// It authenticates each call with the per-job bearer
 		// token retrieved from the Job Pod manager, so the
@@ -262,11 +273,20 @@ func run(configPath, addr, stateDir string, container bool) error {
 		// long-lived idle pod before the code-archetype sub-steps and
 		// stops it at terminal state, so the runner's per-job token
 		// (TokenFor) exists when the internal API execs into it.
-		newPodLifecycle(podMgr, cfg, projectRepo, stateDir, cfg.JobPod.ScratchHostDir, gitClient{}),
+		podLife,
 	)
 	// M7-T1 (§24): the engine consults the power gate before each phase, so
 	// a battery/sleep pause parks active jobs and ResumePaused re-drives them.
 	eng.SetPauseGate(powerMgr)
+	// Household mode gate: Stopped preempts phases and refuses new work.
+	eng.SetOperatorGate(opCtrl)
+	opCtrl.SetHooks(operator.Hooks{
+		OnStopped: func(ctx context.Context) {
+			eng.PauseAll(ctx)
+			unloadConfiguredModels(ctx, cfg)
+		},
+		OnResumed: func(ctx context.Context) { eng.ResumeAll(ctx) },
+	})
 	// F3-T5 (§14, ADR-0030): Git-as-undo. When an artifact is accepted
 	// and the project has a repository_path that is a clean git worktree,
 	// record it on an agent branch. Best-effort; never pushes. M6-T5
@@ -413,7 +433,7 @@ func run(configPath, addr, stateDir string, container bool) error {
 		Version:       version,
 		Interviews:    interview.NewRepo(st),
 		Interruptions: interruptionsRepo, Strategy: strategyRepo,
-		Freezer: killSwitch, Control: killSwitch, Engine: eng, Indexer: indexer,
+		Freezer: killSwitch, Control: killSwitch, Operator: opCtrl, Engine: eng, Indexer: indexer,
 		Discovery: discovery.NewService(
 			&discoveryGenerator{client: llmClient, cfg: cfg},
 			discovery.NewStore(st),
@@ -716,6 +736,7 @@ func run(configPath, addr, stateDir string, container bool) error {
 		compactor:   mceRT.Compactor,
 		power:       powerMgr,
 		freezer:     killSwitch,
+		mode:        opCtrl,
 		projects:    projectRepo,
 		indexer:     indexer,
 		logs:        daydream.NewRepo(st),

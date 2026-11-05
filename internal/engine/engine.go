@@ -81,6 +81,12 @@ type PauseGate interface {
 	Paused() bool
 }
 
+// OperatorGate is the household-mode surface. A stopped Athanor accepts no new
+// work and preempts active work; Full/Lite/Deep allow work.
+type OperatorGate interface {
+	Allowed() bool
+}
+
 // ToolRunner is the engine's window onto the internal API
 // (ROADMAP M2-T4, ADR-0009). The production impl is
 // internal/internalapi/runner.HTTPClient; tests pass a fake. The
@@ -185,6 +191,9 @@ type Engine struct {
 	cap       ConcurrencyCap
 	// pauseGate is the §24 power pause signal (M7-T1). nil never pauses.
 	pauseGate PauseGate
+	// operatorGate is the user-facing Deep/Full/Lite/Stopped gate. nil allows
+	// work (pre-operator behavior).
+	operatorGate OperatorGate
 	// runner is the engine's window onto the Job Pod internal
 	// API (M2-T4). nil means "no Job Pod manager"; the code
 	// archetype's sub-steps short-circuit without HTTP calls.
@@ -259,6 +268,7 @@ type Engine struct {
 	cancelMu  sync.Mutex
 	cancels   map[string]context.CancelFunc
 	cancelled map[string]bool
+	pauseReq  map[string]bool
 	// onTerminal is invoked when a job reaches a terminal state, so the
 	// M6-T2 scheduler can advance the job's task graph (ADR-0033). A nil
 	// seam is the M1 walking-skeleton default: nothing observes the
@@ -321,6 +331,7 @@ func New(cfg *config.Config, db *store.Store, jobs *job.Repository, projects *pr
 		running:      map[string]bool{},
 		cancels:      map[string]context.CancelFunc{},
 		cancelled:    map[string]bool{},
+		pauseReq:     map[string]bool{},
 	}
 }
 
@@ -388,6 +399,10 @@ func (e *Engine) SetStrategyHistory(h StrategyHistory) { e.history = h }
 // SetPauseGate wires the §24 power pause signal (M7-T1). A nil gate means
 // the engine never pauses for power.
 func (e *Engine) SetPauseGate(g PauseGate) { e.pauseGate = g }
+
+// SetOperatorGate wires the Deep/Full/Lite/Stopped household mode. A nil gate
+// allows work (pre-operator behavior).
+func (e *Engine) SetOperatorGate(g OperatorGate) { e.operatorGate = g }
 
 // SetVerifiers wires the F4-T3 deterministic verifier registry. A nil
 // registry uses verify.Default().
@@ -811,6 +826,11 @@ func (e *Engine) Enqueue(jobID string) {
 // cancelled rather than failed).
 func (e *Engine) EnqueueContext(ctx context.Context, jobID string) {
 	go func() {
+		// A stopped Athanor accepts no new work. The job stays queued, and
+		// ResumeAll re-enqueues it once the household mode allows work again.
+		if e.operatorGate != nil && !e.operatorGate.Allowed() {
+			return
+		}
 		jobCtx, cancel := context.WithCancel(ctx)
 		e.cancelMu.Lock()
 		e.cancels[jobID] = cancel
@@ -928,6 +948,68 @@ func (e *Engine) wasUserCancelled(jobID string) bool {
 	return e.cancelled[jobID]
 }
 
+// Pause asks a running job to stop at the phase boundary without becoming
+// terminal. It is used by the operator Stopped mode and by "use this
+// computer": the phase context is cancelled, Run commits `paused` with the
+// current state as paused_from, and a later ResumeAll re-drives it.
+func (e *Engine) Pause(jobID string) bool {
+	e.cancelMu.Lock()
+	cancel := e.cancels[jobID]
+	if cancel == nil {
+		e.cancelMu.Unlock()
+		return false
+	}
+	e.pauseReq[jobID] = true
+	e.cancelMu.Unlock()
+	cancel()
+	return true
+}
+
+// wasPauseRequested reports whether Pause was used for this job.
+func (e *Engine) wasPauseRequested(jobID string) bool {
+	e.cancelMu.Lock()
+	defer e.cancelMu.Unlock()
+	return e.pauseReq[jobID]
+}
+
+func (e *Engine) clearPauseRequested(jobID string) {
+	e.cancelMu.Lock()
+	delete(e.pauseReq, jobID)
+	e.cancelMu.Unlock()
+}
+
+// PauseAll preempts every active job. Queued jobs have no goroutine; the
+// operator gate prevents them from starting, and ResumeAll re-enqueues them.
+func (e *Engine) PauseAll(ctx context.Context) {
+	active, err := e.jobs.Active(ctx)
+	if err != nil {
+		slog.Error("operator: listing active jobs to pause", "err", err)
+		return
+	}
+	for _, j := range active {
+		if j.State.Terminal() || j.State == job.StateQueued {
+			continue
+		}
+		e.Pause(j.ID)
+	}
+}
+
+// ResumeAll re-drives paused jobs and re-enqueues queued jobs after a stop or
+// temporary hold is lifted.
+func (e *Engine) ResumeAll(ctx context.Context) {
+	e.resumePaused(ctx, "operator")
+	active, err := e.jobs.Active(ctx)
+	if err != nil {
+		slog.Error("operator: listing active jobs to resume", "err", err)
+		return
+	}
+	for _, j := range active {
+		if j.State == job.StateQueued {
+			e.Enqueue(j.ID)
+		}
+	}
+}
+
 // Recover resumes every active job after a daemon restart or an unfreeze
 // (§23.6): each job continues from its last committed state, paused jobs
 // resume to paused_from.
@@ -956,6 +1038,9 @@ func (e *Engine) pauseReason() string {
 	if e.freezer.Frozen() {
 		return "kill_switch"
 	}
+	if e.operatorGate != nil && !e.operatorGate.Allowed() {
+		return "operator_stopped"
+	}
 	if e.pauseGate != nil && e.pauseGate.Paused() {
 		return "power"
 	}
@@ -968,9 +1053,15 @@ func (e *Engine) pauseReason() string {
 // paused for another reason (e.g. a context-floor violation) simply re-pauses
 // on the next run, so this is safe to call broadly.
 func (e *Engine) ResumePaused(ctx context.Context) {
+	e.resumePaused(ctx, "power")
+}
+
+// resumePaused re-drives paused jobs with a caller-supplied reason, so the
+// event log distinguishes a power resume from an operator resume.
+func (e *Engine) resumePaused(ctx context.Context, reason string) {
 	active, err := e.jobs.Active(ctx)
 	if err != nil {
-		slog.Error("power resume: listing active jobs", "err", err)
+		slog.Error("resume: listing active jobs", "err", err)
 		return
 	}
 	for _, j := range active {
@@ -978,13 +1069,13 @@ func (e *Engine) ResumePaused(ctx context.Context) {
 			continue
 		}
 		if _, err := e.jobs.Transition(ctx, j.ID, j.PausedFrom); err != nil {
-			slog.Error("power resume: transition", "job", j.ID, "err", err)
+			slog.Error("resume: transition", "job", j.ID, "err", err)
 			continue
 		}
 		e.audit(ctx, j.ID, map[string]any{
-			"event": "job_resumed", "reason": "power", "to": string(j.PausedFrom),
+			"event": "job_resumed", "reason": reason, "to": string(j.PausedFrom),
 		})
-		slog.Info("power resume: re-driving paused job", "job", j.ID, "to", j.PausedFrom)
+		slog.Info("resume: re-driving paused job", "job", j.ID, "reason", reason, "to", j.PausedFrom)
 		e.Enqueue(j.ID)
 	}
 }
@@ -1031,6 +1122,9 @@ func (e *Engine) Run(ctx context.Context, jobID string) {
 		e.mu.Lock()
 		delete(e.running, jobID)
 		e.mu.Unlock()
+		// A pause request that raced a naturally completed phase must not
+		// poison a later user cancel.
+		e.clearPauseRequested(jobID)
 	}()
 	// A panic in a phase is contained to this job. Without this, a nil map,
 	// a bad index, or a parser panic in any phase would kill the daemon —
@@ -1109,6 +1203,23 @@ func (e *Engine) Run(ctx context.Context, jobID string) {
 					e.finalizeTerminal(ctx, jobID, cur)
 					return
 				}
+			}
+			// An operator stop or a temporary hold cancels the phase and parks
+			// the job in `paused`; it is resumable, not cancelled.
+			if errors.Is(err, context.Canceled) && e.wasPauseRequested(jobID) {
+				cctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+				cur, gerr := e.jobs.Get(cctx, jobID)
+				if gerr == nil && job.CanTransition(cur.State, job.StatePaused) {
+					if _, terr := e.jobs.Transition(cctx, jobID, job.StatePaused); terr == nil {
+						e.audit(cctx, jobID, map[string]any{
+							"event": "job_paused", "reason": "operator", "from": string(cur.State),
+						})
+					}
+				}
+				e.stopPod(cctx, jobID)
+				e.clearPauseRequested(jobID)
+				cancel()
+				return
 			}
 			// A user Cancel is a terminal `cancelled`, not a failure. The
 			// phase context is already canceled, so commit on a detached,

@@ -1543,6 +1543,17 @@ power:
 > models do not count. The Job Pod ceiling is inside the runtime and is not
 > added to the host model budget; the UI reports both and flags combined host
 > pressure.
+>
+> **Household modes (ADR-0103).** `internal/operator` owns the persisted
+> Deep/Full/Lite/Stopped mode and sits beside the power gate. Deep is
+> unattended committed work; Full adds daydreaming when nothing better is
+> queued; Lite is user-started work only, one job at a time with the Job Pod
+> CPU ceiling halved; Stopped refuses new work, pauses active jobs
+> (`paused_from` preserved), stops pods, and unloads configured models, with
+> resume explicit. A temporary 30m/1h "use the computer" hold returns to Auto.
+> Auto reads only an optional host heartbeat (`ATHANOR_PRESENCE_FILE`) and
+> defaults to Full when it has no presence evidence, so it never claims the
+> user is away.
 
 ## 25. Tool Interface
 

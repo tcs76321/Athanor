@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -342,4 +343,29 @@ func auditOutPath(configPath, explicit string) string {
 		return explicit
 	}
 	return modelAuditPath(configPath)
+}
+
+// unloadConfiguredModels asks Ollama to evict every configured persona model
+// when Athanor enters Stopped. It deliberately does not stop Ollama itself:
+// the service may be used by other local software.
+func unloadConfiguredModels(ctx context.Context, cfg *config.Config) {
+	if cfg == nil {
+		return
+	}
+	base := strings.TrimRight(cfg.Inference.OllamaURL, "/")
+	if base == "" {
+		return
+	}
+	client := &http.Client{Timeout: 30 * time.Second}
+	seen := map[string]bool{}
+	for _, name := range []string{"wide", "tall", "main", "security", "alternative"} {
+		pc, ok := cfg.Personas.Role(name)
+		if !ok || pc.Model == "" || seen[pc.Model] {
+			continue
+		}
+		seen[pc.Model] = true
+		if err := unloadModel(ctx, client, base, pc.Model); err != nil {
+			slog.Warn("operator: unloading model", "model", pc.Model, "err", err)
+		}
+	}
 }

@@ -151,6 +151,10 @@ func newCountingOllama(t *testing.T) *countingOllama {
 			select {
 			case <-time.After(delay):
 			case <-r.Context().Done():
+				// The client canceled: release the response bookkeeping
+				// lock before bailing out, or every later request (and the
+				// test server's Close) blocks until the client timeout.
+				o.mu.Unlock()
 				return
 			}
 		}

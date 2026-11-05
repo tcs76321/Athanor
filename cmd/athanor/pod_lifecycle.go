@@ -10,6 +10,7 @@ import (
 	"github.com/tcs76321/athanor/internal/config"
 	"github.com/tcs76321/athanor/internal/engine"
 	"github.com/tcs76321/athanor/internal/jobpod"
+	"github.com/tcs76321/athanor/internal/operator"
 	"github.com/tcs76321/athanor/internal/project"
 )
 
@@ -51,7 +52,13 @@ type podLifecycleAdapter struct {
 	stateDir       string
 	scratchHostDir string
 	snap           repoSnapshotter
+	// mode is optional; Lite halves the pod's CPU ceiling so user-started work
+	// cannot saturate the machine.
+	mode func() operator.Mode
 }
+
+// SetModeProvider wires the household mode into pod sizing.
+func (a *podLifecycleAdapter) SetModeProvider(fn func() operator.Mode) { a.mode = fn }
 
 var _ engine.PodLifecycle = (*podLifecycleAdapter)(nil)
 
@@ -85,6 +92,13 @@ func (a *podLifecycleAdapter) Ensure(ctx context.Context, jobID, projectID strin
 			limits = jobpod.AdaptiveLimits(limits, task.Capability)
 		} else {
 			slog.Debug("pod lifecycle: task capability unavailable; using the ceiling", "job", jobID, "err", err)
+		}
+	}
+	if a.mode != nil && a.mode() == operator.ModeLite {
+		if limits.CPUs <= 0 {
+			limits.CPUs = 0.5
+		} else if limits.CPUs > 0.5 {
+			limits.CPUs = limits.CPUs / 2
 		}
 	}
 	_, err := a.pods.Start(ctx, jobpod.Spec{

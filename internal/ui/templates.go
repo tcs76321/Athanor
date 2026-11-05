@@ -213,6 +213,37 @@ const dashboardBody = `
   </div>
 </div>
 
+{{if .Operator}}
+<div class="card mode-card">
+  <div class="row row-middle">
+    <div>
+      <div class="eyebrow">Household mode</div>
+      <h2>{{.Operator.Mode}} {{if .Operator.Auto}}<span class="pill">auto</span>{{else}}<span class="pill">{{.Operator.Requested}}</span>{{end}}</h2>
+      <p class="muted">{{.Operator.Reason}}{{if .Operator.HoldActive}} · until {{.Operator.HoldUntil | when}}{{end}}</p>
+    </div>
+    <div class="meta">
+      <span class="pill">{{.Operator.Concurrency}} job{{if ne .Operator.Concurrency 1}}s{{end}}</span>
+      <span class="pill">CPU {{printf "%.0f" (mul .Operator.CPUQuota 100)}}%</span>
+      {{if .Operator.Daydream}}<span class="pill ok">daydream on</span>{{else}}<span class="pill">daydream off</span>{{end}}
+    </div>
+  </div>
+  <div class="actions">
+    <form method="post" action="/ui/mode"><button name="action" value="deep" class="secondary">Deep</button></form>
+    <form method="post" action="/ui/mode"><button name="action" value="full" class="secondary">Full</button></form>
+    <form method="post" action="/ui/mode"><button name="action" value="lite" class="secondary">Lite</button></form>
+    <form method="post" action="/ui/mode"><button name="action" value="auto" class="secondary">Auto</button></form>
+    {{if eq (printf "%s" .Operator.Mode) "stopped"}}
+    <form method="post" action="/ui/mode"><button name="action" value="resume" class="primary">Resume</button></form>
+    {{else}}
+    <form method="post" action="/ui/mode"><button name="action" value="stop" class="danger" data-confirm="Stop Athanor now? Active work pauses, Job Pods stop, and models unload. Resume is explicit.">Stop Athanor</button></form>
+    {{end}}
+    <form method="post" action="/ui/mode"><input type="hidden" name="duration" value="30m"><button name="action" value="use" class="secondary">Use computer 30m</button></form>
+    <form method="post" action="/ui/mode"><input type="hidden" name="duration" value="1h"><button name="action" value="use" class="secondary">1h</button></form>
+  </div>
+  <p class="muted small">Deep commits to unattended work. Full allows work and daydreaming when nothing better is queued. Lite is user work only and CPU-capped. Stopped cleans up and waits for an explicit resume.</p>
+</div>
+{{end}}
+
 <h2>System health
   <span class="pill {{if eq .HealthStatus "ok"}}ok{{else if eq .HealthStatus "warn"}}warn{{else}}bad{{end}}">{{.HealthStatus}}</span>
 </h2>
