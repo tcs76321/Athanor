@@ -199,6 +199,7 @@ const errorBody = `
 `
 
 const dashboardBody = `
+{{if .OnboardingPending}}<div class="notice">Machine setup is not finished. The first-run wizard checks the environment, models, and preferences. <a href="/ui/welcome">Finish setup</a></div>{{end}}
 <div class="hero card">
   <div>
     <div class="eyebrow">{{if .Frozen}}Frozen{{else}}Workshop{{end}}</div>

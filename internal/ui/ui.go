@@ -313,6 +313,7 @@ func (u *UI) handleDashboard(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	day, _ := digest.Build(ctx, u.deps.Store, time.Now().Add(-24*time.Hour), time.Now())
+	onboarding := u.loadOnboarding(ctx)
 	var cards []projectCard
 	projects, perr := u.listProjects(ctx)
 	if perr == nil {
@@ -324,6 +325,7 @@ func (u *UI) handleDashboard(w http.ResponseWriter, r *http.Request) {
 		"Active": active, "Terminal": terminal, "Pending": pending, "Frozen": frozen,
 		"ProjectNames": names, "ReviewCount": reviewCount, "RecentArtifacts": recentArts,
 		"Digest": day, "Projects": cards,
+		"OnboardingPending": !onboarding.Completed && !onboarding.Skipped,
 	})
 }
 
