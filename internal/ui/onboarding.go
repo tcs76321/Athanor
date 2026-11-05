@@ -150,24 +150,14 @@ func (u *UI) handleWelcome(w http.ResponseWriter, r *http.Request) {
 
 func (u *UI) welcomeData(ctx context.Context, st onboardingState) map[string]any {
 	models, modelsErr := []setupModel{}, ""
-	var roles []setupRole
+	roles := []setupRole{}
 	if u.deps.Config != nil {
 		var err error
 		models, err = fetchModels(ctx, u.deps.Config.Inference.OllamaURL)
 		if err != nil {
 			modelsErr = err.Error()
 		}
-		for _, name := range []string{"wide", "tall", "main", "security", "alternative"} {
-			pc, ok := u.deps.Config.Personas.Role(name)
-			if !ok {
-				continue
-			}
-			roles = append(roles, setupRole{
-				Role: name, Model: pc.Model, Family: pc.Family,
-				ContextTarget: pc.ContextTarget,
-				Installed:     modelInstalled(pc.Model, models),
-			})
-		}
+		roles = u.personaRoles(models)
 	}
 	health := u.healthChecks(ctx, roles, models, modelsErr)
 	u.onboardMu.Lock()
@@ -202,6 +192,95 @@ type healthCheck struct {
 	Status string // ok | warn | fail
 	Detail string
 	Fix    string
+}
+
+// personaRoles maps the configured personas to the installed model catalog.
+func (u *UI) personaRoles(models []setupModel) []setupRole {
+	roles := make([]setupRole, 0, 5)
+	if u.deps.Config == nil {
+		return roles
+	}
+	for _, name := range []string{"wide", "tall", "main", "security", "alternative"} {
+		pc, ok := u.deps.Config.Personas.Role(name)
+		if !ok {
+			continue
+		}
+		roles = append(roles, setupRole{
+			Role: name, Model: pc.Model, Family: pc.Family,
+			ContextTarget: pc.ContextTarget,
+			Installed:     modelInstalled(pc.Model, models),
+		})
+	}
+	return roles
+}
+
+// homeHealth is the front-page health summary: the few things an operator
+// should see before reading any project. It is cheaper and more focused than
+// the full first-run environment check.
+func (u *UI) homeHealth(ctx context.Context, failed, alarms, pending int, frozen bool) []healthCheck {
+	checks := []healthCheck{{Name: "Core", Status: "ok", Detail: u.deps.Runtime + " · " + u.deps.Version}}
+	if u.deps.Config != nil {
+		mctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		models, err := fetchModels(mctx, u.deps.Config.Inference.OllamaURL)
+		cancel()
+		if err != nil {
+			checks = append(checks, healthCheck{Name: "Ollama", Status: "fail", Detail: err.Error()})
+		} else {
+			checks = append(checks, healthCheck{Name: "Ollama", Status: "ok", Detail: fmt.Sprintf("%d model(s) installed", len(models))})
+			roles := u.personaRoles(models)
+			missing := []string{}
+			for _, r := range roles {
+				if !r.Installed {
+					missing = append(missing, r.Role)
+				}
+			}
+			if len(missing) > 0 {
+				checks = append(checks, healthCheck{Name: "Models", Status: "fail", Detail: "missing: " + strings.Join(missing, ", ")})
+			} else if len(roles) > 0 {
+				checks = append(checks, healthCheck{Name: "Models", Status: "ok", Detail: "all persona models present"})
+			}
+		}
+		if strings.TrimSpace(u.deps.Config.JobPod.Image) == "" {
+			checks = append(checks, healthCheck{Name: "Job Pod", Status: "warn", Detail: "no image configured; code tools cannot run"})
+		} else {
+			checks = append(checks, healthCheck{Name: "Job Pod", Status: "ok", Detail: u.deps.Config.JobPod.Image})
+		}
+	}
+	workStatus := "ok"
+	workDetail := "no failures in the last 24h"
+	if failed > 0 {
+		workStatus = "warn"
+		workDetail = fmt.Sprintf("%d failed run(s) in the last 24h", failed)
+	}
+	checks = append(checks, healthCheck{Name: "Work", Status: workStatus, Detail: workDetail})
+	alarmStatus := "ok"
+	alarmDetail := "no active alarms"
+	if alarms > 0 {
+		alarmStatus = "warn"
+		alarmDetail = fmt.Sprintf("%d active alarm(s)", alarms)
+	}
+	checks = append(checks, healthCheck{Name: "Alarms", Status: alarmStatus, Detail: alarmDetail})
+	if pending > 0 {
+		checks = append(checks, healthCheck{Name: "Approvals", Status: "warn", Detail: fmt.Sprintf("%d waiting for a decision", pending)})
+	}
+	if frozen {
+		checks = append(checks, healthCheck{Name: "Kill switch", Status: "warn", Detail: "frozen: no new work starts"})
+	}
+	return checks
+}
+
+// overallHealth returns the worst status in the set.
+func overallHealth(checks []healthCheck) string {
+	worst := "ok"
+	for _, c := range checks {
+		if c.Status == "fail" {
+			return "fail"
+		}
+		if c.Status == "warn" {
+			worst = "warn"
+		}
+	}
+	return worst
 }
 
 func (u *UI) healthChecks(ctx context.Context, roles []setupRole, models []setupModel, modelsErr string) []healthCheck {

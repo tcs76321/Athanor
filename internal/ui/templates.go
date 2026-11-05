@@ -212,6 +212,18 @@ const dashboardBody = `
   </div>
 </div>
 
+<h2>System health
+  <span class="pill {{if eq .HealthStatus "ok"}}ok{{else if eq .HealthStatus "warn"}}warn{{else}}bad{{end}}">{{.HealthStatus}}</span>
+</h2>
+<div class="grid cols-4 tight">
+  {{range .Health}}
+  <div class="card stat">
+    <div class="row row-middle"><span class="l">{{.Name}}</span><span class="pill {{if eq .Status "ok"}}ok{{else if eq .Status "warn"}}warn{{else}}bad{{end}}">{{.Status}}</span></div>
+    <div class="muted small">{{.Detail}}</div>
+  </div>
+  {{end}}
+</div>
+
 <div class="split">
   <div>
     <h2>Projects</h2>
@@ -229,17 +241,17 @@ const dashboardBody = `
         </div>
         <div class="actions">
           <a class="btn small" href="/ui/projects/{{.Project.ID}}/onboarding">Onboarding</a>
-          {{if .LastJobID}}<a class="btn small secondary" href="/ui/jobs/{{.LastJobID}}">Latest job</a>{{end}}
+          {{if .LastJobID}}<a class="btn small secondary" href="/ui/jobs/{{.LastJobID}}">Latest run</a>{{end}}
         </div>
       </div>
       {{end}}
     </div>
     {{else}}<div class="empty"><strong>No projects yet.</strong><br><a href="/ui/projects/new">Create the first one</a> and Athanor will ask what it needs to know.</div>{{end}}
 
-    <h2>Active work</h2>
+    <h2>Work in progress</h2>
     {{if .Active}}
     <div class="card flush"><div class="table-wrap">
-    <table><thead><tr><th>Job</th><th>Project</th><th>Phase</th><th></th></tr></thead><tbody>
+    <table><thead><tr><th>Run</th><th>Project</th><th>Phase</th><th></th></tr></thead><tbody>
     {{range .Active}}<tr>
       <td><a href="/ui/jobs/{{.ID}}" class="mono">{{.ID | short}}</a></td>
       <td><a href="/ui/projects/{{.ProjectID}}">{{index $.ProjectNames .ProjectID}}</a></td>
@@ -249,10 +261,10 @@ const dashboardBody = `
     </tbody></table></div></div>
     {{else}}<div class="empty">No job is running.</div>{{end}}
 
-    <h2>Recently finished</h2>
+    <h2>Recently finished work</h2>
     {{if .Terminal}}
     <div class="card flush"><div class="table-wrap">
-    <table><thead><tr><th>Job</th><th>Project</th><th>State</th><th>Finished</th></tr></thead><tbody>
+    <table><thead><tr><th>Run</th><th>Project</th><th>State</th><th>Finished</th></tr></thead><tbody>
     {{range .Terminal}}<tr>
       <td><a href="/ui/jobs/{{.ID}}" class="mono">{{.ID | short}}</a></td>
       <td><a href="/ui/projects/{{.ProjectID}}">{{index $.ProjectNames .ProjectID}}</a></td>
