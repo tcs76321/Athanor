@@ -45,6 +45,7 @@ func (e *Engine) phaseDivergeN(ctx context.Context, j job.Job) error {
 		return errors.New("engine: cfg is nil (diverge phase requires config)")
 	}
 	capability := capabilityFor(p, t)
+	language := e.languageFor(ctx, j, p, t)
 	// F4-T1c/T2/T5: resolve the plan once here (after planning, so the
 	// difficulty hint is visible), audit it, then use its candidate count,
 	// routed personas, and diversity policy. A nil policy/config reproduces
@@ -98,7 +99,7 @@ func (e *Engine) phaseDivergeN(ctx context.Context, j job.Job) error {
 			candRole := roles[i%len(roles)]
 			seed := fmt.Sprintf("CANDIDATE %d of %d. Produce a solution that differs from any other candidate you might generate for this task.", i+1, n)
 			if capability == project.ArchetypeCode {
-				seed += "\n" + codeOnlyInstruction
+				seed += "\n" + codeInstruction(language)
 			}
 			// ADR-0065: a task with a fixture shows its starter/source tree to
 			// the model — for code (a refactor's starter module) and, equally,
@@ -107,8 +108,18 @@ func (e *Engine) phaseDivergeN(ctx context.Context, j job.Job) error {
 			// list to normalize). Without this the non-code tasks would get only
 			// the goal and could not do the work.
 			if fx := p.Execution.FixturePath; fx != "" {
-				if fixture, ferr := readFixtureTree(fx); ferr == nil && len(fixture) > 0 {
+				root := fixtureRootFor(p)
+				if root == "" {
+					e.audit(ctx, j.ID, map[string]any{
+						"event": "fixture_skipped", "path": fx,
+						"reason": "no approved fixture_root or repository_path",
+					})
+				} else if fixture, ferr := readFixtureTree(fx, root); ferr == nil && len(fixture) > 0 {
 					seed += "\n\n" + renderFixture(capability, fixture)
+				} else if ferr != nil {
+					e.audit(ctx, j.ID, map[string]any{
+						"event": "fixture_skipped", "path": fx, "error": ferr.Error(),
+					})
 				}
 			}
 			if research != "" {

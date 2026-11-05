@@ -11,9 +11,17 @@ import (
 )
 
 // allowedLanguage is the closed set of languages the Job Pod's
-// execute_code route accepts (M2-T4 §25). The set is intentionally
-// narrow — one entry — and grows when the M3 Skills runtime lands.
+// execute_code route accepts for single-file execution. The set is
+// intentionally narrow — one entry — and grows when the M3 Skills runtime
+// lands. When Files is non-empty the route stages a tree and the task's
+// test command executes it, so any recognized prompt language is accepted.
 const allowedLanguage = "python"
+
+var allowedFileLanguages = map[string]bool{
+	"python": true, "go": true, "javascript": true, "typescript": true,
+	"rust": true, "java": true, "ruby": true, "php": true, "shell": true,
+	"unknown": true,
+}
 
 // executeCodeRequest is the body of
 // POST /internal/v1/jobs/{id}/execute_code.
@@ -111,13 +119,24 @@ func (a *API) handleExecuteCode(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "execute_code: code is required")
 		return
 	}
-	if req.Language == "" {
-		req.Language = allowedLanguage
-	}
-	if req.Language != allowedLanguage {
-		writeError(w, http.StatusBadRequest,
-			"execute_code: language must be \"python\" (M2-T4 closed set)")
-		return
+	if len(req.Files) == 0 {
+		if req.Language == "" {
+			req.Language = allowedLanguage
+		}
+		if req.Language != allowedLanguage {
+			writeError(w, http.StatusBadRequest,
+				"execute_code: single-file language must be \"python\" (multi-file trees carry their own files)")
+			return
+		}
+	} else {
+		if req.Language == "" {
+			req.Language = allowedLanguage
+		}
+		if !allowedFileLanguages[req.Language] {
+			writeError(w, http.StatusBadRequest,
+				"execute_code: files carry an unrecognized language")
+			return
+		}
 	}
 
 	if a.tools == nil {

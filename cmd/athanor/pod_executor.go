@@ -62,6 +62,15 @@ func prepWorkDir() string {
 		"cp -a " + repoMount + "/. " + podWork + "/ && touch " + repoReadyFlag + "; fi"
 }
 
+// resetWorkDir is the per-candidate variant: discard every byte the previous
+// candidate (or its tests) left behind, then materialize a pristine copy of
+// the repository snapshot. Candidate N+1 must never see candidate N's files,
+// a stale test artifact, or a modified fixture; reusing the work tree made
+// multi-candidate evaluation order-dependent.
+func resetWorkDir() string {
+	return "rm -rf " + podWork + " && " + prepWorkDir()
+}
+
 // treeUnpacker is the fixed in-pod program that materializes a Files tree
 // (ADR-0065). It reads the JSON manifest on stdin — content never touches
 // argv (ADR-0024 §3) — and re-validates every path before writing. That
@@ -98,12 +107,12 @@ func (a *podExecutorAdapter) RunCode(ctx context.Context, jobID string, req tool
 			return toolenvelope.ExecuteResult{}, fmt.Errorf("encoding candidate file tree: %w", err)
 		}
 		return a.exec(ctx, jobID, jobpod.ExecSpec{
-			Command: []string{"sh", "-c", prepWorkDir() + " && cd " + podWork + " && python -c '" + treeUnpacker + "'"},
+			Command: []string{"sh", "-c", resetWorkDir() + " && cd " + podWork + " && python -c '" + treeUnpacker + "'"},
 			Stdin:   manifest,
 		})
 	}
 	return a.exec(ctx, jobID, jobpod.ExecSpec{
-		Command: []string{"sh", "-c", prepWorkDir() + " && cat > " + candidateFile + " && python " + candidateFile},
+		Command: []string{"sh", "-c", resetWorkDir() + " && cat > " + candidateFile + " && python " + candidateFile},
 		Stdin:   []byte(req.Code),
 	})
 }

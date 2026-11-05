@@ -25,12 +25,16 @@ import (
 // execute_code route. Steps:
 //  1. The caller supplies the candidate content (F4-T3: verification must
 //     test *this* candidate, not whichever proposal happens to be latest).
-//  2. Call e.runner.RunCode with language=python and the content. A nil
-//     runner short-circuits to a recorded-but-skipped sub-step.
+//  2. Call e.runner.RunCode with the candidate. A nil runner short-circuits to
+//     a recorded-but-skipped sub-step.
 //  3. Persist the result as a new code artifact (the audit log of "what the
 //     pod did" — exit code, stdout, stderr, duration).
 //  4. Append an EventLog entry `code_executed`.
-func (e *Engine) runCodeInPod(ctx context.Context, j job.Job, p project.Project, t project.Task, code string) error {
+//
+// It reports whether the candidate was actually materialized in the pod. A
+// tool-envelope refusal is a soft skip, not a test run: the caller must not run
+// the test command against a work tree that does not contain this candidate.
+func (e *Engine) runCodeInPod(ctx context.Context, j job.Job, p project.Project, t project.Task, code string) (bool, error) {
 	capability := capabilityFor(p, t)
 	if e.runner == nil {
 		e.audit(ctx, j.ID, map[string]any{
@@ -39,40 +43,52 @@ func (e *Engine) runCodeInPod(ctx context.Context, j job.Job, p project.Project,
 			"reason":    "no ToolRunner wired (M1 dev mode)",
 			"archetype": capability,
 		})
-		return nil
+		return false, nil
 	}
 
 	// ADR-0065: a code candidate may be a multi-file tree. A single
 	// solution.py keeps the historical write-and-run shorthand; anything else
-	// is staged as a tree for the test command to exercise.
+	// is staged as a tree for the test command to exercise. The language comes
+	// from the planner/repository, not an assumed Python.
+	language := e.languageFor(ctx, j, p, t)
 	files, ferr := candidateFiles(code)
 	if ferr != nil {
-		return fmt.Errorf("parsing code candidate tree: %w", ferr)
+		return false, fmt.Errorf("parsing code candidate tree: %w", ferr)
 	}
-	// A single-file candidate is staged under the module name its test command
-	// imports (e.g. `from exprlang import …` → exprlang.py). The historical
-	// solution.py shorthand is only correct when the test itself imports
-	// solution. This is a harness-naming fix, not a corpus edit: the task still
-	// has to produce a correct module.
+	// A single-file Python candidate is staged under the module name its test
+	// command imports (e.g. `from exprlang import …` → exprlang.py). The
+	// historical solution.py shorthand is only correct when the test itself
+	// imports solution. This is a harness-naming fix, not a corpus edit: the
+	// task still has to produce a correct module. Non-Python languages use
+	// their conventional single-file name and are staged as a tree; the test
+	// command is the executor.
 	if len(files) == 1 && files[0].Path == "solution.py" {
-		if name := candidateModuleName(p.TestCommand()); name != "" {
-			files[0].Path = name
+		if language == project.LanguagePython {
+			if name := candidateModuleName(p.TestCommand()); name != "" {
+				files[0].Path = name
+			}
+		} else {
+			files[0].Path = project.CandidateFileName(language)
 		}
 	}
 	// ADR-0065: overlay the candidate on the task's fixture tree so the test
 	// command runs against the merged project, not the candidate alone.
 	if fx := p.Execution.FixturePath; fx != "" {
-		base, berr := readFixtureTree(fx)
+		root := fixtureRootFor(p)
+		if root == "" {
+			return false, fmt.Errorf("fixture %s has no approved root (set execution.fixture_root or repository_path)", fx)
+		}
+		base, berr := readFixtureTree(fx, root)
 		if berr != nil {
-			return fmt.Errorf("reading fixture: %w", berr)
+			return false, fmt.Errorf("reading fixture: %w", berr)
 		}
 		files = overlayFiles(base, files)
 	}
 	var req toolenvelope.ExecuteRequest
-	if len(files) == 1 && files[0].Path == "solution.py" {
-		req = toolenvelope.ExecuteRequest{Language: "python", Code: normalizeCode(files[0].Content)}
+	if len(files) == 1 && files[0].Path == "solution.py" && language == project.LanguagePython {
+		req = toolenvelope.ExecuteRequest{Language: project.LanguagePython, Code: normalizeCode(files[0].Content)}
 	} else {
-		req = toolenvelope.ExecuteRequest{Language: "python", Files: files}
+		req = toolenvelope.ExecuteRequest{Language: language, Files: files}
 	}
 	start := time.Now()
 	res, err := e.runner.RunCode(ctx, j.ID, req)
@@ -84,19 +100,19 @@ func (e *Engine) runCodeInPod(ctx context.Context, j job.Job, p project.Project,
 				"reason":    "execute_code not in job envelope",
 				"archetype": capability,
 			})
-			return nil
+			return false, nil
 		}
 		e.audit(ctx, j.ID, map[string]any{
 			"event":  "code_executed",
 			"error":  err.Error(),
 			"detail": "runner returned non-disallowed error",
 		})
-		return fmt.Errorf("executing code in pod: %w", err)
+		return false, fmt.Errorf("executing code in pod: %w", err)
 	}
 	_ = start
 
 	if _, err := e.artifacts.CreateDraftFor(ctx, p.ID, t.ID, j.ID, artifact.KindCode, jsonMarshalExecuteResult(res)); err != nil {
-		return fmt.Errorf("persisting code execution artifact: %w", err)
+		return false, fmt.Errorf("persisting code execution artifact: %w", err)
 	}
 	e.audit(ctx, j.ID, map[string]any{
 		"event":       "code_executed",
@@ -107,7 +123,7 @@ func (e *Engine) runCodeInPod(ctx context.Context, j job.Job, p project.Project,
 		"archetype":   capability,
 	})
 	slog.Debug("engine: code executed in pod", "job", j.ID, "exit_code", res.ExitCode, "duration_ms", res.DurationMS)
-	return nil
+	return true, nil
 }
 
 // The sub-step is intentionally a *sub-state* (logged in the

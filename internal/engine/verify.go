@@ -66,13 +66,21 @@ func (e *Engine) verifyCandidate(ctx context.Context, j job.Job, p project.Proje
 	// M2-T4b.5 (ADR-0024 §2): make the job's Job Pod exist before the pod
 	// sub-steps, so the per-job token the runner presents is available.
 	e.ensurePod(tctx, j)
-	if err := e.runCodeInPod(tctx, j, p, t, content); err != nil {
+	staged, err := e.runCodeInPod(tctx, j, p, t, content)
+	if err != nil {
 		if !errors.Is(err, context.DeadlineExceeded) {
 			return verify.Result{}, in, err
 		}
 		e.audit(ctx, j.ID, map[string]any{
 			"event": "tool_deadline_exceeded", "tool": "execute_code", "candidate": idx,
 		})
+	}
+	if !staged {
+		// The candidate never reached /tmp/work. Running the test command now
+		// would test the pristine repository (or the previous candidate's
+		// leftovers), which is worse than no signal. Leave TestRan false so
+		// require_tests_for_code rejects it deterministically when enabled.
+		return e.verifierRegistry().Run(in), in, nil
 	}
 
 	in.TestRan = true

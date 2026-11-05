@@ -38,7 +38,7 @@ func TestPodExecutor_RunCode_MaterializesFileViaStdin(t *testing.T) {
 	if res.Stdout != "1\n" {
 		t.Errorf("stdout = %q, want %q", res.Stdout, "1\n")
 	}
-	want := []string{"sh", "-c", prepWorkDir() + " && cat > /tmp/work/solution.py && python /tmp/work/solution.py"}
+	want := []string{"sh", "-c", resetWorkDir() + " && cat > /tmp/work/solution.py && python /tmp/work/solution.py"}
 	if len(f.got.Command) != len(want) {
 		t.Fatalf("command = %v, want %v", f.got.Command, want)
 	}
@@ -76,6 +76,31 @@ func TestPodExecutor_RunCode_StagesFileTree(t *testing.T) {
 	}
 	if len(staged) != 2 || staged[0].Path != "bank/__init__.py" || staged[1].Path != "solution.py" {
 		t.Errorf("staged files = %+v, want the two sorted paths", staged)
+	}
+}
+
+func TestPodExecutor_RunCode_ResetsWorkDirPerCandidate(t *testing.T) {
+	f := &fakePodExecer{res: jobpod.ExecResult{ExitCode: 0}}
+	a := newPodExecutor(f, "alpine:3.20")
+
+	if _, err := a.RunCode(context.Background(), "job-1", toolenvelope.ExecuteRequest{Code: "print(1)"}); err != nil {
+		t.Fatalf("RunCode: %v", err)
+	}
+	script := f.got.Command[2]
+	if !strings.Contains(script, "rm -rf /tmp/work") {
+		t.Errorf("RunCode script = %q, want a per-candidate work-dir reset", script)
+	}
+	if !strings.Contains(script, "cp -a /workspace/repo/. /tmp/work/") {
+		t.Errorf("RunCode script = %q, want the repository snapshot re-materialized after reset", script)
+	}
+	// RunTests must NOT reset: it has to see the bytes RunCode just staged.
+	f2 := &fakePodExecer{res: jobpod.ExecResult{ExitCode: 0}}
+	a2 := newPodExecutor(f2, "alpine:3.20")
+	if _, err := a2.RunTests(context.Background(), "job-1", toolenvelope.ExecuteRequest{Command: "pytest -q"}); err != nil {
+		t.Fatalf("RunTests: %v", err)
+	}
+	if strings.Contains(f2.got.Command[2], "rm -rf /tmp/work") {
+		t.Errorf("RunTests script = %q, must not erase the candidate staged by RunCode", f2.got.Command[2])
 	}
 }
 

@@ -444,6 +444,7 @@ func (e *Engine) call(ctx context.Context, j job.Job, p project.Project, t proje
 		KeepAlive:     e.cfg.Inference.KeepAlive,
 	}
 	var resp llm.Response
+	callStart := time.Now()
 	if e.tokenSink != nil {
 		// M6-T8c: stream for the live watch view; the aggregate is the same
 		// as the non-streaming response.
@@ -469,6 +470,11 @@ func (e *Engine) call(ctx context.Context, j job.Job, p project.Project, t proje
 		}
 		return llm.Response{}, fmt.Errorf("phase %s: %w", phase, err)
 	}
+	// ADR-0091: account the call immediately so the live grant's Remaining is
+	// meaningful before terminal settlement. The measured wall is the call's
+	// own latency; settlement later replaces the totals with the whole-job
+	// token spend and elapsed wall.
+	e.spendHorizon(ctx, j.ID, resp.PromptTokens+resp.CompletionTokens, time.Since(callStart))
 
 	// §13.1/§28.2: resolved temperature and per-section token counts are
 	// written to the EventLog for every call.
@@ -662,7 +668,7 @@ func (e *Engine) phaseSynthesize(ctx context.Context, j job.Job) error {
 	role := e.roleFor(plan, llm.PhaseSynthesizing, llm.RoleMain)
 	instructions := "Refine the divergence proposal below into the final artifact for this task."
 	if capability == project.CapabilityCode {
-		instructions += " " + codeOnlyInstruction
+		instructions += " " + codeInstruction(e.languageFor(ctx, j, p, t))
 	}
 	resp, err := e.call(ctx, j, p, t, llm.PhaseSynthesizing, role, instructions,
 		[]prompt.CandidateArtifact{{Kind: "proposal", Content: string(candidateContent)}})
@@ -729,7 +735,7 @@ func (e *Engine) phasePlan(ctx context.Context, j job.Job) error {
 	plan := e.planFor(ctx, j, p, t)
 	role := e.roleFor(plan, llm.PhasePlanning, llm.RoleTall)
 	planTask := t
-	planTask.Description = strings.TrimRight(t.Description, "\n") + "\n\n" + difficultyRequest + "\n\n" + analysisRequest
+	planTask.Description = strings.TrimRight(t.Description, "\n") + "\n\n" + difficultyRequest + "\n\n" + analysisRequest + "\n\n" + languageRequest
 	resp, err := e.call(ctx, j, p, planTask, llm.PhasePlanning, role, "", nil)
 	if err != nil {
 		return err
@@ -737,6 +743,10 @@ func (e *Engine) phasePlan(ctx context.Context, j job.Job) error {
 	if d := parseDifficultyHint(resp.Content); d != "" {
 		e.setDifficultyHint(ctx, j.ID, d)
 		e.audit(ctx, j.ID, map[string]any{"event": "difficulty_hint", "difficulty": d})
+	}
+	if l := parseLanguageHint(resp.Content); l != "" {
+		e.setLanguageHint(ctx, j.ID, l)
+		e.audit(ctx, j.ID, map[string]any{"event": "language_hint", "language": l})
 	}
 	a := analysis.Parse(resp.Content)
 	if err := e.setAnalysis(ctx, j.ID, a); err != nil {

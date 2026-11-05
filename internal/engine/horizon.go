@@ -75,14 +75,40 @@ func (e *Engine) withinHourlyCap(ctx context.Context) bool {
 	return n < max
 }
 
-// settleHorizon closes the job's grant with its measured token spend. It is
-// best-effort and runs on every terminal path (completed, failed, cancelled).
+// spendHorizon records incremental token/wall spend against the job's live
+// grant. Accounting is best-effort: a ledger error must never fail a phase.
+// It makes Remaining meaningful mid-job so the regulator can defer rather than
+// run a job far beyond its grant.
+func (e *Engine) spendHorizon(ctx context.Context, jobID string, tokens int, wall time.Duration) {
+	if e.horizon == nil || tokens <= 0 && wall <= 0 {
+		return
+	}
+	if tokens < 0 {
+		tokens = 0
+	}
+	if _, err := e.horizon.Spend(ctx, jobID, int64(tokens), wall); err != nil {
+		slog.Warn("engine: recording budget spend", "job", jobID, "err", err)
+	}
+}
+
+// settleHorizon closes the job's grant with its measured token and wall spend.
+// It is best-effort and runs on every terminal path (completed, failed,
+// cancelled, panicked).
 func (e *Engine) settleHorizon(ctx context.Context, jobID string) {
 	if e.horizon == nil {
 		return
 	}
 	tokens, _ := e.eventStats(ctx, jobID)
-	if err := e.horizon.Settle(ctx, jobID, int64(tokens), 0); err != nil {
+	var wall time.Duration
+	if e.jobs != nil {
+		if j, err := e.jobs.Get(ctx, jobID); err == nil && j.StartedAt != nil {
+			wall = time.Since(*j.StartedAt)
+			if wall < 0 {
+				wall = 0
+			}
+		}
+	}
+	if err := e.horizon.Settle(ctx, jobID, int64(tokens), wall); err != nil {
 		slog.Error("engine: settling budget", "job", jobID, "err", err)
 	}
 }

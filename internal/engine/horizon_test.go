@@ -89,6 +89,43 @@ func TestHorizonHourlyCapDefers(t *testing.T) {
 	}
 }
 
+// TestHorizonSettlementRecordsWallTime proves wall time is a real part of the
+// ledger, not zeroed at settlement. A job that started records its elapsed
+// wall when it settles.
+func TestHorizonSettlementRecordsWallTime(t *testing.T) {
+	wall := config.Duration(time.Hour)
+	env := newEnvWithCfg(t, func(c *config.Config) {
+		c.Budget.WallTimePerWindow = &wall
+		c.Budget.MaxGrantTokens = 1000
+	})
+	ledger := budget.New(env.db.DB())
+	env.eng.SetBudgetLedger(ledger)
+	ctx := context.Background()
+
+	_, _, job1 := env.createProjectTask(t, "text", "wall-clock horizon job with enough goal text")
+	if _, err := env.jobs.Transition(ctx, job1, job.StateContextBuilding); err != nil {
+		t.Fatal(err)
+	}
+	if ok, _ := env.eng.admitHorizon(ctx, job1); !ok {
+		t.Fatal("job was deferred with a fresh wall grant")
+	}
+	time.Sleep(5 * time.Millisecond)
+	env.eng.settleHorizon(ctx, job1)
+
+	s := env.cfg.BudgetSettings()
+	w, err := budget.WindowFor(time.Now(), s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	st, err := ledger.Status(ctx, w, s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st.WallCommitted <= 0 {
+		t.Errorf("wall committed = %s, want positive after settlement", st.WallCommitted)
+	}
+}
+
 // TestHorizonDisabledIsInert pins the safe default: no configured ceiling
 // means no admission change.
 func TestHorizonDisabledIsInert(t *testing.T) {
