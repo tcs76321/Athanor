@@ -66,6 +66,15 @@ demo. A claim without a proof is either removed or marked as a target.
 | Job Pods are sized from the task capability within an adaptive ceiling | ADR-0098 | `jobpod.AdaptiveLimits`; `TestAdaptiveLimitsScaleByCapability`, `TestPodLifecycleAdaptsLimitsToTaskCapability` | **proven** |
 | Onboarding distinguishes container-runtime memory from host memory | ADR-0098 | `TestRecommendedResourcesIsAdaptive`, `TestBudgetForUsesHostMemoryNotRuntimeMemory` | **proven** |
 | A configured model is accepted only when its measured resident size fits the host budget | ADR-0099 | `athanor models -audit`; `model-fit.json`; `TestRunModelAuditMeasuresLoadedSize`, `TestCheckModelAuditFailsOnMeasuredNonFit`, `TestCheckModelAuditRejectsStaleConfig` | **proven with a fake Ollama; the live audit is the host check** |
+| A cost tie cannot overturn a failed hard verifier | ADR-0100 | `internal/engine/compare.go` (`costAwareEligible`); `TestCostAwareEligibleRefusesHardVerifierFailure` | **proven** |
+| A single-family install can accept a follow-up verifier-passed code artifact | ADR-0100 | `internal/engine/compare.go` (verifier pass at/above previous; no-cross-family fallback); `TestVerifierFirst_SameFamilyPreviousArtifactAccepted` | **proven** |
+| Candidate tests never see another candidate's work tree | ADR-0100 | `cmd/athanor/pod_executor.go` (`resetWorkDir`); `TestPodExecutor_RunCode_ResetsWorkDirPerCandidate` | **proven structurally** |
+| A skipped `execute_code` never falls through to tests on a pristine tree | ADR-0100 | `internal/engine/verify.go` (staged flag); `TestCodeJob_NoTestRunWhenExecuteCodeDisallowed` | **proven** |
+| Evaluation/test/security/comparison/regulator rejections capture CorrectionRecords | ADR-0100 | `internal/engine/feedback.go`; `TestEvaluationFailureRecordsCorrection` | **proven for the engine sources; `hallucinated_path` still needs a detector** |
+| Code prompts follow the planner/repository language | ADR-0101 | `internal/engine/language.go`, `internal/project/language.go`; `TestParseLanguageHint`, `TestDetectLanguageFromCommand`, `TestCodeInstructionNamesLanguage` | **proven for the deterministic paths; a live multi-language run is follow-up** |
+| A fixture must live under `fixture_root` or the repository | ADR-0101 | `internal/engine/fixture.go`; `TestReadFixtureTreeRejectsEscapeFromAllowedRoot` | **proven** |
+| Multibyte prompts are not under-counted by the token estimator | P0 review | `internal/prompt/prompt.go`; `TestEstimateTokensDeterministic` | **proven** |
+
 | Embedding models are never persona candidates | ADR-0049, ADR-0099 | `onboard.IsChatModel`; `TestEmbeddingModelsAreNotPersonaCandidates` | **proven** |
 | `limits.max_concurrent_jobs` is a real ceiling subject to the power profile | ADR-0096 | `power.Ceiling`; `TestCeilingRespectsInteractiveAndOperatorMax` | **proven** |
 | Doctor reports a host GPU and does not claim one from inside the Core Pod | ADR-0096, `docs/linux-gpu.md` | `TestRunReportsGPU`, `TestRunReportsGPUNotVisibleFromCore`, `TestRunReportsNoGPU` | **proven with fake probes; host `nvidia-smi` is the live check** |

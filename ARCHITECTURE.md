@@ -120,6 +120,12 @@ reused for the job's lifetime (it is not single-use per request). Tokens are
 delivered via a mounted tmpfs file — never via environment variables or
 command-line arguments.
 
+> **Direction note (ADR-0024).** The live execution path is **Core → Job Pod**
+> via `podman exec`; a `--network=none` pod cannot call the loopback internal
+> API. The token authenticates the Core's hop to its own internal API, and the
+> pod→daemon direction (context, heartbeat, log) remains a declared surface for
+> a future restricted-internal network. It is not a dependency of execution.
+
 ---
 
 ## 4. Directory Layout
@@ -1110,18 +1116,19 @@ Feedback and strategy analysis (§13.4) are the twin mechanisms for self-improve
 
 When a user rejects an artifact, the UI requires: category, severity, reason, desired behavior, and scope (project or global). This is fast but structured, ensuring every rejection produces a usable `CorrectionRecord`.
 
-> **Implementation status (M6-T6).** The capture layer is live
+> **Implementation status (M6-T6; 2026-11-05).** The capture layer is live
 > ([ADR-0037](docs/adr/0037-correction-records.md)): migration 0019 adds the
 > §18.2 `artifact_id`/`scope`/`user_feedback` fields; `internal/corrections`
 > maps all nine §18.1 sources and enforces the §18.4 form; the engine reports
-> a phase failure as a `runtime_error` record; and `athanor reject` /
-> `athanor corrections` (with `POST`/`GET /projects/{id}/corrections`) expose
-> it. **Injection into prompt assembly is live (M6-T7,
+> phase failures as `runtime_error`, evaluation rejections as
+> `test_failure`/`security_scan`/`evaluator_failure`, comparison rejections as
+> `evaluator_failure`, and regulator loop/budget stops as
+> `loop_detection`/`budget_exhaustion` ([ADR-0100](docs/adr/0100-acceptance-and-feedback-evidence.md)).
+> The `hallucinated_path` source still needs a path detector; it is not claimed.
+> **Injection into prompt assembly is live (M6-T7,
 > [ADR-0038](docs/adr/0038-feedback-injection.md))**: active corrections are
 > ranked severity → scope → recency and rendered at §11.2 position 8 / tier 4,
-> with a `corrections_injected` audit row and applied counts. The automatic
-> test-failure/evaluator-failure/security-scan capture and the
-> loop/hallucination alarms are follow-up (the §22.3 alarms land in M7-T3).
+> with a `corrections_injected` audit row and applied counts.
 
 ---
 
@@ -1164,18 +1171,25 @@ AND evaluator_confidence > threshold
 
 Where `threshold` is `execution.min_judge_confidence` in the configuration reference (§29).
 
-> **Implementation status (F4).** Evaluation is verification-first
+> **Implementation status (F4; 2026-11-05).** Evaluation is verification-first
 > ([ADR-0045](docs/adr/0045-verification-first-selection.md)): per-capability
 > deterministic verifiers run first, the LLM judge is a tiebreaker, and the
 > deciding judge must come from a different model **family** than the
 > generator. `execution.policy.judge_mode` selects the path and now defaults to
-> `verifier` ([ADR-0062](docs/adr/0062-verifier-first-acceptance.md)). The judge is
+> `verifier` ([ADR-0062](docs/adr/0062-verifier-first-acceptance.md)). A
+> verifier pass at or above the previous accepted score is decisive; when no
+> cross-family judge is available, the deterministic pass is accepted with an
+> audited mismatch instead of silently rejecting every follow-up task
+> ([ADR-0100](docs/adr/0100-acceptance-and-feedback-evidence.md)). The judge is
 > additionally bounded by quorum (`judge_count`) and a reward-hacking guard
 > that resolves a judge/verifier contradiction to the verifier
-> ([ADR-0046](docs/adr/0046-judge-protocol.md)). Because the M3-T7 probe found
-> the confidence signal degenerate (≈0.99 constant), `min_judge_confidence`
-> is documented as non-discriminative; deterministic verification is the
-> load-bearing acceptance safety.
+> ([ADR-0046](docs/adr/0046-judge-protocol.md)). The F4-T6 cost tie-break runs
+> only when the final artifact has no hard-verifier failure, uses the final
+> artifact's own record, and requires a known previous score; a cheaper failed
+> candidate can never be accepted. Because the M3-T7 probe found the confidence
+> signal degenerate (≈0.99 constant), `min_judge_confidence` is documented as
+> non-discriminative; deterministic verification is the load-bearing
+> acceptance safety.
 
 ---
 
@@ -1554,6 +1568,12 @@ Tools are constrained, audited, and available only to Job Pods and the Core orch
 > are deferred (see ROADMAP §7). The agent reaches repository files today
 > through the M5-T8 indexing pipeline plus `query_memory`/`context_swap`
 > rather than a `read_file` tool.
+>
+> **Language scope (ADR-0101).** `execute_code` single-file execution is
+> Python-only. A code candidate in another detected language (Go, Rust,
+> JavaScript, TypeScript, Java, Ruby, PHP, shell) is staged as a file tree and
+> exercised by the repository's real test command; generation is prompted in
+> that language. Unknown languages get a language-neutral prompt.
 
 > **Implementation status (F3-T5; ADR-0080).** Built: `execute_code`,
 > `run_tests`, `lint`, `fetch_url`, `search_web`, `context_swap`,
@@ -1840,6 +1860,10 @@ execution:
   # M6-T2 (ADR-0033): when true, goal submission decomposes the goal and
   # schedules its ready tasks instead of creating a single task.
   dag_decomposition: false
+  # ADR-0101: fixtures must live under this root when they are outside the
+  # project repository. Empty means "use repository_path"; a fixture with
+  # neither boundary is refused.
+  # fixture_root: "/path/to/fixtures"
   # M6-T3 (ADR-0034): retries a failed task gets before it blocks and
   # escalates; 0 disables retries.
   max_task_retries: 2

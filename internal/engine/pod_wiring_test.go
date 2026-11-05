@@ -70,6 +70,16 @@ func (f *fakeRunner) WithDisallow(tool toolenvelope.Tool) *fakeRunner {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.disallow[string(tool)] = true
+	switch tool {
+	case toolenvelope.ToolExecuteCode:
+		f.disallow["RunCode"] = true
+	case toolenvelope.ToolRunTests:
+		f.disallow["RunTests"] = true
+	case toolenvelope.ToolLint:
+		f.disallow["RunLint"] = true
+	case toolenvelope.ToolFetchURL:
+		f.disallow["FetchURL"] = true
+	}
 	return f
 }
 

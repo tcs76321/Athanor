@@ -10,6 +10,43 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Acceptance, feedback, language, and containment hardening — 2026-11-05
+
+- **Cost-aware ties cannot overturn a hard verifier failure.** The F4-T6
+  tie-break now uses the final artifact's record, requires a known previous
+  score, and is skipped when a decisive hard verifier failed; the reward-hacking
+  guard still runs first. [ADR-0100](docs/adr/0100-acceptance-and-feedback-evidence.md).
+  Proof: `TestCostAwareEligibleRefusesHardVerifierFailure`.
+- **Single-family installs can accept follow-up code.** A verifier pass at or
+  above the previous accepted score is decisive, and with no cross-family judge
+  the deterministic pass is accepted with an audited mismatch instead of
+  rejecting every later task under a completed job. Proof:
+  `TestVerifierFirst_SameFamilyPreviousArtifactAccepted`.
+- **Candidate work trees are isolated.** `RunCode` resets `/tmp/work` and
+  re-materializes the repository snapshot per candidate; `RunTests`/`Lint` do
+  not reset; a refused `execute_code` never falls through to a pristine-tree
+  test. Proofs: `TestPodExecutor_RunCode_ResetsWorkDirPerCandidate`,
+  `TestCodeJob_NoTestRunWhenExecuteCodeDisallowed`.
+- **Rejections produce CorrectionRecords.** Test, evaluator, security,
+  comparison, loop, and budget rejections now capture through
+  `internal/engine/feedback.go`; `hallucinated_path` remains a documented
+  detector gap.
+- **Budget wall time and live spend.** Settlement records elapsed wall time and
+  each LLM call records incremental token/wall spend; panic and cancel paths
+  settle and clean up. Proof: `TestHorizonSettlementRecordsWallTime`.
+- **Language-aware generation.** The planner may emit `LANGUAGE:`; repository
+  and test-command detection are the fallback. Non-Python candidates are staged
+  as trees and prompted in their language; Python keeps the direct shorthand.
+  [ADR-0101](docs/adr/0101-language-aware-generation-and-fixtures.md). Proofs:
+  `TestParseLanguageHint`, `TestDetectLanguageFromCommand`,
+  `TestCodeInstructionNamesLanguage`.
+- **Fixtures are contained.** `fixture_path` must live under `fixture_root` or
+  the repository; a fixture with no boundary is refused; the benchmark sets
+  `fixture_root`. Proof: `TestReadFixtureTreeRejectsEscapeFromAllowedRoot`.
+- **Prompt accounting** gets a rune-count floor for multibyte text;
+  `max_concurrent_jobs > 1` warns about SQLite serialization; CI gains a macOS
+  vet + race job.
+
 ### Measured model fit and startup guard — 2026-11-04
 
 - `athanor models -audit` loads each configured persona model at its context

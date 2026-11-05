@@ -151,7 +151,7 @@ Daemon flags: `-config config.yaml` · `-addr 127.0.0.1:7420` · `-state-dir sta
 Client commands talk to a running daemon (default `http://127.0.0.1:7420`, override with `-addr`):
 
 ```bash
-athanor project create -name demo -archetype code -goal "..." [-criteria "a;b"] [-repo <dir>] [-test-command "go test ./..."] [-build-command "go build ./..."]
+athanor project create -name demo -goal "..." [-criteria "a;b"] [-repo <dir>] [-test-command "go test ./..."] [-fixture-path <dir>] [-fixture-root <dir>] [-build-command "go build ./..."]
 athanor models -config config.yaml [-qualification <file>]  # M9-T2: per-role inventory + routing proposal
 athanor goal submit -project <id> -goal "..."
 athanor goal decompose -project <id> -goal "..." [-criteria "a;b"]  # M6-T1: validated task DAG, no execution yet
@@ -171,6 +171,8 @@ athanor unfreeze -reason "..."         # requires a reason; recorded in the even
 ```
 
 `execution.dag_decomposition: true` switches `goal submit` from the M1 single-task path to decompose-then-schedule over the M6-T2 dependency scheduler ([ADR-0033](docs/adr/0033-dependency-scheduler.md)); the default is off.
+
+Code generation is language-aware ([ADR-0101](docs/adr/0101-language-aware-generation-and-fixtures.md)): the planner may emit `LANGUAGE:`, and repository detection (`go.mod`, `Cargo.toml`, `package.json`, `pyproject.toml`, …) plus the test command are the fallback. A `-fixture-path` must live under `-fixture-root` or the project repository; a fixture with no boundary is refused.
 
 The full M1 walkthrough is [`docs/demo-m1.md`](docs/demo-m1.md) — it doubles as the Gate G1 demo script.
 

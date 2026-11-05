@@ -11,6 +11,7 @@ import (
 	"github.com/tcs76321/athanor/internal/config"
 	"github.com/tcs76321/athanor/internal/job"
 	"github.com/tcs76321/athanor/internal/project"
+	"github.com/tcs76321/athanor/internal/toolenvelope"
 )
 
 // gateConfig returns a default config with both code gates set explicitly.
@@ -110,6 +111,37 @@ func TestCodeJob_FailsWhenGatesUnsatisfied(t *testing.T) {
 	}
 	if j.State != job.StateFailed {
 		t.Fatalf("state = %s, want failed (code gates unsatisfied)", j.State)
+	}
+}
+
+// TestCodeJob_NoTestRunWhenExecuteCodeDisallowed proves a soft-skipped
+// execute_code never falls through to testing a pristine work tree. The
+// candidate was not staged, so tests must not run; the require_tests gate then
+// rejects the candidate deterministically.
+func TestCodeJob_NoTestRunWhenExecuteCodeDisallowed(t *testing.T) {
+	zero := 0
+	e := newEnvWithCfg(t, func(c *config.Config) {
+		on := true
+		c.Execution.RequireTestsForCode = &on
+		c.Execution.RequireDocumentationForCode = &on
+		c.Execution.MaxReflectionLoops = &zero
+	})
+	e.runner.WithDisallow(toolenvelope.ToolExecuteCode).WithExit(0)
+
+	jobID := e.submitCode(t)
+	e.eng.Run(context.Background(), jobID)
+
+	for _, call := range e.runner.Calls() {
+		if call.Tool == "RunTests" {
+			t.Fatalf("RunTests ran without a staged candidate: %+v", call)
+		}
+	}
+	j, err := e.jobs.Get(context.Background(), jobID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if j.State != job.StateFailed {
+		t.Fatalf("state = %s, want failed (tests never ran, so the gate fails)", j.State)
 	}
 }
 

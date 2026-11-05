@@ -137,7 +137,7 @@ commands:
   backup             write a database snapshot [-state-dir state] [-keep N]
   restore            restore a snapshot -from <file> -force (daemon stopped)
   digest             print the Morning Digest [-hours 12] (§27.2)
-  project create     -name -archetype -goal [-criteria] [-addr]
+  project create     -name -goal [-criteria] [-repo] [-fixture-path] [-fixture-root] [-addr]
   goal submit        -project -goal [-criteria] [-addr]
   task reset         -id ID [-addr]            (unblock a stalled task, known-issues H8)
   job watch          -job [-timeout] [-addr]   (streams progress, prints artifact)

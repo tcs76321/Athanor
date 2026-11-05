@@ -15,11 +15,26 @@ are under "Open (2026-10-16 review)".
 
 ---
 
+## Fixed (2026-11-05 hardening review)
+
+| Area | Fix |
+|---|---|
+| Acceptance · cost-aware | A cost tie can no longer overturn a decisive hard-verifier failure; the tie-break uses the final artifact's record, requires a known previous score, and is audited (ADR-0100). |
+| Acceptance · cross-family | A verifier-passed follow-up at or above the previous score is decisive; with no cross-family judge, the deterministic pass wins and records the mismatch instead of rejecting every later task under a "completed" job. |
+| Verification · pod work tree | `RunCode` resets `/tmp/work` per candidate; `RunTests`/`Lint` never reset; a soft-skipped `execute_code` no longer tests a pristine tree. |
+| Corrections | Test/evaluator/security/comparison/loop/budget rejections now capture CorrectionRecords through `internal/engine/feedback.go`. `hallucinated_path` still has no detector. |
+| Budget | Wall time is settled from the job's start; each LLM call records incremental token/wall spend so `Remaining` is live; panic and cancel paths settle and clean up. |
+| Language | The planner may choose a language; repository/test-command detection is the fallback. Non-Python single files are staged as trees; prompts name the detected language (ADR-0101). |
+| Fixtures | `fixture_path` must live under `fixture_root` or the repository; a fixture with no boundary is refused (ADR-0101). |
+| Prompt accounting | Multibyte text gets a rune-count floor so CJK/emoji prompts are not under-counted before the KV gate. |
+| CI | A macOS job runs vet + race tests; the SQLite single-connection serialization is a boot warning when `max_concurrent_jobs > 1`. |
+
 ## Open
 
 No findings are open as of 2026-10-16. The high/medium/low items from that
 review are all resolved — most by code, a few by an explicit design decision or
 a documented trade-off recorded below. New findings resume here.
+
 
 ---
 

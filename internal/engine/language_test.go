@@ -1,9 +1,13 @@
 package engine
 
 import (
+	"context"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/tcs76321/athanor/internal/job"
 	"github.com/tcs76321/athanor/internal/project"
 )
 
@@ -42,5 +46,18 @@ func TestCodeInstructionNamesLanguage(t *testing.T) {
 		if !strings.Contains(got, "=== FILE:") {
 			t.Errorf("codeInstruction(%q) lost the multi-file marker contract", tc.lang)
 		}
+	}
+}
+
+func TestLanguageForUsesRepositoryEvidence(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module x\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	e := &Engine{}
+	got := e.languageFor(context.Background(), job.Job{ID: "j1"},
+		project.Project{RepositoryPath: dir}, project.Task{})
+	if got != project.LanguageGo {
+		t.Errorf("languageFor(repo go.mod) = %q, want go", got)
 	}
 }
