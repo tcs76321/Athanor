@@ -311,6 +311,10 @@ func (u *UI) handleWelcomePost(w http.ResponseWriter, r *http.Request) {
 		u.fail(w, err)
 		return
 	}
+	if st.Skipped {
+		http.Redirect(w, r, "/ui", http.StatusSeeOther)
+		return
+	}
 	if st.Completed {
 		http.Redirect(w, r, "/ui/projects/new", http.StatusSeeOther)
 		return

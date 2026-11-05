@@ -79,7 +79,7 @@ Mounted at `/ui` on the loopback listener (ADR-0039); stdlib only.
 | Statistics | ◑ read-only | approval/rejection rates, token usage per persona/project, duration, budgets |
 | Settings | ❌ | personas, floors, power, allowlist, backup, budgets |
 | Morning Digest | ❌ | async overnight summary |
-| First-run onboarding | ❌ | `athanor doctor` + create first project are CLI-only |
+| First-run onboarding | ✅ | `/ui/welcome` checks the environment, pulls missing models, offers qualification, records preferences, and hands off to the first project. The installer opens it (`--no-open` for headless). |
 
 ## 3. Design principles (for *this* machine)
 
