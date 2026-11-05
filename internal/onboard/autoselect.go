@@ -30,6 +30,10 @@ func AutoAssignWithScores(roles []Role, models []Model, scores map[string]float6
 	if len(models) == 0 {
 		return nil
 	}
+	models = chatModels(models)
+	if len(models) == 0 {
+		return nil
+	}
 	if len(roles) == 0 {
 		roles = []Role{
 			{Role: "wide"}, {Role: "tall"}, {Role: "main"},
@@ -102,15 +106,14 @@ func AutoAssignWithScores(roles []Role, models []Model, scores map[string]float6
 	tallRanked := ranked("tall")
 	tall := tallRanked[0]
 	byRole["tall"] = Assignment{Model: tall.Name, Family: family(tall), Reason: reason("tall", tall.Name, "largest installed model for hard reasoning")}
-	// main: the next distinct model, else tall.
+	// main: the best model that fits. Sharing tall is preferred when no
+	// role-specific measurement distinguishes them: it uses the strongest
+	// generator and avoids a model swap between planning and synthesis.
 	main := tall
-	for _, m := range ranked("main") {
-		if m.Name != tall.Name {
-			main = m
-			break
-		}
+	if rankedMain := ranked("main"); len(rankedMain) > 0 {
+		main = rankedMain[0]
 	}
-	byRole["main"] = Assignment{Model: main.Name, Family: family(main), Reason: reason("main", main.Name, "largest remaining model for normal execution")}
+	byRole["main"] = Assignment{Model: main.Name, Family: family(main), Reason: reason("main", main.Name, "best measured/largest model that fits for normal execution")}
 	// wide: the smallest model for fast ingestion.
 	byRole["wide"] = Assignment{Model: smallest.Name, Family: family(smallest), Reason: "smallest installed model for fast ingestion"}
 

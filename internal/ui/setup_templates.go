@@ -37,6 +37,22 @@ const setupBody = `
 </tbody></table>
 {{else}}<div class="empty">Configuration is not available to the UI.</div>{{end}}
 
+<h2>Measured model fit</h2>
+{{if .ModelAudit}}
+<p class="muted">Measured by <code>athanor models -audit</code> at {{.ModelAudit.GeneratedAt}}. Host {{gib .ModelAudit.HostBytes}}, reserve {{gib .ModelAudit.ReserveBytes}}, budget {{gib .ModelAudit.BudgetBytes}}. Loaded is the actual weights + KV size Ollama reported, not the file size on disk.</p>
+{{if .ModelAuditFailing}}<div class="notice bad">Measured fit rejects {{len .ModelAuditFailing}} role(s). Fix the persona model or re-run the audit.</div>{{end}}
+<table><thead><tr><th>Role</th><th>Model</th><th>Context</th><th>File</th><th>Loaded</th><th>Fit</th></tr></thead><tbody>
+{{range .ModelAudit.Roles}}<tr>
+  <td>{{.Role}}</td><td class="mono">{{.Model}}</td><td>{{.ContextTarget}}</td>
+  <td>{{gib .FileBytes}}</td><td>{{gib .LoadedBytes}}</td>
+  <td>{{if .Fits}}<span class="pill ok">fits</span>{{else}}<span class="pill bad">{{if .Error}}{{.Error}}{{else}}does not fit{{end}}</span>{{end}}</td>
+</tr>{{end}}
+</tbody></table>
+{{if .ModelAudit.Resident}}<p class="muted">Resident at audit end: {{join .ModelAudit.Resident}}</p>{{end}}
+{{else}}
+<div class="notice">No measured model audit is attached to this Core. Run <code>athanor models -audit</code> on the host and restart Athanor to measure weights + KV at the configured context.</div>
+{{end}}
+
 <h2>Qualification (optional)</h2>
 {{if .State.Running}}
 <div class="card" data-auto-refresh="5000">

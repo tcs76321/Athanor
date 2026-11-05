@@ -41,6 +41,9 @@ type coreOptions struct {
 	// HostMemoryBytes is the physical host's memory, passed to the Core so
 	// model-fit budgets do not mistake the Podman VM's memory for the host's.
 	HostMemoryBytes uint64
+	// ModelAudit is the measured model-fit JSON, passed to the Core so the UI
+	// can show the same plan the startup guard enforced.
+	ModelAudit string
 }
 
 // coreRunArgs is the pure `podman run` argv for a Core Pod. It is separated
@@ -61,6 +64,9 @@ func coreRunArgs(o coreOptions) []string {
 	}
 	if o.HostMemoryBytes > 0 {
 		args = append(args, "-e", "ATHANOR_HOST_MEMORY_BYTES="+strconv.FormatUint(o.HostMemoryBytes, 10))
+	}
+	if o.ModelAudit != "" {
+		args = append(args, "-e", "ATHANOR_MODEL_AUDIT="+o.ModelAudit)
 	}
 	return append(args, o.Image)
 }

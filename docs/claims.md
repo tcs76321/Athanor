@@ -65,6 +65,8 @@ demo. A claim without a proof is either removed or marked as a target.
 | A plan generated for one direction is never shown or approved for another | ADR-0097 | option-scoped sessions and handler guard; `TestProjectOnboardingIgnoresStalePlanAfterDirectionChange` | **proven** |
 | Job Pods are sized from the task capability within an adaptive ceiling | ADR-0098 | `jobpod.AdaptiveLimits`; `TestAdaptiveLimitsScaleByCapability`, `TestPodLifecycleAdaptsLimitsToTaskCapability` | **proven** |
 | Onboarding distinguishes container-runtime memory from host memory | ADR-0098 | `TestRecommendedResourcesIsAdaptive`, `TestBudgetForUsesHostMemoryNotRuntimeMemory` | **proven** |
+| A configured model is accepted only when its measured resident size fits the host budget | ADR-0099 | `athanor models -audit`; `model-fit.json`; `TestRunModelAuditMeasuresLoadedSize`, `TestCheckModelAuditFailsOnMeasuredNonFit`, `TestCheckModelAuditRejectsStaleConfig` | **proven with a fake Ollama; the live audit is the host check** |
+| Embedding models are never persona candidates | ADR-0049, ADR-0099 | `onboard.IsChatModel`; `TestEmbeddingModelsAreNotPersonaCandidates` | **proven** |
 | `limits.max_concurrent_jobs` is a real ceiling subject to the power profile | ADR-0096 | `power.Ceiling`; `TestCeilingRespectsInteractiveAndOperatorMax` | **proven** |
 | Doctor reports a host GPU and does not claim one from inside the Core Pod | ADR-0096, `docs/linux-gpu.md` | `TestRunReportsGPU`, `TestRunReportsGPUNotVisibleFromCore`, `TestRunReportsNoGPU` | **proven with fake probes; host `nvidia-smi` is the live check** |
 | Discovery is a portfolio, not a single-winner loop | ADR-0094 | `internal/discovery` (no engine comparison); `TestScoreIsDeterministicAndOrdered` | **proven by structure** |

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"strings"
@@ -19,6 +20,7 @@ func runStart(args []string) error {
 	addr := fs.String("addr", defaultCoreAddr, "HTTP listen address")
 	container := fs.Bool("container", false, "host mode: allow a wildcard bind behind a loopback-only published port")
 	skipDoctor := fs.Bool("skip-doctor", false, "skip the pre-flight checks")
+	skipModelAudit := fs.Bool("skip-model-audit", false, "do not enforce the measured model-fit audit")
 	host := fs.Bool("host", false, "run the host daemon (development escape hatch, not the supported runtime)")
 	coreImage := fs.String("core-image", defaultCoreImage, "Core Pod image")
 	containerName := fs.String("container-name", defaultCoreName, "Core Pod container name")
@@ -48,6 +50,19 @@ func runStart(args []string) error {
 			return fmt.Errorf("start: doctor found %d failing check(s); fix them or re-run with -skip-doctor", fail)
 		}
 	}
+	modelAuditJSON := ""
+	if !*skipModelAudit {
+		hostMem, _ := newOSProbes().TotalMemoryBytes(context.Background())
+		audit, err := checkModelAudit(modelAuditPath(*configPath), cfg, int64(hostMem))
+		if err != nil {
+			return err
+		}
+		if audit.GeneratedAt != "" {
+			if raw, jerr := json.Marshal(audit); jerr == nil {
+				modelAuditJSON = string(raw)
+			}
+		}
+	}
 	if *host {
 		return run(*configPath, *addr, *stateDir, *container)
 	}
@@ -75,6 +90,7 @@ func runStart(args []string) error {
 	if mem, ok := newOSProbes().TotalMemoryBytes(context.Background()); ok {
 		opts.HostMemoryBytes = mem
 	}
+	opts.ModelAudit = modelAuditJSON
 	if err := coreUp(context.Background(), opts); err != nil {
 		return err
 	}

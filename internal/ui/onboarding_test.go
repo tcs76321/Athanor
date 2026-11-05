@@ -123,6 +123,17 @@ func TestOnboardingAdvancesAndCompletes(t *testing.T) {
 	}
 }
 
+func TestApplyMeasuredSizesUsesLoadedBytes(t *testing.T) {
+	models := applyMeasuredSizes([]setupModel{{Name: "gemma", SizeBytes: 1}}, `{"roles":[{"role":"main","model":"gemma","loaded_bytes":123456}]}`)
+	if len(models) != 1 || models[0].SizeBytes != 123456 {
+		t.Fatalf("measured sizes = %+v, want the loaded size overlay", models)
+	}
+	names := measuredModelNames(`{"roles":[{"role":"main","model":"gemma"}]}`)
+	if !names["gemma"] {
+		t.Fatalf("measured names = %v, want gemma", names)
+	}
+}
+
 func TestRecommendedResourcesIsAdaptive(t *testing.T) {
 	res := recommendedResources(Hardware{
 		TotalMemoryBytes: 16 << 30, HostMemoryBytes: 32 << 30, CPUs: 10,

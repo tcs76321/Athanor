@@ -10,13 +10,42 @@
 // can choose.
 package onboard
 
-import "sort"
+import (
+	"sort"
+	"strings"
+)
 
 // Model is one installed backend model.
 type Model struct {
 	Name      string `json:"name"`
 	SizeBytes int64  `json:"size_bytes"`
 	Family    string `json:"family,omitempty"`
+}
+
+// IsChatModel reports whether a model can serve a persona role. Embedding
+// models are installed in the same Ollama catalog but cannot generate text, so
+// they must never be selected as wide/tall/main/security/alternative.
+func IsChatModel(m Model) bool {
+	name := strings.ToLower(m.Name)
+	family := strings.ToLower(m.Family)
+	if strings.Contains(name, "embed") || strings.Contains(name, "embedding") {
+		return false
+	}
+	switch family {
+	case "nomic-bert", "bert", "bge", "mxbai", "snowflake-arctic-embed", "all-minilm":
+		return false
+	}
+	return true
+}
+
+func chatModels(models []Model) []Model {
+	out := make([]Model, 0, len(models))
+	for _, m := range models {
+		if IsChatModel(m) {
+			out = append(out, m)
+		}
+	}
+	return out
 }
 
 // Role is one configured persona's model expectation.
@@ -58,6 +87,7 @@ func Fit(m Model, availableBytes, reserveBytes int64) bool {
 // matches — the same tolerance the doctor's presence check uses. Alternatives
 // exclude the configured model and any model that does not fit.
 func Inventory(roles []Role, models []Model, availableBytes, reserveBytes int64) Report {
+	models = chatModels(models)
 	rep := Report{AvailableBytes: availableBytes, ReserveBytes: reserveBytes}
 	exact := map[string]bool{}
 	base := map[string]bool{}

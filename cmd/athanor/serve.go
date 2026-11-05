@@ -422,6 +422,7 @@ func run(configPath, addr, stateDir string, container bool) error {
 			&planningGenerator{client: llmClient, cfg: cfg},
 			planning.NewStore(st),
 		),
+		ModelAudit:   os.Getenv("ATHANOR_MODEL_AUDIT"),
 		Scheduler:    sched,
 		TaskResetter: sched,
 		ConfigPath:   configPath,

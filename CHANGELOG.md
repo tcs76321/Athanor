@@ -10,6 +10,22 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Measured model fit and startup guard — 2026-11-04
+
+- `athanor models -audit` loads each configured persona model at its context
+  target, reads Ollama’s actual resident size from `/api/ps` (weights + KV),
+  unloads it, and writes `model-fit.json`. `athanor start` enforces that plan:
+  a stale audit, a changed persona model/context, or a measured non-fit is a
+  hard error; a missing audit is a warning.
+  [ADR-0099](docs/adr/0099-measured-model-fit.md). Proofs:
+  `TestRunModelAuditMeasuresLoadedSize`, `TestCheckModelAuditFailsOnMeasuredNonFit`,
+  `TestCheckModelAuditRejectsStaleConfig`.
+- The audit plan is shown on the Setup page with file size, measured loaded
+  size, context, and fit. Proof: `TestSetupPageShowsMeasuredModelAudit`.
+- Persona auto-selection no longer considers embedding models: `wide` is the
+  smallest **chat** model, never `nomic-embed-text` or another embedding-only
+  model. Proof: `TestEmbeddingModelsAreNotPersonaCandidates`.
+
 ### Adaptive Job Pod limits — 2026-11-04
 
 - The Resources step no longer exposes CPU, `/tmp`, or PID fields. `job_pod`

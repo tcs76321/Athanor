@@ -182,6 +182,12 @@ Then watch it work in real time from the Watch View, or queue it and check the M
   [ADR-0096](docs/adr/0096-capacity-aware-concurrency.md),
   [ADR-0098](docs/adr/0098-adaptive-job-pod-limits.md).
 
+- **Measured model fit.** `athanor models -audit` loads each configured model
+  at its context target and records the actual resident size (weights + KV) in
+  `model-fit.json`; `athanor start` refuses a measured non-fit or a stale plan,
+  and the Setup page shows the same audit. Embedding models are never persona
+  candidates. [ADR-0099](docs/adr/0099-measured-model-fit.md).
+
 - **0.0.0 capability + packaging (M9).** The self-refine repair loop
   (`execution.self_refine`, on by default) feeds the failing test's output back
   into a re-verified repair; the `data` capability has a deterministic JSON-Schema

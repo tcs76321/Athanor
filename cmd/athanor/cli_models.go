@@ -40,6 +40,9 @@ func runModels(args []string) error {
 	ladderRoles := fs.String("ladder-roles", "security,main", "comma-separated roles to qualify")
 	ladderTimeout := fs.Duration("ladder-case-timeout", 90*time.Second, "per-case model timeout")
 	ladderWall := fs.Duration("ladder-wall", 15*time.Minute, "total ladder wall-time budget")
+	audit := fs.Bool("audit", false, "measure each configured model's loaded size at its context and write a fit plan")
+	auditOut := fs.String("audit-out", "", "audit output path (default <config dir>/model-fit.json)")
+	auditReserve := fs.Int64("audit-reserve", defaultAuditReserveBytes, "bytes reserved for the OS and other apps in the audit")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -51,6 +54,26 @@ func runModels(args []string) error {
 	ctx := context.Background()
 	if !probes.InContainer() {
 		cfg = hostDoctorConfig(cfg)
+	}
+	if *audit {
+		mem, ok := probes.TotalMemoryBytes(ctx)
+		if !ok || mem == 0 {
+			return fmt.Errorf("cannot audit model fit: host memory is unknown")
+		}
+		a, err := runModelAudit(ctx, cfg, probes, int64(mem), *auditReserve)
+		if err != nil {
+			return err
+		}
+		out := auditOutPath(*configPath, *auditOut)
+		if werr := writeModelAudit(out, a); werr != nil {
+			return fmt.Errorf("writing model audit: %w", werr)
+		}
+		printModelAudit(a)
+		if len(a.FailingRoles()) > 0 {
+			return fmt.Errorf("model fit audit found %d role(s) that do not fit the host budget", len(a.FailingRoles()))
+		}
+		fmt.Printf("wrote %s\n", out)
+		return nil
 	}
 
 	models, err := ollamaCatalog(ctx, probes, cfg.Inference.OllamaURL)
@@ -66,6 +89,9 @@ func runModels(args []string) error {
 	case *ladder:
 		fitting := make([]onboard.Model, 0, len(models))
 		for _, m := range models {
+			if !onboard.IsChatModel(m) {
+				continue
+			}
 			if onboard.Fit(m, int64(mem), modelReserveBytes) {
 				fitting = append(fitting, m)
 			}

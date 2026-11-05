@@ -129,6 +129,9 @@ type Deps struct {
 	// Planning generates AI plan candidates after a direction is chosen. nil
 	// keeps the deterministic 30-day plan.
 	Planning Planning
+	// ModelAudit is the measured model-fit JSON passed by `athanor start`.
+	// Empty means no audit was available.
+	ModelAudit string
 	// Doctor runs the §30.2 host/environment checks for the first-run wizard.
 	// nil falls back to the UI-native checks.
 	Doctor func(ctx context.Context) doctor.Report

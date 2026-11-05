@@ -227,6 +227,7 @@ func (u *UI) welcomeData(ctx context.Context, st onboardingState) map[string]any
 		if err != nil {
 			modelsErr = err.Error()
 		}
+		models = applyMeasuredSizes(models, u.deps.ModelAudit)
 		roles = u.personaRoles(models)
 	}
 	health := []healthCheck{}
@@ -258,10 +259,22 @@ func (u *UI) welcomeData(ctx context.Context, st onboardingState) map[string]any
 	if u.deps.Store != nil {
 		measurements = qualMeasurementsFromState(u.loadQualState(ctx))
 	}
-	assignments := u.autoAssignments(roles, models, hw, measurements)
+	fitModels := models
+	if names := measuredModelNames(u.deps.ModelAudit); len(names) > 0 {
+		// Once an audit exists, only measured models are safe candidates: an
+		// unmeasured 30B blob can look like it fits by file size while its KV
+		// cache overruns the host.
+		fitModels = make([]setupModel, 0, len(models))
+		for _, m := range models {
+			if names[m.Name] {
+				fitModels = append(fitModels, m)
+			}
+		}
+	}
+	assignments := u.autoAssignments(roles, fitModels, hw, measurements)
 	suggestions := u.pullSuggestions(roles)
 	resources := recommendedResources(hw)
-	budget := budgetFor(models, hw, resources)
+	budget := budgetFor(fitModels, hw, resources)
 	return map[string]any{
 		"State": st, "Step": st.Step, "Steps": onboardingSteps,
 		"StepIndex": onboardingIndex(st.Step), "StepNumber": onboardingIndex(st.Step) + 1,
@@ -279,6 +292,54 @@ func (u *UI) welcomeData(ctx context.Context, st onboardingState) map[string]any
 			return u.deps.Config.Inference.OllamaURL
 		}(),
 	}
+}
+
+// applyMeasuredSizes overlays the measured resident size from the model audit
+// onto the catalog. Model-fit decisions must use weights + KV, not the blob on
+// disk; without an audit the catalog size remains the fallback.
+func applyMeasuredSizes(models []setupModel, raw string) []setupModel {
+	if raw == "" || len(models) == 0 {
+		return models
+	}
+	var a onboard.Audit
+	if err := json.Unmarshal([]byte(raw), &a); err != nil {
+		return models
+	}
+	sizes := map[string]int64{}
+	for _, r := range a.Roles {
+		if r.LoadedBytes > sizes[r.Model] {
+			sizes[r.Model] = r.LoadedBytes
+		}
+	}
+	if len(sizes) == 0 {
+		return models
+	}
+	out := append([]setupModel(nil), models...)
+	for i := range out {
+		if b := sizes[out[i].Name]; b > 0 {
+			out[i].SizeBytes = b
+		}
+	}
+	return out
+}
+
+// measuredModelNames returns the models covered by the audit, if any. When an
+// audit is present it is the safe candidate set for fit decisions.
+func measuredModelNames(raw string) map[string]bool {
+	if raw == "" {
+		return nil
+	}
+	var a onboard.Audit
+	if err := json.Unmarshal([]byte(raw), &a); err != nil {
+		return nil
+	}
+	out := map[string]bool{}
+	for _, r := range a.Roles {
+		if r.Model != "" {
+			out[r.Model] = true
+		}
+	}
+	return out
 }
 
 // autoAssignments converts the UI's catalog to the deterministic selector.
@@ -306,8 +367,15 @@ func (u *UI) autoAssignments(roles []setupRole, models []setupModel, hw Hardware
 	for _, m := range models {
 		omodels = append(omodels, onboard.Model{Name: m.Name, SizeBytes: m.SizeBytes, Family: m.Family})
 	}
-	reserve := int64(2 << 30)
-	return onboard.AutoAssignWithScores(oroles, omodels, scores, int64(hw.TotalMemoryBytes), reserve)
+	hostBytes := hw.HostMemoryBytes
+	if hostBytes == 0 {
+		hostBytes = hw.TotalMemoryBytes
+	}
+	// Models run on the host, not in the Podman runtime. Use the measured
+	// loaded size from the audit when available; otherwise the catalog file
+	// size is the only estimate. The reserve is deliberately the same 8 GiB
+	// the audit uses, so the UI proposal and the startup guard agree.
+	return onboard.AutoAssignWithScores(oroles, omodels, scores, int64(hostBytes), 8<<30)
 }
 
 // pullSuggestions lists configured persona models that are not installed,
@@ -611,7 +679,7 @@ func (u *UI) applyPersonas(ctx context.Context) error {
 	if err := config.UpdatePersonas(u.deps.ConfigPath, updates); err != nil {
 		return err
 	}
-	u.markRestartRequired(ctx, "persona assignment changed")
+	u.markRestartRequired(ctx, "persona assignment changed; run athanor models -audit before restarting")
 	if u.deps.Store != nil {
 		cctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()

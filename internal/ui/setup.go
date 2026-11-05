@@ -119,6 +119,13 @@ func (u *UI) handleSetup(w http.ResponseWriter, r *http.Request) {
 			data["Apply"] = applyYAML(recs)
 		}
 	}
+	if u.deps.ModelAudit != "" {
+		var audit onboard.Audit
+		if err := json.Unmarshal([]byte(u.deps.ModelAudit), &audit); err == nil {
+			data["ModelAudit"] = audit
+			data["ModelAuditFailing"] = audit.FailingRoles()
+		}
+	}
 	u.render(w, "Setup", setupBody, data)
 }
 

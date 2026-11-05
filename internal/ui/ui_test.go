@@ -481,6 +481,32 @@ func TestSetupPageRenders(t *testing.T) {
 	}
 }
 
+func TestSetupPageShowsMeasuredModelAudit(t *testing.T) {
+	fx := setup(t)
+	audit := onboard.Audit{
+		GeneratedAt: "2026-11-04T00:00:00Z", HostBytes: 32 << 30,
+		ReserveBytes: 8 << 30, BudgetBytes: 24 << 30,
+		Roles: []onboard.AuditRole{{
+			Role: "main", Model: "gemma4:12b-mlx", ContextTarget: 32768,
+			FileBytes: 8 << 30, LoadedBytes: 12 << 30, Fits: true,
+		}},
+	}
+	raw, err := json.Marshal(audit)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fx.ui.deps.ModelAudit = string(raw)
+	status, body := get(t, fx.ts.URL+"/ui/setup")
+	if status != http.StatusOK {
+		t.Fatalf("status = %d, want 200", status)
+	}
+	for _, want := range []string{"Measured model fit", "gemma4:12b-mlx", "12.0 GiB", "fits"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("setup page missing audit detail %q", want)
+		}
+	}
+}
+
 // TestSetupPageWithModels proves the live inventory and persona rows render
 // against the configured Ollama endpoint.
 func TestSetupPageWithModels(t *testing.T) {

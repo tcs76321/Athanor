@@ -86,6 +86,35 @@ func TestAutoAssignUsesMeasuredScores(t *testing.T) {
 	}
 }
 
+func TestEmbeddingModelsAreNotPersonaCandidates(t *testing.T) {
+	models := []Model{
+		{Name: "nomic-embed-text:latest", SizeBytes: 274 << 20, Family: "nomic-bert"},
+		{Name: "gemma4:12b-mlx", SizeBytes: 8 << 30},
+		{Name: "granite4.2:3b", SizeBytes: 3 << 30, Family: "granite"},
+	}
+	roles := []Role{
+		{Role: "wide"}, {Role: "tall"}, {Role: "main"},
+		{Role: "security"}, {Role: "alternative"},
+	}
+	got := AutoAssign(roles, models, 64<<30, 2<<30)
+	if len(got) == 0 {
+		t.Fatal("no assignments")
+	}
+	for _, a := range got {
+		if a.Model == "nomic-embed-text:latest" {
+			t.Errorf("embedding model assigned to persona %q", a.Role)
+		}
+	}
+	for _, a := range got {
+		if a.Role == "wide" && a.Model != "granite4.2:3b" {
+			t.Errorf("wide = %q, want the smallest chat model granite4.2:3b", a.Model)
+		}
+	}
+	if IsChatModel(models[0]) {
+		t.Error("nomic-embed-text should not be a chat model")
+	}
+}
+
 func TestAutoAssignUnknownMemoryStillSelects(t *testing.T) {
 	roles := []Role{{Role: "tall"}, {Role: "security"}}
 	models := []Model{
