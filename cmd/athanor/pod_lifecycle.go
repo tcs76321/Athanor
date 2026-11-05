@@ -24,6 +24,13 @@ type projectGetter interface {
 	Get(ctx context.Context, id string) (project.Project, error)
 }
 
+// jobTaskGetter is an optional extension: when the repository exposes it, the
+// pod's limits are scaled to the task's primary capability instead of using the
+// configured ceiling for every job.
+type jobTaskGetter interface {
+	JobTask(ctx context.Context, jobID string) (project.Task, string, error)
+}
+
 // podManager is the slice of jobpod.Manager the lifecycle adapter needs.
 type podManager interface {
 	Start(ctx context.Context, spec jobpod.Spec) (*jobpod.Pod, error)
@@ -67,18 +74,26 @@ func (a *podLifecycleAdapter) Ensure(ctx context.Context, jobID, projectID strin
 		return errors.New("job_pod.image is empty; cannot start a Job Pod")
 	}
 	repoDir, repoMountDir := a.stageRepo(ctx, jobID, projectID)
+	limits := jobpod.Limits{
+		PidsLimit: a.cfg.JobPod.PidsLimit,
+		MemoryMB:  a.cfg.JobPod.MemoryMB,
+		CPUs:      a.cfg.JobPod.CPUs,
+		TmpfsMB:   a.cfg.JobPod.TmpfsMB,
+	}
+	if jt, ok := a.projects.(jobTaskGetter); ok {
+		if task, _, err := jt.JobTask(ctx, jobID); err == nil {
+			limits = jobpod.AdaptiveLimits(limits, task.Capability)
+		} else {
+			slog.Debug("pod lifecycle: task capability unavailable; using the ceiling", "job", jobID, "err", err)
+		}
+	}
 	_, err := a.pods.Start(ctx, jobpod.Spec{
-		ID:           jobID,
-		Image:        a.cfg.JobPod.Image,
-		Command:      []string{"sleep", "infinity"},
-		RepoDir:      repoDir,
-		RepoMountDir: repoMountDir,
-		ResourceLimits: jobpod.Limits{
-			PidsLimit: a.cfg.JobPod.PidsLimit,
-			MemoryMB:  a.cfg.JobPod.MemoryMB,
-			CPUs:      a.cfg.JobPod.CPUs,
-			TmpfsMB:   a.cfg.JobPod.TmpfsMB,
-		},
+		ID:             jobID,
+		Image:          a.cfg.JobPod.Image,
+		Command:        []string{"sleep", "infinity"},
+		RepoDir:        repoDir,
+		RepoMountDir:   repoMountDir,
+		ResourceLimits: limits,
 	})
 	if err != nil && !errors.Is(err, jobpod.ErrAlreadyExists) {
 		return err

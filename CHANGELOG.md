@@ -10,6 +10,18 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Adaptive Job Pod limits — 2026-11-04
+
+- The Resources step no longer exposes CPU, `/tmp`, or PID fields. `job_pod`
+  limits are now a ceiling; each job is sized from its task capability (code /
+  media 100%, data 75%, document 50%, text 40%) with safe floors, and the
+  onboarding action derives the internal values. The step now distinguishes
+  **runtime RAM** (the Podman VM, which bounds Job Pods) from **host RAM** (used
+  by Ollama and macOS) and states that macOS cannot reserve host memory.
+  [ADR-0098](docs/adr/0098-adaptive-job-pod-limits.md). Proofs:
+  `TestAdaptiveLimitsScaleByCapability`, `TestRecommendedResourcesIsAdaptive`,
+  `TestPodLifecycleAdaptsLimitsToTaskCapability`.
+
 ### Onboarding readiness order — 2026-11-04
 
 - The first-run wizard now runs the environment/doctor checks **last**, as a

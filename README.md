@@ -175,7 +175,12 @@ Then watch it work in real time from the Watch View, or queue it and check the M
   use throttles back to one job; inference stays independently serialized. The
   doctor reports an NVIDIA GPU when the host probe can see one, and the
   [Linux/GPU guide](docs/linux-gpu.md) covers the 32 GiB / 1080 Ti class.
-  [ADR-0096](docs/adr/0096-capacity-aware-concurrency.md).
+  Job Pod limits are an adaptive ceiling rather than manual knobs: code/media
+  tasks get the full sandbox, document/text tasks get a smaller share, and the
+  Resources step distinguishes runtime memory from host memory while leaving
+  CPU, `/tmp`, and PIDs automatic.
+  [ADR-0096](docs/adr/0096-capacity-aware-concurrency.md),
+  [ADR-0098](docs/adr/0098-adaptive-job-pod-limits.md).
 
 - **0.0.0 capability + packaging (M9).** The self-refine repair loop
   (`execution.self_refine`, on by default) feeds the failing test's output back

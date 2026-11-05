@@ -62,32 +62,29 @@ const welcomeBody = `
     {{else if eq .Step "resources"}}
     <div class="eyebrow">Step {{.StepNumber}} of {{.StepCount}}</div>
     <h1>Resources.</h1>
-    <p class="lede">Athanor detected the host capacity below. The Job Pod limits are a sandbox budget, not the model budget: Ollama runs on the host, while each ephemeral pod gets its own memory, CPU, /tmp, and PID cap. The recommended values are prefilled; verify or change them.</p>
+    <p class="lede">Athanor adapts its own container footprint to the runtime and sizes each Job Pod to the task. Ollama runs outside this runtime on the host, so keep as much host memory free as possible: close heavy apps and avoid loading more than one model.</p>
     <div class="grid cols-3 tight">
       <div class="card stat"><div class="n">{{if .Resources.TotalMemoryGiB}}{{printf "%.0f" .Resources.TotalMemoryGiB}}{{else}}?{{end}}</div><div class="l">GiB runtime RAM</div></div>
       <div class="card stat"><div class="n">{{if .Resources.CPUs}}{{.Resources.CPUs}}{{else}}?{{end}}</div><div class="l">CPU cores</div></div>
       <div class="card stat"><div class="n">{{if .Resources.FreeDiskGiB}}{{printf "%.0f" .Resources.FreeDiskGiB}}{{else}}?{{end}}</div><div class="l">GiB free disk</div></div>
     </div>
-    {{if eq .Applied "resources"}}<div class="notice">Resource limits saved to <code>{{.ConfigPath}}</code>. Restart the Core (or the host process) to apply them.</div>{{end}}
+    {{if eq .Applied "resources"}}<div class="notice">Adaptive limits saved to <code>{{.ConfigPath}}</code>. Restart the Core (or the host process) to apply them.</div>{{end}}
+    <div class="notice">
+      Host: {{printf "%.0f" .Resources.HostMemoryGiB}} GiB total, with about {{printf "%.0f" .Resources.OutsideRuntimeGiB}} GiB outside Athanor's runtime for macOS and Ollama. macOS cannot reserve host RAM for one process, so this is a budget, not a fence.
+    </div>
     <div class="card">
+      <div class="eyebrow">Adaptive sandbox</div>
+      <p class="muted">You do not need to tune CPU, /tmp, or PID limits. Athanor chooses the ceiling from runtime capacity and gives code/media tasks the full sandbox while document/text tasks get a smaller share.</p>
+      <div class="meta">
+        <span class="pill accent">{{.Resources.MemoryMB}} MB ceiling</span>
+        <span class="pill">{{printf "%.2f" .Resources.CPUsAllocated}} CPUs</span>
+        <span class="pill">{{.Resources.TmpfsMB}} MB /tmp</span>
+        <span class="pill">{{.Resources.PidsLimit}} PIDs</span>
+      </div>
+      <p class="muted small">The ceiling is runtime memory minus a {{.Resources.ReserveMB}} MB reserve ({{.Resources.MemoryMaxMB}} MB max). Per-job limits are derived when the Job Pod starts.</p>
       <form method="post" action="/ui/welcome">
         <input type="hidden" name="step" value="resources">
-        <label for="memory_mb">Job Pod memory (MB)</label>
-        <input id="memory_mb" type="number" name="memory_mb" min="256" max="{{.Resources.MemoryMaxMB}}" step="256" value="{{.Resources.MemoryMB}}" required>
-        <div class="field-help">Runtime memory minus a {{.Resources.ReserveMB}} MB reserve is the ceiling ({{.Resources.MemoryMaxMB}} MB).</div>
-        <div class="row">
-          <label>CPUs
-            <input type="number" name="cpus" min="0.25" max="{{.Resources.CPUsMax}}" step="0.25" value="{{printf "%.2f" .Resources.CPUsAllocated}}" required>
-          </label>
-          <label>/tmp size (MB)
-            <input type="number" name="tmpfs_mb" min="64" max="32768" step="64" value="{{.Resources.TmpfsMB}}" required>
-          </label>
-          <label>PID limit
-            <input type="number" name="pids_limit" min="32" max="8192" step="32" value="{{.Resources.PidsLimit}}" required>
-          </label>
-        </div>
-        <p class="muted">The Core is single-slot: one job runs at a time, so these limits bound the active sandbox rather than a pool. A larger Job Pod helps test suites and build tools, not the language model.</p>
-        <div class="actions"><button class="primary" name="action" value="apply_resources">Save resource limits</button></div>
+        <div class="actions"><button class="primary" name="action" value="apply_resources">Apply adaptive limits</button></div>
       </form>
     </div>
     <div class="actions">

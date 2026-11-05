@@ -38,6 +38,15 @@ func (f fakeProjectGetter) Get(_ context.Context, _ string) (project.Project, er
 	return f.project, f.err
 }
 
+type fakeTaskGetter struct {
+	fakeProjectGetter
+	task project.Task
+}
+
+func (f fakeTaskGetter) JobTask(_ context.Context, _ string) (project.Task, string, error) {
+	return f.task, "", nil
+}
+
 type fakeSnapshotter struct {
 	calls []string
 	dest  string
@@ -106,6 +115,34 @@ func TestPodLifecycleNoRepoSkipsSnapshot(t *testing.T) {
 	}
 	if len(pods.specs) != 1 || pods.specs[0].RepoDir != "" {
 		t.Errorf("pod spec = %+v, want an empty RepoDir", pods.specs)
+	}
+}
+
+func TestPodLifecycleAdaptsLimitsToTaskCapability(t *testing.T) {
+	cfg := testLifecycleConfig()
+	cfg.JobPod.MemoryMB = 8192
+	cfg.JobPod.CPUs = 4
+	cfg.JobPod.TmpfsMB = 4096
+	cfg.JobPod.PidsLimit = 512
+	pods := &fakePodManager{}
+	adapter := newPodLifecycle(pods, cfg,
+		fakeTaskGetter{
+			fakeProjectGetter: fakeProjectGetter{project: project.Project{}},
+			task:              project.Task{Capability: "document"},
+		}, t.TempDir(), "", &fakeSnapshotter{})
+
+	if err := adapter.Ensure(context.Background(), "job-4", "proj-4"); err != nil {
+		t.Fatal(err)
+	}
+	if len(pods.specs) != 1 {
+		t.Fatalf("pod specs = %d, want 1", len(pods.specs))
+	}
+	got := pods.specs[0].ResourceLimits
+	want := jobpod.AdaptiveLimits(jobpod.Limits{
+		MemoryMB: 8192, CPUs: 4, TmpfsMB: 4096, PidsLimit: 512,
+	}, "document")
+	if got != want {
+		t.Errorf("pod limits = %+v, want adaptive document limits %+v", got, want)
 	}
 }
 

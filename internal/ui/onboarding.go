@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
@@ -56,16 +55,18 @@ type pullSuggestion struct {
 }
 
 type resourceView struct {
-	TotalMemoryGiB float64
-	FreeDiskGiB    float64
-	CPUs           int
-	MemoryMB       int
-	MemoryMaxMB    int
-	CPUsAllocated  float64
-	CPUsMax        float64
-	TmpfsMB        int
-	PidsLimit      int
-	ReserveMB      int
+	TotalMemoryGiB    float64
+	HostMemoryGiB     float64
+	OutsideRuntimeGiB float64
+	FreeDiskGiB       float64
+	CPUs              int
+	MemoryMB          int
+	MemoryMaxMB       int
+	CPUsAllocated     float64
+	CPUsMax           float64
+	TmpfsMB           int
+	PidsLimit         int
+	ReserveMB         int
 }
 
 type modelBudget struct {
@@ -259,7 +260,7 @@ func (u *UI) welcomeData(ctx context.Context, st onboardingState) map[string]any
 	}
 	assignments := u.autoAssignments(roles, models, hw, measurements)
 	suggestions := u.pullSuggestions(roles)
-	resources := recommendedResources(hw, u.deps.Config)
+	resources := recommendedResources(hw)
 	budget := budgetFor(models, hw, resources)
 	return map[string]any{
 		"State": st, "Step": st.Step, "Steps": onboardingSteps,
@@ -325,39 +326,52 @@ func (u *UI) pullSuggestions(roles []setupRole) []pullSuggestion {
 	return out
 }
 
-// recommendedResources proposes Job Pod limits from host capacity, while
-// preserving values already set in config.
-func recommendedResources(hw Hardware, cfg *config.Config) resourceView {
+// recommendedResources chooses the adaptive Job Pod ceiling and the internal
+// sandbox knobs from the runtime capacity. CPU, /tmp, and PID values are
+// derived, not operator fields; per-job sizing scales the ceiling by task
+// capability. The operator-facing advice is to leave as much host memory free
+// as possible for Ollama, which runs outside this runtime.
+func recommendedResources(hw Hardware) resourceView {
 	totalMB := int(hw.TotalMemoryBytes / (1 << 20))
+	hostBytes := hw.HostMemoryBytes
+	if hostBytes == 0 {
+		hostBytes = hw.TotalMemoryBytes
+	}
 	res := resourceView{
 		TotalMemoryGiB: float64(hw.TotalMemoryBytes) / (1 << 30),
+		HostMemoryGiB:  float64(hostBytes) / (1 << 30),
 		FreeDiskGiB:    float64(hw.FreeDiskBytes) / (1 << 30),
 		CPUs:           hw.CPUs,
 		MemoryMB:       4096,
+		CPUsAllocated:  4,
 		TmpfsMB:        2048,
-		PidsLimit:      256,
-		CPUsAllocated:  2,
-		CPUsMax:        float64(hw.CPUs),
+		PidsLimit:      512,
+		ReserveMB:      2048,
 	}
+	res.OutsideRuntimeGiB = res.HostMemoryGiB - res.TotalMemoryGiB
+	if res.OutsideRuntimeGiB < 0 {
+		res.OutsideRuntimeGiB = 0
+	}
+	res.CPUsMax = float64(hw.CPUs)
 	if res.CPUsMax < 1 {
 		res.CPUsMax = 8
 	}
 	if res.CPUsMax > 16 {
 		res.CPUsMax = 16
 	}
-	if res.CPUs < 4 {
-		res.CPUsAllocated = 1
-	}
 	if totalMB > 0 {
-		proposed := totalMB / 4
-		if proposed < 1024 {
-			proposed = 1024
+		// Half the runtime is a safe ceiling for one sandbox while leaving
+		// room for the Core and Podman; cap it so giant VMs do not produce
+		// an 8 GiB+ sandbox by default.
+		half := totalMB / 2
+		if half > 8192 {
+			half = 8192
 		}
-		if proposed > 4096 {
-			proposed = 4096
+		if half < 2048 {
+			half = 2048
 		}
-		res.MemoryMB = (proposed / 512) * 512
-		res.MemoryMaxMB = totalMB - 2048
+		res.MemoryMB = (half / 512) * 512
+		res.MemoryMaxMB = totalMB - res.ReserveMB
 	} else {
 		res.MemoryMaxMB = 65536
 	}
@@ -367,27 +381,24 @@ func recommendedResources(hw Hardware, cfg *config.Config) resourceView {
 	if res.MemoryMaxMB > 65536 {
 		res.MemoryMaxMB = 65536
 	}
-	res.ReserveMB = 2048
-	if cfg != nil {
-		if cfg.JobPod.MemoryMB > 0 {
-			res.MemoryMB = cfg.JobPod.MemoryMB
-		}
-		if cfg.JobPod.CPUs > 0 {
-			res.CPUsAllocated = cfg.JobPod.CPUs
-		}
-		if cfg.JobPod.TmpfsMB > 0 {
-			res.TmpfsMB = cfg.JobPod.TmpfsMB
-		}
-		if cfg.JobPod.PidsLimit > 0 {
-			res.PidsLimit = cfg.JobPod.PidsLimit
-		}
-	}
 	if res.MemoryMB > res.MemoryMaxMB {
 		res.MemoryMB = res.MemoryMaxMB
 	}
-	if res.CPUsAllocated > res.CPUsMax {
-		res.CPUsAllocated = res.CPUsMax
+	res.CPUsAllocated = res.CPUsMax
+	if res.CPUsAllocated > 4 {
+		res.CPUsAllocated = 4
 	}
+	if res.CPUsAllocated < 1 {
+		res.CPUsAllocated = 1
+	}
+	tmp := res.MemoryMB / 4
+	if tmp < 512 {
+		tmp = 512
+	}
+	if tmp > 4096 {
+		tmp = 4096
+	}
+	res.TmpfsMB = (tmp / 256) * 256
 	return res
 }
 
@@ -664,16 +675,13 @@ func (u *UI) handleWelcomePost(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/ui/welcome?step=models&applied=personas", http.StatusSeeOther)
 		return
 	case "apply_resources":
-		mem, merr := strconv.Atoi(r.FormValue("memory_mb"))
-		cpus, cerr := strconv.ParseFloat(r.FormValue("cpus"), 64)
-		tmpfs, terr := strconv.Atoi(r.FormValue("tmpfs_mb"))
-		pids, perr := strconv.Atoi(r.FormValue("pids_limit"))
-		if merr != nil || cerr != nil || terr != nil || perr != nil {
-			u.fail(w, fmt.Errorf("resource values must be numbers"))
-			return
+		hw := Hardware{}
+		if u.deps.Hardware != nil {
+			hw = u.deps.Hardware(ctx)
 		}
+		res := recommendedResources(hw)
 		if err := config.UpdateJobPodResources(u.deps.ConfigPath, config.JobPodResources{
-			MemoryMB: mem, CPUs: cpus, TmpfsMB: tmpfs, PidsLimit: pids,
+			MemoryMB: res.MemoryMB, CPUs: res.CPUsAllocated, TmpfsMB: res.TmpfsMB, PidsLimit: res.PidsLimit,
 		}); err != nil {
 			u.fail(w, err)
 			return

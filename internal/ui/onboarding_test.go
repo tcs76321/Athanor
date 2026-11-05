@@ -123,6 +123,18 @@ func TestOnboardingAdvancesAndCompletes(t *testing.T) {
 	}
 }
 
+func TestRecommendedResourcesIsAdaptive(t *testing.T) {
+	res := recommendedResources(Hardware{
+		TotalMemoryBytes: 16 << 30, HostMemoryBytes: 32 << 30, CPUs: 10,
+	})
+	if res.MemoryMB != 8192 || res.CPUsAllocated != 4 || res.TmpfsMB != 2048 || res.PidsLimit != 512 {
+		t.Errorf("adaptive resources = %+v", res)
+	}
+	if res.OutsideRuntimeGiB != 16 {
+		t.Errorf("memory outside runtime = %.0f GiB, want 16", res.OutsideRuntimeGiB)
+	}
+}
+
 func TestBudgetForUsesHostMemoryNotRuntimeMemory(t *testing.T) {
 	b := budgetFor(
 		[]setupModel{{SizeBytes: 20 << 30}},
@@ -200,7 +212,7 @@ func TestWelcomeResourcesStep(t *testing.T) {
 	t.Cleanup(ts.Close)
 
 	_, body := get(t, ts.URL+"/ui/welcome?step=resources")
-	for _, want := range []string{"Resources.", "GiB runtime RAM", "CPU cores", "Job Pod memory (MB)", "Save resource limits"} {
+	for _, want := range []string{"Resources.", "GiB runtime RAM", "CPU cores", "Adaptive sandbox", "Apply adaptive limits"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("resources step missing %q", want)
 		}
@@ -285,15 +297,21 @@ func TestWelcomeApplyResources(t *testing.T) {
 	if err := os.WriteFile(path, []byte("version: 2\njob_pod:\n  image: test-image\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	u := New(Deps{Store: nil, ConfigPath: path})
+	u := New(Deps{
+		Store: nil, ConfigPath: path,
+		Hardware: func(context.Context) Hardware {
+			return Hardware{TotalMemoryBytes: 16 << 30, HostMemoryBytes: 32 << 30, CPUs: 10}
+		},
+	})
 	mux := http.NewServeMux()
 	u.Register(mux)
 	ts := httptest.NewServer(mux)
 	t.Cleanup(ts.Close)
 
+	// The form values are ignored: limits are adaptive, not operator fields.
 	resp := postForm(t, ts.URL+"/ui/welcome", url.Values{
 		"step": {"resources"}, "action": {"apply_resources"},
-		"memory_mb": {"4096"}, "cpus": {"2"}, "tmpfs_mb": {"2048"}, "pids_limit": {"256"},
+		"memory_mb": {"999"}, "cpus": {"99"}, "tmpfs_mb": {"99999"}, "pids_limit": {"99999"},
 	})
 	if resp.StatusCode != http.StatusSeeOther {
 		t.Fatalf("apply resources status = %d", resp.StatusCode)
@@ -302,7 +320,7 @@ func TestWelcomeApplyResources(t *testing.T) {
 	if err != nil {
 		t.Fatalf("applied config does not load: %v", err)
 	}
-	if got.JobPod.MemoryMB != 4096 || got.JobPod.CPUs != 2 || got.JobPod.TmpfsMB != 2048 || got.JobPod.PidsLimit != 256 {
+	if got.JobPod.MemoryMB != 8192 || got.JobPod.CPUs != 4 || got.JobPod.TmpfsMB != 2048 || got.JobPod.PidsLimit != 512 {
 		t.Errorf("resources = %+v", got.JobPod)
 	}
 }
