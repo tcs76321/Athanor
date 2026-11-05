@@ -41,6 +41,29 @@ func TestParseWrappedObject(t *testing.T) {
 	}
 }
 
+func TestParseSalvagesTruncatedArray(t *testing.T) {
+	raw := `[{"title":"A","one_liner":"a"},{"title":"B","one_liner":"b"},{"title":"C"`
+	opts, err := Parse(raw)
+	if err != nil {
+		t.Fatalf("truncated array should salvage complete objects: %v", err)
+	}
+	if len(opts) != 2 || opts[0].Title != "A" || opts[1].Title != "B" {
+		t.Fatalf("salvaged = %+v, want the two complete objects", opts)
+	}
+}
+
+func TestParseAcceptsConcatenatedObjects(t *testing.T) {
+	raw := `{"title":"A","one_liner":"a"}
+{"title":"B","one_liner":"b"}`
+	opts, err := Parse(raw)
+	if err != nil {
+		t.Fatalf("concatenated objects should parse: %v", err)
+	}
+	if len(opts) != 2 || opts[0].Title != "A" || opts[1].Title != "B" {
+		t.Fatalf("parsed = %+v, want A and B", opts)
+	}
+}
+
 func TestDedupeAndValidate(t *testing.T) {
 	opts := Dedupe(append(sampleOptions(), sampleOptions()[0]))
 	if len(opts) != 6 {

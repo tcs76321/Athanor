@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/tcs76321/athanor/internal/config"
 	"github.com/tcs76321/athanor/internal/discovery"
@@ -29,8 +30,13 @@ func (g *discoveryGenerator) Generate(ctx context.Context, req discovery.Request
 		return "", fmt.Errorf("discovery: no tall/main persona configured")
 	}
 	maxTokens := g.cfg.Inference.MaxOutputTokens
-	if maxTokens <= 0 {
-		maxTokens = 4096
+	// A discovery portfolio is ten rich objects with ~20 fields each. The
+	// general 4096-token runaway guard truncates that JSON before the closing
+	// array and produces "response contains no JSON array"; discovery needs a
+	// larger, still bounded budget.
+	const discoveryMinOutputTokens = 12288
+	if maxTokens < discoveryMinOutputTokens {
+		maxTokens = discoveryMinOutputTokens
 	}
 	prompt := discovery.BuildPrompt(req)
 	req.Report(discovery.ProgressEvent{
@@ -48,7 +54,12 @@ func (g *discoveryGenerator) Generate(ctx context.Context, req discovery.Request
 		Temperature:   0.8,
 		ContextTarget: pc.ContextTarget,
 		MaxTokens:     maxTokens,
-		Format:        "json",
+		Think:         llm.Off(),
+		Format: map[string]any{
+			"type":     "array",
+			"minItems": 6,
+			"items":    map[string]any{"type": "object"},
+		},
 	}, func(tok string) {
 		streamed += len(tok)
 		tail += tok
@@ -63,6 +74,12 @@ func (g *discoveryGenerator) Generate(ctx context.Context, req discovery.Request
 	})
 	if err != nil {
 		return "", fmt.Errorf("discovery: model call: %w", err)
+	}
+	if strings.TrimSpace(resp.Content) == "" {
+		if resp.Thinking != "" {
+			return "", fmt.Errorf("discovery: model returned only hidden reasoning (%d chars); thinking is disabled for discovery", len(resp.Thinking))
+		}
+		return "", fmt.Errorf("discovery: model returned an empty response")
 	}
 	req.Report(discovery.ProgressEvent{
 		Stage: "response", Detail: "model response complete", Bytes: len(resp.Content), Tail: tail,

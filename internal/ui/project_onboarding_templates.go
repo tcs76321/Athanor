@@ -8,7 +8,7 @@ const projectOnboardingBody = `
   <a class="btn secondary" href="/ui/projects/{{.Project.ID}}/interview">Classic interview</a>
 </div>
 {{if .Requested}}<div class="notice">Access request queued in the Inbox. The host stays unused until the allowlist is updated in config.yaml.</div>{{end}}
-{{if .DiscoveryError}}<div class="notice bad">Discovery failed: {{.DiscoveryError}}<br>The brief is still saved; start discovery again when ready.</div>{{end}}
+{{if .DiscoveryError}}<div class="notice bad">Discovery failed: {{.DiscoveryError}}<br>The brief is still saved; start discovery again when ready.{{if .Run}}{{if .Run.Tail}}<details><summary>Raw model output (last 1200 chars)</summary><pre class="wrap">{{.Run.Tail}}</pre></details>{{end}}{{end}}</div>{{end}}
 
 <div class="grid onboard-grid">
   <div class="card">

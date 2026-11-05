@@ -18,6 +18,12 @@ New entries are appended at the top. Do not rewrite history.
   model output, refreshing every 2 seconds. It no longer shows a static 35%
   bar. Proofs: `TestProjectOnboardingShowsDiscoveryTransparency`,
   `TestDiscoveryProgressMapping`, `TestGenerateReportsDurableProgress`.
+- **Discovery handles real local-model output.** The single call now uses a
+  larger bounded output budget (12,288 tokens), a JSON-array response schema,
+  thinking disabled, and a tolerant parser that accepts a truncated array or
+  concatenated option objects. A failed run shows the raw tail in the error
+  notice. Proofs: `TestParseSalvagesTruncatedArray`,
+  `TestParseAcceptsConcatenatedObjects`.
 
 - **Qualification now runs inside the setup wizard.** The Qualification step
   starts the bounded run in place, shows a percent progress bar, elapsed time,

@@ -150,28 +150,65 @@ func Parse(raw string) ([]Option, error) {
 	s = strings.TrimPrefix(s, "```")
 	s = strings.TrimSuffix(s, "```")
 	s = strings.TrimSpace(s)
-	start := strings.Index(s, "[")
-	end := strings.LastIndex(s, "]")
-	if start < 0 || end <= start {
-		// Some models wrap the array in an object: {"options": [...]}.
-		if ostart := strings.Index(s, "{"); ostart >= 0 {
-			var wrapped struct {
-				Options []Option `json:"options"`
-			}
-			if err := json.Unmarshal([]byte(s[ostart:]), &wrapped); err == nil && len(wrapped.Options) > 0 {
-				return wrapped.Options, nil
+	if s == "" {
+		return nil, fmt.Errorf("discovery: empty response")
+	}
+	// The contract asks for an array. Try that first, including a fenced or
+	// prose-wrapped array.
+	if start := strings.Index(s, "["); start >= 0 {
+		if end := strings.LastIndex(s, "]"); end > start {
+			var out []Option
+			if err := json.Unmarshal([]byte(s[start:end+1]), &out); err == nil && len(out) > 0 {
+				return out, nil
 			}
 		}
-		return nil, fmt.Errorf("discovery: response contains no JSON array")
+		// A truncated array has no closing `]`; keep every complete object.
+		if body := s[start:]; !strings.Contains(body, "]") {
+			if last := strings.LastIndex(body, "}"); last >= 0 {
+				var out []Option
+				if err := json.Unmarshal([]byte(body[:last+1]+"]"), &out); err == nil && len(out) > 0 {
+					return out, nil
+				}
+			}
+		}
+		if out := parseSequence(s[start:]); len(out) > 0 {
+			return out, nil
+		}
 	}
+	// Some models wrap the array in an object: {"options": [...]}.
+	if start := strings.Index(s, "{"); start >= 0 {
+		var wrapped struct {
+			Options []Option `json:"options"`
+		}
+		if err := json.Unmarshal([]byte(s[start:]), &wrapped); err == nil && len(wrapped.Options) > 0 {
+			return wrapped.Options, nil
+		}
+		// Some models emit a sequence of option objects without the outer
+		// array. Accept that shape rather than failing a useful portfolio.
+		if out := parseSequence(s[start:]); len(out) > 0 {
+			return out, nil
+		}
+	}
+	return nil, fmt.Errorf("discovery: response contains no JSON options")
+}
+
+// parseSequence decodes one or more complete JSON objects from a fragment. It
+// is used for a truncated array and for a model that emits concatenated
+// option objects without the enclosing brackets; Validate still enforces the
+// portfolio's minimum size and spread.
+func parseSequence(s string) []Option {
+	dec := json.NewDecoder(strings.NewReader(s))
 	var out []Option
-	if err := json.Unmarshal([]byte(s[start:end+1]), &out); err != nil {
-		return nil, fmt.Errorf("discovery: decoding options: %w", err)
+	for {
+		var o Option
+		if err := dec.Decode(&o); err != nil {
+			break
+		}
+		if strings.TrimSpace(o.Title) != "" {
+			out = append(out, o)
+		}
 	}
-	if len(out) == 0 {
-		return nil, fmt.Errorf("discovery: empty option array")
-	}
-	return out, nil
+	return out
 }
 
 // Dedupe removes obvious duplicate titles, keeping the first occurrence.
