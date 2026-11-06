@@ -332,6 +332,7 @@ func (u *UI) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /ui/notifications/count", u.handleNotificationCount)
 	mux.HandleFunc("GET /ui/setup", u.handleSetup)
 	mux.HandleFunc("POST /ui/setup/qualify", u.handleQualifyStart)
+	mux.HandleFunc("POST /ui/setup/personas", u.handleSetupPersonas)
 	mux.HandleFunc("GET /ui/statistics", u.handleStatistics)
 	mux.HandleFunc("GET /ui/jobs", u.handleJobsIndex)
 	mux.HandleFunc("GET /ui/digest", u.handleDigest)

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -26,6 +27,7 @@ import (
 	"github.com/tcs76321/athanor/internal/review"
 	"github.com/tcs76321/athanor/internal/store"
 	"github.com/tcs76321/athanor/migrations"
+	"gopkg.in/yaml.v3"
 )
 
 type fakeFreezer struct{ frozen bool }
@@ -231,6 +233,57 @@ type fakePusher struct {
 func (f *fakePusher) RequestPush(_ context.Context, projectID, remote string) (hitl.Request, error) {
 	f.project, f.remote = projectID, remote
 	return hitl.Request{ID: "req1", Type: hitl.TypeGitPush}, nil
+}
+
+// TestSetupPersonasWritesConfig pins the post-onboarding routing write-back:
+// choosing an installed model and context target updates config.yaml without
+// hand-editing the file.
+func TestSetupPersonasWritesConfig(t *testing.T) {
+	fx := setup(t)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/tags" {
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"models": []map[string]any{{"name": "alpha", "size": 1024, "details": map[string]string{"family": "a"}}},
+			})
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"model_info": map[string]any{}})
+	}))
+	defer srv.Close()
+
+	cfg, err := config.Default()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.Inference.OllamaURL = srv.URL
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	raw, err := yaml.Marshal(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, raw, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	fx.ui.deps.Config = cfg
+	fx.ui.deps.ConfigPath = path
+	fx.ui.deps.Restart = nil
+
+	resp := postForm(t, fx.ts.URL+"/ui/setup/personas", url.Values{
+		"model_wide":       {"alpha"},
+		"context_wide":     {"16384"},
+		"model_security":   {"alpha"},
+		"context_security": {"8192"},
+	})
+	if resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303", resp.StatusCode)
+	}
+	updated, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(updated), "alpha") || !strings.Contains(string(updated), "16384") {
+		t.Errorf("config was not rewritten with the chosen routing:\n%s", updated)
+	}
 }
 
 // TestCompareArtifacts pins the candidate comparison: two artifacts render a

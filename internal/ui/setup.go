@@ -16,6 +16,7 @@ import (
 
 	"github.com/tcs76321/athanor/internal/config"
 	"github.com/tcs76321/athanor/internal/onboard"
+	"github.com/tcs76321/athanor/internal/store"
 )
 
 // qualKey is the `system_state` key for the UI's bounded qualification run.
@@ -128,6 +129,81 @@ type setupModel struct {
 	Measured bool
 }
 
+// handleSetupPersonas writes an operator-chosen routing table. The onboarding
+// wizard could already apply an automatic assignment; after setup there was no
+// way to change it without editing config.yaml. This is the same writer, with
+// explicit per-role choices and installed-model validation.
+func (u *UI) handleSetupPersonas(w http.ResponseWriter, r *http.Request) {
+	if u.deps.Config == nil || u.deps.ConfigPath == "" {
+		u.fail(w, fmt.Errorf("configuration is not available to the UI"))
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		u.fail(w, err)
+		return
+	}
+	models, err := u.modelCatalog(r.Context())
+	if err != nil {
+		u.fail(w, fmt.Errorf("reading installed models: %w", err))
+		return
+	}
+	updates := map[string]config.PersonaConfig{}
+	for _, role := range []string{"wide", "tall", "main", "security", "alternative"} {
+		model := strings.TrimSpace(r.FormValue("model_" + role))
+		if model == "" {
+			continue
+		}
+		if !modelInstalled(model, models) {
+			u.fail(w, fmt.Errorf("model %q is not installed", model))
+			return
+		}
+		pc, ok := u.deps.Config.Personas.Role(role)
+		if !ok {
+			pc = config.PersonaConfig{ContextTarget: 8192}
+		}
+		pc.Model = model
+		pc.ContextTarget = parseFormInt(r, "context_"+role, pc.ContextTarget)
+		if pc.ContextTarget < 2048 {
+			u.fail(w, fmt.Errorf("%s context target must be at least 2048", role))
+			return
+		}
+		for _, m := range models {
+			if m.Name == model {
+				if m.Family != "" {
+					pc.Family = m.Family
+				}
+				break
+			}
+		}
+		updates[role] = pc
+	}
+	if len(updates) == 0 {
+		u.fail(w, fmt.Errorf("choose at least one model"))
+		return
+	}
+	if err := config.UpdatePersonas(u.deps.ConfigPath, updates); err != nil {
+		u.fail(w, err)
+		return
+	}
+	if u.deps.Store != nil {
+		data := map[string]any{"event": "personas_applied", "source": "setup"}
+		for role, pc := range updates {
+			data[role] = pc.Model
+		}
+		_, _ = u.deps.Store.AppendEvent(r.Context(), store.Event{Category: "inference", Data: data})
+	}
+	if u.deps.Restart != nil {
+		u.writeRestartPage(w, "/ui/setup?applied=personas")
+		go func() {
+			time.Sleep(1500 * time.Millisecond)
+			u.deps.Restart()
+		}()
+		return
+	}
+	u.markRestartRequired(r.Context(), "persona routing changed")
+	http.Redirect(w, r, "/ui/setup?applied=personas", http.StatusSeeOther)
+}
+
 func (u *UI) handleSetup(w http.ResponseWriter, r *http.Request) {
 	cfg := u.deps.Config
 	data := map[string]any{
@@ -175,6 +251,7 @@ func (u *UI) handleSetup(w http.ResponseWriter, r *http.Request) {
 	data["Models"] = models
 	data["Roles"] = roles
 	data["State"] = state
+	data["Applied"] = r.URL.Query().Get("applied")
 	data["Stale"] = stale
 	hasMeasurements := false
 	if cfg != nil {

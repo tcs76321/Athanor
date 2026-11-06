@@ -27,14 +27,25 @@ const setupBody = `
 {{else}}<div class="empty">No models are installed. Pull one with <code>ollama pull &lt;model&gt;</code>, then reload.</div>{{end}}
 
 <h2>Personas</h2>
+{{if .Applied}}<div class="notice">Routing saved. The Core applies it on restart; if a restart banner is still shown, run the command it names.</div>{{end}}
 {{if .Roles}}
-<table><thead><tr><th>Role</th><th>Configured model</th><th>Family</th><th>Context</th><th>Installed</th></tr></thead><tbody>
+<form method="post" action="/ui/setup/personas">
+<div class="card flush"><div class="table-wrap">
+<table><thead><tr><th>Role</th><th>Model</th><th>Family</th><th>Context target</th><th>Installed</th></tr></thead><tbody>
 {{range .Roles}}<tr>
-  <td>{{.Role}}</td><td class="mono">{{.Model}}</td><td>{{.Family}}</td>
-  <td>{{.ContextTarget}}</td>
+  <td>{{.Role}}</td>
+  <td><select name="model_{{.Role}}" aria-label="{{.Role}} model">
+    {{$role := .}}{{range $.Models}}<option value="{{.Name}}" {{if eq .Name $role.Model}}selected{{end}}>{{.Name}}</option>{{end}}
+  </select></td>
+  <td>{{.Family}}</td>
+  <td><input type="number" name="context_{{.Role}}" value="{{.ContextTarget}}" min="2048" max="1048576" step="1024" class="w-90"></td>
   <td>{{if .Installed}}<span class="pill ok">yes</span>{{else}}<span class="pill bad">missing</span>{{end}}</td>
 </tr>{{end}}
 </tbody></table>
+</div></div>
+<div class="actions"><button class="primary">Save routing{{if .Roles}} and restart{{end}}</button></div>
+<p class="muted small">The model list is the installed catalog. Context targets are working windows, capped by each model's measured capacity; run <code>athanor models -audit</code> to refresh resident sizes.</p>
+</form>
 {{else}}<div class="empty">Configuration is not available to the UI.</div>{{end}}
 
 <h2>Measured model fit</h2>
