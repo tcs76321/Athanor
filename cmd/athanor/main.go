@@ -131,7 +131,7 @@ func usage() {
 
 commands:
   (default) serve    run the daemon: -config, -addr, -state-dir, -version
-  start              run doctor, then serve (M7-T7 onboarding)
+  start              run doctor, then start (or reuse) the Core Pod (M7-T7)
   init               write ./config.yaml containing every default value
   doctor             check the host, backend, and config (§30.2)
   models             per-role model inventory + routing proposal (M9-T2)

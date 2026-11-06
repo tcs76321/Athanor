@@ -24,7 +24,7 @@ func runProject(args []string) error {
 	fs := flag.NewFlagSet("project create", flag.ContinueOnError)
 	name := fs.String("name", "", "project name (required)")
 	archetype := fs.String("archetype", "", "deprecated compatibility override; normally inferred (code|data|document|text|media)")
-	goal := fs.String("goal", "", "project goal, 20-500 characters (required)")
+	goal := fs.String("goal", "", "project goal, 3-500 characters (required)")
 	repo := fs.String("repo", "", "repository root the indexer walks (optional)")
 	testCmd := fs.String("test-command", "", "advanced override; normally detected from the repository")
 	buildCmd := fs.String("build-command", "", "override the build command (optional)")
@@ -117,7 +117,7 @@ func runGoal(args []string) error {
 	}
 	fs := flag.NewFlagSet("goal submit", flag.ContinueOnError)
 	projectID := fs.String("project", "", "project id (required)")
-	goal := fs.String("goal", "", "goal text, 20-500 characters (required)")
+	goal := fs.String("goal", "", "goal text, 3-500 characters (required)")
 	var criteria criteriaFlag
 	fs.Var(&criteria, "criteria", "acceptance criteria, separated by ';'")
 	addr := fs.String("addr", defaultAddr, "daemon address")

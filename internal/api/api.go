@@ -436,8 +436,12 @@ func (a *API) handleProjectCreate(w http.ResponseWriter, r *http.Request) {
 		ex := executionFromRequest(req.Execution)
 		execution = &ex
 	}
+	// req.Archetype is accepted only as a wire-compatibility alias; the
+	// product path always infers capabilities and the test command from the
+	// goal and repository (ADR-0093). Passing it here would route to the
+	// legacy Create path, which invents pytest for a code project.
 	res, err := firstuse.Create(r.Context(), deps, firstuse.Input{
-		Name: req.Name, Archetype: req.Archetype, Goal: req.Goal,
+		Name: req.Name, Goal: req.Goal,
 		RepositoryPath: req.RepositoryPath, Criteria: req.Criteria,
 		Execution: execution, Start: start,
 	})
