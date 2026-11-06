@@ -92,7 +92,7 @@ func BuildPrompt(req Request) string {
 		fmt.Fprintf(&b, "FIRST CONCRETE DELIVERABLE: %s\n", req.Offer)
 	}
 	if req.Validation != "" {
-		fmt.Fprintf(&b, "FIRST VALIDATION: %s\n", req.Validation)
+		fmt.Fprintf(&b, "FIRST CHECK: %s\n", req.Validation)
 	}
 	if len(req.Constraints) > 0 {
 		b.WriteString("\nCONSTRAINTS:\n")
@@ -108,11 +108,11 @@ func BuildPrompt(req Request) string {
 	}
 	b.WriteString("\nReturn ONLY a JSON array of exactly 3 objects. Each object: {title, summary, tasks:[{title, description, capability, criteria:[...]}], risks:[...], assumptions:[...], confidence:0..1}.\n")
 	b.WriteString("RULES:\n")
-	b.WriteString("- The plans must be genuinely different: one fastest validation, one deepest quality, one lowest cost/least risky.\n")
+	b.WriteString("- The plans must be genuinely different: one fastest usable version, one deepest coverage, one leanest/least risky.\n")
 	b.WriteString("- Tasks must be concrete and ordered; include 4–8 tasks per plan.\n")
 	b.WriteString("- capability must be one of: code, data, document, text, media.\n")
 	b.WriteString("- Every task must be executable in 30 days and have at least one acceptance criterion.\n")
-	b.WriteString("- Cite only the allowed sources; do not invent market data.\n")
+	b.WriteString("- Cite only the allowed sources; do not invent data or citations.\n")
 	b.WriteString("- Output only the JSON array, no markdown or commentary.\n")
 	return b.String()
 }

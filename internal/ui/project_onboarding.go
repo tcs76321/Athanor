@@ -712,22 +712,27 @@ func (u *UI) auditProject(projectID, event string, data map[string]any) {
 // buildProjectPlan turns the chosen option and the brief into a reviewable
 // plan and a dependency-ordered task graph. It is deterministic: the same
 // inputs produce the same plan, and no model call is needed at approval time.
+// The wording follows the direction (audience, need, approach, deliverable),
+// never a business-pitch template.
 func buildProjectPlan(p project.Project, b projectBrief, o discovery.Option) (string, []project.TaskSpec) {
 	var out strings.Builder
 	fmt.Fprintf(&out, "# %s\n\n", o.Title)
 	fmt.Fprintf(&out, "**Direction:** %s\n\n", o.OneLiner)
 	fmt.Fprintf(&out, "**Project:** %s\n\n", p.Name)
-	fmt.Fprintf(&out, "## Why this direction\n\n")
-	fmt.Fprintf(&out, "- **Customer:** %s\n", o.Customer)
-	fmt.Fprintf(&out, "- **Pain:** %s\n", o.Pain)
-	fmt.Fprintf(&out, "- **Wedge:** %s\n", o.Wedge)
-	fmt.Fprintf(&out, "- **Business model:** %s\n", o.BusinessModel)
-	fmt.Fprintf(&out, "- **Pricing:** %s\n", o.Pricing)
-	fmt.Fprintf(&out, "- **First offer:** %s\n", o.FirstOffer)
-	fmt.Fprintf(&out, "- **Time to first revenue:** %d days\n", o.TimeToFirstRevenueDays)
-	fmt.Fprintf(&out, "- **Startup cost:** $%d\n", o.StartupCostUSD)
+	fmt.Fprintf(&out, "## The direction\n\n")
+	fmt.Fprintf(&out, "- **Domain:** %s · %s\n", o.Industry, o.Niche)
+	fmt.Fprintf(&out, "- **Audience:** %s\n", o.Customer)
+	fmt.Fprintf(&out, "- **Need:** %s\n", o.Pain)
+	fmt.Fprintf(&out, "- **Approach:** %s\n", o.Wedge)
+	fmt.Fprintf(&out, "- **Format:** %s\n", o.BusinessModel)
+	if o.Pricing != "" && !strings.EqualFold(strings.TrimSpace(o.Pricing), "not applicable") {
+		fmt.Fprintf(&out, "- **Access:** %s\n", o.Pricing)
+	}
+	fmt.Fprintf(&out, "- **First deliverable:** %s\n", o.FirstOffer)
+	fmt.Fprintf(&out, "- **Time to first deliverable:** %d days\n", o.TimeToFirstRevenueDays)
+	fmt.Fprintf(&out, "- **Setup cost:** $%d\n", o.StartupCostUSD)
 	if o.Competition != "" {
-		fmt.Fprintf(&out, "- **Competition:** %s\n", o.Competition)
+		fmt.Fprintf(&out, "- **Alternatives:** %s\n", o.Competition)
 	}
 	out.WriteString("\n## Assumptions to test\n\n")
 	if len(o.Assumptions) == 0 {
@@ -746,10 +751,10 @@ func buildProjectPlan(p project.Project, b projectBrief, o discovery.Option) (st
 		}
 	}
 	out.WriteString("\n## First 30 days\n\n")
-	fmt.Fprintf(&out, "1. **Validate demand.** %s\n", o.ValidationExperiment)
-	fmt.Fprintf(&out, "2. **Build the first offer.** %s\n", o.FirstOffer)
-	out.WriteString("3. **Find 25 prospects** and send a first, personal outreach message.\n")
-	out.WriteString("4. **Decide.** Review the evidence and choose go, adjust, or stop.\n")
+	fmt.Fprintf(&out, "1. **Gather the source material.** %s\n", o.ValidationExperiment)
+	fmt.Fprintf(&out, "2. **Produce the first deliverable.** %s\n", o.FirstOffer)
+	out.WriteString("3. **Check it against the brief.** Review coverage, accuracy, and the success criteria; record gaps.\n")
+	out.WriteString("4. **Decide the next iteration.** Keep what worked, fix what did not, and choose one concrete next step.\n")
 	out.WriteString("\n## Limits\n\n")
 	if len(b.Constraints) == 0 {
 		out.WriteString("- (none recorded)\n")
@@ -780,26 +785,35 @@ func buildProjectPlan(p project.Project, b projectBrief, o discovery.Option) (st
 	if len(b.Sources) > 0 {
 		sourceLine = " Allowed sources (fetch only these): " + strings.Join(b.Sources, " ")
 	}
+	// The primary output follows the project's inferred capability; the other
+	// tasks are deliberately prose so review and decisions stay readable.
+	primary := project.PrimaryCapability(p.Capabilities)
+	deliverable := project.InferTaskCapability(o.Title+" "+o.FirstOffer, p.Capabilities, p.RepositoryPath)
+	gather := project.CapabilityText
+	if primary == project.CapabilityData {
+		gather = project.CapabilityData
+	}
 	specs := []project.TaskSpec{
 		{
-			Key: "validate", Title: "Validate demand", Capability: project.CapabilityText,
-			Description: fmt.Sprintf("Run the validation experiment for %q: %s. Record what you learned, including who you spoke to, what they said, and whether they would pay.%s", o.Title, o.ValidationExperiment, sourceLine),
+			Key: "gather", Title: "Gather the source material", Capability: gather,
+			Description: fmt.Sprintf("Collect and read the material for %q. %s. Record what each source contributes, what is missing, and any conflicting claims. Cite only the allowed sources.%s", o.Title, o.ValidationExperiment, sourceLine),
+		},
+		{
+			Key: "deliverable", Title: "Produce the first deliverable", Capability: deliverable,
+			Description: fmt.Sprintf("Produce the first usable deliverable for %s: %s. Format: %s. Audience: %s. Need: %s. Follow the brief's limits and do not broaden the scope.%s", o.Title, o.FirstOffer, o.BusinessModel, o.Customer, o.Pain, sourceLine),
+			DependsOn:   []string{"gather"},
 			Criteria:    criteria,
 		},
 		{
-			Key: "offer", Title: "Draft the first offer", Capability: project.CapabilityText,
-			Description: fmt.Sprintf("Write the first paid offer for %s: %s. Include scope, price, a one-page description, and the exact ask. Customer: %s. Pain: %s.", o.Title, o.FirstOffer, o.Customer, o.Pain),
-			DependsOn:   []string{"validate"},
+			Key: "check", Title: "Check it against the brief", Capability: project.CapabilityDocument,
+			Description: "Review the deliverable against the brief and the success criteria. Record gaps, weak evidence, and anything that would mislead a reader. Do not rewrite the deliverable unless a gap requires it.",
+			DependsOn:   []string{"deliverable"},
+			Criteria:    criteria,
 		},
 		{
-			Key: "outreach", Title: "Build a prospect list and outreach", Capability: project.CapabilityText,
-			Description: fmt.Sprintf("Build a list of 25 concrete prospects for %s (%s), with a first personal outreach message and a follow-up. Do not send anything external without approval.", o.Customer, o.Niche),
-			DependsOn:   []string{"validate"},
-		},
-		{
-			Key: "decide", Title: "Decide go / adjust / stop", Capability: project.CapabilityDocument,
-			Description: "Synthesize the validation evidence, the offer, and the outreach results into a one-page decision: go, adjust, or stop. Include the next three actions and the evidence behind each conclusion.",
-			DependsOn:   []string{"validate", "offer", "outreach"},
+			Key: "next", Title: "Decide the next iteration", Capability: project.CapabilityDocument,
+			Description: "Write a short decision note: what was produced, what evidence supports it, what remains unverified, and one concrete next step. Keep it under one page.",
+			DependsOn:   []string{"check"},
 		},
 	}
 	if len(b.Sources) > 0 {
@@ -880,6 +894,12 @@ func (u *UI) approveProjectPlan(ctx context.Context, p project.Project, b projec
 	goalID, tasks, err := u.deps.Projects.CreateDAG(ctx, p.ID, goalText, criteria, specs)
 	if err != nil {
 		return fmt.Errorf("creating the plan: %w", err)
+	}
+	// The project create path makes a placeholder task so a metadata-only
+	// project is still addressable. The approved plan replaces it; discard it
+	// when nothing has run, so the project does not show a duplicate task.
+	if err := u.deps.Projects.DiscardInitialUnstartedTask(ctx, p.ID, goalID); err != nil {
+		return fmt.Errorf("retiring the pre-plan task: %w", err)
 	}
 	b.Status = "approved"
 	if err := u.saveBrief(ctx, b); err != nil {

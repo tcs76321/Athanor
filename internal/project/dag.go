@@ -157,6 +157,51 @@ func (r *Repo) TasksByProject(ctx context.Context, projectID string) ([]Task, er
 	return scanTasks(rows)
 }
 
+// DiscardInitialUnstartedTask retires the placeholder task created at project
+// create time once onboarding has built the approved plan. It only touches the
+// project's oldest goal, and only when none of that goal's tasks has a job or
+// an artifact: started work is never deleted. A missing placeholder is a no-op.
+func (r *Repo) DiscardInitialUnstartedTask(ctx context.Context, projectID, keepGoalID string) error {
+	tx, err := r.store.DB().BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("beginning placeholder cleanup: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	var goalID string
+	err = tx.QueryRowContext(ctx,
+		`SELECT id FROM goals WHERE project_id = ? AND id != ? ORDER BY rowid LIMIT 1`,
+		projectID, keepGoalID).Scan(&goalID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("finding the placeholder goal: %w", err)
+	}
+	var used int
+	if err := tx.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM tasks t
+		  WHERE t.goal_id = ?
+		    AND (EXISTS (SELECT 1 FROM jobs j WHERE j.task_id = t.id)
+		      OR EXISTS (SELECT 1 FROM artifacts a WHERE a.task_id = t.id))`,
+		goalID).Scan(&used); err != nil {
+		return fmt.Errorf("checking placeholder use: %w", err)
+	}
+	if used > 0 {
+		return nil
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM tasks WHERE goal_id = ?`, goalID); err != nil {
+		return fmt.Errorf("deleting placeholder tasks: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM goals WHERE id = ?`, goalID); err != nil {
+		return fmt.Errorf("deleting placeholder goal: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("committing placeholder cleanup: %w", err)
+	}
+	return nil
+}
+
 // scanTasks drains a tasks result set using the shared column mapping.
 func scanTasks(rows interface {
 	Next() bool

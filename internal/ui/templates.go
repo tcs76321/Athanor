@@ -399,11 +399,10 @@ const newProjectBody = `
   <label>Acceptance criteria (optional, one per line) <textarea name="criteria" rows="4" data-refine-field="project.criteria">{{.Criteria}}</textarea></label>
   <div class="actions">
     <button name="start" value="" class="primary">Create and continue to onboarding</button>
-    <button name="start" value="1" class="secondary">Create and start now</button>
   </div>
 </form>
 </div>
-<p class="muted">Onboarding asks for clarification, limits, web sources, and success criteria, then explores directions for exploratory goals. Approving a plan starts work. A repository-backed project is indexed once before the first job.</p>
+<p class="muted">Onboarding asks for clarification, limits, web sources, and success criteria, then explores directions for exploratory goals. Work starts only after you approve a plan. A repository-backed project is indexed once before the first job.</p>
 `
 
 const interviewBody = `

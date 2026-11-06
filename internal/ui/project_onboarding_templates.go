@@ -40,7 +40,7 @@ const projectOnboardingBody = `
         <textarea id="limitations" name="limitations" rows="3" data-refine-field="brief.limitations" placeholder="No ads, no cold calling, no regulated advice, no publishing without review.">{{.Brief.Limitations}}</textarea>
 
         <label for="sources">Sources or pages Athanor may read (one per line)</label>
-        <textarea id="sources" name="sources" rows="3" data-refine-field="brief.sources" placeholder="https://example.com/market-report">{{join .Brief.Sources}}</textarea>
+        <textarea id="sources" name="sources" rows="3" data-refine-field="brief.sources" placeholder="https://example.com/feed">{{join .Brief.Sources}}</textarea>
         <div class="field-help">These URLs are recorded in the approved plan. Research tasks fetch only allowlisted sources through the gateway; a domain outside the allowlist becomes an access request, not a silent fetch.</div>
         {{if .Sources}}
         <div class="stack">
@@ -62,7 +62,7 @@ const projectOnboardingBody = `
         {{end}}
 
         <label for="success">What would make this a success?</label>
-        <textarea id="success" name="success" rows="3" data-refine-field="brief.success" placeholder="Five customer conversations, one paid pilot, a decision with evidence.">{{.Brief.Success}}</textarea>
+        <textarea id="success" name="success" rows="3" data-refine-field="brief.success" placeholder="A daily report a reader can finish in ten minutes, with every claim traceable to a source.">{{.Brief.Success}}</textarea>
 
         <div class="actions">
           <button name="action" value="save" class="secondary">Save brief</button>
@@ -105,7 +105,7 @@ const projectOnboardingBody = `
   {{else if eq .Stage "choose"}}
     <div class="card">
       <h2>{{len .Session.Options}} directions</h2>
-      <p class="muted">Each option is a different customer and wedge. Scores are deterministic from the option's clarity, evidence, speed, capital, and risk — they are a reading aid, not a verdict. Choose the one you want to develop.</p>
+      <p class="muted">Each option is a different audience, need, and approach. Scores are deterministic from the option's clarity, evidence, speed, cost fit, and risk — they are a reading aid, not a verdict. Choose the one you want to develop.</p>
     </div>
     {{if .Run}}{{if eq .Run.Status "failed"}}<div class="notice bad">{{.Run.Error}}<div class="actions"><a class="btn secondary" href="/ui/projects/{{$.Project.ID}}/onboarding">Try again</a></div></div>{{end}}{{end}}
     <div class="grid cols-2">
