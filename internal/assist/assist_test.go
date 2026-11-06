@@ -47,6 +47,38 @@ func TestRefineParsesStructuredProposal(t *testing.T) {
 	}
 }
 
+func TestRefineAcceptsStringNotesAndAssumptions(t *testing.T) {
+	// Small local models often return notes as one string rather than an array.
+	gen := &fakeGen{out: `{"text":"The project goal is to continuously search for news, translate it, and produce daily English reports.","notes":"Restructured around the outcome and scope.","added_assumptions":["The audience is not stated."],"unchanged":false,"needs_clarification":false,"questions":[]}`}
+	res, err := New(gen).Refine(context.Background(), "project.goal", "search news, translate, report", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.HasPrefix(strings.TrimSpace(res.Text), "{") {
+		t.Fatalf("JSON leaked into the field text: %q", res.Text)
+	}
+	if !strings.Contains(res.Text, "daily English reports") {
+		t.Fatalf("text = %q", res.Text)
+	}
+	if len(res.Notes) != 1 || len(res.AddedAssumptions) != 1 {
+		t.Fatalf("result = %+v", res)
+	}
+}
+
+func TestRefineUnwrapsNestedJSONText(t *testing.T) {
+	gen := &fakeGen{out: `{"text":"{\"text\":\"A clear goal.\",\"notes\":[\"restructured\"]}","notes":[],"added_assumptions":[],"unchanged":false}`}
+	res, err := New(gen).Refine(context.Background(), "project.goal", "rough goal", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Text != "A clear goal." {
+		t.Fatalf("nested text = %q", res.Text)
+	}
+	if len(res.Notes) != 1 || res.Notes[0] != "restructured" {
+		t.Fatalf("nested notes = %+v", res.Notes)
+	}
+}
+
 func TestRefineAcceptsPlainTextFallback(t *testing.T) {
 	s := New(&fakeGen{out: "A clearer goal."})
 	res, err := s.Refine(context.Background(), "project.goal", "rough goal", "")

@@ -414,6 +414,19 @@ func modeInstruction(mode string) string {
 	}
 }
 
+// rawResult accepts the loose shapes small local models actually emit. The
+// model may send `notes`/`questions` as a single string instead of an array,
+// or encode the whole object inside the `text` string. A strict decode into
+// Result would reject the whole response and leak the JSON into the field.
+type rawResult struct {
+	Text               json.RawMessage `json:"text"`
+	Notes              json.RawMessage `json:"notes"`
+	AddedAssumptions   json.RawMessage `json:"added_assumptions"`
+	Unchanged          json.RawMessage `json:"unchanged"`
+	NeedsClarification json.RawMessage `json:"needs_clarification"`
+	Questions          json.RawMessage `json:"questions"`
+}
+
 func parseResult(raw string) Result {
 	clean := strings.TrimSpace(raw)
 	clean = strings.TrimPrefix(clean, "```json")
@@ -422,12 +435,108 @@ func parseResult(raw string) Result {
 	clean = strings.TrimSpace(clean)
 	if i := strings.Index(clean, "{"); i >= 0 {
 		if j := strings.LastIndex(clean, "}"); j > i {
-			var res Result
-			if json.Unmarshal([]byte(clean[i:j+1]), &res) == nil {
+			if res, ok := decodeResult([]byte(clean[i : j+1])); ok {
+				// A double-encoded answer can put the real proposal inside
+				// `text` as another JSON object.
+				if nested, ok := nestedResult(res.Text); ok {
+					return nested
+				}
 				return res
 			}
 		}
 	}
 	// Tolerant fallback: a plain-text answer is still usable.
 	return Result{Text: clean, Notes: []string{"the model returned plain text instead of structured notes"}}
+}
+
+func decodeResult(b []byte) (Result, bool) {
+	var r rawResult
+	if err := json.Unmarshal(b, &r); err != nil {
+		return Result{}, false
+	}
+	res := Result{
+		Text:               decodeString(r.Text),
+		Notes:              decodeStrings(r.Notes),
+		AddedAssumptions:   decodeStrings(r.AddedAssumptions),
+		Unchanged:          decodeBool(r.Unchanged),
+		NeedsClarification: decodeBool(r.NeedsClarification),
+		Questions:          decodeStrings(r.Questions),
+	}
+	return res, true
+}
+
+// nestedResult recognizes `{"text":{...}}` and `"{\"text\":...}"` shapes.
+func nestedResult(text string) (Result, bool) {
+	t := strings.TrimSpace(text)
+	if len(t) < 2 || t[0] != '{' || !strings.Contains(t, `"text"`) {
+		return Result{}, false
+	}
+	if res, ok := decodeResult([]byte(t)); ok && strings.TrimSpace(res.Text) != "" {
+		return res, true
+	}
+	return Result{}, false
+}
+
+func decodeString(raw json.RawMessage) string {
+	if len(raw) == 0 || string(raw) == "null" {
+		return ""
+	}
+	var s string
+	if err := json.Unmarshal(raw, &s); err == nil {
+		return s
+	}
+	// Some models wrap the field in an object: {"text":"..."}.
+	var obj struct {
+		Text string `json:"text"`
+	}
+	if err := json.Unmarshal(raw, &obj); err == nil && obj.Text != "" {
+		return obj.Text
+	}
+	return strings.TrimSpace(string(raw))
+}
+
+func decodeStrings(raw json.RawMessage) []string {
+	if len(raw) == 0 || string(raw) == "null" {
+		return nil
+	}
+	var list []string
+	if err := json.Unmarshal(raw, &list); err == nil {
+		return list
+	}
+	var one string
+	if err := json.Unmarshal(raw, &one); err == nil {
+		if strings.TrimSpace(one) == "" {
+			return nil
+		}
+		return []string{one}
+	}
+	var values []any
+	if err := json.Unmarshal(raw, &values); err == nil {
+		out := make([]string, 0, len(values))
+		for _, v := range values {
+			if s, ok := v.(string); ok && strings.TrimSpace(s) != "" {
+				out = append(out, s)
+			}
+		}
+		return out
+	}
+	return nil
+}
+
+func decodeBool(raw json.RawMessage) bool {
+	if len(raw) == 0 || string(raw) == "null" {
+		return false
+	}
+	var b bool
+	if err := json.Unmarshal(raw, &b); err == nil {
+		return b
+	}
+	var s string
+	if err := json.Unmarshal(raw, &s); err == nil {
+		switch strings.ToLower(strings.TrimSpace(s)) {
+		case "true", "yes", "1":
+			return true
+		}
+	}
+	return false
 }
