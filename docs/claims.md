@@ -94,11 +94,6 @@ demo. A claim without a proof is either removed or marked as a target.
 | A field can report “Idealized” or ask clarification instead of guessing | ADR-0105 | `assist.Result.Unchanged/NeedsClarification/Questions`; `TestRefineMarksIdealTextUnchanged`, `TestRefineAsksForClarificationWhenEmpty`, `TestRefineAsksForClarificationWhenVague` | **proven** |
 | Low-risk work can explore a runner-up and a measured panel can win | ADR-0104 | `composition.Pool.PreferPanel`, `engine.personaFor` exploration; `TestPreferPanelNeedsEvidence` | **proven structurally** |
 | Accepted work exports as a portable fine-tuning dataset | ADR-0104 | `internal/finetune.Export`; `athanor finetune`; `TestExportAcceptedWorkAsJSONL` | **proven** |
-
-
-
-
-
 | Embedding models are never persona candidates | ADR-0049, ADR-0099 | `onboard.IsChatModel`; `TestEmbeddingModelsAreNotPersonaCandidates` | **proven** |
 | `limits.max_concurrent_jobs` is a real ceiling subject to the power profile | ADR-0096 | `power.Ceiling`; `TestCeilingRespectsInteractiveAndOperatorMax` | **proven** |
 | Doctor reports a host GPU and does not claim one from inside the Core Pod | ADR-0096, `docs/linux-gpu.md` | `TestRunReportsGPU`, `TestRunReportsGPUNotVisibleFromCore`, `TestRunReportsNoGPU` | **proven with fake probes; host `nvidia-smi` is the live check** |
@@ -108,6 +103,21 @@ demo. A claim without a proof is either removed or marked as a target.
 | Artifacts and plans are readable Markdown without raw HTML | ADR-0095 | `internal/ui/markdown.go`; `TestRenderMarkdownEscapesHTML`, `TestRenderMarkdownRejectsUnsafeLinks` | **proven** |
 | A queued cancel commits `cancelled` and does not underflow the engine cap | ADR-0087, this pass | `internal/engine/control_race_test.go`; `TestCancelQueuedJobCommitsCancelled`, `TestAbandonedWaitDoesNotUnderflowInFlight` | **proven** |
 | An external pause during a phase is honored, not failed | this pass | `TestExternalPauseDuringPhaseDoesNotFailJob` | **proven** |
+| A UI handler panic is contained to one request | 2026-11-06 UX pass | `internal/server/recover.go`; `TestRecoverMiddlewareContainsPanic`, `TestRecoverMiddlewarePreservesFlusher` | **proven** |
+| Request errors use honest statuses and a truthful error page | 2026-11-06 UX pass | `internal/ui/ui.go` (`fail`); `TestMissingArtifactIs404` | **proven** |
+| A failed run explains its error and offers recovery | 2026-11-06 UX pass | `internal/ui/ui.go` (`failureReason`); `TestWatchShowsFailure`; illegal pause pinned by `TestWatchHidesIllegalPause` | **proven** |
+| The live stream catches events written during a reconnect gap | 2026-11-06 UX pass | `/ui/jobs/{id}/stream?after=`; `TestWatchCarriesLastEventID` | **proven** |
+| Approvals render as decisions with fields and expiry, not raw JSON | 2026-11-06 UX pass | `internal/ui/hitl_view.go`; `TestDashboardApprovalIsReadable`, `TestHITLFieldsOrdersKnownKeysFirst`, `TestExpiryLabel` | **proven** |
+| Artifacts are presented by kind; code candidates are source, not Markdown | 2026-11-06 UX pass | `internal/ui/artifact_view.go`; `TestCodeProposalRendersAsSource`, `TestArtifactModeFor` | **proven** |
+| A multi-file artifact is readable as files and downloadable byte-exactly | 2026-11-06 UX pass | `TestMultiFileArtifactShowsFilesAndBranch`, `TestArtifactDownloadServesExactBytes`; `GET /ui/artifacts/{id}/download` | **proven** |
+| Two artifacts can be compared as a structured file diff | 2026-11-06 UX pass | `GET /ui/compare`; `TestCompareArtifacts`, `TestFileDiffsSplitsTrees` | **proven** |
+| Search covers tasks and artifacts by project, not only their own labels | 2026-11-06 UX pass | `internal/ui/site.go`; `TestSearchFindsTasksAndArtifactsByProject` | **proven** |
+| Repository indexing runs in the background and reports status | 2026-11-06 UX pass | `internal/ui/index.go`; `TestProjectIndexIsAsync` | **proven** |
+| Runs and the digest are first-class UI surfaces | 2026-11-06 UX pass | `/ui/jobs`, `/ui/digest`; `TestDailySurfaces` | **proven** |
+| Persona routing is editable after onboarding with installed-model validation | 2026-11-06 UX pass | `POST /ui/setup/personas`; `TestSetupPersonasWritesConfig` | **proven** |
+| Freeze, active runs, and waiting approvals are visible on every page | 2026-11-06 UX pass | `internal/ui/ui.go` (`statusStrip`); `TestDailySurfaces` | **proven** |
+| The installed-model catalog is cached and pooled state is written only on change | 2026-11-06 UX pass | `internal/ui/setup.go` (`modelCatalog`); `TestModelCatalogIsCachedAndInvalidated`, `TestSyncChangedReportsRealChangesOnly` | **proven** |
+| Embedded assets revalidate with an ETag instead of downloading every load | 2026-11-06 UX pass | `internal/ui/assets.go`; `TestAssetsUseETag` | **proven** |
 
 ## Rule
 

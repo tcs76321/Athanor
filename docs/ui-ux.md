@@ -2,7 +2,27 @@
 
 **Status:** design note / proposal · **Date:** 2026-10-05 · **Refs:** ARCHITECTURE §20, §22, §27; ADR-0039 (local web UI); `internal/ui`
 
-## 0. Implementation status — 2026-11-04
+## 0. Implementation status — 2026-11-06
+
+The 2026-11-06 pass closed the biggest presentation and daily-loop gaps:
+
+- **Presentation.** Artifacts render by kind (source, dataset, configuration,
+  media, prose); code candidates no longer go through Markdown; multi-file
+  trees are per-file; code shows branch/commit; the exact bytes download; and
+  any two artifacts can be compared as a structured diff.
+- **Trust.** A failed run shows its error and recovery actions; approvals show
+  fields and an expiry countdown; alarms resolve from the Inbox; the shell keeps
+  freeze, active runs, and waiting approvals visible.
+- **Daily loop.** Runs, Digest, background re-index, in-UI push requests, and
+  insight promote/mute are reachable without the CLI. Persona routing is
+  editable in Setup with installed-model validation.
+- **Correctness/polish.** Handler panics are contained; error statuses are
+  honest; the error page no longer promises "nothing changed"; the live stream
+  catches up after a gap; the model catalog is cached; assets revalidate with an
+  ETag; search covers tasks and artifacts by project; project pages bound their
+  history.
+
+## 0a. Prior implementation status — 2026-11-04
 
 The GUI foundation and two-level onboarding are now implemented
 ([ADR-0095](adr/0095-first-class-gui-and-onboarding.md)):
@@ -33,7 +53,7 @@ Remaining polish is tracked in the implementation plan: richer candidate
 comparison, a dedicated Security/Network view (currently events filters),
 density controls, and a full visual QA pass at 4K.
 
-## 0a. Prior implementation status — 2026-10-29
+## 0b. Prior implementation status — 2026-10-29
 
 
 The shipped surface now includes the first-use shell (design system, responsive

@@ -15,6 +15,26 @@ are under "Open (2026-10-16 review)".
 
 ---
 
+## Fixed (2026-11-06 UX review)
+
+Static review of the web surface (`internal/ui`, `internal/server`) with the
+operating loop as the lens. Each item has a regression test named in the
+commit; the claims table carries the load-bearing rows.
+
+| Area | Fix |
+|---|---|
+| Server | A handler panic is contained to one request instead of resetting the connection; SSE keeps `http.Flusher`. |
+| Errors | Missing entities are 404 (not 400), storage errors do not leak, and the error page no longer falsely claims no state changed. |
+| Watch | The newest failure is promoted with the error and recovery actions; Pause is hidden where the state machine forbids it. |
+| Stream | `?after=` closes the page-render/connect gap; tokens append instead of O(n²) concat; event and output lists are capped. |
+| Approvals | Human labels, parsed fields, project/job links, and expiry countdown replace the raw JSON blob. |
+| Artifacts | Kind-aware reader (proposal code is source, not Markdown), per-file trees, branch/commit provenance, exact-byte download, per-file diffs, and arbitrary artifact comparison. |
+| Daily loop | Runs, Digest, alarm resolve, insight promote/mute, pushed HITL requests, and background re-index are in the UI. |
+| Setup | Persona routing is editable with installed-model validation and the same config writer as onboarding. |
+| Search | Tasks and artifacts match a project name; runs match task/project. |
+| Performance | Catalog cached; pool saved only on change; assets use an ETag; project history is bounded. |
+| Accessibility | Palette focus trap/`aria-activedescendant`, toast `aria-live`, mobile card scrolling. |
+
 ## Fixed (2026-11-05 hardening review)
 
 | Area | Fix |

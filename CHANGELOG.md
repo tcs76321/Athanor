@@ -10,6 +10,47 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### UX, trust, and daily-loop pass — 2026-11-06
+
+- **A handler panic no longer drops the connection.** `internal/server`
+  contains a panic to one request, preserves `http.Flusher` for SSE, and
+  leaves an already-started stream alone. `TestRecoverMiddleware*`.
+- **The error surface is honest.** Missing entities are 404, timeouts are
+  distinct, storage errors are replaced with a generic message, and the page
+  no longer claims "nothing was changed" for multi-step actions.
+- **A failed run explains itself.** The watch page promotes the newest
+  `job_failed`/`job_panicked` event with retry, trace, and project links; the
+  illegal Pause control is hidden for queued/awaiting jobs. The stream accepts
+  `?after=` so events written during a reconnect gap are delivered, token
+  output is appended instead of rebuilt, and both the event list and raw output
+  are capped.
+- **Approvals are decisions, not JSON.** The dashboard renders a human label,
+  the payload as fields, project/job links, and an explicit expiry countdown.
+- **Artifacts are presented by kind.** Code candidates render as source (not
+  Markdown), multi-file trees render per file with copy buttons, datasets and
+  configuration render as inert text, media never enters the page, and
+  `GET /ui/artifacts/{id}/download` serves the exact verified bytes. Code
+  artifacts show the agent branch and commit; diffs are per file.
+- **Candidates can be compared.** `GET /ui/compare?a=&b=` diffs any two
+  artifacts; the watch page has a compare form.
+- **Daily surfaces.** `/ui/jobs` is a filterable run history; `/ui/digest` is a
+  windowed morning digest; alarms resolve from the Inbox; strategy insights
+  promote/mute in Statistics; a project can file a HITL-gated push request.
+- **Repository indexing is backgrounded.** Project create and the project page
+  start a bounded index pass with visible status instead of blocking the
+  request.
+- **Persona routing is editable in Setup** with installed-model validation and
+  the same safe config writer used by onboarding.
+- **Search is wider.** Tasks and artifacts match a project name, and runs match
+  their task/project, not only id/state.
+- **The shell shows freeze, active runs, and waiting approvals on every page.**
+- **Performance.** The model catalog is cached (the 2s qualification poll no
+  longer performs `/api/tags` + N × `/api/show` per render), pooled state is
+  written only on change, embedded assets revalidate with an ETag, and project
+  pages bound their history.
+- **Polish.** Submit guards, palette focus trap/sequencing, mobile card
+  scrolling, toast `aria-live`, and a link-escaping fix (`&` is escaped once).
+
 ### Model capacity, context, and qualification — 2026-11-06
 
 - **The host reserve is operator-set.** `inference.host_reserve_mb` defaults to
