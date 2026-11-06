@@ -500,6 +500,24 @@ const projectBody = `
   </div>
 </div>
 
+{{if .Project.RepositoryPath}}
+<div class="card" {{if and .IndexRun (not .IndexRun.Done)}}data-live-card="index" data-live-interval="3000"{{end}}>
+  <div class="row row-middle">
+    <div>
+      <div class="eyebrow">Repository index</div>
+      {{if .IndexRun}}
+        <p class="muted">{{if .IndexRun.Done}}{{if eq .IndexRun.Status "failed"}}The last index pass failed.{{else}}The last index pass finished.{{end}}{{else}}Indexing the repository now; this runs in the background and feeds the Dormant Index.{{end}}
+        {{if .IndexRun.Error}}<span class="del">{{.IndexRun.Error}}</span>{{end}}</p>
+      {{else}}
+        <p class="muted">No index pass has run in this session. Indexing gives code jobs ranked repository context before their first call.</p>
+      {{end}}
+    </div>
+    <span class="pill {{if and .IndexRun (eq .IndexRun.Status "failed")}}bad{{else if and .IndexRun .IndexRun.Done}}ok{{else if .IndexRun}}run{{end}}">{{if .IndexRun}}{{.IndexRun.Status}}{{else}}not indexed{{end}}</span>
+  </div>
+  {{if .HasIndexer}}<div class="actions"><form method="post" action="/ui/projects/{{.Project.ID}}/index"><button class="secondary small">{{if .IndexRun}}Re-index repository{{else}}Index repository{{end}}</button></form></div>{{end}}
+</div>
+{{end}}
+
 <h2 id="work">Work</h2>
 {{range .Work}}
 <div class="card">
@@ -521,6 +539,7 @@ const projectBody = `
     <td class="muted">{{if .StartedAt}}{{.StartedAt | when}}{{end}}</td>
   </tr>{{end}}
   </tbody></table>
+  {{if gt .TotalJobs (len .Jobs)}}<p class="muted">Showing the latest {{len .Jobs}} of {{.TotalJobs}} runs. Open <a href="/ui/jobs?project={{.Task.ProjectID}}">Runs</a> for the full history.</p>{{end}}
   {{else}}<p class="muted">No job yet. Approve the plan or submit a goal.</p>{{end}}
 </div>
 {{else}}<div class="empty">No tasks yet.</div>{{end}}
@@ -545,6 +564,7 @@ const projectBody = `
   <td>{{if .SupersedesID}}<a href="/ui/artifacts/{{.ID}}/diff">diff</a>{{end}}</td>
 </tr>{{end}}
 </tbody></table>
+{{if gt .ArtifactsTotal (len .Artifacts)}}<p class="muted">Showing the latest {{len .Artifacts}} of {{.ArtifactsTotal}} artifacts.</p>{{end}}
 {{else}}<div class="empty">No artifacts yet.</div>{{end}}
 
 <h2 id="corrections">Corrections</h2>
@@ -553,6 +573,7 @@ const projectBody = `
 {{range .Corrections}}<tr><td>{{.Category}}</td><td>{{.Severity}}</td><td>{{.Scope}}</td><td>{{.Status}}</td><td class="muted">{{.DerivedRule}}</td></tr>
 {{end}}
 </tbody></table>
+{{if gt .CorrectionsTotal (len .Corrections)}}<p class="muted">Showing the latest {{len .Corrections}} of {{.CorrectionsTotal}} corrections.</p>{{end}}
 {{else}}<div class="empty">No corrections for this project.</div>{{end}}
 
 <h2>Reject / correct an artifact</h2>

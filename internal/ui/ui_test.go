@@ -233,6 +233,66 @@ func (f *fakePusher) RequestPush(_ context.Context, projectID, remote string) (h
 	return hitl.Request{ID: "req1", Type: hitl.TypeGitPush}, nil
 }
 
+// TestProjectIndexIsAsync pins the background index path: the request returns
+// immediately and the status becomes visible on the project page.
+func TestProjectIndexIsAsync(t *testing.T) {
+	fx := setup(t)
+	pre := &fakePreindexer{}
+	fx.ui.deps.Indexer = pre
+	resp := postForm(t, fx.ts.URL+"/ui/projects/"+fx.project.ID+"/index", url.Values{})
+	if resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303", resp.StatusCode)
+	}
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		run := fx.ui.indexView(fx.project.ID)
+		if run != nil && run.Done {
+			if run.Status != "done" || run.Error != "" {
+				t.Fatalf("index run = %+v, want done", run)
+			}
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("index did not finish: %+v", run)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if pre.calls != 1 || pre.project != fx.project.ID || pre.path != "/tmp/demo" {
+		t.Errorf("indexer = %+v, want one call for the project path", pre)
+	}
+	_, body := get(t, fx.ts.URL+"/ui/projects/"+fx.project.ID)
+	if !strings.Contains(body, "Repository index") || !strings.Contains(body, "done") {
+		t.Error("project page does not show the index status")
+	}
+}
+
+// TestSearchFindsTasksAndArtifactsByProject pins the wider search: a project
+// name matches its tasks and artifacts, not only the project row.
+func TestSearchFindsTasksAndArtifactsByProject(t *testing.T) {
+	fx := setup(t)
+	status, body := get(t, fx.ts.URL+"/ui/search?format=json&q=demo")
+	if status != http.StatusOK {
+		t.Fatalf("status = %d, want 200", status)
+	}
+	var out struct {
+		Results []struct {
+			Kind, Label string
+		} `json:"results"`
+	}
+	if err := json.Unmarshal([]byte(body), &out); err != nil {
+		t.Fatal(err)
+	}
+	kinds := map[string]bool{}
+	for _, r := range out.Results {
+		kinds[r.Kind] = true
+	}
+	for _, want := range []string{"Project", "Task", "Artifact"} {
+		if !kinds[want] {
+			t.Errorf("search for demo did not return a %s result: %#v", want, out.Results)
+		}
+	}
+}
+
 // TestDailySurfaces pins the new run history and digest pages.
 func TestDailySurfaces(t *testing.T) {
 	fx := setup(t)

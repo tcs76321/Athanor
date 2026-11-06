@@ -142,10 +142,17 @@ commands:
   digest             print the Morning Digest [-hours 12] (§27.2)
   project create     -name -goal [-criteria] [-repo] [-fixture-path] [-fixture-root] [-addr]
   goal submit        -project -goal [-criteria] [-addr]
+  goal decompose     -project -goal [-addr]    (persist a validated DAG)
   task reset         -id ID [-addr]            (unblock a stalled task, known-issues H8)
-  job watch          -job [-timeout] [-addr]   (streams progress, prints artifact)
+  job watch          -job [-timeout] [-addr]   (streams state and events, prints artifact)
   artifacts          -project [-addr]          (lists a project's artifacts)
   index              -project [-path] [-addr]  (index a project's repository)
+  export             -artifact ID [-addr]      (run the egress pipeline)
+  hitl list|approve|reject|defer               (the §20 approval queue)
+  push               -project [-remote] [-addr] (file a HITL-gated push request)
+  corrections        -project [-addr]          (list structured corrections)
+  reject             -artifact -reason ...     (record a structured rejection)
+  strategy           list|promote|mute|mine    (strategy insights)
   freeze             [-addr]                   (§22 kill switch)
   unfreeze           -reason "..." [-addr]     (requires a reason, logged)
   version            print version

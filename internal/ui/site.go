@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -150,58 +151,64 @@ func (u *UI) search(r *http.Request, q string) []searchResult {
 	}
 
 	if u.deps.Store != nil {
-		rows, err := u.deps.Store.DB().QueryContext(r.Context(),
+		ctx := r.Context()
+		for _, row := range queryRows(ctx, u.deps.Store.DB(),
 			`SELECT id, name, goal FROM projects
 			  WHERE instr(lower(name), lower(?)) > 0 OR instr(lower(goal), lower(?)) > 0
-			  ORDER BY updated_at DESC LIMIT 20`, q, q)
-		if err == nil {
-			defer func() { _ = rows.Close() }()
-			for rows.Next() {
-				var id, name, goal string
-				if rows.Scan(&id, &name, &goal) == nil {
-					out = append(out, searchResult{
-						Label: name, URL: "/ui/projects/" + url.PathEscape(id),
-						Kind: "Project", Detail: goal,
-					})
-				}
-			}
+			  ORDER BY updated_at DESC LIMIT 20`, scanSearchRow, q, q) {
+			out = append(out, searchResult{
+				Label: row[1], URL: "/ui/projects/" + url.PathEscape(row[0]),
+				Kind: "Project", Detail: row[2],
+			})
 		}
-
-		rows, err = u.deps.Store.DB().QueryContext(r.Context(),
-			`SELECT id, project_id, kind, status FROM artifacts
-			  WHERE instr(lower(kind), lower(?)) > 0 OR instr(lower(status), lower(?)) > 0
-			  ORDER BY created_at DESC LIMIT 20`, q, q)
-		if err == nil {
-			defer func() { _ = rows.Close() }()
-			for rows.Next() {
-				var id, projectID, kind, status string
-				if rows.Scan(&id, &projectID, &kind, &status) == nil {
-					out = append(out, searchResult{
-						Label: kind + " artifact", URL: "/ui/artifacts/" + url.PathEscape(id),
-						Kind: "Artifact", Detail: status + " · " + projectID,
-					})
-				}
-			}
+		for _, row := range queryRows(ctx, u.deps.Store.DB(),
+			`SELECT t.id, t.project_id, t.title, COALESCE(p.name, '')
+			  FROM tasks t LEFT JOIN projects p ON p.id = t.project_id
+			  WHERE instr(lower(t.title), lower(?)) > 0
+			     OR instr(lower(t.description), lower(?)) > 0
+			     OR instr(lower(p.name), lower(?)) > 0
+			  ORDER BY t.updated_at DESC LIMIT 20`, scanSearchRow, q, q, q) {
+			out = append(out, searchResult{
+				Label: row[2], URL: "/ui/projects/" + url.PathEscape(row[1]) + "#work",
+				Kind: "Task", Detail: row[3],
+			})
 		}
-
-		rows, err = u.deps.Store.DB().QueryContext(r.Context(),
-			`SELECT id, project_id, state FROM jobs
-			  WHERE instr(lower(id), lower(?)) > 0 OR instr(lower(state), lower(?)) > 0
-			  ORDER BY updated_at DESC LIMIT 20`, q, q)
-		if err == nil {
-			defer func() { _ = rows.Close() }()
-			for rows.Next() {
-				var id, projectID, state string
-				if rows.Scan(&id, &projectID, &state) == nil {
-					out = append(out, searchResult{
-						Label: "Job " + short(id), URL: "/ui/jobs/" + url.PathEscape(id),
-						Kind: "Job", Detail: state,
-					})
-				}
-			}
+		for _, row := range queryRows(ctx, u.deps.Store.DB(),
+			`SELECT a.id, a.kind, a.status, COALESCE(p.name, '')
+			  FROM artifacts a LEFT JOIN projects p ON p.id = a.project_id
+			  WHERE instr(lower(a.kind), lower(?)) > 0
+			     OR instr(lower(a.status), lower(?)) > 0
+			     OR instr(lower(p.name), lower(?)) > 0
+			     OR instr(lower(a.id), lower(?)) > 0
+			  ORDER BY a.created_at DESC LIMIT 20`, scanSearchRow, q, q, q, q) {
+			out = append(out, searchResult{
+				Label: row[1] + " artifact", URL: "/ui/artifacts/" + url.PathEscape(row[0]),
+				Kind: "Artifact", Detail: row[2] + " · " + row[3],
+			})
 		}
-
-		if events, err := u.deps.Store.QueryEvents(r.Context(), store.EventFilter{
+		for _, row := range queryRows(ctx, u.deps.Store.DB(),
+			`SELECT j.id, j.state, COALESCE(t.title, ''), COALESCE(p.name, '')
+			  FROM jobs j
+			  LEFT JOIN tasks t ON t.id = j.task_id
+			  LEFT JOIN projects p ON p.id = j.project_id
+			  WHERE instr(lower(j.id), lower(?)) > 0
+			     OR instr(lower(j.state), lower(?)) > 0
+			     OR instr(lower(t.title), lower(?)) > 0
+			     OR instr(lower(p.name), lower(?)) > 0
+			  ORDER BY j.updated_at DESC LIMIT 20`, scanSearchRow, q, q, q, q) {
+			detail := row[1]
+			if row[2] != "" {
+				detail += " · " + row[2]
+			}
+			if row[3] != "" {
+				detail += " · " + row[3]
+			}
+			out = append(out, searchResult{
+				Label: "Run " + short(row[0]), URL: "/ui/jobs/" + url.PathEscape(row[0]),
+				Kind: "Run", Detail: detail,
+			})
+		}
+		if events, err := u.deps.Store.QueryEvents(ctx, store.EventFilter{
 			Query: q, Desc: true, Limit: 20,
 		}); err == nil {
 			for _, e := range events {
@@ -216,6 +223,30 @@ func (u *UI) search(r *http.Request, q string) []searchResult {
 		out = out[:100]
 	}
 	return out
+}
+
+// scanSearchRow reads every column as a nullable string so the search queries
+// can share one scan helper and tolerate LEFT JOIN nulls.
+func scanSearchRow(rows *sql.Rows) ([]string, error) {
+	cols, err := rows.Columns()
+	if err != nil {
+		return nil, err
+	}
+	holders := make([]sql.NullString, len(cols))
+	ptrs := make([]any, len(cols))
+	for i := range holders {
+		ptrs[i] = &holders[i]
+	}
+	if err := rows.Scan(ptrs...); err != nil {
+		return nil, err
+	}
+	out := make([]string, len(cols))
+	for i := range holders {
+		if holders[i].Valid {
+			out[i] = holders[i].String
+		}
+	}
+	return out, nil
 }
 
 func short(s string) string {

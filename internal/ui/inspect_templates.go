@@ -73,6 +73,7 @@ const artifactIndexBody = inspectTabs + `
   <td><a href="/ui/artifacts/{{.ID}}">open</a></td>
 </tr>{{end}}
 </tbody></table>
+<p class="muted">Showing the newest 200 artifacts. Use search or a project to narrow the list.</p>
 {{else}}<div class="empty">No artifacts yet.</div>{{end}}
 `
 

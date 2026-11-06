@@ -226,6 +226,12 @@ type UI struct {
 	catalogErr  string
 	catalogAt   time.Time
 	catalogBase string
+	// indexMu/indexRuns track the bounded repository index pass started from
+	// project create or the project page. Progress is in-memory (the durable
+	// manifest is the indexer's own state); a Core restart simply shows no
+	// run and offers the button again.
+	indexMu   sync.Mutex
+	indexRuns map[string]*indexRun
 	// exporter is optional: the egress pipeline is wired after the UI is
 	// constructed, so it is a setter rather than a New() field.
 	exporter Exporter
@@ -237,7 +243,7 @@ type UI struct {
 
 // New builds a UI.
 func New(deps Deps) *UI {
-	u := &UI{deps: deps, hub: NewHub(), theme: "monokai", pulls: map[string]*pullProgress{}, discRuns: map[string]*discoveryRun{}, planRuns: map[string]*planRun{}, done: make(chan struct{})}
+	u := &UI{deps: deps, hub: NewHub(), theme: "monokai", pulls: map[string]*pullProgress{}, discRuns: map[string]*discoveryRun{}, planRuns: map[string]*planRun{}, indexRuns: map[string]*indexRun{}, done: make(chan struct{})}
 	if deps.Store != nil {
 		var saved string
 		if err := deps.Store.DB().QueryRow(
@@ -317,6 +323,7 @@ func (u *UI) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /ui/projects/{id}/onboarding", u.handleProjectOnboarding)
 	mux.HandleFunc("POST /ui/projects/{id}/onboarding", u.handleProjectOnboardingPost)
 	mux.HandleFunc("POST /ui/projects/{id}/goals", u.handleGoalCreate)
+	mux.HandleFunc("POST /ui/projects/{id}/index", u.handleProjectIndex)
 	mux.HandleFunc("POST /ui/tasks/{id}/reset", u.handleTaskReset)
 	mux.HandleFunc("POST /ui/projects/{id}/corrections", u.handleCorrectionCreate)
 	mux.HandleFunc("GET /ui/corrections", u.handleCorrections)
@@ -619,6 +626,13 @@ func (u *UI) handleProjectCreate(w http.ResponseWriter, r *http.Request) {
 		u.render(w, "New project", newProjectBody, values)
 		return
 	}
+	if repo != "" && !start {
+		// The UI path continues into onboarding rather than starting a job
+		// immediately, so the bounded index runs in the background instead of
+		// blocking the create request. The start=true path already indexed
+		// synchronously inside firstuse.Create.
+		u.startIndex(res.Project)
+	}
 	if !start {
 		http.Redirect(w, r, "/ui/projects/"+res.Project.ID+"/onboarding", http.StatusSeeOther)
 		return
@@ -661,8 +675,19 @@ func (u *UI) handleProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	type workItem struct {
-		Task project.Task
-		Jobs []job.Job
+		Task      project.Task
+		Jobs      []job.Job
+		TotalJobs int
+	}
+	const maxProjectJobs = 20
+	const maxProjectRows = 100
+	artsTotal := len(arts)
+	if len(arts) > maxProjectRows {
+		arts = arts[:maxProjectRows]
+	}
+	corrTotal := len(corr)
+	if len(corr) > maxProjectRows {
+		corr = corr[:maxProjectRows]
 	}
 	work := make([]workItem, 0, len(tasks))
 	for _, t := range tasks {
@@ -671,11 +696,17 @@ func (u *UI) handleProject(w http.ResponseWriter, r *http.Request) {
 			u.fail(w, err)
 			return
 		}
-		work = append(work, workItem{Task: t, Jobs: jobs})
+		total := len(jobs)
+		if len(jobs) > maxProjectJobs {
+			jobs = jobs[:maxProjectJobs]
+		}
+		work = append(work, workItem{Task: t, Jobs: jobs, TotalJobs: total})
 	}
 	u.render(w, "Project "+p.Name, projectBody, map[string]any{
 		"Project": p, "Artifacts": arts, "Corrections": corr, "Work": work,
+		"ArtifactsTotal": artsTotal, "CorrectionsTotal": corrTotal,
 		"CanPush": u.deps.Pusher != nil, "PushRequested": r.URL.Query().Get("push") == "requested",
+		"IndexRun": u.indexView(p.ID), "HasIndexer": u.deps.Indexer != nil,
 	})
 }
 
