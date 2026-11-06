@@ -10,6 +10,46 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Containment and durability hardening — 2026-11-05
+
+- **Job Pod execution is bounded and race-free.** `Exec` reads pod state under
+  the manager lock; `podman exec` output is capped at 256 KiB per stream so a
+  chatty test cannot OOM the Core; stale token directories are swept at boot.
+  Proofs: `TestStart_KeepsTokenInMemoryByDefault`, `TestCappedStream*`,
+  `make test-integration`.
+- **Accepted trees cannot write through repository symlinks.** Git-as-undo
+  canonicalizes the parent, rejects a symlinked destination, and replaces a
+  sibling temp file atomically. Proof: `TestGitClientCommitTreeRefusesTrackedSymlink`.
+- **Artifact bytes are durable before the row commits.** Content is written
+  through a temp file + fsync + rename, so a power loss cannot leave a committed
+  artifact with missing bytes. Proof: `TestWriteContentAtomicReplacesSymlinkWithoutFollowing`.
+- **The job token no longer enters untrusted pod code by default.** The Core
+  keeps it in memory for its own internal-API calls; `/run/athanor` is opt-in
+  (`Spec.MountToken`). The read-only mount remains available for a future
+  pod→Core direction.
+- **Inbox and egress survive restarts.** Startup rescans existing inbox files,
+  watches subdirectories, and the egress cursor is persisted in `system_state`.
+- **Persisted state failures are loud.** Composition pool, operator mode, and
+  onboarding/qualification reads distinguish `ErrNoRows`; an operator `Set` that
+  cannot persist restores the old in-memory mode and returns the error.
+- **Migration files are checksummed.** Editing an applied migration is now a
+  loud forward-only violation.
+- **Event reads are bounded.** `GET /jobs/{id}/events` takes `limit` plus
+  `after_id`/`before_id`; the watch page uses a 100-row newest-first read; page
+  templates are parsed once and cached.
+- **CLI and config honesty.** CLI requests have a 10-minute client timeout;
+  multi-document YAML configs are rejected; the API always infers capabilities
+  instead of honoring a legacy archetype; CLI help matches the 3–500 goal floor.
+- **Core Pod and packaging.** Core launch adds `no-new-privileges` and a pids
+  cap; the scratch host directory is `0700`; the optional
+  `jobpod-polyglot-image` target documents and provides non-Python toolchains.
+- **CI.** The test job verifies both frozen corpus digests; coverage floors now
+  include the ingress/egress/scanner, internal runner, jobpod, composition,
+  assist, operator, onboard, and finetune packages.
+- **Docs.** Personas are documented as presets under ADR-0104, the tmpfs/token
+  descriptions match the code, and the first-use table is marked historical.
+- **Budget.** Reasoning tokens count toward live spend and outcome cost.
+
 ### Field authoring assist — 2026-11-05
 
 - **Every major prompt field gets a wand.** A small button beside project and
