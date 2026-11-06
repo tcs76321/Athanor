@@ -41,7 +41,10 @@ func (u *UI) handleAssets(w http.ResponseWriter, r *http.Request) {
 	default:
 		w.Header().Set("Content-Type", "application/octet-stream")
 	}
-	w.Header().Set("Cache-Control", "public, max-age=3600")
+	// Revalidate embedded assets on every page load. A one-hour public cache
+	// served the previous stylesheet after a Core update, which made a fixed
+	// layout still look broken in an already-open browser.
+	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	http.ServeContent(w, r, name, time.Time{}, bytes.NewReader(data))
 }
