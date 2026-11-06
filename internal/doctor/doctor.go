@@ -327,9 +327,11 @@ func (r *Report) checkGit(p Probes) {
 	r.add(Check{Name: "git", Status: StatusOK, Detail: path})
 }
 
-// checkOllama verifies the backend is reachable and every persona model is
-// installed. A missing model is a hard failure with the exact `ollama pull`
-// remediation (§30.2).
+// checkOllama verifies the backend is reachable and reports configured model
+// availability. A missing model is a warning, not a hard failure: the model
+// pool is the authoritative repertoire, and the operator may intentionally
+// keep legacy persona entries uninstalled. The remediation still names the
+// exact pull.
 func (r *Report) checkOllama(ctx context.Context, cfg *config.Config, p Probes) {
 	ver, err := p.OllamaVersion(ctx, cfg.Inference.OllamaURL)
 	if err != nil {
@@ -357,13 +359,13 @@ func (r *Report) checkOllama(ctx context.Context, cfg *config.Config, p Probes) 
 	if len(missing) > 0 {
 		r.add(Check{
 			Name:        "models",
-			Status:      StatusFail,
-			Detail:      "missing persona model(s): " + strings.Join(missing, ", "),
+			Status:      StatusWarn,
+			Detail:      "configured model(s) not installed: " + strings.Join(missing, ", "),
 			Remediation: pullCommand(missing),
 		})
 		return
 	}
-	r.add(Check{Name: "models", Status: StatusOK, Detail: "all persona models present"})
+	r.add(Check{Name: "models", Status: StatusOK, Detail: "all configured models present"})
 }
 
 // modelPresent reports whether want is installed. An exact match (modulo

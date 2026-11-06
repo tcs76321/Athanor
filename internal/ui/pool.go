@@ -306,32 +306,51 @@ func inferenceFitBytes(hw Hardware) int64 {
 	return limit
 }
 
-// poolSuggestions recommends a small, diverse starter set when the pool is
-// short. It never recommends a model that is already installed: the user
-// controls pulls.
-func (u *UI) poolSuggestions(models []setupModel, pool poolView) []pullSuggestion {
-	if pool.Count >= pool.Min {
-		return nil
-	}
+// poolSuggestions recommends a small, size-appropriate core set when the
+// machine is missing one. It never requires a model: pulls are explicit and
+// the pool warning is advisory. At most four are suggested.
+func (u *UI) poolSuggestions(models []setupModel, hw Hardware) []pullSuggestion {
 	installed := map[string]bool{}
 	for _, m := range models {
 		installed[m.Name] = true
 	}
-	candidates := []pullSuggestion{
-		{Model: "granite4.2:3b", Reason: "small, tool-friendly, and long-context"},
-		{Model: "gemma4:12b-mlx", Reason: "strong general writer; different family"},
-		{Model: "ornith-1.5:9b", Reason: "independent second opinion"},
-		{Model: "qwen2.5-coder:7b", Reason: "code and repository work"},
+	hostGiB := float64(hw.HostMemoryBytes) / (1 << 30)
+	if hostGiB == 0 {
+		hostGiB = float64(hw.TotalMemoryBytes) / (1 << 30)
 	}
-	out := make([]pullSuggestion, 0, pool.Min-pool.Count)
-	for _, c := range candidates {
-		if len(out) >= pool.Min-pool.Count {
-			break
+	var candidates []pullSuggestion
+	switch {
+	case hostGiB > 0 && hostGiB <= 16:
+		candidates = []pullSuggestion{
+			{Model: "granite4.2:3b", Reason: "small and tool-friendly"},
+			{Model: "gemma4:e4b-mlx", Reason: "different family, long context"},
+			{Model: "ornith-1.5:9b", Reason: "independent second opinion"},
+			{Model: "bonsai-2:9b", Reason: "small alternative perspective"},
 		}
+	case hostGiB > 40:
+		candidates = []pullSuggestion{
+			{Model: "gemma4:12b-mlx", Reason: "strong general writer"},
+			{Model: "qwen3.8:27b-mlx", Reason: "deep work on a large host"},
+			{Model: "granite4.2:8b", Reason: "different family, tool-friendly"},
+			{Model: "ornith-1.5:9b", Reason: "independent second opinion"},
+		}
+	default:
+		candidates = []pullSuggestion{
+			{Model: "granite4.2:8b", Reason: "balanced, tool-friendly"},
+			{Model: "gemma4:12b-mlx", Reason: "strong general writer"},
+			{Model: "ornith-1.5:9b", Reason: "independent second opinion"},
+			{Model: "bonsai-2:9b", Reason: "small alternative perspective"},
+		}
+	}
+	out := make([]pullSuggestion, 0, 4)
+	for _, c := range candidates {
 		if installed[c.Model] {
 			continue
 		}
 		out = append(out, c)
+		if len(out) == 4 {
+			break
+		}
 	}
 	return out
 }

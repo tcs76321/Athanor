@@ -268,7 +268,7 @@ func TestRunMissingModel(t *testing.T) {
 	p.models = []string{"qwen2.5:7b", "qwen2.5-coder:32b", "mistral-nemo:12b", "llama3.1:8b"}
 	rep := runAll(t, goodConfig(t), p)
 	c := findCheck(rep, "models")
-	if c == nil || c.Status != StatusFail {
+	if c == nil || c.Status != StatusWarn {
 		t.Fatalf("models check = %+v", c)
 	}
 	if !strings.Contains(c.Remediation, "ollama pull phi3:3.8b") {

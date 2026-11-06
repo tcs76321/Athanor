@@ -10,6 +10,23 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Model readiness without forced personas; a longer qualification — 2026-11-05
+
+- **Missing legacy persona models are a warning, not a failure.** The doctor and
+  the environment step no longer fail a fresh install because the built-in
+  default personas are absent; the measured pool is authoritative. The
+  remediation is still shown, but it does not block setup.
+- **A size-aware, optional core set appears before qualification.** The Models
+  step suggests at most four modern models for this machine's RAM and lets the
+  operator pull them explicitly. Nothing is required, and every model remains
+  removable.
+- **Qualification is longer and broader.** Smoke is now 14 grounded cases per
+  model (6 generation, 8 judgment); deep is 24 (12 generation, 12 judgment),
+  adding data counting/filtering, document extraction/citation, API behavior,
+  boundary handling, secret hygiene, test quality, and citation honesty.
+  Proofs: `TestDefaultLadderIsWellFormed`, `TestDeepLadderExtendsSmoke`,
+  `TestRunMissingModel` (warn).
+
 ### Self-applying resources, model management, and deeper selection — 2026-11-05
 
 - **Resources are adjustable and the Core restarts itself.** The first-use

@@ -28,7 +28,7 @@ const welcomeBody = `
     <h1>Welcome to Athanor.</h1>
     <p class="lede">A local-first workshop for goals that need more than one answer. Athanor turns a goal into a plan, explores options, runs work in isolated Job Pods, verifies what it produces, and asks you before anything external or irreversible happens.</p>
     <div class="grid cols-3">
-      <div class="card"><h3>1 · Set up the machine</h3><p class="muted">Check the Core, Ollama, and persona models. Pull anything missing with one click.</p></div>
+      <div class="card"><h3>1 · Set up the machine</h3><p class="muted">Check the Core, Ollama, and the model pool. Pull anything you want with one click.</p></div>
       <div class="card"><h3>2 · Create a project</h3><p class="muted">A goal, the limits, and the sources you allow. Athanor asks first, then explores.</p></div>
       <div class="card"><h3>3 · Review the work</h3><p class="muted">Read the result, rate it, and decide what happens next. Nothing leaves your machine by default.</p></div>
     </div>
@@ -39,7 +39,7 @@ const welcomeBody = `
     {{else if eq .Step "environment"}}
     <div class="eyebrow">Step {{.StepNumber}} of {{.StepCount}}</div>
     <h1>Final environment check.</h1>
-    <p class="lede">This is the readiness summary: Podman, Git, Ollama, persona models, memory, disk, state, the Job Pod image, context floors, network posture, and power. Fix anything red before you finish. No separate CLI command is required.</p>
+    <p class="lede">This is the readiness summary: Podman, Git, Ollama, the model pool, memory, disk, state, the Job Pod image, context floors, network posture, and power. Fix anything red before you finish. Missing legacy persona models are a warning, not a failure; the pool is authoritative. No separate CLI command is required.</p>
     <div class="actions"><a class="btn secondary small" href="/ui/welcome?step=environment">Run checks again</a></div>
     <div class="card flush">
       <div class="table-wrap">
@@ -172,9 +172,9 @@ const welcomeBody = `
     {{else}}<div class="empty">No models are installed. Pull one below, or run <code>ollama pull &lt;model&gt;</code> on the host.</div>{{end}}
 
     {{if .Suggestions}}
-    <h2>Suggested pulls</h2>
+    <h2>Core set for this machine</h2>
     <div class="card">
-      <p class="muted">This configuration expects these models and they are not installed. Sizes are shown by Ollama before the pull; nothing starts automatically.</p>
+      <p class="muted">Athanor suggests at most four models for a machine this size. Nothing is required: pull only what you want, and you can remove any model from the pool later.</p>
       <div class="stack">
         {{range .Suggestions}}
         <div class="row row-middle">
@@ -225,7 +225,7 @@ const welcomeBody = `
     {{else}}
     <div class="grid cols-2">
       <div class="card"><h3>Why run it</h3><p class="muted">It ranks the models on this computer for the work you actually do, so Athanor can cast each job instead of guessing from model size or reputation.</p></div>
-      <div class="card"><h3>What it costs</h3><p class="muted">A few model calls per model, bounded and resumable. Heavy qualification belongs in Deep, not while you are using the machine.</p></div>
+      <div class="card"><h3>What it costs</h3><p class="muted">Smoke is roughly 14 calls per model; deep is roughly 24 and adds long-context, schema, code repair, injection, and data-integrity cases. Both are bounded and resumable. Deep takes longer and is more accurate.</p></div>
     </div>
     <div class="card">
       {{if .Qualification.Error}}<p class="del">{{.Qualification.Error}}</p>{{end}}

@@ -65,6 +65,10 @@ func DefaultLadder() Ladder {
 			{ID: "gen-bug", Check: CheckExact, Want: "1", Capability: "code",
 				Prompt: "How many times does this loop print? Reply with only the integer.\n\n" +
 					"for i in range(0, 3, 2):\n    print(i)"},
+			{ID: "gen-data-count", Check: CheckExact, Want: "2", Capability: "data",
+				Prompt: `Count the integer values in this JSON array and reply with only the count: [1, "two", 3, null, 4.5]`},
+			{ID: "gen-doc-colour", Check: CheckExact, Want: "blue", Capability: "document",
+				Prompt: "Read the note and reply with only the car colour.\n\nThe door is green. The car is blue. The roof is grey."},
 		},
 		Judges: []JudgeCase{
 			{
@@ -97,6 +101,16 @@ func DefaultLadder() Ladder {
 				Good: "with open(path) as f:\n    return f.read()",
 				Bad:  "f = open(path)\nreturn f.read()",
 			},
+			{
+				ID: "judge-boundary", Goal: "A function divides two numbers and must handle a zero denominator explicitly.",
+				Good: "def div(a, b):\n    if b == 0:\n        raise ValueError(\"division by zero\")\n    return a / b",
+				Bad:  "def div(a, b):\n    return a / b",
+			},
+			{
+				ID: "judge-secret", Goal: "A client authenticates with a token but must never write the token to logs.",
+				Good: "log.info(\"request authorized\")\nreturn client.get(url, headers=headers)",
+				Bad:  "log.info(f\"token={token}\")\nreturn client.get(url, headers=headers)",
+			},
 		},
 	}
 }
@@ -124,6 +138,21 @@ func DeepLadder() Ladder {
 				"What is the correct return value for `count(1, 2, 3)` after the fix? Reply with only the integer.\n\n" +
 				"def count(*args):\n    return len(args) - 1",
 		},
+		GenCase{
+			ID: "gen-doc-cite", Check: CheckExact, Want: "S2", Capability: "document",
+			Prompt: "Which source supports the claim that the cache is warm? Reply with only the source id.\n\n" +
+				"S1: The cache was cleared at noon. S2: The cache was warm after the first run. S3: The logs rotate daily.",
+		},
+		GenCase{
+			ID: "gen-data-filter", Check: CheckJSON, Capability: "data",
+			Want:   `["a","c"]`,
+			Prompt: `Return only JSON: the names where active is true. Input: [{"name":"a","active":true},{"name":"b","active":false},{"name":"c","active":true}]`,
+		},
+		GenCase{
+			ID: "gen-code-api", Check: CheckExact, Want: "404", Capability: "code",
+			Prompt: "A REST endpoint receives a request for a resource that does not exist. " +
+				"Reply with only the HTTP status code it should return.",
+		},
 	)
 	l.Judges = append(l.Judges,
 		JudgeCase{
@@ -137,6 +166,18 @@ func DeepLadder() Ladder {
 			Goal: "Validate every record and fail loudly instead of silently dropping invalid rows.",
 			Good: "for r in rows:\n    validate(r)\n    out.append(r)",
 			Bad:  "for r in rows:\n    try:\n        validate(r)\n        out.append(r)\n    except Exception:\n        pass",
+		},
+		JudgeCase{
+			ID:   "judge-test-quality",
+			Goal: "A test must prove the function rejects an empty input, not merely sleep or print.",
+			Good: "def test_empty():\n    with pytest.raises(ValueError):\n        parse(\"\")",
+			Bad:  "def test_empty():\n    parse(\"\")\n    time.sleep(1)",
+		},
+		JudgeCase{
+			ID:   "judge-citation",
+			Goal: "A summary must cite the provided source and must not invent one.",
+			Good: "The cache was warm after the first run [S2].",
+			Bad:  "The cache was warm after the first run [S7].",
 		},
 	)
 	return l

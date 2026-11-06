@@ -87,6 +87,9 @@ demo. A claim without a proof is either removed or marked as a target.
 | The model pool and ranking remain manageable after onboarding | ADR-0104 | `GET /ui/models`, `POST /ui/models/pool`, `POST /ui/models/qualify`; `TestModelsPageManagesPoolAfterOnboarding` | **proven** |
 | Job Pod resources are operator-editable and the Core restarts itself | ADR-0104, ADR-0078 | Resources step; `UpdateJobPodResources`; `Restart` seam; `deploy/core-entrypoint.sh`; `TestWelcomeAppliesResourceLimitsAndRestarts` | **proven in tests; live Core restart is the host check** |
 | Deep qualification and a measured machine score are visible | ADR-0104 | `onboard.DeepLadder`, `composition.ScoreMachine`; `/ui/models`; `TestDeepLadderExtendsSmoke`, `TestMachineScoreIsBoundedAndVisible` | **proven** |
+| Missing legacy persona models warn instead of blocking a fresh install | ADR-0104 | `doctor.checkOllama` (warn); environment step; `TestRunMissingModel` | **proven** |
+| The Models step offers an optional, size-aware core set before qualification | ADR-0104 | `UI.poolSuggestions`; `TestWelcomeModelsSelfSelectAndApply` | **proven** |
+| Qualification runs 14 smoke cases or 24 deep cases per model | ADR-0104 | `onboard.DefaultLadder`, `onboard.DeepLadder`; `TestDefaultLadderIsWellFormed`, `TestDeepLadderExtendsSmoke` | **proven structurally** |
 | Low-risk work can explore a runner-up and a measured panel can win | ADR-0104 | `composition.Pool.PreferPanel`, `engine.personaFor` exploration; `TestPreferPanelNeedsEvidence` | **proven structurally** |
 | Accepted work exports as a portable fine-tuning dataset | ADR-0104 | `internal/finetune.Export`; `athanor finetune`; `TestExportAcceptedWorkAsJSONL` | **proven** |
 

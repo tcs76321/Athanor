@@ -334,7 +334,7 @@ func (u *UI) welcomeData(ctx context.Context, st onboardingState) map[string]any
 	budget := budgetFor(roles, models, hw, resources)
 	u.syncPool(ctx, models, budget, hw)
 	pool := u.welcomePool(models)
-	suggestions := u.poolSuggestions(models, pool)
+	suggestions := u.poolSuggestions(models, hw)
 	if pool.QualifiedCount > 0 {
 		measurements = qualMeasurementsFromState(qual)
 	}
@@ -577,9 +577,9 @@ func (u *UI) homeHealth(ctx context.Context, failed, alarms, pending int, frozen
 				}
 			}
 			if len(missing) > 0 {
-				checks = append(checks, healthCheck{Name: "Models", Status: "fail", Detail: "missing: " + strings.Join(missing, ", ")})
+				checks = append(checks, healthCheck{Name: "Models", Status: "warn", Detail: "configured legacy model(s) not installed: " + strings.Join(missing, ", ") + " (the pool is authoritative)"})
 			} else if len(roles) > 0 {
-				checks = append(checks, healthCheck{Name: "Models", Status: "ok", Detail: "all persona models present"})
+				checks = append(checks, healthCheck{Name: "Models", Status: "ok", Detail: "all configured persona models present"})
 			}
 		}
 		if strings.TrimSpace(u.deps.Config.JobPod.Image) == "" {
