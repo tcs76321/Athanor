@@ -225,7 +225,10 @@ func (m *manager) Start(ctx context.Context, spec Spec) (*Pod, error) {
 	m.mu.Unlock()
 
 	go m.supervise(sctx, spec.ID, entry)
-	return pod, nil
+	// Return a snapshot, not the live entry.pod: the supervisor mutates the
+	// stored Pod under the manager lock, so handing the pointer to a caller
+	// would let it read State concurrently with setState.
+	return &Pod{ID: pod.ID, State: pod.State}, nil
 }
 
 // Exec runs one command inside a live pod (ADR-0024 §2).
@@ -243,12 +246,19 @@ func (m *manager) Exec(ctx context.Context, jobID string, spec ExecSpec) (ExecRe
 	}
 	m.mu.RLock()
 	entry, ok := m.pods[jobID]
+	state := State("")
+	if ok {
+		// Read the state while the lock is held: the supervisor updates it
+		// under m.mu in setState. Reading entry.pod.State after RUnlock raced
+		// the supervisor.
+		state = entry.pod.State
+	}
 	m.mu.RUnlock()
 	if !ok {
 		return ExecResult{}, ErrNotFound
 	}
-	if entry.pod.State != StatePending && entry.pod.State != StateRunning {
-		return ExecResult{}, fmt.Errorf("%w: pod %s is %s", ErrNotRunning, jobID, entry.pod.State)
+	if state != StatePending && state != StateRunning {
+		return ExecResult{}, fmt.Errorf("%w: pod %s is %s", ErrNotRunning, jobID, state)
 	}
 
 	args := buildExecArgs(podName(jobID), len(spec.Stdin) > 0, spec.Command)

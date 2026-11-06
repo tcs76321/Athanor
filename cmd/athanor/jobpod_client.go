@@ -22,6 +22,51 @@ type execClient struct{}
 // ctx.Err() wrapped in the exit error.
 func NewExecClient() *execClient { return &execClient{} }
 
+// maxPodStreamBytes bounds one stdout or stderr stream buffered from a
+// `podman exec`. Without a cap a chatty test command (or a runaway model
+// candidate) can make the Core buffer gigabytes and OOM. The command still
+// runs to completion; the stream keeps its head and records that it was
+// truncated.
+const maxPodStreamBytes = 256 << 10
+
+// cappedStream is an io.Writer that keeps at most limit bytes and records
+// whether more was written. It never reports a short write to the child, so
+// the command does not receive EPIPE or fail because the Core stopped
+// buffering.
+type cappedStream struct {
+	buf       bytes.Buffer
+	limit     int
+	truncated bool
+}
+
+func (c *cappedStream) Write(p []byte) (int, error) {
+	if c.limit <= 0 {
+		c.limit = maxPodStreamBytes
+	}
+	remaining := c.limit - c.buf.Len()
+	if remaining <= 0 {
+		c.truncated = true
+		return len(p), nil
+	}
+	if len(p) > remaining {
+		_, _ = c.buf.Write(p[:remaining])
+		c.truncated = true
+		return len(p), nil
+	}
+	_, _ = c.buf.Write(p)
+	return len(p), nil
+}
+
+// Bytes returns the retained prefix plus a marker when the stream was
+// truncated. It returns a copy so callers cannot mutate the buffer.
+func (c *cappedStream) Bytes() []byte {
+	out := append([]byte(nil), c.buf.Bytes()...)
+	if c.truncated {
+		out = append(out, []byte("\n[athanor: output truncated]\n")...)
+	}
+	return out
+}
+
 // Run implements jobpod.Client.
 func (c *execClient) Run(ctx context.Context, args ...string) ([]byte, []byte, error) {
 	// Prepend "podman" to the argv. The jobpod package treats args
@@ -29,9 +74,10 @@ func (c *execClient) Run(ctx context.Context, args ...string) ([]byte, []byte, e
 	full := append([]string{"podman"}, args...)
 	cmd := exec.CommandContext(ctx, "podman", args...)
 
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
+	stdout := &cappedStream{limit: maxPodStreamBytes}
+	stderr := &cappedStream{limit: maxPodStreamBytes}
+	cmd.Stdout = stdout
+	cmd.Stderr = stderr
 
 	err := cmd.Run()
 	if err != nil {
@@ -58,9 +104,10 @@ func (c *execClient) RunStdin(ctx context.Context, stdin []byte, args ...string)
 		cmd.Stdin = bytes.NewReader(stdin)
 	}
 
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
+	stdout := &cappedStream{limit: maxPodStreamBytes}
+	stderr := &cappedStream{limit: maxPodStreamBytes}
+	cmd.Stdout = stdout
+	cmd.Stderr = stderr
 
 	err := cmd.Run()
 	if err != nil {

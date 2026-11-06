@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -86,5 +88,28 @@ func (m *manager) Sweep(ctx context.Context) (SweepResult, error) {
 		}
 		result.Removed++
 	}
+	m.sweepStaleTokenDirs(known)
 	return result, nil
+}
+
+// sweepStaleTokenDirs removes per-job token directories that do not belong to
+// a currently known pod. A kill -9 leaves the directory behind because the
+// container is gone before the supervisor can run its deferred cleanup; the
+// token is a secret and must not outlive its pod. Best-effort.
+func (m *manager) sweepStaleTokenDirs(known map[string]bool) {
+	for _, base := range []string{m.tokenBase, m.hostTokenBase} {
+		if base == "" {
+			continue
+		}
+		entries, err := os.ReadDir(base)
+		if err != nil {
+			continue
+		}
+		for _, entry := range entries {
+			if !entry.IsDir() || known[entry.Name()] {
+				continue
+			}
+			_ = RemoveTokenDir(filepath.Join(base, entry.Name()))
+		}
+	}
 }
