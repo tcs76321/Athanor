@@ -68,11 +68,15 @@ sh scripts/install.sh --no-open    # headless-friendly
 ```
 
 The onboarding **Environment** step runs `doctor` inside the Core. The Core Pod
-cannot see the host GPU (the image has no `nvidia-smi` and no GPU device), so it
-reports the GPU as not visible; run `athanor doctor` on the host to see the GPU
-row. The **Resources** step proposes Job Pod limits from host RAM; keep the Job
-Pod at 4 GiB unless a test suite needs more. Ollama's memory is on the host and
-is not part of the Job Pod limit.
+cannot see the host GPU (the image has no `nvidia-smi` and no GPU device), so
+the host probe is passed into the Core by `athanor start` (ADR-0107). The
+**Resources** step shows the detected GPU, its VRAM, and the full-GPU model
+budget; the **Models** step uses VRAM (not host RAM) for a discrete GPU and
+warns when a model would spill. Run `athanor doctor` on the host to see the
+same accelerator row. The `Resources` step still proposes Job Pod limits from
+host RAM; keep the Job Pod at 4 GiB unless a test suite needs more. Ollama's
+memory is on the host and is not part of the Job Pod limit. Job Pods are
+CPU-only by default; GPU passthrough is a future opt-in (HITL-gated).
 
 ## 4. Running the benchmark / soak
 

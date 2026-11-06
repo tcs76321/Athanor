@@ -100,10 +100,26 @@ type modelBudget struct {
 	ReserveGiB           float64 // effective OS/apps/Core/Podman reserve on the host
 	ConfiguredReserveGiB float64 // the operator's stored value
 	InferenceGiB         float64 // Host - Reserve
+	FitLimitGiB          float64 // GPU budget when discrete, else InferenceGiB
 	Model                string
 	ModelGiB             float64
 	ModelMeasured        bool
+	ModelFitsHost        bool
 	ModelFits            bool
+
+	// Accelerator is the host GPU/NPU probe. A discrete GPU budgets VRAM; a
+	// unified accelerator (Apple Silicon) uses the host budget above.
+	AccelName     string
+	AccelKind     string
+	AccelBackend  string
+	AccelUnified  bool
+	AccelDevices  int
+	VRAMGiB       float64
+	GPUReserveGiB float64
+	GPUBudgetGiB  float64
+	GPUFits       bool
+	SpillGiB      float64
+	NPU           string
 
 	// Runtime sandbox budget: Job Pods live inside the Podman runtime.
 	PodGiB          float64
@@ -171,6 +187,29 @@ func budgetFor(roles []setupRole, models []setupModel, hw Hardware, res resource
 	if b.InferenceGiB < 0 {
 		b.InferenceGiB = 0
 	}
+	b.FitLimitGiB = b.InferenceGiB
+	if a := hw.Accelerator; a != nil {
+		b.AccelName, b.AccelKind, b.AccelBackend = a.Name, a.Kind, a.Backend
+		b.AccelUnified, b.AccelDevices, b.NPU = a.Unified, a.Devices, a.NPU
+		b.VRAMGiB = float64(a.MemoryMiB) / 1024
+		if !a.Unified && a.MemoryMiB > 0 {
+			// Leave headroom for the display/compositor and other small GPU
+			// users. The model budget is VRAM, not host RAM.
+			reserve := b.VRAMGiB * 0.1
+			if reserve < 0.5 {
+				reserve = 0.5
+			}
+			if reserve > 2.0 {
+				reserve = 2.0
+			}
+			b.GPUReserveGiB = reserve
+			b.GPUBudgetGiB = b.VRAMGiB - reserve
+			if b.GPUBudgetGiB < 0 {
+				b.GPUBudgetGiB = 0
+			}
+			b.FitLimitGiB = b.GPUBudgetGiB
+		}
+	}
 	b.RuntimeMaxGiB = b.RuntimeGiB - b.RuntimeReserve
 	if b.RuntimeMaxGiB < 0 {
 		b.RuntimeMaxGiB = 0
@@ -193,7 +232,15 @@ func budgetFor(roles []setupRole, models []setupModel, hw Hardware, res resource
 			b.ModelMeasured = m.Measured
 		}
 	}
-	b.ModelFits = b.ModelGiB <= b.InferenceGiB
+	b.ModelFitsHost = b.ModelGiB <= b.InferenceGiB
+	b.ModelFits = b.ModelFitsHost
+	if a := hw.Accelerator; a != nil && !a.Unified && b.GPUBudgetGiB > 0 {
+		b.GPUFits = b.ModelGiB <= b.GPUBudgetGiB
+		b.ModelFits = b.GPUFits
+		if b.ModelGiB > b.GPUBudgetGiB {
+			b.SpillGiB = b.ModelGiB - b.GPUBudgetGiB
+		}
+	}
 	b.OverBy = b.ModelGiB + b.ReserveGiB - b.HostGiB
 	b.Overcommit = b.HostGiB > 0 && b.OverBy > 0
 	return b
@@ -497,17 +544,12 @@ func (u *UI) autoAssignments(roles []setupRole, models []setupModel, hw Hardware
 	for _, m := range models {
 		omodels = append(omodels, onboard.Model{Name: m.Name, SizeBytes: m.SizeBytes, Family: m.Family})
 	}
-	hostBytes := hw.HostMemoryBytes
-	if hostBytes == 0 {
-		hostBytes = hw.TotalMemoryBytes
-	}
 	reserveBytes := hostReserveBytes(u.deps.Config, hw)
-	// Models run on the host, not in the Podman runtime. Use the measured
-	// loaded size from the audit when available; otherwise the catalog file
-	// size is the only estimate. The reserve is the same operator-set host
-	// reserve the pool and audit use, so the UI proposal and the startup guard
-	// agree.
-	return onboard.AutoAssignWithScores(oroles, omodels, scores, int64(hostBytes), reserveBytes)
+	// Models run on the host. The fit budget is the host budget, clamped to
+	// the discrete GPU's VRAM when one is present; unified accelerators use
+	// the host budget. The same helper feeds the pool fit limit.
+	fitBytes := inferenceFitBytes(hw, reserveBytes)
+	return onboard.AutoAssignWithScores(oroles, omodels, scores, fitBytes, 0)
 }
 
 // pullSuggestions lists configured persona models that are not installed,

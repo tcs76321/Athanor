@@ -309,6 +309,57 @@ func TestBudgetForSeparatesHostInferenceAndRuntimeSandbox(t *testing.T) {
 	}
 }
 
+func TestBudgetForUsesVRAMOnDiscreteGPU(t *testing.T) {
+	roles := []setupRole{{Role: "main", Model: "big"}}
+	models := []setupModel{{Name: "big", SizeBytes: 19 << 30, Measured: true}}
+	res := resourceView{MemoryMB: 4096, ReserveMB: 2048, HostReserveMB: 9216,
+		EffectiveHostReserveMB: 9216, MinHostReserveMB: 8192, RecommendedReserveMB: 9216}
+	hw := Hardware{
+		TotalMemoryBytes: 8 << 30, HostMemoryBytes: 32 << 30, CPUs: 10,
+		Accelerator: &doctor.GPUInfo{Name: "RTX 4090", MemoryMiB: 11 * 1024, Kind: "cuda", Backend: "CUDA", Devices: 1},
+	}
+	b := budgetFor(roles, models, hw, res)
+	if b.GPUBudgetGiB <= 0 || b.VRAMGiB != 11 {
+		t.Fatalf("gpu budget = %+v, want 11 GiB VRAM with a reserve", b)
+	}
+	if b.ModelFits || b.SpillGiB <= 0 {
+		t.Errorf("19 GiB model on 11 GiB VRAM = fits %v spill %.1f, want spill", b.ModelFits, b.SpillGiB)
+	}
+	if b.FitLimitGiB != b.GPUBudgetGiB || b.FitLimitGiB >= b.InferenceGiB {
+		t.Errorf("fit limit = %.1f, want the GPU budget below the host budget %.1f", b.FitLimitGiB, b.InferenceGiB)
+	}
+}
+
+func TestBudgetForUnifiedGPUUsesHostBudget(t *testing.T) {
+	roles := []setupRole{{Role: "main", Model: "small"}}
+	models := []setupModel{{Name: "small", SizeBytes: 6 << 30}}
+	res := resourceView{MemoryMB: 4096, ReserveMB: 2048, HostReserveMB: 4096,
+		EffectiveHostReserveMB: 4096, MinHostReserveMB: 2048, RecommendedReserveMB: 4096}
+	hw := Hardware{
+		TotalMemoryBytes: 32 << 30, HostMemoryBytes: 32 << 30,
+		Accelerator: &doctor.GPUInfo{Name: "Apple M3 Max", MemoryMiB: 32 * 1024, Kind: "metal", Backend: "Metal", Unified: true, Devices: 1},
+	}
+	b := budgetFor(roles, models, hw, res)
+	if !b.AccelUnified || b.GPUBudgetGiB != 0 {
+		t.Errorf("unified accelerator = %+v, want no separate VRAM budget", b)
+	}
+	if b.FitLimitGiB != b.InferenceGiB || !b.ModelFits {
+		t.Errorf("fit limit = %.1f host budget %.1f fits=%v, want host budget", b.FitLimitGiB, b.InferenceGiB, b.ModelFits)
+	}
+}
+
+func TestInferenceFitBytesClampsToVRAM(t *testing.T) {
+	hw := Hardware{
+		HostMemoryBytes:  32 << 30,
+		TotalMemoryBytes: 32 << 30,
+		Accelerator:      &doctor.GPUInfo{Name: "GPU", MemoryMiB: 11 * 1024, Kind: "cuda", Backend: "CUDA", Devices: 1},
+	}
+	got := inferenceFitBytes(hw, 4<<30)
+	if got >= 28<<30 || got <= 0 {
+		t.Errorf("inferenceFitBytes = %d, want the discrete VRAM clamp", got)
+	}
+}
+
 func TestContextTargetForSizeIsWideThenTall(t *testing.T) {
 	for _, tc := range []struct {
 		sizeGiB float64
@@ -541,7 +592,7 @@ func TestWelcomeModelsSelfSelectAndApply(t *testing.T) {
 	t.Cleanup(ts.Close)
 
 	_, body := get(t, ts.URL+"/ui/welcome?step=models")
-	for _, want := range []string{"Build the model pool", "Installed models", "large:14b", "Remove", "Host inference budget", "Runtime sandbox", "The pool", "Fit limit"} {
+	for _, want := range []string{"Build the model pool", "Installed models", "large:14b", "Remove", "Inference budget", "Runtime sandbox", "The pool", "Fit limit"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("models step missing %q", want)
 		}

@@ -21,6 +21,7 @@ func TestCoreRunArgs(t *testing.T) {
 		SocketPath:      "/run/user/1000/podman/podman.sock",
 		Addr:            "127.0.0.1:7420",
 		HostMemoryBytes: 34359738368,
+		AcceleratorJSON: `{"Name":"RTX 4090","MemoryMiB":24576,"Kind":"cuda","Backend":"CUDA"}`,
 	}
 	args := strings.Join(coreRunArgs(o), " ")
 	for _, want := range []string{
@@ -36,6 +37,7 @@ func TestCoreRunArgs(t *testing.T) {
 		"--security-opt no-new-privileges",
 		"--pids-limit 4096",
 		"-e ATHANOR_HOST_MEMORY_BYTES=34359738368",
+		`-e ATHANOR_ACCELERATOR={"Name":"RTX 4090","MemoryMiB":24576,"Kind":"cuda","Backend":"CUDA"}`,
 		"athanor-core:latest",
 	} {
 		if !strings.Contains(args, want) {

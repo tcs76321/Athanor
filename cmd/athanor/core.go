@@ -44,6 +44,10 @@ type coreOptions struct {
 	// ModelAudit is the measured model-fit JSON, passed to the Core so the UI
 	// can show the same plan the startup guard enforced.
 	ModelAudit string
+	// AcceleratorJSON is the host accelerator probe result. The Core Pod
+	// cannot see the host GPU/NPU, so the host passes what it found into the
+	// Core's resource planning.
+	AcceleratorJSON string
 }
 
 // coreRunArgs is the pure `podman run` argv for a Core Pod. It is separated
@@ -69,6 +73,9 @@ func coreRunArgs(o coreOptions) []string {
 	}
 	if o.ModelAudit != "" {
 		args = append(args, "-e", "ATHANOR_MODEL_AUDIT="+o.ModelAudit)
+	}
+	if o.AcceleratorJSON != "" {
+		args = append(args, "-e", "ATHANOR_ACCELERATOR="+o.AcceleratorJSON)
 	}
 	return append(args, o.Image)
 }

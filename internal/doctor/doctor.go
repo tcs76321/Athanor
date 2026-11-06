@@ -152,11 +152,23 @@ func Run(ctx context.Context, cfg *config.Config, opts Options, p Probes) Report
 	return r
 }
 
-// GPUInfo is optional host GPU information used by the resources and doctor
-// screens. It is deliberately vendor-neutral at this layer.
+// GPUInfo is optional host accelerator information used by the resources and
+// doctor screens. It is deliberately vendor-neutral at this layer.
 type GPUInfo struct {
 	Name      string
 	MemoryMiB int
+	// Kind is the backend family: cuda, rocm, metal, or empty when unknown.
+	Kind string
+	// Backend is the human backend label ("CUDA", "ROCm", "Metal").
+	Backend string
+	// Unified means the accelerator shares host memory (Apple Silicon). A
+	// discrete GPU's MemoryMiB is its own VRAM.
+	Unified bool
+	// Devices is the number of GPUs visible to the backend.
+	Devices int
+	// NPU names a detected neural accelerator, if any. It is inventory only:
+	// the current Ollama backend does not schedule work onto it.
+	NPU string
 }
 
 // gpuProber is an optional Probes extension. A Probes without it simply omits
@@ -181,15 +193,37 @@ func (r *Report) checkGPU(ctx context.Context, p Probes) {
 	}
 	gpu, found := gp.GPU(ctx)
 	if !found {
-		r.add(Check{Name: "gpu", Status: StatusOK,
-			Detail: "no NVIDIA GPU detected via nvidia-smi; Ollama may use CPU or another GPU backend"})
+		detail := "no discrete GPU detected; Ollama may use the CPU"
+		if gpu.NPU != "" {
+			detail += "; NPU present (inventory only, not used by Ollama): " + gpu.NPU
+		}
+		r.add(Check{Name: "gpu", Status: StatusOK, Detail: detail})
 		return
 	}
 	detail := gpu.Name
 	if gpu.MemoryMiB > 0 {
-		detail = fmt.Sprintf("%s (%d MiB VRAM)", gpu.Name, gpu.MemoryMiB)
+		detail = fmt.Sprintf("%s (%d MiB %s)", gpu.Name, gpu.MemoryMiB, vramLabel(gpu))
+	}
+	if gpu.Backend != "" {
+		detail += " via " + gpu.Backend
+	}
+	if gpu.Devices > 1 {
+		detail += fmt.Sprintf(", %d devices", gpu.Devices)
+	}
+	if gpu.Unified {
+		detail += " — unified host memory"
+	}
+	if gpu.NPU != "" {
+		detail += "; NPU present (inventory only): " + gpu.NPU
 	}
 	r.add(Check{Name: "gpu", Status: StatusOK, Detail: detail})
+}
+
+func vramLabel(g GPUInfo) string {
+	if g.Unified {
+		return "unified memory"
+	}
+	return "VRAM"
 }
 
 // containerDetector is an optional Probes extension: it reports whether the

@@ -10,6 +10,22 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Accelerators as first-class resources — 2026-11-06
+
+- **Host GPU/NPU probe.** `athanor start` detects CUDA/NVIDIA, ROCm/AMD, and
+  Metal/Apple plus NPU presence, and passes the record to the Core. The doctor
+  row names the backend, VRAM, device count, and unified memory, and notes an
+  NPU as inventory-only.
+- **Discrete GPUs budget VRAM.** Resources and Models show the accelerator and
+  the full-GPU model budget (VRAM minus display headroom); a larger model is
+  reported as partial offload with the spill size. Unified Apple memory keeps
+  the host budget and is labeled as unified.
+- **One fit limit.** Pool context capacity, auto-assignment, qualification, and
+  the model-fit warning all use the effective GPU/host limit.
+- **Job Pods stay CPU-only by default.** GPU passthrough remains a future
+  opt-in, HITL-gated capability; the default isolation posture is unchanged.
+  [ADR-0107](docs/adr/0107-accelerators-as-resources.md).
+
 ### Backlog completion — 2026-11-06
 
 - **Every long-running surface has a cancel control.** Discovery, planning,

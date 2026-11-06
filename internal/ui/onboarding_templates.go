@@ -83,6 +83,26 @@ const welcomeBody = `
     <div class="notice">
       Host: {{printf "%.0f" .Resources.HostMemoryGiB}} GiB total, with about {{printf "%.0f" .Resources.OutsideRuntimeGiB}} GiB outside Athanor's runtime for macOS and Ollama. macOS cannot reserve host RAM for one process, so this is a budget, not a fence.
     </div>
+    {{if .Hardware.Accelerator}}
+    <div class="card">
+      <div class="row row-middle">
+        <div>
+          <div class="eyebrow">Inference accelerator</div>
+          <h3>{{if .Hardware.Accelerator.Name}}{{.Hardware.Accelerator.Name}}{{else}}No discrete GPU detected{{end}}</h3>
+          <p class="muted">
+            {{if eq .Hardware.Accelerator.Name ""}}Ollama will use the CPU. {{end}}
+            {{if .Hardware.Accelerator.Unified}}
+            Unified memory with the host; the host inference budget above applies. Ollama uses {{.Hardware.Accelerator.Backend}}.
+            {{else}}
+            {{printf "%.1f" (mib .Hardware.Accelerator.MemoryMiB)}} GiB VRAM{{if .Hardware.Accelerator.Devices}}, {{.Hardware.Accelerator.Devices}} device(s){{end}}; full-speed model budget about {{printf "%.1f" .Budget.GPUBudgetGiB}} GiB after display headroom. Models larger than that can offload to system RAM, but slower.
+            {{end}}
+          </p>
+          {{if .Hardware.Accelerator.NPU}}<p class="muted small">NPU present: {{.Hardware.Accelerator.NPU}}. It is inventory only; the current Ollama backend does not schedule work onto it.</p>{{end}}
+        </div>
+        <span class="pill">{{if .Hardware.Accelerator.Backend}}{{.Hardware.Accelerator.Backend}}{{else}}accelerator{{end}}</span>
+      </div>
+    </div>
+    {{end}}
     {{if .Resources.ReserveClamped}}
     <div class="notice bad">
       <b>Athanor is enforcing a safer host reserve.</b>
@@ -143,7 +163,10 @@ const welcomeBody = `
     {{if .Budget.HostGiB}}
     <div class="card {{if .Budget.Overcommit}}card-accent{{end}}">
       <div class="row row-middle">
-        <div><div class="eyebrow">Host inference budget</div><p class="muted">{{if .Budget.Model}}Largest configured persona <b>{{.Budget.Model}}</b> uses {{printf "%.1f" .Budget.ModelGiB}} GiB{{if .Budget.ModelMeasured}} measured{{else}} estimated from file size{{end}}. Host {{printf "%.1f" .Budget.HostGiB}} GiB − {{printf "%.1f" .Budget.ReserveGiB}} GiB host reserve (OS, apps, Core{{if .Budget.VmGiB}}, Podman VM {{printf "%.1f" .Budget.VmGiB}} GiB{{end}}) = {{printf "%.1f" .Budget.InferenceGiB}} GiB for inference.{{else}}No configured persona model found.{{end}}</p></div>
+        <div><div class="eyebrow">Inference budget</div><p class="muted">{{if .Budget.Model}}Largest configured persona <b>{{.Budget.Model}}</b> uses {{printf "%.1f" .Budget.ModelGiB}} GiB{{if .Budget.ModelMeasured}} measured{{else}} estimated from file size{{end}}. Host {{printf "%.1f" .Budget.HostGiB}} GiB − {{printf "%.1f" .Budget.ReserveGiB}} GiB host reserve (OS, apps, Core{{if .Budget.VmGiB}}, Podman VM {{printf "%.1f" .Budget.VmGiB}} GiB{{end}}) = {{printf "%.1f" .Budget.InferenceGiB}} GiB for inference.{{else}}No configured persona model found.{{end}}</p>
+          {{if .Budget.AccelName}}<p class="muted small">{{.Budget.AccelName}}{{if .Budget.AccelBackend}} · {{.Budget.AccelBackend}}{{end}}{{if .Budget.AccelUnified}} · unified host memory; the host budget applies{{else}} · {{printf "%.1f" .Budget.VRAMGiB}} GiB VRAM, full-GPU budget {{printf "%.1f" .Budget.GPUBudgetGiB}} GiB{{end}}.</p>{{end}}
+          {{if gt .Budget.SpillGiB 0.0}}<p class="del small">The selected model is {{printf "%.1f" .Budget.SpillGiB}} GiB over the full-GPU budget; it can run by offloading to system RAM, but slower.</p>{{end}}
+        </div>
         {{if .Budget.Model}}{{if .Budget.ModelFits}}<span class="pill ok">model fits budget</span>{{else}}<span class="pill bad">model exceeds budget</span>{{end}}{{end}}
       </div>
       <p class="muted small">Installed-but-unused models do not count. The measured audit uses the same host reserve; {{if .Budget.ModelMeasured}}this size comes from the audit{{else}}run <code>athanor models -audit</code> for resident size{{end}}.</p>

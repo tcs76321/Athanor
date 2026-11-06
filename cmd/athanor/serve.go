@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -501,9 +502,17 @@ func run(configPath, addr, stateDir string, container bool) error {
 				}
 			}
 			disk, _ := p.FreeDiskBytes(ctx, stateDir)
+			var accelerator *doctor.GPUInfo
+			if raw := os.Getenv("ATHANOR_ACCELERATOR"); raw != "" {
+				var gpu doctor.GPUInfo
+				if err := json.Unmarshal([]byte(raw), &gpu); err == nil {
+					accelerator = &gpu
+				}
+			}
 			return ui.Hardware{
 				TotalMemoryBytes: mem, HostMemoryBytes: hostMem,
 				FreeDiskBytes: disk, CPUs: runtime.NumCPU(),
+				Accelerator: accelerator,
 			}
 		},
 		DefaultTTL: cfg.HITL.DefaultTTL.D(),

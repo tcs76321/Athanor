@@ -160,7 +160,7 @@ func TestRunReportsNoGPU(t *testing.T) {
 		gpuProbes{fakeProbes: goodProbes(), ok: false})
 	for _, c := range rep.Checks {
 		if c.Name == "gpu" {
-			if !strings.Contains(c.Detail, "no NVIDIA GPU detected") {
+			if !strings.Contains(c.Detail, "no discrete GPU detected") {
 				t.Errorf("gpu check without a GPU = %+v", c)
 			}
 			return

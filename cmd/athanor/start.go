@@ -91,6 +91,14 @@ func runStart(args []string) error {
 		opts.HostMemoryBytes = mem
 	}
 	opts.ModelAudit = modelAuditJSON
+	// The Core Pod cannot see the host GPU/NPU. Probe once on the host and
+	// hand the result to the Core for resource planning and the UI.
+	gpu, _ := newOSProbes().GPU(context.Background())
+	if gpu.Name != "" || gpu.NPU != "" {
+		if raw, jerr := json.Marshal(gpu); jerr == nil {
+			opts.AcceleratorJSON = string(raw)
+		}
+	}
 	if err := coreUp(context.Background(), opts); err != nil {
 		return err
 	}

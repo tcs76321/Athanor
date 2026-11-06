@@ -249,19 +249,158 @@ func (osProbes) InContainer() bool {
 func (osProbes) GPU(ctx context.Context) (doctor.GPUInfo, bool) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
+	info := doctor.GPUInfo{NPU: detectNPU(ctx)}
+	if runtime.GOOS == "darwin" {
+		info = appleGPU(ctx, info)
+	} else {
+		info = nvidiaGPU(ctx, info)
+		if info.Name == "" {
+			info = amdGPU(ctx, info)
+		}
+	}
+	return info, info.Name != ""
+}
+
+func nvidiaGPU(ctx context.Context, info doctor.GPUInfo) doctor.GPUInfo {
 	out, err := exec.CommandContext(ctx, "nvidia-smi",
 		"--query-gpu=name,memory.total", "--format=csv,noheader,nounits").Output()
 	if err != nil {
-		return doctor.GPUInfo{}, false
+		return info
 	}
-	line := strings.SplitN(strings.TrimSpace(string(out)), "\n", 2)[0]
-	parts := strings.Split(line, ",")
-	if len(parts) < 2 {
-		return doctor.GPUInfo{}, false
+	var first bool
+	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+		parts := strings.Split(line, ",")
+		if len(parts) < 2 {
+			continue
+		}
+		name := strings.TrimSpace(parts[0])
+		if name == "" {
+			continue
+		}
+		if !first {
+			info.Name = name
+			info.Kind = "cuda"
+			info.Backend = "CUDA"
+			if mb, err := strconv.Atoi(strings.TrimSpace(parts[1])); err == nil {
+				info.MemoryMiB = mb
+			}
+			first = true
+		}
+		info.Devices++
 	}
-	info := doctor.GPUInfo{Name: strings.TrimSpace(parts[0])}
-	if mb, err := strconv.Atoi(strings.TrimSpace(parts[1])); err == nil {
-		info.MemoryMiB = mb
+	return info
+}
+
+func amdGPU(ctx context.Context, info doctor.GPUInfo) doctor.GPUInfo {
+	out, err := exec.CommandContext(ctx, "rocm-smi", "--showproductname", "--showmeminfo", "vram").Output()
+	if err != nil {
+		return info
 	}
-	return info, info.Name != ""
+	names := map[string]string{}
+	memory := map[string]int{}
+	for _, line := range strings.Split(string(out), "\n") {
+		line = strings.TrimSpace(line)
+		if !strings.Contains(line, "GPU[") {
+			continue
+		}
+		parts := strings.SplitN(line, ":", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		id := strings.TrimSpace(parts[0])
+		value := strings.TrimSpace(parts[1])
+		switch {
+		case strings.Contains(value, "Card series:") || strings.Contains(value, "Card model:"):
+			names[id] = strings.TrimSpace(strings.TrimPrefix(strings.TrimPrefix(value, "Card series:"), "Card model:"))
+		case strings.Contains(value, "VRAM Total Memory (B):"):
+			raw := strings.TrimSpace(strings.TrimPrefix(value, "VRAM Total Memory (B):"))
+			if b, err := strconv.ParseInt(raw, 10, 64); err == nil {
+				memory[id] = int(b / (1 << 20))
+			}
+		}
+	}
+	for id, name := range names {
+		if info.Name == "" {
+			info.Name = name
+			info.Kind = "rocm"
+			info.Backend = "ROCm"
+			info.MemoryMiB = memory[id]
+		}
+		info.Devices++
+	}
+	return info
+}
+
+func appleGPU(ctx context.Context, info doctor.GPUInfo) doctor.GPUInfo {
+	out, err := exec.CommandContext(ctx, "system_profiler", "-json", "SPDisplaysDataType").Output()
+	if err != nil {
+		return info
+	}
+	var doc struct {
+		Displays []struct {
+			Model  string `json:"sppci_model"`
+			VRAM   string `json:"spdisplays_vram"`
+			Shared string `json:"spdisplays_vram_shared"`
+		} `json:"SPDisplaysDataType"`
+	}
+	if json.Unmarshal(out, &doc) != nil {
+		return info
+	}
+	for _, d := range doc.Displays {
+		if d.Model == "" {
+			continue
+		}
+		if info.Name == "" {
+			info.Name = d.Model
+			info.Kind = "metal"
+			info.Backend = "Metal"
+			info.Unified = d.Shared != "" || strings.Contains(strings.ToLower(d.Model), "apple")
+			if mb, ok := parseMemoryMiB(d.VRAM); ok {
+				info.MemoryMiB = mb
+			} else if mb, ok := parseMemoryMiB(d.Shared); ok {
+				info.MemoryMiB = mb
+			}
+		}
+		info.Devices++
+	}
+	return info
+}
+
+func parseMemoryMiB(s string) (int, bool) {
+	fields := strings.Fields(strings.TrimSpace(s))
+	if len(fields) < 2 {
+		return 0, false
+	}
+	n, err := strconv.Atoi(fields[0])
+	if err != nil {
+		return 0, false
+	}
+	switch strings.ToUpper(fields[1]) {
+	case "GB":
+		return n * 1024, true
+	case "MB":
+		return n, true
+	default:
+		return 0, false
+	}
+}
+
+func detectNPU(ctx context.Context) string {
+	if runtime.GOOS == "darwin" {
+		return ""
+	}
+	out, err := exec.CommandContext(ctx, "lspci").Output()
+	if err != nil {
+		return ""
+	}
+	for _, line := range strings.Split(string(out), "\n") {
+		lower := strings.ToLower(line)
+		if strings.Contains(lower, "neural") || strings.Contains(lower, "npu") || strings.Contains(lower, "ai accelerator") {
+			if i := strings.Index(line, ": "); i >= 0 {
+				return strings.TrimSpace(line[i+2:])
+			}
+			return strings.TrimSpace(line)
+		}
+	}
+	return ""
 }

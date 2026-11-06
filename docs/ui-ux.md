@@ -21,6 +21,9 @@ The 2026-11-06 pass closed the biggest presentation and daily-loop gaps:
   catches up after a gap; the model catalog is cached; assets revalidate with an
   ETag; search covers tasks and artifacts by project; project pages bound their
   history.
+- **Accelerators.** Resources and Models show the host GPU/NPU probe; a
+  discrete GPU budgets VRAM and reports spill, while unified Apple memory keeps
+  the host budget. NPU is inventory-only (ADR-0107).
 - **Control and reading.** Discovery, planning, pulls, and qualification are
   cancellable; Watch has a per-phase duration/token timeline; code is
   highlighted with a source-only line gutter; confirmations use a styled

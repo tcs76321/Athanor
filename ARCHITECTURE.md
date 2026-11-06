@@ -652,6 +652,12 @@ effective_context = min(max_context, model_architecture_maximum, persona_context
 ```
 
 > **macOS:** `available_memory` is budgeted against the podman machine VM limits, not raw host RAM.
+>
+> **Discrete GPU (Linux):** the full-speed budget is VRAM minus a display
+> reserve, not host RAM. A model larger than that can offload to system RAM,
+> but the UI reports the spill rather than calling it a fit (ADR-0107). Apple
+> Silicon's GPU is unified with host memory and keeps the host budget. An NPU
+> is inventory-only until an inference backend schedules onto it.
 
 If `effective_context < task_context_minimum`:
 

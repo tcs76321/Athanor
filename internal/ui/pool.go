@@ -65,7 +65,7 @@ func (u *UI) syncPool(ctx context.Context, models []setupModel, budget modelBudg
 		HostBytes: int64(hw.HostMemoryBytes), RuntimeBytes: int64(hw.TotalMemoryBytes),
 		FreeDiskBytes: int64(hw.FreeDiskBytes), CPUs: hw.CPUs,
 	})
-	p.FitLimitBytes = int64(budget.InferenceGiB * (1 << 30))
+	p.FitLimitBytes = int64(budget.FitLimitGiB * (1 << 30))
 	measured := measuredResidents(u.deps.ModelAudit)
 	profiles := map[string]composition.Profile{}
 	for _, prof := range p.Profiles() {
@@ -367,6 +367,22 @@ func inferenceFitBytes(hw Hardware, reserveBytes int64) int64 {
 		reserveBytes = int64(hostReserveGiB * (1 << 30))
 	}
 	limit := int64(host) - reserveBytes
+	if a := hw.Accelerator; a != nil && !a.Unified && a.MemoryMiB > 0 {
+		// A discrete GPU's full-speed budget is VRAM, not host RAM. Leave
+		// headroom for the display/compositor; the model can still spill, but
+		// the fit limit describes what runs at full speed.
+		vram := int64(a.MemoryMiB) << 20
+		gpuReserve := int64(float64(vram) * 0.1)
+		if gpuReserve < 512<<20 {
+			gpuReserve = 512 << 20
+		}
+		if gpuReserve > 2<<30 {
+			gpuReserve = 2 << 30
+		}
+		if gpu := vram - gpuReserve; gpu < limit {
+			limit = gpu
+		}
+	}
 	if limit < 1<<30 {
 		limit = 1 << 30
 	}
@@ -393,6 +409,9 @@ func (u *UI) poolSuggestions(models []setupModel, hw Hardware) []pullSuggestion 
 	hostGiB := float64(hw.HostMemoryBytes) / (1 << 30)
 	if hostGiB == 0 {
 		hostGiB = float64(hw.TotalMemoryBytes) / (1 << 30)
+	}
+	if fit := inferenceFitBytes(hw, hostReserveBytes(u.deps.Config, hw)); fit > 0 {
+		hostGiB = float64(fit) / (1 << 30)
 	}
 	var candidates []pullSuggestion
 	switch {

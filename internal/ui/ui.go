@@ -86,6 +86,10 @@ type Hardware struct {
 	HostMemoryBytes uint64
 	FreeDiskBytes   uint64
 	CPUs            int
+	// Accelerator is the host GPU/NPU probe result. The Core Pod cannot see
+	// the host device, so `athanor start` passes it in. Nil means "not
+	// probed"; a zero-value GPUInfo with only NPU set is inventory-only.
+	Accelerator *doctor.GPUInfo
 }
 
 // TaskResetter is the operator recovery surface for blocked tasks.
