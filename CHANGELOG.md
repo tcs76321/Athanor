@@ -10,6 +10,34 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### First real-use run — 2026-11-05
+
+- **Prose deliverables stay prose.** Capability inference now matches whole
+  words and singular/plural nouns, weights concrete implementation verbs above
+  ambiguous ones like "compile" or "build", and drops capabilities that carry
+  no real weight. A daily-news goal is `document`, not `code`. Proof:
+  `TestInferCapabilities`, `TestInferTaskCapability`.
+- **Hard-task panels are capability-aware.** Code keeps up to ten independent
+  implementations; document, text, data, and media tasks stop at five. A
+  divergence pass also draws from at most three distinct resident models, so a
+  single local GPU does not spend the session swapping weights. Proof:
+  `TestCapCandidatesForCapability`, `TestAdaptivePolicy_HardHintRaisesToHardCeiling`.
+- **Work starts only after plan approval.** The "Create and start now" path is
+  gone; creating a project always lands in onboarding, and the approved plan is
+  what creates and starts the task graph.
+- **Fallback plans follow the direction.** The deterministic plan no longer
+  says "customer", "pain", "pricing", "validate demand", or "25 prospects". It
+  describes domain, audience, need, approach, format, first deliverable, and a
+  gather → produce → check → decide sequence with inferred capabilities.
+- **The pre-plan placeholder task is retired.** Approving a plan removes the
+  metadata-only task created with the project when nothing has run, so the
+  project page shows one coherent graph.
+- **Discovery and planning wording is non-commercial by default.** The
+  portfolio header and the plan prompt no longer assume a market or a paid
+  offer.
+- **Ollama residency is visible.** `athanor doctor` warns when more than one
+  model is resident and prints the single-slot environment settings.
+
 ### Containment and durability hardening — 2026-11-05
 
 - **Job Pod execution is bounded and race-free.** `Exec` reads pod state under
