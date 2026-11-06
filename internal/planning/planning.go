@@ -1,5 +1,5 @@
 // Package planning turns a chosen discovery direction into a small set of
-// AI-authored, reviewable 30-day plans. It is deliberately separate from the
+// AI-authored, reviewable plans. It is deliberately separate from the
 // deterministic plan builder: the model proposes, the validator and scorer
 // constrain, and the human selects before the DAG is created.
 package planning
@@ -58,11 +58,11 @@ type Request struct {
 	Sources     []string
 	OptionTitle string
 	OneLiner    string
-	Customer    string
-	Pain        string
-	Wedge       string
-	Offer       string
-	Validation  string
+	Audience    string
+	Need        string
+	Approach    string
+	Deliverable string
+	FirstCheck  string
 }
 
 // Generator produces the raw JSON plan array.
@@ -73,26 +73,26 @@ type Generator interface {
 // BuildPrompt is the closed plan-generation contract.
 func BuildPrompt(req Request) string {
 	var b strings.Builder
-	b.WriteString("You are Athanor's planning agent. Produce exactly 3 distinct 30-day plans for the chosen direction below.\n\n")
+	b.WriteString("You are Athanor's planning agent. Produce exactly 3 distinct plans for the chosen direction below. A plan is a short, ordered first iteration, not a fixed-length schedule.\n\n")
 	fmt.Fprintf(&b, "GOAL: %s\n\n", strings.TrimSpace(req.Goal))
 	if req.Brief != "" {
 		fmt.Fprintf(&b, "BRIEF:\n%s\n\n", strings.TrimSpace(req.Brief))
 	}
 	fmt.Fprintf(&b, "CHOSEN DIRECTION: %s — %s\n", req.OptionTitle, req.OneLiner)
-	if req.Customer != "" {
-		fmt.Fprintf(&b, "AUDIENCE: %s\n", req.Customer)
+	if req.Audience != "" {
+		fmt.Fprintf(&b, "AUDIENCE: %s\n", req.Audience)
 	}
-	if req.Pain != "" {
-		fmt.Fprintf(&b, "NEED: %s\n", req.Pain)
+	if req.Need != "" {
+		fmt.Fprintf(&b, "NEED: %s\n", req.Need)
 	}
-	if req.Wedge != "" {
-		fmt.Fprintf(&b, "DISTINCTIVE APPROACH: %s\n", req.Wedge)
+	if req.Approach != "" {
+		fmt.Fprintf(&b, "DISTINCTIVE APPROACH: %s\n", req.Approach)
 	}
-	if req.Offer != "" {
-		fmt.Fprintf(&b, "FIRST CONCRETE DELIVERABLE: %s\n", req.Offer)
+	if req.Deliverable != "" {
+		fmt.Fprintf(&b, "FIRST CONCRETE DELIVERABLE: %s\n", req.Deliverable)
 	}
-	if req.Validation != "" {
-		fmt.Fprintf(&b, "FIRST CHECK: %s\n", req.Validation)
+	if req.FirstCheck != "" {
+		fmt.Fprintf(&b, "FIRST CHECK: %s\n", req.FirstCheck)
 	}
 	if len(req.Constraints) > 0 {
 		b.WriteString("\nCONSTRAINTS:\n")
@@ -111,7 +111,7 @@ func BuildPrompt(req Request) string {
 	b.WriteString("- The plans must be genuinely different: one fastest usable version, one deepest coverage, one leanest/least risky.\n")
 	b.WriteString("- Tasks must be concrete and ordered; include 4–8 tasks per plan.\n")
 	b.WriteString("- capability must be one of: code, data, document, text, media.\n")
-	b.WriteString("- Every task must be executable in 30 days and have at least one acceptance criterion.\n")
+	b.WriteString("- Every task must be small enough to finish in one iteration and have at least one acceptance criterion.\n")
 	b.WriteString("- Cite only the allowed sources; do not invent data or citations.\n")
 	b.WriteString("- Output only the JSON array, no markdown or commentary.\n")
 	return b.String()
@@ -436,7 +436,7 @@ func (s *Service) Select(ctx context.Context, projectID string, index int) error
 
 // ToTaskSpecs converts a chosen candidate into dependency-ordered project
 // tasks. Each task depends on the previous one, which is the smallest safe
-// graph for an ordered 30-day plan; a future planner may emit explicit edges.
+// graph for an ordered plan; a future planner may emit explicit edges.
 func ToTaskSpecs(c Candidate) []project.TaskSpec {
 	specs := make([]project.TaskSpec, 0, len(c.Tasks))
 	for i, t := range c.Tasks {

@@ -52,21 +52,19 @@ func TestRubricFor_Document(t *testing.T) {
 	}
 }
 
-// TestRubricFor_Code covers the code archetype: imports
-// compile, tests pass, docstrings, no placeholders, linter
-// clean, acceptance coverage. The "linter clean" item is
-// advisory until M3-T2 commit 2.3 lands; the rubric must
-// mention it but the test does not require it to be wired.
+// TestRubricFor_Code covers the code archetype: dependencies resolve, tests
+// pass, documentation, no placeholders, linter clean, acceptance coverage.
 func TestRubricFor_Code(t *testing.T) {
 	r := rubricFor(project.ArchetypeCode)
 	if r == "" {
 		t.Fatal("code rubric is empty")
 	}
 	mustContain := []string{
-		"IMPORTS COMPILE",
+		"DEPENDENCIES RESOLVE",
 		"TESTS PASS",
-		"DOCSTRINGS",
+		"DOCUMENTATION",
 		"NO PLACEHOLDERS",
+		"LINTER CLEAN",
 		"ACCEPTANCE COVERAGE",
 	}
 	for _, item := range mustContain {
@@ -74,23 +72,28 @@ func TestRubricFor_Code(t *testing.T) {
 			t.Errorf("code rubric missing %q\nrubric:\n%s", item, r)
 		}
 	}
-	// Advisory item: the lint route exists (M3-T2); the rubric names it but
-	// does not make its presence a hard test assertion.
-	if !strings.Contains(r, "LINTER CLEAN") {
-		t.Logf("code rubric mentions LINTER CLEAN as advisory: ok")
-	}
 }
 
-// TestRubricFor_DataAndMediaDeferred covers the deferred
-// archetypes: data and media return an empty rubric. The
-// persona still sees the acceptance-criteria block, so the
-// §19.3 guard is not weaker than M3-T1.
-func TestRubricFor_DataAndMediaDeferred(t *testing.T) {
-	if r := rubricFor(project.ArchetypeData); r != "" {
-		t.Errorf("data rubric should be empty (deferred per ROADMAP §7), got:\n%s", r)
-	}
-	if r := rubricFor(project.ArchetypeMedia); r != "" {
-		t.Errorf("media rubric should be empty (deferred per ROADMAP §7), got:\n%s", r)
+// TestRubricFor_DataAndMedia covers the non-code capabilities: data checks
+// schema/provenance and media checks format/legibility. Both still include the
+// shared acceptance-coverage item.
+func TestRubricFor_DataAndMedia(t *testing.T) {
+	for _, tc := range []struct {
+		capability string
+		want       []string
+	}{
+		{project.ArchetypeData, []string{"SCHEMA", "PROVENANCE", "COMPLETENESS", "NO FABRICATION", "DETERMINISM", "ACCEPTANCE COVERAGE"}},
+		{project.ArchetypeMedia, []string{"FORMAT", "CLARITY", "SPEC ADHERENCE", "ACCESSIBILITY", "NO PLACEHOLDERS", "ACCEPTANCE COVERAGE"}},
+	} {
+		r := rubricFor(tc.capability)
+		if r == "" {
+			t.Fatalf("%s rubric is empty", tc.capability)
+		}
+		for _, item := range tc.want {
+			if !strings.Contains(r, item) {
+				t.Errorf("%s rubric missing %q\nrubric:\n%s", tc.capability, item, r)
+			}
+		}
 	}
 }
 
@@ -110,7 +113,7 @@ func TestRubricFor_UnknownArchetype(t *testing.T) {
 // string. The function exists for test ergonomics; the
 // prompt's rendering uses the original order.
 func TestRubricItems_Stable(t *testing.T) {
-	for _, archetype := range []string{project.ArchetypeText, project.ArchetypeDocument, project.ArchetypeCode} {
+	for _, archetype := range []string{project.ArchetypeText, project.ArchetypeDocument, project.ArchetypeCode, project.ArchetypeData, project.ArchetypeMedia} {
 		items := rubricItems(archetype)
 		if len(items) == 0 {
 			t.Errorf("%s: rubricItems returned empty", archetype)
@@ -125,9 +128,5 @@ func TestRubricItems_Stable(t *testing.T) {
 				t.Errorf("%s: rubricItems not stable at index %d: %q vs %q", archetype, i, items[i], again[i])
 			}
 		}
-	}
-	// Deferred archetypes return nil.
-	if items := rubricItems(project.ArchetypeData); items != nil {
-		t.Errorf("data rubricItems should be nil, got %v", items)
 	}
 }

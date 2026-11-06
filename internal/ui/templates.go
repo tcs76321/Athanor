@@ -373,7 +373,7 @@ const projectsBody = `
 <p class="sub">Each project is one goal, its criteria, and the work history behind it.</p>
 <div class="actions"><a class="btn" href="/ui/projects/new">+ New project</a></div>
 {{if .Projects}}
-<table><thead><tr><th>Name</th><th>Archetype</th><th>Status</th><th>Goal</th><th>Created</th></tr></thead><tbody>
+<table><thead><tr><th>Name</th><th>Capabilities</th><th>Status</th><th>Goal</th><th>Created</th></tr></thead><tbody>
 {{range .Projects}}<tr>
   <td><a href="/ui/projects/{{.ID}}">{{.Name}}</a></td>
   <td><span class="pill">{{join .Capabilities}}</span></td>

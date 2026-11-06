@@ -44,7 +44,7 @@ var ErrNoRepository = errors.New("project has no repository")
 
 // Goal text length bounds come from the goals table CHECK (§5). Three
 // characters is the floor: the project onboarding brief supplies depth, and a
-// short, honest goal ("make money online") must not be rejected.
+// short, honest goal ("a daily news brief") must not be rejected.
 const (
 	goalMinLen = 3
 	goalMaxLen = 500

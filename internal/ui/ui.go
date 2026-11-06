@@ -145,7 +145,7 @@ type Deps struct {
 	// discovery step (the project still supports the deterministic interview).
 	Discovery Discovery
 	// Planning generates AI plan candidates after a direction is chosen. nil
-	// keeps the deterministic 30-day plan.
+	// keeps the deterministic fallback plan.
 	Planning Planning
 	// ModelAudit is the measured model-fit JSON passed by `athanor start`.
 	// Empty means no audit was available.

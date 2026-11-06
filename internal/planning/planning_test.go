@@ -13,19 +13,19 @@ import (
 
 func candidate(title string) Candidate {
 	return Candidate{
-		Title: title, Summary: "A 30-day plan for " + title,
+		Title: title, Summary: "A plan for " + title,
 		Tasks: []Task{
-			{Title: "Validate demand", Description: strings.Repeat("Run five customer interviews and record evidence. ", 2), Capability: "text", Criteria: []string{"five interviews"}},
-			{Title: "Build offer", Description: strings.Repeat("Write the first paid offer and a landing page. ", 2), Capability: "document", Criteria: []string{"offer exists"}},
-			{Title: "Outreach", Description: strings.Repeat("Contact 25 prospects with a personal message. ", 2), Capability: "text", Criteria: []string{"25 prospects"}},
-			{Title: "Decide", Description: strings.Repeat("Review evidence and decide go, adjust, or stop. ", 2), Capability: "document", Criteria: []string{"decision recorded"}},
+			{Title: "Gather source material", Description: strings.Repeat("Collect and read the approved sources, recording what each contributes. ", 2), Capability: "text", Criteria: []string{"sources recorded"}},
+			{Title: "Produce the deliverable", Description: strings.Repeat("Write the first usable deliverable and cite the approved sources. ", 2), Capability: "document", Criteria: []string{"deliverable exists"}},
+			{Title: "Check it", Description: strings.Repeat("Review the deliverable against the brief and the success criteria. ", 2), Capability: "document", Criteria: []string{"gaps recorded"}},
+			{Title: "Decide", Description: strings.Repeat("Record what worked, what did not, and the next step. ", 2), Capability: "document", Criteria: []string{"decision recorded"}},
 		},
-		Risks: []string{"thin demand"}, Assumptions: []string{"buyers exist"}, Confidence: 0.6,
+		Risks: []string{"incomplete sources"}, Assumptions: []string{"approved sources are reachable"}, Confidence: 0.6,
 	}
 }
 
 func TestParseValidateAndScore(t *testing.T) {
-	raw, err := json.Marshal([]Candidate{candidate("Fastest validation"), candidate("Deepest quality"), candidate("Lowest cost")})
+	raw, err := json.Marshal([]Candidate{candidate("Fastest first draft"), candidate("Deepest coverage"), candidate("Leanest path")})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -49,7 +49,7 @@ func TestParseValidateAndScore(t *testing.T) {
 
 func TestValidateRejectsInvalidCapability(t *testing.T) {
 	cands := []Candidate{candidate("A"), candidate("B"), candidate("C")}
-	cands[0].Tasks[0].Capability = "venture"
+	cands[0].Tasks[0].Capability = "not_a_capability"
 	if _, err := Validate(cands); err == nil {
 		t.Fatal("invalid capability accepted")
 	}
@@ -73,7 +73,7 @@ func TestStoreBeginCompleteSelect(t *testing.T) {
 	}
 	ctx := context.Background()
 	if _, err := s.DB().ExecContext(ctx,
-		`INSERT INTO projects (id, name, archetype, goal) VALUES ('p1','p1','document','make money online')`); err != nil {
+		`INSERT INTO projects (id, name, archetype, goal) VALUES ('p1','p1','document','a daily news brief')`); err != nil {
 		t.Fatal(err)
 	}
 	ps := NewStore(s)
@@ -119,7 +119,7 @@ func TestStoreFailIsDurable(t *testing.T) {
 	}
 	ctx := context.Background()
 	if _, err := s.DB().ExecContext(ctx,
-		`INSERT INTO projects (id, name, archetype, goal) VALUES ('p1','p1','document','make money online')`); err != nil {
+		`INSERT INTO projects (id, name, archetype, goal) VALUES ('p1','p1','document','a daily news brief')`); err != nil {
 		t.Fatal(err)
 	}
 	ps := NewStore(s)
@@ -145,7 +145,7 @@ func openPlanStore(t *testing.T) (*store.Store, *Store) {
 		t.Fatal(err)
 	}
 	if _, err := s.DB().ExecContext(context.Background(),
-		`INSERT INTO projects (id, name, archetype, goal) VALUES ('p1','p1','document','make money online')`); err != nil {
+		`INSERT INTO projects (id, name, archetype, goal) VALUES ('p1','p1','document','a daily news brief')`); err != nil {
 		t.Fatal(err)
 	}
 	return s, NewStore(s)
@@ -214,12 +214,12 @@ func TestSelectRejectsNonReadySession(t *testing.T) {
 
 func TestBuildPromptIncludesDirectionConstraintsAndRules(t *testing.T) {
 	got := BuildPrompt(Request{
-		Goal: "make money online", OptionTitle: "Local bookkeeping",
-		OneLiner: "Monthly close for trades", Constraints: []string{"two hours a day"},
+		Goal: "a daily news brief", OptionTitle: "Daily news brief",
+		OneLiner: "A short source-triaged update", Constraints: []string{"two hours a day"},
 		Sources: []string{"https://example.com"},
 	})
 	for _, want := range []string{
-		"GOAL: make money online", "Local bookkeeping — Monthly close for trades",
+		"GOAL: a daily news brief", "Daily news brief — A short source-triaged update",
 		"two hours a day", "ALLOWED SOURCES", "exactly 3 objects",
 		"capability must be one of",
 	} {

@@ -11,10 +11,7 @@
 // The rubric is per archetype because the §19.1 checks
 // differ: a `text` artifact doesn't need pytest; a `code`
 // artifact doesn't need paragraph structure. The closed set
-// is the five §6.2 archetypes; `data` and `media` are
-// deferred (ROADMAP §7) and return empty, which causes the
-// prompt's section-add helper to drop the rubric section
-// entirely.
+// is the five §6.2 archetypes; each has a rubric.
 package engine
 
 import (
@@ -34,9 +31,10 @@ func rubricFor(archetype string) string {
 		return textDocumentRubric()
 	case project.ArchetypeCode:
 		return codeRubric()
-	case project.ArchetypeData, project.ArchetypeMedia:
-		// Deferred per ROADMAP §7. M4/M5 may add rubrics.
-		return ""
+	case project.ArchetypeData:
+		return dataRubric()
+	case project.ArchetypeMedia:
+		return mediaRubric()
 	default:
 		// Unknown archetype: no rubric, but the persona
 		// still sees the acceptance-criteria block, so the
@@ -69,11 +67,37 @@ func textDocumentRubric() string {
 // a `runner_not_wired` reason in the verdict's summary.
 func codeRubric() string {
 	return strings.Join([]string{
-		"IMPORTS COMPILE: do all top-level imports resolve to a known module? (Audit by reading; the Job Pod's execute_code is the runtime check.)",
+		"DEPENDENCIES RESOLVE: do all imports and references resolve to a known module or package? (Audit by reading; the Job Pod's execute_code is the runtime check.)",
 		"TESTS PASS: did the project's configured test command exit 0 in the Job Pod? If `tests_pass` is unknown because the runner was not wired, the verdict's `summary` should mention `runner_not_wired`.",
-		"DOCSTRINGS: does every public function have a docstring? (Use the §11 prompt's `pure stdlib; docstrings on every public function; a usage example` for code-archetype goals as the spec.)",
+		"DOCUMENTATION: do public functions, types, and modules have the documentation the project's language convention expects?",
 		"NO PLACEHOLDERS: are there any TODO, FIXME, or `pass`-as-implementation?",
-		"LINTER CLEAN: did `ruff check .` (or the configured linter) exit 0 in the Job Pod? (A job whose envelope does not grant `lint` skips this item.)",
+		"LINTER CLEAN: did the project's configured linter exit 0 in the Job Pod? (A job whose envelope does not grant `lint` skips this item.)",
+		"ACCEPTANCE COVERAGE: does every acceptance criterion appear in the artifact, in a way a reader can identify?",
+	}, "\n")
+}
+
+// dataRubric applies to `data` capabilities. It asks about schema, provenance,
+// completeness, and determinism rather than prose or code shape.
+func dataRubric() string {
+	return strings.Join([]string{
+		"SCHEMA: does the output validate against the declared schema, or against an explicit and documented shape when no schema is declared?",
+		"PROVENANCE: is every value traceable to a declared source, or clearly marked as derived?",
+		"COMPLETENESS: are required fields present, and are missing values explicit rather than silently dropped?",
+		"NO FABRICATION: are there invented records, totals, timestamps, or citations?",
+		"DETERMINISM: can the same input produce the same output?",
+		"ACCEPTANCE COVERAGE: does every acceptance criterion appear in the artifact, in a way a reader can identify?",
+	}, "\n")
+}
+
+// mediaRubric applies to `media` capabilities. It checks the requested format
+// and legibility without assuming a particular medium or toolchain.
+func mediaRubric() string {
+	return strings.Join([]string{
+		"FORMAT: does the artifact match the requested dimensions, duration, encoding, or file type?",
+		"CLARITY: is the intended subject or message legible without extra explanation?",
+		"SPEC ADHERENCE: does it follow the brief's style, length, and required elements?",
+		"ACCESSIBILITY: where applicable, are alt text, captions, contrast, or equivalent affordances present?",
+		"NO PLACEHOLDERS: is any part a stand-in, missing asset, or unfinished draft?",
 		"ACCEPTANCE COVERAGE: does every acceptance criterion appear in the artifact, in a way a reader can identify?",
 	}, "\n")
 }

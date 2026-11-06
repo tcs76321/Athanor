@@ -30,14 +30,14 @@ const projectOnboardingBody = `
       <form method="post" action="/ui/projects/{{.Project.ID}}/onboarding">
         <label for="goal">Goal</label>
         <textarea id="goal" name="goal" rows="2" required data-refine-field="brief.goal">{{.Brief.Goal}}</textarea>
-        <div class="field-help">Example: “make money online” or “find a small B2B service I can validate in 30 days”.</div>
+        <div class="field-help">Examples: “compile a daily news brief from approved sources” or “build a small internal tool with tests”.</div>
 
         <label for="constraints">Constraints / limits (one per line)</label>
         <textarea id="constraints" name="constraints" rows="4" data-refine-field="brief.constraints">{{join .Brief.Constraints}}</textarea>
         <div class="field-help">Time, money, skills, location, legal or ethical boundaries, things that are out of scope.</div>
 
         <label for="limitations">Anything Athanor must not do</label>
-        <textarea id="limitations" name="limitations" rows="3" data-refine-field="brief.limitations" placeholder="No ads, no cold calling, no regulated advice, no publishing without review.">{{.Brief.Limitations}}</textarea>
+        <textarea id="limitations" name="limitations" rows="3" data-refine-field="brief.limitations" placeholder="No external publishing without review, no outbound messages, no new external services, no data outside the approved sources.">{{.Brief.Limitations}}</textarea>
 
         <label for="sources">Sources or pages Athanor may read (one per line)</label>
         <textarea id="sources" name="sources" rows="3" data-refine-field="brief.sources" placeholder="https://example.com/feed">{{join .Brief.Sources}}</textarea>
@@ -113,30 +113,30 @@ const projectOnboardingBody = `
       <div class="option">
         <div class="top">
           <div>
-            <div class="eyebrow">{{.Industry}} · {{.Niche}}</div>
+            <div class="eyebrow">{{.Domain}} · {{.Focus}}</div>
             <div class="title">{{.Title}}</div>
           </div>
           <span class="pill accent">{{index .Scores "total"}}/100</span>
         </div>
         <div class="one-liner">{{.OneLiner}}</div>
         <div class="meta">
-          <span class="pill">~${{.StartupCostUSD}} setup cost</span>
-          <span class="pill">{{.TimeToFirstRevenueDays}} days to first deliverable</span>
+          <span class="pill">~${{.SetupCostUSD}} setup cost</span>
+          <span class="pill">{{.TimeToFirstDeliverableDays}} days to first deliverable</span>
           <span class="pill">{{len .Evidence}} source{{if ne (len .Evidence) 1}}s{{end}}</span>
           <span class="pill">confidence {{printf "%.2f" .Confidence}}</span>
         </div>
         <div class="stack">
-          <div><b>Audience</b> <span class="muted">{{.Customer}}</span></div>
-          <div><b>Need</b> <span class="muted">{{.Pain}}</span></div>
-          <div><b>Approach</b> <span class="muted">{{.Wedge}}</span></div>
-          <div><b>First deliverable</b> <span class="muted">{{.FirstOffer}}</span></div>
-          <div><b>How to test it</b> <span class="muted">{{.ValidationExperiment}}</span></div>
+          <div><b>Audience</b> <span class="muted">{{.Audience}}</span></div>
+          <div><b>Need</b> <span class="muted">{{.Need}}</span></div>
+          <div><b>Approach</b> <span class="muted">{{.Approach}}</span></div>
+          <div><b>First deliverable</b> <span class="muted">{{.FirstDeliverable}}</span></div>
+          <div><b>How to test it</b> <span class="muted">{{.FirstCheck}}</span></div>
         </div>
         <div class="score">
           <div class="score-row"><span>Clarity</span><progress class="progress" value="{{index .Scores "clarity"}}" max="20"></progress><span>{{index .Scores "clarity"}}/20</span></div>
           <div class="score-row"><span>Evidence</span><progress class="progress" value="{{index .Scores "evidence"}}" max="20"></progress><span>{{index .Scores "evidence"}}/20</span></div>
           <div class="score-row"><span>Speed</span><progress class="progress" value="{{index .Scores "speed"}}" max="20"></progress><span>{{index .Scores "speed"}}/20</span></div>
-          <div class="score-row"><span>Cost fit</span><progress class="progress" value="{{index .Scores "capital"}}" max="20"></progress><span>{{index .Scores "capital"}}/20</span></div>
+          <div class="score-row"><span>Cost fit</span><progress class="progress" value="{{index .Scores "cost"}}" max="20"></progress><span>{{index .Scores "cost"}}/20</span></div>
           <div class="score-row"><span>Risk</span><progress class="progress" value="{{index .Scores "risk"}}" max="20"></progress><span>{{index .Scores "risk"}}/20</span></div>
         </div>
         {{if .Risks}}<details><summary>Risks and assumptions</summary>{{range .Risks}}<div class="ev">{{.}}</div>{{end}}{{range .Assumptions}}<div class="ev">Assumption: {{.}}</div>{{end}}</details>{{end}}
@@ -151,7 +151,7 @@ const projectOnboardingBody = `
     <div class="card" data-live-card="planning" data-live-interval="4000">
       <div class="eyebrow">Planning in progress</div>
       <h2>Athanor is drafting three plans.</h2>
-      <p class="muted">The plans differ by risk and time-to-validation. This panel updates in place; you can leave and come back.</p>
+      <p class="muted">The plans differ by speed, depth, and risk. This panel updates in place; you can leave and come back.</p>
       <progress class="progress" value="45" max="100">45%</progress>
       <div class="actions"><a class="btn secondary" href="/ui/projects/{{.Project.ID}}/onboarding">Refresh</a></div>
     </div>
@@ -161,9 +161,9 @@ const projectOnboardingBody = `
       <h2>{{.Selected.Title}}</h2>
       <p class="muted">{{.Selected.OneLiner}}</p>
       <div class="meta">
-        <span class="pill">{{.Selected.Industry}} · {{.Selected.Niche}}</span>
-        <span class="pill">~${{.Selected.StartupCostUSD}} setup cost</span>
-        <span class="pill">{{.Selected.TimeToFirstRevenueDays}} days to first deliverable</span>
+        <span class="pill">{{.Selected.Domain}} · {{.Selected.Focus}}</span>
+        <span class="pill">~${{.Selected.SetupCostUSD}} setup cost</span>
+        <span class="pill">{{.Selected.TimeToFirstDeliverableDays}} days to first deliverable</span>
       </div>
       <div class="actions">
         <form method="post" action="/ui/projects/{{.Project.ID}}/onboarding">
@@ -234,14 +234,14 @@ const projectOnboardingBody = `
       <div class="eyebrow">AI plans</div>
       {{if .PlanningAvailable}}
       <h2>Draft three plans.</h2>
-      <p class="muted">Athanor will turn the selected direction and your brief into three distinct 30-day plans: fastest validation, deepest quality, and lowest cost. You choose before work starts.</p>
+      <p class="muted">Athanor will turn the selected direction and your brief into three distinct plans: fastest usable first version, deepest coverage, and leanest path. You choose before work starts.</p>
       <form method="post" action="/ui/projects/{{.Project.ID}}/onboarding">
         <button class="primary" name="action" value="generate_plans">Generate three plans</button>
       </form>
       <p class="muted small">Or approve the deterministic plan below without an extra model call.</p>
       {{else}}
       <h2>Simple plan.</h2>
-      <p class="muted">AI planning is not configured. Review and approve the deterministic 30-day plan below.</p>
+      <p class="muted">AI planning is not configured. Review and approve the deterministic plan below.</p>
       {{end}}
       <div class="actions">
         <form method="post" action="/ui/projects/{{.Project.ID}}/onboarding">

@@ -11,14 +11,7 @@ import (
 	"github.com/tcs76321/athanor/internal/project"
 )
 
-// codeOnlyInstruction is the F4-T0a follow-through: the code-archetype
-// artifact must be the raw module, because the Job Pod materializes it as
-// `/tmp/solution.py` and imports it. The first post-F4 micro run showed the
-// generator emitting prose-and-fences, which imports as invalid Python and
-// fails the real test for a packaging reason rather than a logic one.
-const codeOnlyInstruction = "Output ONLY raw Python source, no markdown code fences, no prose, no commentary. A single-file task outputs just the file contents. A multi-file task emits each file as a block beginning with a line `=== FILE: <relative path> ===` followed by that file's raw contents; emit every file the task requires. When editing an existing repository, preserve every existing public function, class, test, and documentation block the task does not explicitly ask you to change; never drop unrelated code or tests."
-
-// capCandidatesForCapability keeps a hard task's panel useful without spending
+// phaseDivergeN (§13.1 Phase 2): generates N candidate artifacts, each
 // a local GPU's whole session on model swaps. Independent implementations are
 // genuinely useful for code; for document, text, data, and media work a smaller
 // panel captures the same diversity at a fraction of the wall time.

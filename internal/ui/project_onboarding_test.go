@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/tcs76321/athanor/internal/discovery"
 	"github.com/tcs76321/athanor/internal/planning"
+	"github.com/tcs76321/athanor/internal/project"
 )
 
 type fakeDiscovery struct {
@@ -21,15 +23,15 @@ type fakeDiscovery struct {
 
 func (f *fakeDiscovery) Generate(_ context.Context, projectID string, _ discovery.Request) (discovery.Session, error) {
 	opts := []discovery.Option{
-		{ID: "o1", Title: "Local bookkeeping", OneLiner: "Monthly close for trades", Industry: "Finance", Niche: "Trades", Customer: "Electricians", Pain: "Receipts", Wedge: "Done-for-you", BusinessModel: "Retainer", Pricing: "$300/mo", FirstOffer: "One free month", ValidationExperiment: "Five calls", TimeToFirstRevenueDays: 14, StartupCostUSD: 100, Confidence: 0.7},
-		{ID: "o2", Title: "Niche newsletter", OneLiner: "Paid brief for labs", Industry: "Media", Niche: "Labs", Customer: "Lab managers", Pain: "Fragmented news", Wedge: "Curated", BusinessModel: "Subscription", Pricing: "$10/mo", FirstOffer: "First issue free", ValidationExperiment: "Landing page", TimeToFirstRevenueDays: 30, StartupCostUSD: 50, Confidence: 0.6},
-		{ID: "o3", Title: "Compliance templates", OneLiner: "Checklist packs", Industry: "Healthcare", Niche: "Clinics", Customer: "Clinic owners", Pain: "Audit prep", Wedge: "Ready-made", BusinessModel: "One-off", Pricing: "$99", FirstOffer: "Sample pack", ValidationExperiment: "Ten downloads", TimeToFirstRevenueDays: 10, StartupCostUSD: 20, Confidence: 0.6},
-		{ID: "o4", Title: "Recruiter notes", OneLiner: "Structured summaries", Industry: "Software", Niche: "Recruiting", Customer: "Agencies", Pain: "Manual notes", Wedge: "Templates", BusinessModel: "Subscription", Pricing: "$29/mo", FirstOffer: "Three free", ValidationExperiment: "Five demos", TimeToFirstRevenueDays: 21, StartupCostUSD: 200, Confidence: 0.5},
-		{ID: "o5", Title: "Workshop booking", OneLiner: "Deposits for makers", Industry: "Education", Niche: "Crafts", Customer: "Workshops", Pain: "No-shows", Wedge: "Deposit-first", BusinessModel: "SaaS", Pricing: "$19/mo", FirstOffer: "Free setup", ValidationExperiment: "Three pilots", TimeToFirstRevenueDays: 7, StartupCostUSD: 0, Confidence: 0.7},
-		{ID: "o6", Title: "Cafe supplier shortlists", OneLiner: "Independent comparisons", Industry: "Hospitality", Niche: "Cafes", Customer: "Cafe owners", Pain: "Opaque pricing", Wedge: "Paid shortlist", BusinessModel: "Service", Pricing: "$150", FirstOffer: "One category", ValidationExperiment: "Five interviews", TimeToFirstRevenueDays: 28, StartupCostUSD: 300, Confidence: 0.5},
+		{ID: "o1", Title: "Daily news brief", OneLiner: "A short source-triaged update", Domain: "Media", Focus: "World news", Audience: "Readers", Need: "Fragmented coverage", Approach: "Group by consequence", Format: "Daily brief", Availability: "Public", FirstDeliverable: "One-page brief", FirstCheck: "Five readers review it", TimeToFirstDeliverableDays: 14, SetupCostUSD: 0, Confidence: 0.7},
+		{ID: "o2", Title: "CSV reconciliation CLI", OneLiner: "Explain row differences locally", Domain: "Software", Focus: "Data operations", Audience: "Analysts", Need: "Manual reconciliation", Approach: "Field-level diff", Format: "Command-line tool", Availability: "Internal", FirstDeliverable: "Working prototype", FirstCheck: "Run on a known mismatch", TimeToFirstDeliverableDays: 30, SetupCostUSD: 0, Confidence: 0.6},
+		{ID: "o3", Title: "Procurement policy memo", OneLiner: "A clear internal decision memo", Domain: "Public policy", Focus: "Procurement", Audience: "Procurement staff", Need: "Inconsistent rules", Approach: "Compare and propose a checklist", Format: "Memo", Availability: "Internal", FirstDeliverable: "Two-page memo", FirstCheck: "Two policy owners review it", TimeToFirstDeliverableDays: 10, SetupCostUSD: 0, Confidence: 0.6},
+		{ID: "o4", Title: "Air-quality dataset", OneLiner: "Normalized readings with provenance", Domain: "Environment", Focus: "Air quality", Audience: "Local researchers", Need: "Scattered formats", Approach: "Normalize and document gaps", Format: "Dataset", Availability: "Public", FirstDeliverable: "One cleaned month", FirstCheck: "Re-run on a second month", TimeToFirstDeliverableDays: 21, SetupCostUSD: 0, Confidence: 0.5},
+		{ID: "o5", Title: "Water-cycle diagrams", OneLiner: "Annotated visuals for a lesson", Domain: "Education", Focus: "Science communication", Audience: "Students", Need: "Abstract process", Approach: "Step-by-step annotation", Format: "Image set", Availability: "Public", FirstDeliverable: "Three diagrams", FirstCheck: "A teacher uses them", TimeToFirstDeliverableDays: 7, SetupCostUSD: 0, Confidence: 0.7},
+		{ID: "o6", Title: "Battery-recycling digest", OneLiner: "A weekly annotated paper digest", Domain: "Research", Focus: "Materials", Audience: "A lab team", Need: "Papers are easy to miss", Approach: "Annotate claims and limits", Format: "Weekly digest", Availability: "Internal", FirstDeliverable: "Five annotated papers", FirstCheck: "The team rates it", TimeToFirstDeliverableDays: 28, SetupCostUSD: 0, Confidence: 0.5},
 	}
 	for i := range opts {
-		opts[i].Scores = map[string]int{"total": 80 - i, "clarity": 20, "evidence": 10, "speed": 15, "capital": 15, "risk": 15}
+		opts[i].Scores = map[string]int{"total": 80 - i, "clarity": 20, "evidence": 10, "speed": 15, "cost": 15, "risk": 15}
 	}
 	f.mu.Lock()
 	f.sess = discovery.Session{ID: "s1", ProjectID: projectID, Status: "ready", Options: opts}
@@ -63,7 +65,7 @@ type fakePlanning struct {
 
 func planCandidate(title string) planning.Candidate {
 	return planning.Candidate{
-		Title: title, Summary: "A 30-day plan for " + title,
+		Title: title, Summary: "A plan for " + title,
 		Tasks: []planning.Task{
 			{Title: title + " task", Description: "A concrete first step.", Capability: "document", Criteria: []string{"done"}},
 			{Title: title + " verify", Description: "Verify the first step.", Capability: "document", Criteria: []string{"verified"}},
@@ -79,9 +81,9 @@ func (f *fakePlanning) Generate(_ context.Context, projectID, optionID string, _
 	f.sess = planning.Session{
 		ID: "ps1", ProjectID: projectID, OptionID: optionID, Status: "ready", SelectedIndex: -1,
 		Candidates: []planning.Candidate{
-			planCandidate("Fastest validation"),
-			planCandidate("Deepest quality"),
-			planCandidate("Lowest cost"),
+			planCandidate("Fastest first draft"),
+			planCandidate("Deepest coverage"),
+			planCandidate("Leanest path"),
 		},
 	}
 	f.has = true
@@ -129,7 +131,7 @@ func TestProjectOnboardingShowsDiscoveryTransparency(t *testing.T) {
 	fx := setup(t)
 	sd := &slowDiscovery{started: make(chan struct{}), release: make(chan struct{})}
 	fx.ui.deps.Discovery = sd
-	fx.ui.startDiscovery(fx.project, projectBrief{Goal: "make money online", Constraints: []string{"two hours a day"}})
+	fx.ui.startDiscovery(fx.project, projectBrief{Goal: "a daily news brief", Constraints: []string{"two hours a day"}})
 	select {
 	case <-sd.started:
 	case <-time.After(time.Second):
@@ -203,10 +205,10 @@ func TestProjectOnboardingDiscoveryFlow(t *testing.T) {
 
 	resp := postForm(t, fx.ts.URL+"/ui/projects/"+fx.project.ID+"/onboarding", url.Values{
 		"action":      {"save"},
-		"goal":        {"make money online"},
+		"goal":        {"a daily news brief"},
 		"constraints": {"two hours a day\nno ads"},
 		"sources":     {"https://example.com"},
-		"success":     {"five customer conversations"},
+		"success":     {"a brief a reader can finish in ten minutes"},
 	})
 	if resp.StatusCode != 303 {
 		t.Fatalf("save status = %d", resp.StatusCode)
@@ -238,10 +240,10 @@ func TestProjectOnboardingDiscoveryFlow(t *testing.T) {
 
 	resp = postForm(t, fx.ts.URL+"/ui/projects/"+fx.project.ID+"/onboarding", url.Values{
 		"action":      {"discover"},
-		"goal":        {"make money online"},
+		"goal":        {"a daily news brief"},
 		"constraints": {"two hours a day\nno ads"},
 		"sources":     {"https://example.com"},
-		"success":     {"five customer conversations"},
+		"success":     {"a brief a reader can finish in ten minutes"},
 	})
 	if resp.StatusCode != 303 {
 		t.Fatalf("discover status = %d", resp.StatusCode)
@@ -260,7 +262,7 @@ func TestProjectOnboardingDiscoveryFlow(t *testing.T) {
 	if !found {
 		t.Fatal("discovery never produced the option board")
 	}
-	for _, want := range []string{"Local bookkeeping", "Niche newsletter", "Cafe supplier shortlists", "Develop this direction"} {
+	for _, want := range []string{"Daily news brief", "CSV reconciliation CLI", "Battery-recycling digest", "Develop this direction"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("option board missing %q", want)
 		}
@@ -273,7 +275,7 @@ func TestProjectOnboardingDiscoveryFlow(t *testing.T) {
 		t.Fatalf("select status = %d", resp.StatusCode)
 	}
 	_, body = get(t, fx.ts.URL+"/ui/projects/"+fx.project.ID+"/onboarding")
-	if !strings.Contains(body, "Approve plan and start") || !strings.Contains(body, "First 30 days") {
+	if !strings.Contains(body, "Approve plan and start") || !strings.Contains(body, "First iteration") {
 		t.Fatalf("plan stage missing (%.200q)", body)
 	}
 
@@ -299,9 +301,9 @@ func advanceToPlan(t *testing.T, fx *fixtures, fd *fakeDiscovery) string {
 	t.Helper()
 	fx.ui.deps.Discovery = fd
 	if resp := postForm(t, fx.ts.URL+"/ui/projects/"+fx.project.ID+"/onboarding", url.Values{
-		"action": {"discover"}, "goal": {"make money online"},
+		"action": {"discover"}, "goal": {"a daily news brief"},
 		"constraints": {"two hours a day"}, "sources": {"https://example.com"},
-		"success": {"five customer conversations"},
+		"success": {"a brief a reader can finish in ten minutes"},
 	}); resp.StatusCode != 303 {
 		t.Fatalf("discover status = %d", resp.StatusCode)
 	}
@@ -342,7 +344,7 @@ func TestProjectOnboardingAIPlanFlow(t *testing.T) {
 	found := false
 	for time.Now().Before(deadline) {
 		_, body = get(t, fx.ts.URL+"/ui/projects/"+fx.project.ID+"/onboarding")
-		if strings.Contains(body, "Three plans") && strings.Contains(body, "Fastest validation") {
+		if strings.Contains(body, "Three plans") && strings.Contains(body, "Fastest first draft") {
 			found = true
 			break
 		}
@@ -358,7 +360,7 @@ func TestProjectOnboardingAIPlanFlow(t *testing.T) {
 		t.Fatalf("select_plan status = %d", resp.StatusCode)
 	}
 	_, body = get(t, fx.ts.URL+"/ui/projects/"+fx.project.ID+"/onboarding")
-	if !strings.Contains(body, "Chosen plan") || !strings.Contains(body, "Deepest quality") {
+	if !strings.Contains(body, "Chosen plan") || !strings.Contains(body, "Deepest coverage") {
 		t.Fatalf("selected plan missing (%.300q)", body)
 	}
 
@@ -373,7 +375,7 @@ func TestProjectOnboardingAIPlanFlow(t *testing.T) {
 	}
 	foundTask := false
 	for _, task := range tasks {
-		if task.Title == "Deepest quality task" {
+		if task.Title == "Deepest coverage task" {
 			foundTask = true
 		}
 	}
@@ -400,7 +402,7 @@ func TestProjectOnboardingIgnoresStalePlanAfterDirectionChange(t *testing.T) {
 	deadline := time.Now().Add(3 * time.Second)
 	for time.Now().Before(deadline) {
 		_, body = get(t, fx.ts.URL+"/ui/projects/"+fx.project.ID+"/onboarding")
-		if strings.Contains(body, "Fastest validation") {
+		if strings.Contains(body, "Fastest first draft") {
 			break
 		}
 		time.Sleep(20 * time.Millisecond)
@@ -418,10 +420,34 @@ func TestProjectOnboardingIgnoresStalePlanAfterDirectionChange(t *testing.T) {
 		t.Fatalf("select o2 status = %d", resp.StatusCode)
 	}
 	_, body = get(t, fx.ts.URL+"/ui/projects/"+fx.project.ID+"/onboarding")
-	if strings.Contains(body, "Fastest validation") || strings.Contains(body, "Chosen plan") {
+	if strings.Contains(body, "Fastest first draft") || strings.Contains(body, "Chosen plan") {
 		t.Fatalf("stale plan for the previous direction is still shown (%.300q)", body)
 	}
 	if !strings.Contains(body, "Draft three plans") {
 		t.Fatalf("new direction did not return to the plan prompt (%.300q)", body)
+	}
+}
+
+func TestWithSourceAccessKeepsCodeTools(t *testing.T) {
+	got := withSourceAccess(project.CapabilityCode, nil)
+	for _, want := range append(project.CodeArchetypeTools(), "fetch_url") {
+		if !slices.Contains(got, want) {
+			t.Errorf("code tools = %v, missing %q", got, want)
+		}
+	}
+	text := withSourceAccess(project.CapabilityText, nil)
+	if !slices.Equal(text, []string{"fetch_url"}) {
+		t.Errorf("text tools = %v, want only fetch_url", text)
+	}
+	// A pre-existing tool stays and is not duplicated.
+	got = withSourceAccess(project.CapabilityCode, []string{"fetch_url"})
+	n := 0
+	for _, tool := range got {
+		if tool == "fetch_url" {
+			n++
+		}
+	}
+	if n != 1 {
+		t.Errorf("fetch_url count = %d, want 1: %v", n, got)
 	}
 }

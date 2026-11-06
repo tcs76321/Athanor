@@ -110,7 +110,7 @@ var specs = map[string]Spec{
 		ID: "brief.goal", Label: "Discovery brief goal",
 		Purpose:      "The outcome the project discovery should explore, consumed by direction generation.",
 		Requirements: "Name the outcome and the practical boundary. Include an audience only if the user stated one. Keep it short enough to explore in several directions.",
-		Preserve:     "Preserve the user's language, intent, and named entities. Do not invent market facts, customers, audiences, or numbers.",
+		Preserve:     "Preserve the user's language, intent, and named entities. Do not invent facts, people, audiences, or numbers.",
 		MaxWords:     140,
 	},
 	"brief.constraints": {

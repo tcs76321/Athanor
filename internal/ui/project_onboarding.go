@@ -667,8 +667,8 @@ func (u *UI) startPlanning(p project.Project, brief projectBrief, option discove
 	req := planning.Request{
 		Goal: brief.Goal, Brief: brief.Limitations, Constraints: brief.Constraints,
 		Sources: brief.Sources, OptionTitle: option.Title, OneLiner: option.OneLiner,
-		Customer: option.Customer, Pain: option.Pain, Wedge: option.Wedge,
-		Offer: option.FirstOffer, Validation: option.ValidationExperiment,
+		Audience: option.Audience, Need: option.Need, Approach: option.Approach,
+		Deliverable: option.FirstDeliverable, FirstCheck: option.FirstCheck,
 	}
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Minute)
@@ -713,26 +713,26 @@ func (u *UI) auditProject(projectID, event string, data map[string]any) {
 // plan and a dependency-ordered task graph. It is deterministic: the same
 // inputs produce the same plan, and no model call is needed at approval time.
 // The wording follows the direction (audience, need, approach, deliverable),
-// never a business-pitch template.
+// never a fixed project-type template.
 func buildProjectPlan(p project.Project, b projectBrief, o discovery.Option) (string, []project.TaskSpec) {
 	var out strings.Builder
 	fmt.Fprintf(&out, "# %s\n\n", o.Title)
 	fmt.Fprintf(&out, "**Direction:** %s\n\n", o.OneLiner)
 	fmt.Fprintf(&out, "**Project:** %s\n\n", p.Name)
 	fmt.Fprintf(&out, "## The direction\n\n")
-	fmt.Fprintf(&out, "- **Domain:** %s · %s\n", o.Industry, o.Niche)
-	fmt.Fprintf(&out, "- **Audience:** %s\n", o.Customer)
-	fmt.Fprintf(&out, "- **Need:** %s\n", o.Pain)
-	fmt.Fprintf(&out, "- **Approach:** %s\n", o.Wedge)
-	fmt.Fprintf(&out, "- **Format:** %s\n", o.BusinessModel)
-	if o.Pricing != "" && !strings.EqualFold(strings.TrimSpace(o.Pricing), "not applicable") {
-		fmt.Fprintf(&out, "- **Access:** %s\n", o.Pricing)
+	fmt.Fprintf(&out, "- **Domain:** %s · %s\n", o.Domain, o.Focus)
+	fmt.Fprintf(&out, "- **Audience:** %s\n", o.Audience)
+	fmt.Fprintf(&out, "- **Need:** %s\n", o.Need)
+	fmt.Fprintf(&out, "- **Approach:** %s\n", o.Approach)
+	fmt.Fprintf(&out, "- **Format:** %s\n", o.Format)
+	if o.Availability != "" && !strings.EqualFold(strings.TrimSpace(o.Availability), "not applicable") {
+		fmt.Fprintf(&out, "- **Availability:** %s\n", o.Availability)
 	}
-	fmt.Fprintf(&out, "- **First deliverable:** %s\n", o.FirstOffer)
-	fmt.Fprintf(&out, "- **Time to first deliverable:** %d days\n", o.TimeToFirstRevenueDays)
-	fmt.Fprintf(&out, "- **Setup cost:** $%d\n", o.StartupCostUSD)
-	if o.Competition != "" {
-		fmt.Fprintf(&out, "- **Alternatives:** %s\n", o.Competition)
+	fmt.Fprintf(&out, "- **First deliverable:** %s\n", o.FirstDeliverable)
+	fmt.Fprintf(&out, "- **Time to first deliverable:** %d days\n", o.TimeToFirstDeliverableDays)
+	fmt.Fprintf(&out, "- **Setup cost:** $%d\n", o.SetupCostUSD)
+	if o.Alternatives != "" {
+		fmt.Fprintf(&out, "- **Alternatives:** %s\n", o.Alternatives)
 	}
 	out.WriteString("\n## Assumptions to test\n\n")
 	if len(o.Assumptions) == 0 {
@@ -750,9 +750,9 @@ func buildProjectPlan(p project.Project, b projectBrief, o discovery.Option) (st
 			fmt.Fprintf(&out, "- %s\n", r)
 		}
 	}
-	out.WriteString("\n## First 30 days\n\n")
-	fmt.Fprintf(&out, "1. **Gather the source material.** %s\n", o.ValidationExperiment)
-	fmt.Fprintf(&out, "2. **Produce the first deliverable.** %s\n", o.FirstOffer)
+	out.WriteString("\n## First iteration\n\n")
+	fmt.Fprintf(&out, "1. **Gather the source material.** %s\n", o.FirstCheck)
+	fmt.Fprintf(&out, "2. **Produce the first deliverable.** %s\n", o.FirstDeliverable)
 	out.WriteString("3. **Check it against the brief.** Review coverage, accuracy, and the success criteria; record gaps.\n")
 	out.WriteString("4. **Decide the next iteration.** Keep what worked, fix what did not, and choose one concrete next step.\n")
 	out.WriteString("\n## Limits\n\n")
@@ -786,21 +786,30 @@ func buildProjectPlan(p project.Project, b projectBrief, o discovery.Option) (st
 		sourceLine = " Allowed sources (fetch only these): " + strings.Join(b.Sources, " ")
 	}
 	// The primary output follows the project's inferred capability; the other
-	// tasks are deliberately prose so review and decisions stay readable.
+	// tasks are deliberately prose so review and decisions stay readable. Code
+	// projects inspect the repository first; data projects normalize inputs;
+	// everything else gathers prose or source material.
 	primary := project.PrimaryCapability(p.Capabilities)
-	deliverable := project.InferTaskCapability(o.Title+" "+o.FirstOffer, p.Capabilities, p.RepositoryPath)
+	deliverable := project.InferTaskCapability(o.Title+" "+o.FirstDeliverable, p.Capabilities, p.RepositoryPath)
 	gather := project.CapabilityText
-	if primary == project.CapabilityData {
+	gatherTitle := "Gather the source material"
+	gatherDescription := fmt.Sprintf("Collect and read the material for %q. %s. Record what each source contributes, what is missing, and any conflicting claims. Cite only the allowed sources.%s", o.Title, o.FirstCheck, sourceLine)
+	switch primary {
+	case project.CapabilityData:
 		gather = project.CapabilityData
+	case project.CapabilityCode:
+		gather = project.CapabilityCode
+		gatherTitle = "Inspect the code and constraints"
+		gatherDescription = fmt.Sprintf("Read the relevant files, run the existing checks, and record constraints, gaps, and anything that must not break for %q.%s", o.Title, sourceLine)
 	}
 	specs := []project.TaskSpec{
 		{
-			Key: "gather", Title: "Gather the source material", Capability: gather,
-			Description: fmt.Sprintf("Collect and read the material for %q. %s. Record what each source contributes, what is missing, and any conflicting claims. Cite only the allowed sources.%s", o.Title, o.ValidationExperiment, sourceLine),
+			Key: "gather", Title: gatherTitle, Capability: gather,
+			Description: gatherDescription,
 		},
 		{
 			Key: "deliverable", Title: "Produce the first deliverable", Capability: deliverable,
-			Description: fmt.Sprintf("Produce the first usable deliverable for %s: %s. Format: %s. Audience: %s. Need: %s. Follow the brief's limits and do not broaden the scope.%s", o.Title, o.FirstOffer, o.BusinessModel, o.Customer, o.Pain, sourceLine),
+			Description: fmt.Sprintf("Produce the first usable deliverable for %s: %s. Format: %s. Audience: %s. Need: %s. Follow the brief's limits and do not broaden the scope.%s", o.Title, o.FirstDeliverable, o.Format, o.Audience, o.Need, sourceLine),
 			DependsOn:   []string{"gather"},
 			Criteria:    criteria,
 		},
@@ -816,10 +825,20 @@ func buildProjectPlan(p project.Project, b projectBrief, o discovery.Option) (st
 			DependsOn:   []string{"check"},
 		},
 	}
-	if len(b.Sources) > 0 {
-		specs[0].AllowedTools = []string{"fetch_url"}
-	}
 	return out.String(), specs
+}
+
+// withSourceAccess adds fetch_url to a task's tool allowlist. A code task also
+// keeps its execution tools: an explicit tool list replaces the capability
+// default, so granting sources must not silently remove execute_code,
+// run_tests, or lint.
+func withSourceAccess(capability string, tools []string) []string {
+	if capability == project.CapabilityCode {
+		for _, tool := range project.CodeArchetypeTools() {
+			tools = appendTool(tools, tool)
+		}
+	}
+	return appendTool(tools, "fetch_url")
 }
 
 // appendTool adds name to list once, preserving order.
@@ -875,7 +894,7 @@ func (u *UI) approveProjectPlan(ctx context.Context, p project.Project, b projec
 	}
 	if len(specs) > 0 && len(b.Sources) > 0 {
 		specs[0].Description += " Allowed sources (fetch only these): " + strings.Join(b.Sources, " ")
-		specs[0].AllowedTools = appendTool(specs[0].AllowedTools, "fetch_url")
+		specs[0].AllowedTools = withSourceAccess(specs[0].Capability, specs[0].AllowedTools)
 	}
 	criteria := []string{}
 	if strings.TrimSpace(b.Success) != "" {

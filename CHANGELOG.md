@@ -10,6 +10,28 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Generalized project language — 2026-11-06
+
+- **Discovery describes a direction, not a business.** The prompt, JSON keys,
+  UI, and database now use `domain`, `focus`, `audience`, `need`, `approach`,
+  `format`, `availability`, `first_deliverable`, `first_check`,
+  `time_to_first_deliverable_days`, `setup_cost_usd`, and `alternatives`.
+  Migration 0036 renames the legacy columns in place.
+- **Portfolios stay inside the goal.** The old prompt and validator forced at
+  least four unrelated industries, which is how a news project produced
+  generic business pitches. The contract now varies approach, audience, scope,
+  format, and first deliverable within the goal, and requires at least three
+  distinct approaches.
+- **Plans are first iterations, not 30-day business sprints.** Both the AI
+  plan prompt and the deterministic fallback use a gather → produce → check →
+  decide sequence, with code projects inspecting the repository first and data
+  projects normalizing inputs.
+- **Every capability has a rubric.** Data checks schema, provenance, and
+  determinism; media checks format, clarity, and accessibility; the code rubric
+  is language-neutral instead of Python/docstring/ruff-specific.
+- **Examples and docs are neutral.** The first-run brief, new-project help,
+  README, and test fixtures use news, code, data, policy, and media examples.
+
 ### First real-use run — 2026-11-05
 
 - **Prose deliverables stay prose.** Capability inference now matches whole

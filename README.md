@@ -158,13 +158,13 @@ Then watch it work in real time from the Watch View, or queue it and check the M
 - **Project onboarding, discovery, and research limits.** Creating a project
   now continues into a guided brief: clarify the outcome, the limits, the
   success criteria, and the sources Athanor may read. Exploratory goals get a
-  **portfolio** of scored directions (industries, niches, customers, wedges,
-  first experiments) instead of one generated document; the operator chooses a
-  direction, can ask for **three AI-authored 30-day plans**, and approves one
+  **portfolio** of scored directions (domain, focus, audience, need, approach,
+  first deliverable) instead of one generated document; the operator chooses a
+  direction, can ask for **three AI-authored plans**, and approves one
   that creates dependency-ordered tasks. The deterministic plan remains the
   zero-cost fallback. The legacy interview remains available. Discovery and
-  planning use the `tall` persona, are bounded, and never invent market data;
-  only human-approved sources are fetched through the gateway. See
+  planning use the measured model pool, are bounded, and never invent facts or
+  citations; only human-approved sources are fetched through the gateway. See
   [ADR-0094](docs/adr/0094-project-discovery-portfolio.md),
   [ADR-0095](docs/adr/0095-first-class-gui-and-onboarding.md), and
   [ADR-0097](docs/adr/0097-ai-plan-candidates.md).

@@ -138,8 +138,8 @@ func TestSubmitGoal(t *testing.T) {
 		t.Errorf("SubmitGoal(short goal) = %v, want length error", err)
 	}
 	// A short, honest goal is valid; onboarding supplies the depth.
-	if _, err := r.SubmitGoal(ctx, p.ID, "make money online", nil); err != nil {
-		t.Errorf("SubmitGoal(make money online) = %v, want accepted", err)
+	if _, err := r.SubmitGoal(ctx, p.ID, "a daily news brief", nil); err != nil {
+		t.Errorf("SubmitGoal(a daily news brief) = %v, want accepted", err)
 	}
 }
 

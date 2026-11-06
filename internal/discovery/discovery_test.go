@@ -13,12 +13,12 @@ import (
 
 func sampleOptions() []Option {
 	return []Option{
-		{Title: "Local bookkeeping for trades", OneLiner: "Monthly books for one-person trades", Industry: "Finance", Niche: "Trades", Customer: "Electricians", Pain: "Receipts pile up", Wedge: "Done-for-you monthly close", TimeToFirstRevenueDays: 14, StartupCostUSD: 100, Confidence: 0.7},
-		{Title: "Niche newsletter for lab managers", OneLiner: "Paid weekly operations brief", Industry: "Media", Niche: "Laboratories", Customer: "Lab managers", Pain: "Fragmented vendor news", Wedge: "Curated buying signals", TimeToFirstRevenueDays: 30, StartupCostUSD: 50, Confidence: 0.6},
-		{Title: "Compliance checklist templates", OneLiner: "Templates for small clinics", Industry: "Healthcare", Niche: "Clinics", Customer: "Clinic owners", Pain: "Audit prep", Wedge: "Ready-to-use checklist pack", TimeToFirstRevenueDays: 10, StartupCostUSD: 20, Confidence: 0.65},
-		{Title: "AI meeting notes for recruiters", OneLiner: "Structured candidate summaries", Industry: "Software", Niche: "Recruiting", Customer: "Agency recruiters", Pain: "Manual notes", Wedge: "Recruiter-specific templates", TimeToFirstRevenueDays: 21, StartupCostUSD: 200, Confidence: 0.5},
-		{Title: "Local workshop booking page", OneLiner: "Booking and deposits for makers", Industry: "Education", Niche: "Craft workshops", Customer: "Workshop owners", Pain: "No-shows", Wedge: "Deposit-first booking", TimeToFirstRevenueDays: 7, StartupCostUSD: 0, Confidence: 0.75},
-		{Title: "Vendor comparison service for cafés", OneLiner: "Independent supplier shortlists", Industry: "Hospitality", Niche: "Cafés", Customer: "Café owners", Pain: "Opaque supplier pricing", Wedge: "Paid shortlist + negotiation", TimeToFirstRevenueDays: 28, StartupCostUSD: 300, Confidence: 0.55},
+		{Title: "Daily global news brief", OneLiner: "A short, source-triaged world brief", Domain: "Media", Focus: "World news", Audience: "Readers who want one coherent update", Need: "Coverage is fragmented across outlets", Approach: "Group stories by region, then by consequence", Format: "Daily brief", Availability: "Public", FirstDeliverable: "One-page brief with source links", FirstCheck: "Five readers mark what is unclear", TimeToFirstDeliverableDays: 14, SetupCostUSD: 0, Confidence: 0.7},
+		{Title: "CSV reconciliation CLI", OneLiner: "A local tool that explains row differences", Domain: "Software", Focus: "Data operations", Audience: "Analysts comparing exports", Need: "Manual reconciliation is slow and error-prone", Approach: "Field-level diff with a readable report", Format: "Command-line tool", Availability: "Internal", FirstDeliverable: "Working prototype on two sample files", FirstCheck: "Run it against a known mismatch", TimeToFirstDeliverableDays: 30, SetupCostUSD: 0, Confidence: 0.6},
+		{Title: "AI procurement policy memo", OneLiner: "A decision memo for internal tool purchases", Domain: "Public policy", Focus: "Procurement", Audience: "Procurement staff", Need: "Current rules are unclear and inconsistent", Approach: "Compare existing policies and propose a checklist", Format: "Memo", Availability: "Internal", FirstDeliverable: "Two-page memo with a draft checklist", FirstCheck: "Review with two policy owners", TimeToFirstDeliverableDays: 10, SetupCostUSD: 0, Confidence: 0.65},
+		{Title: "Local air-quality dataset", OneLiner: "Normalized readings with provenance notes", Domain: "Environment", Focus: "Air quality", Audience: "Local researchers", Need: "Readings are scattered across formats", Approach: "Normalize, deduplicate, and document gaps", Format: "Dataset plus notes", Availability: "Public", FirstDeliverable: "One month of cleaned readings", FirstCheck: "Re-run the normalization on a second month", TimeToFirstDeliverableDays: 21, SetupCostUSD: 0, Confidence: 0.5},
+		{Title: "Water-cycle visual explainer", OneLiner: "Annotated diagrams for a school lesson", Domain: "Education", Focus: "Science communication", Audience: "Secondary-school students", Need: "The process is abstract without visuals", Approach: "Step-by-step annotated diagrams", Format: "Image set", Availability: "Public", FirstDeliverable: "Three labeled diagrams", FirstCheck: "Ask a teacher to teach from them", TimeToFirstDeliverableDays: 7, SetupCostUSD: 0, Confidence: 0.75},
+		{Title: "Battery-recycling research digest", OneLiner: "A weekly annotated paper digest", Domain: "Research", Focus: "Materials", Audience: "A small lab team", Need: "Relevant papers are easy to miss", Approach: "Annotate claims, methods, and limits", Format: "Weekly digest", Availability: "Internal", FirstDeliverable: "First digest with five papers", FirstCheck: "The lab team rates its usefulness", TimeToFirstDeliverableDays: 28, SetupCostUSD: 0, Confidence: 0.55},
 	}
 }
 
@@ -103,7 +103,7 @@ func TestStoreRoundTripAndSelect(t *testing.T) {
 	ctx := context.Background()
 	// A project is required by the foreign key.
 	if _, err := s.DB().ExecContext(ctx,
-		`INSERT INTO projects (id, name, archetype, goal) VALUES ('p1','p1','document','make money online')`); err != nil {
+		`INSERT INTO projects (id, name, archetype, goal) VALUES ('p1','p1','document','a daily news brief')`); err != nil {
 		t.Fatal(err)
 	}
 	ds := NewStore(s)
@@ -180,7 +180,7 @@ func TestBeginAndFailAreDurable(t *testing.T) {
 	}
 	ctx := context.Background()
 	if _, err := s.DB().ExecContext(ctx,
-		`INSERT INTO projects (id, name, archetype, goal) VALUES ('p1','p1','document','make money online')`); err != nil {
+		`INSERT INTO projects (id, name, archetype, goal) VALUES ('p1','p1','document','a daily news brief')`); err != nil {
 		t.Fatal(err)
 	}
 	ds := NewStore(s)
@@ -203,10 +203,10 @@ func TestBeginAndFailAreDurable(t *testing.T) {
 
 func TestBuildPromptMentionsConstraintsAndHonesty(t *testing.T) {
 	p := BuildPrompt(Request{
-		Goal: "make money online", Brief: "2 hours a day",
+		Goal: "a daily news brief", Brief: "2 hours a day",
 		Constraints: []string{"no ads"}, Sources: []string{"https://example.com"},
 	})
-	for _, want := range []string{"make money online", "2 hours a day", "no ads", "example.com", "Do NOT invent"} {
+	for _, want := range []string{"a daily news brief", "2 hours a day", "no ads", "example.com", "Do NOT invent"} {
 		if !strings.Contains(p, want) {
 			t.Errorf("prompt missing %q", want)
 		}
@@ -216,17 +216,22 @@ func TestBuildPromptMentionsConstraintsAndHonesty(t *testing.T) {
 func TestBuildPromptDoesNotForceBusinessFraming(t *testing.T) {
 	p := BuildPrompt(Request{Goal: "produce a daily global news report"})
 	for _, want := range []string{
-		"not a generic business idea",
-		"audience or beneficiary",
-		"delivery format or operating model",
-		"Do not turn a non-commercial goal into a business",
+		"Stay inside the goal's subject",
+		"audience: who the work is for",
+		"format: the delivery format or operating model",
+		"first_deliverable",
+		"time_to_first_deliverable_days",
+		"Do not add a commercial or fundraising framing",
 	} {
 		if !strings.Contains(p, want) {
 			t.Errorf("prompt missing %q", want)
 		}
 	}
-	for _, unwanted := range []string{"first paid offer", "time to first revenue"} {
-		if strings.Contains(p, unwanted) {
+	for _, unwanted := range []string{
+		"first paid offer", "time to first revenue", "time_to_first_revenue",
+		"business_model", "customer", "pricing",
+	} {
+		if strings.Contains(strings.ToLower(p), unwanted) {
 			t.Errorf("prompt still contains business-only instruction %q", unwanted)
 		}
 	}
@@ -250,7 +255,7 @@ func TestGenerateReportsDurableProgress(t *testing.T) {
 	}
 	ctx := context.Background()
 	if _, err := s.DB().ExecContext(ctx,
-		`INSERT INTO projects (id, name, archetype, goal) VALUES ('p2','p2','document','make money online')`); err != nil {
+		`INSERT INTO projects (id, name, archetype, goal) VALUES ('p2','p2','document','a daily news brief')`); err != nil {
 		t.Fatal(err)
 	}
 	opts := sampleOptions()
@@ -261,7 +266,7 @@ func TestGenerateReportsDurableProgress(t *testing.T) {
 	}
 	svc := NewService(progressGenerator{raw: string(raw)}, NewStore(s))
 	var stages []string
-	_, err = svc.Generate(ctx, "p2", Request{Goal: "make money online", Progress: func(ev ProgressEvent) {
+	_, err = svc.Generate(ctx, "p2", Request{Goal: "a daily news brief", Progress: func(ev ProgressEvent) {
 		stages = append(stages, ev.Stage)
 	}})
 	if err != nil {
