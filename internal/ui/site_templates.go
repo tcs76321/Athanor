@@ -11,8 +11,17 @@ const settingsBody = `
     <select id="theme" name="theme">
       {{range .Themes}}<option value="{{.ID}}" {{if eq .ID $.Theme}}selected{{end}}>{{.Label}}</option>{{end}}
     </select>
-    <div class="field-help">The theme is stored in the Core and applies to every window. Monokai is the default; Ember Paper is the warm light theme.</div>
+    <div class="field-help">The theme is stored in the Core and applies to every window. Monokai is the default; Ember Paper is the warm light theme; System follows the OS setting.</div>
     <div class="actions"><button class="primary">Apply theme</button></div>
+  </form>
+  <form method="post" action="/ui/density" class="mt-3">
+    <label for="density">Density</label>
+    <select id="density" name="density">
+      <option value="comfortable" {{if ne .Density "compact"}}selected{{end}}>Comfortable (default)</option>
+      <option value="compact" {{if eq .Density "compact"}}selected{{end}}>Compact</option>
+    </select>
+    <div class="field-help">Compact tightens tables and cards for dense review sessions.</div>
+    <div class="actions"><button class="secondary">Apply density</button></div>
   </form>
 </div>
 

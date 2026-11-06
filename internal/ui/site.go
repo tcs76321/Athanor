@@ -111,6 +111,22 @@ func (u *UI) handleTheme(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, next, http.StatusSeeOther)
 }
 
+func (u *UI) handleDensity(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		u.fail(w, err)
+		return
+	}
+	if err := u.setDensity(r.FormValue("density")); err != nil {
+		u.fail(w, err)
+		return
+	}
+	next := r.FormValue("next")
+	if !strings.HasPrefix(next, "/ui/") {
+		next = "/ui/settings#appearance"
+	}
+	http.Redirect(w, r, next, http.StatusSeeOther)
+}
+
 func (u *UI) handleSitemap(w http.ResponseWriter, r *http.Request) {
 	u.render(w, "Sitemap", sitemapBody, map[string]any{"Surfaces": surfaces})
 }

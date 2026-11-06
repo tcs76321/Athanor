@@ -575,6 +575,24 @@ main {
 .card-hover:hover { border-color: var(--border-strong); transform: translateY(-1px); }
 .card-soft { background: var(--bg-raised); }
 .card-accent { border-color: color-mix(in srgb, var(--accent) 40%, var(--border)); }
+/* ---------- dialogs ---------- */
+.dialog { border: var(--line); border-radius: var(--radius-lg); background: var(--panel); color: var(--text); padding: var(--space-5); max-width: 460px; box-shadow: var(--shadow-2); }
+.dialog::backdrop { background: rgba(0, 0, 0, .55); backdrop-filter: blur(2px); }
+.dialog h2 { margin-top: 0; }
+.dialog .actions { margin-top: var(--space-4); justify-content: flex-end; }
+
+/* ---------- density ---------- */
+html[data-density="compact"] {
+  --space-4: 12px;
+  --space-5: 18px;
+  --space-6: 24px;
+}
+html[data-density="compact"] body { font-size: 0.94rem; }
+html[data-density="compact"] .card { padding: 12px 14px; }
+html[data-density="compact"] th, html[data-density="compact"] td { padding: 6px 8px; }
+html[data-density="compact"] h1 { font-size: var(--step-3); }
+html[data-density="compact"] h2 { margin-top: var(--space-5); }
+
 .file-block { margin: var(--space-3) 0; border: var(--line); border-radius: var(--radius); overflow: hidden; background: var(--code-bg); }
 .file-head { display: flex; align-items: center; gap: var(--space-3); justify-content: space-between; padding: 6px 10px; background: var(--panel-2); border-bottom: var(--line); }
 .file-head .mono { font-size: 0.82rem; color: var(--text-soft); overflow-wrap: anywhere; }

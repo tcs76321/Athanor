@@ -286,6 +286,26 @@ func TestSetupPersonasWritesConfig(t *testing.T) {
 	}
 }
 
+// TestDisplaySettings pins the system theme, density persistence, and the
+// styled confirmation dialog in the shell.
+func TestDisplaySettings(t *testing.T) {
+	fx := setup(t)
+	_, body := get(t, fx.ts.URL+"/ui/settings")
+	for _, want := range []string{"System (follow OS)", "Density", `id="confirm"`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("settings/shell missing %q", want)
+		}
+	}
+	resp := postForm(t, fx.ts.URL+"/ui/density", url.Values{"density": {"compact"}, "next": {"/ui/settings"}})
+	if resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("density status = %d, want 303", resp.StatusCode)
+	}
+	_, body = get(t, fx.ts.URL+"/ui/settings")
+	if !strings.Contains(body, `data-density="compact"`) {
+		t.Error("density preference was not applied to the shell")
+	}
+}
+
 // TestWatchPhaseTimeline pins the derived phase table: transitions and call
 // usage become readable durations and spend instead of a raw event stream.
 func TestWatchPhaseTimeline(t *testing.T) {

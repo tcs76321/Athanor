@@ -206,6 +206,7 @@ type UI struct {
 	// an inline script (CSP-safe).
 	themeMu sync.RWMutex
 	theme   string
+	density string
 	// onboardMu guards the in-memory model-pull progress shown by the
 	// first-run wizard. The durable onboarding step lives in system_state.
 	onboardMu   sync.Mutex
@@ -257,7 +258,7 @@ type UI struct {
 // New builds a UI.
 func New(deps Deps) *UI {
 	u := &UI{
-		deps: deps, hub: NewHub(), theme: "monokai",
+		deps: deps, hub: NewHub(), theme: "monokai", density: "comfortable",
 		pulls: map[string]*pullProgress{}, pullCancels: map[string]context.CancelFunc{},
 		discRuns: map[string]*discoveryRun{}, discCancels: map[string]context.CancelFunc{},
 		planRuns: map[string]*planRun{}, planCancels: map[string]context.CancelFunc{},
@@ -269,6 +270,12 @@ func New(deps Deps) *UI {
 			`SELECT value FROM system_state WHERE key = ?`, "ui:theme").Scan(&saved); err == nil {
 			if validTheme(saved) {
 				u.theme = saved
+			}
+		}
+		if err := deps.Store.DB().QueryRow(
+			`SELECT value FROM system_state WHERE key = ?`, "ui:density").Scan(&saved); err == nil {
+			if validDensity(saved) {
+				u.density = saved
 			}
 		}
 	}
@@ -288,6 +295,38 @@ func (u *UI) Theme() string {
 	u.themeMu.RLock()
 	defer u.themeMu.RUnlock()
 	return u.theme
+}
+
+// Density is the active reading density ("comfortable" or "compact").
+func (u *UI) Density() string {
+	u.themeMu.RLock()
+	defer u.themeMu.RUnlock()
+	if u.density == "" {
+		return "comfortable"
+	}
+	return u.density
+}
+
+func validDensity(id string) bool { return id == "comfortable" || id == "compact" }
+
+// setDensity validates, stores, and persists the reading density.
+func (u *UI) setDensity(id string) error {
+	if !validDensity(id) {
+		return fmt.Errorf("unknown density %q", id)
+	}
+	u.themeMu.Lock()
+	u.density = id
+	u.themeMu.Unlock()
+	if u.deps.Store == nil {
+		return nil
+	}
+	if _, err := u.deps.Store.DB().Exec(
+		`INSERT INTO system_state (key, value) VALUES (?, ?)
+		 ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+		"ui:density", id); err != nil {
+		return fmt.Errorf("persisting density: %w", err)
+	}
+	return nil
 }
 
 // setTheme validates, stores, and persists a theme.
@@ -383,6 +422,7 @@ func (u *UI) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /ui/freeze", u.handleFreeze)
 	mux.HandleFunc("POST /ui/mode", u.handleMode)
 	mux.HandleFunc("POST /ui/theme", u.handleTheme)
+	mux.HandleFunc("POST /ui/density", u.handleDensity)
 	mux.HandleFunc("GET /ui/sitemap", u.handleSitemap)
 	mux.HandleFunc("GET /ui/search", u.handleSearch)
 }
@@ -1649,6 +1689,7 @@ func (u *UI) renderStatus(w http.ResponseWriter, status int, title, body string,
 	theme := u.Theme()
 	data["Theme"] = theme
 	data["ThemeLabel"] = themeLabel(theme)
+	data["Density"] = u.Density()
 	if reason := u.restartRequired(context.Background()); reason != "" {
 		data["RestartRequired"] = reason
 		data["RestartHint"] = u.restartHint()

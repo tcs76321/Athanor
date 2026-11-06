@@ -70,10 +70,36 @@
   document.addEventListener("click", (ev) => {
     const el = ev.target.closest("[data-confirm]");
     if (!el) return;
-    if (!window.confirm(el.getAttribute("data-confirm"))) {
-      ev.preventDefault();
-      ev.stopPropagation();
+    if (el.dataset.confirmed === "1") {
+      delete el.dataset.confirmed;
+      return;
     }
+    const message = el.getAttribute("data-confirm") || "Are you sure?";
+    const dlg = document.getElementById("confirm");
+    if (!dlg || typeof dlg.showModal !== "function") {
+      if (window.confirm(message)) {
+        el.dataset.confirmed = "1";
+        el.click();
+      } else {
+        ev.preventDefault();
+        ev.stopPropagation();
+      }
+      return;
+    }
+    ev.preventDefault();
+    ev.stopPropagation();
+    const text = document.getElementById("confirm-message");
+    if (text) text.textContent = message;
+    if (dlg.open) dlg.close("cancel");
+    dlg.returnValue = "cancel";
+    dlg.addEventListener("close", function onClose() {
+      dlg.removeEventListener("close", onClose);
+      if (dlg.returnValue === "ok") {
+        el.dataset.confirmed = "1";
+        el.click();
+      }
+    });
+    dlg.showModal();
   });
 
   /* ---------- history back button in the error shell ---------- */
@@ -118,12 +144,20 @@
       if (form) form.submit();
     });
   });
+  function baseTheme() {
+    const root = document.documentElement;
+    if (root.dataset.baseTheme === "system") {
+      return window.matchMedia("(prefers-color-scheme: light)").matches ? "ember" : "monokai";
+    }
+    return root.dataset.baseTheme || "monokai";
+  }
   $$("[data-theme-preview]").forEach((el) => {
-    const theme = el.getAttribute("data-theme-preview");
+    let theme = el.getAttribute("data-theme-preview");
+    if (theme === "system") theme = baseTheme();
     el.addEventListener("mouseenter", () => document.documentElement.setAttribute("data-theme", theme));
     el.addEventListener("focus", () => document.documentElement.setAttribute("data-theme", theme));
-    el.addEventListener("mouseleave", () => document.documentElement.setAttribute("data-theme", document.documentElement.dataset.baseTheme || "monokai"));
-    el.addEventListener("blur", () => document.documentElement.setAttribute("data-theme", document.documentElement.dataset.baseTheme || "monokai"));
+    el.addEventListener("mouseleave", () => document.documentElement.setAttribute("data-theme", baseTheme()));
+    el.addEventListener("blur", () => document.documentElement.setAttribute("data-theme", baseTheme()));
   });
 
   /* ---------- in-place live cards ---------- */
@@ -610,6 +644,10 @@
 
   /* ---------- boot ---------- */
   function boot() {
+    const root = document.documentElement;
+    if (root.dataset.baseTheme === "system") {
+      root.setAttribute("data-theme", window.matchMedia("(prefers-color-scheme: light)").matches ? "ember" : "monokai");
+    }
     markNav();
     wireDashboard();
     wireWatch();

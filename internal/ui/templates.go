@@ -12,7 +12,7 @@ package ui
 // template.Must or evaluate as an action — both closed by keeping it in data.
 func document(body string) string {
 	return `<!doctype html>
-<html lang="en" data-theme="{{.Theme}}" data-base-theme="{{.Theme}}"><head>
+<html lang="en" data-theme="{{.Theme}}" data-base-theme="{{.Theme}}" data-density="{{.Density}}"><head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{{.Title}} — Athanor</title>
@@ -89,6 +89,16 @@ func document(body string) string {
     <div class="palette-results" id="palette-results" role="listbox" aria-label="Results"></div>
   </div>
 </div>
+<dialog id="confirm" class="dialog">
+  <form method="dialog">
+    <h2>Please confirm</h2>
+    <p id="confirm-message" class="muted"></p>
+    <div class="actions">
+      <button value="cancel" class="secondary">Cancel</button>
+      <button value="ok" class="danger">Confirm</button>
+    </div>
+  </form>
+</dialog>
 {{end}}
 </body></html>`
 }
@@ -102,6 +112,7 @@ var themeNames = []struct{ ID, Label string }{
 	{"nord", "Nord"},
 	{"solarized-light", "Solarized Light"},
 	{"contrast", "High Contrast"},
+	{"system", "System (follow OS)"},
 }
 
 func themeLabel(id string) string {
