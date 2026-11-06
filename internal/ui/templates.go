@@ -829,9 +829,13 @@ const artifactBody = `
       <div class="file-block">
         <div class="file-head">
           <span class="mono">{{.Path}}</span>
+          <span class="muted small">{{.Lang}}</span>
           <button type="button" class="small secondary" data-copy-pre>Copy</button>
         </div>
-        <pre><code>{{.Content}}</code></pre>
+        <div class="code-wrap">
+          <div class="gutter" aria-hidden="true">{{.Gutter}}</div>
+          <pre><code>{{.HTML}}</code></pre>
+        </div>
       </div>
       {{end}}
     {{else}}

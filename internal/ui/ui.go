@@ -1366,7 +1366,7 @@ func (u *UI) handleArtifact(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	mode := artifactModeFor(string(a.Kind), capability)
-	files := artifactFiles(string(a.Kind), capability, string(content))
+	files := decorateFiles(artifactFiles(string(a.Kind), capability, string(content)))
 	contentText := string(content)
 	size := len(content)
 	if mode == modeMedia {

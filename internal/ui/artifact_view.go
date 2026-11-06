@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"html/template"
 	"sort"
 	"strings"
 
@@ -10,10 +11,25 @@ import (
 )
 
 // artifactFile is one readable file in an artifact. Code artifacts may carry a
-// multi-file tree (ADR-0065); everything else is a single file.
+// multi-file tree (ADR-0065); everything else is a single file. HTML/Gutter are
+// the presentation form; Content stays the copy/download source.
 type artifactFile struct {
 	Path    string
 	Content string
+	HTML    template.HTML
+	Gutter  string
+	Lang    string
+}
+
+// decorateFiles adds highlighted HTML, a line-number gutter, and a language
+// label. It is a no-op for empty content.
+func decorateFiles(files []artifactFile) []artifactFile {
+	for i := range files {
+		files[i].HTML = highlightCode(files[i].Path, files[i].Content)
+		files[i].Gutter = lineNumbers(files[i].Content)
+		files[i].Lang = highlightLanguageLabel(files[i].Path)
+	}
+	return files
 }
 
 // artifactMode is the presentation contract for an artifact's bytes.
