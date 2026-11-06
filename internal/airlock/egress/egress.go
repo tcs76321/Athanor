@@ -27,12 +27,15 @@ package egress
 import (
 	"context"
 	"crypto/sha256"
+	"database/sql"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	"github.com/tcs76321/athanor/internal/airlock/scanner"
@@ -106,7 +109,7 @@ func New(opts Options) (*Exporter, error) {
 	if err := os.MkdirAll(exportsDir, 0o700); err != nil {
 		return nil, fmt.Errorf("egress: mkdir exports: %w", err)
 	}
-	return &Exporter{
+	e := &Exporter{
 		workspaceRoot: opts.WorkspaceRoot,
 		registry:      opts.Registry,
 		artifactStore: opts.ArtifactStore,
@@ -114,7 +117,40 @@ func New(opts Options) (*Exporter, error) {
 		store:         opts.Store,
 		pollInterval:  opts.PollInterval,
 		logger:        opts.Logger,
-	}, nil
+	}
+	e.loadCursor(context.Background())
+	return e, nil
+}
+
+// egressCursorKey is the system_state key for the exporter's event cursor. It
+// lets a restart resume at the tail instead of re-walking the entire
+// append-only event log.
+const egressCursorKey = "egress:last_event_id"
+
+func (e *Exporter) loadCursor(ctx context.Context) {
+	var raw string
+	err := e.store.DB().QueryRowContext(ctx,
+		`SELECT value FROM system_state WHERE key = ?`, egressCursorKey).Scan(&raw)
+	if errors.Is(err, sql.ErrNoRows) {
+		return
+	}
+	if err != nil {
+		e.logger.Warn("egress: reading cursor", "err", err)
+		return
+	}
+	if n, perr := strconv.ParseInt(raw, 10, 64); perr == nil && n > 0 {
+		e.lastSeenID = n
+	}
+}
+
+func (e *Exporter) saveCursor(ctx context.Context) {
+	_, err := e.store.DB().ExecContext(ctx,
+		`INSERT INTO system_state (key, value) VALUES (?, ?)
+		 ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+		egressCursorKey, strconv.FormatInt(e.lastSeenID, 10))
+	if err != nil {
+		e.logger.Warn("egress: persisting cursor", "err", err)
+	}
 }
 
 // Start begins the poll loop. Blocks until ctx is done
@@ -158,6 +194,12 @@ func (e *Exporter) Start(ctx context.Context) {
 const egressPollBatch = 500
 
 func (e *Exporter) poll(ctx context.Context) error {
+	from := e.lastSeenID
+	defer func() {
+		if e.lastSeenID != from {
+			e.saveCursor(ctx)
+		}
+	}()
 	for {
 		rows, err := e.store.QueryEvents(ctx, store.EventFilter{
 			Category: "jobs",
