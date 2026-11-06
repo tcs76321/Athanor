@@ -7,7 +7,9 @@ package operator
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"sync"
@@ -97,13 +99,18 @@ func New(st *store.Store, maxJobs int, presence func() Presence) (*Controller, e
 	}
 	var raw string
 	err := st.DB().QueryRow(`SELECT value FROM system_state WHERE key = ?`, c.key).Scan(&raw)
-	if err == nil {
+	switch {
+	case err == nil:
 		if uerr := json.Unmarshal([]byte(raw), &c.state); uerr != nil {
 			return nil, fmt.Errorf("operator: parsing saved mode: %w", uerr)
 		}
 		if !validRequested(c.state.Requested) {
 			return nil, fmt.Errorf("operator: unknown saved mode %q", c.state.Requested)
 		}
+	case errors.Is(err, sql.ErrNoRows):
+		// First run: keep the safe default.
+	default:
+		return nil, fmt.Errorf("operator: reading saved mode: %w", err)
 	}
 	return c, nil
 }
@@ -135,6 +142,7 @@ func (c *Controller) Set(ctx context.Context, requested Mode, hold time.Duration
 	now := time.Now().UTC()
 	c.mu.Lock()
 	old := c.effectiveLocked(now).Mode
+	oldState := c.state
 	c.state.Requested = requested
 	c.state.HoldUntil = time.Time{}
 	c.state.HoldReason = ""
@@ -149,7 +157,15 @@ func (c *Controller) Set(ctx context.Context, requested Mode, hold time.Duration
 	state := c.state
 	c.mu.Unlock()
 
-	c.persist(ctx, state)
+	if err := c.persist(ctx, state); err != nil {
+		// Restore the previous in-memory state: reporting success while the
+		// mode was only changed in memory would silently lose the operator's
+		// choice on restart.
+		c.mu.Lock()
+		c.state = oldState
+		c.mu.Unlock()
+		return err
+	}
 	c.after(ctx, old)
 	return nil
 }
@@ -319,17 +335,20 @@ func (c *Controller) after(ctx context.Context, old Mode) {
 	}
 }
 
-func (c *Controller) persist(ctx context.Context, s State) {
+func (c *Controller) persist(ctx context.Context, s State) error {
 	if c.store == nil {
-		return
+		return nil
 	}
 	raw, err := json.Marshal(s)
 	if err != nil {
-		return
+		return fmt.Errorf("operator: encoding mode: %w", err)
 	}
-	_, _ = c.store.DB().ExecContext(ctx,
+	if _, err := c.store.DB().ExecContext(ctx,
 		`INSERT INTO system_state (key, value) VALUES (?, ?)
-		 ON CONFLICT(key) DO UPDATE SET value = excluded.value`, c.key, string(raw))
+		 ON CONFLICT(key) DO UPDATE SET value = excluded.value`, c.key, string(raw)); err != nil {
+		return fmt.Errorf("operator: persisting mode: %w", err)
+	}
+	return nil
 }
 
 // FilePresence reads a small host-written JSON heartbeat. It is intentionally

@@ -6,7 +6,9 @@ package composition
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
 	"sync"
@@ -180,8 +182,11 @@ func (p *Pool) Load(ctx context.Context) error {
 	var raw string
 	err := p.store.DB().QueryRowContext(ctx,
 		`SELECT value FROM system_state WHERE key = ?`, p.key).Scan(&raw)
-	if err != nil {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("composition: reading saved model pool: %w", err)
 	}
 	var saved struct {
 		Models    map[string]*Profile `json:"models"`

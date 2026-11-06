@@ -3,9 +3,12 @@ package ui
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"sort"
 	"strings"
@@ -442,7 +445,11 @@ func (u *UI) loadQualState(ctx context.Context) qualState {
 	var raw string
 	err := u.deps.Store.DB().QueryRowContext(ctx,
 		`SELECT value FROM system_state WHERE key = ?`, qualKey).Scan(&raw)
+	if errors.Is(err, sql.ErrNoRows) {
+		return newQualState()
+	}
 	if err != nil {
+		slog.Error("ui: reading qualification state", "err", err)
 		return newQualState()
 	}
 	var s qualState

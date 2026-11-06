@@ -4,8 +4,11 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -173,9 +176,15 @@ func (u *UI) loadOnboarding(ctx context.Context) onboardingState {
 	var raw string
 	if err := u.deps.Store.DB().QueryRowContext(ctx,
 		`SELECT value FROM system_state WHERE key = ?`, onboardingKey).Scan(&raw); err != nil {
+		if !errors.Is(err, sql.ErrNoRows) {
+			slog.Error("ui: reading onboarding state", "err", err)
+		}
 		return st
 	}
-	_ = json.Unmarshal([]byte(raw), &st)
+	if err := json.Unmarshal([]byte(raw), &st); err != nil {
+		slog.Error("ui: parsing onboarding state", "err", err)
+		return onboardingState{Step: "welcome"}
+	}
 	if st.Step == "" {
 		st.Step = "welcome"
 	}

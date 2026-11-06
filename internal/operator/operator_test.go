@@ -155,6 +155,28 @@ func TestPersistenceRoundTrip(t *testing.T) {
 	}
 }
 
+func TestSetSurfacesPersistenceFailureAndKeepsOldState(t *testing.T) {
+	st := testStore(t)
+	c, err := New(st, 4, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := c.Set(context.Background(), ModeLite, 0, ""); err != nil {
+		t.Fatal(err)
+	}
+	before := c.Status()
+	if err := st.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.Set(context.Background(), ModeStopped, 0, "test"); err == nil {
+		t.Fatal("Set succeeded after the store was closed; want a persistence error")
+	}
+	after := c.Status()
+	if after.Requested != before.Requested || after.Mode != before.Mode {
+		t.Fatalf("failed Set changed in-memory state: %+v -> %+v", before, after)
+	}
+}
+
 func TestCorruptPersistedStateIsAnError(t *testing.T) {
 	st := testStore(t)
 	if _, err := st.DB().Exec(
