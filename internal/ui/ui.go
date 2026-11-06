@@ -348,6 +348,7 @@ func (u *UI) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /ui/artifacts/{id}/export", u.handleArtifactExport)
 	mux.HandleFunc("POST /ui/artifacts/{id}/review", u.handleReviewCreate)
 	mux.HandleFunc("GET /ui/artifacts/{id}/diff", u.handleDiff)
+	mux.HandleFunc("GET /ui/compare", u.handleCompare)
 	mux.HandleFunc("POST /ui/approvals/{id}", u.handleApproval)
 	mux.HandleFunc("GET /ui/events", u.handleEvents)
 	mux.HandleFunc("GET /ui/artifacts", u.handleArtifactIndex)
@@ -1426,6 +1427,47 @@ func (u *UI) handleReviewCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	http.Redirect(w, r, "/ui/artifacts/"+art.ID, http.StatusSeeOther)
+}
+
+// handleCompare renders a line/file diff between any two artifacts. The watch
+// page uses it to compare divergence candidates; the artifact page can compare
+// an accepted result with an earlier version or a sibling candidate.
+func (u *UI) handleCompare(w http.ResponseWriter, r *http.Request) {
+	aID, bID := r.URL.Query().Get("a"), r.URL.Query().Get("b")
+	if aID == "" || bID == "" {
+		u.fail(w, fmt.Errorf("compare needs two artifact ids"))
+		return
+	}
+	left, err := u.deps.Artifacts.Get(r.Context(), aID)
+	if err != nil {
+		u.fail(w, err)
+		return
+	}
+	right, err := u.deps.Artifacts.Get(r.Context(), bID)
+	if err != nil {
+		u.fail(w, err)
+		return
+	}
+	leftText, err := u.deps.Artifacts.ReadContent(r.Context(), left.ID)
+	if err != nil {
+		u.fail(w, err)
+		return
+	}
+	rightText, err := u.deps.Artifacts.ReadContent(r.Context(), right.ID)
+	if err != nil {
+		u.fail(w, err)
+		return
+	}
+	capability := ""
+	if left.TaskID != "" {
+		if t, terr := u.deps.Projects.Task(r.Context(), left.TaskID); terr == nil {
+			capability = t.Capability
+		}
+	}
+	u.render(w, "Compare artifacts", compareBody, map[string]any{
+		"Left": left, "Right": right,
+		"FileDiffs": fileDiffs(string(left.Kind), capability, string(leftText), string(rightText)),
+	})
 }
 
 func (u *UI) handleDiff(w http.ResponseWriter, r *http.Request) {

@@ -715,6 +715,18 @@ const watchBody = `
       {{end}}
     </div>
     {{else}}<div class="empty">No candidates yet. They appear as the divergence phase produces them.</div>{{end}}
+    {{if gt (len .Artifacts) 1}}
+    <div class="card">
+      <div class="eyebrow">Compare</div>
+      <form method="get" action="/ui/compare" class="row row-middle">
+        <select name="a" aria-label="Left artifact">{{range .Artifacts}}<option value="{{.ID}}">{{.Kind}} v{{.Version}} · {{.ID | short}}</option>{{end}}</select>
+        <span class="muted">→</span>
+        <select name="b" aria-label="Right artifact">{{range .Artifacts}}<option value="{{.ID}}">{{.Kind}} v{{.Version}} · {{.ID | short}}</option>{{end}}</select>
+        <button class="secondary">Diff</button>
+      </form>
+      <p class="muted small">Pick two candidates to see exactly where they diverge.</p>
+    </div>
+    {{end}}
 
     <h2>Evaluations</h2>
     {{if .Evaluations}}
@@ -860,6 +872,28 @@ const artifactBody = `
       {{else}}<p class="muted">No reviews yet.</p>{{end}}
     </div>
   </div>
+</div>
+`
+
+const compareBody = `
+<h1>Compare artifacts</h1>
+<p class="sub">
+  <a href="/ui/artifacts/{{.Left.ID}}">{{.Left.Kind}} v{{.Left.Version}}</a>
+  <span class="muted">{{.Left.ID | short}}</span>
+  <span class="muted">→</span>
+  <a href="/ui/artifacts/{{.Right.ID}}">{{.Right.Kind}} v{{.Right.Version}}</a>
+  <span class="muted">{{.Right.ID | short}}</span>
+</p>
+{{range .FileDiffs}}
+<div class="card file-block">
+  {{if .Path}}<div class="file-head"><span class="mono">{{.Path}}</span></div>{{end}}
+  <pre>{{range .Lines}}<span{{if eq .Kind "-"}} class="del"{{else if eq .Kind "+"}} class="add"{{end}}>{{.Kind}} {{.Text}}</span>
+{{end}}</pre>
+</div>
+{{else}}<div class="empty">The two artifacts have no differences.</div>{{end}}
+<div class="actions">
+  <a class="btn secondary" href="/ui/artifacts/{{.Left.ID}}">Open left</a>
+  <a class="btn secondary" href="/ui/artifacts/{{.Right.ID}}">Open right</a>
 </div>
 `
 

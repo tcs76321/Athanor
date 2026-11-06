@@ -233,6 +233,36 @@ func (f *fakePusher) RequestPush(_ context.Context, projectID, remote string) (h
 	return hitl.Request{ID: "req1", Type: hitl.TypeGitPush}, nil
 }
 
+// TestCompareArtifacts pins the candidate comparison: two artifacts render a
+// structured diff, not just a pair of pages.
+func TestCompareArtifacts(t *testing.T) {
+	fx := setup(t)
+	ctx := context.Background()
+	a, err := fx.ui.deps.Artifacts.CreateDraftFor(ctx, fx.project.ID, fx.task.ID, fx.job.ID,
+		artifact.KindProposal, []byte("print('a')\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := fx.ui.deps.Artifacts.CreateDraftFor(ctx, fx.project.ID, fx.task.ID, fx.job.ID,
+		artifact.KindProposal, []byte("print('b')\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	status, body := get(t, fx.ts.URL+"/ui/compare?a="+a.ID+"&b="+b.ID)
+	if status != http.StatusOK {
+		t.Fatalf("status = %d, want 200", status)
+	}
+	for _, want := range []string{"Compare artifacts", "print(&#39;a&#39;)", "print(&#39;b&#39;)", "class=\"del\"", "class=\"add\""} {
+		if !strings.Contains(body, want) {
+			t.Errorf("compare page missing %q", want)
+		}
+	}
+	status, _ = get(t, fx.ts.URL+"/ui/compare?a="+a.ID)
+	if status != http.StatusBadRequest {
+		t.Errorf("one-sided compare status = %d, want 400", status)
+	}
+}
+
 // TestProjectIndexIsAsync pins the background index path: the request returns
 // immediately and the status becomes visible on the project page.
 func TestProjectIndexIsAsync(t *testing.T) {
