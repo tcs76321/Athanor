@@ -224,6 +224,37 @@ func (u *UI) search(r *http.Request, q string) []searchResult {
 				Kind: "Run", Detail: detail,
 			})
 		}
+		// Artifact bytes are files on disk, not an FTS table. Scan a bounded
+		// recent set so a phrase search finds content, not only kind/status.
+		if u.deps.Artifacts != nil && len(q) >= 3 {
+			seen := map[string]bool{}
+			for _, r := range out {
+				seen[r.URL] = true
+			}
+			arts, _ := u.deps.Artifacts.ListRecent(ctx, 100)
+			matches := 0
+			for _, a := range arts {
+				if matches >= 20 {
+					break
+				}
+				url := "/ui/artifacts/" + url.PathEscape(a.ID)
+				if seen[url] {
+					continue
+				}
+				blob, err := u.deps.Artifacts.ReadContent(ctx, a.ID)
+				if err != nil || len(blob) > 2<<20 {
+					continue
+				}
+				if snippet, ok := contentSnippet(string(blob), q); ok {
+					seen[url] = true
+					out = append(out, searchResult{
+						Label: string(a.Kind) + " v" + itoa(a.Version), URL: url,
+						Kind: "Artifact content", Detail: snippet,
+					})
+					matches++
+				}
+			}
+		}
 		if events, err := u.deps.Store.QueryEvents(ctx, store.EventFilter{
 			Query: q, Desc: true, Limit: 20,
 		}); err == nil {
@@ -239,6 +270,38 @@ func (u *UI) search(r *http.Request, q string) []searchResult {
 		out = out[:100]
 	}
 	return out
+}
+
+// contentSnippet returns a short, single-line window around a content match.
+// The match is case-insensitive; multi-megabyte files are skipped by the
+// caller rather than copied into a search result.
+func contentSnippet(text, query string) (string, bool) {
+	lower := strings.ToLower(text)
+	needle := strings.ToLower(strings.TrimSpace(query))
+	if needle == "" {
+		return "", false
+	}
+	i := strings.Index(lower, needle)
+	if i < 0 {
+		return "", false
+	}
+	start, end := i-60, i+len(needle)+60
+	if start < 0 {
+		start = 0
+	}
+	if end > len(text) {
+		end = len(text)
+	}
+	s := strings.ReplaceAll(text[start:end], "\n", " ")
+	s = strings.Join(strings.Fields(s), " ")
+	s = strings.ToValidUTF8(s, "…")
+	if start > 0 {
+		s = "… " + s
+	}
+	if end < len(text) {
+		s += " …"
+	}
+	return s, true
 }
 
 // scanSearchRow reads every column as a nullable string so the search queries

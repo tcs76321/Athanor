@@ -286,6 +286,38 @@ func TestSetupPersonasWritesConfig(t *testing.T) {
 	}
 }
 
+// TestSearchFindsArtifactContent pins the bounded content scan: artifact bytes
+// are searchable even though they are not indexed in SQLite.
+func TestSearchFindsArtifactContent(t *testing.T) {
+	fx := setup(t)
+	ctx := context.Background()
+	if _, err := fx.ui.deps.Artifacts.CreateDraftFor(ctx, fx.project.ID, fx.task.ID, fx.job.ID,
+		artifact.KindDocument, []byte("A distinctive phrase about watershed stewardship.\n")); err != nil {
+		t.Fatal(err)
+	}
+	status, body := get(t, fx.ts.URL+"/ui/search?format=json&q=watershed+stewardship")
+	if status != http.StatusOK {
+		t.Fatalf("status = %d, want 200", status)
+	}
+	var out struct {
+		Results []struct {
+			Kind, Detail string
+		} `json:"results"`
+	}
+	if err := json.Unmarshal([]byte(body), &out); err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, r := range out.Results {
+		if r.Kind == "Artifact content" && strings.Contains(r.Detail, "watershed") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("content search did not find the artifact: %#v", out.Results)
+	}
+}
+
 // TestDisplaySettings pins the system theme, density persistence, and the
 // styled confirmation dialog in the shell.
 func TestDisplaySettings(t *testing.T) {
