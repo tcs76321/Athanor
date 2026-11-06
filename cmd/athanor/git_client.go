@@ -196,6 +196,11 @@ func skipSnapshotPath(name string) bool {
 	if base == ".env" || strings.HasPrefix(base, ".env.") {
 		return true
 	}
+	switch name {
+	case ".aws/credentials", ".docker/config.json", ".npmrc", ".netrc",
+		".pypirc", ".config/gcloud/application_default_credentials.json":
+		return true
+	}
 	switch {
 	case strings.HasSuffix(base, ".pem"), strings.HasSuffix(base, ".key"),
 		strings.HasSuffix(base, ".p12"), strings.HasSuffix(base, ".pfx"):

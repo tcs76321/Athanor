@@ -28,11 +28,12 @@ func runFinetune(args []string) error {
 	}
 	defer func() { _ = st.Close() }()
 	arts := artifact.NewStore(st, filepath.Join(*stateDir, "artifacts"))
-	f, err := os.Create(*out)
+	f, err := os.OpenFile(*out, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
 	if err != nil {
 		return fmt.Errorf("creating %s: %w", *out, err)
 	}
 	defer func() { _ = f.Close() }()
+	fmt.Println("warning: accepted artifacts may contain repository or tool output; review the export before sharing it")
 	n, err := finetune.Export(context.Background(), st, arts, f)
 	if err != nil {
 		return err
