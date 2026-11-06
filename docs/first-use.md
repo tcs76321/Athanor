@@ -86,6 +86,13 @@ the main 1.0.0 focus** ([1.0.0-direction.md](1.0.0-direction.md)).
 
 ## Part B — Current state vs. to build
 
+> **Status note (2026-11-05):** several rows below are historical. The Core Pod
+> is now the installer/`start` path, the macOS `podman machine` rootless false
+> positive is handled, and the onboarding/qualification/plan/review surfaces
+> exist. Treat this table as a journey map for the remaining first-use work
+> (async pre-index, two-day cycle, signed distribution), not as a current gap
+> list.
+
 | Step | Today | To build |
 |---|---|---|
 | Runtime | host binary **and** Core Pod image (two runtimes) | **Core Pod only** ([ADR-0078](adr/0078-core-pod-only-runtime.md)); host binary = client/dev |

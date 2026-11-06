@@ -27,9 +27,14 @@ GO_TAGS="-tags sqlite_fts5"
 # added in M9-H1 because their rows were previously unfloored.
 FLOORS="
 internal/airlock/paths:60
+internal/airlock/ingress:60
+internal/airlock/egress:45
+internal/airlock/scanner:75
 internal/gateway:80
 internal/toolenvelope:90
 internal/internalapi:65
+internal/internalapi/runner:55
+internal/jobpod:80
 internal/mce/division:78
 internal/engine:75
 internal/store:75
@@ -40,6 +45,11 @@ internal/api:60
 internal/ui:50
 internal/project:55
 internal/evaluation:55
+internal/composition:65
+internal/assist:75
+internal/operator:80
+internal/onboard:80
+internal/finetune:65
 "
 
 status=0

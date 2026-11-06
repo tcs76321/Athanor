@@ -37,7 +37,7 @@ You give it a **goal**. It autonomously decomposes the goal into a Directed Acyc
 |---|---|
 | **Dialectical Execution Engine** | Multi-phase, multi-temperature state machine: diverge → evaluate → reflect → synthesize → compare. Multiple candidates enter; the deterministically-judged best leaves. |
 | **Multidimensional Context Engine (MCE)** | N-dimensional memory system. Code is divided losslessly by AST/structure; logs and conversations are compacted deterministically at Temp 0.0. |
-| **Personas** | Models assigned to functional roles — `wide` (ingestion), `tall` (hard reasoning), `main` (execution), `security` (judging & all compaction), `alternative` (orthogonal perspective). |
+| **Model pool and presets** | The measured pool is the primary repertoire; Athanor ranks and casts models per phase. The legacy five roles — `wide`, `tall`, `main`, `security`, `alternative` — are compatibility presets over the pool ([ADR-0104](docs/adr/0104-composition-space-not-personas.md)). |
 | **Job Pods** | Ephemeral, rootless Podman containers with read-only rootfs, no network, and resource limits. One per execution, destroyed after. |
 | **CorrectionRecords** | Structured negative feedback (category, severity, derived rule) captured from engine rejections and human feedback, so every failure can improve a future job. |
 | **Strategy Insights** | Automatic win/loss analysis of execution strategies (personas, temperatures, candidate counts). Statistical evidence only; advisory until approved. |
@@ -65,7 +65,7 @@ Full topology, isolation rules, and every subsystem are documented in [`ARCHITEC
 
 **Required:**
 - [Podman](https://podman.io/) (rootless mode capable)
-- [Ollama](https://ollama.com/) with persona models pulled (see `personas:` in the config reference)
+- [Ollama](https://ollama.com/) with at least one chat model pulled; the onboarding wizard can qualify and rank a pool. Legacy `personas:` presets remain supported in the config reference.
 - Git
 
 **Optional:**
@@ -242,7 +242,7 @@ Then watch it work in real time from the Watch View, or queue it and check the M
 - **Append-only audit log.** Every state transition writes a `jobs` event in the same transaction as the state update. `GET /jobs/{id}/events` returns the full chain.
 - **Kill switch.** `POST /freeze` freezes; `DELETE /freeze` unfreezes with a required reason. Frozen state persists in `system_state` and survives restarts.
 - **Crash recovery.** `kill -9` mid-job leaves a usable database; restart resumes from the last committed phase.
-- **Container spine.** `internal/jobpod` owns the Podman Job Pod lifecycle (Start/Stop/Get/Sweep), platform-split hardening flags (Linux seccomp, Darwin no-op), per-job token bind mount. Wired into Core boot for a startup sweep of orphan pods.
+- **Container spine.** `internal/jobpod` owns the Podman Job Pod lifecycle (Start/Stop/Get/Sweep), platform-split hardening flags (Linux seccomp, Darwin no-op), and an in-memory per-job token (the read-only `/run/athanor` mount is opt-in). Wired into Core boot for a startup sweep of orphan pods.
 - **Internal API behind bearer tokens.** Job Pods authenticate to the Core at `/internal/v1/` (job context, heartbeat, log, `execute_code`, `run_tests`, `lint`, `fetch_url`, `search_web`, `context_swap`, `query_memory`) with a 16-byte random hex token bound to their job ID. Gate G2 (`internal/gate/gate_g2_test.go`) structurally proves every route is wrapped in `authMiddleware`, every tool handler consults the per-job envelope, and the gateway-tool, `context_swap`, and `query_memory` routes are registered. The closed tool set is `execute_code`, `run_tests`, `lint`, `git_operation`, `fetch_url`, `search_web`, `context_swap`, `query_memory` (M2-T4 → M5-T7); `git_operation` is allowlisted but has no route or handler yet (M6).
 - **Tool envelope.** For a `code` task, `phaseEvaluate` runs the LLM's proposal in a Job Pod (`execute_code` → `run_tests` → `lint` envelope), persists a `code` artifact with exit code, stdout, stderr, and duration, and folds the test/lint result into the verdict. **The model cannot invoke these tools** ([ADR-0080](docs/adr/0080-engine-executed-tools.md)); the engine decides when to run them. Disallowed tools are rejected with 403 and audited; the engine treats a `tool_disallowed` as a soft-fail, and the code acceptance gate rejects a candidate whose test command did not run. The dispatch is live end-to-end (M2-T4b, [ADR-0024](docs/adr/0024-engine-pod-dispatch.md)): the engine starts a per-job Job Pod, the internal API execs the tool call into it, and the pod is destroyed at terminal state.
 - **Containment guarantee (Gate G1).** An AST-walking test in `internal/gate/gate_test.go` fails the build if any production source imports a tool-execution capability. The M1 agent is provably LLM + storage only. See [docs/demo-m1.md](docs/demo-m1.md).

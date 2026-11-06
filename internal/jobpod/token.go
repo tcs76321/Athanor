@@ -1,11 +1,10 @@
 // Token directory lifecycle for M2-T3 (ADR-0007, ADR-0008).
 //
-// Each Job Pod authenticates against the daemon's internal API with a
-// 16-byte random hex token. The token is delivered to the pod via a
-// tmpfs bind mount at /run/athanor/token; this file is the truth of
-// the token's contents. The daemon never persists the token to
-// SQLite, the EventLog, or any artifact — only to the file in the
-// token dir, which is removed when the pod terminates.
+// Each job gets a 16-byte random hex token. On the live Core→pod exec path the
+// Core holds it in memory and presents it to its own internal API; the pod does
+// not need it. When a future pod→Core direction requires the token inside the
+// pod, Spec.MountToken bind-mounts TokenDir read-only at /run/athanor. The
+// daemon never persists the token to SQLite, the EventLog, or an artifact.
 //
 // Layout:
 //

@@ -117,8 +117,11 @@ Every Job Pod receives a per-job bearer token scoped to its job ID at creation
 time. The Core internal API validates this token on every request, enforces the
 tool allowlist for that job, and revokes the token at teardown. The token is
 reused for the job's lifetime (it is not single-use per request). Tokens are
-delivered via a mounted tmpfs file — never via environment variables or
-command-line arguments.
+delivered in memory to the Core's internal runner — never via environment
+variables or command-line arguments. A read-only bind mount at
+`/run/athanor` is available only when a future pod→Core direction needs it
+(`Spec.MountToken`); the default Core→pod exec path does not expose the
+secret to untrusted candidate code.
 
 > **Direction note (ADR-0024).** The live execution path is **Core → Job Pod**
 > via `podman exec`; a `--network=none` pod cannot call the loopback internal
@@ -590,6 +593,14 @@ The final prompt includes token accounting for each section, logged to the `Even
 ---
 
 ## 12. Model Persona System
+
+> **Superseded by [ADR-0104](docs/adr/0104-composition-space-not-personas.md).**
+> The measured model **pool** and the Athanor-ranked **roster** are now the
+> primary model system. The five roles below survive as named presets that
+> expand into requirements over the pool; no new code path should depend on a
+> role name. Selection is scoped (user, computer, project, job) and updated by
+> grounded outcomes. Read the rest of this section as the compatibility preset
+> definition, not as the selection ontology.
 
 Athanor does not refer to a single default model. It assigns models to functional roles, each with distinct context targets, temperatures, and responsibilities.
 
@@ -1272,7 +1283,7 @@ All Athanor containers run rootless. No privileged containers by default.
 --cap-drop=all
 --security-opt=no-new-privileges
 --security-opt=seccomp=<profile>
---tmpfs /tmp:rw,noexec,nosuid,nodev,size=8m
+--tmpfs /tmp:rw,noexec,nosuid,nodev,size=256m
 --memory=<limit>
 --cpus=<limit>
 --pids-limit=<limit>
