@@ -23,6 +23,10 @@ New entries are appended at the top. Do not rewrite history.
   The model returns `{text, notes, added_assumptions}`; invented facts,
   requirements, URLs, names, and numbers are forbidden. Sources are excluded
   from the wand for now.
+- **The editor can say “✓ Idealized.”** If the current text is already correct,
+  complete, and ideal for the field, the model must return it unchanged and the
+  UI shows a check-mark pop-up instead of replacing it. The user can keep
+  editing and wand again, so the field is negotiated rather than one-shot.
 - **Local, bounded, and measured.** The assist uses one tool-free model call
   through the measured pool (quality preferred) with a JSON response, a hard
   input/output bound, and a visible error on failure. Proofs:

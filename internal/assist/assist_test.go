@@ -53,6 +53,35 @@ func TestRefineAcceptsPlainTextFallback(t *testing.T) {
 	}
 }
 
+func TestRefineMarksIdealTextUnchanged(t *testing.T) {
+	text := "Build a tested CSV parser that handles empty rows."
+	gen := &fakeGen{out: `{"text":"Build a tested CSV parser that handles empty rows.","notes":["already complete"],"unchanged":true}`}
+	res, err := New(gen).Refine(context.Background(), "project.goal", text, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !res.Unchanged {
+		t.Fatalf("result = %+v, want unchanged", res)
+	}
+	if res.Text != text {
+		t.Fatalf("unchanged text = %q, want the original", res.Text)
+	}
+	if !strings.Contains(gen.system, "already the ideal version") {
+		t.Fatalf("system prompt does not ask for the ideal check: %q", gen.system)
+	}
+}
+
+func TestRefineDetectsIdenticalTextWithoutFlag(t *testing.T) {
+	text := "Build a tested CSV parser."
+	res, err := New(&fakeGen{out: `{"text":"Build a tested CSV parser.","unchanged":false}`}).Refine(context.Background(), "project.goal", text, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !res.Unchanged {
+		t.Fatalf("identical text was not marked unchanged: %+v", res)
+	}
+}
+
 func TestRefineRejectsUnknownFieldAndEmptyText(t *testing.T) {
 	s := New(&fakeGen{out: "x"})
 	if _, err := s.Refine(context.Background(), "not.a.field", "text", ""); err == nil {

@@ -392,6 +392,13 @@
           const data = await resp.json().catch(() => ({}));
           if (!resp.ok) throw new Error(data.error || "Request failed (" + resp.status + ")");
           if (!data.text) throw new Error("The model returned an empty suggestion");
+          if (data.unchanged || String(field.value) === String(data.text)) {
+            const why = (data.notes || []).join(" · ");
+            status.textContent = "✓ Idealized — this field is complete and ideal." + (why ? " " + why : "");
+            status.classList.add("ok");
+            toast("Idealized ✓ — this field is already complete.");
+            return;
+          }
           field.value = data.text;
           field.dispatchEvent(new Event("input", { bubbles: true }));
           field.dispatchEvent(new Event("change", { bubbles: true }));
