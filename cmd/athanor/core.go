@@ -54,6 +54,8 @@ func coreRunArgs(o coreOptions) []string {
 		"run", "-d",
 		"--name", o.Name,
 		"--security-opt", "label=disable",
+		"--security-opt", "no-new-privileges",
+		"--pids-limit", "4096",
 		"-p", o.Addr + ":7420",
 		"-v", o.SocketPath + ":/run/podman/podman.sock",
 		"-v", o.StateVolume + ":/var/lib/athanor/state",
@@ -137,7 +139,7 @@ func coreUp(ctx context.Context, o coreOptions) error {
 		if err := os.MkdirAll(o.TokenDir, 0o700); err != nil {
 			return fmt.Errorf("creating token directory %s: %w", o.TokenDir, err)
 		}
-		if err := os.MkdirAll(o.ScratchDir, 0o755); err != nil {
+		if err := os.MkdirAll(o.ScratchDir, 0o700); err != nil {
 			return fmt.Errorf("creating scratch directory %s: %w", o.ScratchDir, err)
 		}
 		if _, stderr, err := client.Run(ctx, coreRunArgs(o)...); err != nil {

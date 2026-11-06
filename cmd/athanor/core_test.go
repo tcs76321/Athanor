@@ -33,6 +33,8 @@ func TestCoreRunArgs(t *testing.T) {
 		"-v /home/u/.config/athanor/scratch:/var/lib/athanor/state/scratch",
 		"-v athanor-workspace:/var/lib/athanor/workspace",
 		"-v /home/u/.config/athanor/config.yaml:/etc/athanor/config.yaml",
+		"--security-opt no-new-privileges",
+		"--pids-limit 4096",
 		"-e ATHANOR_HOST_MEMORY_BYTES=34359738368",
 		"athanor-core:latest",
 	} {

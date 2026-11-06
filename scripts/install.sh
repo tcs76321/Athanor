@@ -90,8 +90,7 @@ if [ ! -x "$PREFIX/athanor" ] || [ "${REBUILD:-0}" = "1" ]; then
 fi
 
 mkdir -p "$CONFIG_DIR" "$TOKEN_DIR" "$SCRATCH_DIR"
-chmod 700 "$TOKEN_DIR"
-chmod 755 "$SCRATCH_DIR"
+chmod 700 "$TOKEN_DIR" "$SCRATCH_DIR"
 
 if [ "$HOST_MODE" = "1" ]; then
     mkdir -p "$STATE_DIR"
