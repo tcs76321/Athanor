@@ -232,6 +232,15 @@ type UI struct {
 	// run and offers the button again.
 	indexMu   sync.Mutex
 	indexRuns map[string]*indexRun
+	// statusMu caches the shell's status strip (freeze, active runs, waiting
+	// approvals). Rendering it from live queries on every page load would add
+	// three queries to every navigation; a few seconds of staleness is the
+	// right tradeoff for a status hint.
+	statusMu    sync.Mutex
+	statusAt    time.Time
+	statusFroze bool
+	statusRun   int
+	statusWait  int
 	// exporter is optional: the egress pipeline is wired after the UI is
 	// constructed, so it is a setter rather than a New() field.
 	exporter Exporter
@@ -1553,6 +1562,41 @@ func (u *UI) render(w http.ResponseWriter, title, body string, data map[string]a
 	u.renderStatus(w, http.StatusOK, title, body, data)
 }
 
+// statusStrip returns the shell-level freeze/active/waiting hints. It is
+// cached briefly: the strip is a glance, not a live counter (the dashboard has
+// the authoritative, refreshed views).
+func (u *UI) statusStrip(ctx context.Context) (frozen bool, active, waiting int) {
+	const ttl = 5 * time.Second
+	u.statusMu.Lock()
+	if !u.statusAt.IsZero() && time.Since(u.statusAt) < ttl {
+		frozen, active, waiting = u.statusFroze, u.statusRun, u.statusWait
+		u.statusMu.Unlock()
+		return
+	}
+	u.statusMu.Unlock()
+
+	if u.deps.Control != nil {
+		frozen = u.deps.Control.Frozen()
+	} else if u.deps.Freezer != nil {
+		frozen = u.deps.Freezer.Frozen()
+	}
+	if u.deps.Jobs != nil {
+		if jobs, err := u.deps.Jobs.Active(ctx); err == nil {
+			active = len(jobs)
+		}
+	}
+	if u.deps.HITL != nil {
+		if reqs, err := u.deps.HITL.Pending(ctx); err == nil {
+			waiting = len(reqs)
+		}
+	}
+
+	u.statusMu.Lock()
+	u.statusAt, u.statusFroze, u.statusRun, u.statusWait = time.Now(), frozen, active, waiting
+	u.statusMu.Unlock()
+	return frozen, active, waiting
+}
+
 // templateCache memoizes parsed page/partial templates. Re-parsing a constant
 // body on every request allocated a new template and made a parse error a
 // per-request panic.
@@ -1583,6 +1627,12 @@ func (u *UI) renderStatus(w http.ResponseWriter, status int, title, body string,
 	}
 	if _, ok := data["Query"]; !ok {
 		data["Query"] = ""
+	}
+	if _, ok := data["StatusFrozen"]; !ok {
+		frozen, active, waiting := u.statusStrip(context.Background())
+		data["StatusFrozen"] = frozen
+		data["StatusActive"] = active
+		data["StatusWaiting"] = waiting
 	}
 	theme := u.Theme()
 	data["Theme"] = theme

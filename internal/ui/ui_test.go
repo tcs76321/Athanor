@@ -397,6 +397,10 @@ func TestDailySurfaces(t *testing.T) {
 	if !strings.Contains(body, fx.job.ID[:8]) {
 		t.Errorf("runs page does not list the fixture job")
 	}
+	_, body = get(t, fx.ts.URL+"/ui")
+	if !strings.Contains(body, "status-strip") || !strings.Contains(body, "waiting") {
+		t.Error("shell is missing the persistent status strip")
+	}
 }
 
 func TestAlarmResolveFromInbox(t *testing.T) {

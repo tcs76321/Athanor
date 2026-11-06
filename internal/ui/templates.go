@@ -64,6 +64,11 @@ func document(body string) string {
   <div class="work">
     <div class="topbar">
       <div class="crumbs"><a href="/ui">Athanor</a><span class="sep">/</span><span>{{.Title}}</span></div>
+      <div class="status-strip" aria-label="System status">
+        <span class="pill {{if .StatusFrozen}}bad{{else}}ok{{end}}">{{if .StatusFrozen}}Frozen{{else}}Live{{end}}</span>
+        <span class="pill">{{.StatusActive}} active</span>
+        <a class="pill {{if .StatusWaiting}}warn{{end}}" href="/ui/notifications">{{.StatusWaiting}} waiting</a>
+      </div>
       <form class="search" method="get" action="/ui/search" role="search">
         <input type="search" name="q" placeholder="Search projects, artifacts, jobs…  (⌘K)" aria-label="Search" value="{{.Query}}">
       </form>
