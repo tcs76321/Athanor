@@ -27,6 +27,10 @@ New entries are appended at the top. Do not rewrite history.
   complete, and ideal for the field, the model must return it unchanged and the
   UI shows a check-mark pop-up instead of replacing it. The user can keep
   editing and wand again, so the field is negotiated rather than one-shot.
+- **The editor can ask instead of guessing.** A blank, nonsensical, or
+  underspecified field produces one to three specific clarification questions
+  under the field. The user answers in place, then refines again. Explicit
+  sources are clarified but never altered or invented.
 - **Local, bounded, and measured.** The assist uses one tool-free model call
   through the measured pool (quality preferred) with a JSON response, a hard
   input/output bound, and a visible error on failure. Proofs:

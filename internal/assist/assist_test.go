@@ -85,13 +85,35 @@ func TestRefineDetectsIdenticalTextWithoutFlag(t *testing.T) {
 	}
 }
 
-func TestRefineRejectsUnknownFieldAndEmptyText(t *testing.T) {
+func TestRefineAsksForClarificationWhenEmpty(t *testing.T) {
+	gen := &fakeGen{out: `{"text":"","needs_clarification":true,"questions":["Who is this for?","What does done look like?"]}`}
+	res, err := New(gen).Refine(context.Background(), "project.goal", "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !res.NeedsClarification || res.Text != "" || len(res.Questions) != 2 {
+		t.Fatalf("clarification = %+v", res)
+	}
+	if !strings.Contains(gen.user, "(empty)") {
+		t.Fatalf("empty prompt = %q", gen.user)
+	}
+}
+
+func TestRefineAsksForClarificationWhenVague(t *testing.T) {
+	gen := &fakeGen{out: `{"needs_clarification":true,"questions":["What outcome do you want?"]}`}
+	res, err := New(gen).Refine(context.Background(), "project.goal", "do the thing", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !res.NeedsClarification || len(res.Questions) != 1 {
+		t.Fatalf("clarification = %+v", res)
+	}
+}
+
+func TestRefineRejectsUnknownField(t *testing.T) {
 	s := New(&fakeGen{out: "x"})
 	if _, err := s.Refine(context.Background(), "not.a.field", "text", ""); err == nil {
 		t.Fatal("unknown field was accepted")
-	}
-	if _, err := s.Refine(context.Background(), "project.goal", "   ", ""); err == nil {
-		t.Fatal("empty field was accepted")
 	}
 	if _, err := s.Refine(context.Background(), "project.goal", strings.Repeat("x", 20001), ""); err == nil {
 		t.Fatal("oversize field was accepted")

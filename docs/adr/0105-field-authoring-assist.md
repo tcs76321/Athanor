@@ -30,14 +30,17 @@ original.
    length target. The model prompt is built from that contract, not from a
    generic template.
 3. **The result is structured.** The model returns
-   `{text, notes, added_assumptions, unchanged}`. Anything new that is not
-   strictly implied belongs in `added_assumptions`, never smuggled into the
-   field. If the current text is already correct, complete, and ideal for the
-   field, the model must return it unchanged and the UI shows **“✓ Idealized”**
-   instead of replacing the field.
-4. **The loop is a negotiation.** The user brain-dumps, the editor corrects and
-   expands, the user aligns and edits, and the wand can be used again. Revert
-   restores the user's pre-refinement text; the field is never silently
+   `{text, notes, added_assumptions, unchanged, needs_clarification, questions}`.
+   Anything new that is not strictly implied belongs in `added_assumptions`,
+   never smuggled into the field. If the current text is already correct,
+   complete, and ideal for the field, the model returns it unchanged and the UI
+   shows **“✓ Idealized”** instead of replacing the field.
+4. **The loop is a negotiation in both directions.** The user brain-dumps, the
+   editor corrects and expands, the user aligns and edits, and the wand can be
+   used again. If a field is blank, unintelligible, or too vague to edit safely,
+   the editor does not guess: it returns **1–3 clarification questions**, the UI
+   shows them under the field, and the user answers before the next refine.
+   Revert restores the user's pre-refinement text; the field is never silently
    overwritten.
 5. **Facts are preserved.** The contract forbids inventing facts, URLs, names,
    numbers, requirements, constraints, file paths, or commands. Sources are not

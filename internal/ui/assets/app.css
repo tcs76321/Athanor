@@ -1061,4 +1061,15 @@ details[open] summary { margin-bottom: var(--space-2); }
   color: var(--muted);
 }
 .refine-status.ok { color: var(--ok); }
+.refine-status.warn { color: var(--warn); }
 .refine-status.bad { color: var(--bad); }
+.refine-questions {
+  margin-top: 8px;
+  padding: 10px 12px;
+  border: var(--line);
+  border-left: 3px solid var(--warn);
+  border-radius: var(--radius);
+  background: var(--warn-soft);
+}
+.refine-questions ul { margin: 6px 0; padding-left: 20px; }
+.refine-questions li { margin: 4px 0; }

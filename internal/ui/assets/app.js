@@ -366,15 +366,16 @@
       const status = document.createElement("div");
       status.className = "refine-status";
       status.setAttribute("aria-live", "polite");
-      wrap.append(bar, status);
+      const questions = document.createElement("div");
+      questions.className = "refine-questions";
+      questions.hidden = true;
+      wrap.append(bar, status, questions);
 
       let original = null;
       wand.addEventListener("click", async () => {
         const text = String(field.value || "").trim();
-        if (!text) {
-          field.focus();
-          return;
-        }
+        questions.hidden = true;
+        questions.replaceChildren();
         if (original === null) original = field.value;
         wand.disabled = true;
         status.className = "refine-status";
@@ -391,6 +392,26 @@
           });
           const data = await resp.json().catch(() => ({}));
           if (!resp.ok) throw new Error(data.error || "Request failed (" + resp.status + ")");
+          if (data.needs_clarification) {
+            const title = document.createElement("b");
+            title.textContent = "Athanor needs a bit more:";
+            const list = document.createElement("ul");
+            (data.questions || []).forEach((q) => {
+              const li = document.createElement("li");
+              li.textContent = q;
+              list.appendChild(li);
+            });
+            const hint = document.createElement("p");
+            hint.className = "muted small";
+            hint.textContent = "Answer in the field, then press ✨ again.";
+            questions.replaceChildren(title, list, hint);
+            questions.hidden = false;
+            status.textContent = "Needs clarification — answer the questions, then refine again.";
+            status.classList.add("warn");
+            field.focus();
+            toast("Athanor needs a bit more — see the questions.");
+            return;
+          }
           if (!data.text) throw new Error("The model returned an empty suggestion");
           if (data.unchanged || String(field.value) === String(data.text)) {
             const why = (data.notes || []).join(" · ");
@@ -424,6 +445,8 @@
         field.dispatchEvent(new Event("change", { bubbles: true }));
         original = null;
         revert.disabled = true;
+        questions.hidden = true;
+        questions.replaceChildren();
         status.className = "refine-status";
         status.textContent = "Reverted to your original text.";
       });

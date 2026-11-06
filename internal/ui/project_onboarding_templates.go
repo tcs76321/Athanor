@@ -40,7 +40,7 @@ const projectOnboardingBody = `
         <textarea id="limitations" name="limitations" rows="3" data-refine-field="brief.limitations" placeholder="No ads, no cold calling, no regulated advice, no publishing without review.">{{.Brief.Limitations}}</textarea>
 
         <label for="sources">Sources or pages Athanor may read (one per line)</label>
-        <textarea id="sources" name="sources" rows="3" placeholder="https://example.com/market-report">{{join .Brief.Sources}}</textarea>
+        <textarea id="sources" name="sources" rows="3" data-refine-field="brief.sources" placeholder="https://example.com/market-report">{{join .Brief.Sources}}</textarea>
         <div class="field-help">These URLs are recorded in the approved plan. Research tasks fetch only allowlisted sources through the gateway; a domain outside the allowlist becomes an access request, not a silent fetch.</div>
         {{if .Sources}}
         <div class="stack">
