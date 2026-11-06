@@ -141,6 +141,24 @@ func (o *osProbes) OllamaModels(ctx context.Context, baseURL string) ([]string, 
 	return out, nil
 }
 
+func (o *osProbes) OllamaResident(ctx context.Context, baseURL string) ([]string, error) {
+	var body struct {
+		Models []struct {
+			Name string `json:"name"`
+		} `json:"models"`
+	}
+	if err := o.getJSON(ctx, strings.TrimRight(baseURL, "/")+"/api/ps", &body); err != nil {
+		return nil, err
+	}
+	out := make([]string, 0, len(body.Models))
+	for _, m := range body.Models {
+		if m.Name != "" {
+			out = append(out, m.Name)
+		}
+	}
+	return out, nil
+}
+
 // TotalMemoryBytes reads physical memory (macOS sysctl, Linux /proc/meminfo).
 func (osProbes) TotalMemoryBytes(ctx context.Context) (uint64, bool) {
 	switch runtime.GOOS {

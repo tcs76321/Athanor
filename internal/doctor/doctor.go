@@ -139,6 +139,7 @@ func Run(ctx context.Context, cfg *config.Config, opts Options, p Probes) Report
 	r.checkPodman(ctx, p)
 	r.checkGit(p)
 	r.checkOllama(ctx, cfg, p)
+	r.checkOllamaResident(ctx, cfg, p)
 	r.checkRuntime(cfg, p)
 	r.checkMemory(ctx, p)
 	r.checkGPU(ctx, p)
@@ -195,6 +196,13 @@ func (r *Report) checkGPU(ctx context.Context, p Probes) {
 // process runs inside a container (a Core Pod). A Probes without it is treated
 // as the host-binary shape, so the doctor's interface stays stable for fakes.
 type containerDetector interface{ InContainer() bool }
+
+// ollamaResidentProbe is an optional Probes extension. Multiple resident
+// models are legal in Ollama but expensive on a single local GPU; the warning
+// is advisory, not a failure.
+type ollamaResidentProbe interface {
+	OllamaResident(ctx context.Context, baseURL string) ([]string, error)
+}
 
 // checkRuntime reports the deployment shape (host binary vs Core Pod) and warns
 // when inference.ollama_url does not match it (ADR-0069 §3): a Core Pod reaches
@@ -366,6 +374,28 @@ func (r *Report) checkOllama(ctx context.Context, cfg *config.Config, p Probes) 
 		return
 	}
 	r.add(Check{Name: "models", Status: StatusOK, Detail: "all configured models present"})
+}
+
+func (r *Report) checkOllamaResident(ctx context.Context, cfg *config.Config, p Probes) {
+	rp, ok := p.(ollamaResidentProbe)
+	if !ok {
+		return
+	}
+	names, err := rp.OllamaResident(ctx, cfg.Inference.OllamaURL)
+	if err != nil {
+		return // the reachability check already reports a real outage
+	}
+	if len(names) > 1 {
+		r.add(Check{
+			Name:   "model_residency",
+			Status: StatusWarn,
+			Detail: fmt.Sprintf("%d models are resident: %s", len(names), strings.Join(names, ", ")),
+			Remediation: "for a single local GPU, set OLLAMA_MAX_LOADED_MODELS=1 and " +
+				"OLLAMA_NUM_PARALLEL=1 in the Ollama server environment, then restart it",
+		})
+		return
+	}
+	r.add(Check{Name: "model_residency", Status: StatusOK, Detail: "one or no model resident"})
 }
 
 // modelPresent reports whether want is installed. An exact match (modulo
