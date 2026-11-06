@@ -83,6 +83,10 @@ const welcomeBody = `
             <input type="number" name="memory_mb" value="{{.Resources.MemoryMB}}" min="256" max="{{.Resources.MemoryMaxMB}}" step="256">
             <span class="field-help">Runtime memory {{printf "%.0f" .Resources.TotalMemoryGiB}} GiB minus a {{.Resources.ReserveMB}} MB reserve; max {{.Resources.MemoryMaxMB}} MB.</span>
           </label>
+          <label>Host reserve (MB)
+            <input type="number" name="host_reserve_mb" value="{{.Resources.HostReserveMB}}" min="0" max="65536" step="512">
+            <span class="field-help">Memory left outside any model: OS, apps, the Core, and the Podman VM. Raise it if the VM is large; lower it to allow larger models.</span>
+          </label>
           <label>CPUs
             <input type="number" name="cpus" value="{{printf "%.2f" .Resources.CPUsAllocated}}" min="0.5" max="{{printf "%.2f" .Resources.CPUsMax}}" step="0.5">
             <span class="field-help">Runtime has {{.Resources.CPUs}} core(s). A fraction is a CPU quota, not a dedicated core.</span>
@@ -111,11 +115,12 @@ const welcomeBody = `
     {{if .Budget.HostGiB}}
     <div class="card {{if .Budget.Overcommit}}card-accent{{end}}">
       <div class="row row-middle">
-        <div><div class="eyebrow">Host inference budget</div><p class="muted">{{if .Budget.Model}}Largest configured persona <b>{{.Budget.Model}}</b> uses {{printf "%.1f" .Budget.ModelGiB}} GiB{{if .Budget.ModelMeasured}} measured{{else}} estimated from file size{{end}}. Host {{printf "%.1f" .Budget.HostGiB}} GiB − {{printf "%.1f" .Budget.ReserveGiB}} GiB OS/apps reserve{{if .Budget.VmGiB}} − {{printf "%.1f" .Budget.VmGiB}} GiB Podman runtime{{end}} = {{printf "%.1f" .Budget.InferenceGiB}} GiB for inference.{{else}}No configured persona model found.{{end}}</p></div>
+        <div><div class="eyebrow">Host inference budget</div><p class="muted">{{if .Budget.Model}}Largest configured persona <b>{{.Budget.Model}}</b> uses {{printf "%.1f" .Budget.ModelGiB}} GiB{{if .Budget.ModelMeasured}} measured{{else}} estimated from file size{{end}}. Host {{printf "%.1f" .Budget.HostGiB}} GiB − {{printf "%.1f" .Budget.ReserveGiB}} GiB host reserve (OS, apps, Core{{if .Budget.VmGiB}}, Podman VM {{printf "%.1f" .Budget.VmGiB}} GiB{{end}}) = {{printf "%.1f" .Budget.InferenceGiB}} GiB for inference.{{else}}No configured persona model found.{{end}}</p></div>
         {{if .Budget.Model}}{{if .Budget.ModelFits}}<span class="pill ok">model fits budget</span>{{else}}<span class="pill bad">model exceeds budget</span>{{end}}{{end}}
       </div>
       <p class="muted small">Installed-but-unused models do not count. The measured audit uses the same host reserve; {{if .Budget.ModelMeasured}}this size comes from the audit{{else}}run <code>athanor models -audit</code> for resident size{{end}}.</p>
-      {{if .Budget.Overcommit}}<p class="del">Combined host pressure is {{printf "%.1f" .Budget.OverBy}} GiB over: the model, Podman runtime, and OS reserve together exceed host RAM. Reduce the runtime, lower context, or choose smaller persona models.</p>{{end}}
+      {{if .Budget.ReserveBelowVM}}<p class="del">The {{printf "%.1f" .Budget.VmGiB}} GiB Podman VM is larger than the {{printf "%.1f" .Budget.ReserveGiB}} GiB host reserve. Raise the reserve above the VM size, or models may starve macOS and the VM.</p>{{end}}
+      {{if .Budget.Overcommit}}<p class="del">Combined host pressure is {{printf "%.1f" .Budget.OverBy}} GiB over: the model and host reserve together exceed host RAM. Reduce the reserve, lower context, or choose smaller models.</p>{{end}}
     </div>
     <div class="card {{if not .Budget.RuntimeFits}}card-accent{{end}}">
       <div class="row row-middle">
@@ -142,6 +147,7 @@ const welcomeBody = `
     </div>
 
     <h2>Installed models</h2>
+    <p class="muted small">Context targets follow the wide/tall split: smaller models carry more context, larger models carry less. The value is a starting budget, not a guarantee against KV pressure.</p>
     {{if .PoolRows}}
     <div class="card flush"><div class="table-wrap">
       <table><thead><tr><th>Model</th><th>Size</th><th>Family</th><th>Context</th><th>Status</th><th></th></tr></thead><tbody>

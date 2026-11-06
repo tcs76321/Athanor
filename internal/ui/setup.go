@@ -24,7 +24,7 @@ const qualKey = "ui:qualification"
 
 // qualTTL bounds how long a persisted "running" flag is trusted. A Core
 // restart cannot resume the goroutine, so a stale run is restartable.
-const qualTTL = 10 * time.Minute
+const qualTTL = 2 * time.Hour
 
 // qualState is the resumable qualification state.
 type qualState struct {

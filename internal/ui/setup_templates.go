@@ -63,7 +63,7 @@ const setupBody = `
 </div>
 {{else}}
 <div class="card">
-  <p>Runs four fixed-label judge pairs for <code>security</code> and three deterministic generator cases for <code>main</code>, against the configured model plus the largest installed alternative. It is a machine-local screen, not the frozen benchmark. You can use the configured personas without running it.</p>
+  <p>Runs the deterministic generator and judge ladder against the configured model plus the largest installed alternative. It is a machine-local screen, not the frozen benchmark. You can use the configured personas without running it.</p>
   {{if .State.Error}}<p class="del">{{.State.Error}}</p>{{end}}
   {{if .Stale}}<p class="muted">A previous run looks stale; starting again resets it.</p>{{end}}
   <form method="post" action="/ui/setup/qualify">

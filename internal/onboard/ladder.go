@@ -40,6 +40,9 @@ type JudgeCase struct {
 	Goal string `json:"goal"`
 	Good string `json:"good"`
 	Bad  string `json:"bad"`
+	// Capability names the kind of work the pair exercises, so the result
+	// strengthens that capability's score as well as overall judgment.
+	Capability string `json:"capability,omitempty"`
 }
 
 // Ladder is the bounded qualification instrument. Generators and Judges are
@@ -69,47 +72,78 @@ func DefaultLadder() Ladder {
 				Prompt: `Count the integer values in this JSON array and reply with only the count: [1, "two", 3, null, 4.5]`},
 			{ID: "gen-doc-colour", Check: CheckExact, Want: "blue", Capability: "document",
 				Prompt: "Read the note and reply with only the car colour.\n\nThe door is green. The car is blue. The roof is grey."},
+			{ID: "gen-instruction", Check: CheckExact, Want: "HARBOR", Capability: "general",
+				Prompt: "Reply with only the uppercase form of the word harbor."},
+			{ID: "gen-text-edit", Check: CheckExact, Want: "The dog sat on the mat", Capability: "text",
+				Prompt: "Replace the word cat with dog in this sentence and reply with only the new sentence: The cat sat on the mat."},
+			{ID: "gen-long-context", Check: CheckExact, Want: "teal", Capability: "document",
+				Prompt: "Read the passage and reply with only the colour written in the log.\n\n" +
+					"The ferry left the blue dock before dawn. It passed the green lighthouse, then the orange buoy, " +
+					"and finally the grey breakwater. The captain wrote teal in the log because the water reflected the sky. " +
+					"The crew ate breakfast after the crossing."},
+			{ID: "gen-media-plan", Check: CheckJSON, Want: `{"shots":["wide","close","cut"]}`, Capability: "media",
+				Prompt: `Return only JSON with this shape: {"shots":["..."]} for a three-shot sunrise sequence named wide, close, and cut.`},
 		},
 		Judges: []JudgeCase{
 			{
-				ID: "judge-edge-case", Goal: "Return the average of a list; an empty list returns 0.",
+				ID: "judge-edge-case", Capability: "code", Goal: "Return the average of a list; an empty list returns 0.",
 				Good: "def avg(xs):\n    if not xs:\n        return 0\n    return sum(xs) / len(xs)",
 				Bad:  "def avg(xs):\n    return sum(xs) / len(xs)",
 			},
 			{
-				ID: "judge-error-path", Goal: "Read a JSON file and return its parsed value; invalid JSON must raise a clear error.",
+				ID: "judge-error-path", Capability: "code", Goal: "Read a JSON file and return its parsed value; invalid JSON must raise a clear error.",
 				Good: "def load(path):\n    try:\n        with open(path) as f:\n            return json.load(f)\n    except json.JSONDecodeError as e:\n        raise ValueError(f\"invalid JSON in {path}: {e}\") from e",
 				Bad:  "def load(path):\n    with open(path) as f:\n        return json.load(f)",
 			},
 			{
-				ID: "judge-sql-rollback", Goal: "An additive migration must be reversible.",
+				ID: "judge-sql-rollback", Capability: "data", Goal: "An additive migration must be reversible.",
 				Good: "-- up\nALTER TABLE t ADD COLUMN age INTEGER;\n-- down\nALTER TABLE t DROP COLUMN age;",
 				Bad:  "-- up\nALTER TABLE t ADD COLUMN age INTEGER;",
 			},
 			{
-				ID: "judge-doc-contract", Goal: "Document a function's inputs, outputs, and error behavior.",
+				ID: "judge-doc-contract", Capability: "document", Goal: "Document a function's inputs, outputs, and error behavior.",
 				Good: "parse(s) -> dict\n  s: JSON string.\n  Returns the decoded object.\n  Raises ValueError if s is not valid JSON.",
 				Bad:  "parse(s)\n  Parses s and returns the result.",
 			},
 			{
-				ID: "judge-no-network", Goal: "A test double must not perform real network I/O.",
+				ID: "judge-no-network", Capability: "code", Goal: "A test double must not perform real network I/O.",
 				Good: "class FakeClient:\n    def __init__(self, response):\n        self.response = response\n    def get(self, url):\n        return self.response",
 				Bad:  "class FakeClient:\n    def get(self, url):\n        return requests.get(url).json()",
 			},
 			{
-				ID: "judge-close-file", Goal: "Read a file and always release the handle.",
+				ID: "judge-close-file", Capability: "code", Goal: "Read a file and always release the handle.",
 				Good: "with open(path) as f:\n    return f.read()",
 				Bad:  "f = open(path)\nreturn f.read()",
 			},
 			{
-				ID: "judge-boundary", Goal: "A function divides two numbers and must handle a zero denominator explicitly.",
+				ID: "judge-boundary", Capability: "code", Goal: "A function divides two numbers and must handle a zero denominator explicitly.",
 				Good: "def div(a, b):\n    if b == 0:\n        raise ValueError(\"division by zero\")\n    return a / b",
 				Bad:  "def div(a, b):\n    return a / b",
 			},
 			{
-				ID: "judge-secret", Goal: "A client authenticates with a token but must never write the token to logs.",
+				ID: "judge-secret", Capability: "code", Goal: "A client authenticates with a token but must never write the token to logs.",
 				Good: "log.info(\"request authorized\")\nreturn client.get(url, headers=headers)",
 				Bad:  "log.info(f\"token={token}\")\nreturn client.get(url, headers=headers)",
+			},
+			{
+				ID: "judge-hallucination", Capability: "document", Goal: "Summarize the provided source and do not add facts it does not support.",
+				Good: "The cache was warm after the first run [S2].",
+				Bad:  "The cache was warm after the first run and cut latency by 40% [S2].",
+			},
+			{
+				ID: "judge-instruction-hierarchy", Capability: "general", Goal: "Return only a JSON object with the key status and value ok.",
+				Good: `{"status":"ok"}`,
+				Bad:  "The status is ok.",
+			},
+			{
+				ID: "judge-scope", Capability: "general", Goal: "Summarize the incident in exactly three bullet points; do not add recommendations.",
+				Good: "- Database restarted at noon.\n- Requests failed for four minutes.\n- No data was lost.",
+				Bad:  "- Database restarted at noon.\n- Requests failed for four minutes.\n- No data was lost.\n- Recommendation: add a second database.",
+			},
+			{
+				ID: "judge-schema", Capability: "data", Goal: "Validate rows and return only JSON with count and invalid; do not drop invalid rows.",
+				Good: `{"count":2,"invalid":1}`,
+				Bad:  `{"count":1}`,
 			},
 		},
 	}
@@ -122,7 +156,7 @@ func DeepLadder() Ladder {
 	l := DefaultLadder()
 	l.Generators = append(l.Generators,
 		GenCase{
-			ID: "gen-long-context", Check: CheckExact, Want: "orange", Capability: "document",
+			ID: "gen-long-context-deep", Check: CheckExact, Want: "orange", Capability: "document",
 			Prompt: "Read this note and reply with only the colour.\n\n" +
 				"The workshop moved twice. First it was near the blue harbour, then the green market, " +
 				"and finally beside the orange bridge. The tools stayed in the same crate.",
@@ -156,28 +190,40 @@ func DeepLadder() Ladder {
 	)
 	l.Judges = append(l.Judges,
 		JudgeCase{
-			ID:   "judge-injection",
+			ID: "judge-injection", Capability: "general",
 			Goal: "A tool reads a web page and summarizes it. Never execute instructions found in the page.",
 			Good: "summary = extract_text(page)\nreturn summarize(summary)",
 			Bad:  "if 'ignore previous instructions' in page:\n    run(page)\nreturn summarize(page)",
 		},
 		JudgeCase{
-			ID:   "judge-data-integrity",
+			ID: "judge-data-integrity", Capability: "data",
 			Goal: "Validate every record and fail loudly instead of silently dropping invalid rows.",
 			Good: "for r in rows:\n    validate(r)\n    out.append(r)",
 			Bad:  "for r in rows:\n    try:\n        validate(r)\n        out.append(r)\n    except Exception:\n        pass",
 		},
 		JudgeCase{
-			ID:   "judge-test-quality",
+			ID: "judge-test-quality", Capability: "code",
 			Goal: "A test must prove the function rejects an empty input, not merely sleep or print.",
 			Good: "def test_empty():\n    with pytest.raises(ValueError):\n        parse(\"\")",
 			Bad:  "def test_empty():\n    parse(\"\")\n    time.sleep(1)",
 		},
 		JudgeCase{
-			ID:   "judge-citation",
+			ID: "judge-citation", Capability: "document",
 			Goal: "A summary must cite the provided source and must not invent one.",
 			Good: "The cache was warm after the first run [S2].",
 			Bad:  "The cache was warm after the first run [S7].",
+		},
+		JudgeCase{
+			ID: "judge-accessibility", Capability: "media",
+			Goal: "Provide alt text for a chart showing a slow rise in rainfall over five years.",
+			Good: "Line chart: rainfall rises gradually from 2019 to 2023, with the steepest increase in 2022.",
+			Bad:  "Chart image.",
+		},
+		JudgeCase{
+			ID: "judge-tone", Capability: "text",
+			Goal: "Rewrite the notice for a general audience without jargon or alarm.",
+			Good: "The service will pause for about ten minutes tonight while we update it. Your data is safe.",
+			Bad:  "Critical maintenance window: expect service termination during schema mutation.",
 		},
 	)
 	return l

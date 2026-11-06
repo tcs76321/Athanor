@@ -29,7 +29,7 @@ func (u *UI) startPoolQualification(ctx context.Context, fresh, deep bool) (qual
 			return qualState{}, false, fmt.Errorf("reading installed models: %w", err)
 		}
 		if u.deps.Hardware != nil {
-			p.FitLimitBytes = inferenceFitBytes(u.deps.Hardware(ctx))
+			p.FitLimitBytes = inferenceFitBytes(u.deps.Hardware(ctx), hostReserveBytes(u.deps.Config))
 		}
 		infos := make([]composition.ModelInfo, 0, len(installed))
 		for _, m := range installed {
@@ -38,7 +38,7 @@ func (u *UI) startPoolQualification(ctx context.Context, fresh, deep bool) (qual
 			}
 			infos = append(infos, composition.ModelInfo{
 				Name: m.Name, Family: m.Family, SizeBytes: m.SizeBytes,
-				ContextTarget: poolContextTarget(u.deps.Config, m.Name),
+				ContextTarget: poolContextTarget(u.deps.Config, m.Name, m.SizeBytes, p.FitLimitBytes),
 			})
 		}
 		p.Sync(infos)
@@ -99,7 +99,7 @@ func poolQualificationPlan(models []string, ladder onboard.Ladder) int {
 }
 
 func (u *UI) runPoolQualification(ctx context.Context, models []string, ladder onboard.Ladder, state *qualState) {
-	ctx, cancel := context.WithTimeout(ctx, 30*time.Minute)
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Hour)
 	defer cancel()
 	state.Running = true
 	state.Error = ""
@@ -158,6 +158,20 @@ func (u *UI) recordPoolQualification(ctx context.Context, models []string, ladde
 	type tally struct{ successes, trials int }
 	for _, model := range models {
 		byCapability := map[string]*tally{}
+		add := func(capability string, correct bool) {
+			if capability == "" {
+				capability = string(composition.CapabilityGeneral)
+			}
+			t := byCapability[capability]
+			if t == nil {
+				t = &tally{}
+				byCapability[capability] = t
+			}
+			t.trials++
+			if correct {
+				t.successes++
+			}
+		}
 		gen := &tally{}
 		for _, c := range ladder.Generators {
 			v, ok := state.Results["generator|"+model+"|"+c.ID]
@@ -168,19 +182,7 @@ func (u *UI) recordPoolQualification(ctx context.Context, models []string, ladde
 			if v {
 				gen.successes++
 			}
-			capability := c.Capability
-			if capability == "" {
-				capability = string(composition.CapabilityGeneral)
-			}
-			t := byCapability[capability]
-			if t == nil {
-				t = &tally{}
-				byCapability[capability] = t
-			}
-			t.trials++
-			if v {
-				t.successes++
-			}
+			add(c.Capability, v)
 		}
 		judge := &tally{}
 		for _, c := range ladder.Judges {
@@ -192,6 +194,10 @@ func (u *UI) recordPoolQualification(ctx context.Context, models []string, ladde
 			if v {
 				judge.successes++
 			}
+			// Judges strengthen both overall judgment and the specific
+			// capability the pair exercises.
+			add(string(composition.CapabilityJudgment), v)
+			add(c.Capability, v)
 		}
 		for capability, t := range byCapability {
 			p.SetMeasured(model, capability, t.successes, t.trials)
@@ -200,7 +206,6 @@ func (u *UI) recordPoolQualification(ctx context.Context, models []string, ladde
 			p.SetMeasured(model, "stance:generate", gen.successes, gen.trials)
 		}
 		if judge.trials > 0 {
-			p.SetMeasured(model, string(composition.CapabilityJudgment), judge.successes, judge.trials)
 			p.SetMeasured(model, "stance:verify", judge.successes, judge.trials)
 		}
 	}

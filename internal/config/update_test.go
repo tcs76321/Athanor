@@ -80,7 +80,7 @@ personas:
 	if err := os.WriteFile(path, []byte(original), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := UpdateJobPodResources(path, JobPodResources{MemoryMB: 4096, CPUs: 2.5, TmpfsMB: 2048, PidsLimit: 256}); err != nil {
+	if err := UpdateJobPodResources(path, JobPodResources{MemoryMB: 4096, CPUs: 2.5, TmpfsMB: 2048, PidsLimit: 256, HostReserveMB: 6144}); err != nil {
 		t.Fatal(err)
 	}
 	cfg, err := Load(path)
@@ -89,6 +89,9 @@ personas:
 	}
 	if cfg.JobPod.MemoryMB != 4096 || cfg.JobPod.CPUs != 2.5 || cfg.JobPod.TmpfsMB != 2048 || cfg.JobPod.PidsLimit != 256 {
 		t.Errorf("resources = %+v", cfg.JobPod)
+	}
+	if cfg.Inference.HostReserveMB != 6144 {
+		t.Errorf("host reserve = %d, want 6144", cfg.Inference.HostReserveMB)
 	}
 	if cfg.JobPod.Image != "localhost/athanor-jobpod:latest" || cfg.Personas.Main.Model != "keep-me:7b" {
 		t.Error("unrelated fields changed")

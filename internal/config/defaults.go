@@ -102,6 +102,7 @@ func applyDefaults(c *Config) {
 	setStr(&c.Inference.JudgmentSeed, JudgmentSeedOff)
 	// Runaway guard (M3-T7.6b): cap output tokens per call.
 	setInt(&c.Inference.MaxOutputTokens, 4096)
+	setInt(&c.Inference.HostReserveMB, 4096)
 	// Thinking defaults off: bounded, cheap, deterministic local calls.
 	setFalse(&c.Inference.Think)
 	// §12.5 model residency: keep a model resident for a short window after

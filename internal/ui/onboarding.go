@@ -71,15 +71,16 @@ type resourceView struct {
 	TmpfsMB           int
 	PidsLimit         int
 	ReserveMB         int
+	HostReserveMB     int
 }
 
 type modelBudget struct {
 	// Host inference budget: the configured persona models run on the host.
 	HostGiB       float64
 	RuntimeGiB    float64
-	VmGiB         float64 // Podman VM allocation, a host cost on macOS
-	ReserveGiB    float64 // OS/apps/Core reserve on the host
-	InferenceGiB  float64 // Host - Reserve - VM
+	VmGiB         float64 // detected Podman VM allocation (inside the host reserve)
+	ReserveGiB    float64 // OS/apps/Core/Podman reserve on the host
+	InferenceGiB  float64 // Host - Reserve
 	Model         string
 	ModelGiB      float64
 	ModelMeasured bool
@@ -92,20 +93,21 @@ type modelBudget struct {
 	RuntimeFits     bool
 	RuntimeHeadroom float64
 
-	Overcommit bool
-	OverBy     float64
+	Overcommit     bool
+	OverBy         float64
+	ReserveBelowVM bool
 }
 
-// hostReserveGiB is the OS/apps/Core reserve used by the measured model audit
-// (ADR-0099). It is deliberately separate from the Job Pod runtime reserve.
-const hostReserveGiB = 8.0
+// hostReserveGiB is the fallback non-model reserve when the config does not
+// set one. It covers the OS, apps, the Core, and the Podman VM.
+const hostReserveGiB = 4.0
 
 // budgetFor explains two independent memory budgets instead of adding Job Pod
 // memory to host model memory. The host budget is the largest *configured
-// persona* resident size against host RAM minus the OS reserve and the Podman
-// VM allocation. The runtime budget is the Job Pod ceiling against the runtime
-// allocation minus its own reserve. Installed-but-unused models do not enter
-// either budget.
+// persona* resident size against host RAM minus the operator's host reserve.
+// The runtime budget is the Job Pod ceiling against the runtime allocation
+// minus its own reserve. Installed-but-unused models do not enter either
+// budget.
 func budgetFor(roles []setupRole, models []setupModel, hw Hardware, res resourceView) modelBudget {
 	hostBytes := hw.HostMemoryBytes
 	runtimeBytes := hw.TotalMemoryBytes
@@ -115,18 +117,24 @@ func budgetFor(roles []setupRole, models []setupModel, hw Hardware, res resource
 	if runtimeBytes == 0 {
 		runtimeBytes = hostBytes
 	}
+	reserveMB := res.HostReserveMB
+	if reserveMB <= 0 {
+		reserveMB = int(hostReserveGiB * 1024)
+	}
 	b := modelBudget{
 		HostGiB:        float64(hostBytes) / (1 << 30),
 		RuntimeGiB:     float64(runtimeBytes) / (1 << 30),
-		ReserveGiB:     hostReserveGiB,
+		ReserveGiB:     float64(reserveMB) / 1024,
 		PodGiB:         float64(res.MemoryMB) / 1024,
 		RuntimeReserve: float64(res.ReserveMB) / 1024,
 	}
 	if b.HostGiB > b.RuntimeGiB {
-		// A separate Podman VM allocation is itself host memory.
+		// A separate Podman VM is itself host memory. The reserve is meant to
+		// cover it; surface a warning when it does not.
 		b.VmGiB = b.RuntimeGiB
+		b.ReserveBelowVM = b.ReserveGiB < b.VmGiB
 	}
-	b.InferenceGiB = b.HostGiB - b.ReserveGiB - b.VmGiB
+	b.InferenceGiB = b.HostGiB - b.ReserveGiB
 	if b.InferenceGiB < 0 {
 		b.InferenceGiB = 0
 	}
@@ -153,7 +161,7 @@ func budgetFor(roles []setupRole, models []setupModel, hw Hardware, res resource
 		}
 	}
 	b.ModelFits = b.ModelGiB <= b.InferenceGiB
-	b.OverBy = b.ModelGiB + b.VmGiB + b.ReserveGiB - b.HostGiB
+	b.OverBy = b.ModelGiB + b.ReserveGiB - b.HostGiB
 	b.Overcommit = b.HostGiB > 0 && b.OverBy > 0
 	return b
 }
@@ -341,6 +349,9 @@ func (u *UI) welcomeData(ctx context.Context, st onboardingState) map[string]any
 	}
 	assignments := u.autoAssignments(roles, fitModels, hw, measurements)
 	resources := recommendedResources(hw)
+	if u.deps.Config != nil && u.deps.Config.Inference.HostReserveMB > 0 {
+		resources.HostReserveMB = u.deps.Config.Inference.HostReserveMB
+	}
 	budget := budgetFor(roles, models, hw, resources)
 	u.syncPool(ctx, models, budget, hw)
 	pool := u.welcomePool(models)
@@ -453,11 +464,16 @@ func (u *UI) autoAssignments(roles []setupRole, models []setupModel, hw Hardware
 	if hostBytes == 0 {
 		hostBytes = hw.TotalMemoryBytes
 	}
+	reserveBytes := int64(hostReserveGiB * (1 << 30))
+	if u.deps.Config != nil && u.deps.Config.Inference.HostReserveMB > 0 {
+		reserveBytes = int64(u.deps.Config.Inference.HostReserveMB) << 20
+	}
 	// Models run on the host, not in the Podman runtime. Use the measured
 	// loaded size from the audit when available; otherwise the catalog file
-	// size is the only estimate. The reserve is deliberately the same 8 GiB
-	// the audit uses, so the UI proposal and the startup guard agree.
-	return onboard.AutoAssignWithScores(oroles, omodels, scores, int64(hostBytes), 8<<30)
+	// size is the only estimate. The reserve is the same operator-set host
+	// reserve the pool and audit use, so the UI proposal and the startup guard
+	// agree.
+	return onboard.AutoAssignWithScores(oroles, omodels, scores, int64(hostBytes), reserveBytes)
 }
 
 // pullSuggestions lists configured persona models that are not installed,
@@ -484,6 +500,7 @@ func recommendedResources(hw Hardware) resourceView {
 		TmpfsMB:        2048,
 		PidsLimit:      512,
 		ReserveMB:      2048,
+		HostReserveMB:  4096,
 	}
 	res.OutsideRuntimeGiB = res.HostMemoryGiB - res.TotalMemoryGiB
 	if res.OutsideRuntimeGiB < 0 {
@@ -911,10 +928,11 @@ func (u *UI) handleWelcomePost(w http.ResponseWriter, r *http.Request) {
 		}
 		res := recommendedResources(hw)
 		limits := config.JobPodResources{
-			MemoryMB:  parseFormInt(r, "memory_mb", res.MemoryMB),
-			CPUs:      parseFormFloat(r, "cpus", res.CPUsAllocated),
-			TmpfsMB:   parseFormInt(r, "tmpfs_mb", res.TmpfsMB),
-			PidsLimit: parseFormInt(r, "pids_limit", res.PidsLimit),
+			MemoryMB:      parseFormInt(r, "memory_mb", res.MemoryMB),
+			CPUs:          parseFormFloat(r, "cpus", res.CPUsAllocated),
+			TmpfsMB:       parseFormInt(r, "tmpfs_mb", res.TmpfsMB),
+			PidsLimit:     parseFormInt(r, "pids_limit", res.PidsLimit),
+			HostReserveMB: parseFormInt(r, "host_reserve_mb", res.HostReserveMB),
 		}
 		if err := config.UpdateJobPodResources(u.deps.ConfigPath, limits); err != nil {
 			u.fail(w, err)

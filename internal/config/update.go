@@ -72,15 +72,16 @@ func UpdatePersonas(path string, updates map[string]PersonaConfig) error {
 
 // JobPodResources is the operator-editable slice of the Job Pod limits.
 type JobPodResources struct {
-	MemoryMB  int
-	CPUs      float64
-	TmpfsMB   int
-	PidsLimit int
+	MemoryMB      int
+	CPUs          float64
+	TmpfsMB       int
+	PidsLimit     int
+	HostReserveMB int
 }
 
-// UpdateJobPodResources rewrites job_pod.memory_mb/cpus/tmpfs_mb/pids_limit,
-// preserving the rest of the config and validating the result before the
-// atomic rename.
+// UpdateJobPodResources rewrites job_pod.memory_mb/cpus/tmpfs_mb/pids_limit and
+// inference.host_reserve_mb, preserving the rest of the config and validating
+// the result before the atomic rename.
 func UpdateJobPodResources(path string, r JobPodResources) error {
 	if path == "" {
 		return fmt.Errorf("config path is empty")
@@ -96,6 +97,9 @@ func UpdateJobPodResources(path string, r JobPodResources) error {
 	}
 	if r.PidsLimit < 32 || r.PidsLimit > 8192 {
 		return fmt.Errorf("job pod pids limit must be 32–8192, got %d", r.PidsLimit)
+	}
+	if r.HostReserveMB < 0 || r.HostReserveMB > 1<<20 {
+		return fmt.Errorf("host reserve must be 0–1048576 MB, got %d", r.HostReserveMB)
 	}
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -120,6 +124,15 @@ func UpdateJobPodResources(path string, r JobPodResources) error {
 	setScalarTag(jobPod, "cpus", strconv.FormatFloat(r.CPUs, 'f', -1, 64), "!!float")
 	setScalarTag(jobPod, "tmpfs_mb", strconv.Itoa(r.TmpfsMB), "!!int")
 	setScalarTag(jobPod, "pids_limit", strconv.Itoa(r.PidsLimit), "!!int")
+
+	inference := mappingValue(root, "inference")
+	if inference == nil {
+		inference = &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
+		root.Content = append(root.Content,
+			&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: "inference"},
+			inference)
+	}
+	setScalarTag(inference, "host_reserve_mb", strconv.Itoa(r.HostReserveMB), "!!int")
 
 	out, err := yaml.Marshal(root)
 	if err != nil {

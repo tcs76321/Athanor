@@ -265,13 +265,16 @@ func TestRecommendedResourcesIsAdaptive(t *testing.T) {
 func TestBudgetForSeparatesHostInferenceAndRuntimeSandbox(t *testing.T) {
 	roles := []setupRole{{Role: "main", Model: "configured"}}
 	models := []setupModel{{Name: "configured", SizeBytes: 6 << 30, Measured: true}}
-	res := resourceView{MemoryMB: 4096, ReserveMB: 2048}
+	res := resourceView{MemoryMB: 4096, ReserveMB: 2048, HostReserveMB: 4096}
 	b := budgetFor(roles, models, Hardware{TotalMemoryBytes: 8 << 30, HostMemoryBytes: 32 << 30}, res)
 	if b.HostGiB != 32 || b.RuntimeGiB != 8 || b.VmGiB != 8 {
 		t.Errorf("memory shape = %+v, want 32 host / 8 runtime / 8 VM", b)
 	}
-	if b.InferenceGiB != 16 || b.ModelGiB != 6 || !b.ModelFits {
-		t.Errorf("inference budget = %+v, want 6 GiB model in 16 GiB", b)
+	if b.InferenceGiB != 28 || b.ModelGiB != 6 || !b.ModelFits {
+		t.Errorf("inference budget = %+v, want 6 GiB model in 28 GiB", b)
+	}
+	if !b.ReserveBelowVM {
+		t.Errorf("4 GiB reserve should be flagged below the 8 GiB VM: %+v", b)
 	}
 	if b.PodGiB != 4 || b.RuntimeMaxGiB != 6 || !b.RuntimeFits || b.RuntimeHeadroom != 2 {
 		t.Errorf("runtime budget = %+v, want 4 GiB pod in 6 GiB max", b)
@@ -279,12 +282,36 @@ func TestBudgetForSeparatesHostInferenceAndRuntimeSandbox(t *testing.T) {
 	if b.Overcommit {
 		t.Errorf("total host pressure should fit: %+v", b)
 	}
-	// A model that fits the audit alone can still overcommit the host once the
-	// Podman runtime is counted.
-	models[0].SizeBytes = 20 << 30
+	// A model that fits the weights budget can still overcommit the host once
+	// the reserve is counted.
+	models[0].SizeBytes = 30 << 30
 	b = budgetFor(roles, models, Hardware{TotalMemoryBytes: 8 << 30, HostMemoryBytes: 32 << 30}, res)
 	if !b.Overcommit || b.OverBy <= 0 {
-		t.Errorf("20 GiB model + 8 GiB VM + 8 GiB reserve should be overcommitted: %+v", b)
+		t.Errorf("30 GiB model + 4 GiB reserve should be overcommitted: %+v", b)
+	}
+}
+
+func TestContextTargetForSizeIsWideThenTall(t *testing.T) {
+	for _, tc := range []struct {
+		sizeGiB float64
+		want    int
+	}{
+		{3, 65536},
+		{5, 49152},
+		{8, 32768},
+		{10, 24576},
+		{14, 16384},
+		{18, 12288},
+		{21, 8192},
+	} {
+		got := contextTargetForSize(int64(tc.sizeGiB*(1<<30)), 0)
+		if got != tc.want {
+			t.Errorf("contextTargetForSize(%.0f GiB) = %d, want %d", tc.sizeGiB, got, tc.want)
+		}
+	}
+	// Memory pressure may lower the target, never raise it.
+	if got := contextTargetForSize(10<<30, 13<<30); got >= 24576 {
+		t.Errorf("memory-capped target = %d, want < 24576", got)
 	}
 }
 

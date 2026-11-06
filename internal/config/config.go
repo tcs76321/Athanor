@@ -146,10 +146,14 @@ func (c Config) BudgetSettings() budget.Settings {
 
 // Inference selects backends and gates cloud usage.
 type Inference struct {
-	DefaultBackend        string `yaml:"default_backend"`
-	OllamaURL             string `yaml:"ollama_url"`
-	CloudEnabled          bool   `yaml:"cloud_enabled"`
-	CloudRequiresApproval *bool  `yaml:"cloud_requires_approval"`
+	DefaultBackend string `yaml:"default_backend"`
+	OllamaURL      string `yaml:"ollama_url"`
+	// HostReserveMB is memory kept outside any model: the OS, apps, the
+	// Core, and the Podman VM on a separate-VM runtime. Model-fit checks
+	// and the first-use resource proposal use it. Default 4096.
+	HostReserveMB         int   `yaml:"host_reserve_mb"`
+	CloudEnabled          bool  `yaml:"cloud_enabled"`
+	CloudRequiresApproval *bool `yaml:"cloud_requires_approval"`
 	// JSONFormat constrains the security persona's structured phases
 	// (evaluating, comparing) to valid JSON at the wire layer
 	// (ADR-0012). A pointer distinguishes "unset" (default true) from an

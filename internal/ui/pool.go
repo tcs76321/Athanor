@@ -74,7 +74,7 @@ func (u *UI) syncPool(ctx context.Context, models []setupModel, budget modelBudg
 		infos = append(infos, composition.ModelInfo{
 			Name: m.Name, Family: m.Family, SizeBytes: m.SizeBytes,
 			ResidentBytes: measured[m.Name],
-			ContextTarget: poolContextTarget(u.deps.Config, m.Name),
+			ContextTarget: poolContextTarget(u.deps.Config, m.Name, m.SizeBytes, p.FitLimitBytes),
 		})
 	}
 	if added := p.Sync(infos); added > 0 {
@@ -85,25 +85,62 @@ func (u *UI) syncPool(ctx context.Context, models []setupModel, budget modelBudg
 	_ = p.Save(ctx)
 }
 
-func poolContextTarget(cfg *config.Config, name string) int {
+// poolContextTarget chooses a per-model context window. A small model is a
+// "wide" model: it carries less weight and can hold a large context. A large
+// model is a "tall" model: its weights take the memory, so it gets a smaller
+// window. An explicit persona assignment always wins.
+func poolContextTarget(cfg *config.Config, name string, sizeBytes, fitLimitBytes int64) int {
 	if cfg != nil {
 		for _, role := range []string{"wide", "tall", "main", "security", "alternative"} {
 			if pc, ok := cfg.Personas.Role(role); ok && pc.Model == name && pc.ContextTarget > 0 {
 				return pc.ContextTarget
 			}
 		}
-		floor := cfg.ContextEngine.SimpleFloor
-		if cfg.ContextEngine.CodingFloor > floor {
-			floor = cfg.ContextEngine.CodingFloor
-		}
-		if cfg.ContextEngine.DocumentFloor > floor {
-			floor = cfg.ContextEngine.DocumentFloor
-		}
-		if floor > 0 {
-			return floor
+	}
+	return contextTargetForSize(sizeBytes, fitLimitBytes)
+}
+
+// contextTargetForSize is the deterministic wide/tall ladder. The memory cap
+// reserves 1 GiB for runtime overhead and estimates KV at 16 KiB per GiB of
+// weights per token. The estimate is deliberately conservative; it keeps a
+// large model from asking for a window that cannot coexist with its weights.
+func contextTargetForSize(sizeBytes, fitLimitBytes int64) int {
+	sizeGiB := float64(sizeBytes) / (1 << 30)
+	var target int
+	switch {
+	case sizeGiB <= 3:
+		target = 65536
+	case sizeGiB <= 6:
+		target = 49152
+	case sizeGiB <= 9:
+		target = 32768
+	case sizeGiB <= 12:
+		target = 24576
+	case sizeGiB <= 16:
+		target = 16384
+	case sizeGiB <= 20:
+		target = 12288
+	default:
+		target = 8192
+	}
+	if fitLimitBytes > 0 && sizeBytes > 0 {
+		available := fitLimitBytes - sizeBytes - (1 << 30)
+		kvPerToken := int64(sizeGiB * 16 * 1024)
+		if available > 0 && kvPerToken > 0 {
+			maxCtx := int(available / kvPerToken)
+			maxCtx = (maxCtx / 2048) * 2048
+			if maxCtx < target {
+				target = maxCtx
+			}
 		}
 	}
-	return 16384
+	if target < 8192 {
+		target = 8192
+	}
+	if target > 65536 {
+		target = 65536
+	}
+	return target
 }
 
 // includeModel adds an installed model the user removed earlier.
@@ -120,7 +157,7 @@ func (u *UI) includeModel(ctx context.Context, name string) error {
 		if m.Name == name {
 			p.Upsert(composition.ModelInfo{
 				Name: m.Name, Family: m.Family, SizeBytes: m.SizeBytes,
-				ContextTarget: poolContextTarget(u.deps.Config, m.Name),
+				ContextTarget: poolContextTarget(u.deps.Config, m.Name, m.SizeBytes, p.FitLimitBytes),
 			})
 			return p.Save(ctx)
 		}
@@ -163,7 +200,7 @@ func (u *UI) welcomePool(models []setupModel) poolView {
 		seen[m.Name] = true
 		row := poolRow{
 			Name: m.Name, Family: m.Family, SizeBytes: m.SizeBytes,
-			Installed: true, ContextTarget: poolContextTarget(u.deps.Config, m.Name),
+			Installed: true, ContextTarget: poolContextTarget(u.deps.Config, m.Name, m.SizeBytes, p.FitLimitBytes),
 		}
 		if prof, ok := profiles[m.Name]; ok {
 			row.InPool = true
@@ -289,9 +326,9 @@ func firstNonEmpty(a, b string) string {
 }
 
 // inferenceFitBytes is the host inference budget used to mark a model too
-// large for this machine: host RAM minus the OS/apps reserve and, on a
-// separate-VM runtime, the VM allocation.
-func inferenceFitBytes(hw Hardware) int64 {
+// large for this machine: host RAM minus the operator's host reserve. The
+// reserve covers the OS, apps, the Core, and the Podman VM.
+func inferenceFitBytes(hw Hardware, reserveBytes int64) int64 {
 	host := hw.HostMemoryBytes
 	runtime := hw.TotalMemoryBytes
 	if host == 0 {
@@ -300,14 +337,23 @@ func inferenceFitBytes(hw Hardware) int64 {
 	if host == 0 {
 		return 0
 	}
-	limit := int64(host) - int64(hostReserveGiB*(1<<30))
-	if runtime > 0 && host > runtime {
-		limit -= int64(runtime)
+	if reserveBytes <= 0 {
+		reserveBytes = int64(hostReserveGiB * (1 << 30))
 	}
+	limit := int64(host) - reserveBytes
 	if limit < 1<<30 {
 		limit = 1 << 30
 	}
 	return limit
+}
+
+// hostReserveBytes resolves the operator's host reserve, falling back to the
+// 4 GiB default when the config omits it.
+func hostReserveBytes(cfg *config.Config) int64 {
+	if cfg != nil && cfg.Inference.HostReserveMB > 0 {
+		return int64(cfg.Inference.HostReserveMB) << 20
+	}
+	return int64(hostReserveGiB * (1 << 30))
 }
 
 // poolSuggestions recommends a small, size-appropriate core set when the

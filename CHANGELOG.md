@@ -10,6 +10,27 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Model capacity, context, and qualification — 2026-11-06
+
+- **The host reserve is operator-set.** `inference.host_reserve_mb` defaults to
+  4096 MB and covers the OS, apps, the Core, and the Podman VM. The Resources
+  step exposes it, and the model-fit budget is `host RAM − reserve`. The pool
+  step shows the resulting fit limit and the Podman VM size, with a warning
+  when the reserve is smaller than the VM.
+- **Context is wide/tall by model size.** Small models (≤3 GiB) get 65,536
+  tokens; larger models step down to 49,152, 32,768, 24,576, 16,384, 12,288,
+  and 8,192. A memory cap lowers the target when the weights leave too little
+  room for the KV cache. Explicit persona targets still win.
+- **Qualification is broader and per-capability.** The default ladder now has
+  10 deterministic generators and 12 grounded judge pairs covering general,
+  code, data, document, text, and media work. Judge results strengthen both
+  overall judgment and the capability they exercise. The deep ladder adds
+  long-context, repair, citation, injection, integrity, test-quality,
+  accessibility, and tone cases. The wall bound is two hours and the run stays
+  resumable.
+- **The audit uses the same reserve.** `athanor models -audit` defaults to the
+  4 GiB reserve (or the config value) so startup fit checks and the pool agree.
+
 ### Generalized project language — 2026-11-06
 
 - **Discovery describes a direction, not a business.** The prompt, JSON keys,

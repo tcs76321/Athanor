@@ -30,11 +30,13 @@ func TestDefaultLadderIsWellFormed(t *testing.T) {
 		t.Fatal("ladder is empty")
 	}
 	seen := map[string]bool{}
+	caps := map[string]bool{}
 	for _, c := range l.Generators {
 		if c.ID == "" || seen[c.ID] {
 			t.Errorf("generator case id %q is empty or duplicated", c.ID)
 		}
 		seen[c.ID] = true
+		caps[c.Capability] = true
 		if c.Check != CheckExact && c.Check != CheckJSON {
 			t.Errorf("%s: unknown check %q", c.ID, c.Check)
 		}
@@ -46,6 +48,14 @@ func TestDefaultLadderIsWellFormed(t *testing.T) {
 		seen[c.ID] = true
 		if c.Goal == "" || c.Good == c.Bad {
 			t.Errorf("%s: judge case has no goal or identical artifacts", c.ID)
+		}
+		if c.Capability != "" {
+			caps[c.Capability] = true
+		}
+	}
+	for _, want := range []string{"general", "code", "data", "document", "text", "media"} {
+		if !caps[want] {
+			t.Errorf("ladder has no case for capability %q", want)
 		}
 	}
 }

@@ -42,7 +42,7 @@ func runModels(args []string) error {
 	ladderWall := fs.Duration("ladder-wall", 15*time.Minute, "total ladder wall-time budget")
 	audit := fs.Bool("audit", false, "measure each configured model's loaded size at its context and write a fit plan")
 	auditOut := fs.String("audit-out", "", "audit output path (default <config dir>/model-fit.json)")
-	auditReserve := fs.Int64("audit-reserve", defaultAuditReserveBytes, "bytes reserved for the OS and other apps in the audit")
+	auditReserve := fs.Int64("audit-reserve", 0, "bytes reserved for the OS, apps, Core, and Podman VM (default config inference.host_reserve_mb or 4 GiB)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}

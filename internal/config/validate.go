@@ -45,6 +45,9 @@ func validateRaw(c *Config) error {
 	if c.Inference.MaxOutputTokens < 0 {
 		return fmt.Errorf("inference.max_output_tokens must be >= 0, got %d", c.Inference.MaxOutputTokens)
 	}
+	if c.Inference.HostReserveMB < 0 || c.Inference.HostReserveMB > 1<<20 {
+		return fmt.Errorf("inference.host_reserve_mb must be 0–1048576, got %d", c.Inference.HostReserveMB)
+	}
 	switch l := c.Inference.ThinkLevel; l {
 	case "", "off", "low", "medium", "high":
 	default:

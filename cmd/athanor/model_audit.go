@@ -18,9 +18,9 @@ import (
 	"github.com/tcs76321/athanor/internal/onboard"
 )
 
-// defaultAuditReserveBytes is what the audit leaves for macOS, other apps, and
-// the Core outside Ollama's resident model.
-const defaultAuditReserveBytes int64 = 8 << 30
+// defaultAuditReserveBytes is what the audit leaves for the OS, apps, the Core,
+// and the Podman VM outside Ollama's resident model.
+const defaultAuditReserveBytes int64 = 4 << 30
 
 func modelAuditPath(configPath string) string {
 	return filepath.Join(filepath.Dir(configPath), "model-fit.json")
@@ -35,7 +35,11 @@ func runModelAudit(ctx context.Context, cfg *config.Config, probes *osProbes, ho
 		return onboard.Audit{}, fmt.Errorf("cannot audit model fit: host memory is unknown")
 	}
 	if reserveBytes <= 0 {
-		reserveBytes = defaultAuditReserveBytes
+		if cfg != nil && cfg.Inference.HostReserveMB > 0 {
+			reserveBytes = int64(cfg.Inference.HostReserveMB) << 20
+		} else {
+			reserveBytes = defaultAuditReserveBytes
+		}
 	}
 	audit := onboard.Audit{
 		GeneratedAt:  time.Now().UTC().Format(time.RFC3339),
