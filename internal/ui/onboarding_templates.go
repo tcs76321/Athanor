@@ -11,7 +11,8 @@ const welcomeBody = `
       {{range $i, $s := .Steps}}
       <a class="step {{if lt $i $.StepIndex}}done{{end}} {{if eq $s.ID $.Step}}current{{end}}" href="/ui/welcome?step={{$s.ID}}">
         <span class="num">{{add $i 1}}</span>
-        <span><span class="t">{{$s.Label}}</span><span class="d">{{$s.Note}}</span></span>
+        <span><span class="t">{{$s.Label}}</span>
+          <span class="d">{{$s.Note}}</span></span>
       </a>
       {{end}}
     </div>
