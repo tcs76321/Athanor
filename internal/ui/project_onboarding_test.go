@@ -127,6 +127,20 @@ func TestHostAllowedSuffixBoundary(t *testing.T) {
 	}
 }
 
+// TestPlanningProgressIsHonest pins the removal of the fabricated 45% bar.
+// Planning is one model pass with no progress feed, so the page uses an
+// indeterminate indicator and says so.
+func TestPlanningProgressIsHonest(t *testing.T) {
+	if strings.Contains(projectOnboardingBody, `value="45"`) {
+		t.Error("planning page still shows a fabricated 45% progress value")
+	}
+	for _, want := range []string{"no honest percentage", "<progress class=\"progress\" max=\"100\"></progress>"} {
+		if !strings.Contains(projectOnboardingBody, want) {
+			t.Errorf("planning page missing %q", want)
+		}
+	}
+}
+
 func TestProjectOnboardingShowsDiscoveryTransparency(t *testing.T) {
 	fx := setup(t)
 	sd := &slowDiscovery{started: make(chan struct{}), release: make(chan struct{})}
@@ -140,7 +154,7 @@ func TestProjectOnboardingShowsDiscoveryTransparency(t *testing.T) {
 	_, body := get(t, fx.ts.URL+"/ui/projects/"+fx.project.ID+"/onboarding")
 	for _, want := range []string{
 		"Discovery in progress", "What Athanor is doing", "waiting for fake-model",
-		"Athanor is thinking across industries", "target 10 options",
+		"Athanor is exploring directions inside your goal", "target 10 options",
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("transparent discovery page missing %q", want)

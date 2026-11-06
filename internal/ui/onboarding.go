@@ -356,11 +356,18 @@ func (u *UI) welcomeData(ctx context.Context, st onboardingState) map[string]any
 	if pool.QualifiedCount > 0 {
 		measurements = qualMeasurementsFromState(qual)
 	}
+	healthBlocked := false
+	for _, c := range health {
+		if c.Status == "fail" {
+			healthBlocked = true
+			break
+		}
+	}
 	return map[string]any{
 		"State": st, "Step": st.Step, "Steps": onboardingSteps,
 		"StepIndex": onboardingIndex(st.Step), "StepNumber": onboardingIndex(st.Step) + 1,
 		"StepCount": len(onboardingSteps), "Roles": roles, "Models": models,
-		"ModelsErr": modelsErr, "Health": health, "Pulls": pulls,
+		"ModelsErr": modelsErr, "Health": health, "HealthBlocked": healthBlocked, "Pulls": pulls,
 		"Themes": themeNames, "Theme": u.Theme(), "ThemeLabel": themeLabel(u.Theme()),
 		"PersonaGuides": personaGuides, "Assignments": assignments,
 		"Suggestions": suggestions, "Resources": resources, "Hardware": hw,
@@ -896,6 +903,15 @@ func (u *UI) handleWelcomePost(w http.ResponseWriter, r *http.Request) {
 			st.Step = onboardingSteps[idx-1].ID
 		}
 	case "next":
+		// A red environment check is a real prerequisite failure. Do not let a
+		// plain Continue carry the operator into work that cannot run; the UI
+		// offers an explicit "Continue anyway" that sends ack=1.
+		if st.Step == "environment" && r.FormValue("ack") != "1" {
+			if blocked, _ := u.welcomeData(ctx, st)["HealthBlocked"].(bool); blocked {
+				http.Redirect(w, r, "/ui/welcome?step=environment&blocked=1", http.StatusSeeOther)
+				return
+			}
+		}
 		idx := onboardingIndex(st.Step)
 		if idx < len(onboardingSteps)-1 {
 			st.Step = onboardingSteps[idx+1].ID

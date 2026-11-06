@@ -295,10 +295,15 @@ func (u *UI) handleProjectOnboarding(w http.ResponseWriter, r *http.Request) {
 	if selected != nil {
 		plan, _ = buildProjectPlan(p, brief, *selected)
 	}
+	planElapsed := ""
+	if pRun != nil && pRun.Status == "running" {
+		planElapsed = time.Since(pRun.StartedAt).Round(time.Second).String()
+	}
 	u.render(w, "Onboarding "+p.Name, projectOnboardingBody, map[string]any{
 		"Project": p, "Brief": brief, "Session": sess, "HasSession": hasSession,
 		"Run": run, "Stage": stage, "Selected": selected, "Plan": plan,
-		"Status": brief.Status, "Sources": sourceStatuses(brief.Sources, u.deps.Config),
+		"PlanElapsed": planElapsed,
+		"Status":      brief.Status, "Sources": sourceStatuses(brief.Sources, u.deps.Config),
 		"Requested": r.URL.Query().Get("requested") != "", "DiscoveryError": discoveryError,
 		"DiscoveryPercent": discPercent, "DiscoveryElapsed": discElapsed,
 		"PlanningAvailable": u.deps.Planning != nil,

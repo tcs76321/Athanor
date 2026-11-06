@@ -73,7 +73,7 @@ const projectOnboardingBody = `
   {{else if eq .Stage "generating"}}
     <div class="card" data-live-card="discovery" data-live-interval="2000">
       <div class="eyebrow">Discovery in progress</div>
-      <h2>Athanor is thinking across industries.</h2>
+      <h2>Athanor is exploring directions inside your goal.</h2>
       <p class="muted">This is one bounded model pass. The status updates in place; open panels stay open, and the result is saved when it finishes.</p>
       <progress class="progress" value="{{.DiscoveryPercent}}" max="100">{{.DiscoveryPercent}}%</progress>
       {{if .Run}}
@@ -151,8 +151,9 @@ const projectOnboardingBody = `
     <div class="card" data-live-card="planning" data-live-interval="4000">
       <div class="eyebrow">Planning in progress</div>
       <h2>Athanor is drafting three plans.</h2>
-      <p class="muted">The plans differ by speed, depth, and risk. This panel updates in place; you can leave and come back.</p>
-      <progress class="progress" value="45" max="100">45%</progress>
+      <p class="muted">They differ by speed, depth, and risk. Planning is one bounded model pass, so there is no honest percentage; the status below updates in place and the session is resumable.</p>
+      <progress class="progress" max="100"></progress>
+      <p class="muted">{{if .PlanElapsed}}{{.PlanElapsed}} elapsed. {{end}}You can leave this page and come back; the plans stay here when the pass finishes.</p>
       <div class="actions"><a class="btn secondary" href="/ui/projects/{{.Project.ID}}/onboarding">Refresh</a></div>
     </div>
   {{else if eq .Stage "plan"}}

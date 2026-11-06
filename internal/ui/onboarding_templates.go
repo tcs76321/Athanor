@@ -56,9 +56,19 @@ const welcomeBody = `
         </table>
       </div>
     </div>
+    {{if .HealthBlocked}}
+    <div class="notice bad">
+      <b>One or more checks failed.</b> Athanor can still open, but work that depends on a failed check will not run.
+      Fix the red rows above, or continue explicitly and revisit this step from Setup.
+    </div>
+    {{end}}
     <div class="actions">
       <form method="post" action="/ui/welcome"><input type="hidden" name="step" value="environment"><button class="secondary" name="action" value="back">Back</button></form>
-      <form method="post" action="/ui/welcome"><input type="hidden" name="step" value="environment"><button class="primary" name="action" value="next">Continue</button></form>
+      <form method="post" action="/ui/welcome">
+        <input type="hidden" name="step" value="environment">
+        {{if .HealthBlocked}}<input type="hidden" name="ack" value="1"><button class="primary" name="action" value="next">Continue anyway</button>
+        {{else}}<button class="primary" name="action" value="next">Continue</button>{{end}}
+      </form>
     </div>
     {{else if eq .Step "resources"}}
     <div class="eyebrow">Step {{.StepNumber}} of {{.StepCount}}</div>
@@ -304,7 +314,7 @@ const welcomeBody = `
     <div class="grid cols-3">
       <div class="card"><h3>Core</h3><p class="muted">{{.Runtime}} · {{.Version}}</p></div>
       <div class="card"><h3>Ollama</h3><p class="muted">{{if .OllamaURL}}<code>{{.OllamaURL}}</code>{{else}}not configured{{end}}</p></div>
-      <div class="card"><h3>Models</h3><p class="muted">{{len .Roles}} personas configured</p></div>
+      <div class="card"><h3>Models</h3><p class="muted">{{if .PoolCount}}{{.PoolCount}} model(s) in the pool{{else}}No models in the pool yet — add one in Setup{{end}}</p></div>
     </div>
     <div class="actions">
       <form method="post" action="/ui/welcome"><input type="hidden" name="step" value="ready"><button class="primary" name="action" value="complete">Finish and create a project</button></form>
