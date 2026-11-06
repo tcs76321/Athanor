@@ -140,7 +140,7 @@ func (u *UI) handleSetup(w http.ResponseWriter, r *http.Request) {
 	var models []setupModel
 	if cfg != nil {
 		var err error
-		models, err = fetchModels(r.Context(), cfg.Inference.OllamaURL)
+		models, err = u.modelCatalog(r.Context())
 		if err != nil {
 			data["ModelsErr"] = err.Error()
 		}
@@ -510,6 +510,56 @@ func qualMeasurementsFromState(s qualState) []onboard.Measurement {
 }
 
 // --- Ollama read-only helpers ---
+
+// catalogTTL bounds how long an installed-model snapshot is reused. Pulls and
+// external `ollama pull` calls are rare relative to page renders, so a short
+// TTL keeps the pages honest without making them hammer the inference server.
+const catalogTTL = 15 * time.Second
+
+// modelCatalog returns the installed models, reusing a recent snapshot. The
+// first reader after the TTL performs the fetch; a failed fetch is cached for
+// the same window so a down Ollama does not turn every page load into a
+// timeout.
+func (u *UI) modelCatalog(ctx context.Context) ([]setupModel, error) {
+	base := ""
+	if u.deps.Config != nil {
+		base = u.deps.Config.Inference.OllamaURL
+	}
+	u.catalogMu.Lock()
+	if u.catalogBase == base && !u.catalogAt.IsZero() && time.Since(u.catalogAt) < catalogTTL {
+		models := append([]setupModel(nil), u.catalog...)
+		errText := u.catalogErr
+		u.catalogMu.Unlock()
+		if errText != "" {
+			return nil, errors.New(errText)
+		}
+		return models, nil
+	}
+	u.catalogMu.Unlock()
+
+	models, err := fetchModels(ctx, base)
+	u.catalogMu.Lock()
+	u.catalogBase = base
+	u.catalogAt = time.Now()
+	if err != nil {
+		u.catalogErr = err.Error()
+		u.catalog = nil
+		u.catalogMu.Unlock()
+		return nil, err
+	}
+	u.catalog = append([]setupModel(nil), models...)
+	u.catalogErr = ""
+	u.catalogMu.Unlock()
+	return models, nil
+}
+
+// invalidateCatalog drops the snapshot after an install or removal so the next
+// render reflects the change immediately.
+func (u *UI) invalidateCatalog() {
+	u.catalogMu.Lock()
+	u.catalogAt = time.Time{}
+	u.catalogMu.Unlock()
+}
 
 func fetchModels(ctx context.Context, baseURL string) ([]setupModel, error) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)

@@ -351,7 +351,16 @@ func (p *Pool) Exclude(name string) {
 
 // Sync reconciles the pool with the installed catalog. New installed models
 // join unless the user excluded them; models no longer installed leave.
-func (p *Pool) Sync(infos []ModelInfo) (added int) {
+func (p *Pool) Sync(infos []ModelInfo) int {
+	added, _ := p.SyncChanged(infos)
+	return added
+}
+
+// SyncChanged is Sync with a change flag. The UI calls it on every render of
+// the model pages; saving the pool on every render wrote the same system_state
+// row every couple of seconds. The flag is true when a model was added or
+// removed, or when any retained metadata actually changed.
+func (p *Pool) SyncChanged(infos []ModelInfo) (added int, changed bool) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	present := make(map[string]bool, len(infos))
@@ -361,6 +370,7 @@ func (p *Pool) Sync(infos []ModelInfo) (added int) {
 		}
 		present[info.Name] = true
 		prof, ok := p.Models[info.Name]
+		profileChanged := !ok
 		if !ok {
 			if p.Excluded[info.Name] {
 				continue
@@ -369,39 +379,55 @@ func (p *Pool) Sync(infos []ModelInfo) (added int) {
 			p.Models[info.Name] = prof
 			added++
 		}
-		if info.Family != "" {
+		if info.Family != "" && prof.Family != info.Family {
 			prof.Family = info.Family
+			profileChanged = true
 		}
-		if info.SizeBytes > 0 {
+		if info.SizeBytes > 0 && prof.SizeBytes != info.SizeBytes {
 			prof.SizeBytes = info.SizeBytes
+			profileChanged = true
 		}
-		if info.FileBytes > 0 {
+		if info.FileBytes > 0 && prof.FileBytes != info.FileBytes {
 			prof.FileBytes = info.FileBytes
+			profileChanged = true
 		}
-		if info.ResidentBytes > 0 {
+		if info.ResidentBytes > 0 && prof.ResidentBytes != info.ResidentBytes {
 			prof.ResidentBytes = info.ResidentBytes
+			profileChanged = true
 		}
-		if info.NativeContext > 0 {
+		if info.NativeContext > 0 && prof.NativeContext != info.NativeContext {
 			prof.NativeContext = info.NativeContext
+			profileChanged = true
 		}
-		if info.KVBytesPerToken > 0 {
+		if info.KVBytesPerToken > 0 && prof.KVBytesPerToken != info.KVBytesPerToken {
 			prof.KVBytesPerToken = info.KVBytesPerToken
+			profileChanged = true
 		}
-		if info.MaxContext > 0 {
+		if info.MaxContext > 0 && prof.MaxContext != info.MaxContext {
 			prof.MaxContext = info.MaxContext
+			profileChanged = true
 		}
-		if info.ContextTarget > 0 {
+		if info.ContextTarget > 0 && prof.ContextTarget != info.ContextTarget {
 			prof.ContextTarget = info.ContextTarget
+			profileChanged = true
 		}
-		prof.UpdatedAt = time.Now().UTC()
+		beforeMax, beforeTarget, beforeTooLarge := prof.MaxContext, prof.ContextTarget, prof.TooLarge
 		p.recomputeContextLocked(prof)
+		if prof.MaxContext != beforeMax || prof.ContextTarget != beforeTarget || prof.TooLarge != beforeTooLarge {
+			profileChanged = true
+		}
+		if profileChanged {
+			prof.UpdatedAt = time.Now().UTC()
+			changed = true
+		}
 	}
 	for name := range p.Models {
 		if !present[name] {
 			delete(p.Models, name)
+			changed = true
 		}
 	}
-	return added
+	return added, changed
 }
 
 // recomputeContextLocked derives the maximum window from the budget and clamps

@@ -28,7 +28,7 @@ func (u *UI) startPoolQualification(ctx context.Context, fresh, deep bool) (qual
 	if len(models) == 0 {
 		// A direct "run qualification" before the pool step has synced: take
 		// the installed catalog as the initial pool rather than failing.
-		installed, err := fetchModels(ctx, u.deps.Config.Inference.OllamaURL)
+		installed, err := u.modelCatalog(ctx)
 		if err != nil {
 			return qualState{}, false, fmt.Errorf("reading installed models: %w", err)
 		}

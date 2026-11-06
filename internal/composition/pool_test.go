@@ -237,6 +237,31 @@ func TestPersistenceRoundTrip(t *testing.T) {
 	}
 }
 
+func TestSyncChangedReportsRealChangesOnly(t *testing.T) {
+	p := New(nil)
+	infos := []ModelInfo{{Name: "alpha", Family: "a", SizeBytes: 1 << 30, ContextTarget: 8192}}
+	added, changed := p.SyncChanged(infos)
+	if added != 1 || !changed {
+		t.Fatalf("first sync = added %d changed %v, want 1/true", added, changed)
+	}
+	added, changed = p.SyncChanged(infos)
+	if added != 0 || changed {
+		t.Fatalf("identical sync = added %d changed %v, want 0/false", added, changed)
+	}
+	infos[0].Family = "b"
+	added, changed = p.SyncChanged(infos)
+	if added != 0 || !changed {
+		t.Fatalf("metadata change = added %d changed %v, want 0/true", added, changed)
+	}
+	added, changed = p.SyncChanged(nil)
+	if added != 0 || !changed {
+		t.Fatalf("removal = added %d changed %v, want 0/true", added, changed)
+	}
+	if p.Count() != 0 {
+		t.Fatalf("count = %d, want 0", p.Count())
+	}
+}
+
 func TestRemoveDropsModelAndMeasurements(t *testing.T) {
 	p := New(nil)
 	p.Upsert(ModelInfo{Name: "alpha"})

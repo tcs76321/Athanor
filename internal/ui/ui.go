@@ -200,6 +200,16 @@ type UI struct {
 	// planMu/planRuns track an in-flight AI plan generation.
 	planMu   sync.Mutex
 	planRuns map[string]*planRun
+	// catalogMu caches the installed-model catalog. The onboarding and models
+	// pages render it on every load, and the qualification poll reloads the
+	// page every 2s; without a TTL every render performed one /api/tags call
+	// plus one /api/show call per installed model, contending with the very
+	// inference the page was measuring.
+	catalogMu   sync.Mutex
+	catalog     []setupModel
+	catalogErr  string
+	catalogAt   time.Time
+	catalogBase string
 	// exporter is optional: the egress pipeline is wired after the UI is
 	// constructed, so it is a setter rather than a New() field.
 	exporter Exporter

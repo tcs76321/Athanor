@@ -2,7 +2,9 @@ package ui
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"embed"
+	"encoding/hex"
 	"io/fs"
 	"net/http"
 	"path"
@@ -43,7 +45,11 @@ func (u *UI) handleAssets(w http.ResponseWriter, r *http.Request) {
 	}
 	// Revalidate embedded assets on every page load. A one-hour public cache
 	// served the previous stylesheet after a Core update, which made a fixed
-	// layout still look broken in an already-open browser.
+	// layout still look broken in an already-open browser. The content hash is
+	// the validator, so an unchanged asset is a cheap 304 instead of a full
+	// re-download of CSS, JS, and HTMX.
+	sum := sha256.Sum256(data)
+	w.Header().Set("ETag", `"`+hex.EncodeToString(sum[:12])+`"`)
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	http.ServeContent(w, r, name, time.Time{}, bytes.NewReader(data))

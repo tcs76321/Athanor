@@ -84,12 +84,12 @@ func (u *UI) syncPool(ctx context.Context, models []setupModel, budget modelBudg
 			ContextTarget: poolContextTarget(u.deps.Config, m.Name, m.SizeBytes, maxCtx),
 		})
 	}
-	if added := p.Sync(infos); added > 0 {
+	// Save only when the catalog actually changed. This runs on every render
+	// of the model pages (and inside the 2s qualification poll), so an
+	// unconditional Save rewrote the same row continuously.
+	if _, changed := p.SyncChanged(infos); changed {
 		_ = p.Save(ctx)
-		return
 	}
-	// Metadata may have changed (family, size); persist it too.
-	_ = p.Save(ctx)
 }
 
 // poolContextTarget chooses the working window for a model. The capacity
@@ -170,7 +170,7 @@ func (u *UI) includeModel(ctx context.Context, name string) error {
 	if p == nil {
 		return fmt.Errorf("model pool is not available")
 	}
-	models, err := fetchModels(ctx, u.deps.Config.Inference.OllamaURL)
+	models, err := u.modelCatalog(ctx)
 	if err != nil {
 		return err
 	}

@@ -297,7 +297,7 @@ func (u *UI) welcomeData(ctx context.Context, st onboardingState) map[string]any
 	roles := []setupRole{}
 	if u.deps.Config != nil {
 		var err error
-		models, err = fetchModels(ctx, u.deps.Config.Inference.OllamaURL)
+		models, err = u.modelCatalog(ctx)
 		if err != nil {
 			modelsErr = err.Error()
 		}
@@ -632,7 +632,7 @@ func (u *UI) homeHealth(ctx context.Context, failed, alarms, pending int, frozen
 	checks := []healthCheck{{Name: "Core", Status: "ok", Detail: u.deps.Runtime + " · " + u.deps.Version}}
 	if u.deps.Config != nil {
 		mctx, cancel := context.WithTimeout(ctx, 2*time.Second)
-		models, err := fetchModels(mctx, u.deps.Config.Inference.OllamaURL)
+		models, err := u.modelCatalog(mctx)
 		cancel()
 		if err != nil {
 			checks = append(checks, healthCheck{Name: "Ollama", Status: "fail", Detail: err.Error()})
@@ -798,7 +798,7 @@ func (u *UI) applyPersonas(ctx context.Context) error {
 	if u.deps.ConfigPath == "" {
 		return fmt.Errorf("config path is not available; cannot apply the assignment")
 	}
-	models, err := fetchModels(ctx, u.deps.Config.Inference.OllamaURL)
+	models, err := u.modelCatalog(ctx)
 	if err != nil {
 		return fmt.Errorf("reading installed models: %w", err)
 	}
@@ -1040,6 +1040,7 @@ func (u *UI) startPull(model string) {
 }
 
 func (u *UI) runPull(model string) {
+	defer u.invalidateCatalog()
 	base := ""
 	if u.deps.Config != nil {
 		base = u.deps.Config.Inference.OllamaURL

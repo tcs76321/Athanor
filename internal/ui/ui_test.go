@@ -216,6 +216,34 @@ func TestMissingArtifactIs404(t *testing.T) {
 	}
 }
 
+// TestAssetsUseETag pins the asset validator: an unchanged stylesheet/script
+// revalidates with 304 instead of re-downloading on every page load.
+func TestAssetsUseETag(t *testing.T) {
+	fx := setup(t)
+	resp, err := http.Get(fx.ts.URL + "/ui/assets/app.css")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = resp.Body.Close()
+	etag := resp.Header.Get("ETag")
+	if etag == "" {
+		t.Fatal("asset response has no ETag")
+	}
+	req, err := http.NewRequest(http.MethodGet, fx.ts.URL+"/ui/assets/app.css", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("If-None-Match", etag)
+	again, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = again.Body.Close() }()
+	if again.StatusCode != http.StatusNotModified {
+		t.Fatalf("revalidated status = %d, want 304", again.StatusCode)
+	}
+}
+
 // TestCodeProposalRendersAsSource pins the presentation fix: a divergence
 // candidate is stored as `proposal`, but when the task is code it must render
 // as source, not through the Markdown renderer.
