@@ -81,6 +81,9 @@ demo. A claim without a proof is either removed or marked as a target.
 | Deep/Full/Lite/Stopped is a persisted household mode with honest resource expectations | ADR-0103 | `internal/operator` (`Status`, `Decide`, `Ceiling`); `TestModeLimits`, `TestTemporaryHoldExpiresToAuto`, `TestCeilingComposition`; dashboard `TestModeControls` | **proven** |
 | Stopped pauses active work (resumable), refuses queued work, and resumes explicitly | ADR-0103 | `internal/engine` (`PauseAll`, `ResumeAll`, operator gate); `TestOperatorGateHoldsQueuedWork`, `TestOperatorGateRejectsEnqueue`, `TestOperatorPauseAllAndResumeAll` | **proven** |
 | Daydreaming runs only in Full | ADR-0103 | `internal/operator.DaydreamAllowed`; `cmd/athanor/daydream.go` mode gate; `TestModeLimits` | **proven structurally** |
+| The model repertoire is a measured, machine-local pool with scoped evidence | ADR-0104 | `internal/composition` (`Pool`, `Score`, `Request`); `TestChooseUsesMeasuredScore`, `TestScopedEvidenceOutvotesOnlyWithEnoughSamples`, `TestPersistenceRoundTrip` | **proven** |
+| Phase casting and divergence come from the pool when one exists | ADR-0104 | `internal/engine` (`personaFor`, `SetModelSelector`); `TestSelectorResolvesPhaseAndSyntheticRole`, `TestSelectorCastsDivergenceAcrossModels` | **proven with a fake selector** |
+| First use manages pool membership and ranks every model per capability | ADR-0104 | `/ui/welcome?step=models`; `startPoolQualification`; `TestWelcomeModelsSelfSelectAndApply`, `TestWelcomeQualificationStartsInline` | **proven with a fake Ollama** |
 
 
 

@@ -37,6 +37,7 @@ import (
 	"fmt"
 	"log/slog"
 	"runtime/debug"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -86,6 +87,42 @@ type PauseGate interface {
 type OperatorGate interface {
 	Allowed() bool
 }
+
+// ModelRequest asks the composition layer for a model. It carries only the
+// grounded facts the selector needs; the pool owns the measured evidence.
+type ModelRequest struct {
+	Phase       string
+	Capability  string
+	Stance      string
+	MinContext  int
+	AvoidFamily string
+	Scope       string
+	ProjectID   string
+	JobID       string
+}
+
+// ModelChoice is one selected model and the reason it won.
+type ModelChoice struct {
+	Model         string
+	Family        string
+	ContextTarget int
+	Temperature   float64
+	Score         float64
+	Reason        string
+}
+
+// ModelSelector is the composition seam (ADR-0104). A nil selector preserves
+// the legacy persona registry behavior.
+type ModelSelector interface {
+	Choose(ctx context.Context, req ModelRequest) (ModelChoice, bool)
+	ChooseMany(ctx context.Context, req ModelRequest, n int) []ModelChoice
+	Persona(model string) (ModelChoice, bool)
+	Observe(ctx context.Context, jobID string, success bool)
+}
+
+// PoolModelPrefix marks a synthetic role that names a model directly rather
+// than a legacy persona. The registry never sees it.
+const PoolModelPrefix = "pool:"
 
 // ToolRunner is the engine's window onto the internal API
 // (ROADMAP M2-T4, ADR-0009). The production impl is
@@ -241,6 +278,10 @@ type Engine struct {
 	// policy is the F4-T1 compute/model-selection seam (ADR-0044). nil uses
 	// policy.Default, which reproduces pre-F4 behavior exactly.
 	policy policy.Policy
+	// selector is the ADR-0104 composition seam. When a pool is present it
+	// chooses the model and context for each phase, overriding the fixed
+	// persona mapping; nil keeps the legacy behavior.
+	selector ModelSelector
 	// horizon is the ADR-0091 budget ledger. nil disables accounting, which
 	// is the pre-ledger behavior.
 	horizon *budget.Ledger
@@ -269,6 +310,10 @@ type Engine struct {
 	cancels   map[string]context.CancelFunc
 	cancelled map[string]bool
 	pauseReq  map[string]bool
+	// castMu guards the per-job generator family, used to prefer an
+	// independent verifier family when the pool offers one.
+	castMu    sync.Mutex
+	jobFamily map[string]string
 	// onTerminal is invoked when a job reaches a terminal state, so the
 	// M6-T2 scheduler can advance the job's task graph (ADR-0033). A nil
 	// seam is the M1 walking-skeleton default: nothing observes the
@@ -332,6 +377,7 @@ func New(cfg *config.Config, db *store.Store, jobs *job.Repository, projects *pr
 		cancels:      map[string]context.CancelFunc{},
 		cancelled:    map[string]bool{},
 		pauseReq:     map[string]bool{},
+		jobFamily:    map[string]string{},
 	}
 }
 
@@ -403,6 +449,97 @@ func (e *Engine) SetPauseGate(g PauseGate) { e.pauseGate = g }
 // SetOperatorGate wires the Deep/Full/Lite/Stopped household mode. A nil gate
 // allows work (pre-operator behavior).
 func (e *Engine) SetOperatorGate(g OperatorGate) { e.operatorGate = g }
+
+// SetModelSelector wires the composition layer (ADR-0104). A nil selector
+// keeps the legacy fixed-persona behavior.
+func (e *Engine) SetModelSelector(s ModelSelector) { e.selector = s }
+
+// stanceForPhase maps a job phase to a composition stance.
+func stanceForPhase(phase string) string {
+	switch phase {
+	case llm.PhasePlanning:
+		return "plan"
+	case llm.PhaseDiverging:
+		return "generate"
+	case llm.PhaseEvaluating, llm.PhaseComparing:
+		return "verify"
+	case llm.PhaseReflecting:
+		return "critique"
+	case llm.PhaseSynthesizing:
+		return "synthesize"
+	default:
+		return "generate"
+	}
+}
+
+func personaFromChoice(c ModelChoice) llm.Persona {
+	return llm.Persona{
+		Role:          "pool",
+		Model:         c.Model,
+		Family:        c.Family,
+		ContextTarget: c.ContextTarget,
+		Temperature:   c.Temperature,
+	}
+}
+
+// personaFor resolves a phase's model. A synthetic `pool:<model>` role names
+// a candidate directly; otherwise the composition selector chooses from the
+// measured pool. The legacy registry is the fallback when no pool is wired.
+func (e *Engine) personaFor(ctx context.Context, phase, role, capability, projectID, jobID string) (llm.Persona, bool) {
+	if e.selector != nil && strings.HasPrefix(role, PoolModelPrefix) {
+		if c, ok := e.selector.Persona(strings.TrimPrefix(role, PoolModelPrefix)); ok {
+			return personaFromChoice(c), true
+		}
+	}
+	if e.selector != nil && capability != "" && e.cfg != nil {
+		minContext := 0
+		if floor, ok := llm.FloorFor(capability, e.cfg.ContextEngine); ok {
+			minContext = floor
+		}
+		req := ModelRequest{
+			Phase:      phase,
+			Capability: capability,
+			Stance:     stanceForPhase(phase),
+			MinContext: minContext,
+			ProjectID:  projectID,
+			JobID:      jobID,
+		}
+		if phase == llm.PhaseEvaluating || phase == llm.PhaseComparing {
+			req.AvoidFamily = e.generatorFamily(jobID)
+		}
+		if projectID != "" {
+			req.Scope = "project:" + projectID
+		}
+		if c, ok := e.selector.Choose(ctx, req); ok {
+			if phase == llm.PhaseDiverging && jobID != "" {
+				e.rememberGeneratorFamily(jobID, c.Family)
+			}
+			return personaFromChoice(c), true
+		}
+	}
+	if e.registry == nil {
+		return llm.Persona{}, false
+	}
+	return e.registry.Persona(role)
+}
+
+func (e *Engine) generatorFamily(jobID string) string {
+	if jobID == "" {
+		return ""
+	}
+	e.castMu.Lock()
+	defer e.castMu.Unlock()
+	return e.jobFamily[jobID]
+}
+
+func (e *Engine) rememberGeneratorFamily(jobID, family string) {
+	if jobID == "" || family == "" {
+		return
+	}
+	e.castMu.Lock()
+	e.jobFamily[jobID] = family
+	e.castMu.Unlock()
+}
 
 // SetVerifiers wires the F4-T3 deterministic verifier registry. A nil
 // registry uses verify.Default().
@@ -1301,6 +1438,10 @@ func (e *Engine) finalizeTerminal(ctx context.Context, jobID string, j job.Job) 
 	// M2-T4b.5 (ADR-0024 §2): a terminal job's Job Pod has no further use;
 	// stop it (idempotent, nil-safe).
 	e.stopPod(ctx, jobID)
+	// The per-job generator family is only needed for the verifier cast.
+	e.castMu.Lock()
+	delete(e.jobFamily, jobID)
+	e.castMu.Unlock()
 }
 
 // handleJobPanic contains a panic from one job's goroutine. It records the

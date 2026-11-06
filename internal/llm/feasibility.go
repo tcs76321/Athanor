@@ -48,7 +48,9 @@ func floorApplies(role, phase string) bool {
 	case RoleMain, RoleAlternative, RoleSecurity, RoleWide, RoleTall:
 		return true
 	default:
-		return false
+		// ADR-0104: a pool-selected model has no legacy role name; it still
+		// consumes full-fidelity content, so the floor applies (fail closed).
+		return true
 	}
 }
 

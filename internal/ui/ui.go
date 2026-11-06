@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/tcs76321/athanor/internal/artifact"
+	"github.com/tcs76321/athanor/internal/composition"
 	"github.com/tcs76321/athanor/internal/config"
 	"github.com/tcs76321/athanor/internal/corrections"
 	"github.com/tcs76321/athanor/internal/digest"
@@ -119,6 +120,7 @@ type Deps struct {
 	Freezer       Freezer
 	Control       Control
 	Operator      Operator
+	Pool          *composition.Pool
 	Engine        Enqueuer
 	// Config is read-only. The inspector shows personas, limits, and the
 	// budget shape; it never writes configuration.

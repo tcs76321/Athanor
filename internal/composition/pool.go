@@ -1,0 +1,584 @@
+// Package composition owns Athanor's model repertoire and the measured
+// selection over it. A model is not a "persona": it is a measured capability
+// profile. Selection is scoped (user, computer, project, job) and seeded by
+// qualification, then updated by grounded outcomes (ADR-0104).
+package composition
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"sort"
+	"sync"
+	"time"
+
+	"github.com/tcs76321/athanor/internal/store"
+)
+
+// Capability is the kind of work a task needs.
+type Capability string
+
+const (
+	CapabilityCode     Capability = "code"
+	CapabilityData     Capability = "data"
+	CapabilityDocument Capability = "document"
+	CapabilityText     Capability = "text"
+	CapabilityMedia    Capability = "media"
+	CapabilityJudgment Capability = "judgment"
+	CapabilityGeneral  Capability = "general"
+)
+
+// Stance is what a call is doing, independent of the model.
+type Stance string
+
+const (
+	StancePlan       Stance = "plan"
+	StanceGenerate   Stance = "generate"
+	StanceCritique   Stance = "critique"
+	StanceVerify     Stance = "verify"
+	StanceSynthesize Stance = "synthesize"
+	StanceExplore    Stance = "explore"
+)
+
+// Score is a bounded success estimate. Laplace smoothing keeps a single
+// result from dominating the ranking.
+type Score struct {
+	Successes int       `json:"successes"`
+	Trials    int       `json:"trials"`
+	UpdatedAt time.Time `json:"updated_at,omitempty"`
+}
+
+// Value returns the smoothed success rate (0..1).
+func (s Score) Value() float64 {
+	return float64(s.Successes+1) / float64(s.Trials+2)
+}
+
+// Profile is one model measured on this computer.
+type Profile struct {
+	Name          string           `json:"name"`
+	Family        string           `json:"family,omitempty"`
+	SizeBytes     int64            `json:"size_bytes,omitempty"`
+	ResidentBytes int64            `json:"resident_bytes,omitempty"`
+	ContextTarget int              `json:"context_target,omitempty"`
+	Temperature   float64          `json:"temperature,omitempty"`
+	Scores        map[string]Score `json:"scores,omitempty"`
+	Scoped        map[string]Score `json:"scoped,omitempty"`
+	QualifiedAt   time.Time        `json:"qualified_at,omitempty"`
+	UpdatedAt     time.Time        `json:"updated_at,omitempty"`
+}
+
+// Pool is the user's model repertoire plus its measured profiles. It is
+// machine-local: results do not transfer between computers.
+type Pool struct {
+	mu     sync.RWMutex
+	store  *store.Store
+	key    string
+	Models map[string]*Profile `json:"models"`
+	// Excluded remembers models the user removed so a later catalog sync
+	// does not silently re-add them.
+	Excluded map[string]bool `json:"excluded,omitempty"`
+	// last records the models used by a job so a terminal outcome can update
+	// the right profiles. It is process-local and intentionally not persisted.
+	last map[string]cast
+}
+
+type cast struct {
+	models     []string
+	capability string
+	scope      string
+}
+
+// PoolKey is the system_state key holding the pool.
+const PoolKey = "models:pool"
+
+// New returns an empty pool. Call Load to read persisted state.
+func New(st *store.Store) *Pool {
+	return &Pool{
+		store: st, key: PoolKey,
+		Models: map[string]*Profile{}, Excluded: map[string]bool{}, last: map[string]cast{},
+	}
+}
+
+// Load reads the persisted pool. A missing key is an empty pool; corrupt
+// state is an error rather than silently discarding measurements.
+func (p *Pool) Load(ctx context.Context) error {
+	if p.store == nil {
+		return nil
+	}
+	var raw string
+	err := p.store.DB().QueryRowContext(ctx,
+		`SELECT value FROM system_state WHERE key = ?`, p.key).Scan(&raw)
+	if err != nil {
+		return nil
+	}
+	var saved struct {
+		Models   map[string]*Profile `json:"models"`
+		Excluded map[string]bool     `json:"excluded"`
+	}
+	if uerr := json.Unmarshal([]byte(raw), &saved); uerr != nil {
+		return fmt.Errorf("composition: parsing saved model pool: %w", uerr)
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if saved.Models != nil {
+		p.Models = saved.Models
+	}
+	p.Excluded = saved.Excluded
+	if p.Excluded == nil {
+		p.Excluded = map[string]bool{}
+	}
+	for _, prof := range p.Models {
+		if prof.Scores == nil {
+			prof.Scores = map[string]Score{}
+		}
+		if prof.Scoped == nil {
+			prof.Scoped = map[string]Score{}
+		}
+	}
+	return nil
+}
+
+// Save persists the pool.
+func (p *Pool) Save(ctx context.Context) error {
+	if p.store == nil {
+		return nil
+	}
+	p.mu.RLock()
+	raw, err := json.Marshal(struct {
+		Models   map[string]*Profile `json:"models"`
+		Excluded map[string]bool     `json:"excluded,omitempty"`
+	}{Models: p.Models, Excluded: p.Excluded})
+	p.mu.RUnlock()
+	if err != nil {
+		return fmt.Errorf("composition: encoding model pool: %w", err)
+	}
+	_, err = p.store.DB().ExecContext(ctx,
+		`INSERT INTO system_state (key, value) VALUES (?, ?)
+		 ON CONFLICT(key) DO UPDATE SET value = excluded.value`, p.key, string(raw))
+	if err != nil {
+		return fmt.Errorf("composition: saving model pool: %w", err)
+	}
+	return nil
+}
+
+// ModelInfo is the catalog data the UI or audit knows before qualification.
+type ModelInfo struct {
+	Name          string
+	Family        string
+	SizeBytes     int64
+	ResidentBytes int64
+	ContextTarget int
+}
+
+// Upsert adds or updates a model without discarding its measurements.
+func (p *Pool) Upsert(info ModelInfo) {
+	p.mu.Lock()
+	prof, ok := p.Models[info.Name]
+	if !ok {
+		prof = &Profile{Name: info.Name, Scores: map[string]Score{}, Scoped: map[string]Score{}}
+		p.Models[info.Name] = prof
+	}
+	if info.Family != "" {
+		prof.Family = info.Family
+	}
+	if info.SizeBytes > 0 {
+		prof.SizeBytes = info.SizeBytes
+	}
+	if info.ResidentBytes > 0 {
+		prof.ResidentBytes = info.ResidentBytes
+	}
+	if info.ContextTarget > 0 {
+		prof.ContextTarget = info.ContextTarget
+	}
+	prof.UpdatedAt = time.Now().UTC()
+	delete(p.Excluded, info.Name)
+	p.mu.Unlock()
+}
+
+// Remove drops a model and every measurement attached to it.
+func (p *Pool) Remove(name string) {
+	p.mu.Lock()
+	delete(p.Models, name)
+	p.mu.Unlock()
+}
+
+// Exclude removes a model and remembers the user's choice, so a catalog sync
+// does not silently re-add it.
+func (p *Pool) Exclude(name string) {
+	p.mu.Lock()
+	delete(p.Models, name)
+	p.Excluded[name] = true
+	p.mu.Unlock()
+}
+
+// Sync reconciles the pool with the installed catalog. New installed models
+// join unless the user excluded them; models no longer installed leave.
+func (p *Pool) Sync(infos []ModelInfo) (added int) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	present := make(map[string]bool, len(infos))
+	for _, info := range infos {
+		if info.Name == "" {
+			continue
+		}
+		present[info.Name] = true
+		prof, ok := p.Models[info.Name]
+		if !ok {
+			if p.Excluded[info.Name] {
+				continue
+			}
+			prof = &Profile{Name: info.Name, Scores: map[string]Score{}, Scoped: map[string]Score{}}
+			p.Models[info.Name] = prof
+			added++
+		}
+		if info.Family != "" {
+			prof.Family = info.Family
+		}
+		if info.SizeBytes > 0 {
+			prof.SizeBytes = info.SizeBytes
+		}
+		if info.ResidentBytes > 0 {
+			prof.ResidentBytes = info.ResidentBytes
+		}
+		if info.ContextTarget > 0 {
+			prof.ContextTarget = info.ContextTarget
+		}
+		prof.UpdatedAt = time.Now().UTC()
+	}
+	for name := range p.Models {
+		if !present[name] {
+			delete(p.Models, name)
+		}
+	}
+	return added
+}
+
+// Has reports whether a model is in the pool.
+func (p *Pool) Has(name string) bool {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	_, ok := p.Models[name]
+	return ok
+}
+
+// Count returns the pool size.
+func (p *Pool) Count() int {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return len(p.Models)
+}
+
+// Names returns the pool in deterministic order.
+func (p *Pool) Names() []string {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	out := make([]string, 0, len(p.Models))
+	for name := range p.Models {
+		out = append(out, name)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// Profiles returns a deterministic snapshot.
+func (p *Pool) Profiles() []Profile {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	out := make([]Profile, 0, len(p.Models))
+	for _, prof := range p.Models {
+		cp := *prof
+		cp.Scores = copyScores(prof.Scores)
+		cp.Scoped = copyScores(prof.Scoped)
+		out = append(out, cp)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out
+}
+
+// Profile returns one profile.
+func (p *Pool) Profile(name string) (Profile, bool) {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	prof, ok := p.Models[name]
+	if !ok {
+		return Profile{}, false
+	}
+	cp := *prof
+	cp.Scores = copyScores(prof.Scores)
+	cp.Scoped = copyScores(prof.Scoped)
+	return cp, true
+}
+
+func copyScores(in map[string]Score) map[string]Score {
+	out := make(map[string]Score, len(in))
+	for k, v := range in {
+		out[k] = v
+	}
+	return out
+}
+
+// Record adds one grounded observation for a model. key is a capability
+// (e.g. "code") or a stance key prefixed with "stance:".
+func (p *Pool) Record(name, key string, success bool) {
+	if key == "" {
+		return
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	prof, ok := p.Models[name]
+	if !ok {
+		return
+	}
+	if prof.Scores == nil {
+		prof.Scores = map[string]Score{}
+	}
+	s := prof.Scores[key]
+	s.Trials++
+	if success {
+		s.Successes++
+	}
+	s.UpdatedAt = time.Now().UTC()
+	prof.Scores[key] = s
+	prof.UpdatedAt = time.Now().UTC()
+}
+
+// RecordScoped adds a scoped observation (for example a project-specific
+// result). It is combined with the global score by partial pooling.
+func (p *Pool) RecordScoped(name, scope, key string, success bool) {
+	if scope == "" || key == "" {
+		return
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	prof, ok := p.Models[name]
+	if !ok {
+		return
+	}
+	if prof.Scoped == nil {
+		prof.Scoped = map[string]Score{}
+	}
+	k := scope + "/" + key
+	s := prof.Scoped[k]
+	s.Trials++
+	if success {
+		s.Successes++
+	}
+	s.UpdatedAt = time.Now().UTC()
+	prof.Scoped[k] = s
+	prof.UpdatedAt = time.Now().UTC()
+}
+
+// SetMeasured replaces the qualification counts for a capability so a
+// completed run is idempotent rather than cumulative.
+func (p *Pool) SetMeasured(name, key string, successes, trials int) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	prof, ok := p.Models[name]
+	if !ok {
+		return
+	}
+	if prof.Scores == nil {
+		prof.Scores = map[string]Score{}
+	}
+	prof.Scores[key] = Score{Successes: successes, Trials: trials, UpdatedAt: time.Now().UTC()}
+	prof.QualifiedAt = time.Now().UTC()
+	prof.UpdatedAt = time.Now().UTC()
+}
+
+// Request describes what a cast needs.
+type Request struct {
+	Phase       string
+	Capability  Capability
+	Stance      Stance
+	MinContext  int
+	AvoidFamily string
+	Scope       string
+	ProjectID   string
+	JobID       string
+}
+
+// Choice is one selected model.
+type Choice struct {
+	Model         string
+	Family        string
+	ContextTarget int
+	Temperature   float64
+	Score         float64
+	Reason        string
+}
+
+type candidate struct {
+	prof  Profile
+	score float64
+	why   string
+}
+
+func (p *Pool) candidates(req Request) []candidate {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	out := make([]candidate, 0, len(p.Models))
+	for _, prof := range p.Models {
+		if req.MinContext > 0 && prof.ContextTarget > 0 && prof.ContextTarget < req.MinContext {
+			continue
+		}
+		score, why := combinedScore(*prof, req)
+		out = append(out, candidate{prof: *prof, score: score, why: why})
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		if out[i].score != out[j].score {
+			return out[i].score > out[j].score
+		}
+		if out[i].prof.ContextTarget != out[j].prof.ContextTarget {
+			return out[i].prof.ContextTarget > out[j].prof.ContextTarget
+		}
+		return out[i].prof.Name < out[j].prof.Name
+	})
+	return out
+}
+
+// combinedScore blends the scoped posterior with the global one. A scope
+// needs at least two observations before it can outvote the parent prior.
+func combinedScore(prof Profile, req Request) (float64, string) {
+	key := string(req.Capability)
+	if key == "" {
+		key = string(CapabilityGeneral)
+	}
+	global := prof.Scores[key]
+	if global.Trials == 0 {
+		if s, ok := prof.Scores["stance:"+string(req.Stance)]; ok {
+			global = s
+		}
+	}
+	base := global.Value()
+	why := "not yet measured; chosen by fit"
+	if global.Trials > 0 {
+		why = fmt.Sprintf("%.0f%% on %d measured %s case(s)", base*100, global.Trials, key)
+	}
+	if req.Scope != "" {
+		if s, ok := prof.Scoped[req.Scope+"/"+key]; ok && s.Trials >= 2 {
+			w := float64(s.Trials) / float64(s.Trials+4)
+			base = w*s.Value() + (1-w)*base
+			why += fmt.Sprintf("; %.0f%% on %d scoped case(s)", s.Value()*100, s.Trials)
+		}
+	}
+	return base, why
+}
+
+// Choose returns the best model for a request. The second result is false
+// when the pool is empty or every model fails the context requirement.
+func (p *Pool) Choose(req Request) (Choice, bool) {
+	cs := p.candidates(req)
+	if len(cs) == 0 {
+		return Choice{}, false
+	}
+	if req.AvoidFamily != "" {
+		for _, c := range cs {
+			if c.prof.Family != "" && c.prof.Family != req.AvoidFamily {
+				p.remember(req, c.prof.Name)
+				return choiceOf(c), true
+			}
+		}
+	}
+	p.remember(req, cs[0].prof.Name)
+	return choiceOf(cs[0]), true
+}
+
+// ChooseMany returns up to n distinct models, preferring different families
+// so a deliberation draws on decorrelated sources when the pool allows it.
+func (p *Pool) ChooseMany(req Request, n int) []Choice {
+	if n < 1 {
+		return nil
+	}
+	cs := p.candidates(req)
+	if len(cs) == 0 {
+		return nil
+	}
+	out := make([]Choice, 0, n)
+	used := map[string]bool{}
+	families := map[string]bool{}
+	// First pass: distinct families.
+	for _, c := range cs {
+		if len(out) >= n {
+			break
+		}
+		if c.prof.Family != "" && families[c.prof.Family] {
+			continue
+		}
+		families[c.prof.Family] = true
+		used[c.prof.Name] = true
+		out = append(out, choiceOf(c))
+	}
+	// Second pass: fill remaining slots, including same-family models.
+	for _, c := range cs {
+		if len(out) >= n {
+			break
+		}
+		if used[c.prof.Name] {
+			continue
+		}
+		used[c.prof.Name] = true
+		out = append(out, choiceOf(c))
+	}
+	p.mu.Lock()
+	for _, c := range out {
+		p.rememberLocked(req, c.Model)
+	}
+	p.mu.Unlock()
+	return out
+}
+
+func choiceOf(c candidate) Choice {
+	return Choice{
+		Model:         c.prof.Name,
+		Family:        c.prof.Family,
+		ContextTarget: c.prof.ContextTarget,
+		Temperature:   c.prof.Temperature,
+		Score:         c.score,
+		Reason:        c.why,
+	}
+}
+
+func (p *Pool) remember(req Request, model string) {
+	p.mu.Lock()
+	p.rememberLocked(req, model)
+	p.mu.Unlock()
+}
+
+func (p *Pool) rememberLocked(req Request, model string) {
+	if req.JobID == "" {
+		return
+	}
+	c := p.last[req.JobID]
+	c.models = append(c.models, model)
+	c.capability = string(req.Capability)
+	c.scope = req.Scope
+	p.last[req.JobID] = c
+}
+
+// Observe records a terminal job outcome against the models it used. Only
+// grounded outcomes should reach this method.
+func (p *Pool) Observe(ctx context.Context, jobID string, success bool) {
+	p.mu.Lock()
+	c, ok := p.last[jobID]
+	delete(p.last, jobID)
+	p.mu.Unlock()
+	if !ok {
+		return
+	}
+	seen := map[string]bool{}
+	for _, name := range c.models {
+		if seen[name] {
+			continue
+		}
+		seen[name] = true
+		p.Record(name, c.capability, success)
+		if c.scope != "" {
+			p.RecordScoped(name, c.scope, c.capability, success)
+		}
+	}
+	if err := p.Save(ctx); err != nil {
+		// Outcome learning is best-effort; a save failure must not fail a
+		// terminal job that has already been recorded.
+		return
+	}
+}

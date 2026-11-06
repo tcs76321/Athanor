@@ -60,6 +60,26 @@ func (e *Engine) phaseDivergeN(ctx context.Context, j job.Job) error {
 	if len(roles) == 0 {
 		roles = []string{e.roleFor(plan, llm.PhaseDiverging, llm.RoleMain)}
 	}
+	// ADR-0104: when a measured pool exists, draw the candidates from it and
+	// prefer different families. The legacy role list remains the fallback.
+	if e.selector != nil {
+		minContext := 0
+		if floor, ok := llm.FloorFor(capability, e.cfg.ContextEngine); ok {
+			minContext = floor
+		}
+		req := ModelRequest{
+			Phase: llm.PhaseDiverging, Capability: capability, Stance: "generate",
+			MinContext: minContext, ProjectID: p.ID, JobID: j.ID,
+			Scope: "project:" + p.ID,
+		}
+		if choices := e.selector.ChooseMany(ctx, req, n); len(choices) > 0 {
+			roles = roles[:0]
+			for _, c := range choices {
+				roles = append(roles, PoolModelPrefix+c.Model)
+			}
+			e.rememberGeneratorFamily(j.ID, choices[0].Family)
+		}
+	}
 
 	e.audit(ctx, j.ID, map[string]any{
 		"event":      "divergence_start",

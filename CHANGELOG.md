@@ -10,6 +10,28 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Model pool and composition casting — 2026-11-05
+
+- **The measured model pool is live.** `internal/composition` persists a
+  machine-local pool with per-capability and per-stance success counts, blends
+  project-scoped evidence with the global prior, and selects deterministically
+  (score, context, name). The engine consults it at every phase, draws
+  divergence candidates from multiple models when available, prefers an
+  independent family for judgment, and feeds terminal outcomes back into the
+  pool. [ADR-0104](docs/adr/0104-composition-space-not-personas.md).
+  Proofs: `internal/composition` pool/ranking/scope/round-trip tests,
+  `TestSelectorResolvesPhaseAndSyntheticRole`,
+  `TestSelectorCastsDivergenceAcrossModels`.
+- **First use is pool-first.** The Models step lists the installed catalog with
+  add/remove membership, recommends pulls when fewer than four models are in
+  the pool, and explains the degraded mode. The Qualification step measures
+  every pool model and shows a per-capability ranking with sample counts; the
+  only user override is removing a model. Proofs:
+  `TestWelcomeModelsSelfSelectAndApply` (pool membership),
+  `TestWelcomeQualificationStartsInline`.
+- **The five fixed roles are now presets and a compatibility fallback.** The
+  legacy persona ladder remains on `/ui/setup`; no new selection depends on it.
+
 ### Model composition design — 2026-11-05
 
 - **Fixed personas are superseded by a model composition space.** An attempt is

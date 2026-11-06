@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/tcs76321/athanor/internal/composition"
 	"github.com/tcs76321/athanor/internal/config"
 	"github.com/tcs76321/athanor/internal/doctor"
 	"github.com/tcs76321/athanor/internal/store"
@@ -29,7 +30,7 @@ func newEmptyUI(t *testing.T) *UI {
 	if err := store.Migrate(s.DB(), migrations.FS, ""); err != nil {
 		t.Fatal(err)
 	}
-	return New(Deps{Store: s, Runtime: "Core Pod", Version: "test"})
+	return New(Deps{Store: s, Pool: composition.New(s), Runtime: "Core Pod", Version: "test"})
 }
 
 func TestFirstRunRedirectsToWelcome(t *testing.T) {
@@ -71,7 +72,7 @@ func TestWelcomeRendersBareShell(t *testing.T) {
 	body := string(raw)
 	for _, want := range []string{
 		"Welcome to Athanor", "the alchemical LLM furnace",
-		"Environment", "Models", "Qualification", "Preferences", "Ready",
+		"Environment", "Model pool", "Qualification", "Preferences", "Ready",
 		"Start setup",
 	} {
 		if !strings.Contains(body, want) {
@@ -393,7 +394,7 @@ func TestWelcomeModelsSelfSelectAndApply(t *testing.T) {
 	if err := store.Migrate(s.DB(), migrations.FS, ""); err != nil {
 		t.Fatal(err)
 	}
-	u := New(Deps{Store: s, Config: cfg, ConfigPath: path, Runtime: "Core Pod", Version: "test",
+	u := New(Deps{Store: s, Pool: composition.New(s), Config: cfg, ConfigPath: path, Runtime: "Core Pod", Version: "test",
 		Hardware: func(_ context.Context) Hardware {
 			return Hardware{TotalMemoryBytes: 32 << 30, CPUs: 10}
 		}})
@@ -403,29 +404,39 @@ func TestWelcomeModelsSelfSelectAndApply(t *testing.T) {
 	t.Cleanup(ts.Close)
 
 	_, body := get(t, ts.URL+"/ui/welcome?step=models")
-	for _, want := range []string{"What the roles mean", "Installed models", "Athanor's selection", "large:14b", "Use this assignment", "Host inference budget", "Runtime sandbox"} {
+	for _, want := range []string{"Build the model pool", "Installed models", "large:14b", "Remove", "Host inference budget", "Runtime sandbox", "The pool"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("models step missing %q", want)
 		}
 	}
-	// The old persona mapping table must not be the primary content anymore.
-	if strings.Contains(body, "<th>Role</th><th>Model</th><th>Family</th><th>Context</th>") {
-		t.Error("models step still renders the old configured-mapping table")
+	if strings.Contains(body, "What the roles mean") || strings.Contains(body, "Use this assignment") {
+		t.Error("models step still renders the retired persona assignment UI")
+	}
+	if got := u.deps.Pool.Count(); got != 4 {
+		t.Fatalf("pool count = %d, want 4 (the installed catalog)", got)
 	}
 
-	resp := postForm(t, ts.URL+"/ui/welcome", url.Values{"step": {"models"}, "action": {"apply_personas"}})
+	resp := postForm(t, ts.URL+"/ui/welcome", url.Values{
+		"step": {"models"}, "action": {"pool_remove"}, "model": {"large:14b"},
+	})
 	if resp.StatusCode != http.StatusSeeOther {
-		t.Fatalf("apply personas status = %d", resp.StatusCode)
+		t.Fatalf("pool remove status = %d", resp.StatusCode)
 	}
-	got, err := config.Load(path)
-	if err != nil {
-		t.Fatalf("applied config does not load: %v", err)
+	if got := u.deps.Pool.Count(); got != 3 {
+		t.Fatalf("pool count after remove = %d, want 3", got)
 	}
-	if got.Personas.Tall.Model != "large:14b" {
-		t.Errorf("tall = %q, want large:14b", got.Personas.Tall.Model)
+	if u.deps.Pool.Has("large:14b") {
+		t.Fatal("removed model is still in the pool")
 	}
-	if got.Personas.Security.Model == "" || got.Personas.Main.Model == "" {
-		t.Errorf("assignment missing roles: %+v", got.Personas)
+
+	resp = postForm(t, ts.URL+"/ui/welcome", url.Values{
+		"step": {"models"}, "action": {"pool_add"}, "model": {"large:14b"},
+	})
+	if resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("pool add status = %d", resp.StatusCode)
+	}
+	if !u.deps.Pool.Has("large:14b") {
+		t.Fatal("re-added model did not return to the pool")
 	}
 }
 

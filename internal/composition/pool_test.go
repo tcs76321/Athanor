@@ -1,0 +1,166 @@
+package composition
+
+import (
+	"context"
+	"path/filepath"
+	"testing"
+
+	"github.com/tcs76321/athanor/internal/store"
+	"github.com/tcs76321/athanor/migrations"
+)
+
+func testStore(t *testing.T) *store.Store {
+	t.Helper()
+	st, err := store.Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = st.Close() })
+	if err := store.Migrate(st.DB(), migrations.FS, ""); err != nil {
+		t.Fatal(err)
+	}
+	return st
+}
+
+func TestChooseUsesMeasuredScore(t *testing.T) {
+	p := New(nil)
+	p.Upsert(ModelInfo{Name: "alpha", Family: "a", ContextTarget: 32768})
+	p.Upsert(ModelInfo{Name: "beta", Family: "b", ContextTarget: 32768})
+	p.SetMeasured("alpha", "code", 2, 5)
+	p.SetMeasured("beta", "code", 9, 10)
+
+	got, ok := p.Choose(Request{Capability: CapabilityCode, Stance: StanceGenerate})
+	if !ok || got.Model != "beta" {
+		t.Fatalf("choose = %+v ok=%v, want beta", got, ok)
+	}
+}
+
+func TestChooseBreaksTiesByName(t *testing.T) {
+	p := New(nil)
+	for _, name := range []string{"zeta", "alpha", "mike"} {
+		p.Upsert(ModelInfo{Name: name, ContextTarget: 32768})
+	}
+	got, ok := p.Choose(Request{Capability: CapabilityCode})
+	if !ok || got.Model != "alpha" {
+		t.Fatalf("tie-break = %q, want alpha", got.Model)
+	}
+}
+
+func TestChooseRespectsContextFloor(t *testing.T) {
+	p := New(nil)
+	p.Upsert(ModelInfo{Name: "small", ContextTarget: 8192})
+	p.Upsert(ModelInfo{Name: "large", ContextTarget: 65536})
+	p.SetMeasured("small", "code", 10, 10)
+	p.SetMeasured("large", "code", 1, 10)
+
+	got, ok := p.Choose(Request{Capability: CapabilityCode, MinContext: 32768})
+	if !ok || got.Model != "large" {
+		t.Fatalf("context floor chose %q, want large", got.Model)
+	}
+}
+
+func TestChoosePrefersAnotherFamilyForJudgment(t *testing.T) {
+	p := New(nil)
+	p.Upsert(ModelInfo{Name: "same", Family: "alpha", ContextTarget: 32768})
+	p.Upsert(ModelInfo{Name: "other", Family: "beta", ContextTarget: 32768})
+	p.SetMeasured("same", "judgment", 9, 10)
+	p.SetMeasured("other", "judgment", 7, 10)
+
+	got, ok := p.Choose(Request{Capability: CapabilityJudgment, AvoidFamily: "alpha"})
+	if !ok || got.Model != "other" {
+		t.Fatalf("family-independent choice = %q, want other", got.Model)
+	}
+}
+
+func TestChooseManyPrefersDistinctFamilies(t *testing.T) {
+	p := New(nil)
+	p.Upsert(ModelInfo{Name: "a1", Family: "a", ContextTarget: 32768})
+	p.Upsert(ModelInfo{Name: "a2", Family: "a", ContextTarget: 32768})
+	p.Upsert(ModelInfo{Name: "b1", Family: "b", ContextTarget: 32768})
+	p.SetMeasured("a1", "code", 9, 10)
+	p.SetMeasured("a2", "code", 8, 10)
+	p.SetMeasured("b1", "code", 7, 10)
+
+	cs := p.ChooseMany(Request{Capability: CapabilityCode}, 2)
+	if len(cs) != 2 || cs[0].Family == cs[1].Family {
+		t.Fatalf("choose-many = %+v, want two distinct families", cs)
+	}
+}
+
+func TestScopedEvidenceOutvotesOnlyWithEnoughSamples(t *testing.T) {
+	p := New(nil)
+	p.Upsert(ModelInfo{Name: "global", ContextTarget: 32768})
+	p.Upsert(ModelInfo{Name: "local", ContextTarget: 32768})
+	p.SetMeasured("global", "code", 6, 10)
+	p.SetMeasured("local", "code", 3, 10)
+
+	// One project result is not enough to override the parent prior.
+	p.RecordScoped("local", "project:p1", "code", true)
+	got, _ := p.Choose(Request{Capability: CapabilityCode, Scope: "project:p1"})
+	if got.Model != "global" {
+		t.Fatalf("one scoped sample overrode the prior: %q", got.Model)
+	}
+
+	// Ten project results carry enough weight to win.
+	for i := 0; i < 10; i++ {
+		p.RecordScoped("local", "project:p1", "code", true)
+	}
+	got, _ = p.Choose(Request{Capability: CapabilityCode, Scope: "project:p1"})
+	if got.Model != "local" {
+		t.Fatalf("scoped evidence did not win: %q", got.Model)
+	}
+}
+
+func TestObserveUpdatesOnlyUsedModels(t *testing.T) {
+	p := New(nil)
+	p.Upsert(ModelInfo{Name: "alpha", ContextTarget: 32768})
+	p.Upsert(ModelInfo{Name: "beta", ContextTarget: 32768})
+	p.SetMeasured("alpha", "code", 5, 10)
+	p.SetMeasured("beta", "code", 5, 10)
+
+	p.Choose(Request{Capability: CapabilityCode, JobID: "job-1", Scope: "project:p"})
+	p.Observe(context.Background(), "job-1", true)
+
+	profiles := p.Profiles()
+	for _, prof := range profiles {
+		if prof.Name == "alpha" {
+			if prof.Scores["code"].Trials != 11 || prof.Scores["code"].Successes != 6 {
+				t.Fatalf("alpha not updated: %+v", prof.Scores["code"])
+			}
+		} else if prof.Scores["code"].Trials != 10 {
+			t.Fatalf("unused beta was updated: %+v", prof.Scores["code"])
+		}
+	}
+}
+
+func TestPersistenceRoundTrip(t *testing.T) {
+	st := testStore(t)
+	p := New(st)
+	p.Upsert(ModelInfo{Name: "alpha", Family: "a", ContextTarget: 32768})
+	p.SetMeasured("alpha", "code", 3, 4)
+	if err := p.Save(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+
+	again := New(st)
+	if err := again.Load(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	prof, ok := again.Profile("alpha")
+	if !ok || prof.Scores["code"].Trials != 4 || prof.Scores["code"].Successes != 3 {
+		t.Fatalf("round-trip = %+v", prof)
+	}
+}
+
+func TestRemoveDropsModelAndMeasurements(t *testing.T) {
+	p := New(nil)
+	p.Upsert(ModelInfo{Name: "alpha"})
+	p.SetMeasured("alpha", "code", 4, 4)
+	p.Remove("alpha")
+	if _, ok := p.Choose(Request{Capability: CapabilityCode}); ok {
+		t.Fatal("removed model was still selected")
+	}
+	if p.Count() != 0 {
+		t.Fatalf("count = %d", p.Count())
+	}
+}

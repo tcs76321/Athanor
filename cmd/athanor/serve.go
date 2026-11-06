@@ -21,6 +21,7 @@ import (
 	"github.com/tcs76321/athanor/internal/artifact"
 	"github.com/tcs76321/athanor/internal/backup"
 	"github.com/tcs76321/athanor/internal/budget"
+	"github.com/tcs76321/athanor/internal/composition"
 	"github.com/tcs76321/athanor/internal/config"
 	"github.com/tcs76321/athanor/internal/control"
 	"github.com/tcs76321/athanor/internal/corrections"
@@ -139,6 +140,13 @@ func run(configPath, addr, stateDir string, container bool) error {
 
 	if err := store.Migrate(st.DB(), migrations.FS, filepath.Join(stateDir, "backups")); err != nil {
 		return fmt.Errorf("migrating database: %w", err)
+	}
+	// ADR-0104: the measured model pool is machine-local state. It starts
+	// empty on a fresh install; the first-use flow fills it from the installed
+	// catalog and qualification.
+	modelPool := composition.New(st)
+	if err := modelPool.Load(context.Background()); err != nil {
+		return fmt.Errorf("loading model pool: %w", err)
 	}
 	// A restart consumed any saved config; the new process reads it at boot.
 	// The UI sets this key when it writes config and cannot hot-reload.
@@ -278,6 +286,9 @@ func run(configPath, addr, stateDir string, container bool) error {
 	// M7-T1 (§24): the engine consults the power gate before each phase, so
 	// a battery/sleep pause parks active jobs and ResumePaused re-drives them.
 	eng.SetPauseGate(powerMgr)
+	// ADR-0104: phase model selection comes from the measured pool when it is
+	// populated; the legacy registry remains the fallback.
+	eng.SetModelSelector(&composition.Selector{Pool: modelPool})
 	// Household mode gate: Stopped preempts phases and refuses new work.
 	eng.SetOperatorGate(opCtrl)
 	opCtrl.SetHooks(operator.Hooks{
@@ -433,7 +444,7 @@ func run(configPath, addr, stateDir string, container bool) error {
 		Version:       version,
 		Interviews:    interview.NewRepo(st),
 		Interruptions: interruptionsRepo, Strategy: strategyRepo,
-		Freezer: killSwitch, Control: killSwitch, Operator: opCtrl, Engine: eng, Indexer: indexer,
+		Freezer: killSwitch, Control: killSwitch, Operator: opCtrl, Pool: modelPool, Engine: eng, Indexer: indexer,
 		Discovery: discovery.NewService(
 			&discoveryGenerator{client: llmClient, cfg: cfg},
 			discovery.NewStore(st),

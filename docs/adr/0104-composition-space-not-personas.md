@@ -241,6 +241,35 @@ alarm on drift. The repertoire is never pruned; selection is learned.
 - **Learn from the model's own verdict.** Rejected: self-judgment is exactly
   the correlated signal the design is trying to escape.
 
+## Implementation status
+
+- **Pool and scoped scores (first slice):** `internal/composition` persists
+  the machine-local pool in `system_state` under `models:pool`, records
+  per-capability and per-stance counts, blends project evidence with the
+  global prior by partial pooling, and breaks ties deterministically by name.
+- **Engine casting:** `engine.ModelSelector` is consulted at every phase when
+  a pool exists; divergence draws candidates from up to N distinct models
+  (family-diverse when possible), verification prefers a generator-independent
+  family, and terminal outcomes update the models that were used.
+- **First use:** the wizard's Models step is now pool membership (add/remove,
+  a four-model floor warning, curated pulls); the Qualification step runs the
+  grounded screen across the pool and shows a per-capability ranking. The
+  legacy five-role ladder remains on `/ui/setup` as a compatibility view.
+- **Still open:** deliberative graph templates beyond divergence/verification,
+  richer capability probes (long-context, tool-calling, calibration), budgeted
+  exploration, the machine score, and learned template selection. The policy is
+  a measured ranking today, not yet a bandit.
+
+## Fine-tuning and model improvement
+
+A fine-tune is a new model entry, not a special runtime path. It enters the
+pool with provenance (base model, dataset, run, date), is measured by the same
+qualification screen, and competes on the same scoped outcomes. The promotion
+rule is the existing ratchet: it must beat the incumbent on grounded evidence,
+the change must be reversible, and the swap is recorded. The measured profiles
+and outcome history are therefore the durable substrate a fine-tuning loop
+needs; no routing code should know whether a model was trained locally.
+
 ## Open questions
 
 - Is the four-model floor a hard setup gate or a warning with degraded mode?

@@ -157,8 +157,8 @@ func budgetFor(roles []setupRole, models []setupModel, hw Hardware, res resource
 var onboardingSteps = []onboardingStep{
 	{"welcome", "Welcome", "What Athanor is and what it will do"},
 	{"resources", "Resources", "RAM, CPU, and Job Pod limits"},
-	{"models", "Models", "Personas, installed models, and self-selection"},
-	{"qualify", "Qualification", "Optional bounded routing screen"},
+	{"models", "Model pool", "Choose the models Athanor may use"},
+	{"qualify", "Qualification", "Measure and rank the pool on this computer"},
 	{"preferences", "Preferences", "Theme and notifications"},
 	{"environment", "Environment", "Final doctor checks before you start"},
 	{"ready", "Ready", "Create the first project"},
@@ -329,9 +329,14 @@ func (u *UI) welcomeData(ctx context.Context, st onboardingState) map[string]any
 		}
 	}
 	assignments := u.autoAssignments(roles, fitModels, hw, measurements)
-	suggestions := u.pullSuggestions(roles)
 	resources := recommendedResources(hw)
 	budget := budgetFor(roles, models, hw, resources)
+	u.syncPool(ctx, models)
+	pool := u.welcomePool(models)
+	suggestions := u.poolSuggestions(models, pool)
+	if pool.QualifiedCount > 0 {
+		measurements = qualMeasurementsFromState(qual)
+	}
 	return map[string]any{
 		"State": st, "Step": st.Step, "Steps": onboardingSteps,
 		"StepIndex": onboardingIndex(st.Step), "StepNumber": onboardingIndex(st.Step) + 1,
@@ -341,8 +346,15 @@ func (u *UI) welcomeData(ctx context.Context, st onboardingState) map[string]any
 		"PersonaGuides": personaGuides, "Assignments": assignments,
 		"Suggestions": suggestions, "Resources": resources, "Hardware": hw,
 		"Budget": budget, "ConfigPath": u.deps.ConfigPath,
-		"HasMeasurements": len(measurements) > 0,
-		"Qualification":   qualificationViewFor(qual, len(measurements) > 0),
+		"HasMeasurements": len(measurements) > 0 || pool.QualifiedCount > 0,
+		"Qualification":   qualificationViewFor(qual, len(measurements) > 0 || pool.QualifiedCount > 0),
+		"Pool":            pool,
+		"PoolRows":        pool.Rows,
+		"PoolRanked":      pool.Ranked,
+		"PoolCount":       pool.Count,
+		"PoolReady":       pool.Ready,
+		"PoolWarning":     pool.Warning,
+		"PoolMin":         pool.Min,
 		"OllamaURL": func() string {
 			if u.deps.Config == nil {
 				return ""
@@ -440,19 +452,6 @@ func (u *UI) autoAssignments(roles []setupRole, models []setupModel, hw Hardware
 // pullSuggestions lists configured persona models that are not installed,
 // deduplicated and without role labels; the Models step explains the personas
 // separately so the operator is not asked to map them by hand.
-func (u *UI) pullSuggestions(roles []setupRole) []pullSuggestion {
-	seen := map[string]bool{}
-	out := []pullSuggestion{}
-	for _, r := range roles {
-		if r.Installed || r.Model == "" || seen[r.Model] {
-			continue
-		}
-		seen[r.Model] = true
-		out = append(out, pullSuggestion{Model: r.Model, Reason: "expected by this configuration"})
-	}
-	return out
-}
-
 // recommendedResources chooses the adaptive Job Pod ceiling and the internal
 // sandbox knobs from the runtime capacity. CPU, /tmp, and PID values are
 // derived, not operator fields; per-job sizing scales the ceiling by task
@@ -790,13 +789,29 @@ func (u *UI) handleWelcomePost(w http.ResponseWriter, r *http.Request) {
 		if model != "" {
 			u.startPull(model)
 		}
+	case "pool_add":
+		model := strings.TrimSpace(r.FormValue("model"))
+		if model != "" {
+			if err := u.includeModel(ctx, model); err != nil {
+				u.fail(w, err)
+				return
+			}
+		}
+	case "pool_remove":
+		model := strings.TrimSpace(r.FormValue("model"))
+		if model != "" {
+			if err := u.excludeModel(ctx, model); err != nil {
+				u.fail(w, err)
+				return
+			}
+		}
 	case "run_qualify":
 		if u.deps.Config == nil {
 			u.fail(w, fmt.Errorf("configuration is not available to the UI"))
 			return
 		}
 		st.Step = "qualify"
-		if _, _, err := u.startQualification(ctx, u.deps.Config, false); err != nil {
+		if _, _, err := u.startPoolQualification(ctx, false); err != nil {
 			u.fail(w, err)
 			return
 		}

@@ -22,12 +22,15 @@ const (
 	CheckJSON Check = "json"
 )
 
-// GenCase is one grounded generator case.
+// GenCase is one grounded generator case. Capability names the kind of work
+// the case exercises (code, data, document, text, media, general) so the
+// result feeds the composition pool (ADR-0104).
 type GenCase struct {
-	ID     string `json:"id"`
-	Prompt string `json:"prompt"`
-	Want   string `json:"want"`
-	Check  Check  `json:"check"`
+	ID         string `json:"id"`
+	Prompt     string `json:"prompt"`
+	Want       string `json:"want"`
+	Check      Check  `json:"check"`
+	Capability string `json:"capability,omitempty"`
 }
 
 // JudgeCase is one artifact pair with a known better artifact. The labels are
@@ -52,14 +55,14 @@ type Ladder struct {
 func DefaultLadder() Ladder {
 	return Ladder{
 		Generators: []GenCase{
-			{ID: "gen-arith", Check: CheckExact, Want: "391",
+			{ID: "gen-arith", Check: CheckExact, Want: "391", Capability: "general",
 				Prompt: "Compute 17 * 23. Reply with only the integer, no words."},
-			{ID: "gen-trace", Check: CheckExact, Want: "01",
+			{ID: "gen-trace", Check: CheckExact, Want: "01", Capability: "code",
 				Prompt: "What does this Python print? Reply with only the output.\n\nfor i in range(2):\n    print(i, end=\"\")"},
-			{ID: "gen-json", Check: CheckJSON, Want: `{"lang":"go","stable":true}`,
+			{ID: "gen-json", Check: CheckJSON, Want: `{"lang":"go","stable":true}`, Capability: "data",
 				Prompt: `Extract the language and whether it is stable from: "Go 1.24 is a stable release." ` +
 					`Reply with only JSON: {"lang":...,"stable":...}`},
-			{ID: "gen-bug", Check: CheckExact, Want: "1",
+			{ID: "gen-bug", Check: CheckExact, Want: "1", Capability: "code",
 				Prompt: "How many times does this loop print? Reply with only the integer.\n\n" +
 					"for i in range(0, 3, 2):\n    print(i)"},
 		},

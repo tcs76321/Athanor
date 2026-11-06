@@ -81,13 +81,17 @@ func (e *Engine) strategySignature(archetype string, plan policy.Plan) []strateg
 	out := make([]strategy.SignatureEntry, 0, len(phaseStrategies))
 	for _, s := range phaseStrategies {
 		role := e.roleFor(plan, s.phase, s.role)
-		persona, ok := e.registry.Persona(role)
+		persona, ok := e.personaFor(context.Background(), s.phase, role, archetype, "", "")
 		if !ok {
 			continue
 		}
+		name := role
+		if persona.Role == "pool" {
+			name = persona.Model
+		}
 		entry := strategy.SignatureEntry{
 			Phase:       s.phase,
-			Persona:     role,
+			Persona:     name,
 			Temperature: llm.ResolveTemperature(s.phase, persona.Temperature, nil),
 		}
 		if s.phase == llm.PhaseDiverging {
@@ -121,15 +125,21 @@ func (e *Engine) captureProfile(ctx context.Context, j job.Job) {
 
 // captureOutcome records the immutable strategy outcome at terminal state.
 func (e *Engine) captureOutcome(ctx context.Context, jobID string) {
-	if e.strategy == nil {
-		return
-	}
 	j, err := e.jobs.Get(ctx, jobID)
 	if err != nil {
 		slog.Error("engine: loading job for strategy outcome", "job", jobID, "err", err)
 		return
 	}
 	if !j.State.Terminal() {
+		return
+	}
+	// ADR-0104: feed the grounded outcome back to the composition pool. Only
+	// a completed job counts as success; failure/cancel are evidence against
+	// the cast that produced them.
+	if e.selector != nil {
+		e.selector.Observe(ctx, jobID, j.State == job.StateCompleted)
+	}
+	if e.strategy == nil {
 		return
 	}
 	tokens, confidence := e.eventStats(ctx, jobID)

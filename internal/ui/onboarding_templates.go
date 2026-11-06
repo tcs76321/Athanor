@@ -93,8 +93,8 @@ const welcomeBody = `
     </div>
     {{else if eq .Step "models"}}
     <div class="eyebrow">Step {{.StepNumber}} of {{.StepCount}}</div>
-    <h1>Personas and models.</h1>
-    <p class="lede">Personas are functional roles, not fixed models. Athanor selects one installed model for each role based on size and family, and you can review or replace the assignment. Models are never downloaded without an explicit pull.</p>
+    <h1>Build the model pool.</h1>
+    <p class="lede">Pull the models you want Athanor to consider. You control membership; Athanor controls the ranked roster and the cast. Four or more models enable the full deliberation repertoire. Nothing is downloaded without an explicit pull.</p>
     {{if .ModelsErr}}<div class="notice bad">{{.ModelsErr}}</div>{{end}}
     {{if .Budget.HostGiB}}
     <div class="card {{if .Budget.Overcommit}}card-accent{{end}}">
@@ -114,18 +114,47 @@ const welcomeBody = `
     </div>
     {{end}}
 
-    <h2>What the roles mean</h2>
-    <div class="grid cols-3">
-      {{range .PersonaGuides}}
-      <div class="card"><div class="eyebrow">{{.Role}}</div><h3>{{.Title}}</h3><p class="muted">{{.Purpose}}</p></div>
-      {{end}}
+    <h2>The pool</h2>
+    <div class="card {{if not .PoolReady}}card-accent{{end}}">
+      <div class="row row-middle">
+        <div>
+          <div class="eyebrow">{{.PoolCount}} model(s) in the pool</div>
+          <p class="muted">{{if .PoolReady}}The full repertoire is available: heterogeneous candidates, an independent judge when a different family exists, and second opinions within budget.{{else}}Athanor runs in a degraded mode until four or more models are in the pool. It still works; it has fewer independent perspectives to draw on.{{end}}</p>
+        </div>
+        <span class="pill {{if .PoolReady}}ok{{else}}warn{{end}}">{{if .PoolReady}}full repertoire{{else}}degraded{{end}}</span>
+      </div>
+      {{if .PoolWarning}}<p class="del">{{.PoolWarning}}</p>{{end}}
+      <p class="muted small">A minimum of {{.PoolMin}} is recommended, with a sanity cap of 100. Models do not need different sizes or families; ties are broken by name, and diversity is measured rather than assumed.</p>
     </div>
 
     <h2>Installed models</h2>
-    {{if .Models}}
+    {{if .PoolRows}}
     <div class="card flush"><div class="table-wrap">
-      <table><thead><tr><th>Model</th><th>Size</th><th>Family</th></tr></thead><tbody>
-      {{range .Models}}<tr><td class="mono">{{.Name}}</td><td>{{gib .SizeBytes}}</td><td>{{if .Family}}{{.Family}}{{else}}—{{end}}</td></tr>{{end}}
+      <table><thead><tr><th>Model</th><th>Size</th><th>Family</th><th>Context</th><th>Status</th><th></th></tr></thead><tbody>
+      {{range .PoolRows}}<tr>
+        <td class="mono">{{.Name}}</td>
+        <td>{{gib .SizeBytes}}</td>
+        <td>{{if .Family}}{{.Family}}{{else}}—{{end}}</td>
+        <td>{{if .ContextTarget}}{{.ContextTarget}}{{else}}—{{end}}</td>
+        <td>{{if .InPool}}<span class="pill ok">{{if .Qualified}}qualified {{printf "%.0f%%" (mul .Score 100)}}{{else}}in pool{{end}}</span>{{else}}<span class="pill">removed</span>{{end}}</td>
+        <td>
+          {{if .InPool}}
+          <form method="post" action="/ui/welcome" class="inline-form">
+            <input type="hidden" name="step" value="models">
+            <input type="hidden" name="action" value="pool_remove">
+            <input type="hidden" name="model" value="{{.Name}}">
+            <button class="small secondary">Remove</button>
+          </form>
+          {{else}}
+          <form method="post" action="/ui/welcome" class="inline-form">
+            <input type="hidden" name="step" value="models">
+            <input type="hidden" name="action" value="pool_add">
+            <input type="hidden" name="model" value="{{.Name}}">
+            <button class="small secondary">Add</button>
+          </form>
+          {{end}}
+        </td>
+      </tr>{{end}}
       </tbody></table>
     </div></div>
     {{else}}<div class="empty">No models are installed. Pull one below, or run <code>ollama pull &lt;model&gt;</code> on the host.</div>{{end}}
@@ -164,39 +193,16 @@ const welcomeBody = `
     </div>
     {{end}}
 
-    <h2>Athanor's selection</h2>
-    <p class="muted">{{if .HasMeasurements}}The selection uses your stored qualification measurements where available, then falls back to size.{{else}}The selection is size- and family-based. Run the bounded qualification in <a href="/ui/setup">Setup</a> to rank models by measured performance.{{end}}</p>
-    {{if .Assignments}}
-    {{if eq .Applied "personas"}}<div class="notice">Persona assignment saved to <code>{{.ConfigPath}}</code>. Run <code>athanor models -audit</code> on the host, then restart the Core; the startup guard will refuse a stale or non-fitting plan.</div>{{end}}
-    <div class="card flush"><div class="table-wrap">
-      <table><thead><tr><th>Role</th><th>Selected model</th><th>Context</th><th>Family</th><th>Why</th></tr></thead><tbody>
-      {{range .Assignments}}<tr>
-        <td><b>{{.Role}}</b></td>
-        <td class="mono">{{.Model}}</td>
-        <td>{{if .ContextTarget}}{{.ContextTarget}}{{else}}—{{end}}</td>
-        <td>{{if .Family}}{{.Family}}{{else}}—{{end}}</td>
-        <td class="muted">{{.Reason}}</td>
-      </tr>{{end}}
-      </tbody></table>
-    </div></div>
-    <div class="actions">
-      <form method="post" action="/ui/welcome">
-        <input type="hidden" name="step" value="models">
-        <button class="primary" name="action" value="apply_personas">Use this assignment</button>
-      </form>
-      <span class="muted small">Writes <code>personas.*</code> to config.yaml with a backup. Restart required.</span>
-    </div>
-    {{else}}<div class="empty">Install at least one model and Athanor will propose an assignment.</div>{{end}}
-
-    <p class="muted">Need a manual override or the bounded qualification? Open <a href="/ui/setup">Setup</a>; this wizard can continue without applying the assignment.</p>
+    <h2>Rank the pool</h2>
+    <p class="muted">{{if .HasMeasurements}}The ranking uses measured results from this computer. You can re-run it on the next step; removing a model here removes it from future casts.{{else}}The next step measures each pool model on a small, grounded Athanor-shaped screen. The ranking is a prior; real job outcomes update it over time.{{end}}</p>
     <div class="actions">
       <form method="post" action="/ui/welcome"><input type="hidden" name="step" value="models"><button class="secondary" name="action" value="back">Back</button></form>
-      <form method="post" action="/ui/welcome"><input type="hidden" name="step" value="models"><button class="primary" name="action" value="next">Continue</button></form>
+      <form method="post" action="/ui/welcome"><input type="hidden" name="step" value="models"><button class="primary" name="action" value="next">Continue to qualification</button></form>
     </div>
     {{else if eq .Step "qualify"}}
     <div class="eyebrow">Step {{.StepNumber}} of {{.StepCount}}</div>
-    <h1>Qualification is optional.</h1>
-    <p class="lede">The bounded screen runs a few grounded generator cases and fixed-label judge pairs against the models installed on this machine. It is a local routing check, not the frozen benchmark. You can skip it and use the configured personas.</p>
+    <h1>Rank the pool.</h1>
+    <p class="lede">Athanor measures every pool model on a small, grounded screen: deterministic generator cases and fixed-label judgment pairs. It is a prior for selection, not the frozen capability benchmark, and it never leaves this machine. Real job outcomes update the ranking over time.</p>
     {{if .Qualification.Running}}
     <div class="card" data-auto-refresh="2000">
       <div class="row row-middle"><h3>Running qualification</h3><span class="pill run">{{.Qualification.Percent}}%</span></div>
@@ -206,18 +212,42 @@ const welcomeBody = `
     </div>
     {{else}}
     <div class="grid cols-2">
-      <div class="card"><h3>Why run it</h3><p class="muted">It can propose a better persona routing for this hardware, and it records the evidence for the proposal.</p></div>
-      <div class="card"><h3>What it costs</h3><p class="muted">A few model calls and some minutes, bounded and resumable. Nothing leaves the machine.</p></div>
+      <div class="card"><h3>Why run it</h3><p class="muted">It ranks the models on this computer for the work you actually do, so Athanor can cast each job instead of guessing from model size or reputation.</p></div>
+      <div class="card"><h3>What it costs</h3><p class="muted">A few model calls per model, bounded and resumable. Heavy qualification belongs in Deep, not while you are using the machine.</p></div>
     </div>
     <div class="card">
       {{if .Qualification.Error}}<p class="del">{{.Qualification.Error}}</p>{{end}}
       {{if .Qualification.Stale}}<p class="muted">A previous run looks stale; starting again resets it.</p>{{end}}
-      {{if .Qualification.Complete}}<p class="ok"><b>Qualification complete.</b> {{.Qualification.Done}} cases recorded.{{if .HasMeasurements}} The Models step and <a href="/ui/setup">Setup</a> show the measured routing.{{end}}</p>{{else}}<p class="muted">Run the screen here, or continue and use the configured personas. The run stays inside this setup step.</p>{{end}}
+      {{if .Qualification.Complete}}<p class="ok"><b>Qualification complete.</b> {{.Qualification.Done}} cases recorded. The ranking below feeds the next cast; remove any model you do not want Athanor to use.</p>{{else}}<p class="muted">Run the screen here, or continue and use the measured roster from a previous run. The run stays inside this setup step.</p>{{end}}
       <form method="post" action="/ui/welcome">
         <input type="hidden" name="step" value="qualify">
         <button class="primary" name="action" value="run_qualify">{{if .Qualification.Complete}}Run again{{else}}Run qualification{{end}}</button>
       </form>
     </div>
+    {{end}}
+    {{if .PoolRanked}}
+    <h2>Measured ranking</h2>
+    <div class="card flush"><div class="table-wrap">
+      <table><thead><tr><th>Model</th><th>Overall</th><th>Code</th><th>Data</th><th>Judgment</th><th>Samples</th><th></th></tr></thead><tbody>
+      {{range .PoolRanked}}<tr>
+        <td class="mono">{{.Name}}</td>
+        <td><span class="pill {{if ge .Score 0.75}}ok{{else if ge .Score 0.5}}warn{{else}}bad{{end}}">{{printf "%.0f%%" (mul .Score 100)}}</span></td>
+        <td>{{if .Code}}{{printf "%.0f%%" (mul .Code 100)}}{{else}}—{{end}}</td>
+        <td>{{if .Data}}{{printf "%.0f%%" (mul .Data 100)}}{{else}}—{{end}}</td>
+        <td>{{if .Judgment}}{{printf "%.0f%%" (mul .Judgment 100)}}{{else}}—{{end}}</td>
+        <td>{{.Samples}}</td>
+        <td>
+          <form method="post" action="/ui/welcome" class="inline-form">
+            <input type="hidden" name="step" value="qualify">
+            <input type="hidden" name="action" value="pool_remove">
+            <input type="hidden" name="model" value="{{.Name}}">
+            <button class="small secondary">Remove</button>
+          </form>
+        </td>
+      </tr>{{end}}
+      </tbody></table>
+    </div></div>
+    <p class="muted small">The score is a smoothed success rate on this machine; samples are the number of grounded cases behind it. Ties break by name. Removing a model is the only override.</p>
     {{end}}
     <div class="actions">
       <form method="post" action="/ui/welcome"><input type="hidden" name="step" value="qualify"><button class="secondary" name="action" value="back">Back</button></form>
