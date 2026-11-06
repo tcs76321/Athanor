@@ -201,11 +201,15 @@ type UI struct {
 	// exporter is optional: the egress pipeline is wired after the UI is
 	// constructed, so it is a setter rather than a New() field.
 	exporter Exporter
+	// done is closed by Close at daemon shutdown. SSE handlers select on it
+	// so http.Server.Shutdown does not wait for a browser tab to disconnect.
+	done      chan struct{}
+	closeOnce sync.Once
 }
 
 // New builds a UI.
 func New(deps Deps) *UI {
-	u := &UI{deps: deps, hub: NewHub(), theme: "monokai", pulls: map[string]*pullProgress{}, discRuns: map[string]*discoveryRun{}, planRuns: map[string]*planRun{}}
+	u := &UI{deps: deps, hub: NewHub(), theme: "monokai", pulls: map[string]*pullProgress{}, discRuns: map[string]*discoveryRun{}, planRuns: map[string]*planRun{}, done: make(chan struct{})}
 	if deps.Store != nil {
 		var saved string
 		if err := deps.Store.DB().QueryRow(
@@ -216,6 +220,14 @@ func New(deps Deps) *UI {
 		}
 	}
 	return u
+}
+
+// Close stops the UI's long-lived SSE handlers. It is idempotent and must be
+// called before http.Server.Shutdown: Shutdown waits for active handlers and
+// does not cancel their request contexts, so an open watch/dashboard stream
+// would otherwise hit the shutdown deadline.
+func (u *UI) Close() {
+	u.closeOnce.Do(func() { close(u.done) })
 }
 
 // Theme returns the active theme id.
@@ -907,6 +919,8 @@ func (u *UI) handleJobStream(w http.ResponseWriter, r *http.Request) {
 		select {
 		case <-r.Context().Done():
 			return
+		case <-u.done:
+			return
 		case tok := <-tokens:
 			writeSSE(w, "token", mustJSON(tok))
 			flusher.Flush()
@@ -990,6 +1004,8 @@ func (u *UI) handleDashboardStream(w http.ResponseWriter, r *http.Request) {
 	for {
 		select {
 		case <-r.Context().Done():
+			return
+		case <-u.done:
 			return
 		case <-ticker.C:
 			for _, ev := range u.newEvents(r.Context(), "", &lastID) {

@@ -824,6 +824,10 @@ func run(configPath, addr, stateDir string, container bool) error {
 	} else if res.Removed > 0 {
 		fmt.Printf("athanor: removed %d Job Pod(s) at shutdown\n", res.Removed)
 	}
+	// Stop SSE handlers before Shutdown: Shutdown waits for active handlers
+	// and does not cancel their request contexts, so a watch/dashboard tab
+	// would otherwise hold the shutdown open until the deadline.
+	webUI.Close()
 	if err := httpSrv.Shutdown(ctx); err != nil {
 		return fmt.Errorf("shutting down http server: %w", err)
 	}
