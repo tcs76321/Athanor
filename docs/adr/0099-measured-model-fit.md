@@ -76,3 +76,11 @@ Podman runtime allocation, one-resident-model policy, and measured fit.
   should be a warning with a clear command, not a blocked boot.
 - **Read only Ollama `/api/tags`.** It reports the blob size, not the resident
   weights + KV size at the configured context.
+
+## Amendment (2026-11-06)
+
+The audit reserve now defaults to 4 GiB, is configurable as
+`inference.host_reserve_mb`, and is set in the first-use Resources step. The
+pool step uses the same reserve for its fit limit. Context targets are now
+size-aware: smaller models receive wider windows, and larger models trade
+context for depth, with a memory cap for KV pressure.
