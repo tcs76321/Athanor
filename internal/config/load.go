@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 
 	"gopkg.in/yaml.v3"
@@ -72,6 +73,14 @@ func Parse(data []byte) (*Config, error) {
 		if errors.As(err, &terr) {
 			return nil, fmt.Errorf("wrong-typed config: %w", err)
 		}
+		return nil, fmt.Errorf("malformed config: %w", err)
+	}
+	// A config is one document. A second document used to be silently
+	// ignored, which made a duplicated or stray block look accepted.
+	var extra yaml.Node
+	if err := dec.Decode(&extra); err == nil {
+		return nil, fmt.Errorf("malformed config: multiple YAML documents (one config document is allowed)")
+	} else if !errors.Is(err, io.EOF) {
 		return nil, fmt.Errorf("malformed config: %w", err)
 	}
 	if err := validateRaw(&cfg); err != nil {

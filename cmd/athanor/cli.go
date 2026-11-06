@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/tcs76321/athanor/internal/config"
 	"gopkg.in/yaml.v3"
@@ -17,6 +18,11 @@ import (
 
 // defaultAddr is the daemon's default loopback address (§21.8).
 const defaultAddr = "http://127.0.0.1:7420"
+
+// apiClient bounds one CLI request. It is deliberately generous (project
+// creation runs a bounded repository pre-index), but not infinite: a wedged
+// Core must not hang the client forever.
+var apiClient = &http.Client{Timeout: 10 * time.Minute}
 
 // apiCall performs one JSON request against the daemon and decodes the
 // response into out (when non-nil).
@@ -34,7 +40,7 @@ func apiCall(method, url string, body any, out any) error {
 		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := apiClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("daemon unreachable at %s (is `athanor serve` running?): %w", url, err)
 	}

@@ -138,6 +138,13 @@ func TestParseUnknownFieldRejected(t *testing.T) {
 	}
 }
 
+func TestParseRejectsMultipleDocuments(t *testing.T) {
+	_, err := Parse([]byte("version: 2\n---\nversion: 2\n"))
+	if err == nil || !strings.Contains(err.Error(), "multiple YAML documents") {
+		t.Fatalf("multi-document config err = %v, want explicit rejection", err)
+	}
+}
+
 func TestValidateRejectsInvalidSemantics(t *testing.T) {
 	cases := []struct {
 		name   string
