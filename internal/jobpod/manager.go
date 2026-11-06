@@ -181,16 +181,27 @@ func (m *manager) Start(ctx context.Context, spec Spec) (*Pod, error) {
 	switch {
 	case spec.Token == "" && spec.TokenDir == "":
 		if m.tokenBase != "" {
-			dir, tok, err := NewTokenDir(m.tokenBase, spec.ID)
-			if err != nil {
-				release()
-				return nil, fmt.Errorf("generating token dir: %w", err)
-			}
-			tokenDir = dir
-			spec.Token = tok
-			spec.TokenDir = dir
-			if m.hostTokenBase != "" {
-				spec.TokenMountDir = filepath.Join(m.hostTokenBase, spec.ID)
+			if spec.MountToken {
+				dir, tok, err := NewTokenDir(m.tokenBase, spec.ID)
+				if err != nil {
+					release()
+					return nil, fmt.Errorf("generating token dir: %w", err)
+				}
+				tokenDir = dir
+				spec.Token = tok
+				spec.TokenDir = dir
+				if m.hostTokenBase != "" {
+					spec.TokenMountDir = filepath.Join(m.hostTokenBase, spec.ID)
+				}
+			} else {
+				// The Core needs the secret for its own internal-API calls;
+				// the pod does not. Keep it in memory only.
+				tok, err := NewToken()
+				if err != nil {
+					release()
+					return nil, fmt.Errorf("generating job token: %w", err)
+				}
+				spec.Token = tok
 			}
 		}
 	case spec.Token != "" && spec.TokenDir != "":
@@ -199,6 +210,11 @@ func (m *manager) Start(ctx context.Context, spec Spec) (*Pod, error) {
 	default:
 		release()
 		return nil, fmt.Errorf("%w: Token and TokenDir must both be set or both empty", ErrInvalidSpec)
+	}
+	if !spec.MountToken {
+		// Do not remove a caller-owned directory that was never mounted.
+		tokenDir = ""
+		spec.TokenMountDir = ""
 	}
 
 	args := buildArgs(spec)

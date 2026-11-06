@@ -23,11 +23,13 @@ func buildArgs(spec Spec) []string {
 		"--tmpfs", "/tmp:rw,noexec,nosuid,nodev,size=" + itoa(limits.TmpfsMB) + "m",
 	}
 	args = append(args, platformHardening()...)
-	tokenMount := spec.TokenMountDir
-	if tokenMount == "" {
-		tokenMount = spec.TokenDir
+	if spec.MountToken {
+		tokenMount := spec.TokenMountDir
+		if tokenMount == "" {
+			tokenMount = spec.TokenDir
+		}
+		args = append(args, mountFlags(tokenMount)...)
 	}
-	args = append(args, mountFlags(tokenMount)...)
 	if spec.RepoDir != "" {
 		repoMount := spec.RepoMountDir
 		if repoMount == "" {

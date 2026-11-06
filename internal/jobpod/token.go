@@ -62,6 +62,14 @@ func NewTokenDir(base, jobID string) (dir, token string, err error) {
 	return dir, tok, nil
 }
 
+// NewToken returns a fresh 32-hex-character token without creating a file.
+// The current Core→pod execution path authenticates the Core to its own
+// internal API, not the pod, so the secret does not need to be exposed to
+// candidate code. Use NewTokenDir only when MountToken is requested.
+func NewToken() (string, error) {
+	return newRandomToken()
+}
+
 // RemoveTokenDir deletes dir. Idempotent: a missing dir is not an
 // error. Called from manager.Stop and the supervisor's terminal-state
 // branch.

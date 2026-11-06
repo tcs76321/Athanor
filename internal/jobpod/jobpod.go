@@ -24,13 +24,19 @@ type Spec struct {
 	Image string
 	// Command is the entrypoint + args.
 	Command []string
-	// Token is the per-job secret (16-byte random hex). Mounted at
-	// /run/athanor/token via TokenDir. M2-T3 owns validation; M2-T2
-	// just mounts it.
+	// Token is the per-job secret (16-byte random hex). The manager always
+	// holds it in memory for the Core's own internal-API calls. It is mounted
+	// into the pod only when MountToken is true.
 	Token string
-	// TokenDir is the host directory containing a file named "token"
-	// whose contents are Token. The pod bind-mounts it read-only.
+	// TokenDir is the host directory containing a file named "token" whose
+	// contents are Token. It is bind-mounted read-only only when MountToken
+	// is true.
 	TokenDir string
+	// MountToken exposes TokenDir at /run/athanor. The current Core→pod exec
+	// path does not need it, and untrusted candidate/test code can read the
+	// file, so it is off by default. Enable it only for a future pod→Core
+	// direction that actually requires the token inside the pod.
+	MountToken bool
 	// TokenMountDir is the machine-visible source for the token bind mount.
 	// It defaults to TokenDir (host binary). The Core Pod sets it to the host
 	// path that the Podman machine can see, because the Core Pod's local

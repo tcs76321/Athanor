@@ -71,11 +71,23 @@ func TestBuildArgs_AppliesDefaults(t *testing.T) {
 // TestBuildArgs_IncludesTokenMount (M2-T3 prep) asserts the per-job
 // token is bind-mounted read-only at /run/athanor.
 func TestBuildArgs_IncludesTokenMount(t *testing.T) {
-	args := buildArgs(sampleSpec())
+	s := sampleSpec()
+	s.MountToken = true
+	args := buildArgs(s)
 	joined := joinArgs(args)
 	want := "--mount type=bind,source=/tmp/athanor-token-xxx,target=/run/athanor,ro"
 	if !strings.Contains(joined, want) {
 		t.Errorf("argv missing token mount %q\ngot: %s", want, joined)
+	}
+}
+
+// TestBuildArgs_OmitsTokenMountByDefault proves the token is not exposed to
+// untrusted pod code unless MountToken is explicitly requested. The Core keeps
+// the secret in memory for its own internal-API calls.
+func TestBuildArgs_OmitsTokenMountByDefault(t *testing.T) {
+	joined := joinArgs(buildArgs(sampleSpec()))
+	if strings.Contains(joined, "target=/run/athanor") {
+		t.Errorf("argv mounted the token by default\ngot: %s", joined)
 	}
 }
 

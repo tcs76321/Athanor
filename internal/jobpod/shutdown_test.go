@@ -83,7 +83,9 @@ func TestShutdown_RemovesTokenDir(t *testing.T) {
 	client := &fakeClient{}
 	base := t.TempDir()
 	m := New(client, &stubFreezer{}, base)
-	if _, err := m.Start(context.Background(), validSpec()); err != nil {
+	spec := validSpec()
+	spec.MountToken = true
+	if _, err := m.Start(context.Background(), spec); err != nil {
 		t.Fatalf("Start: %v", err)
 	}
 	if entries, err := os.ReadDir(base); err != nil || len(entries) == 0 {

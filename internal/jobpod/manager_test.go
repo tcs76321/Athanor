@@ -570,6 +570,7 @@ func TestStart_WritesTokenFile(t *testing.T) {
 	// generate one because tokenBase is set.
 	spec.Token = ""
 	spec.TokenDir = ""
+	spec.MountToken = true
 
 	if _, err := m.Start(context.Background(), spec); err != nil {
 		t.Fatalf("Start: %v", err)
@@ -603,6 +604,29 @@ func TestStart_WritesTokenFile(t *testing.T) {
 	}
 }
 
+// TestStart_KeepsTokenInMemoryByDefault proves the default does not expose the
+// per-job secret to untrusted pod code. The Core still receives a token for its
+// own internal-API calls.
+func TestStart_KeepsTokenInMemoryByDefault(t *testing.T) {
+	base := t.TempDir()
+	client := &fakeClient{}
+	m := New(client, &stubFreezer{}, base)
+	if _, err := m.Start(context.Background(), validSpec()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	tok, err := m.TokenFor(goodID)
+	if err != nil || len(tok) != 32 {
+		t.Fatalf("TokenFor = %q, %v; want a 32-hex in-memory token", tok, err)
+	}
+	if _, err := os.Stat(filepath.Join(base, goodID)); !os.IsNotExist(err) {
+		t.Fatalf("token directory was created for a non-mounted token: %v", err)
+	}
+	joined := joinArgs(client.Calls()[0])
+	if contains(joined, "/run/athanor") {
+		t.Fatalf("argv mounted the token by default: %s", joined)
+	}
+}
+
 // TestStart_HostTokenMount proves the Core Pod shape: the manager writes the
 // token under its local state dir, but the podman argv mounts the
 // machine-visible host path (the state bind's other side).
@@ -616,6 +640,7 @@ func TestStart_HostTokenMount(t *testing.T) {
 	spec := validSpec()
 	spec.Token = ""
 	spec.TokenDir = ""
+	spec.MountToken = true
 	if _, err := m.Start(context.Background(), spec); err != nil {
 		t.Fatalf("Start: %v", err)
 	}
@@ -651,6 +676,7 @@ func TestStart_RemovesTokenDirOnClientFailure(t *testing.T) {
 	spec := validSpec()
 	spec.Token = ""
 	spec.TokenDir = ""
+	spec.MountToken = true
 
 	_, err := m.Start(context.Background(), spec)
 	if err == nil {
@@ -704,6 +730,7 @@ func TestStop_RemovesTokenDir(t *testing.T) {
 	spec := validSpec()
 	spec.Token = ""
 	spec.TokenDir = ""
+	spec.MountToken = true
 
 	if _, err := m.Start(context.Background(), spec); err != nil {
 		t.Fatalf("Start: %v", err)
@@ -733,6 +760,7 @@ func TestToken_NotInPodmanArgv(t *testing.T) {
 	spec := validSpec()
 	spec.Token = ""
 	spec.TokenDir = ""
+	spec.MountToken = true
 
 	if _, err := m.Start(context.Background(), spec); err != nil {
 		t.Fatalf("Start: %v", err)
