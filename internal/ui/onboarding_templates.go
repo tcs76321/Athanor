@@ -1,12 +1,16 @@
 package ui
 
 const welcomeBody = `
-<div class="wizard">
+<div class="wizard welcome-page">
   <aside class="wizard-rail">
-    <a class="brand" href="/ui">
+    <a class="brand wizard-brand" href="/ui">
       <span class="brand-name">Athanor<span class="ember">.</span></span>
       <span class="brand-tag">the alchemical LLM furnace</span>
     </a>
+    <div class="wizard-progress" aria-hidden="true">
+      {{range $i, $s := .Steps}}<span class="wdot {{if lt $i $.StepIndex}}done{{end}} {{if eq $s.ID $.Step}}current{{end}}"></span>{{end}}
+    </div>
+    <div class="wizard-step-label"><span>Step {{.StepNumber}}</span><span>of {{.StepCount}}</span></div>
     <div class="stepper">
       {{range $i, $s := .Steps}}
       <a class="step {{if lt $i $.StepIndex}}done{{end}} {{if eq $s.ID $.Step}}current{{end}}" href="/ui/welcome?step={{$s.ID}}">
@@ -16,6 +20,10 @@ const welcomeBody = `
       {{end}}
     </div>
     <div class="spacer"></div>
+    <div class="wizard-note">
+      <span class="live-dot"></span>
+      <span>Local-first. Your work stays on this machine unless you explicitly allow an external action.</span>
+    </div>
     <form method="post" action="/ui/welcome">
       <input type="hidden" name="step" value="{{.Step}}">
       <button class="ghost small" name="action" value="skip">Skip setup for now</button>
@@ -24,18 +32,49 @@ const welcomeBody = `
   </aside>
   <section class="wizard-main">
     {{if eq .Step "welcome"}}
-    <div class="eyebrow">First run · once per computer</div>
-    <h1>Welcome to Athanor.</h1>
-    <p class="lede">A local-first workshop for goals that need more than one answer. Athanor turns a goal into a plan, explores options, runs work in isolated Job Pods, verifies what it produces, and asks you before anything external or irreversible happens.</p>
-    <div class="grid cols-3">
-      <div class="card"><h3>1 · Set up the machine</h3><p class="muted">Check the Core, Ollama, and the model pool. Pull anything you want with one click.</p></div>
-      <div class="card"><h3>2 · Create a project</h3><p class="muted">A goal, the limits, and the sources you allow. Athanor asks first, then explores.</p></div>
-      <div class="card"><h3>3 · Review the work</h3><p class="muted">Read the result, rate it, and decide what happens next. Nothing leaves your machine by default.</p></div>
+    <div class="welcome-hero">
+      <div class="welcome-copy">
+        <div class="eyebrow"><span class="live-dot"></span> First run · once per computer</div>
+        <h1 class="welcome-title">Welcome to Athanor.</h1>
+        <p class="lede welcome-lede">A local-first workshop for goals that need more than one answer. Athanor turns a goal into a plan, explores options, runs work in isolated Job Pods, verifies what it produces, and asks you before anything external or irreversible happens.</p>
+        <div class="welcome-actions">
+          <form method="post" action="/ui/welcome">
+            <input type="hidden" name="step" value="welcome">
+            <button class="primary large" name="action" value="next">Start setup <span aria-hidden="true">→</span></button>
+          </form>
+          <a class="btn secondary large" href="/ui">Explore the dashboard</a>
+        </div>
+        <p class="welcome-foot">Ollama runs on your hardware. The Core is already listening on <span class="mono">127.0.0.1:7420</span>.</p>
+      </div>
+      <div class="welcome-art" aria-hidden="true">
+        <div class="furnace-glow"></div>
+        <div class="furnace-ring ring-one"></div>
+        <div class="furnace-ring ring-two"></div>
+        <div class="furnace-ring ring-three"></div>
+        <div class="furnace-core"><span></span></div>
+        <div class="furnace-spark spark-one"></div>
+        <div class="furnace-spark spark-two"></div>
+        <div class="furnace-spark spark-three"></div>
+      </div>
     </div>
-    <form method="post" action="/ui/welcome" class="actions">
-      <input type="hidden" name="step" value="welcome">
-      <button class="primary" name="action" value="next">Start setup</button>
-    </form>
+    <div class="feature-grid">
+      <article class="feature-card">
+        <div class="feature-top"><span class="feature-num">01</span><span class="feature-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M8 21h8M12 18v3M7 9h4M7 13h7"/></svg></span></div>
+        <h2>Set up the machine</h2>
+        <p>Check the Core, Ollama, memory, and disk. Pull only the models you choose; Athanor qualifies and ranks them on this computer.</p>
+      </article>
+      <article class="feature-card">
+        <div class="feature-top"><span class="feature-num">02</span><span class="feature-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 19.5V6a2 2 0 0 1 2-2h12v16H6a2 2 0 0 1-2-2z"/><path d="M8 8h8M8 12h6"/></svg></span></div>
+        <h2>Create a project</h2>
+        <p>State the goal, the limits, and the sources you allow. Athanor asks before it explores, then builds a plan you can approve.</p>
+      </article>
+      <article class="feature-card">
+        <div class="feature-top"><span class="feature-num">03</span><span class="feature-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 3l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8L3.5 9.2l5.9-.9z"/></svg></span></div>
+        <h2>Review the work</h2>
+        <p>Read the result, see what was tested, rate it, and decide what happens next. Nothing external leaves the machine by default.</p>
+      </article>
+    </div>
+    <div class="welcome-note"><span class="welcome-note-mark">✦</span> The wizard can be revisited from <a href="/ui/welcome">Welcome</a> until you finish. Configuration lives at <span class="mono">{{.ConfigPath}}</span>.</div>
     {{else if eq .Step "environment"}}
     <div class="eyebrow">Step {{.StepNumber}} of {{.StepCount}}</div>
     <h1>Final environment check.</h1>
