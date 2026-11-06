@@ -5,6 +5,25 @@ import (
 	"testing"
 )
 
+func TestDeepLadderExtendsSmoke(t *testing.T) {
+	smoke := DefaultLadder()
+	deep := DeepLadder()
+	if len(deep.Generators) <= len(smoke.Generators) || len(deep.Judges) <= len(smoke.Judges) {
+		t.Fatalf("deep ladder does not extend smoke: %d/%d vs %d/%d",
+			len(deep.Generators), len(deep.Judges), len(smoke.Generators), len(smoke.Judges))
+	}
+	seen := map[string]bool{}
+	for _, c := range deep.Generators {
+		if seen[c.ID] {
+			t.Errorf("duplicate deep generator %q", c.ID)
+		}
+		seen[c.ID] = true
+		if c.Capability == "" {
+			t.Errorf("%s: deep case has no capability", c.ID)
+		}
+	}
+}
+
 func TestDefaultLadderIsWellFormed(t *testing.T) {
 	l := DefaultLadder()
 	if len(l.Generators) == 0 || len(l.Judges) == 0 {

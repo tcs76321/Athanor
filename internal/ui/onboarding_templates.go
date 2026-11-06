@@ -68,23 +68,34 @@ const welcomeBody = `
       <div class="card stat"><div class="n">{{if .Resources.CPUs}}{{.Resources.CPUs}}{{else}}?{{end}}</div><div class="l">CPU cores</div></div>
       <div class="card stat"><div class="n">{{if .Resources.FreeDiskGiB}}{{printf "%.0f" .Resources.FreeDiskGiB}}{{else}}?{{end}}</div><div class="l">GiB free disk</div></div>
     </div>
-    {{if eq .Applied "resources"}}<div class="notice">Adaptive limits saved to <code>{{.ConfigPath}}</code>. Restart the Core (or the host process) to apply them.</div>{{end}}
+    {{if eq .Applied "resources"}}<div class="notice">New Job Pod limits saved. The Core restarted itself and is using them now.</div>{{end}}
     <div class="notice">
       Host: {{printf "%.0f" .Resources.HostMemoryGiB}} GiB total, with about {{printf "%.0f" .Resources.OutsideRuntimeGiB}} GiB outside Athanor's runtime for macOS and Ollama. macOS cannot reserve host RAM for one process, so this is a budget, not a fence.
     </div>
     <div class="card">
-      <div class="eyebrow">Adaptive sandbox</div>
-      <p class="muted">You do not need to tune CPU, /tmp, or PID limits. Athanor chooses the ceiling from runtime capacity and gives code/media tasks the full sandbox while document/text tasks get a smaller share.</p>
-      <div class="meta">
-        <span class="pill accent">{{.Resources.MemoryMB}} MB ceiling</span>
-        <span class="pill">{{printf "%.2f" .Resources.CPUsAllocated}} CPUs</span>
-        <span class="pill">{{.Resources.TmpfsMB}} MB /tmp</span>
-        <span class="pill">{{.Resources.PidsLimit}} PIDs</span>
-      </div>
-      <p class="muted small">The ceiling is runtime memory minus a {{.Resources.ReserveMB}} MB reserve ({{.Resources.MemoryMaxMB}} MB max). Per-job limits are derived when the Job Pod starts.</p>
+      <div class="eyebrow">Sandbox limits</div>
+      <p class="muted">These are the Job Pod's hard limits. Athanor derives useful defaults from runtime capacity, and you can adjust them. Applying a change restarts the Core automatically.</p>
       <form method="post" action="/ui/welcome">
         <input type="hidden" name="step" value="resources">
-        <div class="actions"><button class="primary" name="action" value="apply_resources">Apply adaptive limits</button></div>
+        <div class="grid cols-2">
+          <label>Memory ceiling (MB)
+            <input type="number" name="memory_mb" value="{{.Resources.MemoryMB}}" min="256" max="{{.Resources.MemoryMaxMB}}" step="256">
+            <span class="field-help">Runtime memory {{printf "%.0f" .Resources.TotalMemoryGiB}} GiB minus a {{.Resources.ReserveMB}} MB reserve; max {{.Resources.MemoryMaxMB}} MB.</span>
+          </label>
+          <label>CPUs
+            <input type="number" name="cpus" value="{{printf "%.2f" .Resources.CPUsAllocated}}" min="0.5" max="{{printf "%.2f" .Resources.CPUsMax}}" step="0.25">
+            <span class="field-help">Runtime has {{.Resources.CPUs}} core(s).</span>
+          </label>
+          <label>/tmp size (MB)
+            <input type="number" name="tmpfs_mb" value="{{.Resources.TmpfsMB}}" min="64" max="32768" step="64">
+            <span class="field-help">Scratch space inside the Job Pod.</span>
+          </label>
+          <label>PID limit
+            <input type="number" name="pids_limit" value="{{.Resources.PidsLimit}}" min="32" max="8192" step="32">
+            <span class="field-help">Bounds process fan-out inside a Job Pod.</span>
+          </label>
+        </div>
+        <div class="actions"><button class="primary" name="action" value="apply_resources">Apply and restart Core</button></div>
       </form>
     </div>
     <div class="actions">
@@ -122,6 +133,7 @@ const welcomeBody = `
           <p class="muted">{{if .PoolReady}}The full repertoire is available: heterogeneous candidates, an independent judge when a different family exists, and second opinions within budget.{{else}}Athanor runs in a degraded mode until four or more models are in the pool. It still works; it has fewer independent perspectives to draw on.{{end}}</p>
         </div>
         <span class="pill {{if .PoolReady}}ok{{else}}warn{{end}}">{{if .PoolReady}}full repertoire{{else}}degraded{{end}}</span>
+        <span class="pill">machine {{.Pool.MachineScore}}/100</span>
       </div>
       {{if .PoolWarning}}<p class="del">{{.PoolWarning}}</p>{{end}}
       <p class="muted small">A minimum of {{.PoolMin}} is recommended, with a sanity cap of 100. Models do not need different sizes or families; ties are broken by name, and diversity is measured rather than assumed.</p>
@@ -221,7 +233,8 @@ const welcomeBody = `
       {{if .Qualification.Complete}}<p class="ok"><b>Qualification complete.</b> {{.Qualification.Done}} cases recorded. The ranking below feeds the next cast; remove any model you do not want Athanor to use.</p>{{else}}<p class="muted">Run the screen here, or continue and use the measured roster from a previous run. The run stays inside this setup step.</p>{{end}}
       <form method="post" action="/ui/welcome">
         <input type="hidden" name="step" value="qualify">
-        <button class="primary" name="action" value="run_qualify">{{if .Qualification.Complete}}Run again{{else}}Run qualification{{end}}</button>
+        <button class="primary" name="action" value="run_qualify">{{if .Qualification.Complete}}Run smoke again{{else}}Run smoke qualification{{end}}</button>
+        <button class="secondary" name="action" value="run_qualify_deep">Run deep qualification</button>
       </form>
     </div>
     {{end}}

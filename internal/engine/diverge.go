@@ -56,6 +56,14 @@ func (e *Engine) phaseDivergeN(ctx context.Context, j job.Job) error {
 	if max := e.cfg.Execution.MaxHardTaskVariations; max > 0 && n > max {
 		n = max
 	}
+	// ADR-0104: the measured evidence can upgrade a single-candidate plan to a
+	// panel for low-risk work. It needs a few outcomes before it switches.
+	if e.selector != nil && n == 1 &&
+		(capability == project.ArchetypeText || capability == project.ArchetypeDocument) &&
+		e.selector.PreferPanel() {
+		n = 2
+		e.audit(ctx, j.ID, map[string]any{"event": "template_panel", "reason": "measured panel advantage"})
+	}
 	roles := plan.DivergenceRoles
 	if len(roles) == 0 {
 		roles = []string{e.roleFor(plan, llm.PhaseDiverging, llm.RoleMain)}

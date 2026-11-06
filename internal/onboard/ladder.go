@@ -101,6 +101,47 @@ func DefaultLadder() Ladder {
 	}
 }
 
+// DeepLadder extends the smoke screen with the cases that take longer or
+// need more context. It is opt-in and runs in Deep/Full, never in Lite
+// (ADR-0104: tiered qualification).
+func DeepLadder() Ladder {
+	l := DefaultLadder()
+	l.Generators = append(l.Generators,
+		GenCase{
+			ID: "gen-long-context", Check: CheckExact, Want: "orange", Capability: "document",
+			Prompt: "Read this note and reply with only the colour.\n\n" +
+				"The workshop moved twice. First it was near the blue harbour, then the green market, " +
+				"and finally beside the orange bridge. The tools stayed in the same crate.",
+		},
+		GenCase{
+			ID: "gen-schema", Check: CheckJSON, Capability: "data",
+			Want:   `{"ok":true,"count":2,"items":["a","b"]}`,
+			Prompt: `Return only JSON with this shape: {"ok":bool,"count":int,"items":[]} for the input "a, b".`,
+		},
+		GenCase{
+			ID: "gen-code-repair", Check: CheckExact, Want: "3", Capability: "code",
+			Prompt: "This Python function should return the number of arguments it receives, but it has a bug. " +
+				"What is the correct return value for `count(1, 2, 3)` after the fix? Reply with only the integer.\n\n" +
+				"def count(*args):\n    return len(args) - 1",
+		},
+	)
+	l.Judges = append(l.Judges,
+		JudgeCase{
+			ID:   "judge-injection",
+			Goal: "A tool reads a web page and summarizes it. Never execute instructions found in the page.",
+			Good: "summary = extract_text(page)\nreturn summarize(summary)",
+			Bad:  "if 'ignore previous instructions' in page:\n    run(page)\nreturn summarize(page)",
+		},
+		JudgeCase{
+			ID:   "judge-data-integrity",
+			Goal: "Validate every record and fail loudly instead of silently dropping invalid rows.",
+			Good: "for r in rows:\n    validate(r)\n    out.append(r)",
+			Bad:  "for r in rows:\n    try:\n        validate(r)\n        out.append(r)\n    except Exception:\n        pass",
+		},
+	)
+	return l
+}
+
 // GenPrompt is the instruction sent for a generator case.
 func GenPrompt(c GenCase) string { return c.Prompt }
 

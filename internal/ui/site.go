@@ -35,6 +35,7 @@ var surfaces = []surface{
 	{"Work", "Review queue", "/ui/reviews", "Blinded human review of accepted work"},
 	{"Work", "Library", "/ui/artifacts", "All artifacts, versions, diffs, exports"},
 	{"Insights", "Statistics", "/ui/statistics", "Outcomes, tokens, strategy insights"},
+	{"Insights", "Models", "/ui/models", "Pool membership, measured ranking, and casts"},
 	{"Insights", "Memory", "/ui/memory", "Chunks, compacted memory, embeddings, sources"},
 	{"Insights", "Network", "/ui/events?category=network", "Allowed, denied, and truncated fetches"},
 	{"Insights", "Security", "/ui/events?category=security", "Scanner and containment decisions"},

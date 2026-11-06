@@ -255,10 +255,16 @@ alarm on drift. The repertoire is never pruned; selection is learned.
   a four-model floor warning, curated pulls); the Qualification step runs the
   grounded screen across the pool and shows a per-capability ranking. The
   legacy five-role ladder remains on `/ui/setup` as a compatibility view.
-- **Still open:** deliberative graph templates beyond divergence/verification,
-  richer capability probes (long-context, tool-calling, calibration), budgeted
-  exploration, the machine score, and learned template selection. The policy is
-  a measured ranking today, not yet a bandit.
+- **Everyday management:** `/ui/models` exposes the same membership, ranking,
+  machine score, and smoke/deep qualification after setup.
+- **Machine and exploration:** the pool stores a 0–100 machine profile; low-risk
+  text/document divergence occasionally draws the runner-up, and measured
+  panel/solo evidence can upgrade a single-candidate plan. Both are logged.
+- **Still open:** a general deliberation-graph executor (the current graph is
+  divergence → evaluate/compare → synthesize with a panel option), richer
+  capability probes, a training/fine-tuning pipeline, and learned
+  per-participant credit assignment. The policy is a measured ranking with
+  small bandit elements, not yet a full bandit over graphs.
 
 ## Fine-tuning and model improvement
 

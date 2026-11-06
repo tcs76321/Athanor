@@ -10,6 +10,35 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Self-applying resources, model management, and deeper selection — 2026-11-05
+
+- **Resources are adjustable and the Core restarts itself.** The first-use
+  Resources step now exposes the Job Pod memory ceiling, CPUs, `/tmp`, and PID
+  limit as real inputs. Applying them writes and validates `config.yaml`,
+  exits the daemon with the supervisor code (75), and the Core image's
+  entrypoint loop relaunches it in place. The browser shows a restart page and
+  reloads when the Core returns; the operator never restarts a container.
+  Proof: `TestWelcomeAppliesResourceLimitsAndRestarts`,
+  `TestWelcomeRejectsImpossibleResourceLimits`; the `athanor-entrypoint`
+  supervisor in the Core image.
+- **Model management after setup.** `/ui/models` is a first-class surface:
+  pool membership, add/remove, the machine score, measured ranking, and smoke
+  or deep qualification. It is linked from the Insights navigation. Proof:
+  `TestModelsPageManagesPoolAfterOnboarding`.
+- **The machine is a visible score.** Host RAM, CPU, and free disk produce a
+  0–100 machine profile; it is shown on the pool page and stored with the
+  pool, so ranking is explicitly “on this computer.”
+- **Qualification has a deep tier.** `onboard.DeepLadder` adds long-context
+  retrieval, schema output, code repair, injection resistance, and data
+  integrity cases. Deep runs are opt-in and resumable. Proof:
+  `TestDeepLadderExtendsSmoke`.
+- **Budgeted exploration and learned panel selection.** Low-risk text and
+  document jobs occasionally draw the runner-up (deterministically, logged as
+  `cast_exploration`), and a measured panel advantage can upgrade a
+  single-candidate plan (`template_panel`). The panel/solo evidence is stored
+  and needs four outcomes before switching. Proofs:
+  `TestPreferPanelNeedsEvidence`, `TestMachineScoreIsBoundedAndVisible`.
+
 ### Model pool and composition casting — 2026-11-05
 
 - **The measured model pool is live.** `internal/composition` persists a

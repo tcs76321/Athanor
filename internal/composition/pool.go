@@ -71,6 +71,64 @@ type Profile struct {
 	TooLarge bool `json:"too_large,omitempty"`
 }
 
+// Machine is the measured host capability profile. It conditions every cast:
+// selection is predicted performance on this computer, not a global rank.
+type Machine struct {
+	HostBytes     int64     `json:"host_bytes,omitempty"`
+	RuntimeBytes  int64     `json:"runtime_bytes,omitempty"`
+	FreeDiskBytes int64     `json:"free_disk_bytes,omitempty"`
+	CPUs          int       `json:"cpus,omitempty"`
+	Score         int       `json:"score,omitempty"`
+	UpdatedAt     time.Time `json:"updated_at,omitempty"`
+}
+
+// ScoreMachine combines host RAM, CPU, and free disk into a 0–100 capability
+// score. It is intentionally simple and visible, not a hidden heuristic.
+func ScoreMachine(hostBytes, freeDiskBytes int64, cpus int) int {
+	if hostBytes <= 0 && cpus <= 0 && freeDiskBytes <= 0 {
+		return 0
+	}
+	hostGiB := float64(hostBytes) / (1 << 30)
+	memory := 20 + hostGiB*1.9
+	if memory > 100 {
+		memory = 100
+	}
+	cpu := float64(cpus) * 8
+	if cpu > 100 {
+		cpu = 100
+	}
+	disk := float64(freeDiskBytes) / (1 << 30) * 2
+	if disk > 100 {
+		disk = 100
+	}
+	if memory < 0 {
+		memory = 0
+	}
+	if cpu < 0 {
+		cpu = 0
+	}
+	if disk < 0 {
+		disk = 0
+	}
+	return int(0.55*memory + 0.30*cpu + 0.15*disk)
+}
+
+// SetMachine records the host profile.
+func (p *Pool) SetMachine(m Machine) {
+	m.Score = ScoreMachine(m.HostBytes, m.FreeDiskBytes, m.CPUs)
+	m.UpdatedAt = time.Now().UTC()
+	p.mu.Lock()
+	p.Machine = m
+	p.mu.Unlock()
+}
+
+// MachineProfile returns the recorded machine profile.
+func (p *Pool) MachineProfile() Machine {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return p.Machine
+}
+
 // Pool is the user's model repertoire plus its measured profiles. It is
 // machine-local: results do not transfer between computers.
 type Pool struct {
@@ -84,6 +142,12 @@ type Pool struct {
 	// FitLimitBytes is the host inference budget for this machine. Zero means
 	// unknown; models are then not filtered by size.
 	FitLimitBytes int64
+	// Machine is the measured host profile shown to the operator and used to
+	// condition casts.
+	Machine Machine `json:"machine,omitempty"`
+	// Templates records grounded outcomes for deliberation shapes. The first
+	// learned choice is solo vs panel; the repertoire is never pruned.
+	Templates map[string]Score `json:"templates,omitempty"`
 	// last records the models used by a job so a terminal outcome can update
 	// the right profiles. It is process-local and intentionally not persisted.
 	last map[string]cast
@@ -103,6 +167,7 @@ func New(st *store.Store) *Pool {
 	return &Pool{
 		store: st, key: PoolKey,
 		Models: map[string]*Profile{}, Excluded: map[string]bool{}, last: map[string]cast{},
+		Templates: map[string]Score{},
 	}
 }
 
@@ -119,8 +184,10 @@ func (p *Pool) Load(ctx context.Context) error {
 		return nil
 	}
 	var saved struct {
-		Models   map[string]*Profile `json:"models"`
-		Excluded map[string]bool     `json:"excluded"`
+		Models    map[string]*Profile `json:"models"`
+		Excluded  map[string]bool     `json:"excluded"`
+		Machine   Machine             `json:"machine"`
+		Templates map[string]Score    `json:"templates"`
 	}
 	if uerr := json.Unmarshal([]byte(raw), &saved); uerr != nil {
 		return fmt.Errorf("composition: parsing saved model pool: %w", uerr)
@@ -129,6 +196,13 @@ func (p *Pool) Load(ctx context.Context) error {
 	defer p.mu.Unlock()
 	if saved.Models != nil {
 		p.Models = saved.Models
+	}
+	p.Machine = saved.Machine
+	if saved.Templates != nil {
+		p.Templates = saved.Templates
+	}
+	if p.Templates == nil {
+		p.Templates = map[string]Score{}
 	}
 	p.Excluded = saved.Excluded
 	if p.Excluded == nil {
@@ -152,9 +226,11 @@ func (p *Pool) Save(ctx context.Context) error {
 	}
 	p.mu.RLock()
 	raw, err := json.Marshal(struct {
-		Models   map[string]*Profile `json:"models"`
-		Excluded map[string]bool     `json:"excluded,omitempty"`
-	}{Models: p.Models, Excluded: p.Excluded})
+		Models    map[string]*Profile `json:"models"`
+		Excluded  map[string]bool     `json:"excluded,omitempty"`
+		Machine   Machine             `json:"machine,omitempty"`
+		Templates map[string]Score    `json:"templates,omitempty"`
+	}{Models: p.Models, Excluded: p.Excluded, Machine: p.Machine, Templates: p.Templates})
 	p.mu.RUnlock()
 	if err != nil {
 		return fmt.Errorf("composition: encoding model pool: %w", err)
@@ -432,6 +508,9 @@ type Request struct {
 	Scope       string
 	ProjectID   string
 	JobID       string
+	// Explore asks for the runner-up rather than the top model. It is a
+	// budgeted, visible experiment, not the default.
+	Explore bool
 }
 
 // Choice is one selected model.
@@ -515,6 +594,10 @@ func (p *Pool) Choose(req Request) (Choice, bool) {
 	cs := p.candidates(req)
 	if len(cs) == 0 {
 		return Choice{}, false
+	}
+	if req.Explore && len(cs) > 1 {
+		p.remember(req, cs[1].prof.Name)
+		return choiceOf(cs[1]), true
 	}
 	if req.AvoidFamily != "" {
 		for _, c := range cs {
@@ -600,6 +683,41 @@ func (p *Pool) rememberLocked(req Request, model string) {
 	p.last[req.JobID] = c
 }
 
+// RecordTemplate records one grounded result for a deliberation shape.
+func (p *Pool) RecordTemplate(name string, success bool) {
+	if name == "" {
+		return
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.Templates == nil {
+		p.Templates = map[string]Score{}
+	}
+	s := p.Templates[name]
+	s.Trials++
+	if success {
+		s.Successes++
+	}
+	s.UpdatedAt = time.Now().UTC()
+	p.Templates[name] = s
+}
+
+// PreferPanel reports whether the measured evidence favors drawing more than
+// one model for a low-risk task. It needs a few outcomes before switching away
+// from the safe default.
+func (p *Pool) PreferPanel() bool {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	if len(p.Models) < 2 {
+		return false
+	}
+	solo, panel := p.Templates["solo"], p.Templates["panel"]
+	if solo.Trials+panel.Trials < 4 {
+		return false
+	}
+	return panel.Value() >= solo.Value()+0.05
+}
+
 // Observe records a terminal job outcome against the models it used. Only
 // grounded outcomes should reach this method.
 func (p *Pool) Observe(ctx context.Context, jobID string, success bool) {
@@ -621,6 +739,11 @@ func (p *Pool) Observe(ctx context.Context, jobID string, success bool) {
 			p.RecordScoped(name, c.scope, c.capability, success)
 		}
 	}
+	template := "solo"
+	if len(seen) > 1 {
+		template = "panel"
+	}
+	p.RecordTemplate(template, success)
 	if err := p.Save(ctx); err != nil {
 		// Outcome learning is best-effort; a save failure must not fail a
 		// terminal job that has already been recorded.

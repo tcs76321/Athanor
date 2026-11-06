@@ -12,7 +12,7 @@ import (
 // startPoolQualification runs the bounded screen over every model in the
 // user's pool. The legacy two-role ladder remains available on /ui/setup;
 // first use uses the pool so the ranking is per model and per capability.
-func (u *UI) startPoolQualification(ctx context.Context, fresh bool) (qualState, bool, error) {
+func (u *UI) startPoolQualification(ctx context.Context, fresh, deep bool) (qualState, bool, error) {
 	p := u.pool()
 	if p == nil {
 		return qualState{}, false, fmt.Errorf("model pool is not available")
@@ -63,14 +63,18 @@ func (u *UI) startPoolQualification(ctx context.Context, fresh bool) (qualState,
 	u.qualMu.Unlock()
 
 	ladder := onboard.DefaultLadder()
+	if deep {
+		ladder = onboard.DeepLadder()
+	}
 	state.Running = true
 	state.StartedAt = time.Now()
 	state.Error = ""
+	state.Deep = deep
 	if state.Results == nil {
 		state.Results = map[string]bool{}
 	}
 	state.Done = len(state.Results)
-	state.Total = poolQualificationPlan(models)
+	state.Total = poolQualificationPlan(models, ladder)
 	u.saveQualState(ctx, state)
 	runState := state
 	if state.Results != nil {
@@ -90,8 +94,7 @@ func (u *UI) startPoolQualification(ctx context.Context, fresh bool) (qualState,
 	return state, true, nil
 }
 
-func poolQualificationPlan(models []string) int {
-	ladder := onboard.DefaultLadder()
+func poolQualificationPlan(models []string, ladder onboard.Ladder) int {
 	return len(models) * (len(ladder.Generators) + len(ladder.Judges))
 }
 

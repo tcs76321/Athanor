@@ -88,10 +88,20 @@ func runServe(f *daemonFlags) {
 		return
 	}
 	if err := run(f.configPath, f.addr, f.stateDir, f.container); err != nil {
+		if errors.Is(err, errRestartRequested) {
+			// Exit 75 is the supervisor's cue to relaunch with the new
+			// configuration. A bare host process simply stops here; the Core
+			// image's entrypoint loop is the supported path.
+			fmt.Println("athanor: restarting after a configuration change")
+			os.Exit(75)
+		}
 		fmt.Fprintln(os.Stderr, "athanor:", err)
 		os.Exit(1)
 	}
 }
+
+// errRestartRequested asks the Core supervisor to relaunch the daemon.
+var errRestartRequested = errors.New("restart requested")
 
 // run boots the daemon and blocks until an OS signal or server failure.
 func run(configPath, addr, stateDir string, container bool) error {
@@ -433,6 +443,7 @@ func run(configPath, addr, stateDir string, container bool) error {
 	if !(&osProbes{}).InContainer() {
 		runtimeLabel = "host (development)"
 	}
+	restartCh := make(chan struct{}, 1)
 	webUI := ui.New(ui.Deps{
 		Store: st, Projects: projectRepo, Jobs: job.NewRepository(st),
 		Artifacts: artifactStore, Corrections: correctionsRepo, HITL: hitlSvc,
@@ -457,6 +468,12 @@ func run(configPath, addr, stateDir string, container bool) error {
 		Scheduler:    sched,
 		TaskResetter: sched,
 		ConfigPath:   configPath,
+		Restart: func() {
+			select {
+			case restartCh <- struct{}{}:
+			default:
+			}
+		},
 		Doctor: func(ctx context.Context) doctor.Report {
 			dcfg := cfg
 			if !(&osProbes{}).InContainer() {
@@ -762,9 +779,13 @@ func run(configPath, addr, stateDir string, container bool) error {
 
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
+	restart := false
 	select {
 	case sig := <-stop:
 		fmt.Printf("received %s — shutting down\n", sig)
+	case <-restartCh:
+		restart = true
+		fmt.Println("configuration applied — restarting Core")
 	case err := <-errCh:
 		if err != nil && !errors.Is(err, http.ErrServerClosed) {
 			return fmt.Errorf("http server: %w", err)
@@ -797,6 +818,9 @@ func run(configPath, addr, stateDir string, container bool) error {
 	}
 	if err := httpSrv.Shutdown(ctx); err != nil {
 		return fmt.Errorf("shutting down http server: %w", err)
+	}
+	if restart {
+		return errRestartRequested
 	}
 	return nil
 }

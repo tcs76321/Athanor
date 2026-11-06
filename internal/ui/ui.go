@@ -151,6 +151,10 @@ type Deps struct {
 	// Hardware reports host capacity for the resources step. nil leaves the
 	// step with zero/unknown values and recommended defaults.
 	Hardware func(ctx context.Context) Hardware
+	// Restart asks the supervisor to restart the Core with the newly written
+	// configuration. nil leaves the change marked restart-required (host
+	// development mode has no supervisor).
+	Restart func()
 	// Scheduler starts a decomposed goal's ready tasks. nil falls back to
 	// starting only the first task.
 	Scheduler Scheduler
@@ -247,6 +251,10 @@ func (u *UI) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /ui/assets/", u.handleAssets)
 	mux.HandleFunc("GET /ui/welcome", u.handleWelcome)
 	mux.HandleFunc("POST /ui/welcome", u.handleWelcomePost)
+	mux.HandleFunc("GET /ui/models", u.handleModels)
+	mux.HandleFunc("POST /ui/models/pool", u.handleModelsPool)
+	mux.HandleFunc("POST /ui/models/qualify", u.handleModelsQualify)
+	mux.HandleFunc("POST /ui/models/qualify/deep", u.handleModelsQualifyDeep)
 	mux.HandleFunc("GET /ui", u.handleDashboard)
 	mux.HandleFunc("GET /ui/events/stream", u.handleDashboardStream)
 	mux.HandleFunc("GET /ui/projects", u.handleProjects)

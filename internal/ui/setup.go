@@ -32,6 +32,7 @@ type qualState struct {
 	Done       int             `json:"done"`
 	Results    map[string]bool `json:"results"`
 	Error      string          `json:"error,omitempty"`
+	Deep       bool            `json:"deep,omitempty"`
 }
 
 func newQualState() qualState {

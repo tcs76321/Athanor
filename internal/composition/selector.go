@@ -20,7 +20,7 @@ func (s *Selector) Choose(ctx context.Context, req engine.ModelRequest) (engine.
 	c, ok := s.Pool.Choose(Request{
 		Phase: req.Phase, Capability: Capability(req.Capability), Stance: Stance(req.Stance),
 		MinContext: req.MinContext, AvoidFamily: req.AvoidFamily, Scope: req.Scope,
-		ProjectID: req.ProjectID, JobID: req.JobID,
+		ProjectID: req.ProjectID, JobID: req.JobID, Explore: req.Explore,
 	})
 	if !ok {
 		return engine.ModelChoice{}, false
@@ -36,7 +36,7 @@ func (s *Selector) ChooseMany(ctx context.Context, req engine.ModelRequest, n in
 	cs := s.Pool.ChooseMany(Request{
 		Phase: req.Phase, Capability: Capability(req.Capability), Stance: Stance(req.Stance),
 		MinContext: req.MinContext, AvoidFamily: req.AvoidFamily, Scope: req.Scope,
-		ProjectID: req.ProjectID, JobID: req.JobID,
+		ProjectID: req.ProjectID, JobID: req.JobID, Explore: req.Explore,
 	}, n)
 	out := make([]engine.ModelChoice, 0, len(cs))
 	for _, c := range cs {
@@ -69,6 +69,14 @@ func (s *Selector) Observe(ctx context.Context, jobID string, success bool) {
 		return
 	}
 	s.Pool.Observe(ctx, jobID, success)
+}
+
+// PreferPanel implements engine.ModelSelector.
+func (s *Selector) PreferPanel() bool {
+	if s == nil || s.Pool == nil {
+		return false
+	}
+	return s.Pool.PreferPanel()
 }
 
 func toEngineChoice(c Choice, minContext int) engine.ModelChoice {

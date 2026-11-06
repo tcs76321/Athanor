@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -331,7 +332,7 @@ func (u *UI) welcomeData(ctx context.Context, st onboardingState) map[string]any
 	assignments := u.autoAssignments(roles, fitModels, hw, measurements)
 	resources := recommendedResources(hw)
 	budget := budgetFor(roles, models, hw, resources)
-	u.syncPool(ctx, models, budget)
+	u.syncPool(ctx, models, budget, hw)
 	pool := u.welcomePool(models)
 	suggestions := u.poolSuggestions(models, pool)
 	if pool.QualifiedCount > 0 {
@@ -750,6 +751,40 @@ func (u *UI) applyPersonas(ctx context.Context) error {
 	return nil
 }
 
+func parseFormInt(r *http.Request, name string, fallback int) int {
+	raw := strings.TrimSpace(r.FormValue(name))
+	if raw == "" {
+		return fallback
+	}
+	v, err := strconv.Atoi(raw)
+	if err != nil {
+		return fallback
+	}
+	return v
+}
+
+func parseFormFloat(r *http.Request, name string, fallback float64) float64 {
+	raw := strings.TrimSpace(r.FormValue(name))
+	if raw == "" {
+		return fallback
+	}
+	v, err := strconv.ParseFloat(raw, 64)
+	if err != nil {
+		return fallback
+	}
+	return v
+}
+
+// writeRestartPage tells the browser the Core is restarting and when to come
+// back. It is written before the process exits so a self-restart looks like a
+// short pause, not a broken tab.
+func (u *UI) writeRestartPage(w http.ResponseWriter, next string) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	w.WriteHeader(http.StatusOK)
+	_, _ = fmt.Fprintf(w, `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="refresh" content="4;url=%s"><title>Restarting Athanor</title></head><body><h1>Restarting Athanor</h1><p>The new Job Pod limits were saved. The Core is restarting itself; this page will reload when it is back.</p><p>If it does not return, check the Core logs.</p></body></html>`, next)
+}
+
 func (u *UI) handleWelcomePost(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
 		u.fail(w, err)
@@ -811,7 +846,17 @@ func (u *UI) handleWelcomePost(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		st.Step = "qualify"
-		if _, _, err := u.startPoolQualification(ctx, false); err != nil {
+		if _, _, err := u.startPoolQualification(ctx, false, false); err != nil {
+			u.fail(w, err)
+			return
+		}
+	case "run_qualify_deep":
+		if u.deps.Config == nil {
+			u.fail(w, fmt.Errorf("configuration is not available to the UI"))
+			return
+		}
+		st.Step = "qualify"
+		if _, _, err := u.startPoolQualification(ctx, false, true); err != nil {
 			u.fail(w, err)
 			return
 		}
@@ -832,17 +877,31 @@ func (u *UI) handleWelcomePost(w http.ResponseWriter, r *http.Request) {
 			hw = u.deps.Hardware(ctx)
 		}
 		res := recommendedResources(hw)
-		if err := config.UpdateJobPodResources(u.deps.ConfigPath, config.JobPodResources{
-			MemoryMB: res.MemoryMB, CPUs: res.CPUsAllocated, TmpfsMB: res.TmpfsMB, PidsLimit: res.PidsLimit,
-		}); err != nil {
+		limits := config.JobPodResources{
+			MemoryMB:  parseFormInt(r, "memory_mb", res.MemoryMB),
+			CPUs:      parseFormFloat(r, "cpus", res.CPUsAllocated),
+			TmpfsMB:   parseFormInt(r, "tmpfs_mb", res.TmpfsMB),
+			PidsLimit: parseFormInt(r, "pids_limit", res.PidsLimit),
+		}
+		if err := config.UpdateJobPodResources(u.deps.ConfigPath, limits); err != nil {
 			u.fail(w, err)
 			return
 		}
-		u.markRestartRequired(ctx, "Job Pod resource limits changed")
 		if err := u.saveOnboarding(ctx, st); err != nil {
 			u.fail(w, err)
 			return
 		}
+		if u.deps.Restart != nil {
+			// The supervisor restarts the Core in place; the browser waits on
+			// this page and reloads when it comes back.
+			u.writeRestartPage(w, "/ui/welcome?step=resources&applied=resources")
+			go func() {
+				time.Sleep(1500 * time.Millisecond)
+				u.deps.Restart()
+			}()
+			return
+		}
+		u.markRestartRequired(ctx, "Job Pod resource limits changed")
 		http.Redirect(w, r, "/ui/welcome?step=resources&applied=resources", http.StatusSeeOther)
 		return
 	}

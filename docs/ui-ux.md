@@ -60,6 +60,7 @@ that respects the project's constraints (loopback-only, no new dependencies,
 | Route | View | Notes |
 |---|---|---|
 | `GET /ui` | **Dashboard** | active/terminal jobs, pending approvals, household mode (Deep/Full/Lite/Stopped, Auto, temporary holds), freeze state, 24-hour digest, recently accepted; live phase via `/ui/events/stream` (SSE) |
+| `GET /ui/models` | **Models** | post-onboarding pool membership, machine score, measured ranking, smoke/deep qualification |
 | `GET /ui/projects`, `/ui/projects/{id}` | **Projects** | artifact history with an LCS diff against the superseded version |
 | `GET /ui/corrections`, `POST` | **Corrections** | the mandatory §18.4 rejection form; mute/edit/promote |
 | `GET /ui/statistics` | **Statistics** | read-only; strategy insights with evidence |
@@ -83,7 +84,7 @@ Mounted at `/ui` on the loopback listener (ADR-0039); stdlib only.
 | Statistics | ◑ read-only | approval/rejection rates, token usage per persona/project, duration, budgets |
 | Settings | ❌ | personas, floors, power, allowlist, backup, budgets |
 | Morning Digest | ❌ | async overnight summary |
-| First-run onboarding | ✅ | `/ui/welcome` checks the environment, builds the model pool (add/remove, recommendations, a four-model floor), measures and ranks the pool per capability, records preferences, and hands off to the first project. The installer opens it (`--no-open` for headless). |
+| First-run onboarding | ✅ | `/ui/welcome` checks the environment, lets the operator edit and apply Job Pod limits (the Core restarts itself through its supervisor), builds the model pool (add/remove, recommendations, a four-model floor), measures and ranks the pool per capability, records preferences, and hands off to the first project. |
 
 ## 3. Design principles (for *this* machine)
 

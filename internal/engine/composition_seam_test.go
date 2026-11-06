@@ -38,6 +38,8 @@ func (f *fakeSelector) Persona(model string) (ModelChoice, bool) {
 
 func (f *fakeSelector) Observe(ctx context.Context, jobID string, success bool) {}
 
+func (f *fakeSelector) PreferPanel() bool { return false }
+
 // TestSelectorResolvesPhaseAndSyntheticRole proves the composition seam is
 // consulted before the legacy persona registry (ADR-0104).
 func TestSelectorResolvesPhaseAndSyntheticRole(t *testing.T) {

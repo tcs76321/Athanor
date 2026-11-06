@@ -61,6 +61,8 @@ RUN apt-get update \
 ENV CONTAINER_HOST=unix:///run/podman/podman.sock
 
 COPY --from=build /out/athanor /usr/local/bin/athanor
+COPY deploy/core-entrypoint.sh /usr/local/bin/athanor-entrypoint
+RUN chmod +x /usr/local/bin/athanor-entrypoint
 COPY config.example.yaml /etc/athanor/config.example.yaml
 # known-issues M13: bake the Core-Pod runtime config the CMD loads, so a fresh
 # container points Ollama at host.containers.internal instead of the host-binary
@@ -79,5 +81,5 @@ EXPOSE 7420
 #   -v /run/podman/podman.sock:/run/podman/podman.sock
 # Job Pods are separate containers and never receive this mount.
 
-ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/athanor"]
+ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/athanor-entrypoint"]
 CMD ["serve", "-container", "-addr", "0.0.0.0:7420", "-config", "/etc/athanor/config.yaml", "-state-dir", "/var/lib/athanor/state"]

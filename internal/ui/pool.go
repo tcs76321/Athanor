@@ -44,17 +44,24 @@ type poolView struct {
 	Ready          bool
 	Warning        string
 	Ranked         []poolRow
+	MachineScore   int
+	MachineHostGiB float64
+	MachineCPUs    int
 }
 
 func (u *UI) pool() *composition.Pool { return u.deps.Pool }
 
 // syncPool reconciles the persisted pool with the installed catalog. It is a
 // no-op without a pool or a successful catalog read.
-func (u *UI) syncPool(ctx context.Context, models []setupModel, budget modelBudget) {
+func (u *UI) syncPool(ctx context.Context, models []setupModel, budget modelBudget, hw Hardware) {
 	p := u.pool()
 	if p == nil || len(models) == 0 {
 		return
 	}
+	p.SetMachine(composition.Machine{
+		HostBytes: int64(hw.HostMemoryBytes), RuntimeBytes: int64(hw.TotalMemoryBytes),
+		FreeDiskBytes: int64(hw.FreeDiskBytes), CPUs: hw.CPUs,
+	})
 	p.FitLimitBytes = int64(budget.InferenceGiB * (1 << 30))
 	measured := measuredResidents(u.deps.ModelAudit)
 	infos := make([]composition.ModelInfo, 0, len(models))
@@ -137,6 +144,10 @@ func (u *UI) welcomePool(models []setupModel) poolView {
 	if p == nil {
 		return view
 	}
+	machine := p.MachineProfile()
+	view.MachineScore = machine.Score
+	view.MachineHostGiB = float64(machine.HostBytes) / (1 << 30)
+	view.MachineCPUs = machine.CPUs
 	profiles := map[string]composition.Profile{}
 	for _, prof := range p.Profiles() {
 		profiles[prof.Name] = prof

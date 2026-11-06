@@ -99,6 +99,7 @@ type ModelRequest struct {
 	Scope       string
 	ProjectID   string
 	JobID       string
+	Explore     bool
 }
 
 // ModelChoice is one selected model and the reason it won.
@@ -118,6 +119,7 @@ type ModelSelector interface {
 	ChooseMany(ctx context.Context, req ModelRequest, n int) []ModelChoice
 	Persona(model string) (ModelChoice, bool)
 	Observe(ctx context.Context, jobID string, success bool)
+	PreferPanel() bool
 }
 
 // PoolModelPrefix marks a synthetic role that names a model directly rather
@@ -507,10 +509,20 @@ func (e *Engine) personaFor(ctx context.Context, phase, role, capability, projec
 		if phase == llm.PhaseEvaluating || phase == llm.PhaseComparing {
 			req.AvoidFamily = e.generatorFamily(jobID)
 		}
+		if phase == llm.PhaseDiverging && jobID != "" &&
+			(capability == project.ArchetypeText || capability == project.ArchetypeDocument) &&
+			exploreBucket(jobID, 8) == 0 {
+			req.Explore = true
+		}
 		if projectID != "" {
 			req.Scope = "project:" + projectID
 		}
 		if c, ok := e.selector.Choose(ctx, req); ok {
+			if req.Explore {
+				e.audit(ctx, jobID, map[string]any{
+					"event": "cast_exploration", "phase": phase, "model": c.Model,
+				})
+			}
 			if phase == llm.PhaseDiverging && jobID != "" {
 				e.rememberGeneratorFamily(jobID, c.Family)
 			}
@@ -539,6 +551,20 @@ func (e *Engine) rememberGeneratorFamily(jobID, family string) {
 	e.castMu.Lock()
 	e.jobFamily[jobID] = family
 	e.castMu.Unlock()
+}
+
+// exploreBucket is a stable, deterministic 1-in-n bucket for budgeted
+// exploration. It never uses time or randomness, so a resumed job makes the
+// same choice.
+func exploreBucket(s string, n int) int {
+	if n < 2 {
+		return 0
+	}
+	sum := 0
+	for _, r := range s {
+		sum = (sum + int(r)) % n
+	}
+	return sum
 }
 
 // SetVerifiers wires the F4-T3 deterministic verifier registry. A nil

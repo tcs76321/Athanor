@@ -351,13 +351,75 @@ func TestWelcomeResourcesStep(t *testing.T) {
 	t.Cleanup(ts.Close)
 
 	_, body := get(t, ts.URL+"/ui/welcome?step=resources")
-	for _, want := range []string{"Resources.", "GiB runtime RAM", "CPU cores", "Adaptive sandbox", "Apply adaptive limits"} {
+	for _, want := range []string{"Resources.", "GiB runtime RAM", "CPU cores", "Sandbox limits", "Apply and restart Core", "memory_mb"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("resources step missing %q", want)
 		}
 	}
 	if !strings.Contains(body, "32") || !strings.Contains(body, "10") {
 		t.Errorf("resources step did not show detected hardware:\n%s", body)
+	}
+}
+
+func TestWelcomeAppliesResourceLimitsAndRestarts(t *testing.T) {
+	u := newEmptyUI(t)
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+	if err := os.WriteFile(path, []byte("version: 2\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	restarted := make(chan struct{}, 1)
+	u.deps.ConfigPath = path
+	u.deps.Hardware = func(context.Context) Hardware {
+		return Hardware{TotalMemoryBytes: 8 << 30, HostMemoryBytes: 32 << 30, CPUs: 10}
+	}
+	u.deps.Restart = func() { restarted <- struct{}{} }
+	mux := http.NewServeMux()
+	u.Register(mux)
+	ts := httptest.NewServer(mux)
+	t.Cleanup(ts.Close)
+
+	resp := postForm(t, ts.URL+"/ui/welcome", url.Values{
+		"step": {"resources"}, "action": {"apply_resources"},
+		"memory_mb": {"4096"}, "cpus": {"2.5"}, "tmpfs_mb": {"1024"}, "pids_limit": {"256"},
+	})
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("apply status = %d, want the restart page", resp.StatusCode)
+	}
+	select {
+	case <-restarted:
+	case <-time.After(3 * time.Second):
+		t.Fatal("Core was not asked to restart after applying resources")
+	}
+	cfg, err := config.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.JobPod.MemoryMB != 4096 || cfg.JobPod.CPUs != 2.5 || cfg.JobPod.TmpfsMB != 1024 || cfg.JobPod.PidsLimit != 256 {
+		t.Fatalf("job pod limits = %+v", cfg.JobPod)
+	}
+}
+
+func TestWelcomeRejectsImpossibleResourceLimits(t *testing.T) {
+	u := newEmptyUI(t)
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+	if err := os.WriteFile(path, []byte("version: 2\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	u.deps.ConfigPath = path
+	u.deps.Hardware = func(context.Context) Hardware { return Hardware{CPUs: 4} }
+	mux := http.NewServeMux()
+	u.Register(mux)
+	ts := httptest.NewServer(mux)
+	t.Cleanup(ts.Close)
+
+	resp := postForm(t, ts.URL+"/ui/welcome", url.Values{
+		"step": {"resources"}, "action": {"apply_resources"},
+		"memory_mb": {"10"}, "cpus": {"2"}, "tmpfs_mb": {"1024"}, "pids_limit": {"256"},
+	})
+	if resp.StatusCode == http.StatusOK {
+		t.Fatal("impossible memory limit was accepted")
 	}
 }
 
@@ -457,10 +519,10 @@ func TestWelcomeApplyResources(t *testing.T) {
 	ts := httptest.NewServer(mux)
 	t.Cleanup(ts.Close)
 
-	// The form values are ignored: limits are adaptive, not operator fields.
+	// Operator values are honored; the Core restart is covered separately.
 	resp := postForm(t, ts.URL+"/ui/welcome", url.Values{
 		"step": {"resources"}, "action": {"apply_resources"},
-		"memory_mb": {"999"}, "cpus": {"99"}, "tmpfs_mb": {"99999"}, "pids_limit": {"99999"},
+		"memory_mb": {"4096"}, "cpus": {"2"}, "tmpfs_mb": {"1024"}, "pids_limit": {"256"},
 	})
 	if resp.StatusCode != http.StatusSeeOther {
 		t.Fatalf("apply resources status = %d", resp.StatusCode)
@@ -469,7 +531,7 @@ func TestWelcomeApplyResources(t *testing.T) {
 	if err != nil {
 		t.Fatalf("applied config does not load: %v", err)
 	}
-	if got.JobPod.MemoryMB != 8192 || got.JobPod.CPUs != 4 || got.JobPod.TmpfsMB != 2048 || got.JobPod.PidsLimit != 512 {
+	if got.JobPod.MemoryMB != 4096 || got.JobPod.CPUs != 2 || got.JobPod.TmpfsMB != 1024 || got.JobPod.PidsLimit != 256 {
 		t.Errorf("resources = %+v", got.JobPod)
 	}
 }

@@ -74,6 +74,32 @@ func TestChoosePrefersSmallerModelBeforeMeasurement(t *testing.T) {
 	}
 }
 
+func TestPreferPanelNeedsEvidence(t *testing.T) {
+	p := New(nil)
+	p.Upsert(ModelInfo{Name: "a", ContextTarget: 32768})
+	p.Upsert(ModelInfo{Name: "b", ContextTarget: 32768})
+	if p.PreferPanel() {
+		t.Fatal("cold start should not prefer a panel")
+	}
+	for i := 0; i < 4; i++ {
+		p.RecordTemplate("panel", true)
+		p.RecordTemplate("solo", false)
+	}
+	if !p.PreferPanel() {
+		t.Fatal("measured panel advantage was ignored")
+	}
+}
+
+func TestMachineScoreIsBoundedAndVisible(t *testing.T) {
+	if got := ScoreMachine(0, 0, 0); got != 0 {
+		t.Fatalf("empty machine score = %d, want 0", got)
+	}
+	got := ScoreMachine(32<<30, 100<<30, 10)
+	if got < 50 || got > 100 {
+		t.Fatalf("32 GiB / 10 CPU score = %d, want a sensible 50–100", got)
+	}
+}
+
 func TestChooseRespectsContextFloor(t *testing.T) {
 	p := New(nil)
 	p.Upsert(ModelInfo{Name: "small", ContextTarget: 8192})
