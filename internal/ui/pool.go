@@ -8,6 +8,7 @@ import (
 
 	"github.com/tcs76321/athanor/internal/composition"
 	"github.com/tcs76321/athanor/internal/config"
+	"github.com/tcs76321/athanor/internal/onboard"
 )
 
 // poolMin is the repertoire floor for the full deliberation experience.
@@ -58,6 +59,9 @@ func (u *UI) syncPool(ctx context.Context, models []setupModel, budget modelBudg
 	measured := measuredResidents(u.deps.ModelAudit)
 	infos := make([]composition.ModelInfo, 0, len(models))
 	for _, m := range models {
+		if !isChatSetupModel(m) {
+			continue
+		}
 		infos = append(infos, composition.ModelInfo{
 			Name: m.Name, Family: m.Family, SizeBytes: m.SizeBytes,
 			ResidentBytes: measured[m.Name],
@@ -139,6 +143,9 @@ func (u *UI) welcomePool(models []setupModel) poolView {
 	}
 	seen := map[string]bool{}
 	for _, m := range models {
+		if !isChatSetupModel(m) {
+			continue
+		}
 		seen[m.Name] = true
 		row := poolRow{
 			Name: m.Name, Family: m.Family, SizeBytes: m.SizeBytes,
@@ -228,6 +235,10 @@ func scoreValue(prof composition.Profile, key string) float64 {
 		return s.Value()
 	}
 	return 0
+}
+
+func isChatSetupModel(m setupModel) bool {
+	return onboard.IsChatModel(onboard.Model{Name: m.Name, Family: m.Family})
 }
 
 // measuredResidents reads the audit's loaded (weights + KV) sizes keyed by

@@ -33,6 +33,9 @@ func (u *UI) startPoolQualification(ctx context.Context, fresh bool) (qualState,
 		}
 		infos := make([]composition.ModelInfo, 0, len(installed))
 		for _, m := range installed {
+			if !isChatSetupModel(m) {
+				continue
+			}
 			infos = append(infos, composition.ModelInfo{
 				Name: m.Name, Family: m.Family, SizeBytes: m.SizeBytes,
 				ContextTarget: poolContextTarget(u.deps.Config, m.Name),
