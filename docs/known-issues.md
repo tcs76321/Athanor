@@ -34,6 +34,10 @@ commit; the claims table carries the load-bearing rows.
 | Search | Tasks and artifacts match a project name; runs match task/project. |
 | Performance | Catalog cached; pool saved only on change; assets use an ETag; project history is bounded. |
 | Accessibility | Palette focus trap/`aria-activedescendant`, toast `aria-live`, mobile card scrolling. |
+| Long-running work | Discovery, planning, pulls, and qualification are cancellable; the durable session/qualification state stays retryable. |
+| Reading | Watch phase timeline; safe code highlighting with a copy-clean gutter; relative timestamps. |
+| Configuration | Project execution overrides editable; density and System theme persisted. |
+| CLI | `job watch` streams audit events (`-events=false` opts out). |
 
 ## Fixed (2026-11-05 hardening review)
 

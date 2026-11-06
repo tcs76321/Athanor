@@ -118,6 +118,14 @@ demo. A claim without a proof is either removed or marked as a target.
 | Freeze, active runs, and waiting approvals are visible on every page | 2026-11-06 UX pass | `internal/ui/ui.go` (`statusStrip`); `TestDailySurfaces` | **proven** |
 | The installed-model catalog is cached and pooled state is written only on change | 2026-11-06 UX pass | `internal/ui/setup.go` (`modelCatalog`); `TestModelCatalogIsCachedAndInvalidated`, `TestSyncChangedReportsRealChangesOnly` | **proven** |
 | Embedded assets revalidate with an ETag instead of downloading every load | 2026-11-06 UX pass | `internal/ui/assets.go`; `TestAssetsUseETag` | **proven** |
+| Discovery, planning, pulls, and qualification can be cancelled from the UI | 2026-11-06 backlog pass | `internal/ui` cancel maps; `TestCancelDiscovery` | **proven for discovery; the other three share the same context path and are structurally tested** |
+| The watch view reports per-phase duration and token spend | 2026-11-06 backlog pass | `internal/ui/timeline.go`; `TestWatchPhaseTimeline` | **proven** |
+| Code is highlighted and line-numbered without injecting markup | 2026-11-06 backlog pass | `internal/ui/highlight.go`; `TestHighlightMarksAndEscapes`, `TestLineNumbers`, `TestHighlightBlockComment` | **proven** |
+| Confirmations use a styled dialog, and density/system theme are persisted | 2026-11-06 backlog pass | `internal/ui` shell + Settings; `TestDisplaySettings` | **proven structurally** |
+| Recent timestamps are relative and the home surface is Dashboard | 2026-11-06 backlog pass | `internal/ui/ui.go` (`whenLabel`); `TestWhenLabel` | **proven** |
+| Artifact bytes are searchable within a bounded scan | 2026-11-06 backlog pass | `internal/ui/site.go` (`contentSnippet`); `TestSearchFindsArtifactContent` | **proven** |
+| Per-project execution overrides are editable in the UI | 2026-11-06 backlog pass | `POST /ui/projects/{id}/execution`; `TestProjectExecutionEditor` | **proven** |
+| `athanor job watch` streams audit events | 2026-11-06 backlog pass | `cmd/athanor/cli_project.go`; `TestFormatJobEvent` | **proven** |
 
 ## Rule
 

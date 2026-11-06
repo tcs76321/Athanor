@@ -10,6 +10,30 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Backlog completion — 2026-11-06
+
+- **Every long-running surface has a cancel control.** Discovery, planning,
+  model pulls, and qualification are cancelled through the context that
+  started them; the durable session is marked failed/cancelled and the page
+  returns to a retryable stage. Completed qualification cases are kept.
+- **The watch view has a phase timeline** derived from transition and
+  `llm_call` events: phase, start, duration, call count, and real token spend,
+  with the running phase counting up to now.
+- **Code artifacts are highlighted and line-numbered** by a small in-tree
+  tokenizer (Python, Go, JavaScript/TypeScript, Rust, Java, Ruby, shell, YAML,
+  JSON), with the gutter outside `<pre>` so Copy remains source-only.
+- **Confirmations use a styled dialog**, not `window.confirm`; Settings adds
+  compact density and a System theme that follows the OS.
+- **Timestamps are human.** Recent work reads “5m ago”, today keeps the clock,
+  yesterday is labeled, and older work gets a date. The home surface is called
+  Dashboard everywhere.
+- **Artifact bytes are searchable** with a bounded recent-content scan and a
+  match snippet; search still avoids unbounded disk reads.
+- **Per-project execution overrides are editable in the UI** — test/build
+  command, linters, fixture path/root, data schema, and declared checks.
+- **`athanor job watch` streams audit events**, not only state changes;
+  `-events=false` restores the quiet mode.
+
 ### UX, trust, and daily-loop pass — 2026-11-06
 
 - **A handler panic no longer drops the connection.** `internal/server`
