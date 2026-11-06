@@ -310,9 +310,29 @@ func TestContextTargetForSizeIsWideThenTall(t *testing.T) {
 			t.Errorf("contextTargetForSize(%.0f GiB) = %d, want %d", tc.sizeGiB, got, tc.want)
 		}
 	}
-	// Memory pressure may lower the target, never raise it.
-	if got := contextTargetForSize(10<<30, 13<<30); got >= 24576 {
-		t.Errorf("memory-capped target = %d, want < 24576", got)
+	// Capacity caps the working window; it never raises it.
+	if got := contextTargetForSize(10<<30, 12288); got != 12288 {
+		t.Errorf("capacity-capped target = %d, want 12288", got)
+	}
+	// A model with a small capacity is not given a larger working window.
+	if got := contextTargetForSize(3<<30, 4096); got != 4096 {
+		t.Errorf("small-capacity target = %d, want 4096", got)
+	}
+}
+
+func TestMaxContextForUsesKVAndNativeCap(t *testing.T) {
+	// 6 GiB weights, 128 KiB/token, 28 GiB budget, 8k native cap.
+	if got := composition.MaxContextFor(6<<30, 128<<10, 8192, 28<<30); got != 8192 {
+		t.Errorf("native-capped max = %d, want 8192", got)
+	}
+	// Without a native cap, the KV budget sets the limit.
+	got := composition.MaxContextFor(6<<30, 128<<10, 0, 28<<30)
+	if got <= 0 || got >= 28<<30 {
+		t.Errorf("budget max = %d, want a positive bounded value", got)
+	}
+	// Weights plus safety exceeding the budget leaves no useful window.
+	if got := composition.MaxContextFor(28<<30, 128<<10, 0, 28<<30); got != 0 {
+		t.Errorf("over-budget max = %d, want 0", got)
 	}
 }
 

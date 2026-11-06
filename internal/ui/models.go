@@ -48,14 +48,14 @@ const modelsBody = `
 
 <h2>Pool</h2>
 <div class="card flush"><div class="table-wrap">
-<table><thead><tr><th>Model</th><th>Family</th><th>Size</th><th>Context</th><th>Measured</th><th>Status</th><th></th></tr></thead><tbody>
+<table><thead><tr><th>Model</th><th>Family</th><th>Size</th><th>Context (work/max)</th><th>Measured</th><th>Status</th><th></th></tr></thead><tbody>
 {{range .Pool.Rows}}<tr>
   <td class="mono">{{.Name}}</td>
   <td>{{if .Family}}{{.Family}}{{else}}—{{end}}</td>
-  <td>{{gib .SizeBytes}}</td>
-  <td>{{if .ContextTarget}}{{.ContextTarget}}{{else}}—{{end}}</td>
+  <td>{{gib .SizeBytes}}{{if .ResidentBytes}}<div class="muted small">{{gib .ResidentBytes}} resident</div>{{end}}</td>
+  <td>{{if .ContextTarget}}{{.ContextTarget}}{{else}}—{{end}}{{if .MaxContext}} / {{.MaxContext}}{{end}}</td>
   <td>{{if .Qualified}}{{printf "%.0f%%" (mul .Score 100)}} <span class="muted">({{.Samples}})</span>{{else}}—{{end}}</td>
-  <td>{{if .TooLarge}}<span class="pill bad">too large</span>{{else if .InPool}}<span class="pill ok">in pool</span>{{else}}<span class="pill">removed</span>{{end}}</td>
+  <td>{{if .TooLarge}}<span class="pill bad">does not fit at 8,192+</span>{{else if .InPool}}<span class="pill ok">{{if .MaxContext}}fits at {{.MaxContext}}{{else}}in pool{{end}}</span>{{else}}<span class="pill">removed</span>{{end}}</td>
   <td>
     {{if .InPool}}
     <form method="post" action="/ui/models/pool" class="inline-form">

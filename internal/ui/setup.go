@@ -117,7 +117,12 @@ type setupRole struct {
 type setupModel struct {
 	Name      string
 	SizeBytes int64
-	Family    string
+	// FileBytes is the on-disk weight size; SizeBytes may be the larger
+	// measured resident size from an audit.
+	FileBytes       int64
+	Family          string
+	NativeContext   int
+	KVBytesPerToken int64
 	// Measured is true when SizeBytes came from the audit's actual loaded
 	// size (weights + KV) rather than the model file on disk.
 	Measured bool
@@ -544,7 +549,11 @@ func fetchModels(ctx context.Context, baseURL string) ([]setupModel, error) {
 		if name == "" {
 			continue
 		}
-		out = append(out, setupModel{Name: name, SizeBytes: m.Size, Family: m.Details.Family})
+		native, kvPerToken := fetchModelContextMetadata(ctx, baseURL, name)
+		out = append(out, setupModel{
+			Name: name, SizeBytes: m.Size, FileBytes: m.Size,
+			Family: m.Details.Family, NativeContext: native, KVBytesPerToken: kvPerToken,
+		})
 	}
 	sort.SliceStable(out, func(i, j int) bool {
 		if out[i].SizeBytes != out[j].SizeBytes {
@@ -553,6 +562,57 @@ func fetchModels(ctx context.Context, baseURL string) ([]setupModel, error) {
 		return out[i].Name < out[j].Name
 	})
 	return out, nil
+}
+
+// fetchModelContextMetadata reads native context and estimates KV bytes per
+// token from Ollama's model_info. Missing metadata is not an error: the pool
+// falls back to qualification measurements or a size tier.
+func fetchModelContextMetadata(ctx context.Context, baseURL, name string) (native int, kvPerToken int64) {
+	cctx, cancel := context.WithTimeout(ctx, 750*time.Millisecond)
+	defer cancel()
+	raw, _ := json.Marshal(map[string]string{"model": name})
+	req, err := http.NewRequestWithContext(cctx, http.MethodPost,
+		strings.TrimRight(baseURL, "/")+"/api/show", bytes.NewReader(raw))
+	if err != nil {
+		return 0, 0
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := (&http.Client{Timeout: 750 * time.Millisecond}).Do(req)
+	if err != nil {
+		return 0, 0
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		return 0, 0
+	}
+	var body struct {
+		ModelInfo map[string]any `json:"model_info"`
+	}
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&body); err != nil {
+		return 0, 0
+	}
+	get := func(suffix string) float64 {
+		for k, v := range body.ModelInfo {
+			if strings.HasSuffix(k, suffix) {
+				if f, ok := v.(float64); ok {
+					return f
+				}
+			}
+		}
+		return 0
+	}
+	native = int(get(".context_length"))
+	layers := get(".block_count")
+	heads := get(".attention.head_count")
+	kvHeads := get(".attention.head_count_kv")
+	embedding := get(".embedding_length")
+	if native <= 0 || layers <= 0 || heads <= 0 || kvHeads <= 0 || embedding <= 0 {
+		return native, 0
+	}
+	headDim := embedding / heads
+	// K and V, two bytes per element at Ollama's default fp16 KV cache.
+	kvPerToken = int64(layers * kvHeads * headDim * 2 * 2)
+	return native, kvPerToken
 }
 
 func modelInstalled(name string, models []setupModel) bool {

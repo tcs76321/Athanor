@@ -64,6 +64,32 @@ func TestChooseSkipsTooLargeModels(t *testing.T) {
 	}
 }
 
+func TestPoolDerivesMaxContextAndExcludesOnlyBelowFloor(t *testing.T) {
+	p := New(nil)
+	p.FitLimitBytes = 28 << 30
+	p.Sync([]ModelInfo{
+		{Name: "small", FileBytes: 3 << 30, SizeBytes: 3 << 30, NativeContext: 262144, KVBytesPerToken: 128 << 10, ContextTarget: 65536},
+		{Name: "huge", FileBytes: 30 << 30, SizeBytes: 30 << 30, NativeContext: 262144, KVBytesPerToken: 128 << 10, ContextTarget: 65536},
+	})
+	if got := p.Profiles(); len(got) != 2 {
+		t.Fatalf("profiles = %d, want 2", len(got))
+	}
+	byName := map[string]Profile{}
+	for _, prof := range p.Profiles() {
+		byName[prof.Name] = prof
+	}
+	small := byName["small"]
+	if small.MaxContext <= 0 || small.MaxContext > 262144 || small.TooLarge {
+		t.Errorf("small max = %d tooLarge=%v, want a usable bounded window", small.MaxContext, small.TooLarge)
+	}
+	if small.ContextTarget > small.MaxContext {
+		t.Errorf("working context = %d exceeds max %d", small.ContextTarget, small.MaxContext)
+	}
+	if huge := byName["huge"]; !huge.TooLarge || huge.MaxContext != 0 {
+		t.Errorf("huge = max %d tooLarge=%v, want excluded", huge.MaxContext, huge.TooLarge)
+	}
+}
+
 func TestChoosePrefersSmallerModelBeforeMeasurement(t *testing.T) {
 	p := New(nil)
 	p.Upsert(ModelInfo{Name: "large", ContextTarget: 32768, SizeBytes: 9 << 30})

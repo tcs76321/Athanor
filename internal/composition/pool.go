@@ -55,18 +55,51 @@ func (s Score) Value() float64 {
 	return float64(s.Successes+1) / float64(s.Trials+2)
 }
 
+// Context sizing. MinUsefulContext is the smallest window still worth casting
+// for general work; code phases apply their own larger floor. The safety margin
+// leaves room for compute buffers and allocator fragmentation.
+const (
+	MinUsefulContext   = 8192
+	ContextSafetyBytes = int64(1536 << 20)
+)
+
+// MaxContextFor is the largest window the weights, KV cache, and fit budget
+// allow. It returns 0 when the inputs cannot support a useful window.
+func MaxContextFor(weights, kvBytesPerToken int64, native int, fitLimit int64) int {
+	if weights <= 0 || kvBytesPerToken <= 0 || fitLimit <= 0 {
+		return 0
+	}
+	available := fitLimit - weights - ContextSafetyBytes
+	if available <= 0 {
+		return 0
+	}
+	max := int(available / kvBytesPerToken)
+	max = (max / 2048) * 2048
+	if native > 0 && max > native {
+		max = native
+	}
+	if max < 0 {
+		max = 0
+	}
+	return max
+}
+
 // Profile is one model measured on this computer.
 type Profile struct {
-	Name          string           `json:"name"`
-	Family        string           `json:"family,omitempty"`
-	SizeBytes     int64            `json:"size_bytes,omitempty"`
-	ResidentBytes int64            `json:"resident_bytes,omitempty"`
-	ContextTarget int              `json:"context_target,omitempty"`
-	Temperature   float64          `json:"temperature,omitempty"`
-	Scores        map[string]Score `json:"scores,omitempty"`
-	Scoped        map[string]Score `json:"scoped,omitempty"`
-	QualifiedAt   time.Time        `json:"qualified_at,omitempty"`
-	UpdatedAt     time.Time        `json:"updated_at,omitempty"`
+	Name            string           `json:"name"`
+	Family          string           `json:"family,omitempty"`
+	SizeBytes       int64            `json:"size_bytes,omitempty"`
+	FileBytes       int64            `json:"file_bytes,omitempty"`
+	ResidentBytes   int64            `json:"resident_bytes,omitempty"`
+	NativeContext   int              `json:"native_context,omitempty"`
+	KVBytesPerToken int64            `json:"kv_bytes_per_token,omitempty"`
+	MaxContext      int              `json:"max_context,omitempty"`
+	ContextTarget   int              `json:"context_target,omitempty"`
+	Temperature     float64          `json:"temperature,omitempty"`
+	Scores          map[string]Score `json:"scores,omitempty"`
+	Scoped          map[string]Score `json:"scoped,omitempty"`
+	QualifiedAt     time.Time        `json:"qualified_at,omitempty"`
+	UpdatedAt       time.Time        `json:"updated_at,omitempty"`
 	// TooLarge marks a model whose measured or on-disk size exceeds this
 	// machine's inference budget. It stays visible in the pool but is never
 	// cast.
@@ -251,11 +284,15 @@ func (p *Pool) Save(ctx context.Context) error {
 
 // ModelInfo is the catalog data the UI or audit knows before qualification.
 type ModelInfo struct {
-	Name          string
-	Family        string
-	SizeBytes     int64
-	ResidentBytes int64
-	ContextTarget int
+	Name            string
+	Family          string
+	SizeBytes       int64
+	FileBytes       int64
+	ResidentBytes   int64
+	NativeContext   int
+	KVBytesPerToken int64
+	MaxContext      int
+	ContextTarget   int
 }
 
 // Upsert adds or updates a model without discarding its measurements.
@@ -272,15 +309,27 @@ func (p *Pool) Upsert(info ModelInfo) {
 	if info.SizeBytes > 0 {
 		prof.SizeBytes = info.SizeBytes
 	}
+	if info.FileBytes > 0 {
+		prof.FileBytes = info.FileBytes
+	}
 	if info.ResidentBytes > 0 {
 		prof.ResidentBytes = info.ResidentBytes
+	}
+	if info.NativeContext > 0 {
+		prof.NativeContext = info.NativeContext
+	}
+	if info.KVBytesPerToken > 0 {
+		prof.KVBytesPerToken = info.KVBytesPerToken
+	}
+	if info.MaxContext > 0 {
+		prof.MaxContext = info.MaxContext
 	}
 	if info.ContextTarget > 0 {
 		prof.ContextTarget = info.ContextTarget
 	}
 	prof.UpdatedAt = time.Now().UTC()
 	delete(p.Excluded, info.Name)
-	p.setTooLargeLocked(prof)
+	p.recomputeContextLocked(prof)
 	p.mu.Unlock()
 }
 
@@ -326,14 +375,26 @@ func (p *Pool) Sync(infos []ModelInfo) (added int) {
 		if info.SizeBytes > 0 {
 			prof.SizeBytes = info.SizeBytes
 		}
+		if info.FileBytes > 0 {
+			prof.FileBytes = info.FileBytes
+		}
 		if info.ResidentBytes > 0 {
 			prof.ResidentBytes = info.ResidentBytes
+		}
+		if info.NativeContext > 0 {
+			prof.NativeContext = info.NativeContext
+		}
+		if info.KVBytesPerToken > 0 {
+			prof.KVBytesPerToken = info.KVBytesPerToken
+		}
+		if info.MaxContext > 0 {
+			prof.MaxContext = info.MaxContext
 		}
 		if info.ContextTarget > 0 {
 			prof.ContextTarget = info.ContextTarget
 		}
 		prof.UpdatedAt = time.Now().UTC()
-		p.setTooLargeLocked(prof)
+		p.recomputeContextLocked(prof)
 	}
 	for name := range p.Models {
 		if !present[name] {
@@ -343,16 +404,60 @@ func (p *Pool) Sync(infos []ModelInfo) (added int) {
 	return added
 }
 
-func (p *Pool) setTooLargeLocked(prof *Profile) {
+// recomputeContextLocked derives the maximum window from the budget and clamps
+// the working target to it. A model is only "too large" when even the minimum
+// useful window does not fit; otherwise it is castable at MaxContext or below.
+func (p *Pool) recomputeContextLocked(prof *Profile) {
+	weights := prof.FileBytes
+	if weights <= 0 {
+		weights = prof.SizeBytes
+	}
+	if prof.KVBytesPerToken > 0 {
+		prof.MaxContext = MaxContextFor(weights, prof.KVBytesPerToken, prof.NativeContext, p.FitLimitBytes)
+		prof.TooLarge = prof.MaxContext < MinUsefulContext
+		if prof.ContextTarget > prof.MaxContext {
+			prof.ContextTarget = prof.MaxContext
+		}
+		return
+	}
+	// No KV metadata/measurement: keep the old weight-only guard so a model
+	// that cannot even hold its weights is still excluded.
 	if p.FitLimitBytes <= 0 {
 		prof.TooLarge = false
 		return
 	}
 	size := prof.ResidentBytes
 	if size == 0 {
-		size = prof.SizeBytes
+		size = weights
 	}
 	prof.TooLarge = size > p.FitLimitBytes
+}
+
+// SetMeasuredResident records a qualification-time resident size and derives
+// KV bytes/token from the context the screen used. It is a fallback for models
+// whose architecture metadata does not expose KV-head counts (notably MLX).
+func (p *Pool) SetMeasuredResident(name string, residentBytes, contextUsed int64) {
+	if residentBytes <= 0 || contextUsed <= 0 {
+		return
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	prof, ok := p.Models[name]
+	if !ok {
+		return
+	}
+	weights := prof.FileBytes
+	if weights <= 0 {
+		weights = prof.SizeBytes
+	}
+	prof.ResidentBytes = residentBytes
+	if weights > 0 && residentBytes > weights {
+		kv := (residentBytes - weights) / contextUsed
+		if kv > 0 {
+			prof.KVBytesPerToken = kv
+		}
+	}
+	p.recomputeContextLocked(prof)
 }
 
 // Has reports whether a model is in the pool.

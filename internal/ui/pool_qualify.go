@@ -2,7 +2,11 @@ package ui
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
+	"strings"
 	"time"
 
 	"github.com/tcs76321/athanor/internal/composition"
@@ -36,9 +40,11 @@ func (u *UI) startPoolQualification(ctx context.Context, fresh, deep bool) (qual
 			if !isChatSetupModel(m) {
 				continue
 			}
+			maxCtx := maxContextForModel(m, p.FitLimitBytes, 0)
 			infos = append(infos, composition.ModelInfo{
-				Name: m.Name, Family: m.Family, SizeBytes: m.SizeBytes,
-				ContextTarget: poolContextTarget(u.deps.Config, m.Name, m.SizeBytes, p.FitLimitBytes),
+				Name: m.Name, Family: m.Family, SizeBytes: m.SizeBytes, FileBytes: m.FileBytes,
+				NativeContext: m.NativeContext, KVBytesPerToken: m.KVBytesPerToken,
+				MaxContext: maxCtx, ContextTarget: poolContextTarget(u.deps.Config, m.Name, m.SizeBytes, maxCtx),
 			})
 		}
 		p.Sync(infos)
@@ -137,6 +143,12 @@ func (u *UI) runPoolQualification(ctx context.Context, models []string, ladder o
 			state.Done = len(state.Results)
 			u.saveQualState(ctx, *state)
 		}
+		// Qualification already loaded the model at num_ctx=8192. Reading the
+		// resident size here gives every pool model a measured KV fallback,
+		// including MLX models whose architecture metadata omits KV heads.
+		if resident, ok := ollamaResident(ctx, u.deps.Config.Inference.OllamaURL, model); ok {
+			u.pool().SetMeasuredResident(model, resident, 8192)
+		}
 	}
 	state.Running = false
 	state.FinishedAt = time.Now()
@@ -210,4 +222,45 @@ func (u *UI) recordPoolQualification(ctx context.Context, models []string, ladde
 		}
 	}
 	_ = p.Save(ctx)
+}
+
+// ollamaResident returns the loaded size reported by /api/ps for one model.
+// The qualification screen just used the model, so a successful read is a
+// measured weights+KV number at num_ctx=8192.
+func ollamaResident(ctx context.Context, baseURL, model string) (int64, bool) {
+	cctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(cctx, http.MethodGet,
+		strings.TrimRight(baseURL, "/")+"/api/ps", nil)
+	if err != nil {
+		return 0, false
+	}
+	resp, err := (&http.Client{Timeout: 3 * time.Second}).Do(req)
+	if err != nil {
+		return 0, false
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		return 0, false
+	}
+	var body struct {
+		Models []struct {
+			Name  string `json:"name"`
+			Model string `json:"model"`
+			Size  int64  `json:"size"`
+		} `json:"models"`
+	}
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&body); err != nil {
+		return 0, false
+	}
+	for _, m := range body.Models {
+		name := m.Name
+		if name == "" {
+			name = m.Model
+		}
+		if name == model && m.Size > 0 {
+			return m.Size, true
+		}
+	}
+	return 0, false
 }

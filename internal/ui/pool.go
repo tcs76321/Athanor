@@ -25,6 +25,7 @@ type poolRow struct {
 	Installed     bool
 	Excluded      bool
 	ContextTarget int
+	MaxContext    int
 	Score         float64
 	Samples       int
 	Qualified     bool
@@ -66,15 +67,21 @@ func (u *UI) syncPool(ctx context.Context, models []setupModel, budget modelBudg
 	})
 	p.FitLimitBytes = int64(budget.InferenceGiB * (1 << 30))
 	measured := measuredResidents(u.deps.ModelAudit)
+	profiles := map[string]composition.Profile{}
+	for _, prof := range p.Profiles() {
+		profiles[prof.Name] = prof
+	}
 	infos := make([]composition.ModelInfo, 0, len(models))
 	for _, m := range models {
 		if !isChatSetupModel(m) {
 			continue
 		}
+		maxCtx := maxContextForModel(m, p.FitLimitBytes, profiles[m.Name].KVBytesPerToken)
 		infos = append(infos, composition.ModelInfo{
-			Name: m.Name, Family: m.Family, SizeBytes: m.SizeBytes,
-			ResidentBytes: measured[m.Name],
-			ContextTarget: poolContextTarget(u.deps.Config, m.Name, m.SizeBytes, p.FitLimitBytes),
+			Name: m.Name, Family: m.Family, SizeBytes: m.SizeBytes, FileBytes: m.FileBytes,
+			ResidentBytes: measured[m.Name], NativeContext: m.NativeContext,
+			KVBytesPerToken: m.KVBytesPerToken, MaxContext: maxCtx,
+			ContextTarget: poolContextTarget(u.deps.Config, m.Name, m.SizeBytes, maxCtx),
 		})
 	}
 	if added := p.Sync(infos); added > 0 {
@@ -85,26 +92,34 @@ func (u *UI) syncPool(ctx context.Context, models []setupModel, budget modelBudg
 	_ = p.Save(ctx)
 }
 
-// poolContextTarget chooses a per-model context window. A small model is a
-// "wide" model: it carries less weight and can hold a large context. A large
-// model is a "tall" model: its weights take the memory, so it gets a smaller
-// window. An explicit persona assignment always wins.
-func poolContextTarget(cfg *config.Config, name string, sizeBytes, fitLimitBytes int64) int {
+// poolContextTarget chooses the working window for a model. The capacity
+// window (MaxContext) is computed separately from the KV budget; this value is
+// the smaller working target, capped by capacity. A small model is "wide" and
+// keeps a larger working window; a large model is "tall" and trades context
+// for depth. An explicit persona assignment always wins.
+func poolContextTarget(cfg *config.Config, name string, sizeBytes int64, maxContext int) int {
+	target := 0
 	if cfg != nil {
 		for _, role := range []string{"wide", "tall", "main", "security", "alternative"} {
 			if pc, ok := cfg.Personas.Role(role); ok && pc.Model == name && pc.ContextTarget > 0 {
-				return pc.ContextTarget
+				target = pc.ContextTarget
+				break
 			}
 		}
 	}
-	return contextTargetForSize(sizeBytes, fitLimitBytes)
+	if target == 0 {
+		target = contextTargetForSize(sizeBytes, maxContext)
+	} else if maxContext > 0 && target > maxContext {
+		target = maxContext
+	}
+	return target
 }
 
-// contextTargetForSize is the deterministic wide/tall ladder. The memory cap
-// reserves 1 GiB for runtime overhead and estimates KV at 16 KiB per GiB of
-// weights per token. The estimate is deliberately conservative; it keeps a
-// large model from asking for a window that cannot coexist with its weights.
-func contextTargetForSize(sizeBytes, fitLimitBytes int64) int {
+// contextTargetForSize is the deterministic wide/tall working ladder, capped
+// by the model's capacity. It deliberately does not use the whole capacity:
+// short work does not need a 250k reservation, and the capacity is shown
+// separately on the pool step.
+func contextTargetForSize(sizeBytes int64, maxContext int) int {
 	sizeGiB := float64(sizeBytes) / (1 << 30)
 	var target int
 	switch {
@@ -123,24 +138,30 @@ func contextTargetForSize(sizeBytes, fitLimitBytes int64) int {
 	default:
 		target = 8192
 	}
-	if fitLimitBytes > 0 && sizeBytes > 0 {
-		available := fitLimitBytes - sizeBytes - (1 << 30)
-		kvPerToken := int64(sizeGiB * 16 * 1024)
-		if available > 0 && kvPerToken > 0 {
-			maxCtx := int(available / kvPerToken)
-			maxCtx = (maxCtx / 2048) * 2048
-			if maxCtx < target {
-				target = maxCtx
-			}
-		}
+	if maxContext > 0 && target > maxContext {
+		target = maxContext
 	}
-	if target < 8192 {
+	if target < 8192 && (maxContext == 0 || maxContext >= 8192) {
 		target = 8192
 	}
 	if target > 65536 {
 		target = 65536
 	}
 	return target
+}
+
+// maxContextForModel is the capacity calculation. It uses measured KV data
+// when the catalog has it, otherwise the profile's qualification measurement.
+func maxContextForModel(m setupModel, fitLimitBytes, measuredKV int64) int {
+	weights := m.FileBytes
+	if weights <= 0 {
+		weights = m.SizeBytes
+	}
+	kv := m.KVBytesPerToken
+	if kv <= 0 {
+		kv = measuredKV
+	}
+	return composition.MaxContextFor(weights, kv, m.NativeContext, fitLimitBytes)
 }
 
 // includeModel adds an installed model the user removed earlier.
@@ -155,9 +176,11 @@ func (u *UI) includeModel(ctx context.Context, name string) error {
 	}
 	for _, m := range models {
 		if m.Name == name {
+			maxCtx := maxContextForModel(m, p.FitLimitBytes, 0)
 			p.Upsert(composition.ModelInfo{
-				Name: m.Name, Family: m.Family, SizeBytes: m.SizeBytes,
-				ContextTarget: poolContextTarget(u.deps.Config, m.Name, m.SizeBytes, p.FitLimitBytes),
+				Name: m.Name, Family: m.Family, SizeBytes: m.SizeBytes, FileBytes: m.FileBytes,
+				NativeContext: m.NativeContext, KVBytesPerToken: m.KVBytesPerToken,
+				MaxContext: maxCtx, ContextTarget: poolContextTarget(u.deps.Config, m.Name, m.SizeBytes, maxCtx),
 			})
 			return p.Save(ctx)
 		}
@@ -198,13 +221,16 @@ func (u *UI) welcomePool(models []setupModel) poolView {
 			continue
 		}
 		seen[m.Name] = true
+		maxCtx := maxContextForModel(m, p.FitLimitBytes, profiles[m.Name].KVBytesPerToken)
 		row := poolRow{
 			Name: m.Name, Family: m.Family, SizeBytes: m.SizeBytes,
-			Installed: true, ContextTarget: poolContextTarget(u.deps.Config, m.Name, m.SizeBytes, p.FitLimitBytes),
+			Installed: true, MaxContext: maxCtx,
+			ContextTarget: poolContextTarget(u.deps.Config, m.Name, m.SizeBytes, maxCtx),
 		}
 		if prof, ok := profiles[m.Name]; ok {
 			row.InPool = true
 			row.ContextTarget = prof.ContextTarget
+			row.MaxContext = prof.MaxContext
 			row.Family = firstNonEmpty(prof.Family, m.Family)
 			row.ResidentBytes = prof.ResidentBytes
 			row.TooLarge = prof.TooLarge
@@ -225,7 +251,7 @@ func (u *UI) welcomePool(models []setupModel) poolView {
 		if seen[name] {
 			continue
 		}
-		row := poolRow{Name: name, Family: prof.Family, InPool: true, ContextTarget: prof.ContextTarget, TooLarge: prof.TooLarge, ResidentBytes: prof.ResidentBytes}
+		row := poolRow{Name: name, Family: prof.Family, InPool: true, ContextTarget: prof.ContextTarget, MaxContext: prof.MaxContext, TooLarge: prof.TooLarge, ResidentBytes: prof.ResidentBytes}
 		row.Score, row.Samples, row.Qualified = overallScore(prof)
 		row.Code = scoreValue(prof, string(composition.CapabilityCode))
 		row.Data = scoreValue(prof, string(composition.CapabilityData))

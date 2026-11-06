@@ -17,10 +17,14 @@ New entries are appended at the top. Do not rewrite history.
   step exposes it, and the model-fit budget is `host RAM − reserve`. The pool
   step shows the resulting fit limit and the Podman VM size, with a warning
   when the reserve is smaller than the VM.
-- **Context is wide/tall by model size.** Small models (≤3 GiB) get 65,536
-  tokens; larger models step down to 49,152, 32,768, 24,576, 16,384, 12,288,
-  and 8,192. A memory cap lowers the target when the weights leave too little
-  room for the KV cache. Explicit persona targets still win.
+- **Context has a capacity and a working window.** Capacity is computed per
+  model from its weights, native context, and KV bytes/token (from Ollama
+  metadata or a qualification measurement): `max_ctx = (fit budget − weights −
+  1.5 GiB safety) / kv_per_token`, capped by the native window. The working
+  window keeps the wide/tall split (65,536 down to 8,192) and is capped by
+  capacity. A model is excluded only when even 8,192 tokens do not fit. Models
+  with unknown KV metadata (notably MLX) get a measured fallback from
+  qualification.
 - **Qualification is broader and per-capability.** The default ladder now has
   10 deterministic generators and 12 grounded judge pairs covering general,
   code, data, document, text, and media work. Judge results strengthen both
