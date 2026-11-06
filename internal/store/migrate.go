@@ -10,7 +10,9 @@
 package store
 
 import (
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"fmt"
 	"io/fs"
 	"log/slog"
@@ -24,6 +26,7 @@ const schemaMigrations = `
 CREATE TABLE IF NOT EXISTS schema_migrations (
 	version    INTEGER PRIMARY KEY,
 	name       TEXT NOT NULL,
+	checksum   TEXT,
 	applied_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );`
 
@@ -34,6 +37,9 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
 func Migrate(db *sql.DB, fsys fs.FS, backupDir string) error {
 	if _, err := db.Exec(schemaMigrations); err != nil {
 		return fmt.Errorf("ensuring schema_migrations: %w", err)
+	}
+	if err := ensureChecksumColumn(db); err != nil {
+		return err
 	}
 	pending, err := pendingMigrations(db, fsys)
 	if err != nil {
@@ -95,31 +101,68 @@ func (s *Store) Version() int {
 
 // migration is one parsed .sql file.
 type migration struct {
-	version int
-	name    string
-	body    string
-	path    string
+	version  int
+	name     string
+	body     string
+	path     string
+	checksum string
+}
+
+// ensureChecksumColumn upgrades a schema_migrations table created before
+// checksums existed. SQLite has no ADD COLUMN IF NOT EXISTS, so inspect first.
+func ensureChecksumColumn(db *sql.DB) error {
+	rows, err := db.Query(`PRAGMA table_info(schema_migrations)`)
+	if err != nil {
+		return fmt.Errorf("inspecting schema_migrations: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	has := false
+	for rows.Next() {
+		var cid int
+		var name, typ string
+		var notNull, pk int
+		var dflt any
+		if err := rows.Scan(&cid, &name, &typ, &notNull, &dflt, &pk); err != nil {
+			return err
+		}
+		if name == "checksum" {
+			has = true
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	_ = rows.Close()
+	if has {
+		return nil
+	}
+	if _, err := db.Exec(`ALTER TABLE schema_migrations ADD COLUMN checksum TEXT`); err != nil {
+		return fmt.Errorf("adding schema_migrations.checksum: %w", err)
+	}
+	return nil
 }
 
 // pendingMigrations lists not-yet-applied migrations in version order and
 // verifies the migration set is consistent with the recorded history.
 func pendingMigrations(db *sql.DB, fsys fs.FS) ([]migration, error) {
-	applied := map[int]bool{}
-	rows, err := db.Query(`SELECT version FROM schema_migrations`)
+	applied := map[int]string{}
+	rows, err := db.Query(`SELECT version, COALESCE(checksum, '') FROM schema_migrations`)
 	if err != nil {
 		return nil, fmt.Errorf("reading applied versions: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 	for rows.Next() {
 		var v int
-		if err := rows.Scan(&v); err != nil {
+		var sum string
+		if err := rows.Scan(&v, &sum); err != nil {
 			return nil, err
 		}
-		applied[v] = true
+		applied[v] = sum
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
+	_ = rows.Close()
 
 	entries, err := fs.Glob(fsys, "*.sql")
 	if err != nil {
@@ -138,8 +181,23 @@ func pendingMigrations(db *sql.DB, fsys fs.FS) ([]migration, error) {
 			return nil, fmt.Errorf("duplicate migration version %d (%q and %q)", m.version, prev, entry)
 		}
 		seen[m.version] = entry
-		if !applied[m.version] {
+		recorded, isApplied := applied[m.version]
+		if !isApplied {
 			out = append(out, m)
+			continue
+		}
+		if recorded != "" && recorded != m.checksum {
+			return nil, fmt.Errorf("migration %04d_%s was modified after it was applied (recorded checksum %s, file %s); migrations are forward-only — add a new migration instead",
+				m.version, m.name, recorded, m.checksum)
+		}
+		if recorded == "" {
+			// Upgrade a pre-checksum row. There is no historical digest to
+			// compare, so record the current file and verify from here on.
+			if _, uerr := db.Exec(
+				`UPDATE schema_migrations SET checksum = ? WHERE version = ?`,
+				m.checksum, m.version); uerr != nil {
+				return nil, fmt.Errorf("backfilling migration checksum %04d: %w", m.version, uerr)
+			}
 		}
 		delete(applied, m.version)
 	}
@@ -171,11 +229,13 @@ func readMigration(fsys fs.FS, entry string) (migration, error) {
 	if err != nil {
 		return migration{}, fmt.Errorf("reading migration %q: %w", entry, err)
 	}
+	sum := sha256.Sum256(body)
 	return migration{
-		version: version,
-		name:    base[5:],
-		body:    string(body),
-		path:    entry,
+		version:  version,
+		name:     base[5:],
+		body:     string(body),
+		path:     entry,
+		checksum: hex.EncodeToString(sum[:]),
 	}, nil
 }
 
@@ -217,8 +277,8 @@ func applyOne(db *sql.DB, m migration) error {
 		return err
 	}
 	if _, err := tx.Exec(
-		`INSERT INTO schema_migrations (version, name) VALUES (?, ?)`,
-		m.version, m.name,
+		`INSERT INTO schema_migrations (version, name, checksum) VALUES (?, ?, ?)`,
+		m.version, m.name, m.checksum,
 	); err != nil {
 		return err
 	}

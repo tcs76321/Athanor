@@ -81,6 +81,28 @@ func TestFailedMigrationLeavesPriorVersionIntact(t *testing.T) {
 	}
 }
 
+func TestModifiedAppliedMigrationRejected(t *testing.T) {
+	s, _ := openTemp(t)
+	db := s.DB()
+	original := fstest.MapFS{
+		"0001_create_thing.sql": &fstest.MapFile{
+			Data: []byte("CREATE TABLE things (id TEXT PRIMARY KEY);"),
+		},
+	}
+	if err := Migrate(db, original, ""); err != nil {
+		t.Fatal(err)
+	}
+	modified := fstest.MapFS{
+		"0001_create_thing.sql": &fstest.MapFile{
+			Data: []byte("CREATE TABLE things (id TEXT PRIMARY KEY, extra TEXT);"),
+		},
+	}
+	err := Migrate(db, modified, "")
+	if err == nil || !strings.Contains(err.Error(), "was modified after it was applied") {
+		t.Fatalf("modified applied migration err = %v, want a checksum rejection", err)
+	}
+}
+
 func TestDuplicateMigrationVersionsRejected(t *testing.T) {
 	s, _ := openTemp(t)
 	fs := fstest.MapFS{
