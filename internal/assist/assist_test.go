@@ -40,6 +40,9 @@ func TestRefineParsesStructuredProposal(t *testing.T) {
 	if !strings.Contains(gen.system, "Never invent facts") {
 		t.Fatalf("system prompt = %q", gen.system)
 	}
+	if !strings.Contains(gen.system, "generic adjectives") || !strings.Contains(gen.system, "already the ideal version") {
+		t.Fatalf("system prompt lost the conservative rules: %q", gen.system)
+	}
 }
 
 func TestRefineAcceptsPlainTextFallback(t *testing.T) {
