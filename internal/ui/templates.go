@@ -616,6 +616,25 @@ const watchBody = `
   </div>
 </div>
 
+{{if .Failure}}
+<div class="card failure-card">
+  <div class="row row-middle">
+    <div>
+      <div class="eyebrow">This run did not finish</div>
+      <h2>{{if eq .FailureEvent "job_cancelled"}}Cancelled{{else}}Failed{{end}}</h2>
+    </div>
+    <span class="pill bad">{{.FailureEvent}}</span>
+  </div>
+  <p class="del wrap">{{.Failure}}</p>
+  <p class="muted">The event log below keeps the full record. Retry creates a fresh run for the same task; reset a blocked task from the project page if its dependents are stuck.</p>
+  <div class="actions">
+    {{if .Job.State.Terminal}}<form method="post" action="/ui/jobs/{{.Job.ID}}/control"><button name="action" value="retry">Retry this task</button></form>{{end}}
+    <a class="btn secondary" href="/ui/jobs/{{.Job.ID}}/trace">Open the full trace</a>
+    <a class="btn secondary" href="/ui/projects/{{.Job.ProjectID}}#work">Project work</a>
+  </div>
+</div>
+{{end}}
+
 <div class="card">
   <div class="eyebrow">Phase</div>
   <div class="phase-track">
@@ -627,7 +646,7 @@ const watchBody = `
   <div class="actions">
   <form method="post" action="/ui/jobs/{{.Job.ID}}/control">
     {{if eq .Job.State "paused"}}<button name="action" value="resume">Resume</button>
-    {{else if not .Job.State.Terminal}}<button name="action" value="pause" class="secondary">Pause</button>{{end}}
+    {{else if .CanPause}}<button name="action" value="pause" class="secondary">Pause</button>{{end}}
     {{if not .Job.State.Terminal}}<button name="action" value="cancel" class="danger" data-confirm="Cancel this job? The phase stops and the job is recorded as cancelled.">Cancel</button>{{end}}
     {{if .Job.State.Terminal}}<button name="action" value="retry">Retry</button>{{end}}
   </form>
@@ -692,7 +711,7 @@ const watchBody = `
       {{else}}<div class="empty">No events yet.</div>{{end}}
       </div>
     </div>
-    <details id="watch" data-job="{{.Job.ID}}">
+    <details id="watch" data-job="{{.Job.ID}}" data-last-event="{{.LastEventID}}">
       <summary>Raw model output</summary>
       {{if .Job.State.Terminal}}
       <div class="empty">This job is finished. Live token output is not retained; open the artifact or the full trace.</div>

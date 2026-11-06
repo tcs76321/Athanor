@@ -855,12 +855,47 @@ func (u *UI) handleWatch(w http.ResponseWriter, r *http.Request) {
 	if phase == job.StateAwaitingApproval && j.AwaitingFrom != "" {
 		phase = j.AwaitingFrom
 	}
+	failureEvent, failure := failureReason(events)
+	lastID := int64(0)
+	if len(events) > 0 {
+		lastID = events[0].ID
+	}
 	u.render(w, "Watch "+id, watchBody, map[string]any{
 		"Job": j, "Artifacts": arts, "Notes": notes, "Events": events,
 		"ProjectName": projectName, "Phases": watchPhases, "Phase": string(phase),
 		"PhaseIndex": phaseIndex(phase), "LastEvent": lastEventName(events),
-		"Evaluations": evals,
+		"Evaluations": evals, "FailureEvent": failureEvent, "Failure": failure,
+		"CanPause": job.CanTransition(j.State, job.StatePaused), "LastEventID": lastID,
 	})
+}
+
+// failureReason finds the newest terminal failure event and returns its name
+// and human reason. The job row does not carry an error column, so the event
+// log is the source of truth; the watch page promotes the latest failure so a
+// failed run explains itself without a trip to the raw trace.
+func failureReason(events []store.EventRecord) (string, string) {
+	for _, ev := range events {
+		var d map[string]any
+		if json.Unmarshal([]byte(ev.DataJSON), &d) != nil {
+			continue
+		}
+		name, _ := d["event"].(string)
+		switch name {
+		case "job_failed":
+			if s, _ := d["error"].(string); s != "" {
+				return name, s
+			}
+			return name, "the phase failed"
+		case "job_panicked":
+			if s, _ := d["panic"].(string); s != "" {
+				return name, s
+			}
+			return name, "the phase panicked"
+		case "job_cancelled":
+			return name, "the operator cancelled this run"
+		}
+	}
+	return "", ""
 }
 
 // watchPhases is the §8.1 working sequence shown as the watch stepper.
@@ -910,9 +945,15 @@ func (u *UI) handleJobStream(w http.ResponseWriter, r *http.Request) {
 	defer ticker.Stop()
 
 	var lastID int64
-	// Seed lastID so the initial page's events are not re-sent; LatestEventID
-	// is an index lookup, not a scan of the job's event history (M9).
-	lastID, _ = u.deps.Store.LatestEventID(r.Context(), store.EventFilter{JobID: jobID})
+	// Prefer the page's own last event so anything written between the page
+	// render and this connection is delivered; fall back to the current tail
+	// so a bare stream does not replay the job's history. LatestEventID is an
+	// index lookup, not a scan (M9).
+	if after, _ := strconv.ParseInt(r.URL.Query().Get("after"), 10, 64); after > 0 {
+		lastID = after
+	} else {
+		lastID, _ = u.deps.Store.LatestEventID(r.Context(), store.EventFilter{JobID: jobID})
+	}
 	for {
 		select {
 		case <-r.Context().Done():

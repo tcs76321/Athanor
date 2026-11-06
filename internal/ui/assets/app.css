@@ -572,6 +572,8 @@ main {
 .card-hover:hover { border-color: var(--border-strong); transform: translateY(-1px); }
 .card-soft { background: var(--bg-raised); }
 .card-accent { border-color: color-mix(in srgb, var(--accent) 40%, var(--border)); }
+.failure-card { border-left: 3px solid var(--bad); }
+.failure-card h2 { margin-top: 0; }
 .empty {
   padding: var(--space-6);
   border: 1px dashed var(--border-strong);

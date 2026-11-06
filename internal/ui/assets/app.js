@@ -246,7 +246,12 @@
     if (!root) return;
     const jobID = root.getAttribute("data-job");
     if (!jobID) return;
+    let lastEvent = Number(root.getAttribute("data-last-event")) || 0;
     const pre = document.getElementById("tokens");
+    const MAX_OUTPUT_CHARS = 400000;
+    const MAX_EVENTS = 300;
+    let outputChars = 0;
+    let outputTruncated = false;
     let stick = true;
     if (pre) {
       pre.addEventListener("scroll", () => {
@@ -268,8 +273,11 @@
       return ts + label + (parts.length ? " · " + parts.join(" · ") : "");
     }
     let es;
+    let reconnectDelay = 1000;
     function connect() {
-      es = new EventSource("/ui/jobs/" + encodeURIComponent(jobID) + "/stream");
+      es = new EventSource(
+        "/ui/jobs/" + encodeURIComponent(jobID) + "/stream?after=" + encodeURIComponent(lastEvent)
+      );
       es.addEventListener("token", (e) => {
         if (!pre) return;
         let t;
@@ -278,7 +286,18 @@
         } catch (_) {
           return;
         }
-        pre.textContent += t;
+        if (outputChars >= MAX_OUTPUT_CHARS) {
+          if (!outputTruncated) {
+            outputTruncated = true;
+            const note = document.createElement("div");
+            note.className = "muted small";
+            note.textContent = "Live output truncated in this view; the finished artifact keeps the full result.";
+            pre.parentNode.insertBefore(note, pre);
+          }
+          return;
+        }
+        pre.appendChild(document.createTextNode(t));
+        outputChars += t.length;
         if (stick) pre.scrollTop = pre.scrollHeight;
       });
       es.addEventListener("event", (e) => {
@@ -294,14 +313,23 @@
         div.className = "ev";
         div.textContent = eventLine(p);
         host.prepend(div);
+        if (p.id && Number(p.id) > lastEvent) lastEvent = Number(p.id);
+        while (host.childElementCount > MAX_EVENTS) host.lastElementChild.remove();
       });
       es.onerror = () => {
         es.close();
         const s = document.getElementById("stream-state");
         if (s) s.textContent = "reconnecting…";
-        setTimeout(connect, 3000);
+        // Reconnect with the newest event we have seen. The server accepts
+        // ?after=, so events written during the gap are delivered instead of
+        // silently skipped.
+        setTimeout(() => {
+          reconnectDelay = Math.min(reconnectDelay * 2, 15000);
+          connect();
+        }, reconnectDelay);
       };
       es.onopen = () => {
+        reconnectDelay = 1000;
         const s = document.getElementById("stream-state");
         if (s) s.textContent = "live";
       };

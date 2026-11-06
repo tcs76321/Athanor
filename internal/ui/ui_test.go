@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -212,6 +213,74 @@ func TestMissingArtifactIs404(t *testing.T) {
 	}
 	if !strings.Contains(body, "Recent errors") {
 		t.Error("error shell should offer a path to the event log")
+	}
+}
+
+// TestWatchShowsFailure pins the failure card: the event log is the only place
+// a job's error lives, so the watch page must promote it instead of making the
+// operator read raw events.
+func TestWatchShowsFailure(t *testing.T) {
+	fx := setup(t)
+	ctx := context.Background()
+	if _, err := fx.ui.deps.Jobs.Transition(ctx, fx.job.ID, job.StateContextBuilding); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := fx.ui.deps.Jobs.Transition(ctx, fx.job.ID, job.StateFailed); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := fx.ui.deps.Store.AppendEvent(ctx, store.Event{
+		Category: "jobs", JobID: fx.job.ID,
+		Data: map[string]any{"event": "job_failed", "state": "context_building", "error": "the model refused the task"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	status, body := get(t, fx.ts.URL+"/ui/jobs/"+fx.job.ID)
+	if status != http.StatusOK {
+		t.Fatalf("status = %d, want 200", status)
+	}
+	for _, want := range []string{"This run did not finish", "the model refused the task", "Retry this task", "Open the full trace"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("watch page missing %q", want)
+		}
+	}
+}
+
+// TestWatchHidesIllegalPause pins the control guard: queued and
+// awaiting_approval jobs have no edge to paused, so the button must not be
+// offered (clicking it used to render a 400 page).
+func TestWatchHidesIllegalPause(t *testing.T) {
+	fx := setup(t)
+	_, body := get(t, fx.ts.URL+"/ui/jobs/"+fx.job.ID)
+	if strings.Contains(body, `value="pause"`) {
+		t.Error("queued job page offers Pause, which is an illegal transition")
+	}
+	ctx := context.Background()
+	if _, err := fx.ui.deps.Jobs.Transition(ctx, fx.job.ID, job.StateContextBuilding); err != nil {
+		t.Fatal(err)
+	}
+	_, body = get(t, fx.ts.URL+"/ui/jobs/"+fx.job.ID)
+	if !strings.Contains(body, `value="pause"`) {
+		t.Error("running job page should offer Pause")
+	}
+}
+
+// TestWatchCarriesLastEventID pins the SSE catch-up plumbing: the page tells
+// the stream the newest event it rendered, so events written before the
+// EventSource connects are delivered rather than silently skipped.
+func TestWatchCarriesLastEventID(t *testing.T) {
+	fx := setup(t)
+	ctx := context.Background()
+	id, err := fx.ui.deps.Store.AppendEvent(ctx, store.Event{
+		Category: "jobs", JobID: fx.job.ID,
+		Data: map[string]any{"event": "phase_started", "phase": "planning"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, body := get(t, fx.ts.URL+"/ui/jobs/"+fx.job.ID)
+	want := `data-last-event="` + strconv.FormatInt(id, 10) + `"`
+	if !strings.Contains(body, want) {
+		t.Errorf("watch page missing %s", want)
 	}
 }
 
