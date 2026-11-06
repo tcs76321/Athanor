@@ -126,6 +126,7 @@ demo. A claim without a proof is either removed or marked as a target.
 | Artifact bytes are searchable within a bounded scan | 2026-11-06 backlog pass | `internal/ui/site.go` (`contentSnippet`); `TestSearchFindsArtifactContent` | **proven** |
 | Per-project execution overrides are editable in the UI | 2026-11-06 backlog pass | `POST /ui/projects/{id}/execution`; `TestProjectExecutionEditor` | **proven** |
 | `athanor job watch` streams audit events | 2026-11-06 backlog pass | `cmd/athanor/cli_project.go`; `TestFormatJobEvent` | **proven** |
+| The host-reserve warning is fixable on the page that shows it, and returning after restart keeps the step | 2026-11-06 first-use fix | `internal/ui/onboarding_templates.go`; `TestCurrentResourcesWarnsWhenReserveBelowVM`, `TestReserveFixReturnsToModels` | **proven** |
 
 ## Rule
 

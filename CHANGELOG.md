@@ -33,6 +33,12 @@ New entries are appended at the top. Do not rewrite history.
   command, linters, fixture path/root, data schema, and declared checks.
 - **`athanor job watch` streams audit events**, not only state changes;
   `-events=false` restores the quiet mode.
+- **The host-reserve warning is actionable in place.** The Resources step now
+  warns when the Podman VM is larger than the host reserve and offers the
+  recommended value (VM + 1 GiB); the Models step repeats the plain-language
+  explanation with “use recommended and restart” and “open Resources” actions,
+  and a fix started on Models returns there after the restart. Continuing is
+  explicitly allowed; the warning is about headroom, not a hard failure.
 
 ### UX, trust, and daily-loop pass — 2026-11-06
 
