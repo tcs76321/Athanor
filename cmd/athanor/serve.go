@@ -423,7 +423,7 @@ func run(configPath, addr, stateDir string, container bool) error {
 	externalAPI.SetHITL(hitlSvc)
 	externalAPI.SetInterview(interview.NewRepo(st))
 	externalAPI.SetReviews(review.NewRepo(st))
-	externalAPI.SetPusher(gitPusher{projects: projectRepo, hitl: hitlRepo})
+	externalAPI.SetPusher(gitPusher{projects: projectRepo, hitl: hitlRepo, artifacts: artifactStore})
 	externalAPI.SetCorrections(correctionsRepo)
 	externalAPI.SetStrategy(strategyRepo)
 	// M8-T28 (ADR-0067): the advisory technique loop. A grounded winning
@@ -476,7 +476,7 @@ func run(configPath, addr, stateDir string, container bool) error {
 		Scheduler:    sched,
 		TaskResetter: sched,
 		Alarms:       alarmSvc,
-		Pusher:       gitPusher{projects: projectRepo, hitl: hitlRepo},
+		Pusher:       gitPusher{projects: projectRepo, hitl: hitlRepo, artifacts: artifactStore},
 		ConfigPath:   configPath,
 		Restart: func() {
 			select {

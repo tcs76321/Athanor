@@ -6,7 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 
+	"github.com/tcs76321/athanor/internal/artifact"
 	"github.com/tcs76321/athanor/internal/hitl"
 	"github.com/tcs76321/athanor/internal/project"
 	"github.com/tcs76321/athanor/internal/store"
@@ -16,8 +18,9 @@ import (
 // Creating a request is the whole "attempt": no push happens until an
 // operator approves it.
 type gitPusher struct {
-	projects *project.Repo
-	hitl     *hitl.Repo
+	projects  *project.Repo
+	hitl      *hitl.Repo
+	artifacts *artifact.Store
 }
 
 // RequestPush records a high-severity git_push request for the project's
@@ -33,8 +36,23 @@ func (g gitPusher) RequestPush(ctx context.Context, projectID, remote string) (h
 	if remote == "" {
 		remote = "origin"
 	}
-	payload, err := json.Marshal(map[string]string{
+	commits := []string{}
+	accepted := 0
+	if g.artifacts != nil {
+		if arts, aerr := g.artifacts.ListByProject(ctx, proj.ID); aerr == nil {
+			for _, a := range arts {
+				if a.Status == artifact.StatusAccepted && a.GitCommit != "" {
+					accepted++
+					if len(commits) < 5 {
+						commits = append(commits, a.GitCommit)
+					}
+				}
+			}
+		}
+	}
+	payload, err := json.Marshal(map[string]any{
 		"project_id": proj.ID, "remote": remote, "branch": "athanor/" + proj.ID,
+		"accepted_artifacts": accepted, "commits": strings.Join(commits, ", "),
 	})
 	if err != nil {
 		return hitl.Request{}, err
