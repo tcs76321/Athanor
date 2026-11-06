@@ -79,20 +79,10 @@ func (u *UI) handleEvents(w http.ResponseWriter, r *http.Request) {
 }
 
 func (u *UI) eventCategories(ctx context.Context) []string {
-	rows, err := u.deps.Store.DB().QueryContext(ctx,
-		`SELECT DISTINCT category FROM events ORDER BY category`)
-	if err != nil {
-		return nil
-	}
-	defer func() { _ = rows.Close() }()
-	var out []string
-	for rows.Next() {
-		var c string
-		if rows.Scan(&c) == nil {
-			out = append(out, c)
-		}
-	}
-	return out
+	// The event category set is closed and owned by config. Deriving it from
+	// DISTINCT over an unbounded append-only table made every events page scan
+	// the whole log for a list that cannot change.
+	return append([]string(nil), config.Categories...)
 }
 
 // --- artifact index ---

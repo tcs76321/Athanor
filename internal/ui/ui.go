@@ -1,6 +1,6 @@
 // Package ui serves Athanor's local web UI (ROADMAP M6-T8; ARCHITECTURE §27)
-// on the Core's loopback listener. It is dependency-free: html/template,
-// SSE, and net/http only.
+// on the Core's loopback listener. It uses no third-party UI framework:
+// html/template, SSE, and net/http, with vendored HTMX as a static asset.
 //
 // Pages: Dashboard (jobs + pending approvals + power/freeze), Projects
 // (artifact history + diffs + corrections), Corrections, Job Watch (live
@@ -52,7 +52,7 @@ type Operator interface {
 	Set(ctx context.Context, mode operator.Mode, hold time.Duration, reason string) error
 }
 
-// Assist refines a user-authored field for its downstream purpose (ADR-0104
+// Assist refines a user-authored field for its downstream purpose (ADR-0105
 // authoring assist). It returns a proposal; the UI applies it only on request.
 type Assist interface {
 	Refine(ctx context.Context, field, text, mode string) (assist.Result, error)
@@ -835,16 +835,12 @@ func (u *UI) handleWatch(w http.ResponseWriter, r *http.Request) {
 	if u.deps.Eval != nil {
 		evals, _ = u.deps.Eval.ListByJob(ctx, id)
 	}
-	events, err := u.deps.Store.QueryEvents(ctx, store.EventFilter{JobID: id})
+	// Newest-first with a bound: the watch page does not scan a long job's
+	// whole event history just to display the last hundred rows.
+	events, err := u.deps.Store.QueryEvents(ctx, store.EventFilter{JobID: id, Desc: true, Limit: 100})
 	if err != nil {
 		u.fail(w, err)
 		return
-	}
-	if len(events) > 100 {
-		events = events[len(events)-100:]
-	}
-	for i, j := 0, len(events)-1; i < j; i, j = i+1, j-1 {
-		events[i], events[j] = events[j], events[i]
 	}
 	projectName := j.ProjectID
 	if p, err := u.deps.Projects.Get(ctx, j.ProjectID); err == nil {
@@ -1360,6 +1356,21 @@ func (u *UI) render(w http.ResponseWriter, title, body string, data map[string]a
 	u.renderStatus(w, http.StatusOK, title, body, data)
 }
 
+// templateCache memoizes parsed page/partial templates. Re-parsing a constant
+// body on every request allocated a new template and made a parse error a
+// per-request panic.
+var templateCache sync.Map // key string -> *template.Template
+
+func cachedTemplate(kind, body string) *template.Template {
+	key := kind + "\x00" + body
+	if v, ok := templateCache.Load(key); ok {
+		return v.(*template.Template)
+	}
+	t := template.Must(template.New(kind).Funcs(funcs).Parse(body))
+	templateCache.Store(key, t)
+	return t
+}
+
 // renderStatus renders the shared shell with an explicit status code. The
 // header must be written after Content-Type is set and before the body.
 func (u *UI) renderStatus(w http.ResponseWriter, status int, title, body string, data map[string]any) {
@@ -1388,7 +1399,7 @@ func (u *UI) renderStatus(w http.ResponseWriter, status int, title, body string,
 		// the warning unless this is the supported Core Pod.
 		data["DevRuntime"] = u.deps.Runtime != "" && !strings.EqualFold(u.deps.Runtime, "Core Pod")
 	}
-	t := template.Must(template.New("page").Funcs(funcs).Parse(document(body)))
+	t := cachedTemplate("page", document(body))
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	// The shell has no inline script or style: everything is served from
 	// /ui/assets. A strict CSP is therefore cheap and closes injection paths
@@ -1418,7 +1429,7 @@ func (u *UI) renderPartial(w http.ResponseWriter, body string, data map[string]a
 	if data == nil {
 		data = map[string]any{}
 	}
-	t := template.Must(template.New("partial").Funcs(funcs).Parse(body))
+	t := cachedTemplate("partial", body)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := t.Execute(w, data); err != nil {
 		slog.Error("ui: rendering partial", "err", err)

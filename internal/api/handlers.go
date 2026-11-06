@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -287,7 +288,22 @@ func (a *API) handleJobGet(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *API) handleJobEvents(w http.ResponseWriter, r *http.Request) {
-	events, err := a.db.QueryEvents(r.Context(), store.EventFilter{JobID: r.PathValue("id")})
+	limit := queryLimit(r, 500)
+	if limit > 5000 {
+		limit = 5000
+	}
+	f := store.EventFilter{JobID: r.PathValue("id"), Limit: limit}
+	if v := r.URL.Query().Get("after_id"); v != "" {
+		if n, err := strconv.ParseInt(v, 10, 64); err == nil && n > 0 {
+			f.AfterID = n
+		}
+	}
+	if v := r.URL.Query().Get("before_id"); v != "" {
+		if n, err := strconv.ParseInt(v, 10, 64); err == nil && n > 0 {
+			f.BeforeID = n
+		}
+	}
+	events, err := a.db.QueryEvents(r.Context(), f)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -298,7 +314,11 @@ func (a *API) handleJobEvents(w http.ResponseWriter, r *http.Request) {
 			"id": e.ID, "ts": e.TS, "category": e.Category, "level": e.Level, "data": e.DataJSON,
 		})
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"events": out})
+	resp := map[string]any{"events": out, "limit": limit}
+	if len(events) == limit {
+		resp["next_before_id"] = events[len(events)-1].ID
+	}
+	writeJSON(w, http.StatusOK, resp)
 }
 
 // hitlResponse is the JSON shape of a HITL request. It is deliberately
