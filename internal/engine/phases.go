@@ -474,7 +474,7 @@ func (e *Engine) call(ctx context.Context, j job.Job, p project.Project, t proje
 	// meaningful before terminal settlement. The measured wall is the call's
 	// own latency; settlement later replaces the totals with the whole-job
 	// token spend and elapsed wall.
-	e.spendHorizon(ctx, j.ID, resp.PromptTokens+resp.CompletionTokens, time.Since(callStart))
+	e.spendHorizon(ctx, j.ID, resp.PromptTokens+resp.CompletionTokens+resp.ReasoningTokens, time.Since(callStart))
 
 	// §13.1/§28.2: resolved temperature and per-section token counts are
 	// written to the EventLog for every call.

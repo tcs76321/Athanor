@@ -209,6 +209,7 @@ func (e *Engine) eventStats(ctx context.Context, jobID string) (tokens int, conf
 			Event            string  `json:"event"`
 			PromptTokens     int     `json:"prompt_tokens"`
 			CompletionTokens int     `json:"completion_tokens"`
+			ReasoningTokens  int     `json:"reasoning_tokens"`
 			Confidence       float64 `json:"confidence"`
 		}
 		if json.Unmarshal([]byte(ev.DataJSON), &d) != nil {
@@ -216,7 +217,7 @@ func (e *Engine) eventStats(ctx context.Context, jobID string) (tokens int, conf
 		}
 		switch d.Event {
 		case "llm_call":
-			tokens += d.PromptTokens + d.CompletionTokens
+			tokens += d.PromptTokens + d.CompletionTokens + d.ReasoningTokens
 		case "comparison":
 			confidence = d.Confidence
 		}

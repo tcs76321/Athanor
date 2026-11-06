@@ -3,8 +3,8 @@
 // hardening flags; the package's job is to make that guarantee
 // structural rather than aspirational.
 //
-// M2-T2 ships this package. The M2-T3 token mount and the M2-T4
-// internal API are layered on top; the engine is wired to it later.
+// M2-T2 ships this package. M2-T3 adds per-job token issuance (the read-only
+// token mount is opt-in) and M2-T4 layers the internal API on top.
 //
 // The package does not import os/exec. Production wiring lives in
 // cmd/athanor/jobpod_client.go so internal/gate/gate_test.go stays
