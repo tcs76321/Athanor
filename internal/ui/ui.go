@@ -382,6 +382,7 @@ func (u *UI) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /ui/projects/{id}/onboarding", u.handleProjectOnboardingPost)
 	mux.HandleFunc("POST /ui/projects/{id}/goals", u.handleGoalCreate)
 	mux.HandleFunc("POST /ui/projects/{id}/index", u.handleProjectIndex)
+	mux.HandleFunc("POST /ui/projects/{id}/execution", u.handleProjectExecution)
 	mux.HandleFunc("POST /ui/tasks/{id}/reset", u.handleTaskReset)
 	mux.HandleFunc("POST /ui/projects/{id}/corrections", u.handleCorrectionCreate)
 	mux.HandleFunc("GET /ui/corrections", u.handleCorrections)

@@ -286,6 +286,36 @@ func TestSetupPersonasWritesConfig(t *testing.T) {
 	}
 }
 
+// TestProjectExecutionEditor pins the advanced project config form: the UI can
+// now write the per-project test command, linters, and declared checks.
+func TestProjectExecutionEditor(t *testing.T) {
+	fx := setup(t)
+	resp := postForm(t, fx.ts.URL+"/ui/projects/"+fx.project.ID+"/execution", url.Values{
+		"test_command": {"go test ./..."},
+		"linters":      {"gofmt\ngo vet"},
+		"checks_json":  {`{"min_words": 10, "must_contain": ["done"]}`},
+	})
+	if resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303", resp.StatusCode)
+	}
+	p, err := fx.ui.deps.Projects.Get(context.Background(), fx.project.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.Execution.TestCommand != "go test ./..." || len(p.Execution.Linters) != 2 {
+		t.Errorf("execution = %+v, want the saved command and linters", p.Execution)
+	}
+	if p.Execution.Checks == nil || p.Execution.Checks.MinWords != 10 {
+		t.Errorf("checks = %+v, want min_words 10", p.Execution.Checks)
+	}
+	resp = postForm(t, fx.ts.URL+"/ui/projects/"+fx.project.ID+"/execution", url.Values{
+		"checks_json": {"not json"},
+	})
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("invalid checks status = %d, want 400", resp.StatusCode)
+	}
+}
+
 // TestSearchFindsArtifactContent pins the bounded content scan: artifact bytes
 // are searchable even though they are not indexed in SQLite.
 func TestSearchFindsArtifactContent(t *testing.T) {

@@ -2,6 +2,7 @@ package ui
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -9,6 +10,8 @@ import (
 	"time"
 
 	"github.com/tcs76321/athanor/internal/digest"
+	"github.com/tcs76321/athanor/internal/project"
+	"github.com/tcs76321/athanor/internal/store"
 	"github.com/tcs76321/athanor/internal/strategy"
 )
 
@@ -128,6 +131,50 @@ func (u *UI) handleInsightAction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	http.Redirect(w, r, "/ui/statistics", http.StatusSeeOther)
+}
+
+// handleProjectExecution edits the project-owned execution configuration. The
+// default path infers the test command, so this is the advanced override the
+// UI previously said was API/CLI-only.
+func (u *UI) handleProjectExecution(w http.ResponseWriter, r *http.Request) {
+	p, err := u.deps.Projects.Get(r.Context(), r.PathValue("id"))
+	if err != nil {
+		u.fail(w, err)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		u.fail(w, err)
+		return
+	}
+	ex := p.Execution
+	ex.TestCommand = strings.TrimSpace(r.FormValue("test_command"))
+	ex.BuildCommand = strings.TrimSpace(r.FormValue("build_command"))
+	ex.FixturePath = strings.TrimSpace(r.FormValue("fixture_path"))
+	ex.FixtureRoot = strings.TrimSpace(r.FormValue("fixture_root"))
+	ex.DataSchema = strings.TrimSpace(r.FormValue("data_schema"))
+	ex.Linters = splitCriteria(r.FormValue("linters"))
+	rawChecks := strings.TrimSpace(r.FormValue("checks_json"))
+	if rawChecks == "" {
+		ex.Checks = nil
+	} else {
+		var checks project.ExecutionChecks
+		if err := json.Unmarshal([]byte(rawChecks), &checks); err != nil {
+			u.fail(w, fmt.Errorf("declared checks must be a JSON object: %w", err))
+			return
+		}
+		ex.Checks = &checks
+	}
+	if err := u.deps.Projects.SetExecution(r.Context(), p.ID, ex); err != nil {
+		u.fail(w, err)
+		return
+	}
+	if u.deps.Store != nil {
+		_, _ = u.deps.Store.AppendEvent(r.Context(), store.Event{
+			Category: "projects", ProjectID: p.ID,
+			Data: map[string]any{"event": "project_execution_updated", "test_command": ex.TestCommand},
+		})
+	}
+	http.Redirect(w, r, "/ui/projects/"+p.ID+"#settings", http.StatusSeeOther)
 }
 
 func (u *UI) handleProjectPush(w http.ResponseWriter, r *http.Request) {

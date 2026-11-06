@@ -627,7 +627,19 @@ const projectBody = `
     <dt>verification</dt><dd class="mono wrap">{{if .Project.TestCommand}}{{.Project.TestCommand}}{{else}}No test command detected; the judge decides{{end}}</dd>
     <dt>created</dt><dd>{{.Project.CreatedAt | when}}</dd>
   </dl>
-  <p class="muted">Execution configuration is inferred from the repository. Per-project overrides are available through the API/CLI; this page does not rewrite config.yaml.</p>
+  <p class="muted">Verification is inferred from the repository. These advanced overrides are stored on the project, not in <code>config.yaml</code>.</p>
+  <form method="post" action="/ui/projects/{{.Project.ID}}/execution">
+    <div class="grid cols-2">
+      <label>Test command <input name="test_command" value="{{.Project.Execution.TestCommand}}" placeholder="detected from the repository"></label>
+      <label>Build command <input name="build_command" value="{{.Project.Execution.BuildCommand}}" placeholder="optional"></label>
+      <label>Linters (one per line) <textarea name="linters" rows="2">{{join .Project.Execution.Linters}}</textarea></label>
+      <label>Fixture path <input name="fixture_path" value="{{.Project.Execution.FixturePath}}" placeholder="optional starter tree"></label>
+      <label>Fixture root <input name="fixture_root" value="{{.Project.Execution.FixtureRoot}}" placeholder="defaults to the repository"></label>
+    </div>
+    <label>Data schema (JSON Schema) <textarea name="data_schema" rows="4" class="mono">{{.Project.Execution.DataSchema}}</textarea></label>
+    <label>Declared text/document checks (JSON) <textarea name="checks_json" rows="4" class="mono">{{if .Project.Execution.Checks}}{{tojson .Project.Execution.Checks}}{{end}}</textarea></label>
+    <div class="actions"><button class="primary">Save execution configuration</button></div>
+  </form>
   <div class="actions">
     <a class="btn secondary" href="/ui/runtime">Inspect runtime</a>
     <a class="btn secondary" href="/ui/projects/{{.Project.ID}}/onboarding">Edit onboarding</a>
