@@ -20,6 +20,7 @@ type poolRow struct {
 	Name          string
 	Family        string
 	SizeBytes     int64
+	ResidentBytes int64
 	InPool        bool
 	Installed     bool
 	Excluded      bool
@@ -47,6 +48,7 @@ type poolView struct {
 	MachineScore   int
 	MachineHostGiB float64
 	MachineCPUs    int
+	FitLimitGiB    float64
 }
 
 func (u *UI) pool() *composition.Pool { return u.deps.Pool }
@@ -144,6 +146,7 @@ func (u *UI) welcomePool(models []setupModel) poolView {
 	if p == nil {
 		return view
 	}
+	view.FitLimitGiB = float64(p.FitLimitBytes) / (1 << 30)
 	machine := p.MachineProfile()
 	view.MachineScore = machine.Score
 	view.MachineHostGiB = float64(machine.HostBytes) / (1 << 30)
@@ -166,6 +169,7 @@ func (u *UI) welcomePool(models []setupModel) poolView {
 			row.InPool = true
 			row.ContextTarget = prof.ContextTarget
 			row.Family = firstNonEmpty(prof.Family, m.Family)
+			row.ResidentBytes = prof.ResidentBytes
 			row.TooLarge = prof.TooLarge
 			row.Score, row.Samples, row.Qualified = overallScore(prof)
 			row.Code = scoreValue(prof, string(composition.CapabilityCode))
@@ -184,7 +188,7 @@ func (u *UI) welcomePool(models []setupModel) poolView {
 		if seen[name] {
 			continue
 		}
-		row := poolRow{Name: name, Family: prof.Family, InPool: true, ContextTarget: prof.ContextTarget, TooLarge: prof.TooLarge}
+		row := poolRow{Name: name, Family: prof.Family, InPool: true, ContextTarget: prof.ContextTarget, TooLarge: prof.TooLarge, ResidentBytes: prof.ResidentBytes}
 		row.Score, row.Samples, row.Qualified = overallScore(prof)
 		row.Code = scoreValue(prof, string(composition.CapabilityCode))
 		row.Data = scoreValue(prof, string(composition.CapabilityData))

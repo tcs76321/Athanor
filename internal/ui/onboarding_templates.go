@@ -138,6 +138,7 @@ const welcomeBody = `
       </div>
       {{if .PoolWarning}}<p class="del">{{.PoolWarning}}</p>{{end}}
       <p class="muted small">A minimum of {{.PoolMin}} is recommended, with a sanity cap of 100. Models do not need different sizes or families; ties are broken by name, and diversity is measured rather than assumed.</p>
+      {{if .Pool.FitLimitGiB}}<p class="muted small">Fit limit: {{printf "%.1f" .Pool.FitLimitGiB}} GiB — host RAM minus the 8 GiB OS/apps reserve and the Podman VM allocation. A model is marked too large when its measured resident size (weights + KV, shown beneath the file size when available) or, without an audit, its on-disk size exceeds this limit.</p>{{end}}
     </div>
 
     <h2>Installed models</h2>
@@ -146,7 +147,7 @@ const welcomeBody = `
       <table><thead><tr><th>Model</th><th>Size</th><th>Family</th><th>Context</th><th>Status</th><th></th></tr></thead><tbody>
       {{range .PoolRows}}<tr>
         <td class="mono">{{.Name}}</td>
-        <td>{{gib .SizeBytes}}</td>
+        <td>{{gib .SizeBytes}}{{if .ResidentBytes}}<div class="muted small">{{gib .ResidentBytes}} resident</div>{{end}}</td>
         <td>{{if .Family}}{{.Family}}{{else}}—{{end}}</td>
         <td>{{if .ContextTarget}}{{.ContextTarget}}{{else}}—{{end}}</td>
         <td>{{if .TooLarge}}<span class="pill bad">too large for this machine</span>{{else if .InPool}}<span class="pill ok">{{if .Qualified}}qualified {{printf "%.0f%%" (mul .Score 100)}}{{else}}in pool{{end}}</span>{{else}}<span class="pill">removed</span>{{end}}</td>

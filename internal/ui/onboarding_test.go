@@ -466,7 +466,7 @@ func TestWelcomeModelsSelfSelectAndApply(t *testing.T) {
 	t.Cleanup(ts.Close)
 
 	_, body := get(t, ts.URL+"/ui/welcome?step=models")
-	for _, want := range []string{"Build the model pool", "Installed models", "large:14b", "Remove", "Host inference budget", "Runtime sandbox", "The pool"} {
+	for _, want := range []string{"Build the model pool", "Installed models", "large:14b", "Remove", "Host inference budget", "Runtime sandbox", "The pool", "Fit limit"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("models step missing %q", want)
 		}
