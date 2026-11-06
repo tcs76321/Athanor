@@ -145,15 +145,10 @@
     });
   });
   function baseTheme() {
-    const root = document.documentElement;
-    if (root.dataset.baseTheme === "system") {
-      return window.matchMedia("(prefers-color-scheme: light)").matches ? "ember" : "monokai";
-    }
-    return root.dataset.baseTheme || "monokai";
+    return document.documentElement.dataset.baseTheme || "monokai";
   }
   $$("[data-theme-preview]").forEach((el) => {
-    let theme = el.getAttribute("data-theme-preview");
-    if (theme === "system") theme = baseTheme();
+    const theme = el.getAttribute("data-theme-preview");
     el.addEventListener("mouseenter", () => document.documentElement.setAttribute("data-theme", theme));
     el.addEventListener("focus", () => document.documentElement.setAttribute("data-theme", theme));
     el.addEventListener("mouseleave", () => document.documentElement.setAttribute("data-theme", baseTheme()));
@@ -644,10 +639,6 @@
 
   /* ---------- boot ---------- */
   function boot() {
-    const root = document.documentElement;
-    if (root.dataset.baseTheme === "system") {
-      root.setAttribute("data-theme", window.matchMedia("(prefers-color-scheme: light)").matches ? "ember" : "monokai");
-    }
     markNav();
     wireDashboard();
     wireWatch();

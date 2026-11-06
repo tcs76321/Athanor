@@ -112,7 +112,6 @@ var themeNames = []struct{ ID, Label string }{
 	{"nord", "Nord"},
 	{"solarized-light", "Solarized Light"},
 	{"contrast", "High Contrast"},
-	{"system", "System (follow OS)"},
 }
 
 func themeLabel(id string) string {

@@ -411,7 +411,7 @@ func TestSearchFindsArtifactContent(t *testing.T) {
 func TestDisplaySettings(t *testing.T) {
 	fx := setup(t)
 	_, body := get(t, fx.ts.URL+"/ui/settings")
-	for _, want := range []string{"System (follow OS)", "Density", `id="confirm"`} {
+	for _, want := range []string{"Solarized Light", "Density", `id="confirm"`, `data-theme="ember"`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("settings/shell missing %q", want)
 		}

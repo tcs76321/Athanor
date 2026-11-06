@@ -24,7 +24,8 @@ The 2026-11-06 pass closed the biggest presentation and daily-loop gaps:
 - **Control and reading.** Discovery, planning, pulls, and qualification are
   cancellable; Watch has a per-phase duration/token timeline; code is
   highlighted with a source-only line gutter; confirmations use a styled
-  dialog; Settings adds compact density and a System theme; timestamps are
+  dialog; Settings adds compact density and six distinct themes with
+  palette-accurate previews; timestamps are
   relative; artifact bytes are searchable; the project execution config is
   editable; and `athanor job watch` streams audit events.
 

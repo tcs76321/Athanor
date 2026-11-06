@@ -11,7 +11,7 @@ const settingsBody = `
     <select id="theme" name="theme">
       {{range .Themes}}<option value="{{.ID}}" {{if eq .ID $.Theme}}selected{{end}}>{{.Label}}</option>{{end}}
     </select>
-    <div class="field-help">The theme is stored in the Core and applies to every window. Monokai is the default; Ember Paper is the warm light theme; System follows the OS setting.</div>
+    <div class="field-help">The theme is stored in the Core and applies to every window. Monokai is the default; Ember Paper is the warm light theme.</div>
     <div class="actions"><button class="primary">Apply theme</button></div>
   </form>
   <form method="post" action="/ui/density" class="mt-3">
@@ -27,7 +27,7 @@ const settingsBody = `
 
 <div class="grid cols-3">
   {{range .Themes}}
-  <div class="card card-hover" data-theme-preview="{{.ID}}">
+  <div class="card card-hover theme-card" data-theme="{{.ID}}" data-theme-preview="{{.ID}}">
     <div class="row row-middle">
       <div>
         <div class="eyebrow">Theme</div>

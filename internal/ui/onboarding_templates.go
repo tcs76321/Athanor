@@ -86,7 +86,7 @@ const welcomeBody = `
     {{if .Resources.ReserveClamped}}
     <div class="notice bad">
       <b>Athanor is enforcing a safer host reserve.</b>
-      Your config says {{printf "%.1f" (div .Resources.HostReserveMB 1024.0)}} GiB, but this machine's Podman VM is {{printf "%.1f" .Resources.TotalMemoryGiB}} GiB. Athanor is using <b>{{.Resources.EffectiveHostReserveMB}} MB</b> for the budget so the VM is never left uncovered.
+      Your config says {{printf "%.1f" (mib .Resources.HostReserveMB)}} GiB, but this machine's Podman VM is {{printf "%.1f" .Resources.TotalMemoryGiB}} GiB. Athanor is using <b>{{.Resources.EffectiveHostReserveMB}} MB</b> for the budget so the VM is never left uncovered.
       The recommended value is <b>{{.Resources.RecommendedReserveMB}} MB</b> (VM + 1 GiB). Save it to make the setting explicit.
       <form method="post" action="/ui/welcome" class="actions">
         <input type="hidden" name="step" value="resources">
@@ -98,7 +98,7 @@ const welcomeBody = `
     {{else if .Resources.ReserveBelowRecommended}}
     <div class="notice">
       <b>Host reserve is below the recommendation.</b>
-      You set {{printf "%.1f" (div .Resources.HostReserveMB 1024.0)}} GiB; the recommended value is {{.Resources.RecommendedReserveMB}} MB (VM + 1 GiB). This is allowed — it leaves more room for models — but less headroom for macOS and the VM. The minimum Athanor will accept is {{.Resources.MinHostReserveMB}} MB.
+      You set {{printf "%.1f" (mib .Resources.HostReserveMB)}} GiB; the recommended value is {{.Resources.RecommendedReserveMB}} MB (VM + 1 GiB). This is allowed — it leaves more room for models — but less headroom for macOS and the VM. The minimum Athanor will accept is {{.Resources.MinHostReserveMB}} MB.
     </div>
     {{end}}
     <div class="card">

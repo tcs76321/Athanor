@@ -23,7 +23,8 @@ New entries are appended at the top. Do not rewrite history.
   tokenizer (Python, Go, JavaScript/TypeScript, Rust, Java, Ruby, shell, YAML,
   JSON), with the gutter outside `<pre>` so Copy remains source-only.
 - **Confirmations use a styled dialog**, not `window.confirm`; Settings adds
-  compact density and a System theme that follows the OS.
+  compact density, and six distinct themes whose preview cards render their own
+  palette.
 - **Timestamps are human.** Recent work reads “5m ago”, today keeps the clock,
   yesterday is labeled, and older work gets a date. The home surface is called
   Dashboard everywhere.
