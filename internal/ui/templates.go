@@ -700,6 +700,24 @@ const watchBody = `
   </div>
 </div>
 
+{{if .Timeline}}
+<h2>Phase timeline</h2>
+<div class="card flush">
+  <div class="table-wrap">
+    <table><thead><tr><th>Phase</th><th>Started</th><th>Duration</th><th>Model calls</th><th>Tokens</th></tr></thead><tbody>
+    {{range .Timeline}}<tr>
+      <td><span class="pill">{{.Phase}}</span></td>
+      <td class="muted">{{.Started | ts}}</td>
+      <td>{{.Duration}}</td>
+      <td>{{.Calls}}</td>
+      <td>{{.Tokens}}</td>
+    </tr>{{end}}
+    </tbody></table>
+  </div>
+</div>
+<p class="muted small">Durations are derived from the transition timestamps; token counts are the recorded call usage. A running phase counts up to now.</p>
+{{end}}
+
 <div class="split">
   <div>
     <h2>Candidates and artifacts</h2>

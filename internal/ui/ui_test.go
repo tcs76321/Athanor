@@ -286,6 +286,28 @@ func TestSetupPersonasWritesConfig(t *testing.T) {
 	}
 }
 
+// TestWatchPhaseTimeline pins the derived phase table: transitions and call
+// usage become readable durations and spend instead of a raw event stream.
+func TestWatchPhaseTimeline(t *testing.T) {
+	fx := setup(t)
+	ctx := context.Background()
+	for _, ev := range []map[string]any{
+		{"event": "transition", "to": "context_building"},
+		{"event": "llm_call", "phase": "context_building", "prompt_tokens": 10, "completion_tokens": 5},
+		{"event": "transition", "to": "planning"},
+	} {
+		if _, err := fx.ui.deps.Store.AppendEvent(ctx, store.Event{Category: "jobs", JobID: fx.job.ID, Data: ev}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	_, body := get(t, fx.ts.URL+"/ui/jobs/"+fx.job.ID)
+	for _, want := range []string{"Phase timeline", "context_building", "planning", "15"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("watch timeline missing %q", want)
+		}
+	}
+}
+
 // TestCompareArtifacts pins the candidate comparison: two artifacts render a
 // structured diff, not just a pair of pages.
 func TestCompareArtifacts(t *testing.T) {

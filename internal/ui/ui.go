@@ -952,6 +952,7 @@ func (u *UI) handleWatch(w http.ResponseWriter, r *http.Request) {
 		"PhaseIndex": phaseIndex(phase), "LastEvent": lastEventName(events),
 		"Evaluations": evals, "FailureEvent": failureEvent, "Failure": failure,
 		"CanPause": job.CanTransition(j.State, job.StatePaused), "LastEventID": lastID,
+		"Timeline": u.phaseTimeline(ctx, id),
 	})
 }
 
