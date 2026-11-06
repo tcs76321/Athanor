@@ -255,11 +255,27 @@ func TestRecommendedResourcesIsAdaptive(t *testing.T) {
 	res := recommendedResources(Hardware{
 		TotalMemoryBytes: 16 << 30, HostMemoryBytes: 32 << 30, CPUs: 10,
 	})
-	if res.MemoryMB != 8192 || res.CPUsAllocated != 4 || res.TmpfsMB != 2048 || res.PidsLimit != 512 {
+	if res.MemoryMB != 8192 || res.CPUsAllocated != 4 || res.TmpfsMB != 2048 || res.PidsLimit != 128 {
 		t.Errorf("adaptive resources = %+v", res)
 	}
 	if res.OutsideRuntimeGiB != 16 {
 		t.Errorf("memory outside runtime = %.0f GiB, want 16", res.OutsideRuntimeGiB)
+	}
+}
+
+func TestCurrentResourcesShowsPersistedLimits(t *testing.T) {
+	cfg, err := config.Default()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.JobPod.MemoryMB = 3072
+	cfg.JobPod.CPUs = 2
+	cfg.JobPod.TmpfsMB = 768
+	cfg.JobPod.PidsLimit = 320
+	cfg.Inference.HostReserveMB = 6144
+	res := currentResources(Hardware{TotalMemoryBytes: 16 << 30, HostMemoryBytes: 32 << 30, CPUs: 10}, cfg)
+	if res.MemoryMB != 3072 || res.CPUsAllocated != 2 || res.TmpfsMB != 768 || res.PidsLimit != 320 || res.HostReserveMB != 6144 {
+		t.Errorf("current resources = %+v, want the persisted values", res)
 	}
 }
 

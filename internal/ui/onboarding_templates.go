@@ -97,7 +97,7 @@ const welcomeBody = `
           </label>
           <label>PID limit
             <input type="number" name="pids_limit" value="{{.Resources.PidsLimit}}" min="32" max="8192" step="32">
-            <span class="field-help">Bounds process fan-out inside a Job Pod.</span>
+            <span class="field-help">Bounds process fan-out. Default 128; raise it for test suites that fork many workers.</span>
           </label>
         </div>
         <div class="actions"><button class="primary" name="action" value="apply_resources">Apply and restart Core</button></div>

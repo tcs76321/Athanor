@@ -348,10 +348,7 @@ func (u *UI) welcomeData(ctx context.Context, st onboardingState) map[string]any
 		}
 	}
 	assignments := u.autoAssignments(roles, fitModels, hw, measurements)
-	resources := recommendedResources(hw)
-	if u.deps.Config != nil && u.deps.Config.Inference.HostReserveMB > 0 {
-		resources.HostReserveMB = u.deps.Config.Inference.HostReserveMB
-	}
+	resources := currentResources(hw, u.deps.Config)
 	budget := budgetFor(roles, models, hw, resources)
 	u.syncPool(ctx, models, budget, hw)
 	pool := u.welcomePool(models)
@@ -498,7 +495,7 @@ func recommendedResources(hw Hardware) resourceView {
 		MemoryMB:       4096,
 		CPUsAllocated:  4,
 		TmpfsMB:        2048,
-		PidsLimit:      512,
+		PidsLimit:      128,
 		ReserveMB:      2048,
 		HostReserveMB:  4096,
 	}
@@ -553,6 +550,44 @@ func recommendedResources(hw Hardware) resourceView {
 		tmp = 4096
 	}
 	res.TmpfsMB = (tmp / 256) * 256
+	return res
+}
+
+// currentResources starts from the adaptive recommendation and overlays the
+// operator's persisted Job Pod limits, so the form shows what is actually in
+// effect instead of snapping back to defaults after a restart.
+func currentResources(hw Hardware, cfg *config.Config) resourceView {
+	res := recommendedResources(hw)
+	if cfg == nil {
+		return res
+	}
+	if cfg.JobPod.MemoryMB > 0 {
+		res.MemoryMB = cfg.JobPod.MemoryMB
+	}
+	if cfg.JobPod.CPUs > 0 {
+		res.CPUsAllocated = cfg.JobPod.CPUs
+	}
+	if cfg.JobPod.TmpfsMB > 0 {
+		res.TmpfsMB = cfg.JobPod.TmpfsMB
+	}
+	if cfg.JobPod.PidsLimit > 0 {
+		res.PidsLimit = cfg.JobPod.PidsLimit
+	}
+	if cfg.Inference.HostReserveMB > 0 {
+		res.HostReserveMB = cfg.Inference.HostReserveMB
+	}
+	if res.MemoryMB > res.MemoryMaxMB {
+		res.MemoryMB = res.MemoryMaxMB
+	}
+	if res.CPUsAllocated > res.CPUsMax {
+		res.CPUsAllocated = res.CPUsMax
+	}
+	if res.PidsLimit < 32 {
+		res.PidsLimit = 32
+	}
+	if res.PidsLimit > 8192 {
+		res.PidsLimit = 8192
+	}
 	return res
 }
 
@@ -926,7 +961,7 @@ func (u *UI) handleWelcomePost(w http.ResponseWriter, r *http.Request) {
 		if u.deps.Hardware != nil {
 			hw = u.deps.Hardware(ctx)
 		}
-		res := recommendedResources(hw)
+		res := currentResources(hw, u.deps.Config)
 		limits := config.JobPodResources{
 			MemoryMB:      parseFormInt(r, "memory_mb", res.MemoryMB),
 			CPUs:          parseFormFloat(r, "cpus", res.CPUsAllocated),
