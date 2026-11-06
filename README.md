@@ -71,7 +71,7 @@ Full topology, isolation rules, and every subsystem are documented in [`ARCHITEC
 **Optional:**
 - ClamAV (file scanning) and YARA (rule-based detection)
 - Python (for skill development)
-- Language toolchains for Job Pods; media tools for media capabilities
+- Language toolchains for Job Pods; the default image is Python-only (see [docs/job-pod-images.md](docs/job-pod-images.md)); media tools for media capabilities
 
 > **macOS note:** Podman runs inside a VM (`podman machine`) on macOS. Athanor's Host Adapter accounts for this overhead automatically.
 

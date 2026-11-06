@@ -9,7 +9,7 @@ RUN apt-get update \
  && apt-get install -y --no-install-recommends git build-essential \
  && rm -rf /var/lib/apt/lists/*
 
-RUN pip install --no-cache-dir pytest
+RUN pip install --no-cache-dir pytest ruff
 
 # Run as a non-root user (the pod also drops all caps and sets
 # no-new-privileges; see jobpod hardening flags).

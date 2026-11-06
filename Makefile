@@ -15,7 +15,7 @@ export CGO_ENABLED
 # tag-less binary can never silently run.
 GO_TAGS = -tags sqlite_fts5
 
-.PHONY: build release test test-race test-integration integration-images vet lint check vuln tidy tidy-check fuzz cover cover-check run clean hooks bench probe-micro probe probe-judge probe-anchor probe-report probe-bundle probe-reconcile probe-measure jobpod-image core-image core-smoke bench-core-focused install soak soak-mini soak-ladder
+.PHONY: build release test test-race test-integration integration-images vet lint check vuln tidy tidy-check fuzz cover cover-check run clean hooks bench probe-micro probe probe-judge probe-anchor probe-report probe-bundle probe-reconcile probe-measure jobpod-image jobpod-polyglot-image core-image core-smoke bench-core-focused install soak soak-mini soak-ladder
 
 build:
 	go build $(GO_TAGS) -o bin/athanor ./cmd/athanor
@@ -30,6 +30,13 @@ release:
 JOBPOD_IMAGE ?= athanor-jobpod:latest
 jobpod-image:
 	podman build -t $(JOBPOD_IMAGE) -f deploy/jobpod.Containerfile deploy
+
+# Optional multi-language Job Pod image. The default image is Python-only; use
+# this when a project's detected test command needs Go, Node, Rust, Java, Ruby,
+# or PHP. See deploy/jobpod-polyglot.Containerfile for the /tmp noexec caveat.
+JOBPOD_POLYGLOT_IMAGE ?= athanor-jobpod-polyglot:latest
+jobpod-polyglot-image:
+	podman build -t $(JOBPOD_POLYGLOT_IMAGE) -f deploy/jobpod-polyglot.Containerfile deploy
 
 # Core Pod image (ADR-0069; M9-T5). The build context is the repo root (a
 # multi-stage build compiles the daemon inside the image). At run time the image
