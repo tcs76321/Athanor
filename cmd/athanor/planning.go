@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/tcs76321/athanor/internal/composition"
 	"github.com/tcs76321/athanor/internal/config"
 	"github.com/tcs76321/athanor/internal/llm"
 	"github.com/tcs76321/athanor/internal/planning"
@@ -14,28 +15,26 @@ import (
 type planningGenerator struct {
 	client *llm.Client
 	cfg    *config.Config
+	pool   *composition.Pool
 }
 
 func (g *planningGenerator) Generate(ctx context.Context, req planning.Request) (string, error) {
 	if g.client == nil {
 		return "", fmt.Errorf("planning: no inference client")
 	}
-	pc, ok := g.cfg.Personas.Role("tall")
-	if !ok {
-		pc, ok = g.cfg.Personas.Role("main")
-	}
-	if !ok {
-		return "", fmt.Errorf("planning: no tall/main persona configured")
+	model, contextTarget, err := pickWorkModel(g.pool, g.cfg, "planning", composition.StancePlan, 8192)
+	if err != nil {
+		return "", fmt.Errorf("planning: %w", err)
 	}
 	maxTokens := g.cfg.Inference.MaxOutputTokens
 	if maxTokens <= 0 {
 		maxTokens = 8192
 	}
 	resp, err := g.client.Chat(ctx, llm.Request{
-		Model:         pc.Model,
+		Model:         model,
 		Messages:      []llm.Message{{Role: "user", Content: planning.BuildPrompt(req)}},
 		Temperature:   0.4,
-		ContextTarget: pc.ContextTarget,
+		ContextTarget: contextTarget,
 		MaxTokens:     maxTokens,
 		Format:        "json",
 	})

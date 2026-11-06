@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/tcs76321/athanor/internal/composition"
 	"github.com/tcs76321/athanor/internal/config"
 	"github.com/tcs76321/athanor/internal/discovery"
 	"github.com/tcs76321/athanor/internal/llm"
@@ -16,18 +17,16 @@ import (
 type discoveryGenerator struct {
 	client *llm.Client
 	cfg    *config.Config
+	pool   *composition.Pool
 }
 
 func (g *discoveryGenerator) Generate(ctx context.Context, req discovery.Request) (string, error) {
 	if g.client == nil {
 		return "", fmt.Errorf("discovery: no inference client")
 	}
-	pc, ok := g.cfg.Personas.Role("tall")
-	if !ok {
-		pc, ok = g.cfg.Personas.Role("main")
-	}
-	if !ok {
-		return "", fmt.Errorf("discovery: no tall/main persona configured")
+	model, contextTarget, err := pickWorkModel(g.pool, g.cfg, "discovery", composition.StanceSynthesize, 16384)
+	if err != nil {
+		return "", fmt.Errorf("discovery: %w", err)
 	}
 	maxTokens := g.cfg.Inference.MaxOutputTokens
 	// A discovery portfolio is ten rich objects with ~20 fields each. The
@@ -40,19 +39,19 @@ func (g *discoveryGenerator) Generate(ctx context.Context, req discovery.Request
 	}
 	prompt := discovery.BuildPrompt(req)
 	req.Report(discovery.ProgressEvent{
-		Stage: "prompt", Detail: "prompt assembled for " + pc.Model, Bytes: len(prompt),
+		Stage: "prompt", Detail: "prompt assembled for " + model, Bytes: len(prompt),
 	})
 	req.Report(discovery.ProgressEvent{
-		Stage: "model", Detail: "waiting for " + pc.Model, Bytes: len(prompt),
+		Stage: "model", Detail: "waiting for " + model, Bytes: len(prompt),
 	})
 
 	var streamed int
 	var tail string
 	resp, err := g.client.Stream(ctx, llm.Request{
-		Model:         pc.Model,
+		Model:         model,
 		Messages:      []llm.Message{{Role: "user", Content: prompt}},
 		Temperature:   0.8,
-		ContextTarget: pc.ContextTarget,
+		ContextTarget: contextTarget,
 		MaxTokens:     maxTokens,
 		Think:         llm.Off(),
 		Format: map[string]any{

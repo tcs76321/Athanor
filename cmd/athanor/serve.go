@@ -465,11 +465,11 @@ func run(configPath, addr, stateDir string, container bool) error {
 		Freezer: killSwitch, Control: killSwitch, Operator: opCtrl, Pool: modelPool, Engine: eng, Indexer: indexer,
 		Assist: assistSvc,
 		Discovery: discovery.NewService(
-			&discoveryGenerator{client: llmClient, cfg: cfg},
+			&discoveryGenerator{client: llmClient, cfg: cfg, pool: modelPool},
 			discovery.NewStore(st),
 		),
 		Planning: planning.NewService(
-			&planningGenerator{client: llmClient, cfg: cfg},
+			&planningGenerator{client: llmClient, cfg: cfg, pool: modelPool},
 			planning.NewStore(st),
 		),
 		ModelAudit:   os.Getenv("ATHANOR_MODEL_AUDIT"),
