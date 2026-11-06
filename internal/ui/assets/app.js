@@ -75,6 +75,20 @@
     );
   });
 
+  /* ---------- copy a rendered file block ---------- */
+  document.addEventListener("click", (ev) => {
+    const el = ev.target.closest("[data-copy-pre]");
+    if (!el) return;
+    ev.preventDefault();
+    const block = el.closest(".file-block");
+    const pre = block && block.querySelector("pre");
+    if (!pre) return;
+    navigator.clipboard.writeText(pre.textContent).then(
+      () => toast("Copied", "ok"),
+      () => toast("Copy failed", "bad")
+    );
+  });
+
   /* ---------- theme picker ---------- */
   $$("[data-theme-form] select").forEach((sel) => {
     sel.addEventListener("change", () => {

@@ -306,6 +306,7 @@ func (u *UI) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /ui/jobs/{id}/note", u.handleNote)
 	mux.HandleFunc("POST /ui/jobs/{id}/control", u.handleControl)
 	mux.HandleFunc("GET /ui/artifacts/{id}", u.handleArtifact)
+	mux.HandleFunc("GET /ui/artifacts/{id}/download", u.handleArtifactDownload)
 	mux.HandleFunc("POST /ui/artifacts/{id}/export", u.handleArtifactExport)
 	mux.HandleFunc("POST /ui/artifacts/{id}/review", u.handleReviewCreate)
 	mux.HandleFunc("GET /ui/artifacts/{id}/diff", u.handleDiff)
@@ -1272,11 +1273,51 @@ func (u *UI) handleArtifact(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+	capability := ""
+	if a.TaskID != "" {
+		if t, terr := u.deps.Projects.Task(ctx, a.TaskID); terr == nil {
+			capability = t.Capability
+		}
+	}
+	mode := artifactModeFor(string(a.Kind), capability)
+	files := artifactFiles(string(a.Kind), capability, string(content))
+	contentText := string(content)
+	size := len(content)
+	if mode == modeMedia {
+		// Never push binary bytes through the template or the page.
+		files = nil
+		contentText = ""
+	}
 	u.render(w, "Artifact "+a.ID, artifactBody, map[string]any{
-		"Artifact": a, "Content": string(content), "Reviews": reviews,
+		"Artifact": a, "Content": contentText, "Reviews": reviews,
 		"Project": p, "Outcome": outcome, "HasOutcome": hasOutcome, "Issues": issues,
 		"Exported": r.URL.Query().Get("exported") != "", "CanExport": u.exporter != nil,
+		"Mode": string(mode), "Files": files, "Size": size, "Branch": artifactBranch(a, p),
+		"DownloadName": downloadName(a),
 	})
+}
+
+// handleArtifactDownload serves the artifact's exact stored bytes as an
+// attachment. The content hash is verified by ReadContent first, so a corrupt
+// or bit-rotted file fails loudly instead of being downloaded silently.
+func (u *UI) handleArtifactDownload(w http.ResponseWriter, r *http.Request) {
+	a, err := u.deps.Artifacts.Get(r.Context(), r.PathValue("id"))
+	if err != nil {
+		u.fail(w, err)
+		return
+	}
+	content, err := u.deps.Artifacts.ReadContent(r.Context(), a.ID)
+	if err != nil {
+		u.fail(w, err)
+		return
+	}
+	w.Header().Set("Content-Type", artifactContentType(a.Kind))
+	w.Header().Set("Content-Disposition", `attachment; filename="`+downloadName(a)+`"`)
+	w.Header().Set("Content-Length", strconv.Itoa(len(content)))
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Header().Set("Cache-Control", "no-store")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(content)
 }
 
 // handleArtifactExport runs the egress pipeline synchronously for one
@@ -1349,8 +1390,15 @@ func (u *UI) handleDiff(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	capability := ""
+	if a.TaskID != "" {
+		if t, terr := u.deps.Projects.Task(ctx, a.TaskID); terr == nil {
+			capability = t.Capability
+		}
+	}
 	u.render(w, "Diff "+a.ID, diffBody, map[string]any{
-		"Artifact": a, "Lines": lineDiff(string(oldContent), string(newContent)),
+		"Artifact":  a,
+		"FileDiffs": fileDiffs(string(a.Kind), capability, string(oldContent), string(newContent)),
 	})
 }
 

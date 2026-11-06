@@ -740,23 +740,56 @@ const artifactBody = `
   <span class="pill {{stateClass .Artifact.Status}}">{{.Artifact.Status}}</span>
   {{if .Project}}· <a href="/ui/projects/{{.Project.ID}}">{{.Project.Name}}</a>{{end}}
   · job <a href="/ui/jobs/{{.Artifact.JobID}}" class="mono">{{.Artifact.JobID | short}}</a>
-  {{if .Artifact.GitCommit}}· commit <span class="mono">{{.Artifact.GitCommit | short}}</span>{{end}}
 </p>
 {{if .Exported}}<div class="notice">Export written to the workspace <code>exports/</code> directory.</div>{{end}}
-{{if .CanExport}}<div class="actions"><form method="post" action="/ui/artifacts/{{.Artifact.ID}}/export"><button class="secondary small">Export through the airlock</button></form></div>{{end}}
+<div class="actions">
+  <a class="btn" href="/ui/artifacts/{{.Artifact.ID}}/download" download="{{.DownloadName}}">Download the exact bytes</a>
+  {{if .CanExport}}<form method="post" action="/ui/artifacts/{{.Artifact.ID}}/export"><button class="secondary">Export through the airlock</button></form>{{end}}
+</div>
 
 <div class="split">
-  <div class="card">
-    <h2>What was built</h2>
-    {{if eq .Artifact.Kind "code"}}<pre>{{.Content}}</pre>{{else}}<div class="prose">{{markdown .Content}}</div>{{end}}
+  <div class="card artifact-reader">
+    <div class="row row-middle">
+      <h2>What was built</h2>
+      <span class="pill right">{{if eq .Mode "code"}}source{{else if eq .Mode "dataset"}}dataset{{else if eq .Mode "config"}}configuration{{else if eq .Mode "media"}}media{{else}}document{{end}}</span>
+    </div>
+    {{if eq .Mode "prose"}}
+      <div class="prose">{{markdown .Content}}</div>
+    {{else if eq .Mode "media"}}
+      <p class="muted">This is a binary media artifact ({{.Size}} bytes). It is not rendered in the page; download it to open it with a local tool.</p>
+      <p class="muted">Media verification is structural only in 0.0.x; the semantic quality is judge-advisory.</p>
+    {{else if .Files}}
+      {{range .Files}}
+      <div class="file-block">
+        <div class="file-head">
+          <span class="mono">{{.Path}}</span>
+          <button type="button" class="small secondary" data-copy-pre>Copy</button>
+        </div>
+        <pre><code>{{.Content}}</code></pre>
+      </div>
+      {{end}}
+    {{else}}
+      <pre><code>{{.Content}}</code></pre>
+    {{end}}
   </div>
   <div>
     <div class="card">
-      <h2>How to run</h2>
+      <h2>How to use it</h2>
       {{if .Project}}
-        {{if .Project.TestCommand}}<p>Test: <code>{{.Project.TestCommand}}</code></p>
-        {{else}}<p class="muted">No test command is configured for this project.</p>{{end}}
-        {{if .Project.RepositoryPath}}<p>Repository: <code class="wrap">{{.Project.RepositoryPath}}</code></p>{{end}}
+        {{if .Branch}}
+        <p><b>Branch</b> <code class="wrap">{{.Branch}}</code></p>
+        <p><b>Commit</b> <code class="wrap">{{.Artifact.GitCommit}}</code></p>
+        <p class="muted">The accepted change was committed on an agent-created branch in an ephemeral worktree. The project's checked-out branch was not touched.</p>
+        <div class="actions">
+          <button type="button" class="small secondary" data-copy="{{.Branch}}">Copy branch</button>
+          <button type="button" class="small secondary" data-copy="{{.Artifact.GitCommit}}">Copy commit</button>
+        </div>
+        {{else if .Project.RepositoryPath}}
+        <p class="muted">This artifact has no recorded commit yet. Accepted code artifacts are committed on <code>athanor/&lt;project&gt;</code> when Git-as-undo runs.</p>
+        {{end}}
+        {{if .Project.TestCommand}}<p><b>Verification</b> <code class="wrap">{{.Project.TestCommand}}</code></p>
+        {{else}}<p class="muted">No test command is configured for this project; the judge decided acceptance.</p>{{end}}
+        {{if .Project.RepositoryPath}}<p><b>Repository</b> <code class="wrap">{{.Project.RepositoryPath}}</code></p>{{end}}
       {{else}}<p class="muted">Project metadata is unavailable.</p>{{end}}
     </div>
 
@@ -802,10 +835,13 @@ const artifactBody = `
 const diffBody = `
 <h1>Diff: {{.Artifact.Kind}} v{{.Artifact.Version}}</h1>
 <p class="sub">Compared with the version it superseded. <span class="mono">{{.Artifact.ID | short}}</span></p>
-<div class="card">
-<pre>{{range .Lines}}<span{{if eq .Kind "-"}} class="del"{{else if eq .Kind "+"}} class="add"{{end}}>{{.Kind}} {{.Text}}</span>
+{{range .FileDiffs}}
+<div class="card file-block">
+  {{if .Path}}<div class="file-head"><span class="mono">{{.Path}}</span></div>{{end}}
+  <pre>{{range .Lines}}<span{{if eq .Kind "-"}} class="del"{{else if eq .Kind "+"}} class="add"{{end}}>{{.Kind}} {{.Text}}</span>
 {{end}}</pre>
 </div>
+{{else}}<div class="empty">There is no previous version to compare against.</div>{{end}}
 <div class="actions"><a class="btn secondary" href="/ui/artifacts/{{.Artifact.ID}}">Back to artifact</a></div>
 `
 

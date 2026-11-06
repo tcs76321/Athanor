@@ -216,6 +216,72 @@ func TestMissingArtifactIs404(t *testing.T) {
 	}
 }
 
+// TestCodeProposalRendersAsSource pins the presentation fix: a divergence
+// candidate is stored as `proposal`, but when the task is code it must render
+// as source, not through the Markdown renderer.
+func TestCodeProposalRendersAsSource(t *testing.T) {
+	fx := setup(t)
+	ctx := context.Background()
+	art, err := fx.ui.deps.Artifacts.CreateDraftFor(ctx, fx.project.ID, fx.task.ID, fx.job.ID,
+		artifact.KindProposal, []byte("# this is a comment\nprint(1)\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, body := get(t, fx.ts.URL+"/ui/artifacts/"+art.ID)
+	if !strings.Contains(body, "<pre><code>") {
+		t.Error("code proposal was not rendered as source")
+	}
+	if strings.Contains(body, "<h1>this is a comment</h1>") {
+		t.Error("code proposal was rendered as Markdown")
+	}
+}
+
+// TestArtifactDownloadServesExactBytes pins the download path and its inert
+// content type; model output must never be served as renderable HTML.
+func TestArtifactDownloadServesExactBytes(t *testing.T) {
+	fx := setup(t)
+	resp, err := http.Get(fx.ts.URL + "/ui/artifacts/" + fx.artifact.ID + "/download")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200", resp.StatusCode)
+	}
+	if string(body) != "line one\nline TWO\n" {
+		t.Errorf("body = %q, want the exact artifact bytes", body)
+	}
+	if ct := resp.Header.Get("Content-Type"); !strings.HasPrefix(ct, "text/markdown") {
+		t.Errorf("Content-Type = %q, want text/markdown", ct)
+	}
+	if cd := resp.Header.Get("Content-Disposition"); !strings.Contains(cd, "attachment") {
+		t.Errorf("Content-Disposition = %q, want attachment", cd)
+	}
+}
+
+// TestMultiFileArtifactShowsFilesAndBranch pins the multi-file reader and the
+// Git-as-undo provenance block.
+func TestMultiFileArtifactShowsFilesAndBranch(t *testing.T) {
+	fx := setup(t)
+	ctx := context.Background()
+	content := "=== FILE: pkg/a.py ===\nprint(1)\n=== FILE: pkg/b.py ===\nprint(2)\n"
+	art, err := fx.ui.deps.Artifacts.CreateDraftFor(ctx, fx.project.ID, fx.task.ID, fx.job.ID,
+		artifact.KindCode, []byte(content))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := fx.ui.deps.Artifacts.SetGitCommit(ctx, art.ID, "abc123"); err != nil {
+		t.Fatal(err)
+	}
+	_, body := get(t, fx.ts.URL+"/ui/artifacts/"+art.ID)
+	for _, want := range []string{"pkg/a.py", "pkg/b.py", "data-copy-pre", "athanor/" + fx.project.ID, "abc123"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("artifact page missing %q", want)
+		}
+	}
+}
+
 // TestDashboardApprovalIsReadable pins the HITL presentation: an approval shows
 // its human label, fields, and expiry instead of a raw JSON blob.
 func TestDashboardApprovalIsReadable(t *testing.T) {
@@ -954,7 +1020,7 @@ func TestArtifactView(t *testing.T) {
 	if !strings.Contains(body, "line TWO") {
 		t.Fatal("artifact content is not rendered")
 	}
-	for _, want := range []string{"How to run", "What it cost", "Known issues", "Human review"} {
+	for _, want := range []string{"How to use it", "What it cost", "Known issues", "Human review"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("presentation surface missing %q", want)
 		}
