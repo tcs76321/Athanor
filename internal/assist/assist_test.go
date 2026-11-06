@@ -11,9 +11,11 @@ type fakeGen struct {
 	user   string
 	out    string
 	err    error
+	called bool
 }
 
 func (f *fakeGen) Generate(ctx context.Context, system, user string) (string, error) {
+	f.called = true
 	f.system, f.user = system, user
 	return f.out, f.err
 }
@@ -86,27 +88,37 @@ func TestRefineDetectsIdenticalTextWithoutFlag(t *testing.T) {
 }
 
 func TestRefineAsksForClarificationWhenEmpty(t *testing.T) {
-	gen := &fakeGen{out: `{"text":"","needs_clarification":true,"questions":["Who is this for?","What does done look like?"]}`}
+	gen := &fakeGen{out: `{"text":"should be ignored"}`}
 	res, err := New(gen).Refine(context.Background(), "project.goal", "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !res.NeedsClarification || res.Text != "" || len(res.Questions) != 2 {
+	if !res.NeedsClarification || res.Text != "" || len(res.Questions) < 2 {
 		t.Fatalf("clarification = %+v", res)
 	}
-	if !strings.Contains(gen.user, "(empty)") {
-		t.Fatalf("empty prompt = %q", gen.user)
+	if gen.called {
+		t.Fatal("blank field should not spend a model call")
 	}
 }
 
 func TestRefineAsksForClarificationWhenVague(t *testing.T) {
-	gen := &fakeGen{out: `{"needs_clarification":true,"questions":["What outcome do you want?"]}`}
+	gen := &fakeGen{out: `{"needs_clarification":true}`}
 	res, err := New(gen).Refine(context.Background(), "project.goal", "do the thing", "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !res.NeedsClarification || len(res.Questions) != 1 {
+	if !res.NeedsClarification || len(res.Questions) < 2 {
 		t.Fatalf("clarification = %+v", res)
+	}
+}
+
+func TestRefineFallsBackToQuestionsWhenModelReturnsNothing(t *testing.T) {
+	res, err := New(&fakeGen{out: `{"text":""}`}).Refine(context.Background(), "project.goal", "rough goal", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !res.NeedsClarification || len(res.Questions) < 2 {
+		t.Fatalf("fallback = %+v", res)
 	}
 }
 

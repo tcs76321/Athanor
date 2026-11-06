@@ -185,6 +185,78 @@ var specs = map[string]Spec{
 	},
 }
 
+// clarifyQuestions are deterministic prompts for a blank field. They are the
+// safe default when there is nothing to edit, and the fallback when a model
+// says a non-empty field is too vague but does not ask a usable question.
+var clarifyQuestions = map[string][]string{
+	"project.goal": {
+		"What outcome should this project produce?",
+		"Who is it for, if anyone specific?",
+		"What is explicitly out of scope?",
+	},
+	"project.criteria": {
+		"What observable check proves success?",
+		"What must a reviewer be able to verify?",
+	},
+	"goal.submit": {
+		"What single outcome should this job produce?",
+		"What input or context must it use?",
+		"What does done look like?",
+	},
+	"goal.criteria": {
+		"What observable check proves this task succeeded?",
+		"What must not regress?",
+	},
+	"brief.goal": {
+		"What outcome should discovery explore?",
+		"What practical boundary should it stay inside?",
+	},
+	"brief.constraints": {
+		"What hard constraints apply (time, money, tools, policy)?",
+	},
+	"brief.limitations": {
+		"What must this project never do?",
+	},
+	"brief.success": {
+		"What observable signal will tell you the project succeeded?",
+	},
+	"brief.sources": {
+		"Which sources should discovery use?",
+		"What does each source support?",
+	},
+	"interview.answer": {
+		"What should the answer to this question be?",
+		"Which facts or preferences must it include?",
+	},
+	"correction.reason": {
+		"What was wrong, and where?",
+		"Why does it matter for the next attempt?",
+	},
+	"correction.desired": {
+		"What observable behavior should the next attempt have?",
+		"What must it preserve from the previous attempt?",
+	},
+	"job.note": {
+		"What should the job change or preserve at the next safe point?",
+	},
+	"interruption.note": {
+		"What should the job stop, change, or preserve?",
+	},
+	"review.note": {
+		"What worked, and what is missing?",
+	},
+}
+
+func questionsFor(spec Spec) []string {
+	if qs := clarifyQuestions[spec.ID]; len(qs) > 0 {
+		return qs
+	}
+	return []string{
+		"What should the " + strings.ToLower(spec.Label) + " say?",
+		"What must not change?",
+	}
+}
+
 const systemPrompt = `You are Athanor's field editor. You improve one user-authored field so it serves the field's downstream purpose.
 
 Rules:
@@ -223,6 +295,14 @@ func (s *Service) Refine(ctx context.Context, field, text, mode string) (Result,
 	if !validMode(mode) {
 		return Result{}, fmt.Errorf("unknown mode %q", mode)
 	}
+	if text == "" {
+		return Result{
+			NeedsClarification: true,
+			Questions:          questionsFor(spec),
+			Field:              field,
+			Mode:               mode,
+		}, nil
+	}
 	user := buildPrompt(spec, text, mode)
 	raw, err := s.gen.Generate(ctx, systemPrompt, user)
 	if err != nil {
@@ -235,26 +315,21 @@ func (s *Service) Refine(ctx context.Context, field, text, mode string) (Result,
 		res.Unchanged = false
 		res.Text = ""
 		if len(res.Questions) == 0 {
-			return Result{}, fmt.Errorf("the field needs clarification, but the model did not ask a question")
+			res.Questions = questionsFor(spec)
 		}
-		res.Field = field
-		res.Mode = mode
-		return res, nil
-	}
-	if original == "" {
-		// Never let an empty field be filled by invention. It must be a
-		// clarification, even if the model tried to produce a template.
-		if len(res.Questions) == 0 {
-			return Result{}, fmt.Errorf("the field is empty and the model did not ask a question")
-		}
-		res.NeedsClarification = true
-		res.Text = ""
 		res.Field = field
 		res.Mode = mode
 		return res, nil
 	}
 	if strings.TrimSpace(res.Text) == "" {
-		return Result{}, fmt.Errorf("the model returned an empty refinement")
+		// The model produced nothing usable. Ask the field's deterministic
+		// questions rather than inventing a rewrite.
+		return Result{
+			NeedsClarification: true,
+			Questions:          questionsFor(spec),
+			Field:              field,
+			Mode:               mode,
+		}, nil
 	}
 	if len(res.Text) > len(text)*3+2000 || len(res.Text) > 20000 {
 		return Result{}, fmt.Errorf("the refinement was too long to apply safely")
