@@ -16,6 +16,7 @@ import (
 	"github.com/tcs76321/athanor/internal/composition"
 	"github.com/tcs76321/athanor/internal/config"
 	"github.com/tcs76321/athanor/internal/doctor"
+	"github.com/tcs76321/athanor/internal/onboard"
 	"github.com/tcs76321/athanor/internal/store"
 	"github.com/tcs76321/athanor/migrations"
 )
@@ -312,6 +313,16 @@ func TestContextTargetForSizeIsWideThenTall(t *testing.T) {
 	// Memory pressure may lower the target, never raise it.
 	if got := contextTargetForSize(10<<30, 13<<30); got >= 24576 {
 		t.Errorf("memory-capped target = %d, want < 24576", got)
+	}
+}
+
+func TestQualificationPlanIsComprehensive(t *testing.T) {
+	l := onboard.DefaultLadder()
+	if len(l.Generators) < 10 || len(l.Judges) < 12 {
+		t.Fatalf("default ladder = %d generators / %d judges, want at least 10/12", len(l.Generators), len(l.Judges))
+	}
+	if got, want := poolQualificationPlan([]string{"a", "b"}, l), 2*(len(l.Generators)+len(l.Judges)); got != want {
+		t.Errorf("qualification plan = %d, want %d", got, want)
 	}
 }
 

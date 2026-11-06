@@ -143,7 +143,7 @@ const welcomeBody = `
       </div>
       {{if .PoolWarning}}<p class="del">{{.PoolWarning}}</p>{{end}}
       <p class="muted small">A minimum of {{.PoolMin}} is recommended, with a sanity cap of 100. Models do not need different sizes or families; ties are broken by name, and diversity is measured rather than assumed.</p>
-      {{if .Pool.FitLimitGiB}}<p class="muted small">Fit limit: {{printf "%.1f" .Pool.FitLimitGiB}} GiB — host RAM minus the 8 GiB OS/apps reserve and the Podman VM allocation. A model is marked too large when its measured resident size (weights + KV, shown beneath the file size when available) or, without an audit, its on-disk size exceeds this limit.</p>{{end}}
+      {{if .Pool.FitLimitGiB}}<p class="muted small">Fit limit: {{printf "%.1f" .Pool.FitLimitGiB}} GiB — host RAM minus the configured host reserve (OS, apps, Core, and Podman VM). A model is marked too large when its measured resident size (weights + KV, shown beneath the file size when available) or, without an audit, its on-disk size exceeds this limit.</p>{{end}}
     </div>
 
     <h2>Installed models</h2>
