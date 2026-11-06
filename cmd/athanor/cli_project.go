@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -152,9 +153,51 @@ type jobStatus struct {
 	ArtifactID string `json:"artifact_id"`
 }
 
+type jobEvent struct {
+	ID       int64     `json:"id"`
+	TS       time.Time `json:"ts"`
+	Category string    `json:"category"`
+	Data     string    `json:"data"`
+}
+
+type jobEventsResponse struct {
+	Events []jobEvent `json:"events"`
+}
+
+// formatJobEvent renders one audit row as a compact line. The raw JSON stays
+// available through the API; this is the human-readable watch surface.
+func formatJobEvent(ev jobEvent) string {
+	var d map[string]any
+	if json.Unmarshal([]byte(ev.Data), &d) != nil {
+		return fmt.Sprintf("%s %s", ev.TS.Format("15:04:05"), ev.Data)
+	}
+	name, _ := d["event"].(string)
+	if name == "" {
+		name = ev.Category
+	}
+	keys := []string{"phase", "to", "winner", "passed", "score", "reason", "error",
+		"model", "prompt_tokens", "completion_tokens", "decision", "unit", "iter"}
+	parts := make([]string, 0, 4)
+	for _, k := range keys {
+		v, ok := d[k]
+		if !ok || v == nil || v == "" {
+			continue
+		}
+		parts = append(parts, fmt.Sprintf("%s=%v", k, v))
+		if len(parts) == 4 {
+			break
+		}
+	}
+	line := ev.TS.Format("15:04:05") + " " + name
+	if len(parts) > 0 {
+		line += " · " + strings.Join(parts, " · ")
+	}
+	return line
+}
+
 // runJob polls a job until it reaches a terminal state (or the watch
-// timeout), printing each state transition as it happens, then the final
-// artifact.
+// timeout), printing each state transition and (by default) new audit events,
+// then the final artifact.
 func runJob(args []string) error {
 	if len(args) == 0 || args[0] != "watch" {
 		return fmt.Errorf("usage: athanor job watch -job ID")
@@ -163,6 +206,7 @@ func runJob(args []string) error {
 	jobID := fs.String("job", "", "job id (required)")
 	timeout := fs.Duration("timeout", 10*time.Minute, "give up after this long")
 	addr := fs.String("addr", defaultAddr, "daemon address")
+	showEvents := fs.Bool("events", true, "print new audit events as they arrive")
 	if err := fs.Parse(args[1:]); err != nil {
 		return err
 	}
@@ -172,10 +216,23 @@ func runJob(args []string) error {
 
 	deadline := time.Now().Add(*timeout)
 	lastState := ""
+	var lastEventID int64
 	for {
 		var status jobStatus
 		if err := apiCall(http.MethodGet, *addr+"/jobs/"+*jobID, nil, &status); err != nil {
 			return err
+		}
+		if *showEvents {
+			var evs jobEventsResponse
+			path := fmt.Sprintf("%s/jobs/%s/events?after_id=%d", *addr, *jobID, lastEventID)
+			if err := apiCall(http.MethodGet, path, nil, &evs); err == nil {
+				for _, ev := range evs.Events {
+					fmt.Println(formatJobEvent(ev))
+					if ev.ID > lastEventID {
+						lastEventID = ev.ID
+					}
+				}
+			}
 		}
 		if status.State != lastState {
 			fmt.Printf("%s\n", status.State)
@@ -199,6 +256,6 @@ func runJob(args []string) error {
 		if time.Now().After(deadline) {
 			return fmt.Errorf("watch timed out after %v (job is still %s)", timeout, status.State)
 		}
-		time.Sleep(250 * time.Millisecond)
+		time.Sleep(500 * time.Millisecond)
 	}
 }
