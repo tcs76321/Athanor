@@ -73,6 +73,8 @@ func main() {
 		err = runDoctor(args[1:])
 	case "models":
 		err = runModels(args[1:])
+	case "finetune":
+		err = runFinetune(args[1:])
 	case "alarms":
 		err = runAlarms(args[1:])
 	case "backup":
@@ -133,6 +135,7 @@ commands:
   init               write ./config.yaml containing every default value
   doctor             check the host, backend, and config (§30.2)
   models             per-role model inventory + routing proposal (M9-T2)
+  finetune           export accepted work as a JSONL training set [-state-dir state] [-out file]
   alarms             list active alarms [-resolve <id>] (§22.3)
   backup             write a database snapshot [-state-dir state] [-keep N]
   restore            restore a snapshot -from <file> -force (daemon stopped)

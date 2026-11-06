@@ -38,6 +38,11 @@ New entries are appended at the top. Do not rewrite history.
   single-candidate plan (`template_panel`). The panel/solo evidence is stored
   and needs four outcomes before switching. Proofs:
   `TestPreferPanelNeedsEvidence`, `TestMachineScoreIsBoundedAndVisible`.
+- **Accepted work exports as a fine-tuning dataset.** `athanor finetune`
+  writes JSONL examples from accepted, non-proposal artifacts with their task,
+  acceptance criteria, and provenance. It does not train; a trained model is
+  adopted as a new pool entry and must qualify like any other. Proof:
+  `TestExportAcceptedWorkAsJSONL`.
 
 ### Model pool and composition casting — 2026-11-05
 

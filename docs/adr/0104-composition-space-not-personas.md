@@ -262,9 +262,9 @@ alarm on drift. The repertoire is never pruned; selection is learned.
   panel/solo evidence can upgrade a single-candidate plan. Both are logged.
 - **Still open:** a general deliberation-graph executor (the current graph is
   divergence → evaluate/compare → synthesize with a panel option), richer
-  capability probes, a training/fine-tuning pipeline, and learned
-  per-participant credit assignment. The policy is a measured ranking with
-  small bandit elements, not yet a full bandit over graphs.
+  capability probes, and the training/promotion half of fine-tuning (the
+  dataset export exists). The policy is a measured ranking with small bandit
+  elements, not yet a full bandit over graphs.
 
 ## Fine-tuning and model improvement
 
