@@ -20,13 +20,16 @@ func (u *UI) startPoolQualification(ctx context.Context, fresh bool) (qualState,
 	if u.deps.Config == nil {
 		return qualState{}, false, fmt.Errorf("configuration is not available")
 	}
-	models := p.Names()
+	models := p.EligibleNames()
 	if len(models) == 0 {
 		// A direct "run qualification" before the pool step has synced: take
 		// the installed catalog as the initial pool rather than failing.
 		installed, err := fetchModels(ctx, u.deps.Config.Inference.OllamaURL)
 		if err != nil {
 			return qualState{}, false, fmt.Errorf("reading installed models: %w", err)
+		}
+		if u.deps.Hardware != nil {
+			p.FitLimitBytes = inferenceFitBytes(u.deps.Hardware(ctx))
 		}
 		infos := make([]composition.ModelInfo, 0, len(installed))
 		for _, m := range installed {
@@ -36,7 +39,7 @@ func (u *UI) startPoolQualification(ctx context.Context, fresh bool) (qualState,
 			})
 		}
 		p.Sync(infos)
-		models = p.Names()
+		models = p.EligibleNames()
 	}
 	if len(models) == 0 {
 		return qualState{}, false, fmt.Errorf("add at least one model to the pool before qualifying")

@@ -136,7 +136,7 @@ const welcomeBody = `
         <td>{{gib .SizeBytes}}</td>
         <td>{{if .Family}}{{.Family}}{{else}}—{{end}}</td>
         <td>{{if .ContextTarget}}{{.ContextTarget}}{{else}}—{{end}}</td>
-        <td>{{if .InPool}}<span class="pill ok">{{if .Qualified}}qualified {{printf "%.0f%%" (mul .Score 100)}}{{else}}in pool{{end}}</span>{{else}}<span class="pill">removed</span>{{end}}</td>
+        <td>{{if .TooLarge}}<span class="pill bad">too large for this machine</span>{{else if .InPool}}<span class="pill ok">{{if .Qualified}}qualified {{printf "%.0f%%" (mul .Score 100)}}{{else}}in pool{{end}}</span>{{else}}<span class="pill">removed</span>{{end}}</td>
         <td>
           {{if .InPool}}
           <form method="post" action="/ui/welcome" class="inline-form">

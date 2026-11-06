@@ -46,6 +46,34 @@ func TestChooseBreaksTiesByName(t *testing.T) {
 	}
 }
 
+func TestChooseSkipsTooLargeModels(t *testing.T) {
+	p := New(nil)
+	p.FitLimitBytes = 8 << 30
+	p.Upsert(ModelInfo{Name: "huge", ContextTarget: 32768, SizeBytes: 30 << 30})
+	p.Upsert(ModelInfo{Name: "small", ContextTarget: 32768, SizeBytes: 2 << 30})
+	p.Sync([]ModelInfo{
+		{Name: "huge", ContextTarget: 32768, SizeBytes: 30 << 30},
+		{Name: "small", ContextTarget: 32768, SizeBytes: 2 << 30},
+	})
+	if got := p.EligibleNames(); len(got) != 1 || got[0] != "small" {
+		t.Fatalf("eligible = %v, want only small", got)
+	}
+	got, ok := p.Choose(Request{Capability: CapabilityCode})
+	if !ok || got.Model != "small" {
+		t.Fatalf("choose = %q ok=%v, want small", got.Model, ok)
+	}
+}
+
+func TestChoosePrefersSmallerModelBeforeMeasurement(t *testing.T) {
+	p := New(nil)
+	p.Upsert(ModelInfo{Name: "large", ContextTarget: 32768, SizeBytes: 9 << 30})
+	p.Upsert(ModelInfo{Name: "small", ContextTarget: 32768, SizeBytes: 2 << 30})
+	got, ok := p.Choose(Request{Capability: CapabilityCode})
+	if !ok || got.Model != "small" {
+		t.Fatalf("unmeasured tie chose %q, want the smaller model", got.Model)
+	}
+}
+
 func TestChooseRespectsContextFloor(t *testing.T) {
 	p := New(nil)
 	p.Upsert(ModelInfo{Name: "small", ContextTarget: 8192})

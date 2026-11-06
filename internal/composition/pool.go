@@ -65,6 +65,10 @@ type Profile struct {
 	Scoped        map[string]Score `json:"scoped,omitempty"`
 	QualifiedAt   time.Time        `json:"qualified_at,omitempty"`
 	UpdatedAt     time.Time        `json:"updated_at,omitempty"`
+	// TooLarge marks a model whose measured or on-disk size exceeds this
+	// machine's inference budget. It stays visible in the pool but is never
+	// cast.
+	TooLarge bool `json:"too_large,omitempty"`
 }
 
 // Pool is the user's model repertoire plus its measured profiles. It is
@@ -77,6 +81,9 @@ type Pool struct {
 	// Excluded remembers models the user removed so a later catalog sync
 	// does not silently re-add them.
 	Excluded map[string]bool `json:"excluded,omitempty"`
+	// FitLimitBytes is the host inference budget for this machine. Zero means
+	// unknown; models are then not filtered by size.
+	FitLimitBytes int64
 	// last records the models used by a job so a terminal outcome can update
 	// the right profiles. It is process-local and intentionally not persisted.
 	last map[string]cast
@@ -192,6 +199,7 @@ func (p *Pool) Upsert(info ModelInfo) {
 	}
 	prof.UpdatedAt = time.Now().UTC()
 	delete(p.Excluded, info.Name)
+	p.setTooLargeLocked(prof)
 	p.mu.Unlock()
 }
 
@@ -244,6 +252,7 @@ func (p *Pool) Sync(infos []ModelInfo) (added int) {
 			prof.ContextTarget = info.ContextTarget
 		}
 		prof.UpdatedAt = time.Now().UTC()
+		p.setTooLargeLocked(prof)
 	}
 	for name := range p.Models {
 		if !present[name] {
@@ -251,6 +260,18 @@ func (p *Pool) Sync(infos []ModelInfo) (added int) {
 		}
 	}
 	return added
+}
+
+func (p *Pool) setTooLargeLocked(prof *Profile) {
+	if p.FitLimitBytes <= 0 {
+		prof.TooLarge = false
+		return
+	}
+	size := prof.ResidentBytes
+	if size == 0 {
+		size = prof.SizeBytes
+	}
+	prof.TooLarge = size > p.FitLimitBytes
 }
 
 // Has reports whether a model is in the pool.
@@ -274,6 +295,22 @@ func (p *Pool) Names() []string {
 	defer p.mu.RUnlock()
 	out := make([]string, 0, len(p.Models))
 	for name := range p.Models {
+		out = append(out, name)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// EligibleNames returns the models that fit this machine, in deterministic
+// order. Qualification and casting use this set.
+func (p *Pool) EligibleNames() []string {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	out := make([]string, 0, len(p.Models))
+	for name, prof := range p.Models {
+		if prof.TooLarge {
+			continue
+		}
 		out = append(out, name)
 	}
 	sort.Strings(out)
@@ -418,6 +455,9 @@ func (p *Pool) candidates(req Request) []candidate {
 	defer p.mu.RUnlock()
 	out := make([]candidate, 0, len(p.Models))
 	for _, prof := range p.Models {
+		if prof.TooLarge {
+			continue
+		}
 		if req.MinContext > 0 && prof.ContextTarget > 0 && prof.ContextTarget < req.MinContext {
 			continue
 		}
@@ -430,6 +470,11 @@ func (p *Pool) candidates(req Request) []candidate {
 		}
 		if out[i].prof.ContextTarget != out[j].prof.ContextTarget {
 			return out[i].prof.ContextTarget > out[j].prof.ContextTarget
+		}
+		// Before measurement, prefer the smaller model: it is the safer
+		// default on a machine whose resident capacity is unknown.
+		if out[i].prof.SizeBytes != out[j].prof.SizeBytes {
+			return out[i].prof.SizeBytes < out[j].prof.SizeBytes
 		}
 		return out[i].prof.Name < out[j].prof.Name
 	})

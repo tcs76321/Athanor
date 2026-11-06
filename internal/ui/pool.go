@@ -2,6 +2,7 @@ package ui
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sort"
 
@@ -25,6 +26,7 @@ type poolRow struct {
 	Score         float64
 	Samples       int
 	Qualified     bool
+	TooLarge      bool
 	Code          float64
 	Data          float64
 	Document      float64
@@ -47,15 +49,18 @@ func (u *UI) pool() *composition.Pool { return u.deps.Pool }
 
 // syncPool reconciles the persisted pool with the installed catalog. It is a
 // no-op without a pool or a successful catalog read.
-func (u *UI) syncPool(ctx context.Context, models []setupModel) {
+func (u *UI) syncPool(ctx context.Context, models []setupModel, budget modelBudget) {
 	p := u.pool()
 	if p == nil || len(models) == 0 {
 		return
 	}
+	p.FitLimitBytes = int64(budget.InferenceGiB * (1 << 30))
+	measured := measuredResidents(u.deps.ModelAudit)
 	infos := make([]composition.ModelInfo, 0, len(models))
 	for _, m := range models {
 		infos = append(infos, composition.ModelInfo{
 			Name: m.Name, Family: m.Family, SizeBytes: m.SizeBytes,
+			ResidentBytes: measured[m.Name],
 			ContextTarget: poolContextTarget(u.deps.Config, m.Name),
 		})
 	}
@@ -143,6 +148,7 @@ func (u *UI) welcomePool(models []setupModel) poolView {
 			row.InPool = true
 			row.ContextTarget = prof.ContextTarget
 			row.Family = firstNonEmpty(prof.Family, m.Family)
+			row.TooLarge = prof.TooLarge
 			row.Score, row.Samples, row.Qualified = overallScore(prof)
 			row.Code = scoreValue(prof, string(composition.CapabilityCode))
 			row.Data = scoreValue(prof, string(composition.CapabilityData))
@@ -160,7 +166,7 @@ func (u *UI) welcomePool(models []setupModel) poolView {
 		if seen[name] {
 			continue
 		}
-		row := poolRow{Name: name, Family: prof.Family, InPool: true, ContextTarget: prof.ContextTarget}
+		row := poolRow{Name: name, Family: prof.Family, InPool: true, ContextTarget: prof.ContextTarget, TooLarge: prof.TooLarge}
 		row.Score, row.Samples, row.Qualified = overallScore(prof)
 		row.Code = scoreValue(prof, string(composition.CapabilityCode))
 		row.Data = scoreValue(prof, string(composition.CapabilityData))
@@ -180,7 +186,7 @@ func (u *UI) welcomePool(models []setupModel) poolView {
 		return a.Name < b.Name
 	})
 	for _, row := range view.Rows {
-		if row.InPool {
+		if row.InPool && !row.TooLarge {
 			view.Count++
 			if row.Qualified {
 				view.QualifiedCount++
@@ -224,11 +230,58 @@ func scoreValue(prof composition.Profile, key string) float64 {
 	return 0
 }
 
+// measuredResidents reads the audit's loaded (weights + KV) sizes keyed by
+// model. It is best-effort: a missing or malformed audit leaves file sizes as
+// the fallback.
+func measuredResidents(raw string) map[string]int64 {
+	out := map[string]int64{}
+	if raw == "" {
+		return out
+	}
+	var a struct {
+		Roles []struct {
+			Model       string `json:"model"`
+			LoadedBytes int64  `json:"loaded_bytes"`
+		} `json:"roles"`
+	}
+	if json.Unmarshal([]byte(raw), &a) != nil {
+		return out
+	}
+	for _, r := range a.Roles {
+		if r.Model != "" && r.LoadedBytes > 0 {
+			out[r.Model] = r.LoadedBytes
+		}
+	}
+	return out
+}
+
 func firstNonEmpty(a, b string) string {
 	if a != "" {
 		return a
 	}
 	return b
+}
+
+// inferenceFitBytes is the host inference budget used to mark a model too
+// large for this machine: host RAM minus the OS/apps reserve and, on a
+// separate-VM runtime, the VM allocation.
+func inferenceFitBytes(hw Hardware) int64 {
+	host := hw.HostMemoryBytes
+	runtime := hw.TotalMemoryBytes
+	if host == 0 {
+		host = runtime
+	}
+	if host == 0 {
+		return 0
+	}
+	limit := int64(host) - int64(hostReserveGiB*(1<<30))
+	if runtime > 0 && host > runtime {
+		limit -= int64(runtime)
+	}
+	if limit < 1<<30 {
+		limit = 1 << 30
+	}
+	return limit
 }
 
 // poolSuggestions recommends a small, diverse starter set when the pool is

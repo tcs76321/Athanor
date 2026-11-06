@@ -331,7 +331,7 @@ func (u *UI) welcomeData(ctx context.Context, st onboardingState) map[string]any
 	assignments := u.autoAssignments(roles, fitModels, hw, measurements)
 	resources := recommendedResources(hw)
 	budget := budgetFor(roles, models, hw, resources)
-	u.syncPool(ctx, models)
+	u.syncPool(ctx, models, budget)
 	pool := u.welcomePool(models)
 	suggestions := u.poolSuggestions(models, pool)
 	if pool.QualifiedCount > 0 {
