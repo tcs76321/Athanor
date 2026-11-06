@@ -216,6 +216,32 @@ func TestMissingArtifactIs404(t *testing.T) {
 	}
 }
 
+// TestDashboardApprovalIsReadable pins the HITL presentation: an approval shows
+// its human label, fields, and expiry instead of a raw JSON blob.
+func TestDashboardApprovalIsReadable(t *testing.T) {
+	fx := setup(t)
+	expires := time.Now().Add(2 * time.Hour)
+	if _, err := fx.repo.Create(context.Background(), hitl.Request{
+		ProjectID: fx.project.ID, Type: hitl.TypeGitPush, Severity: hitl.SeverityHigh,
+		PayloadJSON: `{"branch":"athanor/p1","remote":"origin","commit":"abc123"}`,
+		ExpiresAt:   &expires,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	status, body := get(t, fx.ts.URL+"/ui")
+	if status != http.StatusOK {
+		t.Fatalf("status = %d, want 200", status)
+	}
+	for _, want := range []string{"Push a branch to a remote", "athanor/p1", "origin", "abc123", "expires in 1h"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("dashboard missing %q", want)
+		}
+	}
+	if strings.Contains(body, `{"branch"`) {
+		t.Error("dashboard still renders the raw approval JSON")
+	}
+}
+
 // TestWatchShowsFailure pins the failure card: the event log is the only place
 // a job's error lives, so the watch page must promote it instead of making the
 // operator read raw events.

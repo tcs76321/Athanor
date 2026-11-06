@@ -316,10 +316,20 @@ const dashboardBody = `
     {{if .Pending}}
     <div class="card">
     {{range .Pending}}
-    <form method="post" action="/ui/approvals/{{.ID}}" class="ev">
-      <div><b>{{.Type}}</b> <span class="pill {{if eq .Severity "critical"}}bad{{else}}warn{{end}}">{{.Severity}}</span>
-        <span class="muted">job {{.JobID | short}}</span></div>
-      <div class="muted mono wrap">{{.PayloadJSON}}</div>
+    <form method="post" action="/ui/approvals/{{.ID}}" class="ev approval-card">
+      <div class="row row-middle">
+        <b>{{hitlLabel .Type}}</b>
+        <span class="pill {{if eq .Severity "critical"}}bad{{else if eq .Severity "high"}}warn{{end}}">{{.Severity}}</span>
+        {{if .ExpiresAt}}<span class="pill warn right">{{expiresIn .ExpiresAt}}</span>{{end}}
+      </div>
+      {{if .JobID}}<div class="muted small">job <a href="/ui/jobs/{{.JobID}}" class="mono">{{.JobID | short}}</a></div>{{end}}
+      {{if .ProjectID}}<div class="muted small">project <a href="/ui/projects/{{.ProjectID}}">{{.ProjectID | short}}</a></div>{{end}}
+      {{$fields := hitlFields .PayloadJSON}}
+      {{if $fields}}
+      <dl class="kv hitl-fields">
+        {{range $fields}}<dt>{{.Key}}</dt><dd class="wrap">{{.Value}}</dd>{{end}}
+      </dl>
+      {{end}}
       <div class="actions">
         <button name="action" value="approve">Approve</button>
         <button name="action" value="reject" class="secondary">Reject</button>

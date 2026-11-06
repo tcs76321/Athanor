@@ -959,6 +959,10 @@ dialog .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; pad
 
 /* misc */
 .kv { display: grid; grid-template-columns: minmax(120px, 180px) 1fr; gap: 6px 16px; margin: 0; }
+.hitl-fields { margin: var(--space-2) 0; font-size: 0.9rem; }
+.hitl-fields dt { color: var(--muted); font-size: 0.82rem; align-self: center; }
+.hitl-fields dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.approval-card { border-left: 3px solid var(--warn); }
 .kv dt { color: var(--muted); }
 .kv dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 .del { color: var(--bad); }

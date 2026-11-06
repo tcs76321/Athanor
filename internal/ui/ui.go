@@ -1606,6 +1606,9 @@ var funcs = template.FuncMap{
 		return t.Format("Jan 2 2006")
 	},
 	"prettyEvent": prettyEvent,
+	"hitlLabel":   hitlTypeLabel,
+	"hitlFields":  hitlFields,
+	"expiresIn":   func(t *time.Time) string { return expiryLabel(t, time.Now()) },
 	"tojson": func(v any) string {
 		b, err := json.MarshalIndent(v, "", "  ")
 		if err != nil {

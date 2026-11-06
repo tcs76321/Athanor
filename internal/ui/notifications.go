@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"time"
 )
 
 // notificationCounts is the header badge and the notifications page summary.
@@ -54,8 +55,13 @@ func (u *UI) handleNotifications(w http.ResponseWriter, r *http.Request) {
 	var pending []string
 	if u.deps.HITL != nil {
 		if ps, err := u.deps.HITL.Pending(ctx); err == nil {
+			now := time.Now()
 			for _, p := range ps {
-				pending = append(pending, string(p.Type)+" · "+string(p.Severity)+" · job "+shortID(p.JobID))
+				line := hitlSummary(p.Type, p.Severity, p.ExpiresAt, now)
+				if p.JobID != "" {
+					line += " · job " + shortID(p.JobID)
+				}
+				pending = append(pending, line)
 			}
 		}
 	}
