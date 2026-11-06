@@ -84,6 +84,7 @@ type Request struct {
 type ProgressEvent struct {
 	Stage   string
 	Detail  string
+	Model   string
 	Bytes   int
 	Options int
 	// Tail is the most recent slice of the model response, when the generator

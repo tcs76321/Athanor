@@ -39,10 +39,10 @@ func (g *discoveryGenerator) Generate(ctx context.Context, req discovery.Request
 	}
 	prompt := discovery.BuildPrompt(req)
 	req.Report(discovery.ProgressEvent{
-		Stage: "prompt", Detail: "prompt assembled for " + model, Bytes: len(prompt),
+		Stage: "prompt", Detail: "prompt assembled for " + model, Model: model, Bytes: len(prompt),
 	})
 	req.Report(discovery.ProgressEvent{
-		Stage: "model", Detail: "waiting for " + model, Bytes: len(prompt),
+		Stage: "model", Detail: "waiting for " + model, Model: model, Bytes: len(prompt),
 	})
 
 	var streamed int

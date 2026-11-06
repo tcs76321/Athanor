@@ -481,6 +481,9 @@ func (u *UI) reportDiscovery(projectID string, ev discovery.ProgressEvent) {
 	}
 	now := time.Now()
 	run.Stage = ev.Stage
+	if ev.Model != "" {
+		run.Model = ev.Model
+	}
 	if ev.Detail != "" {
 		run.Detail = ev.Detail
 	}
