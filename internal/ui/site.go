@@ -29,7 +29,7 @@ type surface struct {
 }
 
 var surfaces = []surface{
-	{"Work", "Home", "/ui", "What needs you and what the machine is doing"},
+	{"Work", "Dashboard", "/ui", "What needs you and what the machine is doing"},
 	{"Work", "Inbox", "/ui/notifications", "Approvals, reviews, alarms, failures"},
 	{"Work", "Projects", "/ui/projects", "All projects and their work history"},
 	{"Work", "New project", "/ui/projects/new", "Start a project and its onboarding"},

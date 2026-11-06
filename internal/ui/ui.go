@@ -525,7 +525,7 @@ func (u *UI) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	if u.deps.Operator != nil {
 		opStatus = u.deps.Operator.Status()
 	}
-	u.render(w, "Home", dashboardBody, map[string]any{
+	u.render(w, "Dashboard", dashboardBody, map[string]any{
 		"Active": active, "Terminal": terminal, "Pending": pending, "Frozen": frozen,
 		"Operator":     opStatus,
 		"ProjectNames": names, "ReviewCount": reviewCount, "RecentArtifacts": recentArts,
@@ -1778,6 +1778,35 @@ func (u *UI) renderPartial(w http.ResponseWriter, body string, data map[string]a
 	}
 }
 
+// whenLabel renders a timestamp for a human: recent work is relative, today
+// keeps the clock time, and older work gets a date. Future timestamps (clock
+// skew) are treated as "just now".
+func whenLabel(t, now time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
+	d := now.Sub(t)
+	switch {
+	case d < time.Minute:
+		return "just now"
+	case d < time.Hour:
+		return fmt.Sprintf("%dm ago", int(d.Minutes()))
+	}
+	y, m, day := t.Date()
+	ny, nm, nd := now.Date()
+	if y == ny && m == nm && day == nd {
+		return t.Format("15:04")
+	}
+	yy, ym, yd := now.AddDate(0, 0, -1).Date()
+	if y == yy && m == ym && day == yd {
+		return "Yesterday " + t.Format("15:04")
+	}
+	if y == ny {
+		return t.Format("Jan 2 15:04")
+	}
+	return t.Format("Jan 2 2006")
+}
+
 var funcs = template.FuncMap{
 	"short": func(s string) string {
 		if len(s) > 12 {
@@ -1850,17 +1879,7 @@ var funcs = template.FuncMap{
 		default:
 			return ""
 		}
-		if t.IsZero() {
-			return ""
-		}
-		now := time.Now()
-		if t.Year() == now.Year() && t.YearDay() == now.YearDay() {
-			return t.Format("15:04")
-		}
-		if t.Year() == now.Year() {
-			return t.Format("Jan 2 15:04")
-		}
-		return t.Format("Jan 2 2006")
+		return whenLabel(t, time.Now())
 	},
 	"prettyEvent": prettyEvent,
 	"hitlLabel":   hitlTypeLabel,

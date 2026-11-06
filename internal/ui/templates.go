@@ -30,7 +30,7 @@ func document(body string) string {
       <span class="brand-tag">the alchemical LLM furnace</span>
     </a>
     <nav aria-label="Work">
-      <a href="/ui"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v9h13v-9"/></svg>Home</a>
+      <a href="/ui"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v9h13v-9"/></svg>Dashboard</a>
       <a href="/ui/notifications"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M4 5h16v12H7l-3 3z"/></svg>Inbox <span class="badge" id="alert-count" hidden></span></a>
       <a href="/ui/projects"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M3 6h7l2 2h9v11H3z"/></svg>Projects</a>
       <a href="/ui/artifacts"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M5 3h10l4 4v14H5z"/><path d="M15 3v5h4"/></svg>Library</a>

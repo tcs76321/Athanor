@@ -669,7 +669,7 @@ func TestPagesRender(t *testing.T) {
 		path string
 		want string
 	}{
-		{"/ui", "Home"},
+		{"/ui", "Dashboard"},
 		{"/ui/projects", "demo"},
 		{"/ui/projects/" + fx.project.ID, "Submit a goal"},
 		{"/ui/corrections", "Corrections"},
