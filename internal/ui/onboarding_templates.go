@@ -225,7 +225,7 @@ const welcomeBody = `
       </form>
     </div>
     {{end}}
-    {{if .PoolRanked}}
+    {{if .Pool.QualifiedCount}}
     <h2>Measured ranking</h2>
     <div class="card flush"><div class="table-wrap">
       <table><thead><tr><th>Model</th><th>Overall</th><th>Code</th><th>Data</th><th>Judgment</th><th>Samples</th><th></th></tr></thead><tbody>
