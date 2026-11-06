@@ -50,6 +50,14 @@ func TestRenderMarkdownRejectsUnsafeLinks(t *testing.T) {
 	if !strings.Contains(got, `href="https://example.com/a?b=1"`) {
 		t.Fatalf("safe link missing: %s", got)
 	}
+	// A query string with & must be escaped exactly once.
+	got = string(renderMarkdown(`[ok](https://example.com/a?b=1&c=2)`))
+	if !strings.Contains(got, `href="https://example.com/a?b=1&amp;c=2"`) {
+		t.Fatalf("ampersand was not escaped exactly once: %s", got)
+	}
+	if strings.Contains(got, "&amp;amp;") {
+		t.Fatalf("ampersand was double-escaped: %s", got)
+	}
 }
 
 func TestRenderMarkdownHeadingIDsUnique(t *testing.T) {

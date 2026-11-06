@@ -1029,6 +1029,10 @@ details[open] summary { margin-bottom: var(--space-2); }
   .page-head { flex-direction: column; align-items: stretch; }
   .hero { flex-direction: column; align-items: stretch; }
   main { padding: 18px 14px 56px; }
+  /* Tables and file blocks keep their layout and scroll inside the card
+     instead of stretching the page. */
+  .card { overflow-x: auto; }
+  .grid, .split { min-width: 0; }
 }
 @media (max-width: 640px) {
   .grid.cols-2, .grid.cols-3, .grid.cols-4 { grid-template-columns: 1fr; }

@@ -77,8 +77,9 @@ func document(body string) string {
 </div>
 <div class="palette" id="palette" role="dialog" aria-modal="true" aria-label="Command palette" aria-hidden="true">
   <div class="palette-box">
-    <input id="palette-input" type="search" placeholder="Search or jump to…" autocomplete="off" aria-label="Search or jump to">
-    <div class="palette-results" id="palette-results"></div>
+    <input id="palette-input" type="search" placeholder="Search or jump to…" autocomplete="off"
+           role="combobox" aria-controls="palette-results" aria-expanded="true" aria-autocomplete="list" aria-label="Search or jump to">
+    <div class="palette-results" id="palette-results" role="listbox" aria-label="Results"></div>
   </div>
 </div>
 {{end}}

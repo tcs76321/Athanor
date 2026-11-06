@@ -44,6 +44,28 @@
   }
   window.athanorToast = toast;
 
+  /* ---------- double-submit guard ---------- */
+  // Disable the submitting control once the browser has serialized the form.
+  // The deferral matters: disabling it inside the submit handler can drop the
+  // button's own name/value from the request.
+  document.addEventListener("submit", (ev) => {
+    const form = ev.target;
+    if (!(form instanceof HTMLFormElement)) return;
+    if (form.hasAttribute("data-no-submit-guard")) return;
+    const btn = form.querySelector('button[type="submit"], button:not([type])');
+    if (!btn) return;
+    btn.dataset.submitting = "1";
+    setTimeout(() => {
+      if (btn.dataset.submitting === "1") btn.disabled = true;
+    }, 0);
+  });
+  window.addEventListener("pageshow", () => {
+    $$("button[data-submitting]").forEach((btn) => {
+      btn.disabled = false;
+      delete btn.dataset.submitting;
+    });
+  });
+
   /* ---------- confirmations ---------- */
   document.addEventListener("click", (ev) => {
     const el = ev.target.closest("[data-confirm]");
@@ -359,12 +381,17 @@
     const results = $("#palette-results", box);
     let items = [];
     let active = 0;
+    let lastFocus = null;
+    let searchSeq = 0;
+    let debounce = null;
 
     function close() {
       box.classList.remove("open");
       box.setAttribute("aria-hidden", "true");
+      if (lastFocus && typeof lastFocus.focus === "function") lastFocus.focus();
     }
     function open() {
+      lastFocus = document.activeElement;
       box.classList.add("open");
       box.setAttribute("aria-hidden", "false");
       if (input) {
@@ -379,6 +406,9 @@
       items.forEach((it, i) => {
         const a = document.createElement("a");
         a.href = it.url;
+        a.id = "palette-item-" + i;
+        a.setAttribute("role", "option");
+        a.setAttribute("aria-selected", i === active ? "true" : "false");
         a.className = i === active ? "active" : "";
         const label = document.createElement("span");
         label.textContent = it.label;
@@ -389,17 +419,23 @@
         a.appendChild(kind);
         results.appendChild(a);
       });
+      if (input) {
+        input.setAttribute("aria-activedescendant", items.length ? "palette-item-" + active : "");
+      }
     }
     async function search(q) {
+      const seq = ++searchSeq;
       try {
         const r = await fetch("/ui/search?format=json&q=" + encodeURIComponent(q || ""), {
           headers: { Accept: "application/json" },
         });
         const body = await r.json();
+        if (seq !== searchSeq) return; // a newer keystroke already answered
         items = body.results || [];
         active = 0;
         render();
       } catch (_) {
+        if (seq !== searchSeq) return;
         items = [];
         render();
       }
@@ -411,13 +447,28 @@
         open();
       } else if (e.key === "Escape" && box.classList.contains("open")) {
         close();
+      } else if (e.key === "Tab" && box.classList.contains("open")) {
+        const focusables = [input].concat($$("a", results || box)).filter(Boolean);
+        if (!focusables.length) return;
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
       }
     });
     box.addEventListener("click", (e) => {
       if (e.target === box) close();
     });
     if (input) {
-      input.addEventListener("input", () => search(input.value));
+      input.addEventListener("input", () => {
+        clearTimeout(debounce);
+        debounce = setTimeout(() => search(input.value), 120);
+      });
       input.addEventListener("keydown", (e) => {
         if (e.key === "ArrowDown") {
           e.preventDefault();

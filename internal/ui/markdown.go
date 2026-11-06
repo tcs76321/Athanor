@@ -193,7 +193,10 @@ func renderInline(s string) string {
 		codes = append(codes, "<code>"+html.EscapeString(body)+"</code>")
 		return fmt.Sprintf("\x00%d\x00", len(codes)-1)
 	})
-	s = html.EscapeString(s)
+	// Links are extracted before HTML escaping. Parsing them after escaping
+	// double-escaped every `&` in a query string (`?a=1&b=2` became
+	// `?a=1&amp;amp;b=2`), so a copied URL was wrong.
+	var links []string
 	s = mdLink.ReplaceAllStringFunc(s, func(m string) string {
 		sub := mdLink.FindStringSubmatch(m)
 		if sub == nil {
@@ -204,9 +207,14 @@ func renderInline(s string) string {
 		if err != nil || (u.Scheme != "http" && u.Scheme != "https" && u.Scheme != "mailto") {
 			return sub[1]
 		}
-		return fmt.Sprintf(`<a href="%s" rel="noopener noreferrer" target="_blank">%s</a>`,
-			html.EscapeString(href), sub[1])
+		links = append(links, fmt.Sprintf(`<a href="%s" rel="noopener noreferrer" target="_blank">%s</a>`,
+			html.EscapeString(href), html.EscapeString(sub[1])))
+		return fmt.Sprintf("\x01%d\x01", len(links)-1)
 	})
+	s = html.EscapeString(s)
+	for i, l := range links {
+		s = strings.ReplaceAll(s, fmt.Sprintf("\x01%d\x01", i), l)
+	}
 	s = mdBold.ReplaceAllStringFunc(s, func(m string) string {
 		sub := mdBold.FindStringSubmatch(m)
 		if sub == nil {
