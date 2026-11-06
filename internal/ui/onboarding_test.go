@@ -167,7 +167,7 @@ func TestWelcomeQualificationShowsInlineProgress(t *testing.T) {
 	raw, _ := io.ReadAll(resp.Body)
 	body := string(raw)
 	for _, want := range []string{
-		"Running qualification", "40%", "4 / 10", `data-auto-refresh="2000"`,
+		"Running qualification", "40%", "4 / 10", `data-live-card="welcome-qualification"`,
 		"Continue while it runs",
 	} {
 		if !strings.Contains(body, want) {

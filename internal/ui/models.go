@@ -34,7 +34,7 @@ const modelsBody = `
 </div>
 
 {{if .Qualification.Running}}
-<div class="card" data-auto-refresh="2500">
+<div class="card" data-live-card="models-qualification" data-live-interval="2500">
   <div class="row row-middle"><h3>Qualification running</h3><span class="pill run">{{.Qualification.Percent}}%</span></div>
   <progress class="progress" value="{{.Qualification.Percent}}" max="100">{{.Qualification.Percent}}%</progress>
   <p><b>{{.Qualification.Done}} / {{.Qualification.Total}}</b> cases{{if .Qualification.Elapsed}} · {{.Qualification.Elapsed}} elapsed{{end}}{{if .Qualification.Remaining}} · about {{.Qualification.Remaining}} remaining{{end}}</p>

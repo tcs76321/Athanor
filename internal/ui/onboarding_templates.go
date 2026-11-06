@@ -195,7 +195,7 @@ const welcomeBody = `
 
     {{if .Pulls}}
     <h2>Pulls in progress</h2>
-    <div class="card" data-auto-refresh="5000">
+    <div class="card" data-live-card="pulls" data-live-interval="5000">
       {{range .Pulls}}
       <div class="stack mb-3">
         <div class="row row-middle"><b class="mono">{{.Model}}</b><span class="pill {{if .Done}}ok{{else}}run{{end}}">{{.Status}}</span><span class="muted right">{{.Percent}}%</span></div>
@@ -217,11 +217,11 @@ const welcomeBody = `
     <h1>Rank the pool.</h1>
     <p class="lede">Athanor measures every pool model on a small, grounded screen: deterministic generator cases and fixed-label judgment pairs. It is a prior for selection, not the frozen capability benchmark, and it never leaves this machine. Real job outcomes update the ranking over time.</p>
     {{if .Qualification.Running}}
-    <div class="card" data-auto-refresh="2000">
+    <div class="card" data-live-card="welcome-qualification" data-live-interval="2000">
       <div class="row row-middle"><h3>Running qualification</h3><span class="pill run">{{.Qualification.Percent}}%</span></div>
       <progress class="progress" value="{{.Qualification.Percent}}" max="100">{{.Qualification.Percent}}%</progress>
       <p><b>{{.Qualification.Done}} / {{.Qualification.Total}}</b> cases complete{{if .Qualification.Elapsed}} · {{.Qualification.Elapsed}} elapsed{{end}}{{if .Qualification.Remaining}} · about {{.Qualification.Remaining}} remaining{{else if not .Qualification.Done}} · estimating remaining time…{{end}}</p>
-      <p class="muted">This page refreshes every 2 seconds. You can leave it; the run is resumable and the result will be here when you return.</p>
+      <p class="muted">This panel updates in place every couple of seconds. You can leave it; the run is resumable and the result will be here when you return.</p>
     </div>
     {{else}}
     <div class="grid cols-2">

@@ -79,11 +79,62 @@
     el.addEventListener("blur", () => document.documentElement.setAttribute("data-theme", document.documentElement.dataset.baseTheme || "monokai"));
   });
 
-  /* ---------- auto refresh ---------- */
-  $$("[data-auto-refresh]").forEach((el) => {
-    const ms = Number(el.getAttribute("data-auto-refresh")) || 5000;
-    setTimeout(() => location.reload(), ms);
-  });
+  /* ---------- in-place live cards ---------- */
+  // Status panels used to call location.reload() on a timer, which discarded
+  // open <details> panels, scroll position, and anything the operator was
+  // reading. Poll the same page, swap only the named card's content, and
+  // restore any open details by their summary text.
+  function wireLiveCards() {
+    $$("[data-live-card]").forEach((el) => {
+      const key = el.getAttribute("data-live-card");
+      const ms = Number(el.getAttribute("data-live-interval")) || 3000;
+      let stopped = false;
+
+      const schedule = () => {
+        if (!stopped) setTimeout(tick, ms);
+      };
+
+      async function tick() {
+        if (document.hidden) {
+          schedule();
+          return;
+        }
+        try {
+          const r = await fetch(window.location.href, {
+            cache: "no-store",
+            headers: { "HX-Request": "1" },
+          });
+          if (!r.ok) {
+            schedule();
+            return;
+          }
+          const doc = new DOMParser().parseFromString(await r.text(), "text/html");
+          const next = Array.from(doc.querySelectorAll("[data-live-card]"))
+            .find((n) => n.getAttribute("data-live-card") === key);
+          if (!next) {
+            // The stage finished and the page moved on. Reload once so the
+            // next stage (choose/plan/complete) can render.
+            stopped = true;
+            window.location.reload();
+            return;
+          }
+          const open = new Set(
+            Array.from(el.querySelectorAll("details[open]"))
+              .map((d) => (d.querySelector("summary") || {}).textContent || "")
+          );
+          el.className = next.className;
+          el.innerHTML = next.innerHTML;
+          el.querySelectorAll("details").forEach((d) => {
+            const s = (d.querySelector("summary") || {}).textContent || "";
+            if (open.has(s)) d.open = true;
+          });
+        } catch (_) {}
+        schedule();
+      }
+
+      schedule();
+    });
+  }
 
   /* ---------- desktop notifications ---------- */
   const notifyBtn = $("#enable-notifications");
@@ -460,6 +511,7 @@
     wireWatch();
     wirePalette();
     wireRefiners();
+    wireLiveCards();
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
   else boot();

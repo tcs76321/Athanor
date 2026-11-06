@@ -71,10 +71,10 @@ const projectOnboardingBody = `
       </form>
     </div>
   {{else if eq .Stage "generating"}}
-    <div class="card" data-auto-refresh="2000">
+    <div class="card" data-live-card="discovery" data-live-interval="2000">
       <div class="eyebrow">Discovery in progress</div>
       <h2>Athanor is thinking across industries.</h2>
-      <p class="muted">This is one bounded model pass. The page refreshes every 2 seconds; you can leave and come back, and the result is saved when it finishes.</p>
+      <p class="muted">This is one bounded model pass. The status updates in place; open panels stay open, and the result is saved when it finishes.</p>
       <progress class="progress" value="{{.DiscoveryPercent}}" max="100">{{.DiscoveryPercent}}%</progress>
       {{if .Run}}
       <div class="row row-middle"><span class="pill run">{{.DiscoveryPercent}}%</span><span class="muted">{{.DiscoveryElapsed}} elapsed</span></div>
@@ -120,23 +120,23 @@ const projectOnboardingBody = `
         </div>
         <div class="one-liner">{{.OneLiner}}</div>
         <div class="meta">
-          <span class="pill">${{.StartupCostUSD}} to start</span>
-          <span class="pill">{{.TimeToFirstRevenueDays}} days to revenue</span>
+          <span class="pill">~${{.StartupCostUSD}} setup cost</span>
+          <span class="pill">{{.TimeToFirstRevenueDays}} days to first deliverable</span>
           <span class="pill">{{len .Evidence}} source{{if ne (len .Evidence) 1}}s{{end}}</span>
           <span class="pill">confidence {{printf "%.2f" .Confidence}}</span>
         </div>
         <div class="stack">
-          <div><b>Customer</b> <span class="muted">{{.Customer}}</span></div>
-          <div><b>Pain</b> <span class="muted">{{.Pain}}</span></div>
-          <div><b>Wedge</b> <span class="muted">{{.Wedge}}</span></div>
-          <div><b>First offer</b> <span class="muted">{{.FirstOffer}}</span></div>
-          <div><b>First experiment</b> <span class="muted">{{.ValidationExperiment}}</span></div>
+          <div><b>Audience</b> <span class="muted">{{.Customer}}</span></div>
+          <div><b>Need</b> <span class="muted">{{.Pain}}</span></div>
+          <div><b>Approach</b> <span class="muted">{{.Wedge}}</span></div>
+          <div><b>First deliverable</b> <span class="muted">{{.FirstOffer}}</span></div>
+          <div><b>How to test it</b> <span class="muted">{{.ValidationExperiment}}</span></div>
         </div>
         <div class="score">
           <div class="score-row"><span>Clarity</span><progress class="progress" value="{{index .Scores "clarity"}}" max="20"></progress><span>{{index .Scores "clarity"}}/20</span></div>
           <div class="score-row"><span>Evidence</span><progress class="progress" value="{{index .Scores "evidence"}}" max="20"></progress><span>{{index .Scores "evidence"}}/20</span></div>
           <div class="score-row"><span>Speed</span><progress class="progress" value="{{index .Scores "speed"}}" max="20"></progress><span>{{index .Scores "speed"}}/20</span></div>
-          <div class="score-row"><span>Capital fit</span><progress class="progress" value="{{index .Scores "capital"}}" max="20"></progress><span>{{index .Scores "capital"}}/20</span></div>
+          <div class="score-row"><span>Cost fit</span><progress class="progress" value="{{index .Scores "capital"}}" max="20"></progress><span>{{index .Scores "capital"}}/20</span></div>
           <div class="score-row"><span>Risk</span><progress class="progress" value="{{index .Scores "risk"}}" max="20"></progress><span>{{index .Scores "risk"}}/20</span></div>
         </div>
         {{if .Risks}}<details><summary>Risks and assumptions</summary>{{range .Risks}}<div class="ev">{{.}}</div>{{end}}{{range .Assumptions}}<div class="ev">Assumption: {{.}}</div>{{end}}</details>{{end}}
@@ -148,10 +148,10 @@ const projectOnboardingBody = `
       {{end}}
     </div>
   {{else if eq .Stage "generating_plan"}}
-    <div class="card" data-auto-refresh="4000">
+    <div class="card" data-live-card="planning" data-live-interval="4000">
       <div class="eyebrow">Planning in progress</div>
       <h2>Athanor is drafting three plans.</h2>
-      <p class="muted">The plans differ by risk and time-to-validation. The page refreshes itself; you can leave and come back.</p>
+      <p class="muted">The plans differ by risk and time-to-validation. This panel updates in place; you can leave and come back.</p>
       <progress class="progress" value="45" max="100">45%</progress>
       <div class="actions"><a class="btn secondary" href="/ui/projects/{{.Project.ID}}/onboarding">Refresh</a></div>
     </div>
@@ -162,8 +162,8 @@ const projectOnboardingBody = `
       <p class="muted">{{.Selected.OneLiner}}</p>
       <div class="meta">
         <span class="pill">{{.Selected.Industry}} · {{.Selected.Niche}}</span>
-        <span class="pill">${{.Selected.StartupCostUSD}} to start</span>
-        <span class="pill">{{.Selected.TimeToFirstRevenueDays}} days to revenue</span>
+        <span class="pill">~${{.Selected.StartupCostUSD}} setup cost</span>
+        <span class="pill">{{.Selected.TimeToFirstRevenueDays}} days to first deliverable</span>
       </div>
       <div class="actions">
         <form method="post" action="/ui/projects/{{.Project.ID}}/onboarding">

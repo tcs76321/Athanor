@@ -55,11 +55,11 @@ const setupBody = `
 
 <h2>Qualification (optional)</h2>
 {{if .State.Running}}
-<div class="card" data-auto-refresh="2000">
+<div class="card" data-live-card="setup-qualification" data-live-interval="2000">
   <div class="row row-middle"><h3>Qualification running</h3><span class="pill run">{{.Qualification.Percent}}%</span></div>
   <progress class="progress" value="{{.Qualification.Percent}}" max="100">{{.Qualification.Percent}}%</progress>
   <p><b>{{.Qualification.Done}} / {{.Qualification.Total}}</b> cases complete{{if .Qualification.Elapsed}} · {{.Qualification.Elapsed}} elapsed{{end}}{{if .Qualification.Remaining}} · about {{.Qualification.Remaining}} remaining{{else if not .Qualification.Done}} · estimating remaining time…{{end}}</p>
-  <p class="muted">This page refreshes every 2 seconds. You can leave it; the run is resumable.</p>
+  <p class="muted">This panel updates in place every couple of seconds. You can leave it; the run is resumable.</p>
 </div>
 {{else}}
 <div class="card">
