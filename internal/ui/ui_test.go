@@ -344,6 +344,33 @@ func TestSetupPersonasWritesConfig(t *testing.T) {
 	}
 }
 
+// TestProjectPriority pins the operator priority control and the single
+// critical invariant through the UI.
+func TestProjectPriority(t *testing.T) {
+	fx := setup(t)
+	ctx := context.Background()
+	second, _, err := fx.ui.deps.Projects.Create(ctx, "second", project.ArchetypeText,
+		"Write a short essay about local-first software.", "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []string{fx.project.ID, second.ID} {
+		resp := postForm(t, fx.ts.URL+"/ui/projects/"+id+"/priority", url.Values{"priority": {"critical"}})
+		if resp.StatusCode != http.StatusSeeOther {
+			t.Fatalf("priority status = %d, want 303", resp.StatusCode)
+		}
+	}
+	first, _ := fx.ui.deps.Projects.Get(ctx, fx.project.ID)
+	last, _ := fx.ui.deps.Projects.Get(ctx, second.ID)
+	if first.Priority != project.PriorityHigh || last.Priority != project.PriorityCritical {
+		t.Errorf("priorities = %q/%q, want high/critical", first.Priority, last.Priority)
+	}
+	_, body := get(t, fx.ts.URL+"/ui/projects")
+	if !strings.Contains(body, "Critical") || !strings.Contains(body, "High") {
+		t.Error("project list does not show priorities")
+	}
+}
+
 // TestProjectExecutionEditor pins the advanced project config form: the UI can
 // now write the per-project test command, linters, and declared checks.
 func TestProjectExecutionEditor(t *testing.T) {

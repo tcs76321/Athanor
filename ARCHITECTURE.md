@@ -205,12 +205,18 @@ capabilities:                 # inferred from the goal + repository, not chosen
   - code
   - document
 repository_path: optional
+priority: medium               # critical | high | medium | low; one critical max
 ```
 
 A project has **no operator-selected archetype** ([ADR-0093](docs/adr/0093-project-capabilities-not-archetypes.md)).
 The capability set is a deterministic, auditable inference: a code repository adds
 `code`, a README adds `document`, a goal about JSON/CSV adds `data`, and prose
 goals add `text`. A project can produce several kinds of work over its life.
+
+`priority` is the operator's attention signal, not a preemption policy. It
+orders the dashboard and project list; at most one project is `critical`, and
+assigning a new critical project demotes the previous one to `high`
+([ADR-0108](docs/adr/0108-project-priority.md)).
 
 ### 6.2 Task Capabilities
 

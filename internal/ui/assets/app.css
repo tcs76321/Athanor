@@ -100,33 +100,35 @@
 }
 
 [data-theme="monokai-light"] {
-  --bg: #f7f4ec;
-  --bg-raised: #fbf9f3;
-  --panel: #fffefb;
-  --panel-2: #f1ede3;
-  --panel-3: #e8e2d5;
-  --border: #ddd6c7;
-  --border-strong: #c4bba8;
-  --text: #22221e;
-  --text-soft: #3d3d36;
-  --muted: #6f6f64;
-  --faint: #929284;
-  --accent: #d9480f;
-  --accent-ink: #fffaf5;
-  --accent-soft: rgba(217, 72, 15, .1);
-  --link: #0b7285;
-  --ok: #4c7a1f;
-  --ok-soft: rgba(76, 122, 31, .1);
-  --warn: #8a6d00;
-  --warn-soft: rgba(138, 109, 0, .1);
-  --bad: #c2255c;
-  --bad-soft: rgba(194, 37, 92, .1);
-  --purple: #6741d9;
-  --cyan: #0b7285;
-  --code-bg: #f3efe5;
-  --selection: rgba(217, 72, 15, .16);
-  --shadow-1: 0 1px 2px rgba(40, 35, 25, .08);
-  --shadow-2: 0 12px 32px rgba(40, 35, 25, .12);
+  /* Cool slate light with the Monokai pink/blue accents. Deliberately
+     distinct from Ember Paper's warm cream. */
+  --bg: #edf1f6;
+  --bg-raised: #f6f8fb;
+  --panel: #ffffff;
+  --panel-2: #e6ebf2;
+  --panel-3: #d9e0e9;
+  --border: #c9d2de;
+  --border-strong: #97a6b9;
+  --text: #1b2430;
+  --text-soft: #334152;
+  --muted: #5c6b7c;
+  --faint: #8593a3;
+  --accent: #d6336c;
+  --accent-ink: #fff7fa;
+  --accent-soft: rgba(214, 51, 108, .1);
+  --link: #1c7ed6;
+  --ok: #2f9e44;
+  --ok-soft: rgba(47, 158, 68, .1);
+  --warn: #c47c00;
+  --warn-soft: rgba(196, 124, 0, .12);
+  --bad: #c92a2a;
+  --bad-soft: rgba(201, 42, 42, .1);
+  --purple: #7048e8;
+  --cyan: #0c8599;
+  --code-bg: #e8edf4;
+  --selection: rgba(28, 126, 214, .18);
+  --shadow-1: 0 1px 2px rgba(25, 40, 60, .08);
+  --shadow-2: 0 12px 32px rgba(25, 40, 60, .12);
   color-scheme: light;
 }
 
@@ -171,10 +173,10 @@
   --text-soft: #2d4b55;
   --muted: #657b83;
   --faint: #93a1a1;
-  --accent: #cb4b16;
-  --accent-ink: #fffaf3;
-  --accent-soft: rgba(203, 75, 22, .1);
-  --link: #268bd2;
+  --accent: #268bd2;
+  --accent-ink: #fdf6e3;
+  --accent-soft: rgba(38, 139, 210, .12);
+  --link: #2aa198;
   --ok: #859900;
   --ok-soft: rgba(133, 153, 0, .1);
   --warn: #b58900;

@@ -10,6 +10,7 @@ type fakeGen struct {
 	system string
 	user   string
 	out    string
+	outs   []string
 	err    error
 	called bool
 }
@@ -17,6 +18,11 @@ type fakeGen struct {
 func (f *fakeGen) Generate(ctx context.Context, system, user string) (string, error) {
 	f.called = true
 	f.system, f.user = system, user
+	if len(f.outs) > 0 {
+		out := f.outs[0]
+		f.outs = f.outs[1:]
+		return out, f.err
+	}
 	return f.out, f.err
 }
 
@@ -151,6 +157,41 @@ func TestRefineFallsBackToQuestionsWhenModelReturnsNothing(t *testing.T) {
 	}
 	if !res.NeedsClarification || len(res.Questions) < 2 {
 		t.Fatalf("fallback = %+v", res)
+	}
+}
+
+func TestRefineRetriesOverEagerClarification(t *testing.T) {
+	gen := &fakeGen{outs: []string{
+		`{"needs_clarification":true,"questions":["What is the outcome?"]}`,
+		`{"text":"Build a small todo app with a tested add-and-remove flow.","notes":["made the outcome explicit"]}`,
+	}}
+	res, err := New(gen).Refine(context.Background(), "project.goal", "Build a small todo app", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.NeedsClarification || !strings.Contains(res.Text, "tested add-and-remove") {
+		t.Fatalf("retry result = %+v", res)
+	}
+	if !strings.Contains(gen.user, "Do not set needs_clarification") {
+		t.Fatalf("retry prompt did not forbid clarification: %q", gen.user)
+	}
+}
+
+func TestRefineLeavesUsableTextUnchangedWhenRetryStillClarifies(t *testing.T) {
+	gen := &fakeGen{outs: []string{
+		`{"needs_clarification":true}`,
+		`{"needs_clarification":true}`,
+	}}
+	const text = "Build a small todo app"
+	res, err := New(gen).Refine(context.Background(), "project.goal", text, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.NeedsClarification || !res.Unchanged || res.Text != text {
+		t.Fatalf("usable text was replaced by questions: %+v", res)
+	}
+	if len(res.Notes) == 0 || !strings.Contains(res.Notes[0], "unchanged") {
+		t.Fatalf("missing unchanged note: %+v", res)
 	}
 }
 

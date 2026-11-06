@@ -71,6 +71,26 @@ original.
   changes proceed under the normal user edit, while external/irreversible
   actions still require approval.
 
+## Amendment (2026-11-06)
+
+Local models became over-eager about `needs_clarification`: a usable short goal
+such as “Build a small todo app” was met with questions instead of a refinement.
+The editor now treats clarification as a **budgeted exception**, not the default:
+
+- A field with at least four words is a usable starting point. If the model
+  asks for clarification, the service makes **one explicit retry** (“do not ask
+  again; improve it or return it unchanged”) before deciding.
+- If the retry still asks, the field is returned **unchanged** with a note, not
+  replaced by questions. The user can edit and retry.
+- Truly short placeholders (“rough goal”, “do the thing”) still get the
+  deterministic field-specific questions.
+- The system prompt now says a short sentence is acceptable and forbids asking
+  for an audience/feature list the user did not provide; missing detail belongs
+  in `added_assumptions`.
+
+This preserves the “never guess” rule without turning the wand into a
+clarification trap.
+
 ## Open questions
 
 - Should accepted rewrites be attributed to the editor model in the strategy

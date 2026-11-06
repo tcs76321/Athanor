@@ -290,6 +290,7 @@ const dashboardBody = `
         <h3><a href="/ui/projects/{{.Project.ID}}">{{.Project.Name}}</a></h3>
         <p class="muted">{{.Project.Goal}}</p>
         <div class="meta">
+          <span class="pill {{priorityClass .Project.Priority}}">{{priorityLabel .Project.Priority}}</span>
           <span class="pill">{{.Onboarding}}</span>
           {{if .LastState}}<span class="pill {{stateClass .LastState}}">{{.LastState}}</span>{{end}}
           <span class="faint">{{.ArtifactCount}} artifact{{if ne .ArtifactCount 1}}s{{end}} · {{.TaskCount}} task{{if ne .TaskCount 1}}s{{end}}</span>
@@ -406,11 +407,12 @@ const projectsBody = `
 <p class="sub">Each project is one goal, its criteria, and the work history behind it.</p>
 <div class="actions"><a class="btn" href="/ui/projects/new">+ New project</a></div>
 {{if .Projects}}
-<table><thead><tr><th>Name</th><th>Capabilities</th><th>Status</th><th>Goal</th><th>Created</th></tr></thead><tbody>
+<table><thead><tr><th>Name</th><th>Capabilities</th><th>Status</th><th>Priority</th><th>Goal</th><th>Created</th></tr></thead><tbody>
 {{range .Projects}}<tr>
   <td><a href="/ui/projects/{{.ID}}">{{.Name}}</a></td>
   <td><span class="pill">{{join .Capabilities}}</span></td>
   <td><span class="pill">{{.Status}}</span></td>
+  <td><span class="pill {{priorityClass .Priority}}">{{priorityLabel .Priority}}</span></td>
   <td class="muted">{{.Goal}}</td>
   <td class="muted">{{.CreatedAt | when}}</td>
 </tr>{{end}}
@@ -508,6 +510,7 @@ const projectBody = `
 <div class="card">
   <div class="grid">
     <div><div class="l muted">Status</div><div><span class="pill">{{.Project.Status}}</span></div></div>
+    <div><div class="l muted">Priority</div><div><span class="pill {{priorityClass .Project.Priority}}">{{priorityLabel .Project.Priority}}</span></div></div>
     <div><div class="l muted">Capabilities</div><div>{{join .Project.Capabilities}}</div></div>
     <div><div class="l muted">Repository</div><div class="mono wrap">{{if .Project.RepositoryPath}}{{.Project.RepositoryPath}}{{else}}—{{end}}</div></div>
     <div><div class="l muted">Verification</div><div class="mono wrap">{{if .Project.TestCommand}}{{.Project.TestCommand}}{{else}}No test command detected; the judge decides{{end}}</div></div>
@@ -626,6 +629,18 @@ const projectBody = `
     <dt>verification</dt><dd class="mono wrap">{{if .Project.TestCommand}}{{.Project.TestCommand}}{{else}}No test command detected; the judge decides{{end}}</dd>
     <dt>created</dt><dd>{{.Project.CreatedAt | when}}</dd>
   </dl>
+  <form method="post" action="/ui/projects/{{.Project.ID}}/priority">
+    <label>Priority
+      <select name="priority">
+        <option value="critical" {{if eq .Project.Priority "critical"}}selected{{end}}>Critical (one project at a time)</option>
+        <option value="high" {{if eq .Project.Priority "high"}}selected{{end}}>High</option>
+        <option value="medium" {{if eq .Project.Priority "medium"}}selected{{end}}>Medium</option>
+        <option value="low" {{if eq .Project.Priority "low"}}selected{{end}}>Low</option>
+      </select>
+    </label>
+    <div class="field-help">Priority orders projects on the dashboard and project list. Setting a new Critical project demotes the previous Critical project to High. It does not preempt an already running job.</div>
+    <div class="actions"><button class="secondary">Save priority</button></div>
+  </form>
   <p class="muted">Verification is inferred from the repository. These advanced overrides are stored on the project, not in <code>config.yaml</code>.</p>
   <form method="post" action="/ui/projects/{{.Project.ID}}/execution">
     <div class="grid cols-2">

@@ -26,6 +26,39 @@ func openRepo(t *testing.T) (*Repo, *store.Store) {
 
 const validGoal = "Write a short essay about local-first software."
 
+func TestProjectPrioritySingleCritical(t *testing.T) {
+	r, _ := openRepo(t)
+	ctx := context.Background()
+	p1, _, err := r.Create(ctx, "one", ArchetypeText, validGoal, "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	p2, _, err := r.Create(ctx, "two", ArchetypeText, validGoal, "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p1.Priority != PriorityMedium || p2.Priority != PriorityMedium {
+		t.Fatalf("default priorities = %q/%q, want medium", p1.Priority, p2.Priority)
+	}
+	if err := r.SetPriority(ctx, p1.ID, PriorityHigh); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.SetPriority(ctx, p1.ID, PriorityCritical); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.SetPriority(ctx, p2.ID, PriorityCritical); err != nil {
+		t.Fatal(err)
+	}
+	got1, _ := r.Get(ctx, p1.ID)
+	got2, _ := r.Get(ctx, p2.ID)
+	if got1.Priority != PriorityHigh || got2.Priority != PriorityCritical {
+		t.Fatalf("priorities = %q/%q, want high/critical", got1.Priority, got2.Priority)
+	}
+	if err := r.SetPriority(ctx, p1.ID, "urgent"); err == nil {
+		t.Fatal("invalid priority was accepted")
+	}
+}
+
 func TestCreatePersistsProjectGoalTask(t *testing.T) {
 	r, s := openRepo(t)
 	ctx := context.Background()

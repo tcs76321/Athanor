@@ -51,6 +51,34 @@ const (
 )
 
 // Project is one persisted project row (§6.1).
+// Project priority values. At most one project may be critical; Repo.SetPriority
+// demotes the previous critical project in the same transaction.
+const (
+	PriorityCritical = "critical"
+	PriorityHigh     = "high"
+	PriorityMedium   = "medium"
+	PriorityLow      = "low"
+)
+
+// ValidPriority reports whether p is in the closed priority set.
+func ValidPriority(p string) bool {
+	switch p {
+	case PriorityCritical, PriorityHigh, PriorityMedium, PriorityLow:
+		return true
+	default:
+		return false
+	}
+}
+
+// NormalizePriority maps an empty/unknown value to medium. Use ValidPriority
+// when rejecting an operator value rather than silently changing it.
+func NormalizePriority(p string) string {
+	if ValidPriority(p) {
+		return p
+	}
+	return PriorityMedium
+}
+
 type Project struct {
 	ID   string
 	Name string
@@ -63,6 +91,11 @@ type Project struct {
 	Archetype string
 	Goal      string
 	Status    string
+	// Priority is the operator-set scheduling priority: critical, high,
+	// medium, or low. At most one project is critical at a time (migration
+	// 0037's partial unique index). The zero value on an old row means
+	// medium.
+	Priority string
 	// RepositoryPath is the §6.1 repository root the M5-T8 indexer walks
 	// (ADR-0028). Empty means no repository is configured; indexing is then
 	// a no-op until an operator sets one.

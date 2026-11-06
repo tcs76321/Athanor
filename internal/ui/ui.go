@@ -387,6 +387,7 @@ func (u *UI) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /ui/projects/{id}/goals", u.handleGoalCreate)
 	mux.HandleFunc("POST /ui/projects/{id}/index", u.handleProjectIndex)
 	mux.HandleFunc("POST /ui/projects/{id}/execution", u.handleProjectExecution)
+	mux.HandleFunc("POST /ui/projects/{id}/priority", u.handleProjectPriority)
 	mux.HandleFunc("POST /ui/tasks/{id}/reset", u.handleTaskReset)
 	mux.HandleFunc("POST /ui/projects/{id}/corrections", u.handleCorrectionCreate)
 	mux.HandleFunc("GET /ui/corrections", u.handleCorrections)
@@ -1582,7 +1583,9 @@ func (u *UI) handleDiff(w http.ResponseWriter, r *http.Request) {
 // for the connection the open rows hold.
 func (u *UI) listProjects(ctx context.Context) ([]project.Project, error) {
 	rows, err := u.deps.Store.DB().QueryContext(ctx,
-		`SELECT id FROM projects ORDER BY created_at DESC, id DESC`)
+		`SELECT id FROM projects
+		 ORDER BY CASE priority WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END,
+		          created_at DESC, id DESC`)
 	if err != nil {
 		return nil, fmt.Errorf("listing projects: %w", err)
 	}
@@ -1899,6 +1902,25 @@ var funcs = template.FuncMap{
 		return string(b)
 	},
 	"interviewDone": func(s string) bool { return s == "approved" || s == "skipped" },
+	"priorityClass": func(v any) string {
+		switch project.NormalizePriority(fmt.Sprint(v)) {
+		case project.PriorityCritical:
+			return "bad"
+		case project.PriorityHigh:
+			return "warn"
+		case project.PriorityLow:
+			return ""
+		default:
+			return "run"
+		}
+	},
+	"priorityLabel": func(v any) string {
+		p := project.NormalizePriority(fmt.Sprint(v))
+		if p == project.PriorityCritical {
+			return "Critical"
+		}
+		return strings.ToUpper(p[:1]) + p[1:]
+	},
 	"stateClass": func(v any) string {
 		s := fmt.Sprint(v)
 		switch s {

@@ -329,6 +329,7 @@ func (a *API) Register(mux *http.ServeMux) {
 	// A project's §6.2 execution override can be replaced between steps of a
 	// multi-job sequence (the memory benchmark); the engine reads it per job.
 	mux.HandleFunc("PATCH /projects/{id}/execution", a.handleProjectExecution)
+	mux.HandleFunc("PATCH /projects/{id}/priority", a.handleProjectPriority)
 	// M6-T11: strategy analysis (ADR-0041).
 	mux.HandleFunc("GET /strategy/insights", a.handleInsightList)
 	mux.HandleFunc("POST /strategy/insights", a.handleInsightCreate)
@@ -403,6 +404,7 @@ type projectResponse struct {
 	Capabilities   []string `json:"capabilities,omitempty"`
 	Archetype      string   `json:"archetype,omitempty"` // legacy alias for the primary capability
 	Goal           string   `json:"goal"`
+	Priority       string   `json:"priority,omitempty"`
 	RepositoryPath string   `json:"repository_path,omitempty"`
 	TaskID         string   `json:"task_id,omitempty"`
 	JobID          string   `json:"job_id,omitempty"`
@@ -465,8 +467,9 @@ func (a *API) handleProjectCreate(w http.ResponseWriter, r *http.Request) {
 		ID: res.Project.ID, Name: res.Project.Name,
 		Capabilities: res.Project.Capabilities,
 		Archetype:    res.Project.PrimaryCapability(),
-		Goal:         res.Project.Goal, RepositoryPath: res.Project.RepositoryPath,
-		TaskID: res.Task.ID, JobID: res.JobID,
+		Goal:         res.Project.Goal, Priority: res.Project.Priority,
+		RepositoryPath: res.Project.RepositoryPath,
+		TaskID:         res.Task.ID, JobID: res.JobID,
 		Index: index, IndexWarning: res.IndexWarning,
 	})
 }
@@ -611,6 +614,26 @@ func (a *API) handleProjectExecution(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"id": p.ID})
 }
 
+// handleProjectPriority sets the operator priority. Critical is exclusive:
+// the repository demotes the previous critical project to high atomically.
+func (a *API) handleProjectPriority(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Priority string `json:"priority"`
+	}
+	if !decodeBody(w, r, &req) {
+		return
+	}
+	if !project.ValidPriority(req.Priority) {
+		writeError(w, http.StatusBadRequest, "priority must be critical, high, medium, or low")
+		return
+	}
+	if err := a.projects.SetPriority(r.Context(), r.PathValue("id"), req.Priority); err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"priority": req.Priority})
+}
+
 func (a *API) handleProjectGet(w http.ResponseWriter, r *http.Request) {
 	p, err := a.projects.Get(r.Context(), r.PathValue("id"))
 	if err != nil {
@@ -620,7 +643,7 @@ func (a *API) handleProjectGet(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, projectResponse{
 		ID: p.ID, Name: p.Name, Capabilities: p.Capabilities,
 		Archetype: p.PrimaryCapability(), Goal: p.Goal,
-		RepositoryPath: p.RepositoryPath,
+		Priority: p.Priority, RepositoryPath: p.RepositoryPath,
 	})
 }
 

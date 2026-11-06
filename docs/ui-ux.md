@@ -24,6 +24,10 @@ The 2026-11-06 pass closed the biggest presentation and daily-loop gaps:
 - **Accelerators.** Resources and Models show the host GPU/NPU probe; a
   discrete GPU budgets VRAM and reports spill, while unified Apple memory keeps
   the host budget. NPU is inventory-only (ADR-0107).
+- **Project attention.** Projects carry operator priority
+  (critical/high/medium/low); at most one is critical, and the setting orders
+  the dashboard and project list. The project page explains that priority does
+  not preempt a running job (ADR-0108).
 - **Control and reading.** Discovery, planning, pulls, and qualification are
   cancellable; Watch has a per-phase duration/token timeline; code is
   highlighted with a source-only line gutter; confirmations use a styled

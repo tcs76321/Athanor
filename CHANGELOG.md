@@ -10,6 +10,25 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Project priority, refinement reliability, and theme distinction — 2026-11-06
+
+- **Project priority** ([ADR-0108](docs/adr/0108-project-priority.md)):
+  critical/high/medium/low on each project, default medium. A partial unique
+  index keeps at most one critical project; setting a new critical demotes the
+  old one to high in the same transaction. Priority orders the dashboard and
+  project list, is editable on the project page, and is exposed through the
+  API. It does not preempt an already running job.
+- **The refinement wand is reliable again** ([ADR-0105](docs/adr/0105-field-authoring-assist.md)
+  amendment): a usable field (four or more words) gets one explicit retry
+  before clarification; if the model still refuses, the field is left unchanged
+  with a note instead of being replaced by questions. Short placeholders still
+  get field-specific questions. The prompt now says a short sentence is valid
+  and asks for missing details as assumptions.
+- **Themes are genuinely distinct.** Monokai Light is now a cool slate palette
+  and Solarized Light uses Solarized's blue/cyan accents, so neither collapses
+  into Ember Paper. Theme preview cards already render their own palette, and a
+  test now fails if two themes share a background token.
+
 ### Accelerators as first-class resources — 2026-11-06
 
 - **Host GPU/NPU probe.** `athanor start` detects CUDA/NVIDIA, ROCm/AMD, and

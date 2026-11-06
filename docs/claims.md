@@ -127,6 +127,9 @@ demo. A claim without a proof is either removed or marked as a target.
 | Per-project execution overrides are editable in the UI | 2026-11-06 backlog pass | `POST /ui/projects/{id}/execution`; `TestProjectExecutionEditor` | **proven** |
 | `athanor job watch` streams audit events | 2026-11-06 backlog pass | `cmd/athanor/cli_project.go`; `TestFormatJobEvent` | **proven** |
 | The host-reserve warning is fixable on the page that shows it, and returning after restart keeps the step | 2026-11-06 first-use fix | `internal/ui/onboarding_templates.go`; `TestCurrentResourcesWarnsWhenReserveBelowVM`, `TestReserveFixReturnsToModels` | **proven** |
+| A project can be critical/high/medium/low, and at most one project is critical | ADR-0108 | migration 0037; `Project.SetPriority`; `TestProjectPrioritySingleCritical`, `TestProjectPriority` | **proven** |
+| Field refinement retries an over-eager clarification and leaves usable text unchanged rather than blocking | ADR-0105 amendment | `internal/assist` (`retryRefine`, `usableFieldText`); `TestRefineRetriesOverEagerClarification`, `TestRefineLeavesUsableTextUnchangedWhenRetryStillClarifies` | **proven** |
+| Every advertised theme has a distinct palette/background | 2026-11-06 theme pass | `internal/ui/theme_test.go` (`TestThemeBackgroundsAreUnique`) | **proven** |
 | A discrete GPU's model budget is bounded by VRAM, not host RAM, and spill is reported | ADR-0107 | `internal/ui/onboarding.go` (`budgetFor`, `inferenceFitBytes`); `TestBudgetForUsesVRAMOnDiscreteGPU`, `TestInferenceFitBytesClampsToVRAM` | **proven** |
 | An Apple unified GPU keeps the host budget and is labeled as unified | ADR-0107 | `internal/ui/onboarding.go`; `TestBudgetForUnifiedGPUUsesHostBudget` | **proven** |
 | An NPU is shown as inventory and is never used for inference budgeting | ADR-0107 | `internal/doctor` GPU check; UI accelerator card | **proven** |

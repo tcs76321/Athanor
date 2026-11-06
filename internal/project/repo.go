@@ -196,9 +196,9 @@ func (r *Repo) Get(ctx context.Context, id string) (Project, error) {
 	var p Project
 	var execJSON, capsJSON, createdAt string
 	err := r.store.DB().QueryRowContext(ctx,
-		`SELECT id, name, archetype, goal, status, COALESCE(repository_path, ''), execution_json, COALESCE(capabilities_json, '[]'), created_at
+		`SELECT id, name, archetype, goal, status, priority, COALESCE(repository_path, ''), execution_json, COALESCE(capabilities_json, '[]'), created_at
 		 FROM projects WHERE id = ?`, id,
-	).Scan(&p.ID, &p.Name, &p.Archetype, &p.Goal, &p.Status, &p.RepositoryPath, &execJSON, &capsJSON, &createdAt)
+	).Scan(&p.ID, &p.Name, &p.Archetype, &p.Goal, &p.Status, &p.Priority, &p.RepositoryPath, &execJSON, &capsJSON, &createdAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Project{}, fmt.Errorf("%w: %s", ErrNotFound, id)
 	}
@@ -247,6 +247,42 @@ func decodeExecution(projectID, raw string, ex *Execution) error {
 // SetExecution records the per-project §6.2 execution override (F3-T4,
 // ADR-0031). The zero value clears the override (back to archetype
 // defaults). A missing project is ErrNotFound.
+// SetPriority updates a project's priority. Setting a project to critical
+// demotes any other critical project to high in the same transaction, so the
+// single-critical invariant is never transiently violated.
+func (r *Repo) SetPriority(ctx context.Context, id, priority string) error {
+	if !ValidPriority(priority) {
+		return fmt.Errorf("invalid project priority %q (critical|high|medium|low)", priority)
+	}
+	tx, err := r.store.DB().BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("beginning priority update: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	if priority == PriorityCritical {
+		if _, err := tx.ExecContext(ctx,
+			`UPDATE projects SET priority = ? WHERE priority = ? AND id <> ?`,
+			PriorityHigh, PriorityCritical, id); err != nil {
+			return fmt.Errorf("demoting previous critical project: %w", err)
+		}
+	}
+	res, err := tx.ExecContext(ctx, `UPDATE projects SET priority = ? WHERE id = ?`, priority, id)
+	if err != nil {
+		return fmt.Errorf("setting project priority: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("setting project priority: %w", err)
+	}
+	if n == 0 {
+		return fmt.Errorf("%w: %s", ErrNotFound, id)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("committing priority update: %w", err)
+	}
+	return nil
+}
+
 func (r *Repo) SetExecution(ctx context.Context, id string, ex Execution) error {
 	raw, err := json.Marshal(ex)
 	if err != nil {
@@ -289,10 +325,10 @@ func (r *Repo) SetRepositoryPath(ctx context.Context, id, path string) error {
 // creation. limit ≤ 0 means no limit. It is the M5-T8 idle indexer's work
 // list (ADR-0028 §6).
 func (r *Repo) WithRepository(ctx context.Context, limit int) ([]Project, error) {
-	q := `SELECT id, name, archetype, goal, status, COALESCE(repository_path, ''), execution_json, COALESCE(capabilities_json, '[]'), created_at
+	q := `SELECT id, name, archetype, goal, status, priority, COALESCE(repository_path, ''), execution_json, COALESCE(capabilities_json, '[]'), created_at
 	      FROM projects
 	      WHERE repository_path IS NOT NULL AND repository_path <> ''
-	      ORDER BY created_at`
+	      ORDER BY CASE priority WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END, created_at`
 	var args []any
 	if limit > 0 {
 		q += ` LIMIT ?`
@@ -307,7 +343,7 @@ func (r *Repo) WithRepository(ctx context.Context, limit int) ([]Project, error)
 	for rows.Next() {
 		var p Project
 		var execJSON, capsJSON, createdAt string
-		if err := rows.Scan(&p.ID, &p.Name, &p.Archetype, &p.Goal, &p.Status, &p.RepositoryPath, &execJSON, &capsJSON, &createdAt); err != nil {
+		if err := rows.Scan(&p.ID, &p.Name, &p.Archetype, &p.Goal, &p.Status, &p.Priority, &p.RepositoryPath, &execJSON, &capsJSON, &createdAt); err != nil {
 			return nil, fmt.Errorf("scanning project: %w", err)
 		}
 		if err := decodeExecution(p.ID, execJSON, &p.Execution); err != nil {

@@ -133,6 +133,33 @@ func (u *UI) handleInsightAction(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/ui/statistics", http.StatusSeeOther)
 }
 
+// handleProjectPriority sets the operator's project priority. Setting a new
+// critical project demotes the old one in the same transaction (migration
+// 0037 keeps at most one critical row).
+func (u *UI) handleProjectPriority(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		u.fail(w, err)
+		return
+	}
+	projectID := r.PathValue("id")
+	priority := strings.TrimSpace(r.FormValue("priority"))
+	if !project.ValidPriority(priority) {
+		u.fail(w, fmt.Errorf("priority must be critical, high, medium, or low"))
+		return
+	}
+	if err := u.deps.Projects.SetPriority(r.Context(), projectID, priority); err != nil {
+		u.fail(w, err)
+		return
+	}
+	if u.deps.Store != nil {
+		_, _ = u.deps.Store.AppendEvent(r.Context(), store.Event{
+			Category: "projects", ProjectID: projectID,
+			Data: map[string]any{"event": "project_priority_updated", "priority": priority},
+		})
+	}
+	http.Redirect(w, r, "/ui/projects/"+projectID+"#settings", http.StatusSeeOther)
+}
+
 // handleProjectExecution edits the project-owned execution configuration. The
 // default path infers the test command, so this is the advanced override the
 // UI previously said was API/CLI-only.
