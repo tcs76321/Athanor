@@ -119,7 +119,7 @@ func (s *Server) Mux() *http.ServeMux { return s.mux }
 // Sec-Fetch-Site, so the cross-site guard is a no-op there; its own
 // bearer-token middleware (ADR-0008) remains the pod-facing defense.
 func (s *Server) Handler() http.Handler {
-	h := s.crossSiteMiddleware(s.mux)
+	h := recoverMiddleware(s.crossSiteMiddleware(s.mux))
 	if len(s.hostAllowlist.allowed) == 0 {
 		return h
 	}
