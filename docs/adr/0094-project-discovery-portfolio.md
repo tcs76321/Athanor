@@ -69,6 +69,16 @@ short, honest goal is valid; the onboarding brief supplies the depth.
 - A local 9B may still produce generic ideas. The diversity/industry checks and
   the human selection are the guardrail; an ideation eval is the measurement.
 
+## Amendment (2026-11-06)
+
+The direction model is generalized beyond business framing. Migration 0036
+renames the option columns to `domain`, `focus`, `audience`, `need`, `approach`,
+`format`, `availability`, `first_deliverable`, `first_check`,
+`time_to_first_deliverable_days`, `setup_cost_usd`, and `alternatives`.
+Portfolios now vary within the goal's subject instead of requiring four
+unrelated industries, and plans are first iterations rather than 30-day
+business sprints.
+
 ## Alternatives rejected
 
 - **Reuse divergence/comparison.** It selects one winner, the opposite of a
