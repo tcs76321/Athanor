@@ -139,7 +139,8 @@ func New(ctx context.Context, opts Options) (*Watcher, error) {
 	if err != nil {
 		return nil, fmt.Errorf("ingress: fsnotify: %w", err)
 	}
-	if err := fw.Add(opts.Root); err != nil {
+	initial, err := watchTree(opts.Root, fw)
+	if err != nil {
 		_ = fw.Close()
 		return nil, fmt.Errorf("ingress: watch %s: %w", opts.Root, err)
 	}
@@ -159,12 +160,58 @@ func New(ctx context.Context, opts Options) (*Watcher, error) {
 	}
 	go w.loop(ctx)
 	go w.processor(ctx)
+	// Files already present when the Core stopped are invisible to fsnotify.
+	// Re-enqueue them after the processor starts so a drop made while the
+	// daemon was down is still scanned. Failures are not fatal: the watcher
+	// is live and the next boot retries.
+	if len(initial) > 0 {
+		go func() {
+			for _, pf := range initial {
+				select {
+				case <-ctx.Done():
+					return
+				case <-w.closed:
+					return
+				case w.pending <- pf:
+				}
+			}
+		}()
+	}
 	return w, nil
 }
 
+// watchTree adds root and every existing subdirectory to fw, and returns the
+// regular files already present so New can enqueue them. The watcher's own
+// .processed directory is skipped.
+func watchTree(root string, fw *fsnotify.Watcher) ([]pendingFile, error) {
+	var initial []pendingFile
+	err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return nil // a transient unreadable entry must not prevent boot
+		}
+		name := d.Name()
+		if d.IsDir() {
+			if name == ".processed" {
+				return filepath.SkipDir
+			}
+			if err := fw.Add(path); err != nil {
+				return err
+			}
+			return nil
+		}
+		rel, rerr := filepath.Rel(root, path)
+		if rerr != nil {
+			return nil
+		}
+		initial = append(initial, pendingFile{relPath: rel, seenAt: time.Now()})
+		return nil
+	})
+	return initial, err
+}
+
 // Close stops the watcher. Idempotent. The fsnotify Watcher
-// is closed and the pending channel is drained (any
-// in-flight events are processed before Close returns).
+// is closed; the processor drains events already queued
+// asynchronously and exits on the closed signal.
 func (w *Watcher) Close() error {
 	var err error
 	w.closeOnce.Do(func() {
@@ -207,6 +254,14 @@ func (w *Watcher) loop(ctx context.Context) {
 			// Skip our own write-out directories.
 			if rel == ".processed" || strings.HasPrefix(rel, ".processed"+string(filepath.Separator)) ||
 				rel == "quarantine" || strings.HasPrefix(rel, "quarantine"+string(filepath.Separator)) {
+				continue
+			}
+			// fsnotify is not recursive. Watch a newly created directory so
+			// drops into subdirectories are seen instead of silently ignored.
+			if info, statErr := os.Stat(ev.Name); statErr == nil && info.IsDir() {
+				if err := w.watcher.Add(ev.Name); err != nil {
+					w.logger.Warn("ingress: watching new directory", "path", ev.Name, "err", err)
+				}
 				continue
 			}
 			select {
