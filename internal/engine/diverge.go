@@ -18,11 +18,24 @@ import (
 // fails the real test for a packaging reason rather than a logic one.
 const codeOnlyInstruction = "Output ONLY raw Python source, no markdown code fences, no prose, no commentary. A single-file task outputs just the file contents. A multi-file task emits each file as a block beginning with a line `=== FILE: <relative path> ===` followed by that file's raw contents; emit every file the task requires. When editing an existing repository, preserve every existing public function, class, test, and documentation block the task does not explicitly ask you to change; never drop unrelated code or tests."
 
+// capCandidatesForCapability keeps a hard task's panel useful without spending
+// a local GPU's whole session on model swaps. Independent implementations are
+// genuinely useful for code; for document, text, data, and media work a smaller
+// panel captures the same diversity at a fraction of the wall time.
+func capCandidatesForCapability(capability string, n int) int {
+	const nonCodeCeiling = 5
+	if capability != project.CapabilityCode && n > nonCodeCeiling {
+		return nonCodeCeiling
+	}
+	return n
+}
+
 // phaseDivergeN (§13.1 Phase 2): generates N candidate artifacts, each
 // persisted as a draft `proposal` artifact (§9.1). N comes from the resolved
 // plan: `cfg.Execution.DivergenceCandidates` (default 3), raised toward
 // `cfg.Execution.MaxHardTaskVariations` when the planner flagged the task hard
-// (§13.1 "for hard tasks: up to 10"; M9-T4), and re-clamped to that ceiling.
+// (§13.1 "for hard tasks: up to 10"; M9-T4), re-clamped to that ceiling, then
+// capped at 5 for non-code capabilities (see capCandidatesForCapability).
 //
 // All candidates use the `main` persona at the phase's high temperature
 // (0.7–1.1) so they actually differ; the LLM is told to "explore
@@ -56,6 +69,7 @@ func (e *Engine) phaseDivergeN(ctx context.Context, j job.Job) error {
 	if max := e.cfg.Execution.MaxHardTaskVariations; max > 0 && n > max {
 		n = max
 	}
+	n = capCandidatesForCapability(capability, n)
 	// ADR-0104: the measured evidence can upgrade a single-candidate plan to a
 	// panel for low-risk work. It needs a few outcomes before it switches.
 	if e.selector != nil && n == 1 &&
@@ -80,7 +94,13 @@ func (e *Engine) phaseDivergeN(ctx context.Context, j job.Job) error {
 			MinContext: minContext, ProjectID: p.ID, JobID: j.ID,
 			Scope: "project:" + p.ID,
 		}
-		if choices := e.selector.ChooseMany(ctx, req, n); len(choices) > 0 {
+		// Cap distinct resident models. On a single-GPU local host every extra
+		// model is a load/evict cycle; stance diversity still varies the call.
+		modelCount := n
+		if modelCount > 3 {
+			modelCount = 3
+		}
+		if choices := e.selector.ChooseMany(ctx, req, modelCount); len(choices) > 0 {
 			roles = roles[:0]
 			for _, c := range choices {
 				roles = append(roles, PoolModelPrefix+c.Model)

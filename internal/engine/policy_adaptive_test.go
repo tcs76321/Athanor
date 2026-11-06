@@ -80,8 +80,10 @@ func TestAdaptivePolicy_EasyHintRunsSingleCandidate(t *testing.T) {
 }
 
 // TestAdaptivePolicy_HardHintRaisesToHardCeiling (M9-T4): a hard hint raises
-// candidates to execution.max_hard_task_variations (§13.1 "up to 10"), and
-// Adaptive keeps the raise — it may only lower compute on easy tasks.
+// candidates toward execution.max_hard_task_variations (§13.1 "up to 10"), and
+// Adaptive keeps the raise — it may only lower compute on easy tasks. A text
+// task stops at the non-code ceiling of 5 so a local host does not spend the
+// session swapping models for an essay.
 func TestAdaptivePolicy_HardHintRaisesToHardCeiling(t *testing.T) {
 	e := newEnvWithCfg(t, func(cfg *config.Config) {
 		cfg.Execution.Policy.ComputePolicy = config.ComputePolicyAdaptive
@@ -94,8 +96,8 @@ func TestAdaptivePolicy_HardHintRaisesToHardCeiling(t *testing.T) {
 		[]string{"one", "two", "three"})
 	e.eng.Run(context.Background(), jobID)
 
-	if got := proposalCount(t, e, jobID); got != 10 {
-		t.Fatalf("proposal candidates = %d, want 10 (hard hint raises to max_hard_task_variations)", got)
+	if got := proposalCount(t, e, jobID); got != 5 {
+		t.Fatalf("proposal candidates = %d, want 5 (hard hint raises text to the non-code ceiling)", got)
 	}
 }
 

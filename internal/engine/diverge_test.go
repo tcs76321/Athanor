@@ -131,3 +131,24 @@ func TestCodeOnlyInstructionPreservesExistingCode(t *testing.T) {
 		}
 	}
 }
+
+// TestCapCandidatesForCapability pins the local-GPU cost guard: code keeps the
+// configured hard-task panel, while open-ended work stops at five candidates.
+func TestCapCandidatesForCapability(t *testing.T) {
+	for _, tc := range []struct {
+		capability string
+		in, want   int
+	}{
+		{"code", 10, 10},
+		{"code", 3, 3},
+		{"document", 10, 5},
+		{"text", 10, 5},
+		{"data", 4, 4},
+		{"media", 1, 1},
+	} {
+		if got := capCandidatesForCapability(tc.capability, tc.in); got != tc.want {
+			t.Errorf("capCandidatesForCapability(%q, %d) = %d, want %d",
+				tc.capability, tc.in, got, tc.want)
+		}
+	}
+}
