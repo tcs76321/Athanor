@@ -33,11 +33,12 @@ the VM as free.
    The UI shows a non-blocking warning (“below recommendation, allowed”) and
    explains the tradeoff: less headroom for macOS/VM, more room for models.
    Saving below the floor is rejected with the exact minimum and recommendation.
-4. **Default to the recommendation.** An omitted/zero value resolves to the
-   recommendation; the stored default remains 4 GiB for compatibility and is
-   clamped on first use. The Resources step shows the effective value, the
-   minimum, and the recommendation, and offers a one-click “use recommended and
-   restart”.
+4. **Default to auto.** The shipped default is `host_reserve_mb: 0`, meaning
+   “resolve from the detected runtime”: the recommendation (VM + 1 GiB on a
+   separate VM, 4 GiB without one). A legacy explicit value (for example the old
+   4 GiB default) is honored only above the floor; below it, the effective value
+   is clamped. The Resources step shows the effective value, the minimum, and
+   the recommendation, and offers a one-click “use recommended and restart”.
 5. **Re-detect on every render.** The floor and recommendation are derived from
    the live `Hardware` snapshot (host bytes, runtime bytes), so resizing the
    Podman machine or moving to a different host changes the floor without a

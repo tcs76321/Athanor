@@ -40,11 +40,11 @@ New entries are appended at the top. Do not rewrite history.
   and a fix started on Models returns there after the restart. Continuing is
   explicitly allowed; the warning is about headroom, not a hard failure.
 - **The reserve now has an adaptive floor** ([ADR-0106](docs/adr/0106-adaptive-host-reserve-floor.md)):
-  the effective value is clamped to the detected Podman VM size (or 2 GiB
-  without a VM), recommended at VM + 1 GiB, and the UI refuses to save below
-  the floor. A value between the floor and the recommendation is allowed with
-  a non-blocking warning. Auto-assignment, qualification, and the pool fit
-  limit use the same effective value.
+  `host_reserve_mb: 0` means auto; the effective value is clamped to the
+  detected Podman VM size (or 2 GiB without a VM), recommended at VM + 1 GiB,
+  and the UI refuses to save below the floor. A value between the floor and the
+  recommendation is allowed with a non-blocking warning. Auto-assignment,
+  qualification, and the pool fit limit use the same effective value.
 
 ### UX, trust, and daily-loop pass — 2026-11-06
 

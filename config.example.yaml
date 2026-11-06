@@ -62,11 +62,10 @@ inference:
   # timeout. 0 is replaced by this default.
   max_output_tokens: 4096
   # host_reserve_mb is memory kept outside any model: macOS, apps, the Core,
-  # and the Podman VM. The UI raises the effective floor to at least the
-  # detected VM size (or 2 GiB without a VM) and recommends VM + 1 GiB; this
-  # stored value is the operator's request. Values below the floor are clamped
-  # for the budget and flagged in the UI.
-  host_reserve_mb: 4096
+  # and the Podman VM. 0 means "auto": the UI uses the detected runtime floor
+  # (VM size, or 2 GiB without a VM) and recommends VM + 1 GiB. An explicit
+  # value is honored but clamped to the floor; the UI shows the difference.
+  host_reserve_mb: 0
   # think controls a thinking-capable model's reasoning phase. false
   # (default) keeps calls bounded and cheap; true allows reasoning.
   think: false

@@ -374,8 +374,8 @@ func TestDefaultIsValid(t *testing.T) {
 	if cfg.Inference.DefaultBackend != "ollama" {
 		t.Errorf("DefaultBackend = %q, want ollama", cfg.Inference.DefaultBackend)
 	}
-	if cfg.Inference.HostReserveMB != 4096 {
-		t.Errorf("HostReserveMB = %d, want 4096", cfg.Inference.HostReserveMB)
+	if cfg.Inference.HostReserveMB != 0 {
+		t.Errorf("HostReserveMB = %d, want 0 (auto: resolved from the detected runtime)", cfg.Inference.HostReserveMB)
 	}
 	if cfg.SourcePath != "" {
 		t.Errorf("SourcePath = %q, want empty (no file involved)", cfg.SourcePath)
