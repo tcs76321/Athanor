@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -444,6 +445,18 @@ func (u *UI) handleProjectOnboardingPost(w http.ResponseWriter, r *http.Request)
 			u.fail(w, err)
 			return
 		}
+	case "cancel_discovery":
+		u.discMu.Lock()
+		if cancel := u.discCancels[p.ID]; cancel != nil {
+			cancel()
+		}
+		u.discMu.Unlock()
+	case "cancel_planning":
+		u.planMu.Lock()
+		if cancel := u.planCancels[p.ID]; cancel != nil {
+			cancel()
+		}
+		u.planMu.Unlock()
 	case "request_access":
 		source := strings.TrimSpace(r.FormValue("source"))
 		host := ""
@@ -605,7 +618,9 @@ func (u *UI) startDiscovery(p project.Project, brief projectBrief) {
 	}
 	run := &discoveryRun{Status: "running", Stage: "starting", Detail: "preparing discovery", Model: model,
 		StartedAt: time.Now(), UpdatedAt: time.Now()}
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
 	u.discRuns[p.ID] = run
+	u.discCancels[p.ID] = cancel
 	u.discMu.Unlock()
 
 	u.auditProject(p.ID, "discovery_started", map[string]any{
@@ -619,18 +634,24 @@ func (u *UI) startDiscovery(p project.Project, brief projectBrief) {
 		Progress: func(ev discovery.ProgressEvent) { u.reportDiscovery(p.ID, ev) },
 	}
 	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
 		defer cancel()
 		sess, err := u.deps.Discovery.Generate(ctx, p.ID, req)
 		u.discMu.Lock()
-		defer u.discMu.Unlock()
+		defer func() {
+			delete(u.discCancels, p.ID)
+			u.discMu.Unlock()
+		}()
 		if err != nil {
 			run.Status = "failed"
 			run.Stage = "failed"
 			run.Detail = "discovery failed"
 			run.Error = err.Error()
+			if errors.Is(err, context.Canceled) {
+				run.Detail = "discovery cancelled"
+				run.Error = "cancelled by operator"
+			}
 			run.UpdatedAt = time.Now()
-			u.auditProject(p.ID, "discovery_failed", map[string]any{"error": err.Error()})
+			u.auditProject(p.ID, "discovery_failed", map[string]any{"error": run.Error})
 			return
 		}
 		run.Status = "done"
@@ -665,7 +686,9 @@ func (u *UI) startPlanning(p project.Project, brief projectBrief, option discove
 		return
 	}
 	run := &planRun{OptionID: option.ID, Status: "running", StartedAt: time.Now()}
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Minute)
 	u.planRuns[p.ID] = run
+	u.planCancels[p.ID] = cancel
 	u.planMu.Unlock()
 
 	u.auditProject(p.ID, "plan_started", map[string]any{"option": option.ID, "title": option.Title})
@@ -676,15 +699,20 @@ func (u *UI) startPlanning(p project.Project, brief projectBrief, option discove
 		Deliverable: option.FirstDeliverable, FirstCheck: option.FirstCheck,
 	}
 	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Minute)
 		defer cancel()
 		sess, err := u.deps.Planning.Generate(ctx, p.ID, option.ID, req)
 		u.planMu.Lock()
-		defer u.planMu.Unlock()
+		defer func() {
+			delete(u.planCancels, p.ID)
+			u.planMu.Unlock()
+		}()
 		if err != nil {
 			run.Status = "failed"
 			run.Error = err.Error()
-			u.auditProject(p.ID, "plan_failed", map[string]any{"error": err.Error()})
+			if errors.Is(err, context.Canceled) {
+				run.Error = "cancelled by operator"
+			}
+			u.auditProject(p.ID, "plan_failed", map[string]any{"error": run.Error})
 			return
 		}
 		run.Status = "done"

@@ -215,7 +215,14 @@ const welcomeBody = `
     <div class="card" data-live-card="pulls" data-live-interval="5000">
       {{range .Pulls}}
       <div class="stack mb-3">
-        <div class="row row-middle"><b class="mono">{{.Model}}</b><span class="pill {{if .Done}}ok{{else}}run{{end}}">{{.Status}}</span><span class="muted right">{{.Percent}}%</span></div>
+        <div class="row row-middle"><b class="mono">{{.Model}}</b><span class="pill {{if .Done}}ok{{else}}run{{end}}">{{.Status}}</span><span class="muted right">{{.Percent}}%</span>
+          {{if not .Done}}<form method="post" action="/ui/welcome" class="inline-form">
+            <input type="hidden" name="step" value="models">
+            <input type="hidden" name="action" value="cancel_pull">
+            <input type="hidden" name="model" value="{{.Model}}">
+            <button class="small secondary" data-confirm="Cancel this model pull? A partial download is discarded by Ollama.">Cancel</button>
+          </form>{{end}}
+        </div>
         <progress class="progress" value="{{.Percent}}" max="100">{{.Percent}}%</progress>
         {{if .Error}}<div class="del">{{.Error}}</div>{{end}}
       </div>
@@ -239,6 +246,10 @@ const welcomeBody = `
       <progress class="progress" value="{{.Qualification.Percent}}" max="100">{{.Qualification.Percent}}%</progress>
       <p><b>{{.Qualification.Done}} / {{.Qualification.Total}}</b> cases complete{{if .Qualification.Elapsed}} · {{.Qualification.Elapsed}} elapsed{{end}}{{if .Qualification.Remaining}} · about {{.Qualification.Remaining}} remaining{{else if not .Qualification.Done}} · estimating remaining time…{{end}}</p>
       <p class="muted">This panel updates in place every couple of seconds. You can leave it; the run is resumable and the result will be here when you return.</p>
+      <form method="post" action="/ui/setup/qualify/cancel">
+        <input type="hidden" name="next" value="/ui/welcome?step=qualify">
+        <button class="danger small" data-confirm="Stop this qualification run? Completed cases are kept and the run can resume later.">Stop qualification</button>
+      </form>
     </div>
     {{else}}
     <div class="grid cols-2">

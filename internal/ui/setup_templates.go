@@ -71,6 +71,10 @@ const setupBody = `
   <progress class="progress" value="{{.Qualification.Percent}}" max="100">{{.Qualification.Percent}}%</progress>
   <p><b>{{.Qualification.Done}} / {{.Qualification.Total}}</b> cases complete{{if .Qualification.Elapsed}} · {{.Qualification.Elapsed}} elapsed{{end}}{{if .Qualification.Remaining}} · about {{.Qualification.Remaining}} remaining{{else if not .Qualification.Done}} · estimating remaining time…{{end}}</p>
   <p class="muted">This panel updates in place every couple of seconds. You can leave it; the run is resumable.</p>
+  <form method="post" action="/ui/setup/qualify/cancel">
+    <input type="hidden" name="next" value="/ui/setup">
+    <button class="danger small" data-confirm="Stop this qualification run? Completed cases are kept and the run can resume later.">Stop qualification</button>
+  </form>
 </div>
 {{else}}
 <div class="card">

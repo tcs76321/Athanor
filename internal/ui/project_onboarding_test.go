@@ -3,6 +3,7 @@ package ui
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"net/url"
 	"slices"
 	"strings"
@@ -182,8 +183,47 @@ func (s *slowDiscovery) Generate(ctx context.Context, projectID string, req disc
 	s.once.Do(func() { close(s.started) })
 	req.Report(discovery.ProgressEvent{Stage: "prompt", Detail: "prompt assembled for fake-model", Bytes: 800})
 	req.Report(discovery.ProgressEvent{Stage: "model", Detail: "waiting for fake-model", Bytes: 800})
-	<-s.release
+	select {
+	case <-s.release:
+	case <-ctx.Done():
+		return discovery.Session{}, ctx.Err()
+	}
 	return s.fakeDiscovery.Generate(ctx, projectID, req)
+}
+
+func TestCancelDiscovery(t *testing.T) {
+	fx := setup(t)
+	sd := &slowDiscovery{started: make(chan struct{}), release: make(chan struct{})}
+	fx.ui.deps.Discovery = sd
+	fx.ui.startDiscovery(fx.project, projectBrief{Goal: "a daily news brief"})
+	select {
+	case <-sd.started:
+	case <-time.After(time.Second):
+		t.Fatal("discovery did not start")
+	}
+	resp := postForm(t, fx.ts.URL+"/ui/projects/"+fx.project.ID+"/onboarding",
+		url.Values{"action": {"cancel_discovery"}})
+	if resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303", resp.StatusCode)
+	}
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		run := fx.ui.discoveryRunFor(fx.project.ID)
+		if run != nil && run.Status == "failed" {
+			if !strings.Contains(run.Error, "cancelled") {
+				t.Fatalf("run error = %q, want a cancellation", run.Error)
+			}
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("discovery was not cancelled: %+v", run)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	_, body := get(t, fx.ts.URL+"/ui/projects/"+fx.project.ID+"/onboarding")
+	if !strings.Contains(body, "cancelled") {
+		t.Error("onboarding page did not report the cancellation")
+	}
 }
 
 func TestDiscoveryProgressMapping(t *testing.T) {

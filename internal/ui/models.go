@@ -39,6 +39,10 @@ const modelsBody = `
   <progress class="progress" value="{{.Qualification.Percent}}" max="100">{{.Qualification.Percent}}%</progress>
   <p><b>{{.Qualification.Done}} / {{.Qualification.Total}}</b> cases{{if .Qualification.Elapsed}} · {{.Qualification.Elapsed}} elapsed{{end}}{{if .Qualification.Remaining}} · about {{.Qualification.Remaining}} remaining{{end}}</p>
   <p class="muted">The run is resumable. It uses the same grounded screen as first use.</p>
+  <form method="post" action="/ui/setup/qualify/cancel">
+    <input type="hidden" name="next" value="/ui/models">
+    <button class="danger small" data-confirm="Stop this qualification run? Completed cases are kept and the run can resume later.">Stop qualification</button>
+  </form>
 </div>
 {{else if .Qualification.Complete}}
 <div class="card"><p class="ok"><b>Qualification complete.</b> {{.Qualification.Done}} cases recorded. The ranking below is the current prior.</p></div>

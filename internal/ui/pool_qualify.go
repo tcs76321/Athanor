@@ -66,6 +66,8 @@ func (u *UI) startPoolQualification(ctx context.Context, fresh, deep bool) (qual
 		return state, false, nil
 	}
 	u.qualRunning = true
+	runCtx, cancel := context.WithCancel(context.Background())
+	u.qualCancel = cancel
 	u.qualMu.Unlock()
 
 	ladder := onboard.DefaultLadder()
@@ -93,11 +95,24 @@ func (u *UI) startPoolQualification(ctx context.Context, fresh, deep bool) (qual
 		defer func() {
 			u.qualMu.Lock()
 			u.qualRunning = false
+			u.qualCancel = nil
 			u.qualMu.Unlock()
+			cancel()
 		}()
-		u.runPoolQualification(context.Background(), models, ladder, &runState)
+		u.runPoolQualification(runCtx, models, ladder, &runState)
 	}(runState)
 	return state, true, nil
+}
+
+// cancelQualification stops the in-flight screen. The run is resumable: the
+// completed case keys stay in state, so starting again continues from there.
+func (u *UI) cancelQualification() {
+	u.qualMu.Lock()
+	cancel := u.qualCancel
+	u.qualMu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
 }
 
 func poolQualificationPlan(models []string, ladder onboard.Ladder) int {
@@ -152,7 +167,9 @@ func (u *UI) runPoolQualification(ctx context.Context, models []string, ladder o
 	}
 	state.Running = false
 	state.FinishedAt = time.Now()
-	if ctx.Err() != nil {
+	if ctx.Err() == context.Canceled {
+		state.Error = "qualification cancelled; start again to resume"
+	} else if ctx.Err() != nil {
 		state.Error = "qualification stopped at the wall bound; start again to resume"
 	}
 	u.saveQualState(context.Background(), *state)

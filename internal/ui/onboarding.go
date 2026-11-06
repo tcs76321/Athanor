@@ -925,6 +925,16 @@ func (u *UI) handleWelcomePost(w http.ResponseWriter, r *http.Request) {
 		if model != "" {
 			u.startPull(model)
 		}
+	case "cancel_pull":
+		model := strings.TrimSpace(r.FormValue("model"))
+		u.onboardMu.Lock()
+		if cancel := u.pullCancels[model]; cancel != nil {
+			cancel()
+		}
+		if p := u.pulls[model]; p != nil && !p.Done {
+			p.Status = "cancelling"
+		}
+		u.onboardMu.Unlock()
 	case "pool_add":
 		model := strings.TrimSpace(r.FormValue("model"))
 		if model != "" {
@@ -1035,12 +1045,19 @@ func (u *UI) startPull(model string) {
 		return
 	}
 	u.pulls[model] = &pullProgress{Status: "starting"}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+	u.pullCancels[model] = cancel
 	u.onboardMu.Unlock()
-	go u.runPull(model)
+	go u.runPull(ctx, model)
 }
 
-func (u *UI) runPull(model string) {
+func (u *UI) runPull(ctx context.Context, model string) {
 	defer u.invalidateCatalog()
+	defer func() {
+		u.onboardMu.Lock()
+		delete(u.pullCancels, model)
+		u.onboardMu.Unlock()
+	}()
 	base := ""
 	if u.deps.Config != nil {
 		base = u.deps.Config.Inference.OllamaURL
@@ -1058,8 +1075,6 @@ func (u *UI) runPull(model string) {
 		fail("inference.ollama_url is not configured")
 		return
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
-	defer cancel()
 	body, err := json.Marshal(map[string]any{"model": model, "stream": true})
 	if err != nil {
 		fail(err.Error())
@@ -1074,6 +1089,10 @@ func (u *UI) runPull(model string) {
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := (&http.Client{Timeout: 0}).Do(req)
 	if err != nil {
+		if ctx.Err() != nil {
+			fail("cancelled by operator")
+			return
+		}
 		fail(err.Error())
 		return
 	}
@@ -1110,6 +1129,10 @@ func (u *UI) runPull(model string) {
 		u.onboardMu.Unlock()
 	}
 	if err := sc.Err(); err != nil {
+		if ctx.Err() != nil {
+			fail("cancelled by operator")
+			return
+		}
 		fail(err.Error())
 		return
 	}

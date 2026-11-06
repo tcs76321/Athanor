@@ -100,7 +100,12 @@ const projectOnboardingBody = `
       {{else}}
       <p class="muted">This session was started before a Core restart, so live progress is unavailable. Its status is <b>{{.Session.Status}}</b>; start discovery again if it has been running longer than 20 minutes.</p>
       {{end}}
-      <div class="actions"><a class="btn secondary" href="/ui/projects/{{.Project.ID}}/onboarding">Refresh now</a></div>
+      <div class="actions">
+        <a class="btn secondary" href="/ui/projects/{{.Project.ID}}/onboarding">Refresh now</a>
+        <form method="post" action="/ui/projects/{{.Project.ID}}/onboarding">
+          <button class="danger" name="action" value="cancel_discovery" data-confirm="Cancel this discovery pass? The brief stays saved; you can start again.">Cancel discovery</button>
+        </form>
+      </div>
     </div>
   {{else if eq .Stage "choose"}}
     <div class="card">
@@ -154,7 +159,12 @@ const projectOnboardingBody = `
       <p class="muted">They differ by speed, depth, and risk. Planning is one bounded model pass, so there is no honest percentage; the status below updates in place and the session is resumable.</p>
       <progress class="progress" max="100"></progress>
       <p class="muted">{{if .PlanElapsed}}{{.PlanElapsed}} elapsed. {{end}}You can leave this page and come back; the plans stay here when the pass finishes.</p>
-      <div class="actions"><a class="btn secondary" href="/ui/projects/{{.Project.ID}}/onboarding">Refresh</a></div>
+      <div class="actions">
+        <a class="btn secondary" href="/ui/projects/{{.Project.ID}}/onboarding">Refresh</a>
+        <form method="post" action="/ui/projects/{{.Project.ID}}/onboarding">
+          <button class="danger" name="action" value="cancel_planning" data-confirm="Cancel this plan pass? The selected direction stays; you can generate again.">Cancel planning</button>
+        </form>
+      </div>
     </div>
   {{else if eq .Stage "plan"}}
     <div class="card">

@@ -309,6 +309,15 @@ func applyYAML(recs []onboard.Recommendation) string {
 	return b.String()
 }
 
+func (u *UI) handleQualifyCancel(w http.ResponseWriter, r *http.Request) {
+	u.cancelQualification()
+	next := r.FormValue("next")
+	if !strings.HasPrefix(next, "/ui/") {
+		next = "/ui/setup"
+	}
+	http.Redirect(w, r, next, http.StatusSeeOther)
+}
+
 func (u *UI) handleQualifyStart(w http.ResponseWriter, r *http.Request) {
 	cfg := u.deps.Config
 	if cfg == nil {

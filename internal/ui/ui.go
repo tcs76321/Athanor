@@ -199,6 +199,7 @@ type UI struct {
 	// qualMu/qualRunning guard the one in-process qualification worker.
 	qualMu      sync.Mutex
 	qualRunning bool
+	qualCancel  context.CancelFunc
 	// themeMu guards the process-wide UI theme. The Core is a single-user
 	// loopback service, so one theme is the right scope; it is persisted in
 	// system_state and applied server-side so first paint is correct without
@@ -207,15 +208,18 @@ type UI struct {
 	theme   string
 	// onboardMu guards the in-memory model-pull progress shown by the
 	// first-run wizard. The durable onboarding step lives in system_state.
-	onboardMu sync.Mutex
-	pulls     map[string]*pullProgress
+	onboardMu   sync.Mutex
+	pulls       map[string]*pullProgress
+	pullCancels map[string]context.CancelFunc
 	// discMu/discRuns track an in-flight discovery pass for the project
 	// onboarding page. The durable portfolio is written when the pass ends.
-	discMu   sync.Mutex
-	discRuns map[string]*discoveryRun
+	discMu      sync.Mutex
+	discRuns    map[string]*discoveryRun
+	discCancels map[string]context.CancelFunc
 	// planMu/planRuns track an in-flight AI plan generation.
-	planMu   sync.Mutex
-	planRuns map[string]*planRun
+	planMu      sync.Mutex
+	planRuns    map[string]*planRun
+	planCancels map[string]context.CancelFunc
 	// catalogMu caches the installed-model catalog. The onboarding and models
 	// pages render it on every load, and the qualification poll reloads the
 	// page every 2s; without a TTL every render performed one /api/tags call
@@ -252,7 +256,13 @@ type UI struct {
 
 // New builds a UI.
 func New(deps Deps) *UI {
-	u := &UI{deps: deps, hub: NewHub(), theme: "monokai", pulls: map[string]*pullProgress{}, discRuns: map[string]*discoveryRun{}, planRuns: map[string]*planRun{}, indexRuns: map[string]*indexRun{}, done: make(chan struct{})}
+	u := &UI{
+		deps: deps, hub: NewHub(), theme: "monokai",
+		pulls: map[string]*pullProgress{}, pullCancels: map[string]context.CancelFunc{},
+		discRuns: map[string]*discoveryRun{}, discCancels: map[string]context.CancelFunc{},
+		planRuns: map[string]*planRun{}, planCancels: map[string]context.CancelFunc{},
+		indexRuns: map[string]*indexRun{}, done: make(chan struct{}),
+	}
 	if deps.Store != nil {
 		var saved string
 		if err := deps.Store.DB().QueryRow(
@@ -341,6 +351,7 @@ func (u *UI) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /ui/notifications/count", u.handleNotificationCount)
 	mux.HandleFunc("GET /ui/setup", u.handleSetup)
 	mux.HandleFunc("POST /ui/setup/qualify", u.handleQualifyStart)
+	mux.HandleFunc("POST /ui/setup/qualify/cancel", u.handleQualifyCancel)
 	mux.HandleFunc("POST /ui/setup/personas", u.handleSetupPersonas)
 	mux.HandleFunc("GET /ui/statistics", u.handleStatistics)
 	mux.HandleFunc("GET /ui/jobs", u.handleJobsIndex)
