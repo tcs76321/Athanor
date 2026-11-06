@@ -235,6 +235,58 @@ func (f *fakePusher) RequestPush(_ context.Context, projectID, remote string) (h
 	return hitl.Request{ID: "req1", Type: hitl.TypeGitPush}, nil
 }
 
+// TestReserveFixReturnsToModels pins the actionable reserve warning: a fix
+// started on the Models step returns there after the Core restart instead of
+// sending the operator back to Resources.
+func TestReserveFixReturnsToModels(t *testing.T) {
+	fx := setup(t)
+	cfg, err := config.Default()
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	raw, err := yaml.Marshal(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, raw, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	fx.ui.deps.Config = cfg
+	fx.ui.deps.ConfigPath = path
+	fx.ui.deps.Restart = nil
+	fx.ui.deps.Hardware = func(context.Context) Hardware {
+		return Hardware{HostMemoryBytes: 64 << 30, TotalMemoryBytes: 8 << 30, CPUs: 10, FreeDiskBytes: 90 << 30}
+	}
+	resp := postForm(t, fx.ts.URL+"/ui/welcome", url.Values{
+		"step": {"models"}, "action": {"apply_resources"}, "host_reserve_mb": {"9216"},
+	})
+	if resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303", resp.StatusCode)
+	}
+	if loc := resp.Header.Get("Location"); !strings.Contains(loc, "step=models") {
+		t.Errorf("Location = %q, want a return to the Models step", loc)
+	}
+}
+
+func TestCurrentResourcesWarnsWhenReserveBelowVM(t *testing.T) {
+	cfg, err := config.Default()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.Inference.HostReserveMB = 4096
+	res := currentResources(Hardware{
+		HostMemoryBytes:  64 << 30,
+		TotalMemoryBytes: 8 << 30,
+	}, cfg)
+	if !res.ReserveBelowVM {
+		t.Fatal("ReserveBelowVM = false, want true for an 8 GiB VM and a 4 GiB reserve")
+	}
+	if res.RecommendedReserveMB < 9*1024 {
+		t.Errorf("RecommendedReserveMB = %d, want at least the VM plus margin", res.RecommendedReserveMB)
+	}
+}
+
 // TestSetupPersonasWritesConfig pins the post-onboarding routing write-back:
 // choosing an installed model and context target updates config.yaml without
 // hand-editing the file.

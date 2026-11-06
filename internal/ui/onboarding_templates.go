@@ -83,6 +83,20 @@ const welcomeBody = `
     <div class="notice">
       Host: {{printf "%.0f" .Resources.HostMemoryGiB}} GiB total, with about {{printf "%.0f" .Resources.OutsideRuntimeGiB}} GiB outside Athanor's runtime for macOS and Ollama. macOS cannot reserve host RAM for one process, so this is a budget, not a fence.
     </div>
+    {{if .Resources.ReserveBelowVM}}
+    <div class="notice bad">
+      <b>The Podman VM is larger than the host reserve.</b>
+      The VM reserves {{printf "%.1f" .Resources.TotalMemoryGiB}} GiB, but the host reserve is {{printf "%.1f" (div .Resources.HostReserveMB 1024.0)}} GiB.
+      The reserve is the memory shared by macOS, your apps, the Core, and the VM; if it is smaller than the VM, the VM is not accounted for and models can starve it.
+      A safe value is <b>{{.Resources.RecommendedReserveMB}} MB</b> (VM size + 1 GiB).
+      <form method="post" action="/ui/welcome" class="actions">
+        <input type="hidden" name="step" value="resources">
+        <input type="hidden" name="action" value="apply_resources">
+        <input type="hidden" name="host_reserve_mb" value="{{.Resources.RecommendedReserveMB}}">
+        <button class="primary" data-confirm="Raise the host reserve to {{.Resources.RecommendedReserveMB}} MB? The Core restarts; completed work and qualification results are kept.">Use {{.Resources.RecommendedReserveMB}} MB and restart</button>
+      </form>
+    </div>
+    {{end}}
     <div class="card">
       <div class="eyebrow">Sandbox limits</div>
       <p class="muted">These are the Job Pod's hard limits. Athanor derives useful defaults from runtime capacity, and you can adjust them. Applying a change restarts the Core automatically.</p>
@@ -129,7 +143,23 @@ const welcomeBody = `
         {{if .Budget.Model}}{{if .Budget.ModelFits}}<span class="pill ok">model fits budget</span>{{else}}<span class="pill bad">model exceeds budget</span>{{end}}{{end}}
       </div>
       <p class="muted small">Installed-but-unused models do not count. The measured audit uses the same host reserve; {{if .Budget.ModelMeasured}}this size comes from the audit{{else}}run <code>athanor models -audit</code> for resident size{{end}}.</p>
-      {{if .Budget.ReserveBelowVM}}<p class="del">The {{printf "%.1f" .Budget.VmGiB}} GiB Podman VM is larger than the {{printf "%.1f" .Budget.ReserveGiB}} GiB host reserve. Raise the reserve above the VM size, or models may starve macOS and the VM.</p>{{end}}
+      {{if .Budget.ReserveBelowVM}}
+      <div class="notice bad">
+        <b>The Podman VM is larger than the host reserve.</b>
+        The VM reserves {{printf "%.1f" .Budget.VmGiB}} GiB, but the host reserve is {{printf "%.1f" .Budget.ReserveGiB}} GiB.
+        That reserve covers macOS, your apps, the Core, and the VM together. If it is smaller than the VM, the VM is not fully accounted for, so models can compete with it and make the machine sluggish.
+        A safe value is <b>{{.Budget.RecommendedReserveMB}} MB</b> (VM size + 1 GiB). You can fix it now or later on the Resources step; continuing is allowed.
+        <div class="actions">
+          <form method="post" action="/ui/welcome">
+            <input type="hidden" name="step" value="models">
+            <input type="hidden" name="action" value="apply_resources">
+            <input type="hidden" name="host_reserve_mb" value="{{.Budget.RecommendedReserveMB}}">
+            <button class="primary" data-confirm="Raise the host reserve to {{.Budget.RecommendedReserveMB}} MB? The Core restarts; completed qualification results are kept.">Use {{.Budget.RecommendedReserveMB}} MB and restart</button>
+          </form>
+          <a class="btn secondary" href="/ui/welcome?step=resources">Open Resources</a>
+        </div>
+      </div>
+      {{end}}
       {{if .Budget.Overcommit}}<p class="del">Combined host pressure is {{printf "%.1f" .Budget.OverBy}} GiB over: the model and host reserve together exceed host RAM. Reduce the reserve, lower context, or choose smaller models.</p>{{end}}
     </div>
     <div class="card {{if not .Budget.RuntimeFits}}card-accent{{end}}">

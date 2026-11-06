@@ -1828,6 +1828,7 @@ var funcs = template.FuncMap{
 	},
 	"join":     func(ss []string) string { return strings.Join(ss, ", ") },
 	"mul":      func(a, b float64) float64 { return a * b },
+	"div":      func(a, b float64) float64 { return a / b },
 	"markdown": renderMarkdown,
 	"add":      func(a, b int) int { return a + b },
 	"gib": func(n int64) string {

@@ -72,6 +72,13 @@ type resourceView struct {
 	PidsLimit         int
 	ReserveMB         int
 	HostReserveMB     int
+	// ReserveBelowVM is true when a Podman VM exists and the host reserve is
+	// smaller than it. The reserve is what the OS, apps, Core, and VM share;
+	// a reserve below the VM leaves the VM unaccounted for.
+	ReserveBelowVM bool
+	// RecommendedReserveMB is the smallest sensible fix: the VM size plus a
+	// 1 GiB margin, rounded to a 256 MB step and capped below host RAM.
+	RecommendedReserveMB int
 }
 
 type modelBudget struct {
@@ -93,9 +100,10 @@ type modelBudget struct {
 	RuntimeFits     bool
 	RuntimeHeadroom float64
 
-	Overcommit     bool
-	OverBy         float64
-	ReserveBelowVM bool
+	Overcommit           bool
+	OverBy               float64
+	ReserveBelowVM       bool
+	RecommendedReserveMB int
 }
 
 // hostReserveGiB is the fallback non-model reserve when the config does not
@@ -133,6 +141,11 @@ func budgetFor(roles []setupRole, models []setupModel, hw Hardware, res resource
 		// cover it; surface a warning when it does not.
 		b.VmGiB = b.RuntimeGiB
 		b.ReserveBelowVM = b.ReserveGiB < b.VmGiB
+		b.RecommendedReserveMB = res.RecommendedReserveMB
+		if b.RecommendedReserveMB == 0 {
+			rec := int(b.VmGiB*1024) + 1024
+			b.RecommendedReserveMB = ((rec + 255) / 256) * 256
+		}
 	}
 	b.InferenceGiB = b.HostGiB - b.ReserveGiB
 	if b.InferenceGiB < 0 {
@@ -595,6 +608,24 @@ func currentResources(hw Hardware, cfg *config.Config) resourceView {
 	if res.PidsLimit > 8192 {
 		res.PidsLimit = 8192
 	}
+	// On macOS the Podman machine is a separate VM carved out of host RAM.
+	// The host reserve is supposed to cover the OS, apps, the Core, and that
+	// VM. If the reserve is smaller than the VM, the warning belongs on the
+	// same page as the control that fixes it.
+	if res.HostMemoryGiB > res.TotalMemoryGiB && res.TotalMemoryGiB > 0 {
+		vmMB := int(res.TotalMemoryGiB * 1024)
+		res.ReserveBelowVM = res.HostReserveMB < vmMB
+		rec := vmMB + 1024
+		rec = ((rec + 255) / 256) * 256
+		hostMB := int(res.HostMemoryGiB * 1024)
+		if hostMB > 1024 && rec > hostMB-1024 {
+			rec = hostMB - 1024
+			if rec < vmMB {
+				rec = vmMB
+			}
+		}
+		res.RecommendedReserveMB = rec
+	}
 	return res
 }
 
@@ -1003,10 +1034,15 @@ func (u *UI) handleWelcomePost(w http.ResponseWriter, r *http.Request) {
 			u.fail(w, err)
 			return
 		}
+		back := "/ui/welcome?step=resources&applied=resources"
+		if st.Step != "" {
+			back = "/ui/welcome?step=" + st.Step + "&applied=resources"
+		}
 		if u.deps.Restart != nil {
 			// The supervisor restarts the Core in place; the browser waits on
-			// this page and reloads when it comes back.
-			u.writeRestartPage(w, "/ui/welcome?step=resources&applied=resources")
+			// this page and reloads when it comes back. Return to the step that
+			// asked for the change (Resources or Models).
+			u.writeRestartPage(w, back)
 			go func() {
 				time.Sleep(1500 * time.Millisecond)
 				u.deps.Restart()
@@ -1014,7 +1050,7 @@ func (u *UI) handleWelcomePost(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		u.markRestartRequired(ctx, "Job Pod resource limits changed")
-		http.Redirect(w, r, "/ui/welcome?step=resources&applied=resources", http.StatusSeeOther)
+		http.Redirect(w, r, back, http.StatusSeeOther)
 		return
 	}
 	if err := u.saveOnboarding(ctx, st); err != nil {
