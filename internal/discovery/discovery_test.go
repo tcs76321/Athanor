@@ -134,6 +134,41 @@ func TestStoreRoundTripAndSelect(t *testing.T) {
 	}
 }
 
+func TestResetRemovesSessionsAndOptionsForProject(t *testing.T) {
+	s, err := store.Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+	if err := store.Migrate(s.DB(), migrations.FS, ""); err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	if _, err := s.DB().ExecContext(ctx,
+		`INSERT INTO projects (id, name, archetype, goal) VALUES ('p1','p1','document','daily news')`); err != nil {
+		t.Fatal(err)
+	}
+	ds := NewStore(s)
+	opts := sampleOptions()
+	Score(opts)
+	if _, err := ds.Save(ctx, "p1", "old brief", opts); err != nil {
+		t.Fatal(err)
+	}
+	if err := ds.Reset(ctx, "p1"); err != nil {
+		t.Fatal(err)
+	}
+	if got, ok, err := ds.Get(ctx, "p1"); err != nil || ok {
+		t.Fatalf("session survived reset: ok=%v err=%v session=%+v", ok, err, got)
+	}
+	var n int
+	if err := s.DB().QueryRowContext(ctx, `SELECT COUNT(*) FROM discovery_options`).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n != 0 {
+		t.Fatalf("%d discovery options survived reset", n)
+	}
+}
+
 func TestBeginAndFailAreDurable(t *testing.T) {
 	s, err := store.Open(filepath.Join(t.TempDir(), "test.db"))
 	if err != nil {
@@ -174,6 +209,25 @@ func TestBuildPromptMentionsConstraintsAndHonesty(t *testing.T) {
 	for _, want := range []string{"make money online", "2 hours a day", "no ads", "example.com", "Do NOT invent"} {
 		if !strings.Contains(p, want) {
 			t.Errorf("prompt missing %q", want)
+		}
+	}
+}
+
+func TestBuildPromptDoesNotForceBusinessFraming(t *testing.T) {
+	p := BuildPrompt(Request{Goal: "produce a daily global news report"})
+	for _, want := range []string{
+		"not a generic business idea",
+		"audience or beneficiary",
+		"delivery format or operating model",
+		"Do not turn a non-commercial goal into a business",
+	} {
+		if !strings.Contains(p, want) {
+			t.Errorf("prompt missing %q", want)
+		}
+	}
+	for _, unwanted := range []string{"first paid offer", "time to first revenue"} {
+		if strings.Contains(p, unwanted) {
+			t.Errorf("prompt still contains business-only instruction %q", unwanted)
 		}
 	}
 }

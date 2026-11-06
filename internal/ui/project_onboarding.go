@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -26,6 +27,13 @@ type Discovery interface {
 	Generate(ctx context.Context, projectID string, req discovery.Request) (discovery.Session, error)
 	Get(ctx context.Context, projectID string) (discovery.Session, bool, error)
 	Select(ctx context.Context, projectID, optionID string) error
+}
+
+// discoveryResetter is optional so existing fakes remain valid. The concrete
+// discovery service implements it; a brief change calls it to prevent a
+// portfolio generated for an old goal from appearing under the new one.
+type discoveryResetter interface {
+	Reset(ctx context.Context, projectID string) error
 }
 
 // Planning is the AI-authored plan surface. Satisfied by *planning.Service;
@@ -144,6 +152,14 @@ func (u *UI) loadBrief(ctx context.Context, p project.Project) (projectBrief, er
 	_ = json.Unmarshal([]byte(constraints), &b.Constraints)
 	_ = json.Unmarshal([]byte(sources), &b.Sources)
 	return b, nil
+}
+
+func briefInputChanged(a, b projectBrief) bool {
+	return strings.TrimSpace(a.Goal) != strings.TrimSpace(b.Goal) ||
+		strings.TrimSpace(a.Limitations) != strings.TrimSpace(b.Limitations) ||
+		strings.TrimSpace(a.Success) != strings.TrimSpace(b.Success) ||
+		!slices.Equal(a.Constraints, b.Constraints) ||
+		!slices.Equal(a.Sources, b.Sources)
 }
 
 func (u *UI) saveBrief(ctx context.Context, b projectBrief) error {
@@ -310,6 +326,7 @@ func (u *UI) handleProjectOnboardingPost(w http.ResponseWriter, r *http.Request)
 	action := r.FormValue("action")
 	switch action {
 	case "save", "discover":
+		previous := brief
 		brief.Goal = strings.TrimSpace(r.FormValue("goal"))
 		if brief.Goal == "" {
 			brief.Goal = p.Goal
@@ -322,6 +339,13 @@ func (u *UI) handleProjectOnboardingPost(w http.ResponseWriter, r *http.Request)
 		if err := u.saveBrief(ctx, brief); err != nil {
 			u.fail(w, err)
 			return
+		}
+		if briefInputChanged(previous, brief) {
+			if resetter, ok := u.deps.Discovery.(discoveryResetter); ok {
+				if err := resetter.Reset(ctx, p.ID); err != nil {
+					slog.Warn("ui: clearing stale discovery after brief change", "project", p.ID, "err", err)
+				}
+			}
 		}
 		if action == "discover" {
 			u.startDiscovery(p, brief)

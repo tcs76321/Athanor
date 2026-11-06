@@ -80,16 +80,16 @@ func BuildPrompt(req Request) string {
 	}
 	fmt.Fprintf(&b, "CHOSEN DIRECTION: %s — %s\n", req.OptionTitle, req.OneLiner)
 	if req.Customer != "" {
-		fmt.Fprintf(&b, "CUSTOMER: %s\n", req.Customer)
+		fmt.Fprintf(&b, "AUDIENCE: %s\n", req.Customer)
 	}
 	if req.Pain != "" {
-		fmt.Fprintf(&b, "PAIN: %s\n", req.Pain)
+		fmt.Fprintf(&b, "NEED: %s\n", req.Pain)
 	}
 	if req.Wedge != "" {
-		fmt.Fprintf(&b, "WEDGE: %s\n", req.Wedge)
+		fmt.Fprintf(&b, "DISTINCTIVE APPROACH: %s\n", req.Wedge)
 	}
 	if req.Offer != "" {
-		fmt.Fprintf(&b, "FIRST OFFER: %s\n", req.Offer)
+		fmt.Fprintf(&b, "FIRST CONCRETE DELIVERABLE: %s\n", req.Offer)
 	}
 	if req.Validation != "" {
 		fmt.Fprintf(&b, "FIRST VALIDATION: %s\n", req.Validation)

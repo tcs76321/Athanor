@@ -113,7 +113,7 @@ func BuildPrompt(req Request) string {
 		count = 10
 	}
 	var b strings.Builder
-	b.WriteString("You are Athanor's discovery planner. Produce a portfolio of concrete, distinct ways to pursue the goal below.\n\n")
+	b.WriteString("You are Athanor's discovery planner. Produce a portfolio of concrete, distinct directions for executing the goal below. A direction is an approach to the work itself (coverage, method, format, audience, or scope), not a generic business idea unless the goal explicitly asks for one.\n\n")
 	fmt.Fprintf(&b, "GOAL: %s\n", strings.TrimSpace(req.Goal))
 	if strings.TrimSpace(req.Brief) != "" {
 		fmt.Fprintf(&b, "\nBRIEF (the operator's answers):\n%s\n", strings.TrimSpace(req.Brief))
@@ -130,14 +130,24 @@ func BuildPrompt(req Request) string {
 			fmt.Fprintf(&b, "- %s\n", strings.TrimSpace(s))
 		}
 	}
-	fmt.Fprintf(&b, "\nReturn EXACTLY a JSON array of %d objects. Cover at least 4 distinct industries and at least 6 distinct niches. Do not repeat a business model unless the customer and wedge differ substantially.\n", count)
+	fmt.Fprintf(&b, "\nReturn EXACTLY a JSON array of %d objects. Cover at least 4 distinct domains/beats and at least 6 distinct angles. Do not repeat a delivery format unless the audience and approach differ substantially.\n", count)
 	b.WriteString("Each object must have these keys (strings unless noted): title, one_liner, industry, niche, customer, pain, wedge, business_model, pricing, first_offer, validation_experiment, time_to_first_revenue_days (integer), startup_cost_usd (integer), skills_required (array of strings), competition, evidence (array of {claim, source}), risks (array of strings), assumptions (array of strings), confidence (number 0..1).\n")
+	b.WriteString("FIELD MEANINGS:\n")
+	b.WriteString("- industry / niche: the domain and the specific beat or angle, not a market segment.\n")
+	b.WriteString("- customer: the audience or beneficiary of the work.\n")
+	b.WriteString("- pain: the need, constraint, or job the work serves.\n")
+	b.WriteString("- wedge: the distinctive approach or editorial angle.\n")
+	b.WriteString("- business_model: the delivery format or operating model (daily brief, weekly digest, dataset, tool, etc.).\n")
+	b.WriteString("- pricing: access model (free, internal, subscription, one-off) — write \"not applicable\" when the goal is not commercial.\n")
+	b.WriteString("- first_offer: the first concrete deliverable, not necessarily paid.\n")
+	b.WriteString("- time_to_first_revenue_days: days to the first usable deliverable.\n")
+	b.WriteString("- startup_cost_usd: estimated setup cost, including 0.\n")
 	b.WriteString("RULES:\n")
-	b.WriteString("- Be specific: name the customer, the painful job, and the first paid offer.\n")
-	b.WriteString("- Prefer ideas that can be validated cheaply in under 30 days.\n")
+	b.WriteString("- Be specific about the audience, the need, the approach, and the first deliverable.\n")
+	b.WriteString("- Prefer directions that can produce a useful first version in under 30 days.\n")
+	b.WriteString("- Do not turn a non-commercial goal into a business, monetization plan, or startup pitch.\n")
 	b.WriteString("- Separate facts from assumptions. If you have no source, say so in the claim and leave source empty.\n")
 	b.WriteString("- Do NOT invent market sizes, revenue figures, or citations.\n")
-	b.WriteString("- Include at least one low-capital, one service-first, and one productized idea.\n")
 	b.WriteString("- Output only the JSON array, with no markdown fence or commentary.\n")
 	return b.String()
 }
@@ -480,6 +490,28 @@ func (s *Store) Get(ctx context.Context, projectID string) (Session, bool, error
 	return sess, true, rows.Err()
 }
 
+// Reset removes the project's discovery sessions and options. It is used when
+// the brief changes: a direction portfolio generated for an older goal must
+// never be shown as if it were generated for the new one.
+func (s *Store) Reset(ctx context.Context, projectID string) error {
+	tx, err := s.db.DB().BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	if _, err := tx.ExecContext(ctx, `
+		DELETE FROM discovery_options
+		 WHERE session_id IN (SELECT id FROM discovery_sessions WHERE project_id = ?)`,
+		projectID); err != nil {
+		return fmt.Errorf("deleting discovery options: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx,
+		`DELETE FROM discovery_sessions WHERE project_id = ?`, projectID); err != nil {
+		return fmt.Errorf("deleting discovery sessions: %w", err)
+	}
+	return tx.Commit()
+}
+
 // Select records the human's chosen option for the newest session.
 func (s *Store) Select(ctx context.Context, projectID, optionID string) error {
 	var sessionID string
@@ -509,6 +541,11 @@ type Service struct {
 }
 
 func NewService(gen Generator, st *Store) *Service { return &Service{gen: gen, store: st} }
+
+// Reset discards the project's discovery history (see Store.Reset).
+func (s *Service) Reset(ctx context.Context, projectID string) error {
+	return s.store.Reset(ctx, projectID)
+}
 
 // Generate runs one discovery pass. A generator error or an invalid portfolio
 // is returned to the caller; nothing partial is persisted.
