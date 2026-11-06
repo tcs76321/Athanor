@@ -83,8 +83,8 @@ const welcomeBody = `
             <span class="field-help">Runtime memory {{printf "%.0f" .Resources.TotalMemoryGiB}} GiB minus a {{.Resources.ReserveMB}} MB reserve; max {{.Resources.MemoryMaxMB}} MB.</span>
           </label>
           <label>CPUs
-            <input type="number" name="cpus" value="{{printf "%.2f" .Resources.CPUsAllocated}}" min="0.5" max="{{printf "%.2f" .Resources.CPUsMax}}" step="0.25">
-            <span class="field-help">Runtime has {{.Resources.CPUs}} core(s).</span>
+            <input type="number" name="cpus" value="{{printf "%.2f" .Resources.CPUsAllocated}}" min="0.5" max="{{printf "%.2f" .Resources.CPUsMax}}" step="0.5">
+            <span class="field-help">Runtime has {{.Resources.CPUs}} core(s). A fraction is a CPU quota, not a dedicated core.</span>
           </label>
           <label>/tmp size (MB)
             <input type="number" name="tmpfs_mb" value="{{.Resources.TmpfsMB}}" min="64" max="32768" step="64">
