@@ -31,6 +31,9 @@
     if (!host) {
       host = document.createElement("div");
       host.className = "toasts";
+      host.setAttribute("role", "status");
+      host.setAttribute("aria-live", "polite");
+      host.setAttribute("aria-atomic", "false");
       document.body.appendChild(host);
     }
     const el = document.createElement("div");
@@ -49,6 +52,14 @@
       ev.preventDefault();
       ev.stopPropagation();
     }
+  });
+
+  /* ---------- history back button in the error shell ---------- */
+  document.addEventListener("click", (ev) => {
+    const el = ev.target.closest("[data-back]");
+    if (!el) return;
+    ev.preventDefault();
+    history.back();
   });
 
   /* ---------- copy buttons ---------- */

@@ -195,6 +195,26 @@ func TestProjectInterviewPage(t *testing.T) {
 	}
 }
 
+// TestMissingArtifactIs404 pins the error-status mapping: a missing entity is
+// a not-found response, not a generic 400, and the error shell does not claim
+// that no state changed.
+func TestMissingArtifactIs404(t *testing.T) {
+	fx := setup(t)
+	status, body := get(t, fx.ts.URL+"/ui/artifacts/does-not-exist")
+	if status != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404", status)
+	}
+	if !strings.Contains(body, "not found") {
+		t.Errorf("body = %q, want the not-found message", body)
+	}
+	if strings.Contains(body, "Nothing was changed") {
+		t.Error("error shell still makes the false no-change promise")
+	}
+	if !strings.Contains(body, "Recent errors") {
+		t.Error("error shell should offer a path to the event log")
+	}
+}
+
 func TestPagesRender(t *testing.T) {
 	fx := setup(t)
 	for _, tc := range []struct {

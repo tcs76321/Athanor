@@ -194,8 +194,12 @@ const errorBody = `
 <h1>Something went wrong</h1>
 <div class="card">
   <p class="del">{{.Error}}</p>
-  <p class="muted">The Core is still running. Nothing was changed by this request.</p>
-  <div class="actions"><a class="btn" href="/ui">Back to dashboard</a></div>
+  <p class="muted">The Core is still running. Some multi-step actions can commit earlier steps before a later one fails; check the project or run history before retrying, and open the event log if the cause is not clear.</p>
+  <div class="actions">
+    <a class="btn" href="/ui">Back to dashboard</a>
+    <a class="btn secondary" href="/ui/events?level=error">Recent errors</a>
+    <button type="button" class="secondary" data-back>Go back</button>
+  </div>
 </div>
 `
 

@@ -13,7 +13,9 @@ package ui
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html/template"
 	"log/slog"
@@ -1416,10 +1418,51 @@ func (u *UI) renderStatus(w http.ResponseWriter, status int, title, body string,
 	}
 }
 
+// fail renders a request error with a status that matches what happened. Most
+// handler errors are validation failures (400), but a missing artifact or job
+// is a 404, and a cancelled request is not a client mistake. The raw error is
+// logged for the operator and shown only when it is safe to act on; storage
+// and driver errors are replaced with a generic message so schema details do
+// not leak into the browser.
 func (u *UI) fail(w http.ResponseWriter, err error) {
-	u.renderStatus(w, http.StatusBadRequest, "Error", errorBody, map[string]any{
-		"Error": err.Error(),
-	})
+	status := http.StatusBadRequest
+	switch {
+	case errors.Is(err, sql.ErrNoRows),
+		errors.Is(err, artifact.ErrNotFound),
+		errors.Is(err, job.ErrNotFound),
+		strings.Contains(strings.ToLower(err.Error()), "not found"):
+		status = http.StatusNotFound
+	case errors.Is(err, context.Canceled):
+		status = http.StatusRequestTimeout
+	case errors.Is(err, context.DeadlineExceeded):
+		status = http.StatusGatewayTimeout
+	case looksInternal(err):
+		status = http.StatusInternalServerError
+	}
+	slog.Warn("ui: request failed", "status", status, "err", err)
+	msg := err.Error()
+	if status == http.StatusInternalServerError {
+		msg = "The Core could not complete this request."
+	}
+	u.renderStatus(w, status, "Error", errorBody, map[string]any{"Error": msg})
+}
+
+// looksInternal reports whether an error is a storage/runtime failure rather
+// than a validation message safe to show. The check is deliberately narrow: it
+// catches driver text and wrapped SQL failures without hiding useful domain
+// errors such as "choose a direction first".
+func looksInternal(err error) bool {
+	s := strings.ToLower(err.Error())
+	for _, marker := range []string{
+		"sql: ", "sqlite", "database is locked", "constraint failed",
+		"no such table", "no such column", "scanning ", "beginning ",
+		"committing ", "querying ",
+	} {
+		if strings.Contains(s, marker) {
+			return true
+		}
+	}
+	return false
 }
 
 // renderPartial writes one template fragment (used by HTMX). It sets no page
