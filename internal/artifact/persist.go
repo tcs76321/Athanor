@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 )
 
@@ -28,7 +29,7 @@ func (a *Store) persistTx(ctx context.Context, tx *sql.Tx, row artifactRow, cont
 		return Artifact{}, fmt.Errorf("creating artifact dir: %w", err)
 	}
 	path := a.contentPath(row.ID)
-	if err := os.WriteFile(path, content, 0o600); err != nil {
+	if err := writeContentAtomic(path, content); err != nil {
 		return Artifact{}, fmt.Errorf("writing artifact content: %w", err)
 	}
 	sum := sha256.Sum256(content)
@@ -50,6 +51,44 @@ func (a *Store) persistTx(ctx context.Context, tx *sql.Tx, row artifactRow, cont
 		SupersedesID: row.SupersedesID, Kind: row.Kind, Version: row.Version,
 		Status: row.Status, StoragePath: path, ContentHash: hash,
 	}, nil
+}
+
+// writeContentAtomic writes content to path through a sibling temporary file,
+// fsyncs it, and renames it into place. The artifact row is committed only
+// after this returns, so a power loss can leave an orphan file but can never
+// leave a committed row whose bytes are missing or torn. The directory is
+// fsynced after the rename so the name is durable too.
+func writeContentAtomic(path string, content []byte) error {
+	dir := filepath.Dir(path)
+	tmp, err := os.CreateTemp(dir, ".artifact-*")
+	if err != nil {
+		return err
+	}
+	tmpName := tmp.Name()
+	defer func() { _ = os.Remove(tmpName) }()
+	if err := tmp.Chmod(0o600); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if _, err := tmp.Write(content); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := tmp.Sync(); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	if err := os.Rename(tmpName, path); err != nil {
+		return err
+	}
+	if d, err := os.Open(dir); err == nil {
+		_ = d.Sync()
+		_ = d.Close()
+	}
+	return nil
 }
 
 // audit appends an event under the jobs category (§28.1 has no artifact
