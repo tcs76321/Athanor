@@ -216,6 +216,76 @@ func TestMissingArtifactIs404(t *testing.T) {
 	}
 }
 
+type fakeAlarmResolver struct{ resolved string }
+
+func (f *fakeAlarmResolver) Resolve(_ context.Context, id string) error {
+	f.resolved = id
+	return nil
+}
+
+type fakePusher struct {
+	project string
+	remote  string
+}
+
+func (f *fakePusher) RequestPush(_ context.Context, projectID, remote string) (hitl.Request, error) {
+	f.project, f.remote = projectID, remote
+	return hitl.Request{ID: "req1", Type: hitl.TypeGitPush}, nil
+}
+
+// TestDailySurfaces pins the new run history and digest pages.
+func TestDailySurfaces(t *testing.T) {
+	fx := setup(t)
+	for _, tc := range []struct{ path, want string }{
+		{"/ui/jobs", "Runs"},
+		{"/ui/jobs?state=failed", "No runs match"},
+		{"/ui/digest", "Morning digest"},
+	} {
+		status, body := get(t, fx.ts.URL+tc.path)
+		if status != http.StatusOK {
+			t.Errorf("GET %s = %d, want 200", tc.path, status)
+			continue
+		}
+		if !strings.Contains(body, tc.want) {
+			t.Errorf("GET %s missing %q", tc.path, tc.want)
+		}
+	}
+	_, body := get(t, fx.ts.URL+"/ui/jobs")
+	if !strings.Contains(body, fx.job.ID[:8]) {
+		t.Errorf("runs page does not list the fixture job")
+	}
+}
+
+func TestAlarmResolveFromInbox(t *testing.T) {
+	fx := setup(t)
+	res := &fakeAlarmResolver{}
+	fx.ui.deps.Alarms = res
+	resp := postForm(t, fx.ts.URL+"/ui/alarms/alarm-1/resolve", url.Values{})
+	if resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303", resp.StatusCode)
+	}
+	if res.resolved != "alarm-1" {
+		t.Errorf("resolved = %q, want alarm-1", res.resolved)
+	}
+}
+
+func TestPushFilesARequest(t *testing.T) {
+	fx := setup(t)
+	push := &fakePusher{}
+	fx.ui.deps.Pusher = push
+	resp := postForm(t, fx.ts.URL+"/ui/projects/"+fx.project.ID+"/push", url.Values{"remote": {"origin"}})
+	if resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303", resp.StatusCode)
+	}
+	if push.project != fx.project.ID || push.remote != "origin" {
+		t.Errorf("push = %+v, want project %s remote origin", push, fx.project.ID)
+	}
+	_, body := get(t, fx.ts.URL+"/ui/projects/"+fx.project.ID+"?push=requested")
+	if !strings.Contains(body, "Push request queued") {
+		t.Error("project page did not confirm the push request")
+	}
+}
+
 // TestAssetsUseETag pins the asset validator: an unchanged stylesheet/script
 // revalidates with 304 instead of re-downloading on every page load.
 func TestAssetsUseETag(t *testing.T) {

@@ -103,6 +103,18 @@ type RepoPreindexer interface {
 	Preindex(ctx context.Context, projectID, path string) error
 }
 
+// AlarmResolver clears an active alarm from the operator surface. Satisfied by
+// *alarms.Service; nil hides the resolve control.
+type AlarmResolver interface {
+	Resolve(ctx context.Context, id string) error
+}
+
+// Pusher files a HITL request for a git push. It never pushes directly; the
+// approved side effect runs through the HITL approver (ADR-0036).
+type Pusher interface {
+	RequestPush(ctx context.Context, projectID, remote string) (hitl.Request, error)
+}
+
 // uiPreindexer adapts the UI's error-only pre-index seam to firstuse's
 // counter-returning one. The UI does not render the counters; the service still
 // audits them.
@@ -171,6 +183,10 @@ type Deps struct {
 	// TaskResetter returns a blocked task and its blocked dependents to
 	// pending. nil hides the reset control.
 	TaskResetter TaskResetter
+	// Alarms clears an active alarm. nil hides the resolve control.
+	Alarms AlarmResolver
+	// Pusher files a HITL request for a git push. nil hides the push control.
+	Pusher Pusher
 	// DefaultTTL is applied to defer decisions made without an explicit
 	// duration.
 	DefaultTTL time.Duration
@@ -310,6 +326,11 @@ func (u *UI) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /ui/setup", u.handleSetup)
 	mux.HandleFunc("POST /ui/setup/qualify", u.handleQualifyStart)
 	mux.HandleFunc("GET /ui/statistics", u.handleStatistics)
+	mux.HandleFunc("GET /ui/jobs", u.handleJobsIndex)
+	mux.HandleFunc("GET /ui/digest", u.handleDigest)
+	mux.HandleFunc("POST /ui/alarms/{id}/resolve", u.handleAlarmResolve)
+	mux.HandleFunc("POST /ui/strategy/insights/{id}", u.handleInsightAction)
+	mux.HandleFunc("POST /ui/projects/{id}/push", u.handleProjectPush)
 	mux.HandleFunc("POST /ui/corrections/{id}", u.handleCorrectionUpdate)
 	mux.HandleFunc("GET /ui/jobs/{id}", u.handleWatch)
 	mux.HandleFunc("GET /ui/jobs/{id}/stream", u.handleJobStream)
@@ -654,6 +675,7 @@ func (u *UI) handleProject(w http.ResponseWriter, r *http.Request) {
 	}
 	u.render(w, "Project "+p.Name, projectBody, map[string]any{
 		"Project": p, "Artifacts": arts, "Corrections": corr, "Work": work,
+		"CanPush": u.deps.Pusher != nil, "PushRequested": r.URL.Query().Get("push") == "requested",
 	})
 }
 

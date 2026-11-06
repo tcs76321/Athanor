@@ -92,7 +92,7 @@ func (u *UI) handleNotifications(w http.ResponseWriter, r *http.Request) {
 	})
 	u.render(w, "Notifications", notificationsBody, map[string]any{
 		"Counts": c, "Pending": pending, "Reviews": reviews,
-		"Alarms": alarms, "Failures": failures,
+		"Alarms": alarms, "Failures": failures, "CanResolveAlarms": u.deps.Alarms != nil,
 	})
 }
 

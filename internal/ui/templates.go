@@ -35,9 +35,11 @@ func document(body string) string {
       <a href="/ui/projects"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M3 6h7l2 2h9v11H3z"/></svg>Projects</a>
       <a href="/ui/artifacts"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M5 3h10l4 4v14H5z"/><path d="M15 3v5h4"/></svg>Library</a>
       <a href="/ui/reviews">Reviews <span class="badge" id="review-count" hidden></span></a>
+      <a href="/ui/jobs">Runs</a>
     </nav>
     <div class="group-label">Insights</div>
     <nav aria-label="Insights">
+      <a href="/ui/digest">Digest</a>
       <a href="/ui/statistics">Statistics</a>
       <a href="/ui/memory">Memory</a>
       <a href="/ui/events?category=network">Network</a>
@@ -171,10 +173,11 @@ const notificationsBody = `
 
 <h2 id="alarms">Active alarms</h2>
 {{if .Alarms}}
-<table><thead><tr><th>Level</th><th>Category</th><th>Message</th><th>When</th></tr></thead><tbody>
+<table><thead><tr><th>Level</th><th>Category</th><th>Message</th><th>When</th><th></th></tr></thead><tbody>
 {{range .Alarms}}<tr>
   <td><span class="pill {{if eq .Level "critical"}}bad{{else if eq .Level "alert"}}warn{{end}}">{{.Level}}</span></td>
   <td>{{.Category}}</td><td>{{.Message}}</td><td class="muted">{{.CreatedAt | when}}</td>
+  <td>{{if $.CanResolveAlarms}}<form method="post" action="/ui/alarms/{{.ID}}/resolve"><button class="small secondary">Resolve</button></form>{{end}}</td>
 </tr>{{end}}
 </tbody></table>
 {{else}}<div class="empty">No active alarms.</div>{{end}}
@@ -469,8 +472,14 @@ const projectBody = `
   <a class="btn" href="/ui/projects/{{.Project.ID}}/onboarding">Onboarding / explore</a>
   <a class="btn secondary" href="/ui/projects/{{.Project.ID}}/interview">Plan / interview</a>
   <a class="btn secondary" href="#submit-goal">Submit a goal</a>
+  {{if and .Project.RepositoryPath .CanPush}}
+  <form method="post" action="/ui/projects/{{.Project.ID}}/push">
+    <button class="secondary" data-confirm="Request a push of the agent branch? This only files a HITL request; nothing leaves the machine until you approve it in the Inbox.">Request push</button>
+  </form>
+  {{end}}
   <a class="btn secondary" href="/ui/projects">All projects</a>
 </div>
+{{if .PushRequested}}<div class="notice">Push request queued in the Inbox. Nothing is pushed until you approve it there.</div>{{end}}
 
 <div class="tabs" role="tablist">
   <a href="#overview" aria-current="page">Overview</a>
@@ -856,16 +865,20 @@ const statisticsBody = `
 </div>
 <h2>Strategy insights</h2>
 {{if .Insights}}
-<table><thead><tr><th>Polarity</th><th>Status</th><th>Feature</th><th>Cohort</th><th>Accept / baseline</th><th>Statement</th></tr></thead><tbody>
+<table><thead><tr><th>Polarity</th><th>Status</th><th>Feature</th><th>Cohort</th><th>Accept / baseline</th><th>Statement</th><th></th></tr></thead><tbody>
 {{range .Insights}}<tr>
 <td><span class="pill {{if eq .Polarity "winning"}}ok{{else}}bad{{end}}">{{.Polarity}}</span></td>
 <td>{{.Status}}</td><td>{{.Pattern.Feature}}={{.Pattern.Value}}</td>
 <td>{{.Evidence.CohortJobs}}</td><td>{{printf "%.2f" .Evidence.AcceptRate}} / {{printf "%.2f" .Evidence.BaselineAcceptRate}}</td>
 <td>{{.Statement}}</td>
+<td><form method="post" action="/ui/strategy/insights/{{.ID}}" class="inline-form">
+  {{if eq .Status "active"}}<button name="action" value="mute" class="small secondary">Mute</button>
+  {{else}}<button name="action" value="promote" class="small">Promote</button>{{end}}
+</form></td>
 </tr>{{end}}
 </tbody></table>
 {{else}}<div class="empty">No strategy insights yet. They appear after enough outcomes accumulate.</div>{{end}}
-<p class="muted">Promote/mute from the CLI: <code>athanor strategy promote|mute -id &lt;id&gt;</code>.</p>
+<p class="muted">Proposed insights are inert; promotion is the HITL gate. The CLI remains available as <code>athanor strategy promote|mute -id &lt;id&gt;</code>.</p>
 
 <h2>Outcomes</h2>
 {{if .Outcomes}}

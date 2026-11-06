@@ -475,6 +475,8 @@ func run(configPath, addr, stateDir string, container bool) error {
 		ModelAudit:   os.Getenv("ATHANOR_MODEL_AUDIT"),
 		Scheduler:    sched,
 		TaskResetter: sched,
+		Alarms:       alarmSvc,
+		Pusher:       gitPusher{projects: projectRepo, hitl: hitlRepo},
 		ConfigPath:   configPath,
 		Restart: func() {
 			select {
