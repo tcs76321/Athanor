@@ -127,6 +127,7 @@ demo. A claim without a proof is either removed or marked as a target.
 | Per-project execution overrides are editable in the UI | 2026-11-06 backlog pass | `POST /ui/projects/{id}/execution`; `TestProjectExecutionEditor` | **proven** |
 | `athanor job watch` streams audit events | 2026-11-06 backlog pass | `cmd/athanor/cli_project.go`; `TestFormatJobEvent` | **proven** |
 | The host-reserve warning is fixable on the page that shows it, and returning after restart keeps the step | 2026-11-06 first-use fix | `internal/ui/onboarding_templates.go`; `TestCurrentResourcesWarnsWhenReserveBelowVM`, `TestReserveFixReturnsToModels` | **proven** |
+| A host reserve below the detected Podman VM floor is clamped, and the UI cannot save below it | ADR-0106 | `internal/ui/onboarding.go` (`currentResources`, `apply_resources`); `TestReserveFixReturnsToModels`, `TestCurrentResourcesWarnsWhenReserveBelowVM` | **proven** |
 
 ## Rule
 

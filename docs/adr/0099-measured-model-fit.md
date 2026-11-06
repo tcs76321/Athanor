@@ -84,3 +84,8 @@ The audit reserve now defaults to 4 GiB, is configurable as
 pool step uses the same reserve for its fit limit. Context targets are now
 size-aware: smaller models receive wider windows, and larger models trade
 context for depth, with a memory cap for KV pressure.
+
+**Further amendment:** [ADR-0106](0106-adaptive-host-reserve-floor.md) makes the
+effective reserve adaptive — it is clamped to the detected Podman VM floor and
+recommended at VM + 1 GiB. The 4 GiB value above is only the stored default; it
+is not used as the effective budget when the machine's VM is larger.

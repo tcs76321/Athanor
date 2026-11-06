@@ -258,6 +258,12 @@ func TestReserveFixReturnsToModels(t *testing.T) {
 	fx.ui.deps.Hardware = func(context.Context) Hardware {
 		return Hardware{HostMemoryBytes: 64 << 30, TotalMemoryBytes: 8 << 30, CPUs: 10, FreeDiskBytes: 90 << 30}
 	}
+	below := postForm(t, fx.ts.URL+"/ui/welcome", url.Values{
+		"step": {"models"}, "action": {"apply_resources"}, "host_reserve_mb": {"4096"},
+	})
+	if below.StatusCode != http.StatusBadRequest {
+		t.Fatalf("below-floor status = %d, want 400", below.StatusCode)
+	}
 	resp := postForm(t, fx.ts.URL+"/ui/welcome", url.Values{
 		"step": {"models"}, "action": {"apply_resources"}, "host_reserve_mb": {"9216"},
 	})

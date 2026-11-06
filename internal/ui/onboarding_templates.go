@@ -83,18 +83,22 @@ const welcomeBody = `
     <div class="notice">
       Host: {{printf "%.0f" .Resources.HostMemoryGiB}} GiB total, with about {{printf "%.0f" .Resources.OutsideRuntimeGiB}} GiB outside Athanor's runtime for macOS and Ollama. macOS cannot reserve host RAM for one process, so this is a budget, not a fence.
     </div>
-    {{if .Resources.ReserveBelowVM}}
+    {{if .Resources.ReserveClamped}}
     <div class="notice bad">
-      <b>The Podman VM is larger than the host reserve.</b>
-      The VM reserves {{printf "%.1f" .Resources.TotalMemoryGiB}} GiB, but the host reserve is {{printf "%.1f" (div .Resources.HostReserveMB 1024.0)}} GiB.
-      The reserve is the memory shared by macOS, your apps, the Core, and the VM; if it is smaller than the VM, the VM is not accounted for and models can starve it.
-      A safe value is <b>{{.Resources.RecommendedReserveMB}} MB</b> (VM size + 1 GiB).
+      <b>Athanor is enforcing a safer host reserve.</b>
+      Your config says {{printf "%.1f" (div .Resources.HostReserveMB 1024.0)}} GiB, but this machine's Podman VM is {{printf "%.1f" .Resources.TotalMemoryGiB}} GiB. Athanor is using <b>{{.Resources.EffectiveHostReserveMB}} MB</b> for the budget so the VM is never left uncovered.
+      The recommended value is <b>{{.Resources.RecommendedReserveMB}} MB</b> (VM + 1 GiB). Save it to make the setting explicit.
       <form method="post" action="/ui/welcome" class="actions">
         <input type="hidden" name="step" value="resources">
         <input type="hidden" name="action" value="apply_resources">
         <input type="hidden" name="host_reserve_mb" value="{{.Resources.RecommendedReserveMB}}">
         <button class="primary" data-confirm="Raise the host reserve to {{.Resources.RecommendedReserveMB}} MB? The Core restarts; completed work and qualification results are kept.">Use {{.Resources.RecommendedReserveMB}} MB and restart</button>
       </form>
+    </div>
+    {{else if .Resources.ReserveBelowRecommended}}
+    <div class="notice">
+      <b>Host reserve is below the recommendation.</b>
+      You set {{printf "%.1f" (div .Resources.HostReserveMB 1024.0)}} GiB; the recommended value is {{.Resources.RecommendedReserveMB}} MB (VM + 1 GiB). This is allowed — it leaves more room for models — but less headroom for macOS and the VM. The minimum Athanor will accept is {{.Resources.MinHostReserveMB}} MB.
     </div>
     {{end}}
     <div class="card">
@@ -108,8 +112,8 @@ const welcomeBody = `
             <span class="field-help">Runtime memory {{printf "%.0f" .Resources.TotalMemoryGiB}} GiB minus a {{.Resources.ReserveMB}} MB reserve; max {{.Resources.MemoryMaxMB}} MB.</span>
           </label>
           <label>Host reserve (MB)
-            <input type="number" name="host_reserve_mb" value="{{.Resources.HostReserveMB}}" min="0" max="65536" step="512">
-            <span class="field-help">Memory left outside any model: OS, apps, the Core, and the Podman VM. Raise it if the VM is large; lower it to allow larger models.</span>
+            <input type="number" name="host_reserve_mb" value="{{.Resources.EffectiveHostReserveMB}}" min="{{.Resources.MinHostReserveMB}}" max="65536" step="512">
+            <span class="field-help">Memory left outside any model: OS, apps, the Core, and the Podman VM. This machine's minimum is {{.Resources.MinHostReserveMB}} MB (the VM size); {{.Resources.RecommendedReserveMB}} MB is recommended. Higher is safer; lower leaves more room for models.</span>
           </label>
           <label>CPUs
             <input type="number" name="cpus" value="{{printf "%.2f" .Resources.CPUsAllocated}}" min="0.5" max="{{printf "%.2f" .Resources.CPUsMax}}" step="0.5">
@@ -143,12 +147,11 @@ const welcomeBody = `
         {{if .Budget.Model}}{{if .Budget.ModelFits}}<span class="pill ok">model fits budget</span>{{else}}<span class="pill bad">model exceeds budget</span>{{end}}{{end}}
       </div>
       <p class="muted small">Installed-but-unused models do not count. The measured audit uses the same host reserve; {{if .Budget.ModelMeasured}}this size comes from the audit{{else}}run <code>athanor models -audit</code> for resident size{{end}}.</p>
-      {{if .Budget.ReserveBelowVM}}
+      {{if .Budget.ReserveClamped}}
       <div class="notice bad">
-        <b>The Podman VM is larger than the host reserve.</b>
-        The VM reserves {{printf "%.1f" .Budget.VmGiB}} GiB, but the host reserve is {{printf "%.1f" .Budget.ReserveGiB}} GiB.
-        That reserve covers macOS, your apps, the Core, and the VM together. If it is smaller than the VM, the VM is not fully accounted for, so models can compete with it and make the machine sluggish.
-        A safe value is <b>{{.Budget.RecommendedReserveMB}} MB</b> (VM size + 1 GiB). You can fix it now or later on the Resources step; continuing is allowed.
+        <b>Athanor is enforcing a safer host reserve.</b>
+        Your config says {{printf "%.1f" .Budget.ConfiguredReserveGiB}} GiB, but the Podman VM is {{printf "%.1f" .Budget.VmGiB}} GiB. The budget is using <b>{{.Budget.RecommendedReserveMB}} MB</b> (VM + 1 GiB) so models cannot starve the VM.
+        Save the recommended value now, or continue and fix it later on Resources.
         <div class="actions">
           <form method="post" action="/ui/welcome">
             <input type="hidden" name="step" value="models">
@@ -158,6 +161,12 @@ const welcomeBody = `
           </form>
           <a class="btn secondary" href="/ui/welcome?step=resources">Open Resources</a>
         </div>
+      </div>
+      {{else if .Budget.ReserveBelowRecommended}}
+      <div class="notice">
+        <b>Host reserve is below the recommendation.</b>
+        You set {{printf "%.1f" .Budget.ConfiguredReserveGiB}} GiB; the recommended value is {{.Budget.RecommendedReserveMB}} MB (VM + 1 GiB). This is allowed, but it leaves less headroom for macOS and the VM.
+        <a href="/ui/welcome?step=resources">Open Resources</a>
       </div>
       {{end}}
       {{if .Budget.Overcommit}}<p class="del">Combined host pressure is {{printf "%.1f" .Budget.OverBy}} GiB over: the model and host reserve together exceed host RAM. Reduce the reserve, lower context, or choose smaller models.</p>{{end}}

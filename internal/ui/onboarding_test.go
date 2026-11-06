@@ -282,7 +282,8 @@ func TestCurrentResourcesShowsPersistedLimits(t *testing.T) {
 func TestBudgetForSeparatesHostInferenceAndRuntimeSandbox(t *testing.T) {
 	roles := []setupRole{{Role: "main", Model: "configured"}}
 	models := []setupModel{{Name: "configured", SizeBytes: 6 << 30, Measured: true}}
-	res := resourceView{MemoryMB: 4096, ReserveMB: 2048, HostReserveMB: 4096}
+	res := resourceView{MemoryMB: 4096, ReserveMB: 2048, HostReserveMB: 4096,
+		EffectiveHostReserveMB: 4096, ReserveBelowVM: true, ReserveClamped: true}
 	b := budgetFor(roles, models, Hardware{TotalMemoryBytes: 8 << 30, HostMemoryBytes: 32 << 30}, res)
 	if b.HostGiB != 32 || b.RuntimeGiB != 8 || b.VmGiB != 8 {
 		t.Errorf("memory shape = %+v, want 32 host / 8 runtime / 8 VM", b)

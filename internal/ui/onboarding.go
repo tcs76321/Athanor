@@ -72,26 +72,38 @@ type resourceView struct {
 	PidsLimit         int
 	ReserveMB         int
 	HostReserveMB     int
-	// ReserveBelowVM is true when a Podman VM exists and the host reserve is
-	// smaller than it. The reserve is what the OS, apps, Core, and VM share;
-	// a reserve below the VM leaves the VM unaccounted for.
+	// MinHostReserveMB is the hard floor Athanor will use: the Podman VM size
+	// (or 2 GiB without a separate VM). A configured value below this is
+	// clamped rather than accepted.
+	MinHostReserveMB int
+	// EffectiveHostReserveMB is what the budget actually uses: the configured
+	// value, or the hard floor when the configured value is below it.
+	EffectiveHostReserveMB int
+	// ReserveBelowVM is true when a Podman VM exists and the configured host
+	// reserve is below its hard floor. ReserveClamped also marks that Athanor
+	// is enforcing the floor for the budget.
 	ReserveBelowVM bool
-	// RecommendedReserveMB is the smallest sensible fix: the VM size plus a
+	ReserveClamped bool
+	// ReserveBelowRecommended is true when the configured value is allowed
+	// but below the recommended VM + 1 GiB headroom.
+	ReserveBelowRecommended bool
+	// RecommendedReserveMB is the smallest sensible value: the VM size plus a
 	// 1 GiB margin, rounded to a 256 MB step and capped below host RAM.
 	RecommendedReserveMB int
 }
 
 type modelBudget struct {
 	// Host inference budget: the configured persona models run on the host.
-	HostGiB       float64
-	RuntimeGiB    float64
-	VmGiB         float64 // detected Podman VM allocation (inside the host reserve)
-	ReserveGiB    float64 // OS/apps/Core/Podman reserve on the host
-	InferenceGiB  float64 // Host - Reserve
-	Model         string
-	ModelGiB      float64
-	ModelMeasured bool
-	ModelFits     bool
+	HostGiB              float64
+	RuntimeGiB           float64
+	VmGiB                float64 // detected Podman VM allocation (inside the host reserve)
+	ReserveGiB           float64 // effective OS/apps/Core/Podman reserve on the host
+	ConfiguredReserveGiB float64 // the operator's stored value
+	InferenceGiB         float64 // Host - Reserve
+	Model                string
+	ModelGiB             float64
+	ModelMeasured        bool
+	ModelFits            bool
 
 	// Runtime sandbox budget: Job Pods live inside the Podman runtime.
 	PodGiB          float64
@@ -100,10 +112,12 @@ type modelBudget struct {
 	RuntimeFits     bool
 	RuntimeHeadroom float64
 
-	Overcommit           bool
-	OverBy               float64
-	ReserveBelowVM       bool
-	RecommendedReserveMB int
+	Overcommit              bool
+	OverBy                  float64
+	ReserveBelowVM          bool
+	ReserveClamped          bool
+	ReserveBelowRecommended bool
+	RecommendedReserveMB    int
 }
 
 // hostReserveGiB is the fallback non-model reserve when the config does not
@@ -125,23 +139,29 @@ func budgetFor(roles []setupRole, models []setupModel, hw Hardware, res resource
 	if runtimeBytes == 0 {
 		runtimeBytes = hostBytes
 	}
-	reserveMB := res.HostReserveMB
+	reserveMB := res.EffectiveHostReserveMB
+	if reserveMB <= 0 {
+		reserveMB = res.HostReserveMB
+	}
 	if reserveMB <= 0 {
 		reserveMB = int(hostReserveGiB * 1024)
 	}
 	b := modelBudget{
-		HostGiB:        float64(hostBytes) / (1 << 30),
-		RuntimeGiB:     float64(runtimeBytes) / (1 << 30),
-		ReserveGiB:     float64(reserveMB) / 1024,
-		PodGiB:         float64(res.MemoryMB) / 1024,
-		RuntimeReserve: float64(res.ReserveMB) / 1024,
+		HostGiB:                 float64(hostBytes) / (1 << 30),
+		RuntimeGiB:              float64(runtimeBytes) / (1 << 30),
+		ReserveGiB:              float64(reserveMB) / 1024,
+		ConfiguredReserveGiB:    float64(res.HostReserveMB) / 1024,
+		PodGiB:                  float64(res.MemoryMB) / 1024,
+		RuntimeReserve:          float64(res.ReserveMB) / 1024,
+		ReserveClamped:          res.ReserveClamped,
+		ReserveBelowRecommended: res.ReserveBelowRecommended,
+		RecommendedReserveMB:    res.RecommendedReserveMB,
 	}
 	if b.HostGiB > b.RuntimeGiB {
 		// A separate Podman VM is itself host memory. The reserve is meant to
 		// cover it; surface a warning when it does not.
 		b.VmGiB = b.RuntimeGiB
-		b.ReserveBelowVM = b.ReserveGiB < b.VmGiB
-		b.RecommendedReserveMB = res.RecommendedReserveMB
+		b.ReserveBelowVM = res.ReserveBelowVM
 		if b.RecommendedReserveMB == 0 {
 			rec := int(b.VmGiB*1024) + 1024
 			b.RecommendedReserveMB = ((rec + 255) / 256) * 256
@@ -481,10 +501,7 @@ func (u *UI) autoAssignments(roles []setupRole, models []setupModel, hw Hardware
 	if hostBytes == 0 {
 		hostBytes = hw.TotalMemoryBytes
 	}
-	reserveBytes := int64(hostReserveGiB * (1 << 30))
-	if u.deps.Config != nil && u.deps.Config.Inference.HostReserveMB > 0 {
-		reserveBytes = int64(u.deps.Config.Inference.HostReserveMB) << 20
-	}
+	reserveBytes := hostReserveBytes(u.deps.Config, hw)
 	// Models run on the host, not in the Podman runtime. Use the measured
 	// loaded size from the audit when available; otherwise the catalog file
 	// size is the only estimate. The reserve is the same operator-set host
@@ -507,17 +524,37 @@ func recommendedResources(hw Hardware) resourceView {
 	if hostBytes == 0 {
 		hostBytes = hw.TotalMemoryBytes
 	}
+	minReserve, recReserve := 2048, 4096
+	vmMB := int(hw.TotalMemoryBytes / (1 << 20))
+	hostMB := int(hostBytes / (1 << 20))
+	if vmMB > 0 && hostMB > vmMB {
+		// macOS/Podman machine: the VM is a separate host-memory consumer.
+		// The hard floor covers the VM; the recommendation leaves 1 GiB for
+		// macOS, apps, and the Core above it.
+		minReserve = vmMB
+		recReserve = vmMB + 1024
+		recReserve = ((recReserve + 255) / 256) * 256
+		if hostMB > 1024 && recReserve > hostMB-1024 {
+			recReserve = hostMB - 1024
+			if recReserve < minReserve {
+				recReserve = minReserve
+			}
+		}
+	}
 	res := resourceView{
-		TotalMemoryGiB: float64(hw.TotalMemoryBytes) / (1 << 30),
-		HostMemoryGiB:  float64(hostBytes) / (1 << 30),
-		FreeDiskGiB:    float64(hw.FreeDiskBytes) / (1 << 30),
-		CPUs:           hw.CPUs,
-		MemoryMB:       4096,
-		CPUsAllocated:  4,
-		TmpfsMB:        2048,
-		PidsLimit:      128,
-		ReserveMB:      2048,
-		HostReserveMB:  4096,
+		TotalMemoryGiB:         float64(hw.TotalMemoryBytes) / (1 << 30),
+		HostMemoryGiB:          float64(hostBytes) / (1 << 30),
+		FreeDiskGiB:            float64(hw.FreeDiskBytes) / (1 << 30),
+		CPUs:                   hw.CPUs,
+		MemoryMB:               4096,
+		CPUsAllocated:          4,
+		TmpfsMB:                2048,
+		PidsLimit:              128,
+		ReserveMB:              2048,
+		HostReserveMB:          recReserve,
+		MinHostReserveMB:       minReserve,
+		EffectiveHostReserveMB: recReserve,
+		RecommendedReserveMB:   recReserve,
 	}
 	res.OutsideRuntimeGiB = res.HostMemoryGiB - res.TotalMemoryGiB
 	if res.OutsideRuntimeGiB < 0 {
@@ -610,21 +647,24 @@ func currentResources(hw Hardware, cfg *config.Config) resourceView {
 	}
 	// On macOS the Podman machine is a separate VM carved out of host RAM.
 	// The host reserve is supposed to cover the OS, apps, the Core, and that
-	// VM. If the reserve is smaller than the VM, the warning belongs on the
-	// same page as the control that fixes it.
-	if res.HostMemoryGiB > res.TotalMemoryGiB && res.TotalMemoryGiB > 0 {
-		vmMB := int(res.TotalMemoryGiB * 1024)
-		res.ReserveBelowVM = res.HostReserveMB < vmMB
-		rec := vmMB + 1024
-		rec = ((rec + 255) / 256) * 256
-		hostMB := int(res.HostMemoryGiB * 1024)
-		if hostMB > 1024 && rec > hostMB-1024 {
-			rec = hostMB - 1024
-			if rec < vmMB {
-				rec = vmMB
-			}
-		}
-		res.RecommendedReserveMB = rec
+	// VM. Clamp a configured value below the VM floor instead of letting a
+	// model budget pretend the VM is free; keep the recommendation visible.
+	if res.MinHostReserveMB <= 0 {
+		res.MinHostReserveMB = 2048
+	}
+	if res.RecommendedReserveMB <= 0 {
+		res.RecommendedReserveMB = 4096
+	}
+	switch {
+	case res.HostReserveMB < res.MinHostReserveMB:
+		res.ReserveBelowVM = true
+		res.ReserveClamped = true
+		res.EffectiveHostReserveMB = res.MinHostReserveMB
+	case res.HostReserveMB < res.RecommendedReserveMB:
+		res.ReserveBelowRecommended = true
+		res.EffectiveHostReserveMB = res.HostReserveMB
+	default:
+		res.EffectiveHostReserveMB = res.HostReserveMB
 	}
 	return res
 }
@@ -1019,12 +1059,18 @@ func (u *UI) handleWelcomePost(w http.ResponseWriter, r *http.Request) {
 			hw = u.deps.Hardware(ctx)
 		}
 		res := currentResources(hw, u.deps.Config)
+		reserveMB := parseFormInt(r, "host_reserve_mb", res.EffectiveHostReserveMB)
+		if reserveMB < res.MinHostReserveMB {
+			u.fail(w, fmt.Errorf("host reserve must be at least %d MB on this machine (the Podman VM needs that much host memory); %d MB is recommended",
+				res.MinHostReserveMB, res.RecommendedReserveMB))
+			return
+		}
 		limits := config.JobPodResources{
 			MemoryMB:      parseFormInt(r, "memory_mb", res.MemoryMB),
 			CPUs:          parseFormFloat(r, "cpus", res.CPUsAllocated),
 			TmpfsMB:       parseFormInt(r, "tmpfs_mb", res.TmpfsMB),
 			PidsLimit:     parseFormInt(r, "pids_limit", res.PidsLimit),
-			HostReserveMB: parseFormInt(r, "host_reserve_mb", res.HostReserveMB),
+			HostReserveMB: reserveMB,
 		}
 		if err := config.UpdateJobPodResources(u.deps.ConfigPath, limits); err != nil {
 			u.fail(w, err)

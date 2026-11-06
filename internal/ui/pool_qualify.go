@@ -33,7 +33,8 @@ func (u *UI) startPoolQualification(ctx context.Context, fresh, deep bool) (qual
 			return qualState{}, false, fmt.Errorf("reading installed models: %w", err)
 		}
 		if u.deps.Hardware != nil {
-			p.FitLimitBytes = inferenceFitBytes(u.deps.Hardware(ctx), hostReserveBytes(u.deps.Config))
+			hw := u.deps.Hardware(ctx)
+			p.FitLimitBytes = inferenceFitBytes(hw, hostReserveBytes(u.deps.Config, hw))
 		}
 		infos := make([]composition.ModelInfo, 0, len(installed))
 		for _, m := range installed {

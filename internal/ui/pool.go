@@ -373,13 +373,13 @@ func inferenceFitBytes(hw Hardware, reserveBytes int64) int64 {
 	return limit
 }
 
-// hostReserveBytes resolves the operator's host reserve, falling back to the
-// 4 GiB default when the config omits it.
-func hostReserveBytes(cfg *config.Config) int64 {
-	if cfg != nil && cfg.Inference.HostReserveMB > 0 {
-		return int64(cfg.Inference.HostReserveMB) << 20
-	}
-	return int64(hostReserveGiB * (1 << 30))
+// hostReserveBytes resolves the effective host reserve, including the hard
+// floor derived from the detected Podman VM. A config below that floor is
+// clamped here too, so auto-assignment and qualification obey the same budget
+// as the Resources and Models pages.
+func hostReserveBytes(cfg *config.Config, hw Hardware) int64 {
+	res := currentResources(hw, cfg)
+	return int64(res.EffectiveHostReserveMB) << 20
 }
 
 // poolSuggestions recommends a small, size-appropriate core set when the
