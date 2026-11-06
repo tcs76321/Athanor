@@ -143,7 +143,7 @@ Then watch it work in real time from the Watch View, or queue it and check the M
 
 ## Status
 
-### What works today (M0–M8 code-complete; M9 — 0.0.0 — in progress)
+### What works today (M0–M7 code-complete; M8 validation in progress; M9 — 0.0.0 — in progress)
 
 - **First-class GUI foundation + onboarding (0.0.x).** The local UI is now a
   project-centric workshop: a side rail with Home, Inbox, Projects, Library,

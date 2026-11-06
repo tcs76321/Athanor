@@ -93,7 +93,9 @@ The Core is the **sole router**. No component communicates peer-to-peer.
 Job Pods may communicate **only** with:
 
 - The Core internal API (via restricted localhost socket).
-- The per-job token directory (a read-only bind mount at `/run/athanor`).
+- The per-job token directory at `/run/athanor`, only when the opt-in
+  pod→Core mount is enabled (`Spec.MountToken`); the default path keeps the
+  token in the Core.
 - A staged repository snapshot (read-only at `/workspace/repo`) — the first
   approved workspace volume (ADR-0082). The Core stages tracked files under its
   own state directory; no host repository path is mounted directly.
@@ -113,7 +115,7 @@ Job Pods may **not** directly access:
 
 ### 3.2 Internal API Authentication
 
-Every Job Pod receives a per-job bearer token scoped to its job ID at creation
+Every job receives a per-job bearer token scoped to its job ID at creation
 time. The Core internal API validates this token on every request, enforces the
 tool allowlist for that job, and revokes the token at teardown. The token is
 reused for the job's lifetime (it is not single-use per request). Tokens are
