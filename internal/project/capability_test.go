@@ -32,6 +32,7 @@ func TestInferCapabilities(t *testing.T) {
 		{"code", "Implement a small parser module with tests.", CapabilityCode},
 		{"data", "Normalize the JSON events to the schema and aggregate totals.", CapabilityData},
 		{"document", "Write an architecture decision record with the required sections.", CapabilityDocument},
+		{"news-report", "Compile and synthesize daily global news reports by searching diverse sources and translating them into English.", CapabilityDocument},
 		{"text", "Write a short email in a friendly tone.", CapabilityText},
 		{"media", "Render a short video and a cover image.", CapabilityMedia},
 	} {
@@ -47,6 +48,16 @@ func TestInferCapabilities(t *testing.T) {
 	caps := InferCapabilities("Implement the API and write the README documentation.", "")
 	if !slices.Contains(caps, CapabilityCode) || !slices.Contains(caps, CapabilityDocument) {
 		t.Errorf("mixed caps = %v, want code and document", caps)
+	}
+
+	// One weak verb does not add code to a prose project. "Compile a report"
+	// is editorial work, not a coding task.
+	caps = InferCapabilities("Compile and synthesize daily global news reports from diverse sources.", "")
+	if slices.Contains(caps, CapabilityCode) {
+		t.Errorf("news caps = %v, must not include code", caps)
+	}
+	if !slices.Contains(caps, CapabilityDocument) {
+		t.Errorf("news caps = %v, want document", caps)
 	}
 
 	// Repository evidence adds code even when the goal is vague.
@@ -69,6 +80,12 @@ func TestInferTaskCapability(t *testing.T) {
 	}
 	if got := InferTaskCapability("Continue the work.", []string{CapabilityData}, ""); got != CapabilityData {
 		t.Errorf("fallback capability = %q, want project primary data", got)
+	}
+	if got := InferTaskCapability("Compile and synthesize daily global news reports from diverse sources.", []string{CapabilityCode, CapabilityData, CapabilityDocument}, ""); got != CapabilityDocument {
+		t.Errorf("news report capability = %q, want document", got)
+	}
+	if got := InferTaskCapability("Build a REST API endpoint and make the tests pass.", []string{CapabilityDocument}, ""); got != CapabilityCode {
+		t.Errorf("REST API capability = %q, want code", got)
 	}
 }
 

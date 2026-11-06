@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"unicode"
 )
 
 // Capabilities are the kinds of work a project can produce (ADR-0093). They
@@ -91,9 +92,18 @@ func InferCapabilities(goal, repoPath string) []string {
 	if repoPath != "" {
 		addRepoCapabilities(repoPath, scores)
 	}
+	top := 0
+	for _, c := range capabilityOrder {
+		if scores[c] > top {
+			top = scores[c]
+		}
+	}
 	var caps []string
 	for _, c := range capabilityOrder {
-		if scores[c] > 0 {
+		// Keep a capability only when it carries real weight relative to the
+		// strongest one. Without this, one weak word ("compile a briefing")
+		// would make a news project advertise code as a capability.
+		if scores[c] > 0 && top > 0 && scores[c]*4 >= top {
 			caps = append(caps, c)
 		}
 	}
@@ -192,21 +202,37 @@ func DetectTestCommand(repoPath string) string {
 }
 
 var (
-	codeWords = []string{
-		"implement", "fix", "refactor", "debug", "bug", "function", "module",
-		"api", "endpoint", "class", "script", "command", "compile", "build",
-		"repository", "repo", "commit", "package", "library", "cli", "code",
-		"unit test", "tests pass", "go test", "pytest", "javascript", "python",
+	// Implementation verbs describe the actual work, so they dominate a mixed
+	// goal like "implement the parser and document it".
+	codeVerbs = []string{
+		"implement", "refactor", "debug", "unit test", "tests pass",
+		"go test", "pytest",
 	}
-	dataWords = []string{
+	// Code nouns are only weak evidence on their own: "an API guide" is a
+	// document, not a program.
+	codeWords = []string{
+		"bug", "function", "module", "api", "endpoint", "class", "script",
+		"command", "repository", "repo", "commit", "package", "library",
+		"cli", "code", "program", "javascript", "python",
+	}
+	// "build" and "compile" are also ordinary editorial verbs ("build a
+	// report", "compile a briefing"), so they contribute only a weak code
+	// signal. An actual code task almost always carries a stronger word.
+	codeWeakWords = []string{"build", "compile", "fix"}
+	dataWords     = []string{
 		"json", "csv", "schema", "dataset", "data", "sql", "aggregate",
 		"normalize", "validate", "table", "column", "records", "parquet",
 		"reconcile", "etl", "query",
 	}
+	// Deliverable nouns are the strongest signal for a non-code goal: a goal
+	// that names a report, briefing, or essay is asking for prose even when it
+	// uses verbs such as "compile" or "synthesize".
 	documentWords = []string{
-		"readme", "report", "adr", "guide", "documentation",
-		"postmortem", "policy", "spec", "manual", "proposal",
-		"migration guide", "threat model", "architecture decision record",
+		"readme", "report", "news", "newsletter", "briefing", "digest",
+		"editorial", "journalism", "adr", "guide", "documentation",
+		"document", "documented", "postmortem", "policy", "spec", "manual",
+		"proposal", "migration guide", "threat model",
+		"architecture decision record",
 	}
 	textWords = []string{
 		"essay", "email", "article", "blog", "post", "rewrite", "tone",
@@ -220,21 +246,45 @@ var (
 )
 
 func capabilityScores(text string) map[string]int {
-	low := " " + strings.ToLower(text) + " "
+	low := " " + strings.Join(strings.Fields(strings.ToLower(text)), " ") + " "
+	words := map[string]bool{}
+	for _, w := range strings.FieldsFunc(strings.ToLower(text), func(r rune) bool {
+		return !unicode.IsLetter(r) && !unicode.IsDigit(r)
+	}) {
+		words[w] = true
+		// Match the singular too, so "reports" counts as "report" and
+		// "summaries" as "summary". A false positive here costs one weak
+		// point; missing a plural costs the whole deliverable signal.
+		switch {
+		case len(w) > 3 && strings.HasSuffix(w, "ies"):
+			words[w[:len(w)-3]+"y"] = true
+		case len(w) > 2 && strings.HasSuffix(w, "s") && !strings.HasSuffix(w, "ss"):
+			words[w[:len(w)-1]] = true
+		}
+	}
 	scores := map[string]int{}
-	add := func(capability string, words []string, weight int) {
-		for _, w := range words {
-			if strings.Contains(low, w) {
+	add := func(capability string, phrases []string, weight int) {
+		for _, w := range phrases {
+			if strings.Contains(w, " ") {
+				if strings.Contains(low, " "+w+" ") {
+					scores[capability] += weight
+				}
+				continue
+			}
+			if words[w] {
 				scores[capability] += weight
 			}
 		}
 	}
 	// Concrete implementation verbs are the strongest signal: a task that
 	// says "implement X and document it" is a code task whose output carries
-	// the documentation, not a document task.
-	add(CapabilityCode, codeWords, 2)
+	// the documentation, not a document task. Deliverable nouns are next, and
+	// ambiguous build verbs are weakest.
+	add(CapabilityCode, codeVerbs, 12)
+	add(CapabilityCode, codeWords, 1)
+	add(CapabilityCode, codeWeakWords, 1)
 	add(CapabilityData, dataWords, 1)
-	add(CapabilityDocument, documentWords, 1)
+	add(CapabilityDocument, documentWords, 3)
 	add(CapabilityText, textWords, 1)
 	add(CapabilityMedia, mediaWords, 1)
 	return scores
