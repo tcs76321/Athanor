@@ -90,6 +90,7 @@ demo. A claim without a proof is either removed or marked as a target.
 | Missing legacy persona models warn instead of blocking a fresh install | ADR-0104 | `doctor.checkOllama` (warn); environment step; `TestRunMissingModel` | **proven** |
 | The Models step offers an optional, size-aware core set before qualification | ADR-0104 | `UI.poolSuggestions`; `TestWelcomeModelsSelfSelectAndApply` | **proven** |
 | Qualification runs 14 smoke cases or 24 deep cases per model | ADR-0104 | `onboard.DefaultLadder`, `onboard.DeepLadder`; `TestDefaultLadderIsWellFormed`, `TestDeepLadderExtendsSmoke` | **proven structurally** |
+| A prompt field can be refined against its own contract and reverted | ADR-0105 | `internal/assist`; `POST /ui/assist`; wand/revert in `app.js`; `TestRefineParsesStructuredProposal`, `TestAssistHandler` | **proven in tests; the browser wand is the live check** |
 | Low-risk work can explore a runner-up and a measured panel can win | ADR-0104 | `composition.Pool.PreferPanel`, `engine.personaFor` exploration; `TestPreferPanelNeedsEvidence` | **proven structurally** |
 | Accepted work exports as a portable fine-tuning dataset | ADR-0104 | `internal/finetune.Export`; `athanor finetune`; `TestExportAcceptedWorkAsJSONL` | **proven** |
 

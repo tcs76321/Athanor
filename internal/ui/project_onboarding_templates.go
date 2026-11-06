@@ -29,15 +29,15 @@ const projectOnboardingBody = `
       <p class="muted">Short is fine. Athanor will ask for the limits and sources before it explores; the goal can stay one sentence.</p>
       <form method="post" action="/ui/projects/{{.Project.ID}}/onboarding">
         <label for="goal">Goal</label>
-        <textarea id="goal" name="goal" rows="2" required>{{.Brief.Goal}}</textarea>
+        <textarea id="goal" name="goal" rows="2" required data-refine-field="brief.goal">{{.Brief.Goal}}</textarea>
         <div class="field-help">Example: “make money online” or “find a small B2B service I can validate in 30 days”.</div>
 
         <label for="constraints">Constraints / limits (one per line)</label>
-        <textarea id="constraints" name="constraints" rows="4">{{join .Brief.Constraints}}</textarea>
+        <textarea id="constraints" name="constraints" rows="4" data-refine-field="brief.constraints">{{join .Brief.Constraints}}</textarea>
         <div class="field-help">Time, money, skills, location, legal or ethical boundaries, things that are out of scope.</div>
 
         <label for="limitations">Anything Athanor must not do</label>
-        <textarea id="limitations" name="limitations" rows="3" placeholder="No ads, no cold calling, no regulated advice, no publishing without review.">{{.Brief.Limitations}}</textarea>
+        <textarea id="limitations" name="limitations" rows="3" data-refine-field="brief.limitations" placeholder="No ads, no cold calling, no regulated advice, no publishing without review.">{{.Brief.Limitations}}</textarea>
 
         <label for="sources">Sources or pages Athanor may read (one per line)</label>
         <textarea id="sources" name="sources" rows="3" placeholder="https://example.com/market-report">{{join .Brief.Sources}}</textarea>
@@ -62,7 +62,7 @@ const projectOnboardingBody = `
         {{end}}
 
         <label for="success">What would make this a success?</label>
-        <textarea id="success" name="success" rows="3" placeholder="Five customer conversations, one paid pilot, a decision with evidence.">{{.Brief.Success}}</textarea>
+        <textarea id="success" name="success" rows="3" data-refine-field="brief.success" placeholder="Five customer conversations, one paid pilot, a decision with evidence.">{{.Brief.Success}}</textarea>
 
         <div class="actions">
           <button name="action" value="save" class="secondary">Save brief</button>

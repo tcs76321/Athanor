@@ -1027,3 +1027,38 @@ details[open] summary { margin-bottom: var(--space-2); }
     scroll-behavior: auto !important;
   }
 }
+
+/* ---------- field refinement ---------- */
+.refine-wrap { position: relative; }
+.refine-wrap textarea,
+.refine-wrap input[type="text"] { padding-right: 8.5rem; }
+.refine-bar {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: flex;
+  gap: 4px;
+  z-index: 2;
+}
+.refine-btn {
+  font: inherit;
+  font-size: var(--step--1);
+  line-height: 1;
+  padding: 5px 8px;
+  border: var(--line);
+  border-radius: var(--radius-pill);
+  background: var(--panel-2);
+  color: var(--text);
+  cursor: pointer;
+}
+.refine-btn.primary, .refine-btn:not(.secondary) { border-color: var(--border-strong); }
+.refine-btn:hover { background: var(--panel-3); }
+.refine-btn:disabled { opacity: .45; cursor: default; }
+.refine-status {
+  min-height: 1.1em;
+  margin-top: 4px;
+  font-size: var(--step--1);
+  color: var(--muted);
+}
+.refine-status.ok { color: var(--ok); }
+.refine-status.bad { color: var(--bad); }

@@ -19,6 +19,7 @@ import (
 	"github.com/tcs76321/athanor/internal/alarms"
 	"github.com/tcs76321/athanor/internal/api"
 	"github.com/tcs76321/athanor/internal/artifact"
+	"github.com/tcs76321/athanor/internal/assist"
 	"github.com/tcs76321/athanor/internal/backup"
 	"github.com/tcs76321/athanor/internal/budget"
 	"github.com/tcs76321/athanor/internal/composition"
@@ -298,7 +299,13 @@ func run(configPath, addr, stateDir string, container bool) error {
 	eng.SetPauseGate(powerMgr)
 	// ADR-0104: phase model selection comes from the measured pool when it is
 	// populated; the legacy registry remains the fallback.
-	eng.SetModelSelector(&composition.Selector{Pool: modelPool})
+	modelSelector := &composition.Selector{Pool: modelPool}
+	eng.SetModelSelector(modelSelector)
+	assistFallback, _ := registry.Persona(llm.RoleTall)
+	if assistFallback.Model == "" {
+		assistFallback, _ = registry.Persona(llm.RoleMain)
+	}
+	assistSvc := assist.New(&assistGenerator{client: llmClient, selector: modelSelector, fallback: assistFallback})
 	// Household mode gate: Stopped preempts phases and refuses new work.
 	eng.SetOperatorGate(opCtrl)
 	opCtrl.SetHooks(operator.Hooks{
@@ -456,6 +463,7 @@ func run(configPath, addr, stateDir string, container bool) error {
 		Interviews:    interview.NewRepo(st),
 		Interruptions: interruptionsRepo, Strategy: strategyRepo,
 		Freezer: killSwitch, Control: killSwitch, Operator: opCtrl, Pool: modelPool, Engine: eng, Indexer: indexer,
+		Assist: assistSvc,
 		Discovery: discovery.NewService(
 			&discoveryGenerator{client: llmClient, cfg: cfg},
 			discovery.NewStore(st),

@@ -72,6 +72,11 @@ func TestChoosePrefersSmallerModelBeforeMeasurement(t *testing.T) {
 	if !ok || got.Model != "small" {
 		t.Fatalf("unmeasured tie chose %q, want the smaller model", got.Model)
 	}
+	// Authoring assist asks for the larger model on the same tie.
+	got, ok = p.Choose(Request{Capability: CapabilityCode, PreferQuality: true})
+	if !ok || got.Model != "large" {
+		t.Fatalf("quality tie chose %q, want the larger model", got.Model)
+	}
 }
 
 func TestPreferPanelNeedsEvidence(t *testing.T) {

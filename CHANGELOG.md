@@ -10,6 +10,26 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Field authoring assist — 2026-11-05
+
+- **Every major prompt field gets a wand.** A small button beside project and
+  task goals, acceptance criteria, discovery brief fields, interview answers,
+  correction reason/desired behavior, job/interruption notes, and review notes
+  refines the current text for that field's actual downstream purpose. The
+  original is kept; **Revert** restores it. Nothing is applied silently, and the
+  page still works without JavaScript. [ADR-0105](docs/adr/0105-field-authoring-assist.md).
+- **One contract per field, not a generic rewrite.** `internal/assist` owns the
+  purpose, requirements, preservation rules, and length target for each field.
+  The model returns `{text, notes, added_assumptions}`; invented facts,
+  requirements, URLs, names, and numbers are forbidden. Sources are excluded
+  from the wand for now.
+- **Local, bounded, and measured.** The assist uses one tool-free model call
+  through the measured pool (quality preferred) with a JSON response, a hard
+  input/output bound, and a visible error on failure. Proofs:
+  `TestRefineParsesStructuredProposal`, `TestRefineAcceptsPlainTextFallback`,
+  `TestRefineRejectsUnknownFieldAndEmptyText`, `TestProofreadModeHasStrictContract`,
+  `TestAssistHandler`.
+
 ### Model readiness without forced personas; a longer qualification — 2026-11-05
 
 - **Missing legacy persona models are a warning, not a failure.** The doctor and

@@ -320,7 +320,7 @@ const dashboardBody = `
         <button name="action" value="approve">Approve</button>
         <button name="action" value="reject" class="secondary">Reject</button>
         <button name="action" value="defer" class="secondary">Defer 1h</button>
-        <input type="text" name="note" placeholder="note (optional)" class="grow">
+        <input type="text" name="note" placeholder="note (optional)" class="grow" data-refine-field="job.note">
       </div>
     </form>
     {{end}}
@@ -393,10 +393,10 @@ const newProjectBody = `
 <div class="card">
 <form method="post" action="/ui/projects">
   <label>Name <input name="name" value="{{.Name}}" required></label>
-  <label>Goal <textarea name="goal" rows="2" minlength="3" maxlength="500" required>{{.Goal}}</textarea></label>
+  <label>Goal <textarea name="goal" rows="2" minlength="3" maxlength="500" required data-refine-field="project.goal">{{.Goal}}</textarea></label>
   <div class="field-help">A sentence is enough. The onboarding brief adds the limits, sources, and definition of success before any work starts.</div>
   <label>Repository path (optional) <input name="repository_path" value="{{.RepositoryPath}}" placeholder="/absolute/path/to/repo"></label>
-  <label>Acceptance criteria (optional, one per line) <textarea name="criteria" rows="4">{{.Criteria}}</textarea></label>
+  <label>Acceptance criteria (optional, one per line) <textarea name="criteria" rows="4" data-refine-field="project.criteria">{{.Criteria}}</textarea></label>
   <div class="actions">
     <button name="start" value="" class="primary">Create and continue to onboarding</button>
     <button name="start" value="1" class="secondary">Create and start now</button>
@@ -420,7 +420,7 @@ const interviewBody = `
   <form method="post" action="/ui/projects/{{.Project.ID}}/interview">
   {{range .Questions}}
     <label>{{.Prompt}}
-      <textarea name="{{.ID}}" rows="2">{{index $.Answers .ID}}</textarea>
+      <textarea name="{{.ID}}" rows="2" data-refine-field="interview.answer">{{index $.Answers .ID}}</textarea>
     </label>
     {{if .Help}}<div class="muted">{{.Help}}</div>{{end}}
   {{end}}
@@ -505,8 +505,8 @@ const projectBody = `
 <h2 id="submit-goal">Submit a goal</h2>
 <div class="card">
 <form method="post" action="/ui/projects/{{.Project.ID}}/goals">
-  <label>goal <textarea name="goal" rows="3" minlength="3" maxlength="500" required></textarea></label>
-  <label>acceptance criteria (one per line) <textarea name="criteria" rows="3"></textarea></label>
+  <label>goal <textarea name="goal" rows="3" minlength="3" maxlength="500" required data-refine-field="goal.submit"></textarea></label>
+  <label>acceptance criteria (one per line) <textarea name="criteria" rows="3" data-refine-field="goal.criteria"></textarea></label>
   <button>Submit goal</button>
 </form>
 </div>
@@ -551,8 +551,8 @@ const projectBody = `
     <label>scope <select name="scope" required>
       <option value="project" selected>project</option><option value="global">global</option></select></label>
   </div>
-  <label>reason <input name="reason" required></label>
-  <label>desired behavior <input name="desired_behavior" required></label>
+  <label>reason <input name="reason" required data-refine-field="correction.reason"></label>
+  <label>desired behavior <input name="desired_behavior" required data-refine-field="correction.desired"></label>
   <input type="hidden" name="source" value="user_rejection">
   <button>Record rejection</button>
 </form>
@@ -674,7 +674,7 @@ const watchBody = `
     <h2>Interruptions</h2>
     <div class="card">
       <form method="post" action="/ui/jobs/{{.Job.ID}}/note">
-        <label>note <input name="note" placeholder="injected at the next safe point"></label>
+        <label>note <input name="note" placeholder="injected at the next safe point" data-refine-field="interruption.note"></label>
         <button>Queue note</button>
       </form>
       {{range .Notes}}<div class="ev">{{.Status}}: {{.Text}}</div>{{end}}
@@ -750,7 +750,7 @@ const artifactBody = `
         </label>
         <label><input type="checkbox" name="accepted" value="1" checked> accepted</label>
         <label>note
-          <input name="note" placeholder="what worked, what is missing">
+          <input name="note" placeholder="what worked, what is missing" data-refine-field="review.note">
         </label>
         <button>Record review</button>
       </form>

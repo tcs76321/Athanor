@@ -338,12 +338,98 @@
   });
   document.addEventListener("htmx:sendError", () => toast("Network error", "bad"));
 
+  /* ---------- field refinement ---------- */
+  function wireRefiners() {
+    $$("[data-refine-field]").forEach((field) => {
+      if (field.dataset.refineReady) return;
+      field.dataset.refineReady = "1";
+      const wrap = document.createElement("div");
+      wrap.className = "refine-wrap";
+      field.parentNode.insertBefore(wrap, field);
+      wrap.appendChild(field);
+
+      const bar = document.createElement("div");
+      bar.className = "refine-bar";
+      const wand = document.createElement("button");
+      wand.type = "button";
+      wand.className = "refine-btn";
+      wand.title = "Refine this field for Athanor";
+      wand.setAttribute("aria-label", "Refine this field");
+      wand.textContent = "✨";
+      const revert = document.createElement("button");
+      revert.type = "button";
+      revert.className = "refine-btn secondary";
+      revert.textContent = "Revert";
+      revert.disabled = true;
+      bar.append(wand, revert);
+
+      const status = document.createElement("div");
+      status.className = "refine-status";
+      status.setAttribute("aria-live", "polite");
+      wrap.append(bar, status);
+
+      let original = null;
+      wand.addEventListener("click", async () => {
+        const text = String(field.value || "").trim();
+        if (!text) {
+          field.focus();
+          return;
+        }
+        if (original === null) original = field.value;
+        wand.disabled = true;
+        status.className = "refine-status";
+        status.textContent = "Refining…";
+        try {
+          const resp = await fetch("/ui/assist", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              field: field.dataset.refineField,
+              text,
+              mode: field.dataset.refineMode || "improve",
+            }),
+          });
+          const data = await resp.json().catch(() => ({}));
+          if (!resp.ok) throw new Error(data.error || "Request failed (" + resp.status + ")");
+          if (!data.text) throw new Error("The model returned an empty suggestion");
+          field.value = data.text;
+          field.dispatchEvent(new Event("input", { bubbles: true }));
+          field.dispatchEvent(new Event("change", { bubbles: true }));
+          revert.disabled = false;
+          const notes = []
+            .concat(data.notes || [])
+            .concat((data.added_assumptions || []).map((x) => "assumption: " + x));
+          status.textContent = notes.length ? notes.join(" · ") : "Refined.";
+          status.classList.add("ok");
+          toast("Field refined — review it, or revert.");
+        } catch (err) {
+          status.textContent = err.message || "Refinement failed";
+          status.classList.add("bad");
+        } finally {
+          wand.disabled = false;
+        }
+      });
+
+      revert.addEventListener("click", () => {
+        if (original === null) return;
+        field.value = original;
+        field.dispatchEvent(new Event("input", { bubbles: true }));
+        field.dispatchEvent(new Event("change", { bubbles: true }));
+        original = null;
+        revert.disabled = true;
+        status.className = "refine-status";
+        status.textContent = "Reverted to your original text.";
+      });
+    });
+  }
+
   /* ---------- boot ---------- */
   function boot() {
     markNav();
     wireDashboard();
     wireWatch();
     wirePalette();
+    wireRefiners();
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
   else boot();

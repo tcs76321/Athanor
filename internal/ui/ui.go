@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/tcs76321/athanor/internal/artifact"
+	"github.com/tcs76321/athanor/internal/assist"
 	"github.com/tcs76321/athanor/internal/composition"
 	"github.com/tcs76321/athanor/internal/config"
 	"github.com/tcs76321/athanor/internal/corrections"
@@ -49,6 +50,12 @@ type Freezer interface{ Frozen() bool }
 type Operator interface {
 	Status() operator.Status
 	Set(ctx context.Context, mode operator.Mode, hold time.Duration, reason string) error
+}
+
+// Assist refines a user-authored field for its downstream purpose (ADR-0104
+// authoring assist). It returns a proposal; the UI applies it only on request.
+type Assist interface {
+	Refine(ctx context.Context, field, text, mode string) (assist.Result, error)
 }
 
 // Control is the optional kill-switch write surface (§22). Satisfied by
@@ -120,6 +127,7 @@ type Deps struct {
 	Freezer       Freezer
 	Control       Control
 	Operator      Operator
+	Assist        Assist
 	Pool          *composition.Pool
 	Engine        Enqueuer
 	// Config is read-only. The inspector shows personas, limits, and the
@@ -255,6 +263,7 @@ func (u *UI) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /ui/models/pool", u.handleModelsPool)
 	mux.HandleFunc("POST /ui/models/qualify", u.handleModelsQualify)
 	mux.HandleFunc("POST /ui/models/qualify/deep", u.handleModelsQualifyDeep)
+	mux.HandleFunc("POST /ui/assist", u.handleAssist)
 	mux.HandleFunc("GET /ui", u.handleDashboard)
 	mux.HandleFunc("GET /ui/events/stream", u.handleDashboardStream)
 	mux.HandleFunc("GET /ui/projects", u.handleProjects)

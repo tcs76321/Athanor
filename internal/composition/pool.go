@@ -511,6 +511,9 @@ type Request struct {
 	// Explore asks for the runner-up rather than the top model. It is a
 	// budgeted, visible experiment, not the default.
 	Explore bool
+	// PreferQuality breaks an unmeasured tie toward the larger model. It is
+	// for interactive authoring where quality matters more than latency.
+	PreferQuality bool
 }
 
 // Choice is one selected model.
@@ -550,9 +553,13 @@ func (p *Pool) candidates(req Request) []candidate {
 		if out[i].prof.ContextTarget != out[j].prof.ContextTarget {
 			return out[i].prof.ContextTarget > out[j].prof.ContextTarget
 		}
-		// Before measurement, prefer the smaller model: it is the safer
-		// default on a machine whose resident capacity is unknown.
+		// Before measurement, prefer the smaller model by default: it is the
+		// safer choice on a machine whose resident capacity is unknown. An
+		// authoring call asks for quality instead.
 		if out[i].prof.SizeBytes != out[j].prof.SizeBytes {
+			if req.PreferQuality {
+				return out[i].prof.SizeBytes > out[j].prof.SizeBytes
+			}
 			return out[i].prof.SizeBytes < out[j].prof.SizeBytes
 		}
 		return out[i].prof.Name < out[j].prof.Name
