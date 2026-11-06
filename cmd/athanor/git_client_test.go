@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/tcs76321/athanor/internal/toolenvelope"
 )
 
 func requireGit(t *testing.T) {
@@ -80,6 +82,34 @@ func TestGitClientCommitCreatesBranchAndCommit(t *testing.T) {
 	// remains, or a long run would accumulate stale .git/worktrees entries.
 	if list := gitTestOutput(t, repo, "worktree", "list"); strings.Contains(list, "\n") {
 		t.Errorf("ephemeral worktree left behind:\n%s", list)
+	}
+}
+
+func TestGitClientCommitTreeRefusesTrackedSymlink(t *testing.T) {
+	requireGit(t)
+	repo := initTestRepo(t)
+	outside := filepath.Join(t.TempDir(), "outside.txt")
+	if err := os.Symlink(outside, filepath.Join(repo, "escape")); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+	runGitTest(t, repo, "add", "-A")
+	runGitTest(t, repo, "commit", "-q", "-m", "add symlink")
+
+	_, err := (gitClient{}).CommitTree(context.Background(), repo, "athanor/p1",
+		[]toolenvelope.File{{Path: "escape", Content: "owned"}}, "accept")
+	if err == nil {
+		t.Fatal("CommitTree wrote through a tracked symlink; want refusal")
+	}
+	if _, statErr := os.Stat(outside); statErr == nil {
+		t.Fatal("outside file was created through the symlink")
+	}
+}
+
+func runGitTest(t *testing.T, repo string, args ...string) {
+	t.Helper()
+	cmd := exec.Command("git", append([]string{"-C", repo}, args...)...)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git %v: %v\n%s", args, err, out)
 	}
 }
 

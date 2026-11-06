@@ -246,14 +246,14 @@ func gitCommitOnBranch(ctx context.Context, repoPath, branch string, files []com
 	}
 	defer removeWorktree(ctx, repoPath, wt)
 	for _, f := range files {
-		dst := filepath.Join(wt, filepath.FromSlash(f.rel))
-		if err := os.MkdirAll(filepath.Dir(dst), 0o700); err != nil {
-			return "", fmt.Errorf("git: creating dir for %s: %w", f.rel, err)
+		rel, err := toolenvelope.SanitizeRelPath(f.rel)
+		if err != nil {
+			return "", fmt.Errorf("git: unsafe path %q: %w", f.rel, err)
 		}
-		if err := os.WriteFile(dst, f.content, 0o600); err != nil {
-			return "", fmt.Errorf("git: writing %s: %w", f.rel, err)
+		if err := writeWorktreeFile(wt, rel, f.content); err != nil {
+			return "", fmt.Errorf("git: writing %s: %w", rel, err)
 		}
-		if err := gitRun(ctx, wt, "add", "--", f.rel); err != nil {
+		if err := gitRun(ctx, wt, "add", "--", rel); err != nil {
 			return "", err
 		}
 	}
@@ -265,6 +265,63 @@ func gitCommitOnBranch(ctx context.Context, repoPath, branch string, files []com
 		return "", err
 	}
 	return strings.TrimSpace(sha), nil
+}
+
+// writeWorktreeFile writes one repository-relative file into the ephemeral
+// worktree without following a symlink out of it.
+//
+// A git worktree materializes tracked symlinks. Writing through such a path
+// with os.WriteFile would follow it and could write outside the worktree. The
+// parent is therefore canonicalized and required to remain inside wt, and the
+// final component is written through a sibling temporary file + rename: a
+// rename replaces a symlink at the destination instead of following it.
+func writeWorktreeFile(wt, rel string, content []byte) error {
+	clean, err := toolenvelope.SanitizeRelPath(rel)
+	if err != nil {
+		return err
+	}
+	dst := filepath.Join(wt, filepath.FromSlash(clean))
+	parent := filepath.Dir(dst)
+	if err := os.MkdirAll(parent, 0o700); err != nil {
+		return err
+	}
+	canonParent, err := filepath.EvalSymlinks(parent)
+	if err != nil {
+		return fmt.Errorf("resolving parent: %w", err)
+	}
+	canonRoot, err := filepath.EvalSymlinks(wt)
+	if err != nil {
+		return fmt.Errorf("resolving worktree: %w", err)
+	}
+	inside, err := filepath.Rel(canonRoot, canonParent)
+	if err != nil || inside == ".." || strings.HasPrefix(inside, ".."+string(filepath.Separator)) {
+		return fmt.Errorf("path %q escapes the worktree", rel)
+	}
+	if st, err := os.Lstat(dst); err == nil && st.Mode()&os.ModeSymlink != 0 {
+		return fmt.Errorf("path %q is a symlink in the repository", rel)
+	}
+	tmp, err := os.CreateTemp(parent, ".athanor-wt-*")
+	if err != nil {
+		return err
+	}
+	tmpName := tmp.Name()
+	defer func() { _ = os.Remove(tmpName) }()
+	if err := tmp.Chmod(0o600); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if _, err := tmp.Write(content); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := tmp.Sync(); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	return os.Rename(tmpName, dst)
 }
 
 // validateRepo requires repoPath to be the root of a clean git worktree.
