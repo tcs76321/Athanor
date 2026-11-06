@@ -37,6 +37,9 @@ New entries are appended at the top. Do not rewrite history.
   offer.
 - **Ollama residency is visible.** `athanor doctor` warns when more than one
   model is resident and prints the single-slot environment settings.
+- **First-run model warnings point at the next step.** Before any persona is
+  assigned, the Environment check no longer prints a five-model, tens-of-GB
+  pull list; it points at the Models step, where installed models are chosen.
 
 ### Containment and durability hardening — 2026-11-05
 

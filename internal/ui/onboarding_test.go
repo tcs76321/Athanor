@@ -535,3 +535,29 @@ func TestWelcomeApplyResources(t *testing.T) {
 		t.Errorf("resources = %+v", got.JobPod)
 	}
 }
+
+// TestSoftenDefaultModelWarning pins the first-run copy: an unassigned
+// install points at the Models step instead of listing five large pulls.
+func TestSoftenDefaultModelWarning(t *testing.T) {
+	checks := []healthCheck{{
+		Name:   "models",
+		Status: "warn",
+		Detail: "configured model(s) not installed: qwen2.5:7b, mistral-nemo:12b",
+		Fix:    "ollama pull qwen2.5:7b && ollama pull mistral-nemo:12b",
+	}}
+	got := softenDefaultModelWarning(checks, []setupRole{{Role: "main", Model: "qwen2.5:7b", Installed: false}})
+	if strings.Contains(got[0].Fix, "ollama pull") {
+		t.Errorf("fresh install still suggests default pulls: %q", got[0].Fix)
+	}
+	if !strings.Contains(got[0].Fix, "Models step") {
+		t.Errorf("fresh install does not point at the Models step: %q", got[0].Fix)
+	}
+
+	// Once any persona matches an installed model, the doctor's real warning
+	// stays intact.
+	assigned := []healthCheck{{Name: "models", Status: "ok", Detail: "all configured models present"}}
+	got = softenDefaultModelWarning(assigned, []setupRole{{Role: "main", Model: "bonsai-2:9b", Installed: true}})
+	if got[0].Detail != "all configured models present" {
+		t.Errorf("assigned install changed the check: %+v", got[0])
+	}
+}

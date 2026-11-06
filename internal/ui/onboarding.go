@@ -303,6 +303,7 @@ func (u *UI) welcomeData(ctx context.Context, st onboardingState) map[string]any
 		} else {
 			health = u.healthChecks(ctx, roles, models, modelsErr)
 		}
+		health = softenDefaultModelWarning(health, roles)
 	}
 	u.onboardMu.Lock()
 	pulls := make([]pullView, 0, len(u.pulls))
@@ -643,6 +644,29 @@ func doctorChecks(rep doctor.Report) []healthCheck {
 		})
 	}
 	return out
+}
+
+// softenDefaultModelWarning replaces the fresh-install "configured model(s)
+// not installed" row with the real next step. The shipped personas are
+// examples; the Models step assigns installed models before qualification.
+// Without this, a first-run user sees a five-model, tens-of-GB pull list
+// before reaching the screen that lets them choose what they already have.
+func softenDefaultModelWarning(checks []healthCheck, roles []setupRole) []healthCheck {
+	for _, r := range roles {
+		if r.Installed {
+			return checks
+		}
+	}
+	for i := range checks {
+		if checks[i].Name != "models" {
+			continue
+		}
+		if strings.HasPrefix(checks[i].Detail, "configured model(s) not installed") {
+			checks[i].Detail = "no default persona model is installed yet"
+			checks[i].Fix = "Choose installed models in the Models step; the defaults are examples, not requirements."
+		}
+	}
+	return checks
 }
 
 func (u *UI) healthChecks(ctx context.Context, roles []setupRole, models []setupModel, modelsErr string) []healthCheck {
