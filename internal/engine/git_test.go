@@ -91,6 +91,62 @@ func TestRecordGitCommitRecordsSHA(t *testing.T) {
 
 // TestRecordGitCommitTreeForMultiFile proves ADR-0065 §5: a multi-file code
 // artifact commits as a tree at its relative paths, not a managed blob.
+// TestRecordGitCommitKeepsNonCodeMarkersAsBlob proves a document or dataset
+// that happens to contain file markers must not write repository paths.
+func TestRecordGitCommitKeepsNonCodeMarkersAsBlob(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	p, _, err := e.projects.Create(ctx, "git-doc-"+t.Name(), "document",
+		"write a document about file markers", "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	art, err := e.artifacts.CreateDraft(ctx, p.ID, artifact.KindDocument,
+		[]byte("=== FILE: README.md ===\nnot source"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, st := range []artifact.Status{artifact.StatusCandidate, artifact.StatusAccepted} {
+		if err := e.artifacts.SetStatus(ctx, art.ID, st); err != nil {
+			t.Fatal(err)
+		}
+	}
+	f := &fakeGit{sha: "blobface"}
+	e.eng.SetGitCommitter(f)
+	e.eng.recordGitCommit(ctx, project.Project{ID: p.ID, RepositoryPath: "/repo"}, art)
+	if f.calls != 1 || f.treeCalls != 0 {
+		t.Fatalf("calls=%d treeCalls=%d, want the managed blob for a non-code artifact", f.calls, f.treeCalls)
+	}
+}
+
+// TestRecordGitCommitIgnoresHarnessFiles proves a candidate tree cannot commit
+// its own tests or test configuration into the project repository.
+func TestRecordGitCommitIgnoresHarnessFiles(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	p, _, err := e.projects.Create(ctx, "git-harness-"+t.Name(), "code",
+		"build a multi-file thing that lasts", "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	art, err := e.artifacts.CreateDraft(ctx, p.ID, artifact.KindCode,
+		[]byte("=== FILE: a.py ===\nx\n=== FILE: tests/test_a.py ===\ndef test(): pass\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, st := range []artifact.Status{artifact.StatusCandidate, artifact.StatusAccepted} {
+		if err := e.artifacts.SetStatus(ctx, art.ID, st); err != nil {
+			t.Fatal(err)
+		}
+	}
+	f := &fakeGit{sha: "clean"}
+	e.eng.SetGitCommitter(f)
+	e.eng.recordGitCommit(ctx, project.Project{ID: p.ID, RepositoryPath: "/repo"}, art)
+	if f.treeCalls != 1 || len(f.files) != 1 || f.files[0].Path != "a.py" {
+		t.Fatalf("committed files = %+v, want only a.py", f.files)
+	}
+}
+
 func TestRecordGitCommitTreeForMultiFile(t *testing.T) {
 	e := newEnv(t)
 	ctx := context.Background()
