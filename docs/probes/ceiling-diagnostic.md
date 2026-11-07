@@ -174,7 +174,9 @@ The mechanism counters are the point:
 - **23 memory hits** — the step-2 job retrieved prior project memory.
 - **2 repair loops, 3 reflection loops, 1 replan** — the loop tried to
   recover.
-- It still failed the step-2 checks.
+- It still failed the step-2 checks: every candidate was missing the required
+  `Implementation` heading (`missing required section: Implementation`). That
+  is a real contract/capability failure, not a harness failure.
 
 This is qualitatively different from the one-shot tasks: memory was actually
 used, the iterative machinery ran, and the step still failed. That is a real
