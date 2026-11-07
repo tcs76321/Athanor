@@ -46,6 +46,33 @@ func TestCoreRunArgs(t *testing.T) {
 	}
 }
 
+func TestCoreMountsMatch(t *testing.T) {
+	e := coreOptions{
+		ConfigPath:      "/home/u/.config/athanor/config.yaml",
+		StateVolume:     "athanor-state",
+		WorkspaceVolume: "athanor-workspace",
+		TokenDir:        "/home/u/.config/athanor/tokens",
+		ScratchDir:      "/home/u/.config/athanor/scratch",
+		SocketPath:      "/run/user/1000/podman/podman.sock",
+	}
+	desired := coreDesiredMounts(e)
+	current := []coreMount{
+		{Name: "athanor-state", Destination: "/var/lib/athanor/state"},
+		{Name: "athanor-workspace", Destination: "/var/lib/athanor/workspace"},
+		{Source: "/run/user/1000/podman/podman.sock", Destination: "/run/podman/podman.sock"},
+		{Source: "/home/u/.config/athanor/tokens", Destination: "/var/lib/athanor/state/tokens"},
+		{Source: "/home/u/.config/athanor/scratch", Destination: "/var/lib/athanor/state/scratch"},
+		{Source: "/home/u/.config/athanor/config.yaml", Destination: "/etc/athanor/config.yaml"},
+	}
+	if !coreMountsMatch(current, desired) {
+		t.Fatal("matching mounts reported stale")
+	}
+	current[5].Source = "/home/u/old-config.yaml"
+	if coreMountsMatch(current, desired) {
+		t.Fatal("changed config bind reported as matching")
+	}
+}
+
 func TestCoreOptionsRequireTokenDir(t *testing.T) {
 	_, err := coreOptionsFromConfig("", "scratch", "config.yaml", "127.0.0.1:7420",
 		"img", "name", "state", "work", "/sock")

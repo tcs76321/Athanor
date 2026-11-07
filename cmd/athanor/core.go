@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -80,6 +81,57 @@ func coreRunArgs(o coreOptions) []string {
 	return append(args, o.Image)
 }
 
+// coreMount is one inspected mount entry. Named volumes carry Name; bind
+// mounts carry Source. Destination is the stable key for comparison.
+type coreMount struct {
+	Name        string `json:"Name"`
+	Source      string `json:"Source"`
+	Destination string `json:"Destination"`
+}
+
+// coreDesiredMounts is the mount contract for a Core Pod. A container created
+// with a different config path, token/scratch directory, socket, or volume set
+// cannot be repaired by `podman start`; it must be recreated.
+func coreDesiredMounts(o coreOptions) []coreMount {
+	return []coreMount{
+		{Name: o.StateVolume, Destination: "/var/lib/athanor/state"},
+		{Name: o.WorkspaceVolume, Destination: "/var/lib/athanor/workspace"},
+		{Source: o.SocketPath, Destination: "/run/podman/podman.sock"},
+		{Source: o.TokenDir, Destination: "/var/lib/athanor/state/tokens"},
+		{Source: o.ScratchDir, Destination: "/var/lib/athanor/state/scratch"},
+		{Source: o.ConfigPath, Destination: "/etc/athanor/config.yaml"},
+	}
+}
+
+// coreMountsMatch reports whether the existing container has the mounts the
+// current configuration requires. Named volumes compare by name; bind mounts
+// compare by canonical source.
+func coreMountsMatch(current, desired []coreMount) bool {
+	if len(current) != len(desired) {
+		return false
+	}
+	byDest := make(map[string]coreMount, len(current))
+	for _, m := range current {
+		byDest[m.Destination] = m
+	}
+	for _, want := range desired {
+		got, ok := byDest[want.Destination]
+		if !ok {
+			return false
+		}
+		if want.Name != "" {
+			if got.Name != want.Name {
+				return false
+			}
+			continue
+		}
+		if !samePath(got.Source, want.Source) {
+			return false
+		}
+	}
+	return true
+}
+
 // coreSocketPath resolves the machine socket the Core Pod mounts. macOS
 // exposes it through `podman machine ssh`; Linux uses XDG_RUNTIME_DIR (or the
 // uid fallback). An explicit -socket always wins.
@@ -105,55 +157,80 @@ func coreSocketPath(ctx context.Context, client *execClient, explicit string) (s
 	return filepath.Join(dir, "podman", "podman.sock"), nil
 }
 
-// sameImage tolerates podman's registry-qualified form
-// (localhost/athanor-core:latest) when the configured value is the short tag.
-func sameImage(have, want string) bool {
-	if have == want {
-		return true
-	}
-	return strings.HasSuffix(have, "/"+want)
-}
-
 // coreUp ensures the image exists, starts (or reuses) the named Core
-// container, and waits for /healthz. Starting an already-running container is
-// idempotent so `athanor start` can be re-run.
+// container, and waits for /healthz. A container built from a different image
+// ID or with a different mount contract is recreated rather than silently
+// started with stale code or stale paths; the state and workspace volumes are
+// preserved.
 func coreUp(ctx context.Context, o coreOptions) error {
 	client := NewExecClient()
-	if _, stderr, err := client.Run(ctx, "image", "exists", o.Image); err != nil {
+	out, stderr, err := client.Run(ctx, "image", "inspect", "--format", "{{.Id}}", o.Image)
+	if err != nil {
 		return fmt.Errorf("core image %q not found (build it with `make core-image`): %s", o.Image, strings.TrimSpace(string(stderr)))
 	}
+	imageID := strings.TrimSpace(string(out))
+
+	recreate := false
 	if _, _, err := client.Run(ctx, "container", "exists", o.Name); err == nil {
-		out, stderr, err := client.Run(ctx, "container", "inspect", "--format", "{{.Config.Image}}", o.Name)
-		if err != nil {
-			return fmt.Errorf("inspecting existing container %s: %w: %s", o.Name, err, strings.TrimSpace(string(stderr)))
+		idOut, idStderr, idErr := client.Run(ctx, "container", "inspect", "--format", "{{.Image}}", o.Name)
+		if idErr != nil {
+			return fmt.Errorf("inspecting existing container %s: %w: %s", o.Name, idErr, strings.TrimSpace(string(idStderr)))
 		}
-		image := strings.TrimSpace(string(out))
-		if !sameImage(image, o.Image) {
-			return fmt.Errorf("container %q already exists with image %q, not %q; remove it or pass -container-name", o.Name, image, o.Image)
+		currentID := strings.TrimSpace(string(idOut))
+		mountOut, mountStderr, mountErr := client.Run(ctx, "container", "inspect", "--format", "{{json .Mounts}}", o.Name)
+		var currentMounts []coreMount
+		if mountErr != nil {
+			_ = mountStderr
+			recreate = true
+		} else if json.Unmarshal(mountOut, &currentMounts) != nil {
+			recreate = true
+		} else {
+			recreate = currentID != imageID || !coreMountsMatch(currentMounts, coreDesiredMounts(o))
 		}
-		if _, stderr, err := client.Run(ctx, "start", o.Name); err != nil {
-			return fmt.Errorf("starting Core container %s: %w: %s", o.Name, err, strings.TrimSpace(string(stderr)))
-		}
-	} else {
-		for _, vol := range []string{o.StateVolume, o.WorkspaceVolume} {
-			if _, _, err := client.Run(ctx, "volume", "exists", vol); err == nil {
-				continue
+		if !recreate {
+			if _, stderr, err := client.Run(ctx, "start", o.Name); err != nil {
+				return fmt.Errorf("starting Core container %s: %w: %s", o.Name, err, strings.TrimSpace(string(stderr)))
 			}
-			if _, stderr, err := client.Run(ctx, "volume", "create", vol); err != nil {
-				return fmt.Errorf("creating volume %s: %w: %s", vol, err, strings.TrimSpace(string(stderr)))
-			}
+			return waitCoreHealthOrLog(ctx, client, o)
 		}
-		if err := os.MkdirAll(o.TokenDir, 0o700); err != nil {
-			return fmt.Errorf("creating token directory %s: %w", o.TokenDir, err)
-		}
-		if err := os.MkdirAll(o.ScratchDir, 0o700); err != nil {
-			return fmt.Errorf("creating scratch directory %s: %w", o.ScratchDir, err)
-		}
-		if _, stderr, err := client.Run(ctx, coreRunArgs(o)...); err != nil {
-			return fmt.Errorf("starting Core Pod: %w: %s", err, strings.TrimSpace(string(stderr)))
+		fmt.Printf("recreating Core Pod %s: image or mount contract changed\n", o.Name)
+		if _, stderr, err := client.Run(ctx, "rm", "-f", o.Name); err != nil {
+			return fmt.Errorf("removing stale Core container %s: %w: %s", o.Name, err, strings.TrimSpace(string(stderr)))
 		}
 	}
-	return waitCoreHealth(ctx, o.Addr)
+
+	for _, vol := range []string{o.StateVolume, o.WorkspaceVolume} {
+		if _, _, err := client.Run(ctx, "volume", "exists", vol); err == nil {
+			continue
+		}
+		if _, stderr, err := client.Run(ctx, "volume", "create", vol); err != nil {
+			return fmt.Errorf("creating volume %s: %w: %s", vol, err, strings.TrimSpace(string(stderr)))
+		}
+	}
+	if err := os.MkdirAll(o.TokenDir, 0o700); err != nil {
+		return fmt.Errorf("creating token directory %s: %w", o.TokenDir, err)
+	}
+	if err := os.MkdirAll(o.ScratchDir, 0o700); err != nil {
+		return fmt.Errorf("creating scratch directory %s: %w", o.ScratchDir, err)
+	}
+	if _, stderr, err := client.Run(ctx, coreRunArgs(o)...); err != nil {
+		return fmt.Errorf("starting Core Pod: %w: %s", err, strings.TrimSpace(string(stderr)))
+	}
+	return waitCoreHealthOrLog(ctx, client, o)
+}
+
+// waitCoreHealthOrLog turns a health timeout into an actionable error that
+// includes the container's last log lines. First-use failures should not
+// require a separate `podman logs` investigation.
+func waitCoreHealthOrLog(ctx context.Context, client *execClient, o coreOptions) error {
+	if err := waitCoreHealth(ctx, o.Addr); err != nil {
+		logs, _, _ := client.Run(ctx, "logs", "--tail", "80", o.Name)
+		if len(logs) > 0 {
+			return fmt.Errorf("%w\n--- Core Pod logs ---\n%s", err, strings.TrimSpace(string(logs)))
+		}
+		return err
+	}
+	return nil
 }
 
 // waitCoreHealth polls the loopback health endpoint for up to 60 seconds.
