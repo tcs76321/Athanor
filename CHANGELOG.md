@@ -18,6 +18,10 @@ New entries are appended at the top. Do not rewrite history.
   injected in pinned tier 2 (`WORKING NOTES`), capped at 200 entries per job
   and 4 KiB per prompt, and is engine-written rather than model-self-reported.
   The plan, candidate outcomes, and decisions now survive every phase.
+- **Learned candidate selection** ([ADR-0110](docs/adr/0110-learned-candidate-selection.md)):
+  a data-gated UCB selector reads observed candidate-count arms from strategy
+  outcomes and adjusts the first attempt. It is a no-op until an arm has eight
+  samples, never overrides the retry ladder, and audits every change.
 
 ### Correctness, benchmark parity, and endurance — 2026-11-06
 

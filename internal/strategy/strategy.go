@@ -296,6 +296,81 @@ func (r *Repo) RecentStats(ctx context.Context, archetype string, limit int) (in
 	return samples, float64(accepted) / float64(samples), nil
 }
 
+// CandidateStat is one candidate-count arm's observed outcomes for a task
+// class. It feeds the learned selection policy (ADR-0110): how often the arm
+// ran and how often it produced an accepted-new artifact.
+type CandidateStat struct {
+	Candidates int
+	Samples    int
+	Accepted   int
+}
+
+// CandidateStats groups recent outcomes for an archetype by the divergence
+// phase's candidate count. The signature is written at job start, so this is
+// the actual arm that ran, not a reconstructed one. A profile without a
+// divergence entry or without a positive candidate count is ignored.
+func (r *Repo) CandidateStats(ctx context.Context, archetype string, limit int) ([]CandidateStat, error) {
+	if limit <= 0 {
+		limit = 200
+	}
+	rows, err := r.store.DB().QueryContext(ctx,
+		`SELECT p.signature_json, o.result
+		   FROM strategy_outcomes o
+		   JOIN strategy_profiles p ON p.id = o.strategy_profile_id
+		  WHERE p.archetype = ?
+		  ORDER BY o.created_at DESC, o.id DESC
+		  LIMIT ?`, archetype, limit)
+	if err != nil {
+		return nil, fmt.Errorf("candidate stats: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	byCount := map[int]*CandidateStat{}
+	for rows.Next() {
+		var rawSignature, result string
+		if err := rows.Scan(&rawSignature, &result); err != nil {
+			return nil, err
+		}
+		var signature []SignatureEntry
+		if json.Unmarshal([]byte(rawSignature), &signature) != nil {
+			continue
+		}
+		candidates := 0
+		for _, entry := range signature {
+			if entry.Phase == "diverging" && entry.Candidates > 0 {
+				candidates = entry.Candidates
+				break
+			}
+		}
+		if candidates <= 0 {
+			continue
+		}
+		stat := byCount[candidates]
+		if stat == nil {
+			stat = &CandidateStat{Candidates: candidates}
+			byCount[candidates] = stat
+		}
+		stat.Samples++
+		if result == ResultAcceptedNew {
+			stat.Accepted++
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	out := make([]CandidateStat, 0, len(byCount))
+	for _, stat := range byCount {
+		out = append(out, *stat)
+	}
+	// Deterministic order: ascending candidate count.
+	for i := 1; i < len(out); i++ {
+		for j := i; j > 0 && out[j].Candidates < out[j-1].Candidates; j-- {
+			out[j], out[j-1] = out[j-1], out[j]
+		}
+	}
+	return out, nil
+}
+
 // Backfill creates a default profile and a derived outcome for terminal jobs
 // that predate capture (§13.3). It returns how many outcomes it created.
 //

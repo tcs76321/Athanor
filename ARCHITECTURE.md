@@ -917,6 +917,7 @@ updated_at: timestamp
 2. **Template ranking.** Preferred prompt templates are ordered by insight evidence within each phase.
 3. **ExplorationPath proposals.** Recurring winning signatures surface as draft `ExplorationPath` proposals for user review.
 4. **Strategy notes in prompts.** A short, versioned runtime-tier line derived only from *active* insights (e.g., "on similar tasks, divergence led by `alternative` was accepted twice as often"), included in token accounting (assembly position 14).
+5. **Learned candidate count.** A data-gated UCB selector over observed candidate-count arms ([ADR-0110](docs/adr/0110-learned-candidate-selection.md)); it is a no-op until an arm reaches eight samples, applies only on a first attempt, and is audited.
 
 **Guardrails:**
 - Insights never modify static prompts, security policy, or evaluation rubrics — attempts trip the `drift` alarm (§22.3).

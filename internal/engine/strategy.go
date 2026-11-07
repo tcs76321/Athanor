@@ -37,6 +37,14 @@ type StrategyInsightLister interface {
 	ActiveInsights(ctx context.Context) ([]strategy.Insight, error)
 }
 
+// StrategyArmHistory is the ADR-0110 learned-selection seam: recent outcomes
+// grouped by the candidate-count arm that actually ran. It is optional and
+// type-asserted so a history source that only supplies RecentStats keeps
+// working unchanged.
+type StrategyArmHistory interface {
+	CandidateStats(ctx context.Context, archetype string, limit int) ([]strategy.CandidateStat, error)
+}
+
 // preferredDivergencePersona returns the divergence persona an active winning
 // insight names for this archetype ("" when none applies). Only active
 // insights count — a proposed insight stays inert, which is the §13.4

@@ -227,6 +227,9 @@ execution:
     jaccard_floor: 0.30
     max_diversity_rerolls: 0
     cost_aware: true
+    # ADR-0110: data-gated candidate-count selection from strategy outcomes.
+    # It is a no-op until an arm reaches eight samples.
+    learned_selection: true
     quality_tie_margin: 0.02
     require_cross_family: true
     heterogeneous_diversity: true

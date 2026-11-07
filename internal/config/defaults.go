@@ -254,6 +254,7 @@ func applyDefaults(c *Config) {
 		c.Execution.Policy.MaxDiversityRerolls = &n
 	}
 	setTrue(&c.Execution.Policy.CostAware)
+	setTrue(&c.Execution.Policy.LearnedSelection)
 	setTrue(&c.Execution.Policy.RequireCrossFamily)
 	setTrue(&c.Execution.Policy.HeterogeneousDiversity)
 	setStr(&c.Execution.Policy.NoveltyReset, NoveltyResetAuto)

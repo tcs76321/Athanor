@@ -619,7 +619,10 @@ func difficultyStateKey(jobID string) string { return "plan:difficulty:" + jobID
 // hint, recent outcome history) and the operator ceilings, then asks the
 // policy. A nil policy uses policy.Default, which reproduces pre-F4 behavior.
 func (e *Engine) planFor(ctx context.Context, j job.Job, p project.Project, t project.Task) policy.Plan {
-	return e.decidePlan(e.planInputs(ctx, j, p, t))
+	in := e.planInputs(ctx, j, p, t)
+	plan := e.decidePlan(in)
+	e.applyLearnedSelection(ctx, in, &plan)
+	return plan
 }
 
 // planInputs assembles the pure policy input from persisted state.

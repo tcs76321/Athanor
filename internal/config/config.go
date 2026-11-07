@@ -535,6 +535,10 @@ type PolicyConfig struct {
 	// CostAware lets a quality tie break toward the lower-cost artifact
 	// (F4-T6). When false, comparison ignores cost.
 	CostAware *bool `yaml:"cost_aware"`
+	// LearnedSelection lets the engine lower (or confirm) the candidate
+	// count from observed strategy outcomes (ADR-0110). It is data-gated:
+	// with no arm at LearnedSelectionMinSamples the plan is unchanged.
+	LearnedSelection *bool `yaml:"learned_selection"`
 	// QualityTieMargin is the score delta within which two artifacts are
 	// considered tied for cost-aware acceptance (F4-T6).
 	QualityTieMargin *float64 `yaml:"quality_tie_margin"`
@@ -629,6 +633,12 @@ func (e *Execution) MaxDiversityRerollsValue() int {
 // CostAwareEnabled resolves cost_aware (default true).
 func (e *Execution) CostAwareEnabled() bool {
 	return Val(e.Policy.CostAware, true)
+}
+
+// LearnedSelectionEnabled resolves learned_selection (default true). The
+// selector is evidence-gated, so an empty history is a no-op.
+func (e *Execution) LearnedSelectionEnabled() bool {
+	return Val(e.Policy.LearnedSelection, true)
 }
 
 // QualityTieMarginValue resolves quality_tie_margin (default 0.02).
