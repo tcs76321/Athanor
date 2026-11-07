@@ -25,6 +25,9 @@ New entries are appended at the top. Do not rewrite history.
 - **Pairwise judge** ([ADR-0111](docs/adr/0111-pairwise-judge.md)): opt-in
   A/B comparison in both orders. Agreement decides; disagreement is audited as
   `judge_position_bias` and falls back to the pointwise judge.
+- **Mid-job clarification** ([ADR-0112](docs/adr/0112-hitl-clarification.md)):
+  planning/reflection can emit `QUESTION:`; the job parks as a HITL request,
+  the answer is written to the notebook before resume, and the job continues.
 
 ### Correctness, benchmark parity, and endurance — 2026-11-06
 

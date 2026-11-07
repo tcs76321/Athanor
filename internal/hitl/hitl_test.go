@@ -305,6 +305,40 @@ func TestServiceApproverRunsOnlyOnApprove(t *testing.T) {
 	}
 }
 
+// TestPreApproverRunsBeforeResume pins ADR-0112: a clarification answer must
+// be written while the job is still parked, before applyOutcome enqueues it.
+func TestPreApproverRunsBeforeResume(t *testing.T) {
+	svc, jobs, _, jobID := serviceFixture(t)
+	ctx := context.Background()
+	req, err := svc.Await(ctx, jobID, TypeClarification, SeverityMedium, "which db?", nil, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sawParked := false
+	svc.SetPreApprover(TypeClarification, func(c context.Context, r Request) error {
+		j, err := jobs.Get(c, r.JobID)
+		if err != nil {
+			return err
+		}
+		sawParked = j.State == job.StateAwaitingApproval
+		return nil
+	})
+	order := 0
+	svc.SetApprover(TypeClarification, func(context.Context, Request) error {
+		order = 2
+		return nil
+	})
+	if _, err := svc.Decide(ctx, req.ID, ActionApprove, "sqlite", 0); err != nil {
+		t.Fatal(err)
+	}
+	if !sawParked {
+		t.Fatal("pre-approver ran after the job resumed; the answer would race the engine")
+	}
+	if order != 2 {
+		t.Fatalf("normal approver did not run: %d", order)
+	}
+}
+
 // TestCreateRejectsInvalidSeverity (known-issues M22): an invalid severity is a
 // clear Go error, not an opaque SQLite CHECK failure.
 func TestCreateRejectsInvalidSeverity(t *testing.T) {

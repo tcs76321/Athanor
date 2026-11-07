@@ -28,6 +28,8 @@ func hitlTypeLabel(typ string) string {
 		return "Promote a strategy insight"
 	case "network_access":
 		return "Allow a new source host"
+	case "clarification":
+		return "Answer a job's question"
 	default:
 		if typ == "" {
 			return "Approval request"

@@ -745,6 +745,9 @@ func (e *Engine) phasePlan(ctx context.Context, j job.Job) error {
 	if err != nil {
 		return err
 	}
+	if e.askForClarification(ctx, j.ID, p.ID, "planning", resp.Content) {
+		return ErrPaused
+	}
 	e.note(ctx, j.ID, p.ID, notebook.KindPlan, "planning", resp.Content)
 	if d := parseDifficultyHint(resp.Content); d != "" {
 		e.setDifficultyHint(ctx, j.ID, d)

@@ -334,6 +334,8 @@ func run(configPath, addr, stateDir string, container bool) error {
 	// fails on rejection, and denies on expiry.
 	hitlRepo := hitl.NewRepo(st)
 	hitlSvc := hitl.NewService(hitlRepo, job.NewRepository(st), eng, cfg.HITL.DefaultTTL.D())
+	eng.SetClarifier(hitlClarifier{svc: hitlSvc})
+	hitlSvc.SetPreApprover(hitl.TypeClarification, clarificationAnswer{nb: notebook.New(st)}.Approve)
 	sched.SetEscalator(hitlEscalator{repo: hitlRepo, ttl: cfg.HITL.DefaultTTL.D()})
 	// M6-T5 (ADR-0036): approval of a git_push request runs the push.
 	hitlSvc.SetApprover(hitl.TypeGitPush,

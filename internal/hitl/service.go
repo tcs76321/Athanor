@@ -24,11 +24,12 @@ type Approver func(ctx context.Context, req Request) error
 // job for a decision, Decide resumes or fails it, and Expire denies overdue
 // requests. It also runs registered per-type approvers (ADR-0036).
 type Service struct {
-	repo       *Repo
-	jobs       *job.Repository
-	engine     Enqueuer
-	DefaultTTL time.Duration
-	approvers  map[string]Approver
+	repo         *Repo
+	jobs         *job.Repository
+	engine       Enqueuer
+	DefaultTTL   time.Duration
+	approvers    map[string]Approver
+	preApprovers map[string]Approver
 	// Now is injectable for tests; it defaults to time.Now.
 	Now func() time.Time
 }
@@ -52,6 +53,20 @@ func (s *Service) SetApprover(typ string, fn Approver) {
 		s.approvers = map[string]Approver{}
 	}
 	s.approvers[typ] = fn
+}
+
+// SetPreApprover registers a side effect that must complete *before* an
+// approved job resumes. It is used by clarification answers (ADR-0112): the
+// answer must be in the notebook before the engine re-reads the prompt.
+func (s *Service) SetPreApprover(typ string, fn Approver) {
+	if fn == nil {
+		delete(s.preApprovers, typ)
+		return
+	}
+	if s.preApprovers == nil {
+		s.preApprovers = map[string]Approver{}
+	}
+	s.preApprovers[typ] = fn
 }
 
 // Await parks a job in awaiting_approval (recording where it came from) and
@@ -113,6 +128,7 @@ func (s *Service) Decide(ctx context.Context, id, action, note string, deferFor 
 	}
 	switch req.Status {
 	case StatusApproved:
+		s.runPreApprover(ctx, req)
 		s.applyOutcome(ctx, req)
 		s.runApprover(ctx, req)
 	case StatusRejected:
@@ -131,6 +147,16 @@ func (s *Service) runApprover(ctx context.Context, req Request) {
 	}
 	if err := fn(ctx, req); err != nil {
 		slog.Error("hitl: approved action failed", "request", req.ID, "type", req.Type, "err", err)
+	}
+}
+
+func (s *Service) runPreApprover(ctx context.Context, req Request) {
+	fn, ok := s.preApprovers[req.Type]
+	if !ok {
+		return
+	}
+	if err := fn(ctx, req); err != nil {
+		slog.Error("hitl: pre-approval action failed", "request", req.ID, "type", req.Type, "err", err)
 	}
 }
 

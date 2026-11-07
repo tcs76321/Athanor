@@ -295,6 +295,9 @@ type Engine struct {
 	// notebook is the ADR-0109 persistent working-memory seam. nil keeps
 	// the pre-notebook prompt and behavior.
 	notebook Notebook
+	// clarifier is the ADR-0112 mid-job question seam. nil ignores the
+	// QUESTION marker.
+	clarifier Clarifier
 	// verifiers is the F4-T3 deterministic verification registry. nil uses
 	// verify.Default(), so the engine always has a verifier set.
 	verifiers *verify.Registry
@@ -457,6 +460,15 @@ func (e *Engine) SetStrategyHistory(h StrategyHistory) { e.history = h }
 
 // SetNotebook wires the ADR-0109 working-memory store.
 func (e *Engine) SetNotebook(n Notebook) { e.notebook = n }
+
+// Clarifier parks a job on a model-initiated question (ADR-0112). A nil
+// clarifier ignores the QUESTION marker.
+type Clarifier interface {
+	Ask(ctx context.Context, jobID, projectID, phase, question string) error
+}
+
+// SetClarifier wires the ADR-0112 clarification queue.
+func (e *Engine) SetClarifier(c Clarifier) { e.clarifier = c }
 
 // SetPauseGate wires the §24 power pause signal (M7-T1). A nil gate means
 // the engine never pauses for power.

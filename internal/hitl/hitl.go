@@ -57,6 +57,9 @@ const (
 	TypeTaskEscalation  = "task_escalation"
 	TypeGitPush         = "git_push"
 	TypeStrategyInsight = "strategy_insight"
+	// TypeClarification is a mid-job question from the model. The decision
+	// note is the answer, written to the job notebook before resume.
+	TypeClarification = "clarification"
 	// TypeNetworkAccess requests a new egress allowlist entry for a research
 	// source. Approval records the decision; the operator applies the config
 	// change (the UI does not rewrite network policy silently).

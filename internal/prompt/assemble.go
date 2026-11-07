@@ -12,7 +12,7 @@ import (
 func runtimePolicy(phase string) (string, error) {
 	switch phase {
 	case llm.PhasePlanning:
-		return "PHASE: PLANNING (low temperature 0.2).\nRead the task, project context, and acceptance criteria. Identify missing\ninformation. Propose an implementation plan including tests and\ndocumentation updates.", nil
+		return "PHASE: PLANNING (low temperature 0.2).\nRead the task, project context, and acceptance criteria. Identify missing\ninformation. Propose an implementation plan including tests and\ndocumentation updates.\nIf a fact only the operator can supply blocks a correct plan, end with a\nsingle line `QUESTION: <one sentence>` and do not invent the answer.", nil
 	case llm.PhaseDiverging:
 		return "PHASE: DIVERGENCE (high temperature).\nGenerate candidate solutions that genuinely differ in approach. Explore\northogonal options; avoid premature convergence on one strategy.", nil
 	case llm.PhaseEvaluating:
@@ -20,7 +20,7 @@ func runtimePolicy(phase string) (string, error) {
 	case llm.PhaseRefining:
 		return "PHASE: SELF-REFINE (targeted repair).\nRewrite the candidate to fix exactly the failures listed. Keep what already\nworks; change only what is necessary. Output the full corrected artifact,\ncomplete and self-contained.", nil
 	case llm.PhaseReflecting:
-		return "PHASE: REFLECTION.\nAnalyze why candidates failed. Identify missing constraints. Propose\nimprovements or hybrid approaches.", nil
+		return "PHASE: REFLECTION.\nAnalyze why candidates failed. Identify missing constraints. Propose\nimprovements or hybrid approaches.\nIf a fact only the operator can supply blocks the next attempt, end with a\nsingle line `QUESTION: <one sentence>` and do not invent the answer.", nil
 	case llm.PhaseSynthesizing:
 		return "PHASE: SYNTHESIS (low temperature 0.2).\nProduce the final artifact, complete and self-contained. No preamble,\nnarration, or meta-commentary before or after the artifact. If a\nsafety-critical limitation exists, append a single trailing line\nbeginning with LIMITATION: and no other text.", nil
 	case llm.PhaseComparing:

@@ -74,6 +74,7 @@ func TestHITLTypeLabel(t *testing.T) {
 		"git_push":        "Push a branch to a remote",
 		"task_escalation": "A task needs a decision",
 		"network_access":  "Allow a new source host",
+		"clarification":   "Answer a job's question",
 		"custom_future":   "custom_future",
 		"":                "Approval request",
 	} {

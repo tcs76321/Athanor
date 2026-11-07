@@ -1295,7 +1295,10 @@ The `EventLog` records every injection.
 > `GET /hitl` / `POST /hitl/{id}/decision` plus
 > `athanor hitl list|approve|reject|defer` drive decisions. Approve resumes a
 > job to the state it left; reject and expiry fail it (expiry denies by
-> default). The scheduler's `Escalator` files a `task_escalation` request for
+> default). A `clarification` request is model-initiated: planning/reflection
+> can emit a `QUESTION:` line, the job parks, and the approved answer is
+> written to the notebook *before* resume ([ADR-0112](docs/adr/0112-hitl-clarification.md)).
+> The scheduler's `Escalator` files a `task_escalation` request for
 > an exhausted task. The **Interruption Queue** (§20.4) and the Web UI
 > (§27) that will surface the queue are M6-T8; the first job-linked caller is
 > M6-T5's `git_push`.
