@@ -1914,6 +1914,12 @@ var funcs = template.FuncMap{
 			return "run"
 		}
 	},
+	"roleLabel": func(s string) string {
+		if s == "" {
+			return ""
+		}
+		return strings.ToUpper(s[:1]) + s[1:]
+	},
 	"priorityLabel": func(v any) string {
 		p := project.NormalizePriority(fmt.Sprint(v))
 		if p == project.PriorityCritical {
