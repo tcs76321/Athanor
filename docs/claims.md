@@ -89,7 +89,7 @@ demo. A claim without a proof is either removed or marked as a target.
 | Deep qualification and a measured machine score are visible | ADR-0104 | `onboard.DeepLadder`, `composition.ScoreMachine`; `/ui/models`; `TestDeepLadderExtendsSmoke`, `TestMachineScoreIsBoundedAndVisible` | **proven** |
 | Missing legacy persona models warn instead of blocking a fresh install | ADR-0104 | `doctor.checkOllama` (warn); environment step; `TestRunMissingModel` | **proven** |
 | The Models step offers an optional, size-aware core set before qualification | ADR-0104 | `UI.poolSuggestions`; `TestWelcomeModelsSelfSelectAndApply` | **proven** |
-| Qualification runs 14 smoke cases or 24 deep cases per model | ADR-0104 | `onboard.DefaultLadder`, `onboard.DeepLadder`; `TestDefaultLadderIsWellFormed`, `TestDeepLadderExtendsSmoke` | **proven structurally** |
+| Qualification runs a 41-case smoke screen or 53-case deep screen per model | ADR-0104 | `onboard.DefaultLadder`, `onboard.DeepLadder`; `TestDefaultLadderIsWellFormed`, `TestDeepLadderExtendsSmoke`, `TestDefaultLadderIsBroadEnough` | **proven structurally** |
 | A prompt field can be refined against its own contract and reverted | ADR-0105 | `internal/assist`; `POST /ui/assist`; wand/revert in `app.js`; `TestRefineParsesStructuredProposal`, `TestAssistHandler` | **proven in tests; the browser wand is the live check** |
 | A field can report “Idealized” or ask clarification instead of guessing | ADR-0105 | `assist.Result.Unchanged/NeedsClarification/Questions`; `TestRefineMarksIdealTextUnchanged`, `TestRefineAsksForClarificationWhenEmpty`, `TestRefineAsksForClarificationWhenVague` | **proven** |
 | Low-risk work can explore a runner-up and a measured panel can win | ADR-0104 | `composition.Pool.PreferPanel`, `engine.personaFor` exploration; `TestPreferPanelNeedsEvidence` | **proven structurally** |
@@ -157,6 +157,15 @@ demo. A claim without a proof is either removed or marked as a target.
 | The five-task document regression is closed on the current prompt/check contract | [bench-v2-doc-rerun-20261106](probes/bench-v2-doc-rerun-20261106.md) | focused v2 rerun, one pass, 5/5 | **measured (one pass, host path)** |
 | A 24/7 Core bounds in-memory run history instead of retaining every session | 2026-11-06 hardening pass | `internal/ui/runs.go` (`pruneRuns`); `TestPruneRunsDropsOldestCompleted`, `TestPruneRunsNeverDropsRunning` | **proven** |
 | Every daemon request body is capped before a handler decodes it | 2026-11-06 hardening pass | `internal/server/body_limit.go`; `TestBodyLimitMiddlewareRejectsOversize` | **proven** |
+
+| A candidate cannot modify the test harness that judges it | ADR-0120 | `internal/toolenvelope/harness.go`; `TestIsHarnessPath`, `TestSplitHarnessFiles`; git filter tests | **proven** |
+| Every terminal job uses one finalization path | ADR-0121 | `Engine.FinalizeTerminal`; `internal/hitl` observer test; `recover_pause_test.go` | **proven** |
+| Parked jobs do not retain a Job Pod indefinitely | ADR-0121 | `Engine.ReapIdlePods`; `TestReapIdlePodsStopsParkedJobs`; five-minute serve reaper | **proven structurally** |
+| Comparison recovers after acceptance without self-superseding | ADR-0121 | `TestPhaseCompareRecoversAfterAcceptance` | **proven** |
+| Strategy outcomes record the actual candidate arm, retries, and reflection loops | ADR-0122 | migration 0039; `TestFinalizeCapturesReflectionCandidatesAndRetries`; `TestCandidateStatsUsesActualOutcomeArm` | **proven** |
+| Cross-family judgment uses the actual pool cast | ADR-0122 | `internal/engine/pool_family_test.go` | **proven** |
+| The Core Pod can reach a host repository | ADR-0123 | `~/athanor/repos` same-path mount; `TestCoreRunArgs`, `TestCoreMountsMatch`; repository path validation | **proven structurally** |
+| A stale Core container is recreated for a changed image or mount contract | ADR-0123 | `cmd/athanor/core.go`; `TestCoreMountsMatch` | **proven structurally** |
 
 ## Rule
 

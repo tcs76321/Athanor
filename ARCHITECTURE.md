@@ -98,7 +98,13 @@ Job Pods may communicate **only** with:
   token in the Core.
 - A staged repository snapshot (read-only at `/workspace/repo`) — the first
   approved workspace volume (ADR-0082). The Core stages tracked files under its
-  own state directory; no host repository path is mounted directly.
+  own state directory; no host repository path is mounted directly into a Job
+  Pod.
+
+The Core Pod itself mounts one operator-controlled host repositories directory
+at the same absolute path (`~/athanor/repos` by default, ADR-0123). That is the
+boundary from which it reads a real repository and stages the per-job snapshot;
+it is not exposed to Job Pods.
 
 Read-only skill volumes are deferred with the skills runtime
 ([ADR-0079](docs/adr/0079-no-skills-runtime.md)).
@@ -1823,7 +1829,10 @@ Local token accounting includes:
 
 ## 29. Configuration Reference
 
-Complete reference `config.yaml`:
+The executable, always-current reference is [`config.example.yaml`](config.example.yaml)
+(a test pins it to the built-in defaults). The excerpt below shows the core
+shape; `execution.policy`, `job_pod`, `airlock`, `budget`, and `hitl` are
+documented in that file.
 
 ```yaml
 version: 2

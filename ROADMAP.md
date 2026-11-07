@@ -8,6 +8,7 @@
 
 | Milestone | State |
 |---|---|
+| Pre-first-use hardening (2026-11-06) | ✅ Landed — harness integrity, terminal finalization, pause/pod lifecycle, compare recovery, actual pool/strategy evidence, token accounting, process scorecard truth, non-code git blobs, repository snapshot failure, host-visible repo mount, path validation, pre-index gate, stale Core recreation. ADR-0120–0123. |
 | TASK-000 SQLite + sqlite-vec spike | ✅ Done (findings: [docs/sqlite-setup.md](docs/sqlite-setup.md)) |
 | Power manager draft (`internal/power`) | ✅ Aligned with ARCHITECTURE §24 naming (jobs, not VMs) and fully unit-tested |
 | M0 Foundations | ✅ Done — T1–T8 complete (module, config, logging, store, migrations, EventLog API, `/healthz`, CI) + enum-normalization migration 0003 ([ADR-0005](docs/adr/0005-canonical-enum-values.md)). Gate G0 passed: kill -9 crash/restart verified, migrations forward-only and idempotent |

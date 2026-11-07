@@ -4,6 +4,24 @@ A running log of findings from code review, with dispositions. This is not the
 roadmap backlog (`ROADMAP.md` §7) — the items here are defects or hardening
 gaps, not deferred features.
 
+**Review:** 2026-11-06, pre-first-use hardening pass.
+
+## Fixed (2026-11-06 pre-first-use)
+
+| Area | Fix |
+|---|---|
+| Verification integrity | Candidate trees cannot modify tests, conftest, runner manifests, or other harness paths; filtered paths are audited and excluded from git-as-undo (ADR-0120). |
+| Terminal lifecycle | HITL rejection/expiry, UI cancel, panic, and phase failure now use `Engine.FinalizeTerminal`; scheduler advance, outcome, process scorecard, scratch, budget, and pod teardown cannot be skipped (ADR-0121). |
+| Pause lifecycle | Paused/awaiting jobs stop their Job Pods; a five-minute reaper drains them; boot resumes transient pause reasons only. |
+| Compare recovery | An accepted final whose job is still `comparing` completes idempotently instead of self-superseding. |
+| Repository snapshots | A repository-backed code job fails when its snapshot cannot be staged instead of testing without the repository. |
+| Pool evidence | Cross-family gating uses actual pool families; strategy outcomes record the first-cycle candidate arm, retries, task features, and reflection loops (ADR-0122). |
+| Token accounting | Reasoning tokens are not added to completion counts (Ollama `eval_count` already includes them). |
+| Process scorecard | Failure/cancel paths are scored; judge-only finals are not regressions; completed previous wins are not failures. |
+| Git-as-undo | Non-code artifacts containing file markers remain managed blobs, never repository paths. |
+| First use | Core Pod mounts `~/athanor/repos` at the same path, validates repository paths, gates plan approval on the pre-index, recreates stale Core containers, and reports health-check logs (ADR-0123). |
+| UI endurance | The token hub releases empty per-job subscriber maps. |
+
 **Review:** 2026-10-06, static read-only review of `internal/` and `cmd/`
 (no builds/tests run during the review). Findings verified by hand before
 recording; each entry names its location and status.

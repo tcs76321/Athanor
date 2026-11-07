@@ -46,7 +46,7 @@ class (I = internal-reversible, X = external/irreversible); `State` = today
 | **Self-refine** | write → review → rewrite → perfect | verifier must accept the rewrite | ≤ k rewrites | I | M·k | ✅ M8-T11 / M9-T1 (default on `self_refine`); repairs the best candidate in place under the `refining` phase, fed the failing test output |
 | **Tree search / rollouts** | explore branches, back up the best | verifier per leaf | node/step budget | I | L | ⏸ deferred (M8-T12) |
 | **Adversarial self-critique** ("nightmare") | generate failure cases, red-team own output | verifier on discovered break | case budget | I | M | ⏸ deferred (M8-T12) |
-| **Scratchpad** | persistent working memory across phases | none (context only) | job end | I | S | ✗ |
+| **Scratchpad** | persistent working memory across phases | none (context only) | job end | I | S | ✅ job notebook (ADR-0109) |
 | **Simulate** | counterfactual rollout against a model | oracle (for code: tests) | budget | I | L | ◐ tests-as-oracle only |
 | **Consult gateway** | fetch allowlisted sources for grounding | reader + injection scan | per-source | I | S–M | ✅ ADR-0019 |
 | **Daydream** | idle-time exploration + replay | draft-only, human review | AC+idle, budget | I | M | ✅ §17 |

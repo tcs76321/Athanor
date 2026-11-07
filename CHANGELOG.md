@@ -10,6 +10,35 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Pre-first-use hardening — 2026-11-06
+
+- **Verification harness integrity** ([ADR-0120](docs/adr/0120-verification-harness-integrity.md)):
+  code candidates can no longer overwrite tests, conftest, runner manifests, or
+  other harness files. Filtered paths are audited and excluded from git-as-undo.
+- **One terminal finalization path** ([ADR-0121](docs/adr/0121-one-terminal-finalization-path.md)):
+  HITL rejection/expiry, UI cancel, panic, and phase failure now share the
+  engine's idempotent finalization (scheduler, outcome, process, budget,
+  scratch, pod). The outcome is captured before scratch cleanup, so reflection
+  loops are no longer zero.
+- **Actual cast and actual arm** ([ADR-0122](docs/adr/0122-actual-cast-and-arm.md)):
+  cross-family judgment uses the pool's actual families; migration 0039 records
+  the first-cycle candidate arm; retries and task features are populated.
+- **Pause and recovery lifecycle:** parked jobs stop their Job Pods, a periodic
+  reaper drains paused/awaiting pods, and boot resumes transient power/operator
+  pauses only. Manual and context-floor pauses remain explicit.
+- **Crash safety:** comparison is idempotent when the final artifact was
+  accepted before the job completed, and a missing repository snapshot fails
+  the code job instead of testing a tree without the repository.
+- **Token accounting:** reasoning tokens are telemetry, not an additive cost;
+  completion counts already include hidden reasoning.
+- **Process scorecard:** failed/cancelled jobs are scored, judge-only finals are
+  not labeled regressions, and a completed previous win is not labeled failed.
+- **First use:** the Core Pod mounts `~/athanor/repos` at the same absolute path
+  ([ADR-0123](docs/adr/0123-host-visible-repository-mount.md)), repository paths
+  are validated, plan approval waits for the bounded pre-index, stale Core
+  containers are recreated on image/mount changes, and `install.sh` gains
+  `--rebuild`.
+
 ### Cognitive loop — job notebook and persistent working memory — 2026-11-06
 
 - **Job notebook** ([ADR-0109](docs/adr/0109-job-notebook.md)): migration 0038

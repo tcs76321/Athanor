@@ -138,6 +138,11 @@ sh scripts/install.sh      # builds the Job Pod + Core images if missing,
                            # Core Pod, and waits for /healthz
 ```
 
+Place repositories under `~/athanor/repos` on the host. The installer mounts
+that directory at the same absolute path inside the Core; a project repository
+path must be an absolute path under it. `install.sh --rebuild` refreshes
+existing image tags after a code change.
+
 `install.sh --service` also writes a systemd/launchd unit that supervises the
 container. `make jobpod-image` / `make core-image` remain available for a
 manual build; `--no-build` makes the installer require the images.
@@ -193,7 +198,7 @@ frozen benchmark: the probe/frozen corpus remains the full qualification.
 ### C6. First project
 
 ```bash
-athanor project create -name first -goal "..." -repo /path/to/repo   # infers capabilities and the test command; starts the first job
+athanor project create -name first -goal "..." -repo "$HOME/athanor/repos/my-repo"   # infers capabilities and the test command; starts the first job
 athanor job watch -job <JOB_ID>
 athanor goal submit -project <ID> -goal "..." -criteria "..."   # optional follow-up
 ```

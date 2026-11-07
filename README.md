@@ -100,6 +100,10 @@ sh scripts/install.sh                        # Core Pod, images built if absent
 ./bin/athanor goal submit -project <id> -goal "Summarize it in five bullet points."   # optional follow-up goal
 ```
 
+For a code project in the supported Core Pod, put the repository under
+`~/athanor/repos` on the host; that directory is mounted at the same path
+inside the Core. The installer creates it.
+
 For host-side development without a container, `make run` still works (it is
 not the supported runtime). Full walkthrough (including the kill switch and
 crash recovery): [docs/demo-m1.md](docs/demo-m1.md) — that script is the Gate G1

@@ -78,7 +78,7 @@ publishes only loopback, so the container boundary is the trust boundary.
 ```bash
 SOCK=$(podman machine ssh 'echo $XDG_RUNTIME_DIR')/podman/podman.sock   # macOS
 # Linux: SOCK="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/podman/podman.sock"
-mkdir -p "$HOME/.config/athanor/tokens" "$HOME/.config/athanor/scratch"
+mkdir -p "$HOME/.config/athanor/tokens" "$HOME/.config/athanor/scratch" "$HOME/athanor/repos"
 
 podman run -d --name athanor-core --security-opt label=disable \
   -p 127.0.0.1:7420:7420 \
@@ -87,9 +87,16 @@ podman run -d --name athanor-core --security-opt label=disable \
   -v "$HOME/.config/athanor/tokens:/var/lib/athanor/state/tokens" \
   -v "$HOME/.config/athanor/scratch:/var/lib/athanor/state/scratch" \
   -v athanor-workspace:/var/lib/athanor/workspace \
+  -v "$HOME/athanor/repos:$HOME/athanor/repos" \
   -v "$HOME/.config/athanor/config.yaml:/etc/athanor/config.yaml" \
   athanor-core:0.0.0
 ```
+
+The `~/athanor/repos` mount is the Core's repository window. A code project's
+repository path must be an absolute path under that host directory (the same
+path is visible inside the Core), and `athanor start` defaults to it. This is
+the supported way to bring a real repository into the Core Pod without
+mounting arbitrary host paths.
 
 The image bakes `CONTAINER_HOST=unix:///run/podman/podman.sock`, so the Core's
 `podman` client talks to the machine socket rather than a local container store.
