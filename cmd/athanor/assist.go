@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"strings"
 	"time"
 
@@ -20,13 +19,30 @@ type assistGenerator struct {
 	fallback llm.Persona
 }
 
+func poolHasScores(p *composition.Pool) bool {
+	if p == nil {
+		return false
+	}
+	for _, prof := range p.Profiles() {
+		if len(prof.Scores) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
 func (g *assistGenerator) Generate(ctx context.Context, system, user string) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, 90*time.Second)
 	defer cancel()
 	model := g.fallback.Model
 	family := g.fallback.Family
 	contextTarget := g.fallback.ContextTarget
-	if g.selector != nil && g.selector.Pool != nil {
+	// The pool is authoritative only after it has measurements. On a fresh
+	// install the catalog may be populated with no qualification scores; in
+	// that case the large-model tie-break can select a 30B reasoning model that
+	// is slow and weak at strict JSON. The configured tall persona is the
+	// safer editor until the pool has evidence.
+	if g.selector != nil && g.selector.Pool != nil && poolHasScores(g.selector.Pool) {
 		if c, ok := g.selector.Pool.Choose(composition.Request{
 			Phase: "assist", Capability: composition.CapabilityGeneral,
 			Stance: composition.StanceSynthesize, MinContext: 8192, PreferQuality: true,
@@ -68,10 +84,5 @@ func (g *assistGenerator) Generate(ctx context.Context, system, user string) (st
 	if err != nil {
 		return "", fmt.Errorf("refinement model (%s, %s): %w", model, family, err)
 	}
-	raw := strings.TrimSpace(resp.Content)
-	if len(raw) > 600 {
-		raw = raw[:600] + "…"
-	}
-	slog.Debug("assist: model response", "model", model, "chars", len(resp.Content), "raw", raw)
 	return resp.Content, nil
 }

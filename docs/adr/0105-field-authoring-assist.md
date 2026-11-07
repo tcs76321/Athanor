@@ -107,11 +107,20 @@ usable non-empty field**:
   that also echoes, the field is left unchanged with a note.
 - Clarification remains for blank or genuinely unusable drafts; blank fields
   return the field-specific questions plus an explicit empty-field note and
-  spend no model call.
+  spend no model call. A non-empty draft shorter than four words gets the same
+  deterministic questions without a model call.
+- Malformed model JSON is salvaged by extracting its `text` string; if no text
+  can be recovered, the field is left unchanged rather than filled with a JSON
+  object. A rewrite that only changes case or punctuation is treated as no
+  improvement and triggers the forced pass.
 - The request carries Athanor context: project name, goal, capabilities,
   repository path, priority, existing criteria, runtime, version, and the
   sibling form values. The prompt labels this as data, never instructions, and
   forbids copying internal paths/ids into the field text.
+- The measured pool is used only after it has qualification scores. On a fresh
+  install the catalog can contain an unmeasured 30B reasoning model that is
+  slow and weak at strict JSON; the configured tall persona is the safer
+  editor until the pool has evidence.
 
 ## Open questions
 
