@@ -64,12 +64,14 @@ The run has two layers:
   operation, planning, calibration, judgment) for every model. This is the
   bare minimum and always runs. It has no time cutoff: on a slow machine with a
   large pool it can take a long time, and that is correct.
-- **Extra**: the operator chooses 10, 20, 30, 45, or 60 minutes after the
-  core. The first successfully screened model's core pass is the cost probe;
-  Athanor estimates the per-case cost from it and sizes the first extra block
-  at roughly **half the remaining budget**, so a second block (and more when
-  the estimate was too long) fits naturally. Every block runs for every model
-  or not at all.
+- **Minimum run time**: the operator chooses 10, 20, 30, 45, or 60 minutes as
+  the minimum total qualification time. The core may exceed it (large pool or
+  slow machine), and that is correct. If the core finishes early, extra blocks
+  fill the remaining time. The first successfully screened model's core pass
+  is the cost probe; Athanor estimates per-case cost from it, sizes blocks to
+  the remaining time (capped at 30 cases), and may wrap up a final block a few
+  minutes past the minimum rather than stop with time unused. Every block runs
+  for every model or not at all.
 
 The state is resumable at case granularity. Scores are computed only on the
 **intersection** of cases completed by every model, so an interrupted block

@@ -38,12 +38,12 @@ type qualState struct {
 	Details map[string]qualCaseRecord `json:"details,omitempty"`
 	Error   string                    `json:"error,omitempty"`
 	Deep    bool                      `json:"deep,omitempty"`
-	// BudgetMinutes is the extra-pass budget chosen by the operator; 0 means
-	// core-only. Phase is "core" or "extra".
-	BudgetMinutes int     `json:"budget_minutes,omitempty"`
-	Phase         string  `json:"phase,omitempty"`
-	CoreComplete  bool    `json:"core_complete,omitempty"`
-	CoreSeconds   float64 `json:"core_seconds,omitempty"`
+	// MinimumMinutes is the operator's minimum total run time; 0 means
+	// core-only. The core may exceed it. Phase is "core" or "extra".
+	MinimumMinutes int     `json:"minimum_minutes,omitempty"`
+	Phase          string  `json:"phase,omitempty"`
+	CoreComplete   bool    `json:"core_complete,omitempty"`
+	CoreSeconds    float64 `json:"core_seconds,omitempty"`
 	// FirstModel is the first screened model and its core time; the extra
 	// budget is estimated from this pass rather than waiting for every model.
 	FirstModel           string   `json:"first_model,omitempty"`
@@ -79,21 +79,24 @@ func (s qualState) stale() bool {
 // the page while a run is active; the percent and estimate are derived from
 // the persisted case count, not a separate in-memory counter.
 type qualificationView struct {
-	Running         bool
-	Done            int
-	Total           int
-	Percent         int
-	Elapsed         string
-	Remaining       string
-	Error           string
-	Stale           bool
-	Complete        bool
-	CoreComplete    bool
-	CanExtend       bool
-	BudgetMinutes   int
-	Phase           string
-	Estimate        string
-	HasMeasurements bool
+	Running          bool
+	Done             int
+	Total            int
+	Percent          int
+	Elapsed          string
+	Remaining        string
+	Error            string
+	Stale            bool
+	Complete         bool
+	CoreComplete     bool
+	CanExtend        bool
+	MinimumMinutes   int
+	Phase            string
+	Estimate         string
+	MinimumMet       bool
+	MinimumRemaining string
+	AllCases         bool
+	HasMeasurements  bool
 }
 
 // qualificationViewFor builds the progress view. A run with no plan yet
@@ -103,10 +106,25 @@ func qualificationViewFor(s qualState, hasMeasurements bool) qualificationView {
 	v := qualificationView{
 		Running: s.Running, Done: s.Done, Total: s.Total,
 		Error: s.Error, Stale: s.stale(), HasMeasurements: hasMeasurements,
-		CoreComplete: s.CoreComplete, BudgetMinutes: s.BudgetMinutes, Phase: s.Phase,
+		CoreComplete: s.CoreComplete, MinimumMinutes: s.MinimumMinutes, Phase: s.Phase,
 	}
 	if s.EstimatedCoreSeconds > 0 {
 		v.Estimate = time.Duration(s.EstimatedCoreSeconds * float64(time.Second)).Round(time.Second).String()
+	}
+	v.AllCases = v.Total > 0 && v.Done >= v.Total
+	if s.MinimumMinutes > 0 && !s.StartedAt.IsZero() {
+		minimum := time.Duration(s.MinimumMinutes) * time.Minute
+		minimumEnd := s.StartedAt.Add(minimum)
+		now := time.Now()
+		if !s.Running && !s.FinishedAt.IsZero() {
+			now = s.FinishedAt
+		}
+		v.MinimumMet = !now.Before(minimumEnd)
+		if s.Running && now.Before(minimumEnd) {
+			v.MinimumRemaining = minimumEnd.Sub(now).Round(time.Second).String()
+		}
+	} else {
+		v.MinimumMet = s.MinimumMinutes == 0
 	}
 	v.CanExtend = s.CoreComplete && !s.Running
 	if v.Total > 0 {
@@ -135,7 +153,7 @@ func qualificationViewFor(s qualState, hasMeasurements bool) qualificationView {
 			}
 		}
 	}
-	v.Complete = !s.Running && v.Total > 0 && v.Done >= v.Total && s.Phase != "core"
+	v.Complete = !s.Running && s.CoreComplete && (v.MinimumMet || v.AllCases)
 	return v
 }
 

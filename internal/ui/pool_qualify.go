@@ -16,7 +16,7 @@ import (
 )
 
 // startPoolQualification runs the balanced screen over every model in the
-// user's pool. The core always runs; an operator-selected extra budget fills
+// user's pool. The core always runs; an operator-selected minimum run time fills
 // with blocks sized from the first model's core pass. The legacy two-role
 // ladder remains available on /ui/setup.
 func (u *UI) startPoolQualification(ctx context.Context, fresh, deep bool, mode string, minutes int) (qualState, bool, error) {
@@ -87,6 +87,10 @@ func (u *UI) startPoolQualification(ctx context.Context, fresh, deep bool, mode 
 		// A changed pool invalidates the core comparison: the new model has
 		// not run the same cases as the old set.
 		state.CoreComplete = false
+		state.FirstModel = ""
+		state.FirstModelSeconds = 0
+		state.EstimatedCoreSeconds = 0
+		state.CoreSeconds = 0
 		state.Models = append([]string(nil), models...)
 	}
 	u.qualMu.Lock()
@@ -108,7 +112,7 @@ func (u *UI) startPoolQualification(ctx context.Context, fresh, deep bool, mode 
 	state.Error = ""
 	state.Deep = deep
 	state.Phase = mode
-	state.BudgetMinutes = minutes
+	state.MinimumMinutes = minutes
 	if state.Results == nil {
 		state.Results = map[string]bool{}
 	}
@@ -134,7 +138,7 @@ func (u *UI) startPoolQualification(ctx context.Context, fresh, deep bool, mode 
 			u.qualMu.Unlock()
 			cancel()
 		}()
-		u.runPoolQualification(runCtx, models, ladder, mode, time.Duration(minutes)*time.Minute, &runState)
+		u.runPoolQualification(runCtx, models, ladder, mode, &runState)
 	}(runState)
 	return state, true, nil
 }
@@ -158,7 +162,7 @@ func poolCorePlan(models []string, ladder onboard.Ladder) int {
 	return len(models) * len(onboard.QualificationCore(ladder))
 }
 
-func (u *UI) runPoolQualification(ctx context.Context, models []string, ladder onboard.Ladder, mode string, budget time.Duration, state *qualState) {
+func (u *UI) runPoolQualification(ctx context.Context, models []string, ladder onboard.Ladder, mode string, state *qualState) {
 	state.Running = true
 	state.Error = ""
 	if state.Results == nil {
@@ -189,7 +193,7 @@ func (u *UI) runPoolQualification(ctx context.Context, models []string, ladder o
 		}
 	}
 
-	// The core always runs for every model, regardless of the extra budget.
+	// The core always runs for every model, regardless of the minimum run time.
 	// On a slow machine with a large pool this can exceed the requested extra
 	// time; that is correct, because the screen is not comparable until every
 	// model has the same core.
@@ -226,18 +230,25 @@ func (u *UI) runPoolQualification(ctx context.Context, models []string, ladder o
 	}
 
 	extra := onboard.QualificationExtra(ladder)
-	// The selected duration is the extra-pass budget, after the mandatory
-	// core. Core time only informs the per-case estimate.
-	remaining := budget
-	for remaining > 0 && len(extra) > 0 && ctx.Err() == nil {
+	// The selected duration is the minimum total run time, not a cap. The
+	// core may exceed it; if the core finishes early, extra blocks fill the
+	// remaining time. A final block may wrap up a few minutes past the
+	// minimum rather than stop with time unused.
+	if state.MinimumMinutes <= 0 {
+		u.finishPoolQualification(ctx, models, ladder, state)
+		return
+	}
+	deadline := state.StartedAt.Add(time.Duration(state.MinimumMinutes) * time.Minute)
+	for len(extra) > 0 && ctx.Err() == nil && time.Now().Before(deadline) {
+		remaining := time.Until(deadline)
 		perCase := estimateCaseSeconds(state, len(models), len(core))
 		if perCase <= 0 {
 			perCase = 5 * time.Second
 		}
-		// Aim for roughly half the remaining time, so a second block (and
-		// more if the estimate was too long) fits naturally.
-		blockCases := int((remaining / 2) / (perCase * time.Duration(len(models))))
+		blockCases := int(remaining / (perCase * time.Duration(len(models))))
 		if blockCases < 1 {
+			// Use the remaining time on one last small sweep; this is the
+			// intentional wrap-up, not a hard stop at the minimum.
 			blockCases = 1
 		}
 		if blockCases > 30 {
@@ -247,14 +258,12 @@ func (u *UI) runPoolQualification(ctx context.Context, models []string, ladder o
 			blockCases = len(extra)
 		}
 		block := extra[:blockCases]
-		blockStart := time.Now()
 		for _, model := range models {
 			if ctx.Err() != nil {
 				break
 			}
 			runCases(model, block, false)
 		}
-		remaining -= time.Since(blockStart)
 		extra = extra[blockCases:]
 		state.Done = len(state.Results)
 		u.saveQualState(context.Background(), *state)

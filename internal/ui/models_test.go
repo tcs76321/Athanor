@@ -51,7 +51,7 @@ func TestModelsPageManagesPoolAfterOnboarding(t *testing.T) {
 	if status != http.StatusOK {
 		t.Fatalf("status = %d", status)
 	}
-	for _, want := range []string{"What Athanor may choose from", "Pool", "alpha:3b", "Remove", "Run minimal core", "Run core + extra"} {
+	for _, want := range []string{"What Athanor may choose from", "Pool", "alpha:3b", "Remove", "Run minimal core", "Run core + fill minimum"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("models page missing %q", want)
 		}

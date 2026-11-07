@@ -22,7 +22,7 @@ const modelsBody = `
     </form>
     <form method="post" action="/ui/models/qualify">
       <input type="hidden" name="mode" value="extra">
-      <label class="muted small">Extra time
+      <label class="muted small">Minimum run time
         <select name="minutes">
           <option value="10">10 min</option>
           <option value="20" selected>20 min</option>
@@ -32,7 +32,7 @@ const modelsBody = `
         </select>
       </label>
       <label class="muted small"><input type="checkbox" name="deep" value="1"> deep cases</label>
-      <button class="secondary">Run core + extra</button>
+      <button class="secondary">Run core + fill minimum</button>
     </form>
   </div>
 </div>
@@ -54,7 +54,7 @@ const modelsBody = `
 <div class="card" data-live-card="models-qualification" data-live-interval="2500">
   <div class="row row-middle"><h3>Qualification running</h3><span class="pill run">{{.Qualification.Percent}}%</span></div>
   <progress class="progress" value="{{.Qualification.Percent}}" max="100">{{.Qualification.Percent}}%</progress>
-  <p><b>{{.Qualification.Done}} / {{.Qualification.Total}}</b> cases{{if .Qualification.Elapsed}} · {{.Qualification.Elapsed}} elapsed{{end}}{{if .Qualification.Estimate}} · estimated core {{.Qualification.Estimate}}{{end}}{{if .Qualification.Remaining}} · about {{.Qualification.Remaining}} remaining{{end}}</p>
+  <p><b>{{.Qualification.Done}} / {{.Qualification.Total}}</b> cases{{if .Qualification.Elapsed}} · {{.Qualification.Elapsed}} elapsed{{end}}{{if .Qualification.Estimate}} · estimated core {{.Qualification.Estimate}}{{end}}{{if .Qualification.MinimumRemaining}} · minimum remaining {{.Qualification.MinimumRemaining}}{{end}}{{if .Qualification.Remaining}} · about {{.Qualification.Remaining}} remaining{{end}}</p>
   <p class="muted">The run is resumable. It uses the same grounded screen as first use.</p>
   <form method="post" action="/ui/setup/qualify/cancel">
     <input type="hidden" name="next" value="/ui/models">
@@ -111,10 +111,10 @@ const modelsBody = `
 {{if .Qualification.CanExtend}}
 <div class="card">
   <h3>Core complete</h3>
-  <p class="muted">Every model has the minimal capability core. Add extra time to run more cases for every model; the estimate uses the first model's core pass.</p>
+  <p class="muted">Every model has the minimal capability core. Choose a minimum run time; extra cases fill it, and the first model's core pass sets the estimate.</p>
   <form method="post" action="/ui/models/qualify">
     <input type="hidden" name="mode" value="extra">
-    <label class="muted small">Extra time
+    <label class="muted small">Minimum run time
       <select name="minutes">
         <option value="10">10 min</option>
         <option value="20" selected>20 min</option>
@@ -124,7 +124,7 @@ const modelsBody = `
       </select>
     </label>
     <label class="muted small"><input type="checkbox" name="deep" value="1"> deep cases</label>
-    <button class="primary">Add extra time</button>
+    <button class="primary">Run for at least this long</button>
   </form>
 </div>
 {{end}}

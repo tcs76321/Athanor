@@ -307,7 +307,7 @@ const welcomeBody = `
     <div class="card" data-live-card="welcome-qualification" data-live-interval="2000">
       <div class="row row-middle"><h3>Running qualification</h3><span class="pill run">{{.Qualification.Percent}}%</span></div>
       <progress class="progress" value="{{.Qualification.Percent}}" max="100">{{.Qualification.Percent}}%</progress>
-      <p><b>{{.Qualification.Done}} / {{.Qualification.Total}}</b> cases complete{{if .Qualification.Elapsed}} · {{.Qualification.Elapsed}} elapsed{{end}}{{if .Qualification.Estimate}} · estimated core {{.Qualification.Estimate}}{{end}}{{if .Qualification.Remaining}} · about {{.Qualification.Remaining}} remaining{{else if not .Qualification.Done}} · estimating remaining time…{{end}}</p>
+      <p><b>{{.Qualification.Done}} / {{.Qualification.Total}}</b> cases complete{{if .Qualification.Elapsed}} · {{.Qualification.Elapsed}} elapsed{{end}}{{if .Qualification.Estimate}} · estimated core {{.Qualification.Estimate}}{{end}}{{if .Qualification.MinimumRemaining}} · minimum remaining {{.Qualification.MinimumRemaining}}{{end}}{{if .Qualification.Remaining}} · about {{.Qualification.Remaining}} remaining{{else if not .Qualification.Done}} · estimating remaining time…{{end}}</p>
       <p class="muted">This panel updates in place every couple of seconds. You can leave it; the run is resumable and the result will be here when you return.</p>
       <form method="post" action="/ui/setup/qualify/cancel">
         <input type="hidden" name="next" value="/ui/welcome?step=qualify">
@@ -317,17 +317,17 @@ const welcomeBody = `
     {{else}}
     <div class="grid cols-2">
       <div class="card"><h3>Why run it</h3><p class="muted">It ranks the models on this computer for the work you actually do, so Athanor can cast each job instead of guessing from model size or reputation.</p></div>
-      <div class="card"><h3>What it costs</h3><p class="muted">The default screen is 80 cases per model; deep adds 39 more across long-context, repair, operation, planning, calibration, security, and adversarial cases. A balanced core (one case per capability) runs first for every model, then extra blocks. The core always runs; extra time is chosen (10–60 min) and the first model’s core pass sets the estimate. The run is resumable, and scores use only cases every model completed.</p></div>
+      <div class="card"><h3>What it costs</h3><p class="muted">The default screen is 80 cases per model; deep adds 39 more across long-context, repair, operation, planning, calibration, security, and adversarial cases. A balanced core (one case per capability) runs first for every model, then extra blocks. The core always runs; choose a minimum run time (10–60 min) and the first model’s core pass sets the estimate. The run is resumable, and scores use only cases every model completed.</p></div>
     </div>
     <div class="card">
       {{if .Qualification.Error}}<p class="del">{{.Qualification.Error}}</p>{{end}}
       {{if .Qualification.Stale}}<p class="muted">A previous run looks stale; starting again resets it.</p>{{end}}
       {{if .Qualification.Complete}}<p class="ok"><b>Qualification complete.</b> {{.Qualification.Done}} cases recorded. The ranking below feeds the next cast; remove any model you do not want Athanor to use.</p>{{else}}<p class="muted">Run the screen here, or continue and use the measured roster from a previous run. The run stays inside this setup step.</p>{{end}}
       {{if .Qualification.CanExtend}}
-      <p class="ok"><b>Core complete.</b> Every model has the minimal capability core. Add extra time to run more cases on every model; the first model's core pass is the estimate.</p>
+      <p class="ok"><b>Core complete.</b> Every model has the minimal capability core. Choose a minimum run time to fill with more cases on every model; the first model's core pass is the estimate.</p>
       <form method="post" action="/ui/welcome">
         <input type="hidden" name="step" value="qualify">
-        <label class="muted small">Extra time
+        <label class="muted small">Minimum run time
           <select name="minutes">
             <option value="10">10 min</option>
             <option value="20" selected>20 min</option>
@@ -337,12 +337,12 @@ const welcomeBody = `
           </select>
         </label>
         <label class="muted small"><input type="checkbox" name="deep" value="1"> deep cases</label>
-        <button class="primary" name="action" value="run_qualify_extra">Add extra time</button>
+        <button class="primary" name="action" value="run_qualify_extra">Run for at least this long</button>
       </form>
       {{end}}
       <form method="post" action="/ui/welcome">
         <input type="hidden" name="step" value="qualify">
-        <label class="muted small">Extra time
+        <label class="muted small">Minimum run time
           <select name="minutes">
             <option value="10">10 min</option>
             <option value="20" selected>20 min</option>
@@ -353,7 +353,7 @@ const welcomeBody = `
         </label>
         <label class="muted small"><input type="checkbox" name="deep" value="1"> deep cases</label>
         <button class="primary" name="action" value="run_qualify">{{if .Qualification.Complete}}Run minimal core again{{else}}Run minimal core{{end}}</button>
-        <button class="secondary" name="action" value="run_qualify_extra">Run core + extra</button>
+        <button class="secondary" name="action" value="run_qualify_extra">Run core + fill minimum</button>
         <button class="secondary" name="action" value="run_qualify_deep">Run deep core</button>
       </form>
     </div>
