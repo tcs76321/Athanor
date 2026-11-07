@@ -115,8 +115,13 @@ differentiating tasks.
 **3/3** on the final binary (`diag-layered-code`, `diag-structured-brief`,
 `diag-contradiction-brief`). The per-job telemetry shows no observations, no
 replans, no repair loops, and no reflection loops: all three were first-pass
-successes. The benchmark now labels such rows **saturated** rather than
-counting them as evidence for the iterative loop.
+successes. The report now says:
+
+> **Saturated:** 3/3 completed rows were first-pass successes (no repair,
+> reflection, replan, or observation). They are ranking rows, not evidence
+> for the iterative loop (ADR-0116).
+
+Raw evidence: [`runs/bench-diagnostic-20261106/`](runs/bench-diagnostic-20261106/).
 
 This is the correct result for the current diagnostic: it validates the
 harness after the two fixes, and it demonstrates that these tasks are too easy
