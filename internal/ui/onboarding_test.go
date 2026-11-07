@@ -147,6 +147,7 @@ func TestWelcomeQualificationShowsInlineProgress(t *testing.T) {
 	u := newEmptyUI(t)
 	state := newQualState()
 	state.Running = true
+	state.Phase = "core"
 	state.StartedAt = time.Now().Add(-8 * time.Second)
 	state.Total = 10
 	state.Done = 4
@@ -168,7 +169,7 @@ func TestWelcomeQualificationShowsInlineProgress(t *testing.T) {
 	raw, _ := io.ReadAll(resp.Body)
 	body := string(raw)
 	for _, want := range []string{
-		"Running qualification", "40%", "4 / 10", `data-live-card="welcome-qualification"`,
+		"Measuring the pool", "40%", "4 / 10", `data-live-card="welcome-qualification"`,
 		"Continue while it runs",
 	} {
 		if !strings.Contains(body, want) {
@@ -237,6 +238,98 @@ func TestWelcomeQualificationStartsInline(t *testing.T) {
 			break
 		}
 		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+func TestWelcomeQualificationAutoStartsOnStepFour(t *testing.T) {
+	u := newEmptyUI(t)
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/tags":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"models": []map[string]any{{
+					"name": "fake:latest", "size": 1234,
+					"details": map[string]string{"family": "fake"},
+				}},
+			})
+		case "/api/chat":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"message": map[string]string{"content": "A"},
+				"done":    true,
+			})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer ts.Close()
+	cfg, err := config.Default()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.Inference.OllamaURL = ts.URL
+	cfg.Personas.Security.Model = "fake:latest"
+	cfg.Personas.Main.Model = "fake:latest"
+	u.deps.Config = cfg
+
+	mux := http.NewServeMux()
+	u.Register(mux)
+	uiTS := httptest.NewServer(mux)
+	defer uiTS.Close()
+
+	resp, err := http.Get(uiTS.URL + "/ui/welcome?step=qualify")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	raw, _ := io.ReadAll(resp.Body)
+	body := string(raw)
+	if !strings.Contains(body, "Measuring the pool") {
+		t.Errorf("qualification step did not show an auto-started run")
+	}
+	for _, unwanted := range []string{"Minimum run time", `name="minutes"`, `name="deep"`, "Run minimal core", "Run deep core"} {
+		if strings.Contains(body, unwanted) {
+			t.Errorf("qualification step still shows the old control %q", unwanted)
+		}
+	}
+	state := u.loadQualState(context.Background())
+	if state.Total == 0 || !state.Running {
+		t.Fatalf("state = %+v, want an auto-started qualification plan", state)
+	}
+	u.cancelQualification()
+}
+
+func TestWelcomeQualificationOffersSimpleChoices(t *testing.T) {
+	u := newEmptyUI(t)
+	state := newQualState()
+	state.CoreComplete = true
+	state.Phase = "core"
+	state.StartedAt = time.Now().Add(-2 * time.Minute)
+	state.FinishedAt = time.Now()
+	state.Total = 40
+	state.Done = 20
+	u.saveQualState(context.Background(), state)
+
+	mux := http.NewServeMux()
+	u.Register(mux)
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+
+	resp, err := http.Get(ts.URL + "/ui/welcome?step=qualify")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	raw, _ := io.ReadAll(resp.Body)
+	body := string(raw)
+	for _, want := range []string{"Minimum screen complete", "Add 10 minutes", "Full qualification", "Continue"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("completed qualification step missing %q", want)
+		}
+	}
+	for _, unwanted := range []string{"Minimum run time", "Run minimal core", "Run deep core", `name="deep"`} {
+		if strings.Contains(body, unwanted) {
+			t.Errorf("completed qualification step still shows %q", unwanted)
+		}
 	}
 }
 

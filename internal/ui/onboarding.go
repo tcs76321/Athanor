@@ -422,6 +422,12 @@ func (u *UI) welcomeData(ctx context.Context, st onboardingState) map[string]any
 	resources := currentResources(hw, u.deps.Config)
 	budget := budgetFor(roles, models, hw, resources)
 	u.syncPool(ctx, models, budget, hw)
+	if st.Step == "qualify" {
+		// The pool is synced now; reaching step 4 starts the minimum screen
+		// without asking the operator to choose a duration first.
+		u.ensureQualificationStarted(ctx)
+		qual = u.loadQualState(ctx)
+	}
 	pool := u.welcomePool(models)
 	suggestions := u.poolSuggestions(models, hw)
 	if pool.QualifiedCount > 0 {
@@ -438,6 +444,14 @@ func (u *UI) welcomeData(ctx context.Context, st onboardingState) map[string]any
 	for _, row := range pool.Ranked {
 		rankedNames = append(rankedNames, row.Name)
 	}
+	poolModels := rankedNames
+	if p := u.pool(); p != nil {
+		if names := p.EligibleNames(); len(names) > 0 {
+			poolModels = names
+		}
+	}
+	qualView := qualificationViewFor(qual, len(measurements) > 0 || pool.QualifiedCount > 0)
+	qualView.FullEstimate, qualView.FullCases = qualFullEstimate(qual, poolModels)
 	return map[string]any{
 		"State": st, "Step": st.Step, "Steps": onboardingSteps,
 		"StepIndex": onboardingIndex(st.Step), "StepNumber": onboardingIndex(st.Step) + 1,
@@ -448,7 +462,7 @@ func (u *UI) welcomeData(ctx context.Context, st onboardingState) map[string]any
 		"Suggestions": suggestions, "Resources": resources, "Hardware": hw,
 		"Budget": budget, "ConfigPath": u.deps.ConfigPath,
 		"HasMeasurements":    len(measurements) > 0 || pool.QualifiedCount > 0,
-		"Qualification":      qualificationViewFor(qual, len(measurements) > 0 || pool.QualifiedCount > 0),
+		"Qualification":      qualView,
 		"Pool":               pool,
 		"PoolRows":           pool.Rows,
 		"PoolRanked":         pool.Ranked,
@@ -1092,23 +1106,24 @@ func (u *UI) handleWelcomePost(w http.ResponseWriter, r *http.Request) {
 			u.fail(w, err)
 			return
 		}
-	case "run_qualify_extra":
+	case "run_qualify_more":
 		if u.deps.Config == nil {
 			u.fail(w, fmt.Errorf("configuration is not available to the UI"))
 			return
 		}
 		st.Step = "qualify"
-		if _, _, err := u.startPoolQualification(ctx, false, strings.Contains(r.FormValue("deep"), "1"), "extra", parseFormInt(r, "minutes", 20)); err != nil {
+		prev := u.loadQualState(ctx)
+		if _, _, err := u.startPoolQualification(ctx, false, prev.Deep, "extra", 10); err != nil {
 			u.fail(w, err)
 			return
 		}
-	case "run_qualify_deep":
+	case "run_qualify_full":
 		if u.deps.Config == nil {
 			u.fail(w, fmt.Errorf("configuration is not available to the UI"))
 			return
 		}
 		st.Step = "qualify"
-		if _, _, err := u.startPoolQualification(ctx, false, true, "core", 0); err != nil {
+		if _, _, err := u.startPoolQualification(ctx, false, true, "full", 0); err != nil {
 			u.fail(w, err)
 			return
 		}

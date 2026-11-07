@@ -97,6 +97,15 @@ type qualificationView struct {
 	MinimumRemaining string
 	AllCases         bool
 	HasMeasurements  bool
+	// FullEstimate is the estimated time to run every remaining case on every
+	// model; FullCases is how many remain. Both are shown beside the "Full
+	// qualification" choice so the operator can decide without a duration
+	// selector.
+	FullEstimate string
+	FullCases    int
+	// CoreRemaining is the first-model estimate projected against the clock,
+	// shown while the core is still running.
+	CoreRemaining string
 }
 
 // qualificationViewFor builds the progress view. A run with no plan yet
@@ -108,7 +117,9 @@ func qualificationViewFor(s qualState, hasMeasurements bool) qualificationView {
 		Error: s.Error, Stale: s.stale(), HasMeasurements: hasMeasurements,
 		CoreComplete: s.CoreComplete, MinimumMinutes: s.MinimumMinutes, Phase: s.Phase,
 	}
-	if s.EstimatedCoreSeconds > 0 {
+	if s.CoreSeconds > 0 {
+		v.Estimate = time.Duration(s.CoreSeconds * float64(time.Second)).Round(time.Second).String()
+	} else if s.EstimatedCoreSeconds > 0 {
 		v.Estimate = time.Duration(s.EstimatedCoreSeconds * float64(time.Second)).Round(time.Second).String()
 	}
 	v.AllCases = v.Total > 0 && v.Done >= v.Total
@@ -153,8 +164,45 @@ func qualificationViewFor(s qualState, hasMeasurements bool) qualificationView {
 			}
 		}
 	}
+	if s.Running && s.EstimatedCoreSeconds > 0 && !s.StartedAt.IsZero() {
+		left := time.Duration(s.EstimatedCoreSeconds*float64(time.Second)) - time.Since(s.StartedAt)
+		if left > 0 {
+			v.CoreRemaining = humanETA(left)
+		}
+	}
 	v.Complete = !s.Running && s.CoreComplete && (v.MinimumMet || v.AllCases)
 	return v
+}
+
+// qualFullEstimate estimates the remaining time and case count for a full
+// screen (every deep case on every model), using the same cost probe as the
+// worker. An empty string means there is not enough evidence yet.
+func qualFullEstimate(s qualState, models []string) (string, int) {
+	if len(models) == 0 {
+		return "", 0
+	}
+	ladder := onboard.DeepLadder()
+	remaining := poolQualificationPlan(models, ladder) - len(s.Results)
+	if remaining <= 0 {
+		return "", 0
+	}
+	core := onboard.QualificationCore(ladder)
+	perCase := estimateCaseSeconds(&s, len(models), len(core))
+	if perCase <= 0 {
+		return "", remaining
+	}
+	return humanETA(perCase * time.Duration(remaining)), remaining
+}
+
+func humanETA(d time.Duration) string {
+	if d < time.Minute {
+		return d.Round(time.Second).String()
+	}
+	minutes := int(d.Round(time.Minute) / time.Minute)
+	if minutes < 60 {
+		return fmt.Sprintf("%d min", minutes)
+	}
+	return fmt.Sprintf("%dh%02dm", minutes/60, minutes%60)
 }
 
 func qualCaseKey(role, model, caseID string) string {

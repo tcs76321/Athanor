@@ -16,9 +16,10 @@ import (
 )
 
 // startPoolQualification runs the balanced screen over every model in the
-// user's pool. The core always runs; an operator-selected minimum run time fills
-// with blocks sized from the first model's core pass. The legacy two-role
-// ladder remains available on /ui/setup.
+// user's pool. Mode "core" runs the minimum screen, "extra" adds ten minutes of
+// blocks, and "full" runs every case in the deep ladder. The first model's core
+// pass sizes the timed blocks. The legacy two-role ladder remains available on
+// /ui/setup.
 func (u *UI) startPoolQualification(ctx context.Context, fresh, deep bool, mode string, minutes int) (qualState, bool, error) {
 	p := u.pool()
 	if p == nil {
@@ -58,12 +59,18 @@ func (u *UI) startPoolQualification(ctx context.Context, fresh, deep bool, mode 
 		return qualState{}, false, fmt.Errorf("add at least one model to the pool before qualifying")
 	}
 	mode = strings.ToLower(strings.TrimSpace(mode))
-	if mode != "extra" {
+	switch mode {
+	case "extra", "full":
+	default:
 		mode = "core"
+	}
+	if mode == "full" {
+		// Full qualification runs every case in the deep ladder.
+		deep = true
 	}
 	if mode == "extra" {
 		if minutes <= 0 {
-			minutes = 20
+			minutes = 10
 		}
 		if minutes > 120 {
 			minutes = 120
@@ -141,6 +148,26 @@ func (u *UI) startPoolQualification(ctx context.Context, fresh, deep bool, mode 
 		u.runPoolQualification(runCtx, models, ladder, mode, &runState)
 	}(runState)
 	return state, true, nil
+}
+
+// ensureQualificationStarted starts the minimum screen the first time the
+// qualification step is opened. It never restarts a run the operator stopped
+// or finished, and it does nothing before the pool has a model.
+func (u *UI) ensureQualificationStarted(ctx context.Context) {
+	if u.deps.Config == nil {
+		return
+	}
+	st := u.loadQualState(ctx)
+	if st.Running && !st.stale() {
+		return
+	}
+	if !st.StartedAt.IsZero() || len(st.Results) > 0 || st.CoreComplete {
+		return
+	}
+	if p := u.pool(); p == nil || len(p.EligibleNames()) == 0 {
+		return
+	}
+	_, _, _ = u.startPoolQualification(ctx, false, false, "core", 0)
 }
 
 // cancelQualification stops the in-flight screen. The run is resumable: the
@@ -230,10 +257,33 @@ func (u *UI) runPoolQualification(ctx context.Context, models []string, ladder o
 	}
 
 	extra := onboard.QualificationExtra(ladder)
-	// The selected duration is the minimum total run time, not a cap. The
-	// core may exceed it; if the core finishes early, extra blocks fill the
-	// remaining time. A final block may wrap up a few minutes past the
-	// minimum rather than stop with time unused.
+	if mode == "full" {
+		// Full qualification is bounded only by the ladder: run every extra
+		// case for every model in fair blocks, so the balanced score keeps a
+		// common sample.
+		for len(extra) > 0 && ctx.Err() == nil {
+			block := extra
+			if len(block) > 30 {
+				block = block[:30]
+			}
+			for _, model := range models {
+				if ctx.Err() != nil {
+					break
+				}
+				runCases(model, block, false)
+			}
+			extra = extra[len(block):]
+			state.Done = len(state.Results)
+			u.saveQualState(context.Background(), *state)
+		}
+		u.finishPoolQualification(ctx, models, ladder, state)
+		return
+	}
+
+	// A ten-minute extension fills from where the core stopped: the first
+	// successfully screened model's core pass sizes the blocks, and a final
+	// block may wrap up a little past the limit rather than stop with time
+	// unused. Every block runs for every model or not at all.
 	if state.MinimumMinutes <= 0 {
 		u.finishPoolQualification(ctx, models, ladder, state)
 		return

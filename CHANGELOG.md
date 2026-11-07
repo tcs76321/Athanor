@@ -45,8 +45,9 @@ New entries are appended at the top. Do not rewrite history.
   `longctx`, `operation`, `planning`, and `calibration` join the pool ranking
   as separate capabilities. The screen is 80 default / 119 deep cases, runs a
   per-capability core for every model first, then 30-case blocks for every
-  model, and scores only cases every model completed. The core always runs; the
-  operator chooses a minimum run time for extra blocks. The run is resumable.
+  model, and scores only cases every model completed. The core starts
+  automatically on the qualification step; the operator can then stop, add ten
+  minutes, or run the full screen. The run is resumable.
   Benchmark provenance is `eval/qualification/categories.yaml`;
   `make bench-anchor-core` runs the real 12-task v2 anchor subset.
 - **Retention** (ADR-0127): events older than `retention.events_days` (default

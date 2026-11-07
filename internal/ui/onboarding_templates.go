@@ -305,60 +305,51 @@ const welcomeBody = `
     <p class="lede">Athanor measures every pool model on a small, grounded screen: deterministic generator cases and fixed-label judgment pairs. It is a prior for selection, not the frozen capability benchmark, and it never leaves this machine. Real job outcomes update the ranking over time.</p>
     {{if .Qualification.Running}}
     <div class="card" data-live-card="welcome-qualification" data-live-interval="2000">
-      <div class="row row-middle"><h3>Running qualification</h3><span class="pill run">{{.Qualification.Percent}}%</span></div>
+      <div class="row row-middle"><h3>{{if eq .Qualification.Phase "core"}}Measuring the pool{{else}}Filling out the screen{{end}}</h3><span class="pill run">{{.Qualification.Percent}}%</span></div>
       <progress class="progress" value="{{.Qualification.Percent}}" max="100">{{.Qualification.Percent}}%</progress>
-      <p><b>{{.Qualification.Done}} / {{.Qualification.Total}}</b> cases complete{{if .Qualification.Elapsed}} · {{.Qualification.Elapsed}} elapsed{{end}}{{if .Qualification.Estimate}} · estimated core {{.Qualification.Estimate}}{{end}}{{if .Qualification.MinimumRemaining}} · minimum remaining {{.Qualification.MinimumRemaining}}{{end}}{{if .Qualification.Remaining}} · about {{.Qualification.Remaining}} remaining{{else if not .Qualification.Done}} · estimating remaining time…{{end}}</p>
-      <p class="muted">This panel updates in place every couple of seconds. You can leave it; the run is resumable and the result will be here when you return.</p>
+      <p><b>{{.Qualification.Done}} / {{.Qualification.Total}}</b> cases complete{{if .Qualification.Elapsed}} · {{.Qualification.Elapsed}} elapsed{{end}}{{if .Qualification.Remaining}} · about {{.Qualification.Remaining}} left{{else if .Qualification.CoreRemaining}} · about {{.Qualification.CoreRemaining}} left{{else if .Qualification.Estimate}} · about {{.Qualification.Estimate}} total{{else}} · estimating time left…{{end}}</p>
+      <p class="muted">{{if eq .Qualification.Phase "core"}}The minimum screen runs one grounded case per capability on every model. It keeps running if you leave this page and resumes after a restart.{{else}}Every model runs the same extra cases, so the ranking stays comparable.{{end}}</p>
       <form method="post" action="/ui/setup/qualify/cancel">
         <input type="hidden" name="next" value="/ui/welcome?step=qualify">
-        <button class="danger small" data-confirm="Stop this qualification run? Completed cases are kept and the run can resume later.">Stop qualification</button>
+        <button class="danger small" data-confirm="Stop this qualification run? Completed cases are kept and the run can resume later.">Stop measuring</button>
       </form>
     </div>
-    {{else}}
-    <div class="grid cols-2">
-      <div class="card"><h3>Why run it</h3><p class="muted">It ranks the models on this computer for the work you actually do, so Athanor can cast each job instead of guessing from model size or reputation.</p></div>
-      <div class="card"><h3>What it costs</h3><p class="muted">The default screen is 80 cases per model; deep adds 39 more. A balanced core (one case per capability) runs first for every model. The core always runs; choose a minimum run time (10–60 min) and the first model’s core pass sets the estimate. The run is resumable, and scores use only cases every model completed.</p></div>
-      <div class="card"><h3>What it measures</h3><p class="muted">Code, data, documents, text, media, summarization/compaction, security, agentic decisions, instruction following, grounding, repair, long-context recall, engine-operation choice, planning, calibration, and judgment. Each family is scored separately, not folded into one general number.</p></div>
-    </div>
+    {{else if .Qualification.CoreComplete}}
     <div class="card">
       <div class="grid cols-4">
         <div class="card stat"><div class="n">{{.PoolCount}}</div><div class="l">models in the pool</div></div>
-        <div class="card stat"><div class="n">{{.Qualification.Total}}</div><div class="l">cases planned</div></div>
         <div class="card stat"><div class="n">{{.Qualification.Done}}</div><div class="l">cases recorded</div></div>
-        <div class="card stat"><div class="n">{{if .Qualification.Estimate}}{{.Qualification.Estimate}}{{else}}—{{end}}</div><div class="l">estimated core</div></div>
+        <div class="card stat"><div class="n">{{.Qualification.Total}}</div><div class="l">cases planned</div></div>
+        <div class="card stat"><div class="n">{{if .Qualification.Estimate}}{{.Qualification.Estimate}}{{else}}—{{end}}</div><div class="l">core run time</div></div>
       </div>
+      <p class="ok"><b>{{if .Qualification.AllCases}}All cases complete.{{else}}Minimum screen complete.{{end}}</b> The ranking below is usable now.</p>
       {{if .Qualification.Error}}<p class="del">{{.Qualification.Error}}</p>{{end}}
-      {{if .Qualification.Stale}}<p class="muted">A previous run looks stale; starting again resets it.</p>{{end}}
-      {{if .Qualification.Complete}}
-        <p class="ok"><b>{{if eq .Qualification.MinimumMinutes 0}}Core complete{{else if .Qualification.AllCases}}All cases complete{{else}}Minimum met{{end}}.</b> {{.Qualification.Done}} cases recorded. The ranking below feeds the next cast; remove any model you do not want Athanor to use.</p>
-      {{else if .Qualification.CanExtend}}
-        <p class="ok"><b>Core complete.</b> Every model has the minimal capability core. Choose a minimum run time below to fill with more cases on every model; the first model's core pass is the estimate.</p>
-      {{else}}
-        <p class="muted">Run the screen here, or continue and use the measured roster from a previous run. The core always runs; the selected time is a minimum, and the run stays inside this setup step.</p>
-      {{end}}
+      <p class="muted">Stop here, add ten minutes of extra cases, or run the full screen. Every choice keeps every model on the same cases, so the ranking stays comparable.</p>
+      <div class="actions">
+        <form method="post" action="/ui/welcome">
+          <input type="hidden" name="step" value="qualify">
+          <button class="secondary" name="action" value="run_qualify_more">Add 10 minutes</button>
+        </form>
+        <form method="post" action="/ui/welcome">
+          <input type="hidden" name="step" value="qualify">
+          <button class="secondary" name="action" value="run_qualify_full">Full qualification{{if .Qualification.FullEstimate}} · about {{.Qualification.FullEstimate}}{{end}}</button>
+        </form>
+      </div>
+      {{if .Qualification.FullCases}}<p class="muted small">{{.Qualification.FullCases}} cases remain for the full screen. Continue below to use the current ranking.</p>{{end}}
+    </div>
+    {{else}}
+    <div class="card">
+      {{if .Qualification.Error}}<p class="del">{{.Qualification.Error}}</p>{{end}}
+      {{if .Qualification.Stale}}<p class="muted">A previous run looks stale; starting again picks up from the completed cases.</p>{{end}}
+      <p class="muted">The screen starts automatically when you reach this step. If it did not start, start it here; completed cases are kept.</p>
       <form method="post" action="/ui/welcome">
         <input type="hidden" name="step" value="qualify">
-        <div class="row">
-          <label class="muted small">Minimum run time
-            <select name="minutes">
-              <option value="10">10 min</option>
-              <option value="20" selected>20 min</option>
-              <option value="30">30 min</option>
-              <option value="45">45 min</option>
-              <option value="60">60 min</option>
-            </select>
-          </label>
-          <label class="muted small"><input type="checkbox" name="deep" value="1"> deep cases</label>
-        </div>
-        <div class="actions">
-          <button class="primary" name="action" value="run_qualify">Run minimal core</button>
-          <button class="secondary" name="action" value="run_qualify_extra">Run for at least this long</button>
-          <button class="secondary" name="action" value="run_qualify_deep">Run deep core</button>
-        </div>
-        <p class="muted small">The core always runs and may exceed the minimum. Extra cases fill the remaining time; scores use only cases every model completed.</p>
+        <button class="primary" name="action" value="run_qualify">Start measuring</button>
       </form>
     </div>
     {{end}}
+    <p class="muted small">The screen covers code, data, documents, text, media, summarization, security, agentic decisions, instruction following, grounding, repair, long-context recall, engine-operation choice, planning, calibration, and judgment. Each family is scored separately.</p>
+
     {{if .Pool.QualifiedCount}}
     {{if .RolePicks}}
     <h2>Baseline cast</h2>

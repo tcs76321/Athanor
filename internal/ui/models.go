@@ -15,20 +15,11 @@ const modelsBody = `
     <h1>What Athanor may choose from.</h1>
     <p class="lede">You own membership. Athanor owns the measured ranking and the cast. Removing a model is the only override; the next job casts from what remains.</p>
   </div>
-  <form method="post" action="/ui/models/qualify" class="actions">
-    <label class="muted small">Minimum run time
-      <select name="minutes">
-        <option value="10">10 min</option>
-        <option value="20" selected>20 min</option>
-        <option value="30">30 min</option>
-        <option value="45">45 min</option>
-        <option value="60">60 min</option>
-      </select>
-    </label>
-    <label class="muted small"><input type="checkbox" name="deep" value="1"> deep cases</label>
-    <button class="primary" name="mode" value="core">Run minimal core</button>
-    <button class="secondary" name="mode" value="extra">Run for at least this long</button>
-  </form>
+  <div class="actions">
+    <span class="pill {{if .Qualification.Running}}run{{else if .Qualification.CoreComplete}}ok{{else}}warn{{end}}">
+      {{if .Qualification.Running}}{{.Qualification.Percent}}% measured{{else if .Qualification.CoreComplete}}{{.Qualification.Done}} cases recorded{{else}}not measured{{end}}
+    </span>
+  </div>
 </div>
 
 <div class="card {{if not .PoolReady}}card-accent{{end}}">
@@ -46,19 +37,38 @@ const modelsBody = `
 
 {{if .Qualification.Running}}
 <div class="card" data-live-card="models-qualification" data-live-interval="2500">
-  <div class="row row-middle"><h3>Qualification running</h3><span class="pill run">{{.Qualification.Percent}}%</span></div>
+  <div class="row row-middle"><h3>{{if eq .Qualification.Phase "core"}}Measuring the pool{{else}}Filling out the screen{{end}}</h3><span class="pill run">{{.Qualification.Percent}}%</span></div>
   <progress class="progress" value="{{.Qualification.Percent}}" max="100">{{.Qualification.Percent}}%</progress>
-  <p><b>{{.Qualification.Done}} / {{.Qualification.Total}}</b> cases{{if .Qualification.Elapsed}} · {{.Qualification.Elapsed}} elapsed{{end}}{{if .Qualification.Estimate}} · estimated core {{.Qualification.Estimate}}{{end}}{{if .Qualification.MinimumRemaining}} · minimum remaining {{.Qualification.MinimumRemaining}}{{end}}{{if .Qualification.Remaining}} · about {{.Qualification.Remaining}} remaining{{end}}</p>
-  <p class="muted">The run is resumable. It uses the same grounded screen as first use.</p>
+  <p><b>{{.Qualification.Done}} / {{.Qualification.Total}}</b> cases{{if .Qualification.Elapsed}} · {{.Qualification.Elapsed}} elapsed{{end}}{{if .Qualification.Remaining}} · about {{.Qualification.Remaining}} left{{else if .Qualification.CoreRemaining}} · about {{.Qualification.CoreRemaining}} left{{else if .Qualification.Estimate}} · about {{.Qualification.Estimate}} total{{else}} · estimating time left…{{end}}</p>
+  <p class="muted">The run is resumable and uses the same grounded screen as first use.</p>
   <form method="post" action="/ui/setup/qualify/cancel">
     <input type="hidden" name="next" value="/ui/models">
-    <button class="danger small" data-confirm="Stop this qualification run? Completed cases are kept and the run can resume later.">Stop qualification</button>
+    <button class="danger small" data-confirm="Stop this qualification run? Completed cases are kept and the run can resume later.">Stop measuring</button>
   </form>
 </div>
-{{else if .Qualification.Complete}}
-<div class="card"><p class="ok"><b>{{if eq .Qualification.MinimumMinutes 0}}Core complete{{else if .Qualification.AllCases}}All cases complete{{else}}Minimum met{{end}}.</b> {{.Qualification.Done}} cases recorded{{if .Qualification.Estimate}} · estimated core {{.Qualification.Estimate}}{{end}}. The ranking below is the current prior.{{if .Qualification.CanExtend}} Use the qualification controls above to run longer.{{end}}</p></div>
-{{else if .Qualification.Error}}
-<div class="card"><p class="del">{{.Qualification.Error}}</p></div>
+{{else if .Qualification.CoreComplete}}
+<div class="card">
+  <p class="ok"><b>{{if .Qualification.AllCases}}All cases complete.{{else}}Minimum screen complete.{{end}}</b> {{.Qualification.Done}} cases recorded{{if .Qualification.Estimate}} · core run {{.Qualification.Estimate}}{{end}}. The ranking below is the current prior.</p>
+  {{if .Qualification.Error}}<p class="del">{{.Qualification.Error}}</p>{{end}}
+  <p class="muted">Add ten minutes of extra cases, or run the full screen. Every model runs the same cases, so the ranking stays comparable.</p>
+  <div class="actions">
+    <form method="post" action="/ui/models/qualify">
+      <button class="secondary" name="mode" value="more">Add 10 minutes</button>
+    </form>
+    <form method="post" action="/ui/models/qualify">
+      <button class="secondary" name="mode" value="full">Full qualification{{if .Qualification.FullEstimate}} · about {{.Qualification.FullEstimate}}{{end}}</button>
+    </form>
+  </div>
+  {{if .Qualification.FullCases}}<p class="muted small">{{.Qualification.FullCases}} cases remain for the full screen.</p>{{end}}
+</div>
+{{else}}
+<div class="card">
+  {{if .Qualification.Error}}<p class="del">{{.Qualification.Error}}</p>{{end}}
+  <p class="muted">Run the grounded minimum screen to rank the pool on this machine. The first model’s pass sets the time estimate.</p>
+  <form method="post" action="/ui/models/qualify">
+    <button class="primary" name="mode" value="core">Run qualification</button>
+  </form>
+</div>
 {{end}}
 
 <h2>Pool</h2>
@@ -102,7 +112,6 @@ const modelsBody = `
   {{end}}
 </div>
 {{end}}
-{{if .Qualification.CanExtend}}<p class="muted small"><b>Core complete.</b> Use the qualification controls above to fill a minimum run time; extra cases run on every model.</p>{{end}}
 <h2>Measured ranking</h2>
 <div class="card flush"><div class="table-wrap">
 <table><thead><tr><th>Model</th><th>Family</th><th>Size</th><th>Overall</th><th>Code</th><th>Data</th><th>Judgment</th><th>Summ.</th><th>Sec.</th><th>Agent</th><th>Samples</th></tr></thead><tbody>
@@ -206,9 +215,17 @@ func (u *UI) handleModelsQualify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	mode := r.FormValue("mode")
-	minutes := parseFormInt(r, "minutes", 20)
-	deep := r.FormValue("deep") != ""
-	if _, _, err := u.startPoolQualification(r.Context(), false, deep, mode, minutes); err != nil {
+	var err error
+	switch mode {
+	case "more":
+		prev := u.loadQualState(r.Context())
+		_, _, err = u.startPoolQualification(r.Context(), false, prev.Deep, "extra", 10)
+	case "full":
+		_, _, err = u.startPoolQualification(r.Context(), false, true, "full", 0)
+	default:
+		_, _, err = u.startPoolQualification(r.Context(), false, false, "core", 0)
+	}
+	if err != nil {
 		u.fail(w, err)
 		return
 	}

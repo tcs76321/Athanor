@@ -35,14 +35,17 @@ the main 1.0.0 focus** ([1.0.0-direction.md](1.0.0-direction.md)).
      proposed once, not interrogated (⚠️);
    - any settings that cannot be defaulted.
    - model inventory + **qualification ladder** (🔨 shipped as an onboarding
-     step; today `athanor models` is inventory + advisory only).
+     step; today `athanor models` is inventory + advisory only);
+    - qualification: entering the step starts the minimum screen automatically;
+      the first model’s pass estimates the time left, then the operator can stop
+      there, add ten minutes, or run the full screen.
 5. **First project** (still tutorial-mode: tooltips, stateful, dismissible):
    - **Project → goals → tasks.**
    - **Project initialisation** (🔨): a resumable brief and, for exploratory
      goals, a scored portfolio of directions. After a direction is chosen, the
      operator can ask for three AI-authored 30-day plans and approve one
      ([ADR-0097](adr/0097-ai-plan-candidates.md)), or use the deterministic
-     plan. It is skippable: a balanced core always runs for every model, then choose a 10–60 minute minimum run time to fill with extra cases; the first model’s core pass sets the estimate. It is the first human eval.
+     plan. It is the first human eval.
 6. **Work begins** under the approved plan (single-slot by default; the
    autonomous profile may use a higher operator ceiling,
    [ADR-0096](adr/0096-capacity-aware-concurrency.md)).
