@@ -890,8 +890,17 @@ func goalByName(name string) (sampleGoal, bool) {
 func runReport(args []string) {
 	fs := flag.NewFlagSet("report", flag.ExitOnError)
 	outDir := fs.String("out", filepath.Join("spikes", "m3-t7-probe", "results"), "results directory")
+	headline := fs.Bool("headline", false, "require a Core Pod run (refuse host/diagnostic evidence)")
 	_ = fs.Parse(args)
 
+	meta, metaErr := loadRunMeta(*outDir)
+	if metaErr != nil {
+		meta = runMeta{Runtime: "", Diagnostic: true}
+	}
+	if *headline && meta.Runtime != "core-pod" {
+		fmt.Fprintf(os.Stderr, "m3-t7 report: refusing headline aggregation: runtime=%q (want core-pod); host runs are diagnostic only\n", meta.Runtime)
+		os.Exit(1)
+	}
 	metrics, err := loadAllMetrics(*outDir)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "m3-t7 report:", err)
@@ -901,7 +910,7 @@ func runReport(args []string) {
 		fmt.Fprintf(os.Stderr, "m3-t7 report: no results.json found under %s\n", *outDir)
 		os.Exit(1)
 	}
-	report := renderReport(metrics)
+	report := renderRunHeader(meta) + renderReport(metrics)
 	if sc := loadConformance(filepath.Join(*outDir, "scenarios.json")); len(sc) > 0 {
 		report += "\n" + renderConformance(sc)
 	}

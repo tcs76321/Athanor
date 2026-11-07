@@ -15,7 +15,7 @@ export CGO_ENABLED
 # tag-less binary can never silently run.
 GO_TAGS = -tags sqlite_fts5
 
-.PHONY: build release test test-race test-integration integration-images vet lint check vuln tidy tidy-check fuzz cover cover-check run clean hooks bench probe-micro probe probe-judge probe-anchor probe-report probe-bundle probe-reconcile probe-measure jobpod-image jobpod-polyglot-image core-image core-smoke bench-core-focused install soak soak-mini soak-ladder diagnostic diagnostic-pair diagnostic-cascade
+.PHONY: build release test test-race test-integration integration-images vet lint check vuln tidy tidy-check fuzz cover cover-check run clean hooks bench probe-micro probe probe-judge probe-anchor probe-report probe-bundle probe-reconcile probe-measure jobpod-image jobpod-polyglot-image core-image core-smoke bench-core-focused bench-preflight bench-host-smoke bench-anchor-host install soak soak-mini soak-ladder diagnostic diagnostic-pair diagnostic-cascade
 
 build:
 	go build $(GO_TAGS) -o bin/athanor ./cmd/athanor
@@ -219,6 +219,7 @@ bench-full: bench-verify bench-image bench-config
 	fi
 	@BENCH_OUT=$(BENCH_OUT) BENCH_CONFIG=$(BENCH_CONFIG) BENCH_STATE_VOLUME=$(BENCH_STATE_VOLUME) \
 		PROBE_IMAGE=$(PROBE_IMAGE) ./scripts/bench-core.sh start
+	@BENCH_OUT=$(BENCH_OUT) ./scripts/bench-core.sh preflight
 	@BENCH_OUT=$(BENCH_OUT) BENCH_PROBE_OUT=/bench/out \
 		./scripts/bench-core.sh probe -corpus $(BENCH_DIR)/tasks.yaml \
 		-model $(BENCH_MODEL) -arm full -judge-model $(BENCH_JUDGE) \
@@ -229,6 +230,11 @@ bench-core-stop:
 
 bench-core-status:
 	@BENCH_OUT=$(BENCH_OUT) ./scripts/bench-core.sh status
+
+# Prove the running Core Pod can actually run a benchmark (host Ollama,
+# state volume, /bench mount, Podman socket). ADR-0126.
+bench-preflight:
+	@BENCH_OUT=$(BENCH_OUT) ./scripts/bench-core.sh preflight
 
 # Focused Core Pod diagnostic: one pass over BENCH_ONLY (default: the six
 # X-code tasks), fresh state volume, images rebuilt. Set BENCH_OUT to keep the
@@ -244,23 +250,27 @@ bench-memory:
 	@BENCH_OUT=$(BENCH_OUT) BENCH_PROBE_OUT=/bench/out-memory BENCH_DIR=$(BENCH_DIR) \
 		./scripts/bench-core.sh memory
 
-# Host-binary development path. Unsupported as a measurement runtime (ADR-0078);
-# use it for harness work only.
-bench-full-host: bench-verify
-	@if [ -f "$(BENCH_OUT)/full/complete" ]; then \
-		echo "=== full benchmark already complete: $(BENCH_OUT)/full ==="; exit 0; \
-	fi
-	@if [ -d "$(BENCH_OUT)/full" ]; then \
-		echo "=== incomplete full run at $(BENCH_OUT)/full; remove it to restart ===" >&2; exit 1; \
-	fi
+# Host-binary smoke only. ADR-0126: a host run is diagnostic evidence, never a
+# headline. Six tasks, isolated output, no completion marker that a headline
+# ladder could consume.
+HOST_SMOKE_OUT ?= tools/bench/results/host-smoke
+bench-host-smoke: bench-verify
+	@echo "=== host smoke: DIAGNOSTIC ONLY, never a headline result (ADR-0126) ==="
+	@rm -rf $(HOST_SMOKE_OUT)
 	$(MAKE) soak-mini MINI_SOAK_MODEL=$(BENCH_MODEL) MINI_SOAK_JUDGE=$(BENCH_JUDGE) \
-		MINI_SOAK_HOURS=$(BENCH_HOURS) MINI_SOAK_KILL=0 \
-		MINI_SOAK_TIMEOUT=$(BENCH_TIMEOUT) MINI_SOAK_PASSES=1 \
-		MINI_SOAK_OUT=$(BENCH_OUT)/full
+		MINI_SOAK_HOURS=1 MINI_SOAK_KILL=0 MINI_SOAK_TIMEOUT=10m \
+		MINI_SOAK_PASSES=1 MINI_SOAK_ONLY=$(SOAK_SMOKE_ONLY) \
+		MINI_SOAK_OUT=$(HOST_SMOKE_OUT)
 
-# Host-binary onboarding/leaderboard screen. The Core Pod version is one model
-# per Core restart (single-slot); this stays for quick dev screens.
-bench-anchor: bench-verify
+# Retired: a host run must not be used as a full-slice measurement.
+bench-full-host:
+	@echo "bench-full-host is retired. Host runs are smoke only: use 'make bench-host-smoke'." >&2
+	@echo "For a headline run, use 'make bench-full' (Core Pod)." >&2
+	@exit 2
+
+# Host-binary anchor screen. Diagnostic only; the Core Pod anchor is the
+# leaderboard path (one model per Core restart).
+bench-anchor-host: bench-verify
 	@for m in $(BENCH_ANCHOR_MODELS); do \
 		if [ -f "$(BENCH_OUT)/anchor/$$m/complete" ]; then \
 			echo "=== anchor $$m: already complete, skipping ==="; continue; \
@@ -277,6 +287,11 @@ bench-anchor: bench-verify
 			MINI_SOAK_OUT=$(BENCH_OUT)/anchor/$$m || exit 1; \
 	done
 	$(MAKE) probe-report PROBE_OUT=$(BENCH_OUT)/anchor
+
+# A host anchor must not feed the leaderboard.
+bench-anchor:
+	@echo "bench-anchor is Core Pod only. Use 'make bench-anchor-host' for a diagnostic screen." >&2
+	@exit 2
 
 run:
 	go run $(GO_TAGS) ./cmd/athanor

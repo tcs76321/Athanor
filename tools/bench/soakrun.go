@@ -62,6 +62,9 @@ type soakRunConfig struct {
 	// external attaches to an already-running Core Pod. The probe never starts,
 	// stops, kills, or restores a daemon; it reads stateDir and submits to addr.
 	external bool
+	// runtimeName is the evidence label: core-pod (requires -external) or
+	// host. Empty derives it from -external. ADR-0126.
+	runtimeName string
 	// stateDir is the external Core Pod's state dir (inside the Core Pod, the
 	// mounted state volume). Empty in host-binary mode (defaults to <out>/state).
 	stateDir string
@@ -134,6 +137,7 @@ func runSoak(args []string) {
 	fs.StringVar(&c.anchorPath, "anchor-tasks", "", "anchor YAML file whose task ids narrow the corpus (eval/bench/anchor.yaml)")
 	fs.IntVar(&c.passes, "passes", 0, "cap full corpus passes (0 = until the deadline); 1 = one full slice")
 	fs.BoolVar(&c.external, "external", false, "attach to an already-running Core Pod; do not start/stop/kill a daemon")
+	fs.StringVar(&c.runtimeName, "runtime", "", "evidence label: core-pod (requires -external) or host; empty derives from -external")
 	fs.StringVar(&c.stateDir, "state-dir", "", "external mode: the Core Pod's state dir (required with -external)")
 	fs.IntVar(&c.goalLimit, "goals", 0, "limit to the first N goals after loading (0 = all)")
 	_ = fs.Parse(args)
@@ -154,6 +158,11 @@ func (c *soakRunConfig) run() error {
 	} else if _, err := os.Stat(c.binary); err != nil {
 		return fmt.Errorf("athanor binary %q not found (run `make build`): %w", c.binary, err)
 	}
+	runtimeName, err := resolveRuntime(c.runtimeName, c.external)
+	if err != nil {
+		return err
+	}
+	c.runtimeName = runtimeName
 	m, ok := modelByLabel(c.modelLabel)
 	if !ok {
 		return fmt.Errorf("unknown -model %q (see matrix.go)", c.modelLabel)
@@ -197,6 +206,13 @@ func (c *soakRunConfig) run() error {
 	roleModels, err := parseRoleModels(c.rolesCSV)
 	if err != nil {
 		return err
+	}
+	meta := newRunMeta(c.runtimeName, c.ollamaURL, m.Model, c.judgeModel, c.external)
+	meta.Models = []string{m.Model}
+	meta.Digests = modelDigests(meta.Digests, m.Model, c.judgeModel)
+	meta.TaskCount = len(goals)
+	if err := writeRunMeta(c.outDir, meta); err != nil {
+		return fmt.Errorf("writing run metadata: %w", err)
 	}
 	cfgPath := filepath.Join(c.outDir, "config.yaml")
 	pol := probePolicy{
@@ -385,6 +401,13 @@ func (c *soakRunConfig) run() error {
 	} else if err := writeComplete(c.outDir, len(prior), pass); err != nil {
 		return err
 	}
+	meta.Complete = !interrupted.Load()
+	meta.CompletedAt = time.Now().UTC().Format(time.RFC3339)
+	meta.Rows = len(prior)
+	meta.Passes = pass
+	if err := writeRunMeta(c.outDir, meta); err != nil {
+		return fmt.Errorf("writing run metadata: %w", err)
+	}
 	logEvent("soak end: %s; %d rows, %d passes", reason, len(prior), pass)
 	return nil
 }
@@ -479,7 +502,8 @@ func writeRollingReport(outDir string, metrics []jobMetrics) error {
 	if err := writeCSV(filepath.Join(outDir, "results.csv"), metrics); err != nil {
 		return err
 	}
-	report := renderReport(metrics)
+	meta, _ := loadRunMeta(outDir)
+	report := renderRunHeader(meta) + renderReport(metrics)
 	// ADR-0073 §2: fold the conformance matrix in when a soak wrote one.
 	if sc := loadConformance(filepath.Join(outDir, "scenarios.json")); len(sc) > 0 {
 		report += "\n" + renderConformance(sc)

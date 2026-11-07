@@ -54,6 +54,23 @@ wait_health() {
 	return 1
 }
 
+# preflight proves the Core Pod can actually run a benchmark: it reaches the
+# host Ollama, can reach the Podman socket, can write the state volume, and
+# has the /bench results mount. A host-binary fallback is never silent.
+preflight() {
+	curl -fsS --max-time 3 http://127.0.0.1:7420/healthz >/dev/null ||
+		{ echo "bench-core: preflight: Core Pod is not healthy on 127.0.0.1:7420" >&2; return 1; }
+	podman exec "$name" sh -c '
+		set -eu
+		curl -fsS --max-time 5 http://host.containers.internal:11434/api/tags >/dev/null ||
+			{ echo "bench-core: preflight: Core cannot reach host Ollama at host.containers.internal:11434" >&2; 			  echo "  fix: bind Ollama to an address reachable from the Podman VM (see docs/deploy-core-pod.md)" >&2; exit 1; }
+		test -w /var/lib/athanor/state || { echo "bench-core: preflight: state volume is not writable" >&2; exit 1; }
+		test -d /bench || { echo "bench-core: preflight: /bench mount is missing" >&2; exit 1; }
+		podman info >/dev/null 2>&1 || { echo "bench-core: preflight: Podman socket is not reachable inside the Core" >&2; exit 1; }
+	' || return 1
+	echo "bench-core: preflight OK (Core Pod, host Ollama, state, /bench, Podman socket)"
+}
+
 case "${1:-}" in
 start)
 	if [ ! -f "$config" ]; then
@@ -67,7 +84,10 @@ start)
 	# A start is a fresh boot of the Core; the state volume is preserved. Do not
 	# run this while a probe is in flight.
 	podman rm -f "$name" >/dev/null 2>&1 || true
+	image_digest=$(podman image inspect --format '{{.Digest}}' "$image" 2>/dev/null || true)
 	podman run -d --name "$name" --security-opt label=disable \
+		-e ATHANOR_CORE_IMAGE="$image" \
+		-e ATHANOR_CORE_IMAGE_DIGEST="$image_digest" \
 		-p 127.0.0.1:7420:7420 \
 		-v "$sock:/run/podman/podman.sock" \
 		-v "$config:/etc/athanor/config.yaml:ro" \
@@ -80,6 +100,7 @@ start)
 		"$image" >/dev/null
 	wait_health
 	echo "bench-core: Core Pod healthy at http://127.0.0.1:7420"
+	preflight
 	;;
 probe)
 	shift
@@ -99,8 +120,11 @@ stop)
 status)
 	curl -fsS --max-time 2 http://127.0.0.1:7420/healthz
 	;;
+preflight)
+	preflight
+	;;
 *)
-	echo "usage: $0 start|probe|stop|status" >&2
+	echo "usage: $0 start|preflight|probe|memory|stop|status" >&2
 	exit 2
 	;;
 esac
