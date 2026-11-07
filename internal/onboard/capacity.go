@@ -19,6 +19,7 @@ type CapacityOptions struct {
 	EmbeddingBytes   int64
 	FreeDiskBytes    int64
 	RepoScratchBytes int64
+	SwarmContextCap  int
 }
 
 // CapacityReport derives a capacity plan from a measured model audit. The audit
@@ -76,6 +77,6 @@ func CapacityReport(a Audit, opts CapacityOptions) capacity.Report {
 		Podman: opts.Podman, JobPodImage: opts.JobPodImage,
 		CoreReserveBytes: opts.CoreReserveBytes, HostReserveBytes: a.ReserveBytes,
 		PerPodBytes: opts.PerPodBytes, MaxJobs: opts.MaxJobs, MaxLLMCalls: opts.MaxLLMCalls,
-		RepoScratchBytes: opts.RepoScratchBytes,
+		RepoScratchBytes: opts.RepoScratchBytes, SwarmContextCap: opts.SwarmContextCap,
 	})
 }

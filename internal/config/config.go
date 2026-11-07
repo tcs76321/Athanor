@@ -282,6 +282,18 @@ type ContextEngine struct {
 	EnableLosslessSwapping *bool   `yaml:"enable_lossless_swapping"`
 	KVCacheWarningThresh   float64 `yaml:"kv_cache_warning_threshold"`
 	KVCacheCriticalThresh  float64 `yaml:"kv_cache_critical_threshold"`
+	// ADR-0124: per-job context planning. `archetype` preserves the legacy
+	// fixed floors; `adaptive` uses the demand/capability/phase floors and
+	// bucket rounding. The maps are keyed by demand and capability.
+	ContextPolicy       string         `yaml:"context_policy"`
+	ContextBuckets      []int          `yaml:"context_buckets"`
+	PlanningFloor       int            `yaml:"planning_floor"`
+	JudgeFloor          int            `yaml:"judge_floor"`
+	DemandFloors        map[string]int `yaml:"demand_floors"`
+	CapabilityFloors    map[string]int `yaml:"capability_floors"`
+	OutputReserve       map[string]int `yaml:"output_reserve"`
+	SafetyMarginPercent int            `yaml:"safety_margin_percent"`
+	SwarmContextCap     int            `yaml:"swarm_context_cap"`
 	// M5-T2 division bounds (§10.1). A source larger than
 	// DivisionMaxSourceBytes is skipped with a `context` audit row rather
 	// than divided; a single chunk larger than DivisionMaxChunkBytes is

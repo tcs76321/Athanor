@@ -255,6 +255,9 @@ type Engine struct {
 	// Index. nil means "no MCE" — tiers 3 and 6 stay empty and prompts
 	// are the pre-T5 assembler exactly.
 	ctxProvider ContextProvider
+	// contextPlanner is the ADR-0124 per-job context seam. nil preserves the
+	// legacy fixed-floor behavior.
+	contextPlanner ContextPlanner
 	// podLifecycle ensures/tears down the job's Job Pod (M2-T4b.5,
 	// ADR-0024 §2). nil means "no lifecycle seam": the engine never starts
 	// a pod, which is the pre-T4b behavior unit tests rely on.

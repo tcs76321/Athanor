@@ -176,6 +176,7 @@ demo. A claim without a proof is either removed or marked as a target.
 | Superseded architecture wording and tool/ADR drift fail the build | 2026-11-07 consistency gate | `internal/docs/consistency_test.go` | **proven** |
 | Old audit events are archived before deletion under a guarded trigger | ADR-0127 | `internal/retention`; `TestArchiveEventsMovesOldRows`, `TestGuardStillBlocksNormalDelete`, `TestPruneArchivesByAge` | **proven** |
 | `models -audit` reports solo/swarm capacity and coverage reasons | ADR-0124 | `internal/onboard/capacity.go`; `TestCapacityReportFromAudit`, `TestCapacityReportDegradesWithOneModel` | **proven structurally** |
+| Adaptive context planning chooses a per-phase window and audits it | ADR-0124 | `cmd/athanor/context_planner.go`; `internal/engine/context_plan.go`; `TestContextPlannerSetsWindowAndAudits`, `TestContextPlannerFailurePausesJob`, `TestContextPlannerJudgeIgnoresRepoFloor` | **proven; opt-in via context_policy: adaptive** |
 
 ## Rule
 

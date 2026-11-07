@@ -124,6 +124,18 @@ context_engine:
   research_floor: 32768            # not yet enforced (ARCHITECTURE §29 note)
   document_floor: 16384
   simple_floor: 8192
+  # ADR-0124 per-job context planning. `archetype` preserves the fixed floors;
+  # `adaptive` uses demand/capability/phase floors and bucket rounding. The
+  # adaptive path is opt-in until the paired evidence run.
+  context_policy: archetype
+  context_buckets: [4096, 8192, 16384, 32768]
+  planning_floor: 8192
+  judge_floor: 8192
+  demand_floors: {short: 4096, long: 16384, repo: 32768, memory: 16384}
+  capability_floors: {code: 8192, data: 4096, document: 8192, text: 4096, media: 8192}
+  output_reserve: {planning: 2048, diverging: 4096, evaluating: 1024, comparing: 1024, reflecting: 2048, synthesizing: 4096, compaction: 512}
+  safety_margin_percent: 15
+  swarm_context_cap: 8192
   compaction_temperature: 0.0   # invariant: always 0.0 (§10.3)
   enable_lossless_swapping: true
   kv_cache_warning_threshold: 0.85

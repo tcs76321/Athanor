@@ -123,6 +123,30 @@ func applyDefaults(c *Config) {
 	setInt(&c.ContextEngine.DocumentFloor, 16384)
 	setInt(&c.ContextEngine.SimpleFloor, 8192)
 	setTrue(&c.ContextEngine.EnableLosslessSwapping)
+	setStr(&c.ContextEngine.ContextPolicy, "archetype")
+	if len(c.ContextEngine.ContextBuckets) == 0 {
+		c.ContextEngine.ContextBuckets = []int{4096, 8192, 16384, 32768}
+	}
+	setInt(&c.ContextEngine.PlanningFloor, 8192)
+	setInt(&c.ContextEngine.JudgeFloor, 8192)
+	if len(c.ContextEngine.DemandFloors) == 0 {
+		c.ContextEngine.DemandFloors = map[string]int{
+			"short": 4096, "long": 16384, "repo": 32768, "memory": 16384,
+		}
+	}
+	if len(c.ContextEngine.CapabilityFloors) == 0 {
+		c.ContextEngine.CapabilityFloors = map[string]int{
+			"code": 8192, "data": 4096, "document": 8192, "text": 4096, "media": 8192,
+		}
+	}
+	if len(c.ContextEngine.OutputReserve) == 0 {
+		c.ContextEngine.OutputReserve = map[string]int{
+			"planning": 2048, "diverging": 4096, "evaluating": 1024,
+			"comparing": 1024, "reflecting": 2048, "synthesizing": 4096, "compaction": 512,
+		}
+	}
+	setInt(&c.ContextEngine.SafetyMarginPercent, 15)
+	setInt(&c.ContextEngine.SwarmContextCap, 8192)
 	if c.ContextEngine.KVCacheWarningThresh == 0 {
 		c.ContextEngine.KVCacheWarningThresh = 0.85
 	}

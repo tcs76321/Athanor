@@ -32,6 +32,11 @@ New entries are appended at the top. Do not rewrite history.
   automatically.
 - **Documentation consistency gate**: ADR references, superseded phrases, the
   closed tool set, and the config example now fail the build when they drift.
+- **Adaptive context planning is wired**: `context_engine.context_policy:
+  adaptive` activates `internal/capacity` inside the engine. Planning and
+  judgment no longer inherit the repo floor; generation/synthesis use the
+  demand floor; a planner failure pauses with a `context_plan_failed` audit.
+  The default remains `archetype`, so the frozen v2 behavior is unchanged.
 - **Retention** (ADR-0127): events older than `retention.events_days` (default
   365) are archived to gzip JSONL under `state/archive/events` and deleted
   under a guarded exception to the append-only trigger. Daydream logs, closed

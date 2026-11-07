@@ -91,6 +91,41 @@ func validateRaw(c *Config) error {
 			return fmt.Errorf("%s must be positive, got %d", name, v)
 		}
 	}
+	switch c.ContextEngine.ContextPolicy {
+	case "", "archetype", "adaptive":
+	default:
+		return fmt.Errorf("context_engine.context_policy must be archetype or adaptive, got %q", c.ContextEngine.ContextPolicy)
+	}
+	prev := 0
+	for _, b := range c.ContextEngine.ContextBuckets {
+		if b <= prev {
+			return fmt.Errorf("context_engine.context_buckets must be positive and ascending, got %v", c.ContextEngine.ContextBuckets)
+		}
+		prev = b
+	}
+	for name, v := range map[string]int{
+		"context_engine.planning_floor":    c.ContextEngine.PlanningFloor,
+		"context_engine.judge_floor":       c.ContextEngine.JudgeFloor,
+		"context_engine.swarm_context_cap": c.ContextEngine.SwarmContextCap,
+	} {
+		if v < 0 {
+			return fmt.Errorf("%s must be >= 0, got %d", name, v)
+		}
+	}
+	for name, m := range map[string]map[string]int{
+		"context_engine.demand_floors":     c.ContextEngine.DemandFloors,
+		"context_engine.capability_floors": c.ContextEngine.CapabilityFloors,
+		"context_engine.output_reserve":    c.ContextEngine.OutputReserve,
+	} {
+		for k, v := range m {
+			if v < 0 {
+				return fmt.Errorf("%s.%s must be >= 0, got %d", name, k, v)
+			}
+		}
+	}
+	if v := c.ContextEngine.SafetyMarginPercent; v < 0 || v > 50 {
+		return fmt.Errorf("context_engine.safety_margin_percent must be within [0, 50], got %d", v)
+	}
 	// M5-T2 division bounds (§10.1): reject explicitly negative values
 	// before defaults run, so a typo surfaces with an actionable error
 	// instead of silently becoming the default through applyDefaults.

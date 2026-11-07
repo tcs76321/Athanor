@@ -135,6 +135,7 @@ func runModelAudit(ctx context.Context, cfg *config.Config, probes *osProbes, ho
 		MaxLLMCalls: maxLLM, Podman: podman, JobPodImage: jobPodImage,
 		EmbeddingModel: embedModel, EmbeddingBytes: embedBytes,
 		RepoScratchBytes: 2 << 30,
+		SwarmContextCap:  cfg.ContextEngine.SwarmContextCap,
 	}))
 	return audit, nil
 }

@@ -255,25 +255,66 @@ func (e *Engine) call(ctx context.Context, j job.Job, p project.Project, t proje
 	plan := e.planFor(ctx, j, p, t)
 	capability := capabilityFor(p, t)
 
+	// ADR-0124: an adaptive planner chooses this job's window. A nil planner
+	// (or a planner that declines) preserves the legacy fixed-floor path.
+	planned := false
+	if e.contextPlanner != nil {
+		demand := contextDemandFor(p, t)
+		pinned := prompt.EstimateTokens(t.Title+"\n"+t.Description+"\n"+strings.Join(t.Criteria, "\n")) + 512
+		working := 0
+		if capability == project.ArchetypeCode && e.cfg.ContextEngine.WorkingSetMaxBytes > 0 {
+			working = e.cfg.ContextEngine.WorkingSetMaxBytes / 4
+		}
+		dec, derr := e.contextPlanner.PlanContext(ContextRequest{
+			Phase: phase, Capability: capability, Demand: demand,
+			Model: persona.Model, ModelMax: persona.ContextTarget,
+			Pinned: pinned, Working: working, Output: e.cfg.Inference.MaxOutputTokens,
+		})
+		if derr != nil {
+			slog.Warn("engine: context plan failed", "job", j.ID, "phase", phase, "err", derr)
+			if _, err := e.jobs.Transition(ctx, j.ID, job.StatePaused); err != nil {
+				return llm.Response{}, err
+			}
+			e.auditCat(ctx, j.ID, "context", map[string]any{
+				"event": "context_plan_failed", "phase": phase, "persona": role,
+				"error": derr.Error(),
+			})
+			return llm.Response{}, ErrPaused
+		}
+		if dec.Target > 0 && dec.Target <= persona.ContextTarget {
+			persona.ContextTarget = dec.Target
+			planned = true
+		}
+		e.auditCat(ctx, j.ID, "context", map[string]any{
+			"event": "context_plan", "phase": phase, "persona": role,
+			"demand": dec.Demand, "floor": dec.Floor, "target": dec.Target,
+			"bucket": dec.Bucket, "planned": planned, "binding": dec.Binding,
+			"pinned": pinned, "working": working,
+		})
+	}
+
 	// M1-T2: feasibility before every call — never silently reduce.
 	// M5-T4: this is the §12.6 pre-assembly gate (what the *window*
 	// must be); the per-call §10.4 pressure gate below is its
-	// complement (what goes *in* the window).
-	verdict := llm.Check(persona, phase, capability, persona.ContextTarget, e.cfg.ContextEngine)
-	if !verdict.Feasible {
-		slog.Warn("engine: context floor violation",
-			"job", j.ID, "phase", phase, "capability", capability,
-			"persona", role, "required", verdict.Required,
-			"available", verdict.Available, "target", persona.ContextTarget)
-		if _, err := e.jobs.Transition(ctx, j.ID, job.StatePaused); err != nil {
-			return llm.Response{}, err
+	// complement (what goes *in* the window). The planner is responsible
+	// for its own floor when it chose the window.
+	if !planned {
+		verdict := llm.Check(persona, phase, capability, persona.ContextTarget, e.cfg.ContextEngine)
+		if !verdict.Feasible {
+			slog.Warn("engine: context floor violation",
+				"job", j.ID, "phase", phase, "capability", capability,
+				"persona", role, "required", verdict.Required,
+				"available", verdict.Available, "target", persona.ContextTarget)
+			if _, err := e.jobs.Transition(ctx, j.ID, job.StatePaused); err != nil {
+				return llm.Response{}, err
+			}
+			e.auditCat(ctx, j.ID, "context", map[string]any{
+				"event": "context_floor_violation", "phase": phase, "persona": role,
+				"required": verdict.Required, "available": verdict.Available,
+				"recommendation": verdict.Recommendation,
+			})
+			return llm.Response{}, ErrPaused
 		}
-		e.auditCat(ctx, j.ID, "context", map[string]any{
-			"event": "context_floor_violation", "phase": phase, "persona": role,
-			"required": verdict.Required, "available": verdict.Available,
-			"recommendation": verdict.Recommendation,
-		})
-		return llm.Response{}, ErrPaused
 	}
 
 	// M5-T5 (§10.5, ADR-0023): gather the tier payloads, the §25 tool
