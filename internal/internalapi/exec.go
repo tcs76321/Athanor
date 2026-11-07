@@ -70,6 +70,7 @@ type PodExecutor interface {
 	RunCode(ctx context.Context, jobID string, req toolenvelope.ExecuteRequest) (toolenvelope.ExecuteResult, error)
 	RunTests(ctx context.Context, jobID string, req toolenvelope.ExecuteRequest) (toolenvelope.ExecuteResult, error)
 	Lint(ctx context.Context, jobID string, req toolenvelope.ExecuteRequest) (toolenvelope.ExecuteResult, error)
+	ReadFile(ctx context.Context, jobID string, req toolenvelope.ReadFileRequest) (toolenvelope.ReadFileResponse, error)
 }
 
 // Typed errors the PodExecutor adapter surfaces. The handler maps them to

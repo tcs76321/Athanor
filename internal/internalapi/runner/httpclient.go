@@ -102,6 +102,13 @@ func (c *HTTPClient) RunLint(ctx context.Context, jobID string, req toolenvelope
 	return c.post(ctx, jobID, "/lint", req)
 }
 
+// ReadFile POSTs to /internal/v1/jobs/{id}/read_file (ADR-0113). It is the
+// read-only observation tool: a repository-relative path, bounded response.
+func (c *HTTPClient) ReadFile(ctx context.Context, jobID string, req toolenvelope.ReadFileRequest) (toolenvelope.ReadFileResponse, error) {
+	req.Tool = toolenvelope.ToolReadFile
+	return postTool[toolenvelope.ReadFileResponse](c, ctx, jobID, "/read_file", req)
+}
+
 // FetchURL POSTs to /internal/v1/jobs/{id}/fetch_url (M4-T7,
 // ADR-0019 §1). The Core executes the fetch through the §21.5
 // gateway; the response is the extracted (or raw-disabled) content.

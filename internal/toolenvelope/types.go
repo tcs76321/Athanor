@@ -148,6 +148,24 @@ type ContextSwapResponse struct {
 	NoOp           bool   `json:"no_op,omitempty"`
 }
 
+// ReadFileRequest is the wire shape for the read-only observation tool
+// (ADR-0113). Path is relative to the staged repository snapshot; absolute
+// paths and traversal are rejected server-side.
+type ReadFileRequest struct {
+	Tool     Tool   `json:"tool"`
+	Path     string `json:"path"`
+	MaxBytes int    `json:"max_bytes,omitempty"`
+}
+
+// ReadFileResponse is the bounded file content returned to the engine. It is
+// prompt material: the caller must bound what it injects.
+type ReadFileResponse struct {
+	Path      string `json:"path"`
+	Content   string `json:"content"`
+	Bytes     int    `json:"bytes"`
+	Truncated bool   `json:"truncated,omitempty"`
+}
+
 // QueryMemoryRequest is the wire shape for the M5-T7 query_memory tool
 // (§10.2, §25; ADR-0026 §6). The Core executes the search: the MCE's memory
 // lives in the Core's SQLite database, which no Job Pod can see, so the

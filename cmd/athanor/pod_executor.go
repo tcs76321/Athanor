@@ -4,7 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
+	"unicode/utf8"
 
+	airlockpaths "github.com/tcs76321/athanor/internal/airlock/paths"
 	"github.com/tcs76321/athanor/internal/internalapi"
 	"github.com/tcs76321/athanor/internal/jobpod"
 	"github.com/tcs76321/athanor/internal/toolenvelope"
@@ -133,6 +136,44 @@ func (a *podExecutorAdapter) RunTests(ctx context.Context, jobID string, req too
 // resolved server-side before the call); the same containment note applies.
 func (a *podExecutorAdapter) Lint(ctx context.Context, jobID string, req toolenvelope.ExecuteRequest) (toolenvelope.ExecuteResult, error) {
 	return a.exec(ctx, jobID, jobpod.ExecSpec{Command: []string{"sh", "-c", prepWorkDir() + " && cd " + podWork + " && " + req.Command}})
+}
+
+// ReadFile reads one repository-relative file from the staged snapshot. The
+// path is resolved lexically against /workspace/repo (no absolute paths, no
+// traversal); cat runs as a direct argv, never through a shell. This is the
+// observation half of ADR-0113: it cannot write, execute, or reach the host.
+func (a *podExecutorAdapter) ReadFile(ctx context.Context, jobID string, req toolenvelope.ReadFileRequest) (toolenvelope.ReadFileResponse, error) {
+	if a.image == "" {
+		return toolenvelope.ReadFileResponse{}, fmt.Errorf("%w: job_pod.image is not set", internalapi.ErrExecNotConfigured)
+	}
+	clean, err := airlockpaths.Resolve(repoMount, req.Path)
+	if err != nil {
+		return toolenvelope.ReadFileResponse{}, fmt.Errorf("read_file: %w", err)
+	}
+	res, err := a.exec(ctx, jobID, jobpod.ExecSpec{Command: []string{"cat", "--", clean}})
+	if err != nil {
+		return toolenvelope.ReadFileResponse{}, err
+	}
+	if res.ExitCode != 0 {
+		return toolenvelope.ReadFileResponse{}, fmt.Errorf("read_file: %s", strings.TrimSpace(res.Stderr))
+	}
+	limit := req.MaxBytes
+	if limit <= 0 {
+		limit = 8 << 10
+	}
+	content := res.Stdout
+	truncated := false
+	if len(content) > limit {
+		content = content[:limit]
+		// Do not emit a split UTF-8 rune at the boundary.
+		for len(content) > 0 && !utf8.ValidString(content) {
+			content = content[:len(content)-1]
+		}
+		truncated = true
+	}
+	return toolenvelope.ReadFileResponse{
+		Path: clean, Content: content, Bytes: len(content), Truncated: truncated,
+	}, nil
 }
 
 // exec is the shared body. It refuses early when no image is configured,

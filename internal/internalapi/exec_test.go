@@ -60,6 +60,15 @@ func (f *fakePodExecutor) Lint(_ context.Context, _ string, req toolenvelope.Exe
 	return f.result, f.err
 }
 
+func (f *fakePodExecutor) ReadFile(_ context.Context, _ string, req toolenvelope.ReadFileRequest) (toolenvelope.ReadFileResponse, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.err != nil {
+		return toolenvelope.ReadFileResponse{}, f.err
+	}
+	return toolenvelope.ReadFileResponse{Path: req.Path, Content: "package main\n", Bytes: 13}, nil
+}
+
 // newHandlerTestEnvWithExecutor is newHandlerTestEnv with a PodExecutor
 // wired (the M2-T4b.4 production shape).
 func newHandlerTestEnvWithExecutor(t *testing.T, exec PodExecutor) *handlerTestEnv {

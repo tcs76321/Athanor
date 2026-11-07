@@ -255,6 +255,7 @@ func applyDefaults(c *Config) {
 	}
 	setTrue(&c.Execution.Policy.CostAware)
 	setTrue(&c.Execution.Policy.LearnedSelection)
+	setTrue(&c.Execution.Policy.ObservationTools)
 	if c.Execution.Policy.PairwiseJudge == nil {
 		off := false
 		c.Execution.Policy.PairwiseJudge = &off

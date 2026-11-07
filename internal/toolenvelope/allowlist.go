@@ -63,6 +63,10 @@ const (
 	// see, so the route is Core-executed like context_swap. Per-task
 	// override only.
 	ToolQueryMemory Tool = "query_memory"
+	// ToolReadFile (ADR-0113) is a read-only observation tool: the model may
+	// request one path inside the staged repository snapshot. It cannot write,
+	// execute, escape the repo mount, or read the host filesystem.
+	ToolReadFile Tool = "read_file"
 )
 
 // ErrUnknownTool is returned by Parse for any name outside the
@@ -158,7 +162,7 @@ func (e Envelope) IsEmpty() bool { return len(e.tools) == 0 }
 // envelope.
 func isKnown(t Tool) bool {
 	switch t {
-	case ToolExecuteCode, ToolRunTests, ToolLint, ToolGitOperation, ToolFetchURL, ToolSearchWeb, ToolContextSwap, ToolQueryMemory:
+	case ToolExecuteCode, ToolRunTests, ToolLint, ToolGitOperation, ToolFetchURL, ToolSearchWeb, ToolContextSwap, ToolQueryMemory, ToolReadFile:
 		return true
 	default:
 		return false
@@ -174,6 +178,6 @@ func isKnown(t Tool) bool {
 func AllTools() []Tool {
 	return []Tool{
 		ToolExecuteCode, ToolRunTests, ToolLint, ToolGitOperation,
-		ToolFetchURL, ToolSearchWeb, ToolContextSwap, ToolQueryMemory,
+		ToolFetchURL, ToolSearchWeb, ToolContextSwap, ToolQueryMemory, ToolReadFile,
 	}
 }

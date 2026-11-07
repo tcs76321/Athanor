@@ -543,6 +543,10 @@ type PolicyConfig struct {
 	// accepts an agreed verdict (ADR-0111). It is opt-in: two extra judge
 	// calls per comparison.
 	PairwiseJudge *bool `yaml:"pairwise_judge"`
+	// ObservationTools lets a code repair ask to read one repository file
+	// before rewriting (ADR-0113). It is a single bounded LLM call and a
+	// read-only tool; default true.
+	ObservationTools *bool `yaml:"observation_tools"`
 	// QualityTieMargin is the score delta within which two artifacts are
 	// considered tied for cost-aware acceptance (F4-T6).
 	QualityTieMargin *float64 `yaml:"quality_tie_margin"`
@@ -649,6 +653,11 @@ func (e *Execution) LearnedSelectionEnabled() bool {
 // judgment calls are an explicit cost choice).
 func (e *Execution) PairwiseJudgeEnabled() bool {
 	return Val(e.Policy.PairwiseJudge, false)
+}
+
+// ObservationToolsEnabled resolves observation_tools (default true).
+func (e *Execution) ObservationToolsEnabled() bool {
+	return Val(e.Policy.ObservationTools, true)
 }
 
 // QualityTieMarginValue resolves quality_tie_margin (default 0.02).

@@ -49,9 +49,12 @@ func (e *Engine) selfRefine(ctx context.Context, j job.Job, p project.Project, t
 	}
 
 	capability := capabilityFor(p, t)
-	instructions := buildSelfRefineInstructions(rec, capability, e.languageFor(ctx, j, p, t))
 	plan := e.planFor(ctx, j, p, t)
 	role := e.roleFor(plan, llm.PhaseRefining, llm.RoleMain)
+	if e.cfg.Execution.ObservationToolsEnabled() && capability == project.CapabilityCode {
+		e.observeForRepair(ctx, j, p, t, role)
+	}
+	instructions := buildSelfRefineInstructions(rec, capability, e.languageFor(ctx, j, p, t))
 	ctxCandidates := []prompt.CandidateArtifact{{Kind: "candidate", Content: string(content)}}
 	resp, err := e.call(ctx, j, p, t, llm.PhaseRefining, role, instructions, ctxCandidates)
 	if err != nil {

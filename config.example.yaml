@@ -233,6 +233,9 @@ execution:
     # ADR-0111: run the comparison judge in both A/B orders and accept only an
     # agreed verdict. Costs two extra judge calls; off by default.
     pairwise_judge: false
+    # ADR-0113: a code repair may ask to read one repository file before
+    # rewriting. Read-only and bounded; on by default.
+    observation_tools: true
     quality_tie_margin: 0.02
     require_cross_family: true
     heterogeneous_diversity: true

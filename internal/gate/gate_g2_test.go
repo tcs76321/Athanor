@@ -238,6 +238,7 @@ func TestGateG2ToolEnvelopeBypassImpossible(t *testing.T) {
 		"search_web":   "handleSearchWeb",
 		"context_swap": "handleContextSwap",
 		"query_memory": "handleQueryMemory",
+		"read_file":    "handleReadFile",
 	}
 	// The closed set is the source of truth (known-issues M4): every tool in
 	// toolenvelope.AllTools() must either have a handler here or be explicitly
@@ -294,6 +295,7 @@ func TestGateG2GatewayToolRoutesRegistered(t *testing.T) {
 		`"POST /internal/v1/jobs/{id}/search_web"`,
 		`"POST /internal/v1/jobs/{id}/context_swap"`,
 		`"POST /internal/v1/jobs/{id}/query_memory"`,
+		`"POST /internal/v1/jobs/{id}/read_file"`,
 	} {
 		if !strings.Contains(body, route) {
 			t.Errorf("%s does not register %q; the closed-set tool has no route (Gate G2)", handlers, route)

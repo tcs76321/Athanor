@@ -1608,7 +1608,7 @@ Tools are constrained, audited, and available only to Job Pods and the Core orch
 
 | Tool | Description | HITL Required | Status |
 |---|---|---|---|
-| `read_file(path)` | Read approved workspace file | No | Deferred |
+| `read_file(path)` | Read one repository-relative file (ADR-0113); read-only observation, bounded | No | **Live** (code repair only) |
 | `write_file(path, content)` | Write approved workspace file | No | Deferred |
 | `list_files(path)` | List approved directory | No | Deferred |
 | `search_files(pattern)` | Search workspace content | No | Deferred |
@@ -1627,13 +1627,14 @@ Tools are constrained, audited, and available only to Job Pods and the Core orch
 | `add_correction(category, reason)` | Create `CorrectionRecord` | No | Deferred |
 | `install_package(name)` | Install system or language package | Yes | Deferred |
 
-> The **Status** column is the honest picture: the eight-tool closed set
+> The **Status** column is the honest picture: the nine-tool closed set
 > (`execute_code`, `run_tests`, `lint`, `git_operation`, `fetch_url`,
-> `search_web`, `context_swap`, `query_memory`) is live behind the per-job
-> envelope, `git_push` is a HITL-gated **Core** action, and the remaining rows
-> are deferred (see ROADMAP §7). The agent reaches repository files today
-> through the M5-T8 indexing pipeline plus `query_memory`/`context_swap`
-> rather than a `read_file` tool.
+> `search_web`, `context_swap`, `query_memory`, `read_file`) is live behind
+> the per-job envelope, `git_push` is a HITL-gated **Core** action, and the
+> remaining rows are deferred (see ROADMAP §7). `read_file` is a bounded,
+> read-only observation the engine executes at the model's request during a
+> code repair ([ADR-0113](docs/adr/0113-read-only-observation-tool.md)); the
+> model still cannot call a tool directly or run a general tool loop.
 >
 > **Language scope (ADR-0101).** `execute_code` single-file execution is
 > Python-only. A code candidate in another detected language (Go, Rust,

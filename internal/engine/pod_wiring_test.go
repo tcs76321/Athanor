@@ -134,6 +134,18 @@ func (f *fakeRunner) RunLint(ctx context.Context, jobID string, req toolenvelope
 	return f.run(ctx, jobID, req, "RunLint")
 }
 
+// ReadFile serves the ADR-0113 observation tool. Tests that do not seed a
+// file get a small deterministic body.
+func (f *fakeRunner) ReadFile(_ context.Context, jobID string, req toolenvelope.ReadFileRequest) (toolenvelope.ReadFileResponse, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.calls = append(f.calls, fakeCall{Tool: "ReadFile", JobID: jobID, Cmd: req.Path})
+	if f.disallow["ReadFile"] {
+		return toolenvelope.ReadFileResponse{}, toolenvelope.ErrToolDisallowed
+	}
+	return toolenvelope.ReadFileResponse{Path: req.Path, Content: "def add(a, b):\n    return a + b\n"}, nil
+}
+
 // fetches holds the canned fetch outcomes (M4-T7 research sub-step).
 // The key is the requested URL; a missing key means "success with
 // the canned markdown". fetchErr / fetchDisallow override globally.

@@ -152,6 +152,9 @@ type ToolRunner interface {
 	// Command asks the internal API for its closed-set default. Same
 	// contract as RunCode.
 	RunLint(ctx context.Context, jobID string, req toolenvelope.ExecuteRequest) (toolenvelope.ExecuteResult, error)
+	// ReadFile reads one repository-relative file from the staged snapshot
+	// (ADR-0113). It is observation-only: no write, no execute, no host FS.
+	ReadFile(ctx context.Context, jobID string, req toolenvelope.ReadFileRequest) (toolenvelope.ReadFileResponse, error)
 	// FetchURL fetches one task-declared source through the
 	// §21.5 gateway (M4-T7, ADR-0019 §7). The route is
 	// envelope-gated server-side; a 403 surfaces as

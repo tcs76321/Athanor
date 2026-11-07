@@ -28,6 +28,10 @@ New entries are appended at the top. Do not rewrite history.
 - **Mid-job clarification** ([ADR-0112](docs/adr/0112-hitl-clarification.md)):
   planning/reflection can emit `QUESTION:`; the job parks as a HITL request,
   the answer is written to the notebook before resume, and the job continues.
+- **Read-only observation** ([ADR-0113](docs/adr/0113-read-only-observation-tool.md)):
+  a code repair may request one repository-relative file; the engine reads it
+  through an envelope-gated `read_file` route, writes it to the notebook, and
+  never exposes write/execute/network.
 
 ### Correctness, benchmark parity, and endurance — 2026-11-06
 

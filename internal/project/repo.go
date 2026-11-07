@@ -22,6 +22,9 @@ func CodeArchetypeTools() []string {
 		string(toolenvelope.ToolExecuteCode),
 		string(toolenvelope.ToolRunTests),
 		string(toolenvelope.ToolLint),
+		// ADR-0113: a code task may ask to read one repository-relative
+		// file before repairing. It cannot write or execute through it.
+		string(toolenvelope.ToolReadFile),
 	}
 }
 
