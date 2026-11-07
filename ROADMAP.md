@@ -9,6 +9,7 @@
 | Milestone | State |
 |---|---|
 | Pre-first-use hardening (2026-11-06) | ✅ Landed — harness integrity, terminal finalization, pause/pod lifecycle, compare recovery, actual pool/strategy evidence, token accounting, process scorecard truth, non-code git blobs, repository snapshot failure, host-visible repo mount, path validation, pre-index gate, stale Core recreation. ADR-0120–0123. |
+| Qualification categories + balanced chunks (2026-11-07) | ✅ Landed — repair, long-context, operation, planning, and calibration are separate deterministic capabilities; 80-case default/119-case deep ladder; open-ended core+blocks with common-case scoring; provenance manifest; `make diagnostic-categories` and `make bench-anchor-core` (ADR-0129). |
 | M9 pre-first-use — capacity, runtime evidence, languages (2026-11-07) | ✅ Landed — `internal/capacity` plans context/coverage/degraded modes/solo+swarm lanes (ADR-0124); SQLite single writer + read pool (ADR-0125); Core Pod `run.json` + preflight + host smoke-only evidence (ADR-0126); six new division grammars (ADR-0128); documentation consistency gate. Retention is live: 365-day event archival under a guarded trigger, auxiliary pruning, configurable archive keeping (ADR-0127). |
 | TASK-000 SQLite + sqlite-vec spike | ✅ Done (findings: [docs/sqlite-setup.md](docs/sqlite-setup.md)) |
 | Power manager draft (`internal/power`) | ✅ Aligned with ARCHITECTURE §24 naming (jobs, not VMs) and fully unit-tested |

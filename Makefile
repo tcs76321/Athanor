@@ -170,7 +170,7 @@ diagnostic-cascade:
 # The Athanor-internal category screen: compaction, security, and agentic
 # decision-making. Diagnostic only; the frozen corpus is never edited.
 DIAGNOSTIC_CATEGORIES_OUT ?= tools/bench/results/diagnostic-categories
-DIAGNOSTIC_CATEGORIES_ONLY ?= diag-summarize-incident,diag-security-refusal,diag-agentry-decision
+DIAGNOSTIC_CATEGORIES_ONLY ?= diag-summarize-incident,diag-security-refusal,diag-agentry-decision,diag-repair-offbyone,diag-longctx-needle,diag-operation-choice,diag-plan-order,diag-calibration-unknown
 diagnostic-categories:
 	$(MAKE) soak-mini MINI_SOAK_CORPUS=eval/diagnostic/tasks.yaml \
 		MINI_SOAK_ARM=full \
@@ -187,6 +187,7 @@ soak-smoke:
 # screen (12 tasks x pinned roster), also <=12h. The leaderboard is an
 # aggregation of anchor runs, not the headline. Both verify the model digests
 # first; a changed model is a changed benchmark, not a sloppy run.
+BENCH_ARM          ?= full
 BENCH_MODEL        ?= ornith9b
 BENCH_JUDGE        ?= granite4.2:3b
 BENCH_OUT          ?= tools/bench/results/bench-v2
@@ -214,7 +215,7 @@ bench-image: core-image
 bench-config:
 	@mkdir -p $(BENCH_OUT)
 	CGO_ENABLED=1 go run $(GO_TAGS) ./tools/bench config \
-		-model $(BENCH_MODEL) -arm full -judge-model $(BENCH_JUDGE) \
+		-model $(BENCH_MODEL) -arm $(BENCH_ARM) -judge-model $(BENCH_JUDGE) \
 		-ollama http://host.containers.internal:11434 -addr 127.0.0.1:7420 \
 		-jobpod-image athanor-jobpod:latest \
 		-token-host-dir $(abspath $(BENCH_OUT))/tokens \
@@ -235,7 +236,7 @@ bench-full: bench-verify bench-image bench-config
 	@BENCH_OUT=$(BENCH_OUT) ./scripts/bench-core.sh preflight
 	@BENCH_OUT=$(BENCH_OUT) BENCH_PROBE_OUT=/bench/out \
 		./scripts/bench-core.sh probe -corpus $(BENCH_DIR)/tasks.yaml \
-		-model $(BENCH_MODEL) -arm full -judge-model $(BENCH_JUDGE) \
+		-model $(BENCH_MODEL) -arm $(BENCH_ARM) -judge-model $(BENCH_JUDGE) \
 		-passes 1 -hours $(BENCH_HOURS) -timeout $(BENCH_TIMEOUT)
 
 bench-core-stop:
@@ -307,7 +308,7 @@ bench-anchor-host: bench-verify
 # this is the benchmark evidence. Run one model per Core restart.
 bench-anchor-core: bench-verify bench-image
 	@mkdir -p $(BENCH_ANCHOR_OUT)
-	@$(MAKE) bench-config BENCH_MODEL=$(BENCH_ANCHOR_MODEL) BENCH_OUT=$(BENCH_ANCHOR_OUT) \
+	@$(MAKE) bench-config BENCH_ARM=single BENCH_MODEL=$(BENCH_ANCHOR_MODEL) BENCH_OUT=$(BENCH_ANCHOR_OUT) \
 		BENCH_CONFIG=$(BENCH_ANCHOR_OUT)/core-config.yaml \
 		BENCH_STATE_VOLUME=$(BENCH_ANCHOR_STATE_VOLUME)
 	@BENCH_OUT=$(BENCH_ANCHOR_OUT) BENCH_CONFIG=$(BENCH_ANCHOR_OUT)/core-config.yaml \

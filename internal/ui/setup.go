@@ -508,6 +508,11 @@ func (u *UI) runQualification(ctx context.Context, cfg *config.Config, roles []o
 	if ctx.Err() != nil {
 		state.Error = "qualification cancelled; start again to resume"
 	}
+	// This legacy two-role path does not measure/unload per model; release
+	// every candidate so the last one is not left resident.
+	for _, m := range models {
+		ollamaUnload(context.Background(), cfg.Inference.OllamaURL, m.Name)
+	}
 	u.saveQualState(context.Background(), *state)
 }
 
@@ -580,9 +585,23 @@ func (u *UI) saveQualState(ctx context.Context, s qualState) {
 func qualMeasurementsFromState(s qualState) []onboard.Measurement {
 	type acc struct{ total, correct int }
 	by := map[string]*acc{}
+	modelSet := map[string]bool{}
+	for key := range s.Results {
+		if parts := strings.SplitN(key, "|", 3); len(parts) == 3 {
+			modelSet[parts[1]] = true
+		}
+	}
+	models := make([]string, 0, len(modelSet))
+	for m := range modelSet {
+		models = append(models, m)
+	}
+	balanced := onboard.BalancedCaseKeys(s.Results, models)
 	for key, correct := range s.Results {
 		parts := strings.SplitN(key, "|", 3)
 		if len(parts) != 3 {
+			continue
+		}
+		if !balanced[parts[0]+"|"+parts[2]] {
 			continue
 		}
 		k := parts[0] + "|" + parts[1]

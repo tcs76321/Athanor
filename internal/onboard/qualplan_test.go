@@ -39,10 +39,13 @@ func TestQualificationPlanIsBalanced(t *testing.T) {
 func TestBalancedCaseKeysUsesIntersection(t *testing.T) {
 	results := map[string]bool{
 		"generator|a|g1": true, "judge|a|j1": true,
-		"generator|b|g1": true,
+		"generator|b|g1": false, // completed, but failed
 	}
 	got := BalancedCaseKeys(results, []string{"a", "b"})
-	if !got["generator|g1"] || got["judge|j1"] {
-		t.Fatalf("balanced = %v, want only generator|g1", got)
+	if !got["generator|g1"] {
+		t.Fatalf("balanced = %v, want generator|g1 (completion, not pass)", got)
+	}
+	if got["judge|j1"] {
+		t.Fatalf("balanced = %v, judge|j1 is not completed by every model", got)
 	}
 }

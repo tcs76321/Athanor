@@ -138,6 +138,7 @@ func (u *UI) runPoolQualification(ctx context.Context, models []string, ladder o
 	core := onboard.QualificationCore(ladder)
 	blocks := onboard.QualificationBlocks(ladder, 30)
 	runCases := func(model string, refs []onboard.CaseRef, measure bool) {
+		defer ollamaUnload(context.Background(), u.deps.Config.Inference.OllamaURL, model)
 		for _, ref := range refs {
 			if ctx.Err() != nil {
 				return
@@ -149,9 +150,6 @@ func (u *UI) runPoolQualification(ctx context.Context, models []string, ladder o
 				u.pool().SetMeasuredResident(model, resident, 8192)
 			}
 		}
-		// Release the model between blocks. Use a fresh context so a canceled
-		// screen still evicts it.
-		ollamaUnload(context.Background(), u.deps.Config.Inference.OllamaURL, model)
 	}
 	for _, model := range models {
 		if ctx.Err() != nil {
@@ -175,6 +173,9 @@ func (u *UI) runPoolQualification(ctx context.Context, models []string, ladder o
 	if ctx.Err() == context.Canceled {
 		state.Error = "qualification cancelled; start again to resume"
 	}
+	if len(onboard.BalancedCaseKeys(state.Results, models)) == 0 && state.Error == "" {
+		state.Error = "no case was completed by every model; no balanced score"
+	}
 	u.saveQualState(context.Background(), *state)
 	u.recordPoolQualification(context.Background(), models, ladder, *state)
 }
@@ -194,6 +195,9 @@ func (u *UI) runQualCase(ctx context.Context, model string, ref onboard.CaseRef,
 				continue
 			}
 			answer, err := ollamaChat(ctx, u.deps.Config.Inference.OllamaURL, model, onboard.GenPrompt(c))
+			if err != nil && ctx.Err() != nil {
+				return
+			}
 			correct := err == nil && onboard.ScoreGen(c, answer)
 			rec := qualCaseRecord{
 				Kind: "generator", CaseID: c.ID, Capability: c.Capability,
@@ -206,7 +210,7 @@ func (u *UI) runQualCase(ctx context.Context, model string, ref onboard.CaseRef,
 			state.Results[key] = correct
 			state.Details[key] = rec
 			state.Done = len(state.Results)
-			u.saveQualState(ctx, *state)
+			u.saveQualState(context.Background(), *state)
 			return
 		}
 	case "judge":
@@ -216,6 +220,9 @@ func (u *UI) runQualCase(ctx context.Context, model string, ref onboard.CaseRef,
 			}
 			prompt, want := onboard.JudgePrompt(c, i%2 == 0)
 			answer, err := ollamaChat(ctx, u.deps.Config.Inference.OllamaURL, model, prompt)
+			if err != nil && ctx.Err() != nil {
+				return
+			}
 			correct := err == nil && onboard.ScoreJudge(answer, want)
 			rec := qualCaseRecord{
 				Kind: "judge", CaseID: c.ID, Capability: c.Capability,
@@ -228,7 +235,7 @@ func (u *UI) runQualCase(ctx context.Context, model string, ref onboard.CaseRef,
 			state.Results[key] = correct
 			state.Details[key] = rec
 			state.Done = len(state.Results)
-			u.saveQualState(ctx, *state)
+			u.saveQualState(context.Background(), *state)
 			return
 		}
 	}

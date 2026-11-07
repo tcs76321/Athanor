@@ -59,7 +59,29 @@ func QualificationCore(l Ladder) []CaseRef {
 	for _, capability := range qualificationCapabilityOrder {
 		pick(capability)
 	}
+	// Judgment has no generator capability of its own; a judge pair is the
+	// only way to measure it. If no case named "judgment", use the first
+	// unclaimed judge so the core still covers the category.
+	if len(out) == 0 || !hasCapability(out, "judgment") {
+		for _, c := range l.Judges {
+			if seen["judge|"+c.ID] {
+				continue
+			}
+			seen["judge|"+c.ID] = true
+			out = append(out, CaseRef{Kind: "judge", ID: c.ID, Capability: c.Capability})
+			break
+		}
+	}
 	return out
+}
+
+func hasCapability(refs []CaseRef, want string) bool {
+	for _, ref := range refs {
+		if ref.Capability == want {
+			return true
+		}
+	}
+	return false
 }
 
 // QualificationExtra returns the cases not in the core, in stable order.
@@ -106,10 +128,7 @@ func BalancedCaseKeys(results map[string]bool, models []string) map[string]bool 
 	}
 	// Build case key -> model -> done from the state keys kind|model|id.
 	cases := map[string]map[string]bool{}
-	for key, ok := range results {
-		if !ok {
-			continue
-		}
+	for key := range results {
 		kind, model, id, found := splitStateKey(key)
 		if !found {
 			continue
