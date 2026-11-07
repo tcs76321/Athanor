@@ -347,6 +347,9 @@ func run(configPath, addr, stateDir string, container bool) error {
 	eng.SetCorrectionSource(correctionsRepo)
 	// P1: compacted project memory reaches tier 5 through the MCE retriever.
 	eng.SetMemorySource(newMCEMemorySource(mceRT.Retriever))
+	// ADR-0114: a completed job leaves a deterministic summary the retriever
+	// can find for later jobs in the same project.
+	eng.SetMemoryWriter(mceRT.CompactStore)
 	// M6-T8c (ADR-0039): the §20.4 interruption queue.
 	interruptionsRepo := interruptions.NewRepo(st)
 	eng.SetInterruptionStore(interruptionsRepo)

@@ -565,7 +565,10 @@ event log — it is the compact, chronological state the model should carry
 between phases. The notebook is rendered in the pinned task tier (never
 evicted), capped at 200 entries per job and 4 KiB per prompt, and a notebook
 write failure never fails the job. It is the explicit working-memory
-counterpart to the MCE's long-term chunk store.
+counterpart to the MCE's long-term chunk store. On a completed job the engine
+also writes a bounded deterministic summary into `compacted_memory`
+([ADR-0114](docs/adr/0114-job-summary-memory.md)), so a later job in the same
+project can retrieve what the previous one decided.
 
 ## 11. Prompt Architecture
 

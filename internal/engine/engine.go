@@ -301,6 +301,9 @@ type Engine struct {
 	// clarifier is the ADR-0112 mid-job question seam. nil ignores the
 	// QUESTION marker.
 	clarifier Clarifier
+	// memoryWriter is the ADR-0114 completed-job summary seam. nil disables
+	// the write (the M1 walk still runs).
+	memoryWriter MemoryWriter
 	// verifiers is the F4-T3 deterministic verification registry. nil uses
 	// verify.Default(), so the engine always has a verifier set.
 	verifiers *verify.Registry
@@ -472,6 +475,15 @@ type Clarifier interface {
 
 // SetClarifier wires the ADR-0112 clarification queue.
 func (e *Engine) SetClarifier(c Clarifier) { e.clarifier = c }
+
+// MemoryWriter records a completed job's deterministic summary for later
+// retrieval (ADR-0114). A nil writer leaves memory writes disabled.
+type MemoryWriter interface {
+	RememberJobSummary(ctx context.Context, projectID, jobID, summary string) (bool, error)
+}
+
+// SetMemoryWriter wires the ADR-0114 job-summary writer.
+func (e *Engine) SetMemoryWriter(w MemoryWriter) { e.memoryWriter = w }
 
 // SetPauseGate wires the §24 power pause signal (M7-T1). A nil gate means
 // the engine never pauses for power.
@@ -1486,6 +1498,8 @@ func (e *Engine) finalizeTerminal(ctx context.Context, jobID string, j job.Job) 
 	// ADR-0091: close the horizon grant with actual spend before any teardown
 	// that can block.
 	e.settleHorizon(ctx, jobID)
+	// ADR-0114: leave a bounded deterministic summary for later projects/jobs.
+	e.rememberCompletedJob(ctx, j)
 	// M6-T10 (§13.3): capture the immutable outcome before any teardown that
 	// can block. stopPod can take seconds on a real pod, and an offline
 	// collector must never observe a terminal job with no strategy_outcomes

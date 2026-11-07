@@ -32,6 +32,9 @@ New entries are appended at the top. Do not rewrite history.
   a code repair may request one repository-relative file; the engine reads it
   through an envelope-gated `read_file` route, writes it to the notebook, and
   never exposes write/execute/network.
+- **Job-summary memory** ([ADR-0114](docs/adr/0114-job-summary-memory.md)):
+  a completed job writes a bounded deterministic memo into project memory; the
+  existing tier-5 retrieval can find it for the next job.
 
 ### Correctness, benchmark parity, and endurance — 2026-11-06
 
