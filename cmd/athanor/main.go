@@ -20,6 +20,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -36,7 +37,32 @@ const shutdownTimeout = 10 * time.Second
 // defaults (M1-T7 acceptance: fresh clone → running daemon, no manual
 // steps). A file that exists but is malformed or invalid still fails
 // loudly — only explicit absence falls back.
+// resolveConfigPath keeps the documented `config.yaml` default but also finds
+// the installed config when the CLI runs outside the repository or inside the
+// Core Pod. The order is: CWD config, the Core's baked /etc config, then the
+// user's ~/.config/athanor/config.yaml. An explicitly named file still wins
+// because existence is checked before falling back.
+func resolveConfigPath(path string) string {
+	if path != "config.yaml" {
+		return path
+	}
+	if _, err := os.Stat(path); err == nil {
+		return path
+	}
+	candidates := []string{"/etc/athanor/config.yaml"}
+	if home, err := os.UserHomeDir(); err == nil {
+		candidates = append(candidates, filepath.Join(home, ".config", "athanor", "config.yaml"))
+	}
+	for _, candidate := range candidates {
+		if _, err := os.Stat(candidate); err == nil {
+			return candidate
+		}
+	}
+	return path
+}
+
 func loadConfig(path string) (*config.Config, error) {
+	path = resolveConfigPath(path)
 	cfg, err := config.Load(path)
 	if errors.Is(err, config.ErrFileNotFound) {
 		def, derr := config.Default()

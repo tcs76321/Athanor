@@ -124,6 +124,7 @@ func reapIdlePods(ctx context.Context, eng *engine.Engine) {
 
 // run boots the daemon and blocks until an OS signal or server failure.
 func run(configPath, addr, stateDir string, container bool) error {
+	configPath = resolveConfigPath(configPath)
 	// The Job Pod spec requires absolute mount sources (RepoDir, token dir).
 	// `state` is the documented default and is relative, so resolve it once
 	// here rather than letting a later `state/scratch/.../repo` reach Podman

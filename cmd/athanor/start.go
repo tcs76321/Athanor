@@ -34,7 +34,8 @@ func runStart(args []string) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	cfg, err := loadConfig(*configPath)
+	resolvedConfig := resolveConfigPath(*configPath)
+	cfg, err := loadConfig(resolvedConfig)
 	if err != nil {
 		return fmt.Errorf("loading config: %w", err)
 	}
@@ -56,7 +57,7 @@ func runStart(args []string) error {
 	modelAuditJSON := ""
 	if !*skipModelAudit {
 		hostMem, _ := newOSProbes().TotalMemoryBytes(context.Background())
-		audit, err := checkModelAudit(modelAuditPath(*configPath), cfg, int64(hostMem))
+		audit, err := checkModelAudit(modelAuditPath(resolvedConfig), cfg, int64(hostMem))
 		if err != nil {
 			return err
 		}
@@ -67,7 +68,7 @@ func runStart(args []string) error {
 		}
 	}
 	if *host {
-		return run(*configPath, *addr, *stateDir, *container)
+		return run(resolvedConfig, *addr, *stateDir, *container)
 	}
 
 	client := NewExecClient()
@@ -82,7 +83,7 @@ func runStart(args []string) error {
 	if scratch == "" {
 		scratch = cfg.JobPod.ScratchHostDir
 	}
-	opts, err := coreOptionsFromConfig(cfg.JobPod.TokenHostDir, scratch, *reposDir, *configPath, *addr,
+	opts, err := coreOptionsFromConfig(cfg.JobPod.TokenHostDir, scratch, *reposDir, resolvedConfig, *addr,
 		*coreImage, *containerName, *stateVol, *workVol, sock)
 	if err != nil {
 		return err
