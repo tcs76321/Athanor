@@ -101,6 +101,19 @@ func TestPodLifecycleStagesRepoAndCleansUp(t *testing.T) {
 	}
 }
 
+func TestPodLifecycleSnapshotFailureFailsEnsure(t *testing.T) {
+	pods := &fakePodManager{}
+	snap := &fakeSnapshotter{err: errors.New("archive failed")}
+	adapter := newPodLifecycle(pods, testLifecycleConfig(),
+		fakeProjectGetter{project: project.Project{RepositoryPath: "/tmp/repo"}}, t.TempDir(), "", snap)
+	if err := adapter.Ensure(context.Background(), "job-fail", "proj-1"); err == nil {
+		t.Fatal("Ensure succeeded without a repository snapshot")
+	}
+	if len(pods.specs) != 0 {
+		t.Fatalf("a pod was started without the repository: %+v", pods.specs)
+	}
+}
+
 func TestPodLifecycleNoRepoSkipsSnapshot(t *testing.T) {
 	pods := &fakePodManager{}
 	snap := &fakeSnapshotter{}
@@ -154,11 +167,11 @@ func TestPodLifecycleSnapshotFailureStillStartsPod(t *testing.T) {
 		fakeProjectGetter{project: project.Project{RepositoryPath: "/tmp/big"}},
 		state, "", snap)
 
-	if err := adapter.Ensure(context.Background(), "job-3", "proj-3"); err != nil {
-		t.Fatal(err)
+	if err := adapter.Ensure(context.Background(), "job-3", "proj-3"); err == nil {
+		t.Fatal("Ensure succeeded without a repository snapshot")
 	}
-	if len(pods.specs) != 1 || pods.specs[0].RepoDir != "" {
-		t.Errorf("pod spec = %+v, want an empty RepoDir after a snapshot failure", pods.specs)
+	if len(pods.specs) != 0 {
+		t.Fatalf("pod spec = %+v, want no pod after a snapshot failure", pods.specs)
 	}
 	if _, err := os.Stat(filepath.Join(state, "scratch", "job-3")); !errors.Is(err, os.ErrNotExist) {
 		t.Errorf("partial snapshot dir left behind: %v", err)

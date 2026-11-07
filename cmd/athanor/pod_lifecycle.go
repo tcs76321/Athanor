@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -80,7 +81,10 @@ func (a *podLifecycleAdapter) Ensure(ctx context.Context, jobID, projectID strin
 	if a.cfg.JobPod.Image == "" {
 		return errors.New("job_pod.image is empty; cannot start a Job Pod")
 	}
-	repoDir, repoMountDir := a.stageRepo(ctx, jobID, projectID)
+	repoDir, repoMountDir, err := a.stageRepo(ctx, jobID, projectID)
+	if err != nil {
+		return err
+	}
 	limits := jobpod.Limits{
 		PidsLimit: a.cfg.JobPod.PidsLimit,
 		MemoryMB:  a.cfg.JobPod.MemoryMB,
@@ -101,7 +105,7 @@ func (a *podLifecycleAdapter) Ensure(ctx context.Context, jobID, projectID strin
 			limits.CPUs = limits.CPUs / 2
 		}
 	}
-	_, err := a.pods.Start(ctx, jobpod.Spec{
+	_, err = a.pods.Start(ctx, jobpod.Spec{
 		ID:             jobID,
 		Image:          a.cfg.JobPod.Image,
 		Command:        []string{"sleep", "infinity"},
@@ -117,31 +121,33 @@ func (a *podLifecycleAdapter) Ensure(ctx context.Context, jobID, projectID strin
 
 // stageRepo creates the per-job snapshot. It returns the container-visible
 // snapshot path and, in Core Pod mode, the host-visible bind source the Podman
-// machine can see. Both are empty when the project has no repository, the
-// lookup fails, or the snapshot cannot be staged.
-func (a *podLifecycleAdapter) stageRepo(ctx context.Context, jobID, projectID string) (string, string) {
-	if a.projects == nil || a.snap == nil || a.stateDir == "" {
-		return "", ""
+// machine can see. A repository-backed job whose snapshot cannot be staged
+// fails loudly: running its tests against a tree without the repository would
+// be a false verification, not a degraded success.
+func (a *podLifecycleAdapter) stageRepo(ctx context.Context, jobID, projectID string) (string, string, error) {
+	if a.projects == nil || a.stateDir == "" {
+		return "", "", fmt.Errorf("%w: project lookup or state directory is unavailable", engine.ErrRepositorySnapshot)
 	}
 	p, err := a.projects.Get(ctx, projectID)
 	if err != nil {
-		slog.Warn("pod lifecycle: loading project for repository snapshot", "job", jobID, "err", err)
-		return "", ""
+		return "", "", fmt.Errorf("%w: loading project %s: %v", engine.ErrRepositorySnapshot, projectID, err)
 	}
 	if p.RepositoryPath == "" {
-		return "", ""
+		return "", "", nil
+	}
+	if a.snap == nil {
+		return "", "", fmt.Errorf("%w: snapshotter is not configured", engine.ErrRepositorySnapshot)
 	}
 	dest := filepath.Join(a.stateDir, "scratch", jobID, "repo")
 	if err := a.snap.Snapshot(ctx, p.RepositoryPath, dest); err != nil {
-		slog.Warn("pod lifecycle: staging repository snapshot", "job", jobID, "repo", p.RepositoryPath, "err", err)
 		_ = os.RemoveAll(dest)
-		return "", ""
+		return "", "", fmt.Errorf("%w: staging repository snapshot for %s: %v", engine.ErrRepositorySnapshot, jobID, err)
 	}
 	mount := ""
 	if a.scratchHostDir != "" {
 		mount = filepath.Join(a.scratchHostDir, jobID, "repo")
 	}
-	return dest, mount
+	return dest, mount, nil
 }
 
 // Stop tears the pod down and removes the job's snapshot. Idempotent: an

@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -65,7 +66,9 @@ func (e *Engine) verifyCandidate(ctx context.Context, j job.Job, p project.Proje
 
 	// M2-T4b.5 (ADR-0024 §2): make the job's Job Pod exist before the pod
 	// sub-steps, so the per-job token the runner presents is available.
-	e.ensurePod(tctx, j)
+	if err := e.ensurePod(tctx, j); err != nil && errors.Is(err, ErrRepositorySnapshot) {
+		return verify.Result{}, in, fmt.Errorf("ensuring job pod: %w", err)
+	}
 	staged, err := e.runCodeInPod(tctx, j, p, t, content)
 	if err != nil {
 		if !errors.Is(err, context.DeadlineExceeded) {

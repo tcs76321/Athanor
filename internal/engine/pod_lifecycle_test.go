@@ -199,7 +199,7 @@ func TestStopPods_SetsDrainFlagNoFurtherEnsures(t *testing.T) {
 
 	// A code job would normally call Ensure; after draining it must not.
 	jobID := env.submitCode(t)
-	env.eng.ensurePod(context.Background(), job.Job{ID: jobID})
+	_ = env.eng.ensurePod(context.Background(), job.Job{ID: jobID})
 
 	if ensured, _, _ := lc.snapshot(); len(ensured) != 0 {
 		t.Errorf("Ensure called after StopPods: %v", ensured)

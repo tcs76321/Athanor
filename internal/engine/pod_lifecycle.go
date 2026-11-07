@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 
 	"github.com/tcs76321/athanor/internal/job"
@@ -27,21 +28,29 @@ type PodLifecycle interface {
 	Stop(ctx context.Context, jobID string) error
 }
 
+// ErrRepositorySnapshot reports that a repository-backed code job could not
+// stage the repository it must test against. Unlike a generic pod-start
+// warning, this is not safe to soft-fail: running the test command against a
+// tree without the repository would verify the wrong thing.
+var ErrRepositorySnapshot = errors.New("repository snapshot unavailable")
+
 // ensurePod brings up the job's Job Pod before a pod sub-step (ADR-0024
 // §2). A nil seam is a no-op, so unit tests with a fake runner are
 // unaffected. A failure is audited (category `podman`) and logged, not
 // fatal: the sub-step that follows surfaces its own error if the pod is
 // genuinely required.
-func (e *Engine) ensurePod(ctx context.Context, j job.Job) {
+func (e *Engine) ensurePod(ctx context.Context, j job.Job) error {
 	if e.podLifecycle == nil || e.draining.Load() {
-		return
+		return nil
 	}
 	if err := e.podLifecycle.Ensure(ctx, j.ID, j.ProjectID); err != nil {
 		e.auditCat(ctx, j.ID, "podman", map[string]any{
 			"event": "pod_start_failed", "error": err.Error(),
 		})
 		slog.Warn("engine: ensuring job pod", "job", j.ID, "err", err)
+		return err
 	}
+	return nil
 }
 
 // stopPod tears the job's Job Pod down at terminal state (ADR-0024 §2,
