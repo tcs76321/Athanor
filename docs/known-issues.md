@@ -84,9 +84,23 @@ commit; the claims table carries the load-bearing rows.
 
 ## Open
 
-No findings are open as of 2026-10-16. The high/medium/low items from that
-review are all resolved — most by code, a few by an explicit design decision or
-a documented trade-off recorded below. New findings resume here.
+No correctness findings are open as of 2026-11-06. The following are explicit
+policy/coverage decisions rather than defects:
+
+- **Retention/archival.** Events, artifacts, corrections, and strategy rows are
+  not automatically pruned; backups snapshot the database only. Automatic
+  deletion needs an archival design that preserves the append-only audit
+  invariant. Real-use disk growth is visible through the existing resource
+  alarm/doctor work; this remains a 0.0.x decision.
+- **Budget mid-job deferral.** A budget-deferred job pauses, but no scheduler
+  re-drives it when the next window replenishes. ADR-0091 already lists
+  mid-job deferral as open.
+- **Kill switch timing.** Freeze gates new work and active jobs pause at the
+  next phase boundary; it does not synchronously cancel an in-flight inference
+  call. This is documented in known-issues L18.
+- **`judge_persona` under the pool.** The measured pool's actual cross-family
+  cast is authoritative; the legacy `judge_persona` role is advisory/fallback
+  when a selector is present.
 
 
 ---
