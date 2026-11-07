@@ -111,33 +111,33 @@ tasks:
   steps:
   - goal: 'Write a Decision brief for a team choosing between local-first and
       hosted tooling. Choose local-first, explain why, and keep it under 120 words.
-      Use exactly the heading Decision.'
+      Use exactly the Markdown heading `# Decision`.'
     criteria:
     - chooses local-first
     - under 120 words
-    - heading Decision
+    - Markdown heading `# Decision`
     checks:
       required_sections: [Decision]
       max_words: 120
       must_contain_any: [local-first]
   - goal: 'Continue the same project. Write an Implementation note for the option
       chosen in the previous brief. Keep it under 160 words, use exactly the
-      heading Implementation, and name the option you are implementing.'
+      Markdown heading `# Implementation`, and name the option you are implementing.'
     criteria:
     - uses the same option as the previous brief
     - under 160 words
-    - heading Implementation
+    - Markdown heading `# Implementation`
     checks:
       required_sections: [Implementation]
       max_words: 160
       must_contain_any: [local-first]
   - goal: 'Continue the same project. Write a Risks note for the option you are
-      implementing. Keep it under 160 words, use exactly the heading Risks, and
-      list at least two distinct risks as bullet items.'
+      implementing. Keep it under 160 words, use exactly the Markdown heading
+      `# Risks`, and list at least two distinct risks as bullet items.'
     criteria:
     - same option as the previous steps
     - under 160 words
-    - heading Risks
+    - Markdown heading `# Risks`
     - at least two risks
     checks:
       required_sections: [Risks]

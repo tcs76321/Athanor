@@ -1,0 +1,97 @@
+[
+  {
+    "goal_name": "diag-sequence-memory",
+    "goal_number": 3,
+    "archetype": "document",
+    "model_label": "ornith9b",
+    "model": "ornith-1.5:9b",
+    "family": "qwen35",
+    "arm": "cascade",
+    "run": 1,
+    "job_id": "",
+    "state": "completed",
+    "artifact_id": "4596db1c-8099-4091-8223-7847d7894495",
+    "winner": "new",
+    "confidence": 0,
+    "score": 0,
+    "token_cost": 17102,
+    "wall_ms": 68139,
+    "retries": 0,
+    "reflection_loops": 0,
+    "diversity": 0,
+    "candidates": 0,
+    "tier": "X",
+    "check_pass": true,
+    "engine_accepted": true,
+    "label_version": "adr-0092",
+    "context_demand": "long",
+    "bench": true,
+    "sequence": [
+      {
+        "index": 1,
+        "goal": "Write a Decision brief for a team choosing between local-first and hosted tooling. Choose local-first, explain why, and keep it under 120 words. Use exactly the Markdown heading `# Decision`.",
+        "job_id": "6dbd03ed-d194-4f78-af99-0690fe81b37b",
+        "state": "completed",
+        "artifact_id": "a7e9c965-72ad-4c3b-a71c-91b6fa5b1da7",
+        "pass": true,
+        "check_pass": true,
+        "tokens": 4034,
+        "wall_ms": 19060
+      },
+      {
+        "index": 2,
+        "goal": "Continue the same project. Write an Implementation note for the option chosen in the previous brief. Keep it under 160 words, use exactly the Markdown heading `# Implementation`, and name the option you are implementing.",
+        "job_id": "c84a1c8a-bcad-4ab6-9b63-8c1eb38b6bb3",
+        "state": "completed",
+        "artifact_id": "847ad068-c92f-4fd0-91af-8a4bb8f6680d",
+        "pass": true,
+        "check_pass": true,
+        "tokens": 5636,
+        "wall_ms": 22169
+      },
+      {
+        "index": 3,
+        "goal": "Continue the same project. Write a Risks note for the option you are implementing. Keep it under 160 words, use exactly the Markdown heading `# Risks`, and list at least two distinct risks as bullet items.",
+        "job_id": "07415cac-a796-467b-86ee-bcb8cdd6c665",
+        "state": "completed",
+        "artifact_id": "4596db1c-8099-4091-8223-7847d7894495",
+        "pass": true,
+        "check_pass": true,
+        "tokens": 7432,
+        "wall_ms": 26910
+      }
+    ],
+    "progress": 1,
+    "telemetry": {
+      "calls": 12,
+      "prompt_tokens": 15094,
+      "completion_tokens": 2008,
+      "by_phase_calls": {
+        "diverging": 3,
+        "evaluating": 3,
+        "planning": 3,
+        "synthesizing": 3
+      },
+      "by_phase_tokens": {
+        "diverging": 3621,
+        "evaluating": 5006,
+        "planning": 3989,
+        "synthesizing": 4486
+      },
+      "by_persona_tokens": {
+        "main": 8107,
+        "security": 5006,
+        "tall": 3989
+      },
+      "models": [
+        "granite4.2:3b",
+        "ornith-1.5:9b"
+      ],
+      "candidate_raise": 3,
+      "kv_pressure": 12,
+      "memory_hits": 12,
+      "memory_bytes": 18352,
+      "memory_remembered": 3
+    }
+  }
+]

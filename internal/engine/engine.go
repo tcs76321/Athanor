@@ -1500,6 +1500,8 @@ func (e *Engine) finalizeTerminal(ctx context.Context, jobID string, j job.Job) 
 	e.settleHorizon(ctx, jobID)
 	// ADR-0114: leave a bounded deterministic summary for later projects/jobs.
 	e.rememberCompletedJob(ctx, j)
+	// ADR-0119: evaluate the trajectory itself, not only the final artifact.
+	e.evaluateProcess(ctx, j)
 	// M6-T10 (§13.3): capture the immutable outcome before any teardown that
 	// can block. stopPod can take seconds on a real pod, and an offline
 	// collector must never observe a terminal job with no strategy_outcomes

@@ -955,6 +955,13 @@ updated_at: timestamp
 > so repository context reaches a normal job's prompt and is one
 > `context_swap` away.
 
+> **Process scorecard (ADR-0119).** At terminal state the engine writes one
+> deterministic `process_eval` audit row: one-shot sufficient, escalated,
+> rescued, wasted compute, or quality regression. It is derived from the event
+> log, proposal artifacts, and evaluation records; it does not change
+> acceptance. It is the runtime self-evaluation the selection layer uses to
+> learn **when** the loop was worth its cost.
+
 ---
 
 ## 14. Coding Workflow

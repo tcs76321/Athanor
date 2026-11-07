@@ -63,6 +63,12 @@ New entries are appended at the top. Do not rewrite history.
 - **One-shot first** ([ADR-0118](docs/adr/0118-one-shot-first.md)): an opt-in
   policy tries one candidate and escalates to the full count only after it
   fails. The benchmark adds a `cascade` arm and `make diagnostic-cascade`.
+  On the sequence it matched full **3/3** at **17.1k tokens** vs **37.8k**
+  (2.2× cheaper), with half the calls.
+- **Process scorecard** ([ADR-0119](docs/adr/0119-process-scorecard.md)): every
+  terminal job writes a deterministic `process_eval` row — one-shot
+  sufficient, escalation rescued, wasted compute, or quality regression — so
+  the system can learn when the loop was worth its cost.
 
 ### Correctness, benchmark parity, and endurance — 2026-11-06
 

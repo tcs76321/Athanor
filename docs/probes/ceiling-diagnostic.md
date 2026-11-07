@@ -239,6 +239,17 @@ This is still a **saturated** multi-step task: one-shot-first should match it
 at lower cost. The next differentiating task must add an injected failure or a
 hidden check, not just more steps.
 
+### Cascade — one-shot first
+
+`cascade` (Candidates 3, `one_shot_first: true`) passed the sequence **3/3**
+at **17,102 tokens / 68 s**, versus **37,828 tokens / 107 s** for the
+unconditional full arm. Half the calls, same quality, no repair or reflection.
+That is the intended outcome of the gate: full-quality fallback, single-shot
+cost when one shot works.
+
+Raw evidence:
+[`runs/bench-diagnostic-sequence-cascade-20261106/`](runs/bench-diagnostic-sequence-cascade-20261106/).
+
 ## Caveats
 
 - One model and one pass are directional only. This is a diagnostic, not a
