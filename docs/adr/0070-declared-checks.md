@@ -82,6 +82,28 @@ The artifact-only contract is unchanged: the prompt still asks for data only.
 Extraction is a tolerance for a wrapper, not a license for extra fields — the
 schema's `additionalProperties`/`required` rules still decide.
 
+## Amendment (2026-11-06) — data-array checks
+
+The post-P0 v2 run exposed a second parity gap: the benchmark's `data` tasks
+use `array_length`, `array_unique_by`, `array_sorted_by`, and
+`json_field_matches` (`tools/bench/checks.go`), but the engine's only `data`
+edge was a JSON-Schema subset that cannot express length, uniqueness, ordering,
+or per-field formats. The engine could therefore accept an array the external
+scorer rejected (the two X-data `array_length` failures).
+
+`project.ExecutionChecks` now carries the four data keys, and
+`internal/verify` adds `dataChecksVerifier`, registered for the `data`
+capability. It is hard, applies only when one of those keys is set, and accepts
+the same fenced/prose-wrapped JSON value as the schema verifier. The benchmark
+translation (`checksToExecution`) carries the keys, so the engine and the
+independent scorer see the same contract. `data_schema` remains a separate
+verifier; both can apply and both must pass.
+
+This is a deliberate narrowing of the "not in scope" note below: array-level
+constraints are not expressible in the engine's supported schema subset, and
+leaving them to the offline scorer made engine acceptance and benchmark
+labeling disagree about the same artifact.
+
 ## Consequences
 
 - A `text`/`document` goal whose project declares checks is accepted only when a
@@ -118,8 +140,9 @@ schema's `additionalProperties`/`required` rules still decide.
 ## Not in scope
 
 - A `media` deterministic verifier (still deferred, ROADMAP §7).
-- Declared checks for `code` (the test command and F5 gates already cover it) or
-  `data` (`data_schema` covers it).
+- Declared checks for `code` (the test command and F5 gates already cover it).
+  `data` now has `data_schema` plus the array-level checks added by the
+  2026-11-06 amendment; broader JSON-Schema keywords remain out of scope.
 - Encoding the corpus's fixture-dependent checks (`required_substrings_source`,
   `preserve_entities_from_fixture`, `every_item_once`) — these stay advisory in
   the probe.

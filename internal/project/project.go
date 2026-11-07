@@ -170,6 +170,16 @@ type ExecutionChecks struct {
 	// heading contains Noun (or, failing that, in the document body). It
 	// generalizes eval/bench's count_alternatives_min / count_risks_min.
 	MinItems []ItemCount `json:"min_items,omitempty"`
+
+	// Data checks. The JSON-Schema subset validates shape; these pin the
+	// array-level constraints a schema cannot express without minItems /
+	// maxItems / uniqueItems support. They mirror eval/bench's
+	// array_length, array_unique_by, array_sorted_by, and json_field_matches.
+	// ArrayLength 0 means unset.
+	ArrayLength      int               `json:"array_length,omitempty"`
+	ArrayUniqueBy    string            `json:"array_unique_by,omitempty"`
+	ArraySortedBy    string            `json:"array_sorted_by,omitempty"`
+	JSONFieldMatches map[string]string `json:"json_field_matches,omitempty"`
 }
 
 // ItemCount is one named minimum-cardinality check, e.g.
@@ -184,7 +194,9 @@ func (c ExecutionChecks) IsZero() bool {
 	return len(c.RequiredSections) == 0 && len(c.StrictSectionOrder) == 0 &&
 		c.ExactParagraphs == 0 && c.MinWords == 0 && c.MaxWords == 0 &&
 		len(c.ForbiddenPhrases) == 0 && len(c.MustContain) == 0 &&
-		!c.NoHeadings && !c.NoPlaceholders && len(c.MinItems) == 0
+		!c.NoHeadings && !c.NoPlaceholders && len(c.MinItems) == 0 &&
+		c.ArrayLength == 0 && c.ArrayUniqueBy == "" && c.ArraySortedBy == "" &&
+		len(c.JSONFieldMatches) == 0
 }
 
 // DefaultCodeTestCommand is retained as a compatibility constant for callers

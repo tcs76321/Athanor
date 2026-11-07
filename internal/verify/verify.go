@@ -125,6 +125,7 @@ func Default() *Registry {
 		docsVerifier{},
 		structureVerifier{},
 		dataVerifier{},
+		dataChecksVerifier{},
 		checksVerifier{},
 	)
 }

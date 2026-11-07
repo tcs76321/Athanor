@@ -120,6 +120,10 @@ func TestChecksToExecution(t *testing.T) {
 		"no_headings":            true,
 		"count_alternatives_min": 3,
 		"count_risks_min":        2,
+		"array_length":           2,
+		"array_unique_by":        "id",
+		"array_sorted_by":        "id",
+		"json_field_matches":     map[string]any{"id": `^\d+$`},
 		"no_fabricated_commands": true, // advisory: must not carry
 	}
 	got := checksToExecution(checks)
@@ -138,6 +142,11 @@ func TestChecksToExecution(t *testing.T) {
 	}
 	if _, ok := got["max_words"]; !ok {
 		t.Error("max_words did not carry")
+	}
+	for _, key := range []string{"array_length", "array_unique_by", "array_sorted_by", "json_field_matches"} {
+		if _, ok := got[key]; !ok {
+			t.Errorf("%s did not carry into the execution checks", key)
+		}
 	}
 
 	// An advisory-only map produces no execution block.

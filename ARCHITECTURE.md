@@ -248,8 +248,10 @@ judge; it does not invent `pytest -q`.
 > `test_command` (advanced override), `build_command`, `linters`,
 > `fixture_path`, `data_schema` (the JSON Schema a `data` candidate is verified
 > against by `internal/verify`), and `checks` (the declared machine-checkable
-> constraints a `text`/`document` candidate is verified against —
-> [ADR-0070](docs/adr/0070-declared-checks.md)). The UI/API/CLI default path
+> constraints a `text`/`document` candidate is verified against, plus the
+> `data` array checks — `array_length`, `array_unique_by`, `array_sorted_by`,
+> `json_field_matches` — added by the 2026-11-06 ADR-0070 amendment). The
+> UI/API/CLI default path
 > does not expose an archetype or test command. `language` is still closed at
 > `python` in the internal API; `run_command` and `documentation_required` are
 > not yet consulted. See ROADMAP F3.

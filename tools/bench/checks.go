@@ -218,6 +218,7 @@ func checksToExecution(checks map[string]any) map[string]any {
 	for _, k := range []string{
 		"required_sections", "strict_section_order", "must_contain", "forbidden_phrases",
 		"exact_paragraphs", "max_words", "min_words",
+		"array_length", "array_unique_by", "array_sorted_by", "json_field_matches",
 	} {
 		if v, ok := checks[k]; ok {
 			out[k] = v
