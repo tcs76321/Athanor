@@ -186,7 +186,13 @@ clarification parking and `python -c` staging).
 The first run also exposed a reporting bug: the sequence row inherited
 step 1's `check_pass=true` while `state=failed`, producing `failed / pass=true`.
 The runner now resets the checkpoint state per step and reads the best
-candidate's checks on a failed step. The rerun is the evidence.
+candidate's checks on a failed step.
+
+The corrected rerun showed a second issue: step 2’s **final artifact** had the
+required `Implementation` heading, but the checkpoint scorer inspected the
+best intermediate candidate, which did not. A sequence step is now judged on
+its delivered artifact first, with the best candidate only as a fallback. The
+next rerun is the evidence.
 
 ## Caveats
 
