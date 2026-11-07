@@ -79,10 +79,14 @@ func (r *runnerConfig) runSequence(g sampleGoal, projectID, stateDir string, mx 
 		}
 		text := ""
 		scoredID := artifactID
-		if len(step.Checks) > 0 {
-			scoredID, text = checkArtifactText(db, stateDir, jobIDs[0], artifactID, "")
-		} else if artifactID != "" {
+		if artifactID != "" {
+			// A sequence step is judged on its delivered artifact, not on the
+			// best intermediate candidate: the step's output is what the next
+			// step and the operator receive.
 			text, _ = readArtifact(stateDir, artifactID)
+		}
+		if len(step.Checks) > 0 && text == "" {
+			scoredID, text = checkArtifactText(db, stateDir, jobIDs[0], artifactID, "")
 		}
 		if len(step.Checks) > 0 && text != "" {
 			ok, results := runChecks(step.Checks, text)
