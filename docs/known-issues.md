@@ -87,11 +87,12 @@ commit; the claims table carries the load-bearing rows.
 No correctness findings are open as of 2026-11-06. The following are explicit
 policy/coverage decisions rather than defects:
 
-- **Retention/archival.** Events, artifacts, corrections, and strategy rows are
-  not automatically pruned; backups snapshot the database only. Automatic
-  deletion needs an archival design that preserves the append-only audit
-  invariant. Real-use disk growth is visible through the existing resource
-  alarm/doctor work; this remains a 0.0.x decision.
+- **Retention/archival.** The decision is recorded in
+  [ADR-0127](adr/0127-retention-and-archival.md): 365-day event/daydream/budget/
+  alarm archival to gzip JSONL, a guarded append-only exception, configurable
+  archive keeping (forever by default), and accepted artifacts/corrections/
+  quarantine kept. Implementation is pending; until it lands, nothing is pruned
+  and backups snapshot the database only.
 - **Budget mid-job deferral.** A budget-deferred job pauses, but no scheduler
   re-drives it when the next window replenishes. ADR-0091 already lists
   mid-job deferral as open.

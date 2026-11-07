@@ -21,7 +21,7 @@ var (
 var Categories = []string{
 	"jobs", "recovery", "alarms", "airlock", "network", "podman",
 	"inference", "feedback", "strategy", "context", "daydream",
-	"power", "backup",
+	"power", "backup", "retention",
 }
 
 // Load reads, parses, applies defaults to, and validates the configuration

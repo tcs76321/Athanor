@@ -373,6 +373,24 @@ func validateCross(c *Config) error {
 	if c.HITL.ExpiryInterval <= 0 {
 		return fmt.Errorf("hitl.expiry_interval must be positive, got %s", c.HITL.ExpiryInterval)
 	}
+	if _, err := time.Parse("15:04", c.Retention.RunAt); err != nil {
+		return fmt.Errorf("retention.run_at must be HH:MM, got %q", c.Retention.RunAt)
+	}
+	for name, v := range map[string]int{
+		"retention.events_days":       c.Retention.EventsDays,
+		"retention.daydream_days":     c.Retention.DaydreamDays,
+		"retention.budget_days":       c.Retention.BudgetDays,
+		"retention.alarms_days":       c.Retention.AlarmsDays,
+		"retention.archive_keep_days": c.Retention.ArchiveKeepDays,
+		"retention.batch":             c.Retention.Batch,
+	} {
+		if v < 0 {
+			return fmt.Errorf("%s must be >= 0, got %d", name, v)
+		}
+	}
+	if c.Retention.ArchiveMaxBytes < 0 {
+		return fmt.Errorf("retention.archive_max_bytes must be >= 0, got %d", c.Retention.ArchiveMaxBytes)
+	}
 	// M4-T2/T3/T4 (ADR-0015): the airlock thresholds are
 	// post-default values (validateCross runs after applyDefaults).
 	// MaxIngressBytes must be positive; the ratios and

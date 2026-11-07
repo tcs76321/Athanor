@@ -32,6 +32,13 @@ New entries are appended at the top. Do not rewrite history.
   automatically.
 - **Documentation consistency gate**: ADR references, superseded phrases, the
   closed tool set, and the config example now fail the build when they drift.
+- **Retention** (ADR-0127): events older than `retention.events_days` (default
+  365) are archived to gzip JSONL under `state/archive/events` and deleted
+  under a guarded exception to the append-only trigger. Daydream logs, closed
+  budget windows, and resolved alarms prune on their own windows; accepted
+  artifacts, corrections, and quarantine rows are kept. Archive keeping is
+  user-configurable (forever by default, or by age/size). A daily scheduler
+  audits one `retention_run` event.
 
 ### Pre-first-use hardening — 2026-11-06
 

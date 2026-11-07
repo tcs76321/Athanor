@@ -354,6 +354,16 @@ func applyDefaults(c *Config) {
 	setDur(&c.HITL.DefaultTTL, Duration(24*time.Hour))
 	setDur(&c.HITL.ExpiryInterval, Duration(minute))
 
+	// ADR-0127: archive old audit events to gzip JSONL, keep archives forever
+	// by default, and prune auxiliary records on the same one-year window.
+	setTrue(&c.Retention.Enabled)
+	setStr(&c.Retention.RunAt, "03:30")
+	setInt(&c.Retention.EventsDays, 365)
+	setInt(&c.Retention.DaydreamDays, 365)
+	setInt(&c.Retention.BudgetDays, 365)
+	setInt(&c.Retention.AlarmsDays, 365)
+	setInt(&c.Retention.Batch, 10000)
+
 	setStr(&c.Logging.Level, "info")
 	if len(c.Logging.Categories) == 0 {
 		c.Logging.Categories = append([]string(nil), Categories...)

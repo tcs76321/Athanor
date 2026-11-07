@@ -1,6 +1,6 @@
 # ADR 0127 — Retention: 365-day event archival and configurable archive keeping
 
-**Status:** Accepted — implementation pending · **Date:** 2026-11-07 · **Refs:** ADR-0027, ADR-0054;
+**Status:** Accepted · **Date:** 2026-11-07 · **Refs:** ADR-0027, ADR-0054;
 ARCHITECTURE §23, §28; `internal/retention`, `internal/store`, `internal/backup`
 
 ## Context

@@ -74,6 +74,7 @@ type Config struct {
 	JobPod           JobPod           `yaml:"job_pod"`
 	Airlock          Airlock          `yaml:"airlock"`
 	HITL             HITL             `yaml:"hitl"`
+	Retention        Retention        `yaml:"retention"`
 
 	// SourcePath is set by Load and records where the config came from.
 	SourcePath string `yaml:"-"`
@@ -1009,3 +1010,33 @@ type HITL struct {
 	DefaultTTL     Duration `yaml:"default_ttl"`
 	ExpiryInterval Duration `yaml:"expiry_interval"`
 }
+
+// Retention configures ADR-0127: archive old audit events to gzip JSONL and
+// prune auxiliary records. Events, daydream logs, closed budget windows, and
+// resolved alarms use their own day windows; accepted artifacts, corrections,
+// and quarantine files are never pruned here.
+type Retention struct {
+	Enabled *bool `yaml:"enabled"`
+	// RunAt is a local "HH:MM" daily start time.
+	RunAt string `yaml:"run_at"`
+	// EventsDays is the live-event window; 0 disables event archiving.
+	EventsDays int `yaml:"events_days"`
+	// DaydreamDays, BudgetDays, and AlarmsDays prune those auxiliary tables;
+	// 0 disables the corresponding prune.
+	DaydreamDays int `yaml:"daydream_days"`
+	BudgetDays   int `yaml:"budget_days"`
+	AlarmsDays   int `yaml:"alarms_days"`
+	// ArchiveDir overrides <state>/archive.
+	ArchiveDir string `yaml:"archive_dir"`
+	// ArchiveKeepDays prunes archive files older than N days; 0 keeps forever.
+	ArchiveKeepDays int `yaml:"archive_keep_days"`
+	// ArchiveMaxBytes prunes the oldest archives over this size; 0 is unlimited.
+	ArchiveMaxBytes int64 `yaml:"archive_max_bytes"`
+	// Batch bounds one archive transaction. Zero means 10000.
+	Batch int `yaml:"batch"`
+	// Vacuum runs a maintenance VACUUM after pruning; off by default.
+	Vacuum bool `yaml:"vacuum"`
+}
+
+// RetentionEnabled resolves enabled (default true).
+func (r Retention) RetentionEnabled() bool { return Val(r.Enabled, true) }

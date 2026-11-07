@@ -75,7 +75,7 @@ var knownCategories = map[string]bool{
 	"jobs": true, "recovery": true, "alarms": true, "airlock": true,
 	"network": true, "podman": true, "inference": true, "feedback": true,
 	"strategy": true, "context": true, "daydream": true, "power": true,
-	"backup": true,
+	"backup": true, "retention": true,
 }
 
 // categoryEnabled reports whether cat may emit events.

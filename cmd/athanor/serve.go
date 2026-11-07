@@ -796,6 +796,13 @@ func run(configPath, addr, stateDir string, container bool) error {
 		defer bkSched.Close()
 	}
 
+	// ADR-0127: daily event archival and auxiliary pruning. Disabled by
+	// config; archives are kept forever unless retention.archive_keep_days or
+	// archive_max_bytes says otherwise.
+	if rs := startRetention(context.Background(), st, cfg, stateDir); rs != nil {
+		defer rs.Close()
+	}
+
 	// M5-T6: the minimal daydream memory-consolidation loop (ADR-0025 §6). It
 	// is off by default (the interactive power profile disallows daydreaming)
 	// and every pass is gated by config, power, the kill switch, and idle

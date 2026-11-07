@@ -1542,6 +1542,15 @@ Backups include: SQLite database, configuration, prompt templates, feedback reco
 > `include_workspace_metadata` is accepted but the config/workspace-metadata
 > copy is deferred.
 
+> **Retention (ADR-0127).** Events older than `retention.events_days` (default
+> 365) are archived to gzip JSONL under `<state>/archive/events` and then
+> deleted under a guarded exception to the append-only trigger. Daydream logs,
+> closed budget windows, and resolved alarms use their own windows. Accepted
+> artifacts, corrections, and quarantine rows are kept. Archive files are kept
+> forever by default; `archive_keep_days` or `archive_max_bytes` can bound them.
+> A SQLite backup does not include the archive directory, so a restore must
+> copy `<state>/archive` alongside the database.
+
 ### 23.5 Migrations
 
 - Versioned.
@@ -1822,6 +1831,7 @@ Athanor logs structured JSON events to SQLite and `state/logs/`:
 | `daydream` | Idle start/stop, actions taken, artifacts produced |
 | `power` | AC/battery transitions, sleep/wake, throttle events |
 | `backup` | Backup creation, migration execution |
+| `retention` | Event archival, archive pruning, auxiliary pruning, retention failure |
 
 ### 28.2 Token Accounting
 

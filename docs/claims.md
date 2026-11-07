@@ -167,6 +167,14 @@ demo. A claim without a proof is either removed or marked as a target.
 | Cross-family judgment uses the actual pool cast | ADR-0122 | `internal/engine/pool_family_test.go` | **proven** |
 | The Core Pod can reach a host repository | ADR-0123 | `~/athanor/repos` same-path mount; `TestCoreRunArgs`, `TestCoreMountsMatch`; repository path validation | **proven structurally** |
 | A stale Core container is recreated for a changed image or mount contract | ADR-0123 | `cmd/athanor/core.go`; `TestCoreMountsMatch` | **proven structurally** |
+| The machine plan names solo/swarm slots and refuses a swarm that does not fit | ADR-0124 | `internal/capacity`; `TestM2MaxPlansSoloAndSwarm`, `TestNoModelFits`, `TestLightSwarmOnSmallMachine` | **proven structurally** |
+| One-model and missing-component machines degrade honestly | ADR-0124 | `TestOneModelMachineIsHonest`, `TestCoverageRequiresFitAtFloor`, `TestLiteModeUsesLowerFloors` | **proven structurally** |
+| A swarm only accepts tasks smaller than the solo capability | ADR-0124 | `EligibleForSwarm`; `TestEligibleForSwarmRequiresSmallerTasks`, `TestMissionTooLargeDisablesSwarm`, `TestMissionReservesOneSlotTotal` | **proven structurally** |
+| Reads proceed while a job writes; writes stay serialized | ADR-0125 | `internal/store` read pool; `TestReadPoolProceedsDuringWrite`, `TestReadPoolRefusesWrites`, `TestConcurrentWritersSerialize` | **proven** |
+| A benchmark headline cannot be a host-binary run | ADR-0126 | `tools/bench/runmeta.go`; `TestResolveRuntime`, `TestRunHeaderLabelsHostAsDiagnostic`; `report -headline` | **proven structurally** |
+| Division spans the full generation language set | ADR-0128 | `internal/mce/division`; P1–P5 corpus over ten languages; `TestDivideNewLanguagesUseASTAndTile` | **proven** |
+| Superseded architecture wording and tool/ADR drift fail the build | 2026-11-07 consistency gate | `internal/docs/consistency_test.go` | **proven** |
+| Old audit events are archived before deletion under a guarded trigger | ADR-0127 | `internal/retention`; `TestArchiveEventsMovesOldRows`, `TestGuardStillBlocksNormalDelete`, `TestPruneArchivesByAge` | **proven** |
 
 ## Rule
 

@@ -367,6 +367,7 @@ logging:
     - daydream
     - power
     - backup
+    - retention
 
 job_pod:
   # Per-job tool envelope applied to every job that does not
@@ -458,3 +459,22 @@ hitl:
   # requests.
   default_ttl: "24h"
   expiry_interval: "1m"
+
+retention:
+  # ADR-0127: archive audit events older than events_days to gzip JSONL under
+  # <state>/archive/events, then delete them under a guarded append-only
+  # exception. Accepted artifacts, corrections, and quarantine rows are kept.
+  # Set events_days: 0 to disable event archiving.
+  enabled: true
+  run_at: "03:30"
+  events_days: 365
+  daydream_days: 365
+  budget_days: 365
+  alarms_days: 365
+  # Archive keeping: 0 = forever (default); 5 years is a reasonable preset.
+  archive_keep_days: 0
+  archive_max_bytes: 0
+  # One archive transaction's event count.
+  batch: 10000
+  # Maintenance VACUUM is off by default; enable only with disk headroom.
+  vacuum: false
