@@ -24,8 +24,9 @@ New entries are appended at the top. Do not rewrite history.
   `checksToExecution` carries them from the corpus. `must_contain_any` is also
   carried and enforced, closing the refusal-task mismatch.
 - **Focused document rerun**: the five previously failing document tasks now
-  pass 5/5 (the refusal task needed the `must_contain_any` fix; the other four
-  passed on the current prompt).
+  pass **5/5** on the final binary (the refusal task needed the
+  `must_contain_any` fix; the other four passed on the current prompt).
+  Evidence: [bench-v2-doc-rerun-20261106](docs/probes/bench-v2-doc-rerun-20261106.md).
 - **Declared checks are prompt-visible** (`internal/prompt/assemble.go`):
   the exact parser-enforced limits render in pinned tier 2 instead of being
   left implicit in prose criteria.

@@ -141,6 +141,7 @@ demo. A claim without a proof is either removed or marked as a target.
 | Data array checks are enforced by the engine, not only the offline scorer | ADR-0070 amendment | `internal/verify/data_checks.go`; `TestDataChecksPassthroughAndFailures`, `TestDataChecksAndSchemaBothApply`; `tools/bench/checks_test.go` | **proven** |
 | Declared checks are prompt-visible in pinned tier 2 | ADR-0070 amendment | `internal/prompt/assemble.go` (`declaredChecksSection`); `TestDeclaredChecksArePinned`; `TestRun_DeclaredChecksReachPrompt` | **proven** |
 | `must_contain_any` is enforced by the engine and carried from the benchmark | ADR-0070 amendment | `internal/verify/checks.go`; `TestChecksVerifier_MustContainAny`; focused v2 refusal task passes | **proven** |
+| The five-task document regression is closed on the current prompt/check contract | [bench-v2-doc-rerun-20261106](probes/bench-v2-doc-rerun-20261106.md) | focused v2 rerun, one pass, 5/5 | **measured (one pass, host path)** |
 | A 24/7 Core bounds in-memory run history instead of retaining every session | 2026-11-06 hardening pass | `internal/ui/runs.go` (`pruneRuns`); `TestPruneRunsDropsOldestCompleted`, `TestPruneRunsNeverDropsRunning` | **proven** |
 | Every daemon request body is capped before a handler decodes it | 2026-11-06 hardening pass | `internal/server/body_limit.go`; `TestBodyLimitMiddlewareRejectsOversize` | **proven** |
 
