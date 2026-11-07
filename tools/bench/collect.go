@@ -105,6 +105,10 @@ type jobMetrics struct {
 	// 15), false for the locked M3-T7 set; the held-out table uses it to keep
 	// the locked set out of the tuning count.
 	Bench bool `json:"bench,omitempty"`
+	// Saturated marks a completed row that needed no repair, reflection,
+	// replan, or observation: a first-pass success. It is a ranking-slice
+	// signal, not evidence for the iterative loop (ADR-0116).
+	Saturated bool `json:"saturated,omitempty"`
 	// Telemetry is the event-log reduction (ADR-0073 §3): per-phase/per-persona
 	// calls and tokens plus the engine's lever counters. Nil when the job
 	// produced no events (e.g. it errored before execution).

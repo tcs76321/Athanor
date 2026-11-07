@@ -169,6 +169,11 @@ func (m *jobMetrics) fillTelemetry(db *sql.DB) {
 	}
 	sort.Strings(t.Models)
 	m.Telemetry = &t
+	// A completed job that never repaired, reflected, replanned, or observed
+	// a file is a first-pass success: useful as a ranking row, not as
+	// evidence that the iterative loop was needed (ADR-0116).
+	m.Saturated = m.State == "completed" &&
+		t.RepairLoops == 0 && t.ReflectLoops == 0 && t.Replans == 0 && t.Observations == 0
 }
 
 // telemetryRow aggregates telemetry across the jobs of one model.

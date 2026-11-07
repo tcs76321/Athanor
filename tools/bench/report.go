@@ -249,6 +249,21 @@ type heldOutRow struct {
 	Pass    int
 }
 
+// saturationCount reports first-pass completed rows over all completed rows.
+// It makes the one-shot-solvable slice explicit (ADR-0116).
+func saturationCount(metrics []jobMetrics) (saturated, total int) {
+	for _, m := range metrics {
+		if m.State != "completed" {
+			continue
+		}
+		total++
+		if m.Saturated {
+			saturated++
+		}
+	}
+	return saturated, total
+}
+
 // heldOutSummary aggregates the bench corpus pass rate by held-out vs tuning
 // and arm. The locked M3-T7 set (Bench=false) is excluded: it is a different
 // instrument and must not inflate the tuning slice.
@@ -410,6 +425,11 @@ func renderReport(metrics []jobMetrics) string {
 			rate = float64(r.Pass) / float64(r.N) * 100
 		}
 		fmt.Fprintf(&b, "| %s | %s | %d | %d | %.0f%% |\n", r.Tier, r.Arm, r.N, r.Pass, rate)
+	}
+	if sat, total := saturationCount(metrics); total > 0 {
+		fmt.Fprintf(&b, "\n**Saturated:** %d/%d completed rows were first-pass successes "+
+			"(no repair, reflection, replan, or observation). They are ranking rows, "+
+			"not evidence for the iterative loop (ADR-0116).\n", sat, total)
 	}
 
 	b.WriteString("\n## Corpus — held-out vs tuning\n\n")

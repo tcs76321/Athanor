@@ -99,6 +99,45 @@ func TestFillTelemetry(t *testing.T) {
 	}
 }
 
+// TestSaturatedFirstPass pins the ADR-0116 label: a completed job with no
+// repair, reflection, replan, or observation is a ranking row, not loop
+// evidence.
+func TestSaturatedFirstPass(t *testing.T) {
+	db, err := sql.Open("sqlite3", ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = db.Close() }()
+	if _, err := db.Exec(`CREATE TABLE events (id INTEGER PRIMARY KEY, job_id TEXT, category TEXT, data_json TEXT)`); err != nil {
+		t.Fatal(err)
+	}
+	m := jobMetrics{JobID: "j1", State: "completed"}
+	m.fillTelemetry(db)
+	if !m.Saturated {
+		t.Fatal("completed first pass was not marked saturated")
+	}
+	m = jobMetrics{JobID: "j1", State: "completed"}
+	if _, err := db.Exec(`INSERT INTO events (job_id, category, data_json) VALUES ('j1','jobs','{"event":"reflection"}')`); err != nil {
+		t.Fatal(err)
+	}
+	m.fillTelemetry(db)
+	if m.Saturated {
+		t.Fatal("a job with a reflection was marked saturated")
+	}
+}
+
+func TestSaturationCount(t *testing.T) {
+	rows := []jobMetrics{
+		{State: "completed", Saturated: true},
+		{State: "completed"},
+		{State: "failed"},
+	}
+	sat, total := saturationCount(rows)
+	if sat != 1 || total != 2 {
+		t.Fatalf("saturation = %d/%d, want 1/2", sat, total)
+	}
+}
+
 // TestFillTelemetryNoJobIDIsSafe pins that a job row with no id (an error
 // before execution) does not panic and yields an empty telemetry.
 func TestFillTelemetryNoJobIDIsSafe(t *testing.T) {

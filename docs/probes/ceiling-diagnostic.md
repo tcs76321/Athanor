@@ -100,6 +100,16 @@ test command imported `solution`, found nothing, and failed every candidate
 with `ModuleNotFoundError`. Fixed by recognizing plain `python` commands; the
 code-task rerun is the evidence.
 
+### Code task rerun
+
+**1/1.** `diag-layered-code` now passes on the final language fix. Importantly,
+it passed on the **first attempt**: the observation, replan, and repair
+counters were zero. That is a saturation signal, not evidence for the loop.
+The task is currently one-shot-solvable for this model; v3 needs an injected
+failure, a hidden check, or a multi-step sequence to force the mechanisms to
+run. This is exactly the distinction the v3 plan makes between ranking and
+differentiating tasks.
+
 ## Caveats
 
 - One model and one pass are directional only. This is a diagnostic, not a
