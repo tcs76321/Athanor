@@ -223,6 +223,22 @@ ablation, and inspect the candidate sets on the failing step. The diagnostic
 has already taught the most important lesson: **a single paired pass can
 produce a completely wrong conclusion.**
 
+### Contract fix — final full-arm run
+
+The candidates that “failed” step 2 all contained `Implementation` as a plain
+line; the checker requires a Markdown heading. The task now says **exactly
+`# Implementation`**, and the full arm passed **3/3**:
+
+- progress 100%;
+- 24 memory hits across the sequence;
+- 3 planning/divergence/evaluation/synthesis phases;
+- no repair, reflection, or replan loops;
+- 37,828 tokens, 107 s.
+
+This is still a **saturated** multi-step task: one-shot-first should match it
+at lower cost. The next differentiating task must add an injected failure or a
+hidden check, not just more steps.
+
 ## Caveats
 
 - One model and one pass are directional only. This is a diagnostic, not a
