@@ -35,6 +35,31 @@ func TestShouldFallbackToCandidate(t *testing.T) {
 	}
 }
 
+func TestOneShotFirstOnlyOnFirstCycle(t *testing.T) {
+	e := newEnv(t)
+	on := true
+	e.cfg.Execution.Policy.OneShotFirst = &on
+	projectID, taskID, jobID := e.createProjectTask(t, "text",
+		"Write a short brief for the one-shot election.")
+	ctx := context.Background()
+	if !e.eng.oneShotFirst(ctx, jobID) {
+		t.Fatal("first cycle was not eligible for one-shot-first")
+	}
+	a, err := e.artifacts.CreateDraftFor(ctx, projectID, taskID, jobID,
+		artifact.KindProposal, []byte("candidate"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec := evaluation.NewRecord(jobID, a.ID)
+	rec.Score = 0.5
+	if _, err := e.eng.eval.Create(ctx, rec); err != nil {
+		t.Fatal(err)
+	}
+	if e.eng.oneShotFirst(ctx, jobID) {
+		t.Fatal("a job with an evaluation record was still eligible")
+	}
+}
+
 func TestBestPassingCandidateFallsBackToBestScore(t *testing.T) {
 	e := newEnv(t)
 	projectID, taskID, jobID := e.createProjectTask(t, "text",

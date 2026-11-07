@@ -547,6 +547,11 @@ type PolicyConfig struct {
 	// before rewriting (ADR-0113). It is a single bounded LLM call and a
 	// read-only tool; default true.
 	ObservationTools *bool `yaml:"observation_tools"`
+	// OneShotFirst starts a job with one candidate and escalates to the full
+	// candidate count only after the first attempt fails (ADR-0118). It is the
+	// cost-aware operating policy; the benchmark's `full` arm leaves it off
+	// so the unconditional loop remains the control.
+	OneShotFirst *bool `yaml:"one_shot_first"`
 	// Clarifications lets the planning phase ask the operator a blocking
 	// question (ADR-0112). Default false: an unattended run must never park
 	// itself waiting for a human. Enable it for interactive use.
@@ -668,6 +673,12 @@ func (e *Execution) ObservationToolsEnabled() bool {
 // unattended job must never park on a question).
 func (e *Execution) ClarificationsEnabled() bool {
 	return Val(e.Policy.Clarifications, false)
+}
+
+// OneShotFirstEnabled resolves one_shot_first (default false; the benchmark's
+// `full` arm is the unconditional control, the `cascade` arm enables it).
+func (e *Execution) OneShotFirstEnabled() bool {
+	return Val(e.Policy.OneShotFirst, false)
 }
 
 // QualityTieMarginValue resolves quality_tie_margin (default 0.02).

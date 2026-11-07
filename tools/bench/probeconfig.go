@@ -180,8 +180,16 @@ execution:
 		p.CodeGates, p.CodeGates,
 		p.DAG,
 	)
+	policyOpen := false
 	if p.JudgeMode != "" {
 		fmt.Fprintf(&b, "  policy:\n    judge_mode: %q\n", p.JudgeMode)
+		policyOpen = true
+	}
+	if a.OneShotFirst {
+		if !policyOpen {
+			b.WriteString("  policy:\n")
+		}
+		b.WriteString("    one_shot_first: true\n")
 	}
 	b.WriteString(reflectLine)
 	b.WriteString(selfRefineLine)

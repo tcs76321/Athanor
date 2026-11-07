@@ -239,6 +239,10 @@ execution:
     # ADR-0112: allow the planning phase to ask the operator a blocking
     # question. Off by default: an unattended run must never park itself.
     allow_clarifications: false
+    # ADR-0118: try one candidate first and escalate to the full candidate
+    # count only after it fails. Off by default; the benchmark's cascade arm
+    # turns it on.
+    one_shot_first: false
     quality_tie_margin: 0.02
     require_cross_family: true
     heterogeneous_diversity: true

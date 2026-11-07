@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 
 	"github.com/tcs76321/athanor/internal/artifact"
 	"github.com/tcs76321/athanor/internal/job"
@@ -22,6 +23,24 @@ func capCandidatesForCapability(capability string, n int) int {
 		return nonCodeCeiling
 	}
 	return n
+}
+
+// oneShotFirst reports whether this job's first divergence cycle should try a
+// single candidate and escalate only after failure (ADR-0118). A job with any
+// evaluation record has already tried; it is no longer the first shot.
+func (e *Engine) oneShotFirst(ctx context.Context, jobID string) bool {
+	if e.cfg == nil || !e.cfg.Execution.OneShotFirstEnabled() {
+		return false
+	}
+	if e.eval == nil {
+		return true
+	}
+	records, err := e.eval.ListByJob(ctx, jobID)
+	if err != nil {
+		slog.Warn("engine: one-shot-first election", "job", jobID, "err", err)
+		return false
+	}
+	return len(records) == 0
 }
 
 // phaseDivergeN (§13.1 Phase 2): generates N candidate artifacts, each
@@ -64,6 +83,12 @@ func (e *Engine) phaseDivergeN(ctx context.Context, j job.Job) error {
 		n = max
 	}
 	n = capCandidatesForCapability(capability, n)
+	if e.oneShotFirst(ctx, j.ID) && n > 1 {
+		e.audit(ctx, j.ID, map[string]any{
+			"event": "one_shot_first", "candidates": 1, "escalate_to": n,
+		})
+		n = 1
+	}
 	// ADR-0104: the measured evidence can upgrade a single-candidate plan to a
 	// panel for low-risk work. It needs a few outcomes before it switches.
 	if e.selector != nil && n == 1 &&

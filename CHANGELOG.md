@@ -60,6 +60,9 @@ New entries are appended at the top. Do not rewrite history.
   candidate that passed or scored better. Extra compute may cost more; it must
   not lower quality. The paired report flags any single→full quality
   regression and shows the token multiple.
+- **One-shot first** ([ADR-0118](docs/adr/0118-one-shot-first.md)): an opt-in
+  policy tries one candidate and escalates to the full count only after it
+  fails. The benchmark adds a `cascade` arm and `make diagnostic-cascade`.
 
 ### Correctness, benchmark parity, and endurance — 2026-11-06
 

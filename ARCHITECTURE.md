@@ -781,6 +781,7 @@ Complex tasks are solved via a multi-phase, multi-temperature state machine.
 - **If accepted:** Write artifact to workspace. Create Git branch. Create atomic commit. Mark artifact as `accepted`. Request approval for external actions if needed.
 - **If not accepted:** Store evaluation. Retry if budget remains. Otherwise escalate to HITL.
 - **Quality is monotonic over compute:** synthesis starts from the best-scoring candidate when none passed, and a final hard-verifier failure falls back to a candidate that passed or scored better. Extra compute may buy equal quality at higher cost; it may not buy worse quality ([ADR-0117](docs/adr/0117-quality-monotonicity.md)).
+- **One-shot first:** with `execution.policy.one_shot_first`, a job's first divergence cycle generates one candidate; if it fails, the next cycle escalates to the full candidate count ([ADR-0118](docs/adr/0118-one-shot-first.md)). The benchmark exposes this as the `cascade` arm.
 
 ### 13.2 Exploration Paths
 

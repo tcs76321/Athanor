@@ -109,6 +109,9 @@ type arm struct {
 	Reflection int
 	// SelfRefine enables execution.self_refine for this arm (M8-T22).
 	SelfRefine bool
+	// OneShotFirst enables execution.policy.one_shot_first: try one candidate,
+	// escalate to Candidates only after failure (ADR-0118).
+	OneShotFirst bool
 }
 
 // arms are the two conditions of the headline experiment. The dialectical
@@ -196,6 +199,7 @@ func namedArm(name string) (arm, bool) {
 		{Name: "bestof3", Candidates: 3, Reflection: 0},
 		{Name: "reflect", Candidates: 1, Reflection: -1},
 		{Name: "full", Candidates: 3, Reflection: -1},
+		{Name: "cascade", Candidates: 3, Reflection: -1, OneShotFirst: true},
 	} {
 		if a.Name == name {
 			return a, true

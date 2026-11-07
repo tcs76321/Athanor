@@ -264,6 +264,10 @@ func applyDefaults(c *Config) {
 		off := false
 		c.Execution.Policy.Clarifications = &off
 	}
+	if c.Execution.Policy.OneShotFirst == nil {
+		off := false
+		c.Execution.Policy.OneShotFirst = &off
+	}
 	setTrue(&c.Execution.Policy.RequireCrossFamily)
 	setTrue(&c.Execution.Policy.HeterogeneousDiversity)
 	setStr(&c.Execution.Policy.NoveltyReset, NoveltyResetAuto)
