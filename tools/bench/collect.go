@@ -130,6 +130,8 @@ type sequenceStep struct {
 	Pass        bool     `json:"pass"`
 	CheckPass   *bool    `json:"check_pass,omitempty"`
 	CheckFailed []string `json:"check_failures,omitempty"`
+	Tokens      int      `json:"tokens,omitempty"`
+	WallMS      int      `json:"wall_ms,omitempty"`
 	Error       string   `json:"error,omitempty"`
 }
 

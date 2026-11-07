@@ -96,7 +96,6 @@ func (r *runnerConfig) runSequence(g sampleGoal, projectID, stateDir string, mx 
 			mx.CheckPass = &ok
 		}
 		sr.Pass = stepPass
-		mx.Sequence = append(mx.Sequence, sr)
 		mx.State, mx.ArtifactID, mx.ArtifactText = state, scoredID, text
 		if stepPass {
 			mx.Winner = "new"
@@ -104,7 +103,11 @@ func (r *runnerConfig) runSequence(g sampleGoal, projectID, stateDir string, mx 
 		} else {
 			mx.Winner = "none"
 		}
-		mx.TokenCost += stepTokens(db, jobIDs[0])
+		tokens, wall := stepTotals(db, jobIDs[0])
+		sr.Tokens, sr.WallMS = tokens, wall
+		mx.TokenCost += tokens
+		mx.WallMS += wall
+		mx.Sequence = append(mx.Sequence, sr)
 		if tm := stepMetrics(db, jobIDs[0], g.Archetype); tm != nil {
 			aggregate = mergeTelemetry(aggregate, tm)
 		}
@@ -120,10 +123,10 @@ func (r *runnerConfig) runSequence(g sampleGoal, projectID, stateDir string, mx 
 	mx.EngineAccepted = mx.State == "completed" && mx.Winner == "new"
 }
 
-func stepTokens(db *sql.DB, jobID string) int {
-	var tokens int
-	_ = db.QueryRow(`SELECT token_cost FROM strategy_outcomes WHERE job_id = ?`, jobID).Scan(&tokens)
-	return tokens
+func stepTotals(db *sql.DB, jobID string) (tokens, wallMS int) {
+	_ = db.QueryRow(`SELECT token_cost, wall_time_ms FROM strategy_outcomes WHERE job_id = ?`, jobID).
+		Scan(&tokens, &wallMS)
+	return tokens, wallMS
 }
 
 func stepMetrics(db *sql.DB, jobID, archetype string) *jobTelemetry {
