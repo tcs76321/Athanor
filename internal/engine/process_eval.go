@@ -81,18 +81,23 @@ func (e *Engine) evaluateProcess(ctx context.Context, j job.Job) {
 	}
 	if p, t, err := e.contexts(ctx, j); err == nil {
 		if final, ferr := e.artifacts.LatestForJob(ctx, j.ID, finalKindFor(capabilityFor(p, t))); ferr == nil {
-			in.FinalAccepted = j.State == job.StateCompleted && final.Status == artifact.StatusAccepted
+			in.Completed = j.State == job.StateCompleted
+			in.FinalAccepted = in.Completed && final.Status == artifact.StatusAccepted
 			if in.FinalAccepted && e.eval != nil {
 				if recs, rerr := e.eval.ListByArtifact(ctx, final.ID); rerr == nil {
 					for _, r := range recs {
 						if r.Score > in.FinalScore {
 							in.FinalScore = r.Score
 						}
+						if r.Confidence > 0 {
+							in.FinalGrounded = true
+						}
 					}
 				}
 			}
 		}
 	}
+	in.Cancelled = j.State == job.StateCancelled
 	if j.StartedAt != nil && j.FinishedAt != nil {
 		in.Wall = j.FinishedAt.Sub(*j.StartedAt)
 	} else {

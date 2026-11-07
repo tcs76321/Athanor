@@ -17,7 +17,10 @@ func TestEvaluate(t *testing.T) {
 		{"escalation rescued", Input{FinalAccepted: true, Candidates: 3, Cycles: 2, Reflections: 1}, false, true, true, false, false},
 		{"failed without escalation", Input{FinalAccepted: false, Candidates: 1, Cycles: 1}, false, false, false, false, false},
 		{"failed after escalation", Input{FinalAccepted: false, Candidates: 3, Cycles: 2, Replans: 1}, false, true, false, false, false},
-		{"quality regression", Input{FinalAccepted: true, Candidates: 3, Cycles: 2, FinalScore: 0.5, BestCandidateScore: 0.9}, false, true, true, false, true},
+		{"quality regression", Input{FinalAccepted: true, FinalGrounded: true, Candidates: 3, Cycles: 2, FinalScore: 0.5, BestCandidateScore: 0.9}, false, true, true, false, true},
+		{"judge-only final is not a regression", Input{FinalAccepted: true, FinalGrounded: false, Candidates: 3, FinalScore: 0, BestCandidateScore: 0.9}, false, false, false, true, false},
+		{"completed with previous", Input{Completed: true, FinalAccepted: false, Candidates: 3, Cycles: 1}, false, false, false, false, false},
+		{"cancelled", Input{Cancelled: true, Candidates: 1, Cycles: 1}, false, false, false, false, false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -31,5 +34,25 @@ func TestEvaluate(t *testing.T) {
 				t.Fatal("empty verdict")
 			}
 		})
+	}
+}
+
+func TestEvaluateVerdicts(t *testing.T) {
+	cases := []struct {
+		in   Input
+		want string
+	}{
+		{Input{FinalAccepted: true, FinalGrounded: true, Candidates: 1, Cycles: 1}, "one-shot sufficient"},
+		{Input{FinalAccepted: true, FinalGrounded: true, Candidates: 3, Cycles: 2, Reflections: 1}, "escalation rescued the job"},
+		{Input{FinalAccepted: true, FinalGrounded: true, Candidates: 3, Cycles: 1}, "panel sufficient, no escalation needed"},
+		{Input{Completed: true, Candidates: 1, Cycles: 1}, "completed without accepting new work"},
+		{Input{Cancelled: true, Candidates: 1, Cycles: 1}, "cancelled"},
+		{Input{Candidates: 1, Cycles: 1}, "failed without escalation"},
+		{Input{Candidates: 1, Cycles: 2, Reflections: 1}, "failed after escalation"},
+	}
+	for _, tc := range cases {
+		if got := Evaluate(tc.in).Verdict; got != tc.want {
+			t.Errorf("verdict = %q, want %q", got, tc.want)
+		}
 	}
 }

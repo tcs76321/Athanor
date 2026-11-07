@@ -16,8 +16,17 @@ import (
 
 // Input is the observed trajectory of one job.
 type Input struct {
-	// FinalAccepted is true when the job delivered an accepted artifact.
+	// FinalAccepted is true when the job delivered an accepted new artifact.
 	FinalAccepted bool
+	// Completed is true when the job reached `completed`, including the
+	// legitimate outcome where the previous accepted artifact was kept.
+	Completed bool
+	// Cancelled distinguishes an operator cancellation from a failure.
+	Cancelled bool
+	// FinalGrounded reports whether FinalScore came from a deterministic
+	// verifier. A judge-only final (media, or text with no declared checks)
+	// has no comparable score and must not be labeled a regression.
+	FinalGrounded bool
 	// Candidates is the total number of proposals generated.
 	Candidates int
 	// Cycles is the number of divergence cycles (1 = one pass).
@@ -63,7 +72,7 @@ func Evaluate(in Input) Scorecard {
 	out.OneShotSufficient = in.FinalAccepted && in.Candidates <= 1 && !escalated
 	out.Rescued = in.FinalAccepted && escalated
 	out.WastedCompute = in.FinalAccepted && !escalated && in.Candidates > 1
-	out.Regression = in.FinalAccepted && in.BestCandidateScore > in.FinalScore+1e-9
+	out.Regression = in.FinalAccepted && in.FinalGrounded && in.BestCandidateScore > in.FinalScore+1e-9
 
 	switch {
 	case out.Regression:
@@ -76,6 +85,10 @@ func Evaluate(in Input) Scorecard {
 		out.Verdict = "panel sufficient, no escalation needed"
 	case in.FinalAccepted:
 		out.Verdict = "accepted"
+	case in.Cancelled:
+		out.Verdict = "cancelled"
+	case in.Completed:
+		out.Verdict = "completed without accepting new work"
 	case escalated:
 		out.Verdict = "failed after escalation"
 	default:
