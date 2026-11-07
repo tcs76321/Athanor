@@ -37,6 +37,11 @@ func TestFillTelemetry(t *testing.T) {
 		`{"event":"working_set_sourced","chunks":3,"bytes":900}`,
 		`{"event":"memory_injected","hits":2,"bytes":400}`,
 		`{"event":"memory_compacted","source_bytes":1000,"compacted_bytes":250}`,
+		`{"event":"learned_candidate_selection"}`,
+		`{"event":"replanned"}`,
+		`{"event":"observation_read"}`,
+		`{"event":"clarification_requested"}`,
+		`{"event":"memory_remembered"}`,
 		`{"event":"some_future_event_the_engine_may_add"}`,
 	}
 	for _, r := range rows {
@@ -87,6 +92,10 @@ func TestFillTelemetry(t *testing.T) {
 	if tel.Compactions != 1 || tel.CompactionSource != 1000 || tel.CompactionBytes != 250 {
 		t.Errorf("compaction = %d/%d/%d, want 1/1000/250",
 			tel.Compactions, tel.CompactionSource, tel.CompactionBytes)
+	}
+	if tel.LearnedSelections != 1 || tel.Replans != 1 || tel.Observations != 1 ||
+		tel.Clarifications != 1 || tel.MemoryRemembered != 1 {
+		t.Errorf("cognitive-loop counters = %+v", tel)
 	}
 }
 

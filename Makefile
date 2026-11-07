@@ -15,7 +15,7 @@ export CGO_ENABLED
 # tag-less binary can never silently run.
 GO_TAGS = -tags sqlite_fts5
 
-.PHONY: build release test test-race test-integration integration-images vet lint check vuln tidy tidy-check fuzz cover cover-check run clean hooks bench probe-micro probe probe-judge probe-anchor probe-report probe-bundle probe-reconcile probe-measure jobpod-image jobpod-polyglot-image core-image core-smoke bench-core-focused install soak soak-mini soak-ladder
+.PHONY: build release test test-race test-integration integration-images vet lint check vuln tidy tidy-check fuzz cover cover-check run clean hooks bench probe-micro probe probe-judge probe-anchor probe-report probe-bundle probe-reconcile probe-measure jobpod-image jobpod-polyglot-image core-image core-smoke bench-core-focused install soak soak-mini soak-ladder diagnostic
 
 build:
 	go build $(GO_TAGS) -o bin/athanor ./cmd/athanor
@@ -144,6 +144,15 @@ corpus-digest-v2:
 
 # The 6-item smoke subset (docs/frozen-corpus-v1.md §8) for engine-surface
 # changes. A fresh output dir by default; set SOAK_SMOKE_OUT to keep the run.
+# Cognitive-loop diagnostic (docs/probes/ceiling-diagnostic.md). Not the frozen
+# benchmark: it exists to observe the notebook, replanning, observation,
+# clarification, and memory-write counters on tasks that need iteration.
+DIAGNOSTIC_OUT  ?= tools/bench/results/diagnostic
+DIAGNOSTIC_ONLY ?= diag-layered-code,diag-structured-brief,diag-contradiction-brief
+diagnostic:
+	$(MAKE) soak-mini MINI_SOAK_CORPUS=eval/diagnostic/tasks.yaml \
+		MINI_SOAK_ONLY=$(DIAGNOSTIC_ONLY) MINI_SOAK_OUT=$(DIAGNOSTIC_OUT)
+
 SOAK_SMOKE_OUT  ?= tools/bench/results/smoke
 SOAK_SMOKE_ONLY ?= code-bank-atomic,code-expr-eval,x-code-interpreter,doc-cited-brief,text-level-rewrite,data-json-normalize
 soak-smoke:

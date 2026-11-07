@@ -38,6 +38,10 @@ New entries are appended at the top. Do not rewrite history.
 - **Reframe as replanning** ([ADR-0115](docs/adr/0115-replanning-in-notebook.md)):
   a regulator reframe appends a revised plan to the notebook; later plan
   entries supersede earlier ones.
+- **Cognitive-loop diagnostic** (`eval/diagnostic/`,
+  [protocol](docs/probes/ceiling-diagnostic.md)): a non-frozen corpus and
+  `make diagnostic` target; bench telemetry now reports learned selections,
+  replans, observations, clarifications, and memory writes.
 
 ### Correctness, benchmark parity, and endurance — 2026-11-06
 

@@ -46,6 +46,14 @@ type jobTelemetry struct {
 	Compactions      int `json:"compactions,omitempty"`
 	CompactionSource int `json:"compaction_source_bytes,omitempty"`
 	CompactionBytes  int `json:"compaction_bytes,omitempty"`
+	// Cognitive-loop mechanism metrics (2026-11-06): whether the newer
+	// selection, replanning, observation, clarification, and memory-write
+	// mechanisms actually ran.
+	LearnedSelections int `json:"learned_selections,omitempty"`
+	Replans           int `json:"replans,omitempty"`
+	Observations      int `json:"observations,omitempty"`
+	Clarifications    int `json:"clarifications,omitempty"`
+	MemoryRemembered  int `json:"memory_remembered,omitempty"`
 }
 
 // fillTelemetry reduces the job's event log into m.Telemetry (ADR-0073 §3). It
@@ -147,6 +155,16 @@ func (m *jobMetrics) fillTelemetry(db *sql.DB) {
 			t.GitCommitted++
 		case "git_commit_failed":
 			t.GitCommitFailed++
+		case "learned_candidate_selection":
+			t.LearnedSelections++
+		case "replanned":
+			t.Replans++
+		case "observation_read":
+			t.Observations++
+		case "clarification_requested":
+			t.Clarifications++
+		case "memory_remembered":
+			t.MemoryRemembered++
 		}
 	}
 	sort.Strings(t.Models)

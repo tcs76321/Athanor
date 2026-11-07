@@ -1,0 +1,127 @@
+# Athanor cognitive-loop diagnostic (not the frozen benchmark).
+#
+# This corpus exists to make the newer loop mechanisms observable: the job
+# notebook, a reframe/replan, a model-requested file observation, and the
+# deterministic job-summary memory. It is deliberately NOT `eval/bench/v2`:
+# the frozen corpus is never edited. This file is a diagnostic, not a headline
+# score, and it is not cut into a benchmark version.
+#
+# Run it with the ordinary probe:
+#   make soak-mini MINI_SOAK_CORPUS=eval/diagnostic/tasks.yaml \
+#     MINI_SOAK_ONLY=diag-layered-code,diag-structured-brief,diag-contradiction-brief
+version: 0
+tasks:
+- id: diag-layered-code
+  title: Layered validation with an explicit failure path
+  archetype: code
+  tier: H
+  context_demand: long
+  language: python
+  goal: 'Implement solution.py with a validate_record(record) function. It must
+    accept a dict with id, kind in {alpha,beta}, and amount as a non-negative
+    integer; return a new dict with normalized kind and amount. Reject a missing
+    field, an unknown kind, a negative amount, and a non-integer amount with
+    ValueError. Include a second function summarize(records) that raises
+    ValueError on the first invalid record and otherwise returns
+    {"count": n, "total": sum}. Output only the code.'
+  criteria:
+  - pure stdlib
+  - valid records are normalized
+  - every invalid shape raises ValueError
+  - summarize stops on the first invalid record
+  - output is raw Python, not a fenced block
+  test_command: |
+    python -c 'import solution
+    assert solution.validate_record({"id":"a","kind":"alpha","amount":2}) == {"id":"a","kind":"alpha","amount":2}
+    for bad in [
+      {},
+      {"id":"a","kind":"gamma","amount":1},
+      {"id":"a","kind":"alpha","amount":-1},
+      {"id":"a","kind":"alpha","amount":1.5},
+    ]:
+      try:
+        solution.validate_record(bad)
+      except ValueError:
+        pass
+      else:
+        raise AssertionError("accepted " + repr(bad))
+    assert solution.summarize([{"id":"a","kind":"alpha","amount":2},{"id":"b","kind":"beta","amount":3}]) == {"count":2,"total":5}
+    try:
+      solution.summarize([{"id":"a","kind":"alpha","amount":1},{}])
+    except ValueError:
+      pass
+    else:
+      raise AssertionError("summarize accepted an invalid record")'
+  acceptance_floor: test_command exits 0
+  quality_rubric:
+  - '5: all checks pass; errors are specific and the two functions share one validator'
+  - '3: tests pass but validation is duplicated or message-free'
+  - '1: a check fails or an invalid shape is accepted'
+  expected_failure_modes:
+  - bounds checking only on one function
+  - float amount accepted
+  - summarize continues after an invalid record
+
+- id: diag-structured-brief
+  title: Structured decision brief with a strict shape
+  archetype: document
+  tier: H
+  context_demand: long
+  goal: 'Write a concise decision brief for a team choosing between a local-first
+    agent and a hosted chat assistant. Use exactly these headings in this order:
+    Context, Decision, Risks, Alternatives. Keep it under 350 words. Include at
+    least three distinct risks as bullet items under Risks and at least two
+    alternatives under Alternatives. State a clear recommendation in Decision.'
+  criteria:
+  - exactly the four required headings in order
+  - under 350 words
+  - at least three risks
+  - at least two alternatives
+  - a clear recommendation
+  checks:
+    required_sections: [Context, Decision, Risks, Alternatives]
+    strict_section_order: [Context, Decision, Risks, Alternatives]
+    max_words: 350
+    min_items:
+    - {noun: risks, min: 3}
+    - {noun: alternatives, min: 2}
+    must_contain_any: [recommend, should, choose]
+  acceptance_floor: all declared checks pass
+  quality_rubric:
+  - '5: specific, balanced, and the recommendation follows from the risks'
+  - '3: structure correct but generic'
+  - '1: missing structure or no recommendation'
+  expected_failure_modes:
+  - prose longer than the limit
+  - risks merged into one sentence
+  - headings renamed
+
+- id: diag-contradiction-brief
+  title: Resolve a contradictory source pair
+  archetype: document
+  tier: X
+  context_demand: long
+  goal: 'Two notes disagree about whether a nightly backup is safe during a
+    long-running job. Write a short operator note that names the disagreement
+    explicitly, says which claim is safer, and gives one concrete procedure.
+    Under 220 words. Do not invent a third source.'
+  criteria:
+  - names both sides of the disagreement
+  - says which claim is safer
+  - gives one concrete procedure
+  - under 220 words
+  checks:
+    max_words: 220
+    required_sections: [Disagreement, Resolution, Procedure]
+    strict_section_order: [Disagreement, Resolution, Procedure]
+    must_contain_any: [safer, conservative, safer option]
+    forbidden_phrases: [third source, I assume]
+  acceptance_floor: all declared checks pass
+  quality_rubric:
+  - '5: explicit contradiction, conservative resolution, runnable procedure'
+  - '3: names the disagreement but the procedure is vague'
+  - '1: silently picks a side or invents a source'
+  expected_failure_modes:
+  - ignores one side
+  - invents a citation
+  - no concrete procedure
