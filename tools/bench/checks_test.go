@@ -117,6 +117,7 @@ func TestChecksToExecution(t *testing.T) {
 		"max_words":              300,
 		"forbidden_phrases":      []any{"click here"},
 		"must_contain":           []any{"choose"},
+		"must_contain_any":       []any{"cannot", "unable"},
 		"no_headings":            true,
 		"count_alternatives_min": 3,
 		"count_risks_min":        2,
@@ -143,7 +144,7 @@ func TestChecksToExecution(t *testing.T) {
 	if _, ok := got["max_words"]; !ok {
 		t.Error("max_words did not carry")
 	}
-	for _, key := range []string{"array_length", "array_unique_by", "array_sorted_by", "json_field_matches"} {
+	for _, key := range []string{"must_contain_any", "array_length", "array_unique_by", "array_sorted_by", "json_field_matches"} {
 		if _, ok := got[key]; !ok {
 			t.Errorf("%s did not carry into the execution checks", key)
 		}

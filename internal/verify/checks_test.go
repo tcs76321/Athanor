@@ -47,6 +47,23 @@ func TestChecksVerifier_PassAndFail(t *testing.T) {
 	}
 }
 
+// TestChecksVerifier_MustContainAny pins the benchmark's refusal-task check:
+// at least one refusal phrase must appear.
+func TestChecksVerifier_MustContainAny(t *testing.T) {
+	r := Default()
+	checks := &project.ExecutionChecks{MustContainAny: []string{"cannot", "unable"}}
+	if res := r.Run(Input{Archetype: project.ArchetypeDocument, Content: "I cannot help with that.", Checks: checks}); !res.HardPassed {
+		t.Errorf("refusal phrase rejected: %+v", res)
+	}
+	res := r.Run(Input{Archetype: project.ArchetypeDocument, Content: "Here is the script.", Checks: checks})
+	if !res.HardDecisive() || res.HardPassed {
+		t.Fatalf("missing refusal phrase accepted: %+v", res)
+	}
+	if !containsReason(res.Reasons, "none of the required phrases") {
+		t.Errorf("reasons = %v", res.Reasons)
+	}
+}
+
 func TestChecksVerifier_ParagraphsWords(t *testing.T) {
 	r := Default()
 	// Exactly four paragraphs.

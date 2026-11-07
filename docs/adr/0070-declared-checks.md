@@ -91,7 +91,8 @@ edge was a JSON-Schema subset that cannot express length, uniqueness, ordering,
 or per-field formats. The engine could therefore accept an array the external
 scorer rejected (the two X-data `array_length` failures).
 
-`project.ExecutionChecks` now carries the four data keys, and
+`project.ExecutionChecks` now carries the four data keys plus
+`must_contain_any` (the refusal-task check), and
 `internal/verify` adds `dataChecksVerifier`, registered for the `data`
 capability. It is hard, applies only when one of those keys is set, and accepts
 the same fenced/prose-wrapped JSON value as the schema verifier. The benchmark

@@ -163,6 +163,9 @@ type ExecutionChecks struct {
 	ForbiddenPhrases []string `json:"forbidden_phrases,omitempty"`
 	// MustContain phrases must each appear (case-insensitive substring).
 	MustContain []string `json:"must_contain,omitempty"`
+	// MustContainAny requires at least one of these phrases (case-insensitive
+	// substring); it mirrors eval/bench's must_contain_any.
+	MustContainAny []string `json:"must_contain_any,omitempty"`
 	// NoHeadings forbids any markdown heading.
 	NoHeadings bool `json:"no_headings,omitempty"`
 	// NoPlaceholders forbids TODO/FIXME/lorem-ipsum markers.
@@ -195,6 +198,7 @@ func (c ExecutionChecks) IsZero() bool {
 	return len(c.RequiredSections) == 0 && len(c.StrictSectionOrder) == 0 &&
 		c.ExactParagraphs == 0 && c.MinWords == 0 && c.MaxWords == 0 &&
 		len(c.ForbiddenPhrases) == 0 && len(c.MustContain) == 0 &&
+		len(c.MustContainAny) == 0 &&
 		!c.NoHeadings && !c.NoPlaceholders && len(c.MinItems) == 0 &&
 		c.ArrayLength == 0 && c.ArrayUniqueBy == "" && c.ArraySortedBy == "" &&
 		len(c.JSONFieldMatches) == 0
@@ -228,6 +232,9 @@ func (c *ExecutionChecks) Describe() []string {
 	}
 	for _, phrase := range c.MustContain {
 		out = append(out, fmt.Sprintf("must contain: %q", phrase))
+	}
+	if len(c.MustContainAny) > 0 {
+		out = append(out, "must contain at least one of: "+quoteList(c.MustContainAny))
 	}
 	for _, phrase := range c.ForbiddenPhrases {
 		out = append(out, fmt.Sprintf("must not contain: %q", phrase))

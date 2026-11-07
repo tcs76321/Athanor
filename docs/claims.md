@@ -140,6 +140,7 @@ demo. A claim without a proof is either removed or marked as a target.
 | A host reserve below the detected Podman VM floor is clamped, and the UI cannot save below it | ADR-0106 | `internal/ui/onboarding.go` (`currentResources`, `apply_resources`); `TestReserveFixReturnsToModels`, `TestCurrentResourcesWarnsWhenReserveBelowVM` | **proven** |
 | Data array checks are enforced by the engine, not only the offline scorer | ADR-0070 amendment | `internal/verify/data_checks.go`; `TestDataChecksPassthroughAndFailures`, `TestDataChecksAndSchemaBothApply`; `tools/bench/checks_test.go` | **proven** |
 | Declared checks are prompt-visible in pinned tier 2 | ADR-0070 amendment | `internal/prompt/assemble.go` (`declaredChecksSection`); `TestDeclaredChecksArePinned`; `TestRun_DeclaredChecksReachPrompt` | **proven** |
+| `must_contain_any` is enforced by the engine and carried from the benchmark | ADR-0070 amendment | `internal/verify/checks.go`; `TestChecksVerifier_MustContainAny`; focused v2 refusal task passes | **proven** |
 | A 24/7 Core bounds in-memory run history instead of retaining every session | 2026-11-06 hardening pass | `internal/ui/runs.go` (`pruneRuns`); `TestPruneRunsDropsOldestCompleted`, `TestPruneRunsNeverDropsRunning` | **proven** |
 | Every daemon request body is capped before a handler decodes it | 2026-11-06 hardening pass | `internal/server/body_limit.go`; `TestBodyLimitMiddlewareRejectsOversize` | **proven** |
 

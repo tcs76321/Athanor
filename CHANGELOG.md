@@ -21,7 +21,11 @@ New entries are appended at the top. Do not rewrite history.
 - **The data verifier matches the benchmark contract**
   (`internal/verify/data_checks.go`): `array_length`, `array_unique_by`,
   `array_sorted_by`, and `json_field_matches` are hard engine checks, and
-  `checksToExecution` carries them from the corpus.
+  `checksToExecution` carries them from the corpus. `must_contain_any` is also
+  carried and enforced, closing the refusal-task mismatch.
+- **Focused document rerun**: the five previously failing document tasks now
+  pass 5/5 (the refusal task needed the `must_contain_any` fix; the other four
+  passed on the current prompt).
 - **Declared checks are prompt-visible** (`internal/prompt/assemble.go`):
   the exact parser-enforced limits render in pinned tier 2 instead of being
   left implicit in prose criteria.

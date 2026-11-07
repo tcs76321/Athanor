@@ -91,6 +91,17 @@ func (checksVerifier) Verify(in Input) Verdict {
 		}
 		check(len(missing) == 0, "required phrase missing: "+strings.Join(missing, ", "))
 	}
+	if len(c.MustContainAny) > 0 {
+		low := strings.ToLower(in.Content)
+		found := false
+		for _, p := range c.MustContainAny {
+			if strings.Contains(low, strings.ToLower(p)) {
+				found = true
+				break
+			}
+		}
+		check(found, "none of the required phrases appeared: "+strings.Join(c.MustContainAny, ", "))
+	}
 	if c.NoHeadings {
 		check(!checkHasHeading(in.Content), "document contains a heading")
 	}
