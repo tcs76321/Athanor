@@ -55,6 +55,27 @@ func (e *Engine) runCodeInPod(ctx context.Context, j job.Job, p project.Project,
 	if ferr != nil {
 		return false, fmt.Errorf("parsing code candidate tree: %w", ferr)
 	}
+	// A candidate must never be able to weaken the tests that decide
+	// acceptance. Filter harness paths before staging anything: a model may
+	// emit its own tests, conftest, pytest configuration, manifests, or a
+	// Makefile, but those files are not implementation and are ignored.
+	implementation, harnessFiles := toolenvelope.SplitHarnessFiles(files)
+	if len(harnessFiles) > 0 {
+		for _, f := range harnessFiles {
+			e.audit(ctx, j.ID, map[string]any{
+				"event": "harness_path_ignored", "path": f.Path,
+				"reason": "candidate tried to modify the verification harness",
+			})
+		}
+		files = implementation
+	}
+	if len(files) == 0 {
+		e.audit(ctx, j.ID, map[string]any{
+			"event":  "candidate_harness_only",
+			"reason": "candidate contained no implementation files",
+		})
+		return false, nil
+	}
 	// A single-file Python candidate is staged under the module name its test
 	// command imports (e.g. `from exprlang import …` → exprlang.py). The
 	// historical solution.py shorthand is only correct when the test itself
