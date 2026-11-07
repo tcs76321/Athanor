@@ -62,11 +62,28 @@ func (e *Engine) phaseCompare(ctx context.Context, j job.Job) error {
 	if err != nil {
 		return fmt.Errorf("loading final artifact for comparison: %w", err)
 	}
+	// Crash window: acceptance and the job's terminal transition are separate
+	// writes. If the process died after the artifact was accepted but before
+	// the job moved to completed, recovery re-enters this phase with the final
+	// artifact already `accepted`. Comparing it against itself would try to
+	// supersede and re-accept the same row and fail. Finish the transition
+	// idempotently instead.
+	if final.Status == artifact.StatusAccepted {
+		if final.GitCommit == "" {
+			e.recordGitCommit(ctx, p, final)
+		}
+		e.audit(ctx, j.ID, map[string]any{
+			"event": "comparison_recovered_accepted", "artifact_id": final.ID,
+		})
+		_, err = e.jobs.Transition(ctx, j.ID, job.StateCompleted)
+		return err
+	}
 	if err := e.artifacts.SetStatus(ctx, final.ID, artifact.StatusCandidate); err != nil {
-		// A duplicate flip (e.g. a previous attempt left the
-		// artifact as `candidate`) is not a hard error here.
+		// A duplicate candidate promotion (e.g. a previous attempt left the
+		// artifact as `candidate`) is not a hard error here; any other status
+		// mismatch is.
 		var ise *artifact.IllegalStatusError
-		if !errors.As(err, &ise) {
+		if !errors.As(err, &ise) || ise.From != artifact.StatusCandidate || ise.To != artifact.StatusCandidate {
 			return fmt.Errorf("promoting final to candidate: %w", err)
 		}
 	}
