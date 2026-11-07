@@ -74,10 +74,10 @@ func (u *UI) startPoolQualification(ctx context.Context, fresh, deep bool) (qual
 	u.qualMu.Unlock()
 
 	ladder := onboard.DefaultLadder()
-	wall := 10 * time.Minute
+	wall := 20 * time.Minute
 	if deep {
 		ladder = onboard.DeepLadder()
-		wall = 20 * time.Minute
+		wall = 40 * time.Minute
 	}
 	state.Running = true
 	state.StartedAt = time.Now()
@@ -126,7 +126,7 @@ func poolQualificationPlan(models []string, ladder onboard.Ladder) int {
 
 func (u *UI) runPoolQualification(ctx context.Context, models []string, ladder onboard.Ladder, wall time.Duration, state *qualState) {
 	if wall <= 0 {
-		wall = 10 * time.Minute
+		wall = 20 * time.Minute
 	}
 	ctx, cancel := context.WithTimeout(ctx, wall)
 	defer cancel()

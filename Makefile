@@ -15,7 +15,7 @@ export CGO_ENABLED
 # tag-less binary can never silently run.
 GO_TAGS = -tags sqlite_fts5
 
-.PHONY: build release test test-race test-integration integration-images vet lint check vuln tidy tidy-check fuzz cover cover-check run clean hooks bench probe-micro probe probe-judge probe-anchor probe-report probe-bundle probe-reconcile probe-measure jobpod-image jobpod-polyglot-image core-image core-smoke bench-core-focused bench-preflight bench-host-smoke bench-anchor-host install soak soak-mini soak-ladder diagnostic diagnostic-pair diagnostic-cascade
+.PHONY: build release test test-race test-integration integration-images vet lint check vuln tidy tidy-check fuzz cover cover-check run clean hooks bench probe-micro probe probe-judge probe-anchor probe-report probe-bundle probe-reconcile probe-measure jobpod-image jobpod-polyglot-image core-image core-smoke bench-core-focused bench-preflight bench-host-smoke bench-anchor-host bench-anchor-core install soak soak-mini soak-ladder diagnostic diagnostic-pair diagnostic-cascade diagnostic-categories
 
 build:
 	go build $(GO_TAGS) -o bin/athanor ./cmd/athanor
@@ -167,6 +167,16 @@ diagnostic-pair:
 diagnostic-cascade:
 	$(MAKE) diagnostic DIAGNOSTIC_ARM=cascade DIAGNOSTIC_OUT=$(DIAGNOSTIC_OUT)/cascade
 
+# The Athanor-internal category screen: compaction, security, and agentic
+# decision-making. Diagnostic only; the frozen corpus is never edited.
+DIAGNOSTIC_CATEGORIES_OUT ?= tools/bench/results/diagnostic-categories
+DIAGNOSTIC_CATEGORIES_ONLY ?= diag-summarize-incident,diag-security-refusal,diag-agentry-decision
+diagnostic-categories:
+	$(MAKE) soak-mini MINI_SOAK_CORPUS=eval/diagnostic/tasks.yaml \
+		MINI_SOAK_ARM=full \
+		MINI_SOAK_ONLY=$(DIAGNOSTIC_CATEGORIES_ONLY) \
+		MINI_SOAK_OUT=$(DIAGNOSTIC_CATEGORIES_OUT)
+
 SOAK_SMOKE_OUT  ?= tools/bench/results/smoke
 SOAK_SMOKE_ONLY ?= code-bank-atomic,code-expr-eval,x-code-interpreter,doc-cited-brief,text-level-rewrite,data-json-normalize
 soak-smoke:
@@ -187,6 +197,9 @@ BENCH_HOURS        ?= 12
 BENCH_TIMEOUT      ?= 45m
 BENCH_ANCHOR_HOURS ?= 1
 BENCH_ANCHOR_MODELS ?= granite3b gemmae4b granite8b ornith9b gemma12b qwen27b granite30b nemotron30b muse30b ornith35b
+BENCH_ANCHOR_MODEL ?= ornith9b
+BENCH_ANCHOR_OUT ?= tools/bench/results/anchor-core
+BENCH_ANCHOR_STATE_VOLUME ?= athanor-bench-anchor-state
 
 bench-verify:
 	go run $(GO_TAGS) ./tools/bench verify-models -protocol $(BENCH_DIR)/protocol.yaml
@@ -288,10 +301,23 @@ bench-anchor-host: bench-verify
 	done
 	$(MAKE) probe-report PROBE_OUT=$(BENCH_OUT)/anchor
 
-# A host anchor must not feed the leaderboard.
-bench-anchor:
-	@echo "bench-anchor is Core Pod only. Use 'make bench-anchor-host' for a diagnostic screen." >&2
-	@exit 2
+# The real benchmark subset on the supported runtime. This is the anchor that
+# contributes to the leaderboard: 12 tuning-only H tasks, one model, one pass,
+# Core Pod, standard results/report shape. Qualification is the cheap prior;
+# this is the benchmark evidence. Run one model per Core restart.
+bench-anchor-core: bench-verify bench-image
+	@mkdir -p $(BENCH_ANCHOR_OUT)
+	@$(MAKE) bench-config BENCH_MODEL=$(BENCH_ANCHOR_MODEL) BENCH_OUT=$(BENCH_ANCHOR_OUT) \
+		BENCH_CONFIG=$(BENCH_ANCHOR_OUT)/core-config.yaml \
+		BENCH_STATE_VOLUME=$(BENCH_ANCHOR_STATE_VOLUME)
+	@BENCH_OUT=$(BENCH_ANCHOR_OUT) BENCH_CONFIG=$(BENCH_ANCHOR_OUT)/core-config.yaml \
+		BENCH_STATE_VOLUME=$(BENCH_ANCHOR_STATE_VOLUME) PROBE_IMAGE=$(PROBE_IMAGE) \
+		./scripts/bench-core.sh start
+	@BENCH_OUT=$(BENCH_ANCHOR_OUT) ./scripts/bench-core.sh probe \
+		-corpus $(BENCH_DIR)/tasks.yaml -anchor-tasks $(BENCH_DIR)/anchor.yaml \
+		-model $(BENCH_ANCHOR_MODEL) -arm single -judge-model $(BENCH_JUDGE) \
+		-passes 1 -hours $(BENCH_ANCHOR_HOURS) -timeout $(BENCH_TIMEOUT)
+	@BENCH_OUT=$(BENCH_ANCHOR_OUT) ./scripts/bench-core.sh stop
 
 run:
 	go run $(GO_TAGS) ./cmd/athanor

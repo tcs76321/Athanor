@@ -28,6 +28,14 @@ const (
 	CapabilityMedia    Capability = "media"
 	CapabilityJudgment Capability = "judgment"
 	CapabilityGeneral  Capability = "general"
+	// Athanor-internal task families, ranked separately because they are
+	// different jobs: compaction/summarization, security judgment, agentic
+	// decisions, instruction/format discipline, and grounded retrieval.
+	CapabilitySummarize   Capability = "summarize"
+	CapabilitySecurity    Capability = "security"
+	CapabilityAgentry     Capability = "agentry"
+	CapabilityInstruction Capability = "instruction"
+	CapabilityGrounding   Capability = "grounding"
 )
 
 // Stance is what a call is doing, independent of the model.

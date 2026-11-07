@@ -19,9 +19,9 @@ type rolePick struct {
 }
 
 var roleCapabilities = map[string][]string{
-	"wide": {"general", "document", "text"},
-	"main": {"code", "general", "data"},
-	"tall": {"code", "judgment", "general"},
+	"wide": {"general", "document", "text", "summarize", "grounding"},
+	"main": {"code", "general", "data", "agentry"},
+	"tall": {"code", "judgment", "general", "agentry", "security"},
 }
 
 // rolePicks derives the baseline cast from the measured pool using the same

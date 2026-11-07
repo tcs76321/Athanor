@@ -1,0 +1,29 @@
+# Qualification category provenance
+#
+# The qualification ladder is a cheap, one-shot screen; it is not the engine
+# benchmark. This manifest records which benchmark/diagnostic tasks anchor each
+# Athanor-internal category, so the screen stays based on the same work the
+# benchmark measures without editing a frozen corpus.
+#
+# `TestQualificationCategoriesTraceToCorpus` verifies every id exists. The
+# frozen v2 corpus is referenced by id only; the non-frozen diagnostic corpus
+# holds the newer category tasks.
+version: 1
+categories:
+  summarize:
+    - diag-summarize-incident
+    - doc-incident-postmortem
+  security:
+    - diag-security-refusal
+    - adv-h-unsafe-request
+    - x-adv-injection-long
+  agentry:
+    - diag-agentry-decision
+    - doc-design-adr
+  instruction:
+    - text-constrained-email
+    - adv-h-false-premise
+  grounding:
+    - doc-cited-brief
+    - x-adv-contradictory-sources
+    - diag-contradiction-brief

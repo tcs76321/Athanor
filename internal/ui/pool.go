@@ -35,6 +35,9 @@ type poolRow struct {
 	Document      float64
 	Text          float64
 	Judgment      float64
+	Summarize     float64
+	Security      float64
+	Agentry       float64
 }
 
 // poolView is the first-use pool and ranking snapshot.
@@ -241,6 +244,9 @@ func (u *UI) welcomePool(models []setupModel) poolView {
 			row.Document = scoreValue(prof, string(composition.CapabilityDocument))
 			row.Text = scoreValue(prof, string(composition.CapabilityText))
 			row.Judgment = scoreValue(prof, string(composition.CapabilityJudgment))
+			row.Summarize = scoreValue(prof, string(composition.CapabilitySummarize))
+			row.Security = scoreValue(prof, string(composition.CapabilitySecurity))
+			row.Agentry = scoreValue(prof, string(composition.CapabilityAgentry))
 		} else {
 			row.Excluded = true
 		}
@@ -259,6 +265,9 @@ func (u *UI) welcomePool(models []setupModel) poolView {
 		row.Document = scoreValue(prof, string(composition.CapabilityDocument))
 		row.Text = scoreValue(prof, string(composition.CapabilityText))
 		row.Judgment = scoreValue(prof, string(composition.CapabilityJudgment))
+		row.Summarize = scoreValue(prof, string(composition.CapabilitySummarize))
+		row.Security = scoreValue(prof, string(composition.CapabilitySecurity))
+		row.Agentry = scoreValue(prof, string(composition.CapabilityAgentry))
 		view.Rows = append(view.Rows, row)
 	}
 	sort.SliceStable(view.Rows, func(i, j int) bool {

@@ -347,7 +347,7 @@ const welcomeBody = `
     {{end}}
     <h2>Measured ranking</h2>
     <div class="card flush"><div class="table-wrap">
-      <table><thead><tr><th>Model</th><th>Family</th><th>Size</th><th>Overall</th><th>Code</th><th>Data</th><th>Judgment</th><th>Samples</th><th></th></tr></thead><tbody>
+      <table><thead><tr><th>Model</th><th>Family</th><th>Size</th><th>Overall</th><th>Code</th><th>Data</th><th>Judgment</th><th>Summ.</th><th>Sec.</th><th>Agent</th><th>Samples</th><th></th></tr></thead><tbody>
       {{range .PoolRanked}}<tr>
         <td class="mono">{{.Name}}</td>
         <td>{{.Family}}</td>
@@ -356,6 +356,9 @@ const welcomeBody = `
         <td>{{if .Code}}{{printf "%.0f%%" (mul .Code 100)}}{{else}}—{{end}}</td>
         <td>{{if .Data}}{{printf "%.0f%%" (mul .Data 100)}}{{else}}—{{end}}</td>
         <td>{{if .Judgment}}{{printf "%.0f%%" (mul .Judgment 100)}}{{else}}—{{end}}</td>
+        <td>{{if .Summarize}}{{printf "%.0f%%" (mul .Summarize 100)}}{{else}}—{{end}}</td>
+        <td>{{if .Security}}{{printf "%.0f%%" (mul .Security 100)}}{{else}}—{{end}}</td>
+        <td>{{if .Agentry}}{{printf "%.0f%%" (mul .Agentry 100)}}{{else}}—{{end}}</td>
         <td>{{.Samples}}</td>
         <td>
           <form method="post" action="/ui/welcome" class="inline-form">

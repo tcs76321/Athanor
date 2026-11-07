@@ -1,4 +1,4 @@
-# Qualification v2 — a ten-minute first signal
+# Qualification v2 — a category-aware first signal
 
 **Status:** implemented · **Date:** 2026-11-06 ·
 **Refs:** [ADR-0049](adr/0049-model-onboarding-qualification.md),
@@ -12,7 +12,7 @@ frozen benchmark. It has to:
 
 - separate models enough to choose a baseline cast;
 - show the evidence behind every score;
-- finish in about ten minutes on a normal machine;
+- finish in a bounded window on a normal machine;
 - be resumable when it does not;
 - leave the full benchmark as the controlled study.
 
@@ -30,20 +30,31 @@ frozen benchmark. It has to:
 
 ### 1. A broader, harder default ladder
 
-The default ladder grows from 22 to **41 cases** (19 grounded generators + 22
-fixed-label judge pairs), with a deep ladder of **53**. The additions target
+The default ladder is **60 cases** (30 grounded generators + 30 fixed-label
+judge pairs), with a deep ladder of **85**. The additions target
 state, ordering, slicing, schema shape, concurrency, injection, idempotency,
 timeouts, data integrity, document structure, audience, accessibility, secrets,
 and test isolation — the failures that separate models once one-line recall
 saturates.
 
-Every case is deterministic: exact/JSON for generators, fixed good/bad labels
-for judges. No judge model is consulted during qualification.
+It also scores the **Athanor-internal task families separately**, because they
+are different jobs: `summarize` (compaction and exact-fact retention),
+`security` (injection, secret handling, unsafe-action classification),
+`agentry` (next action, dependency order, budget/defer, clarification),
+`instruction` (format and constraint discipline), and `grounding` (citations and
+unsupported claims). The Models page shows these as their own columns, and the
+role scores use them (wide: summarize/grounding; main: agentry; tall:
+security/agentry).
+
+Every case is deterministic: exact/JSON/contains+word-bound checks for
+generators, fixed good/bad labels for judges. No judge model is consulted during
+qualification. A qualification pass evicts each screened model (`keep_alive: 0`)
+after measuring it, so the last model is not left resident.
 
 ### 2. Ten minutes, not two hours
 
-- Default: **10 minutes** wall time.
-- Deep: **20 minutes**.
+- Default: **20 minutes** wall time.
+- Deep: **40 minutes**.
 - The run is resumable at case granularity; completing a later session skips
   recorded cases.
 - Partial results still feed the pool, with the sample count and the wall
@@ -59,25 +70,28 @@ answer, pass/fail, duration, and any error. The Qualification and Models pages
 render a per-model `<details>` table, so the operator can inspect the question
 and the answer behind every score.
 
-### 4. Role baseline: small / medium / big
+### 4. Role baseline: smallest top-tier main, genuinely smaller wide
 
-The measured pool is sorted by model size into small, medium, and big tiers:
+The baseline cast follows the ranking rather than arbitrary size thirds:
 
-| Role | Tier | Intent |
-|---|---|---|
-| `wide` | small | fast ingestion, repository reading, summaries |
-| `main` | medium | normal execution and synthesis; the first attempt |
-| `tall` | big | planning, hard reasoning, difficult design |
+- **Tall** is the strongest tall model. It is allowed to be several times
+  larger; tall is where a small-context, high-power model earns its resident
+  cost.
+- **Main** is the smallest model in the highest tier *below tall*. A one-point
+  score gain does not justify a much larger resident model, and the tall model
+  is not a main candidate. Ties break by smaller size, then score, then name.
+- **Wide** must be actually smaller than main (preferring at most 85% of main's
+  size), with the best wide score and a different family preferred. If nothing
+  is smaller, wide shares main and the UI says to add a smaller model.
+- **Security** is the best measured judge from a family outside the generator
+  roles; **alternative** is a different family from main/tall/judge when one is
+  available.
 
-Within a tier, the role score is the average of the capability scores that
-matter for that role (`general/document/text` for wide, `code/general/data` for
-main, `code/judgment/general` for tall). A clearly better tier can override the
-default when the score gap is larger than 0.1; otherwise the size tier wins.
-
-The baseline cast is displayed above the ranking. It is a **first signal**:
-the composition selector and real job outcomes continue to adapt selection.
-The internal default remains: try `main` (medium) first, escalate to `tall`
-when the task is hard or retries fail, and use `wide` for ingestion.
+The ranking shows overall, code, data, judgment, summarization, security, and
+agentry, plus family and size. The recommended pool is five or more models
+across at least two families and three size bands; the functional floor remains
+four. The baseline cast is a **first signal**: the composition selector and real
+job outcomes continue to adapt selection.
 
 ### 5. The machine score is not a model score
 
@@ -86,22 +100,36 @@ RAM/CPU/disk capacity heuristic (`composition.ScoreMachine`), not a quality
 score for a model. The measured ranking below it is the model score. This
 removes the "why is my machine 82/100?" ambiguity.
 
-## Full benchmark
+## Relationship to the benchmark
 
-The frozen v2 corpus remains **41 deterministic tasks** (18 code, 13 document,
-5 text, 5 data) plus 4 memory scripts and 6 human reviews. It is already large
-enough for its purpose; running every installed model against it is hours of
-work and is not a first-use screen.
+There are two layers, and they must not be confused:
 
-The qualification ladder borrows the *shape* of the benchmark — capability
-coverage, code/data correctness, document structure, text audience, media
-accessibility, injection and secrets — but it is not a second frozen corpus.
-The benchmark is the controlled study; qualification is the local prior.
+1. **Qualification screen** — the cheap, one-shot ladder above. It chooses the
+   baseline cast and is a local prior, never a headline benchmark result.
+2. **Benchmark anchor** — the real subset of the frozen corpus:
+   [`eval/bench/v2/anchor.yaml`](../eval/bench/v2/anchor.yaml), 12 tuning-only H
+   tasks, one model per Core restart, one single-shot pass. Run it with
+   `make bench-anchor-core` (Core Pod, standard `results.json`/`report.md`,
+   standard leaderboard). It is the same instrument as the full v2 run, so its
+   results contribute to the leaderboard and are not a separate score.
+
+The screen is **based on** the same work through
+[`eval/qualification/categories.yaml`](../eval/qualification/categories.yaml):
+each internal category (summarize, security, agentry, instruction, grounding)
+names the benchmark/diagnostic tasks that anchor it. The ladder uses the same
+deterministic check vocabulary (`exact`, `json`, `contains` plus word bounds)
+and the same capability names; a provenance test fails if a category or task id
+drifts.
+
+The frozen v2 corpus remains **41 deterministic tasks** plus 4 memory scripts
+and 6 human reviews. It is never edited for qualification; newer category tasks
+live in the non-frozen [`eval/diagnostic`](../eval/diagnostic/tasks.yaml)
+corpus and can be promoted into a future frozen version.
 
 ## Remaining work
 
 - Adaptive second stage: run the extended cases only for the top models in each
-  tier, using the ten-minute budget for separation rather than breadth.
+  tier, using the bounded window for separation rather than breadth.
 - Bootstrap confidence intervals on the role scores, so overlapping models are
   visibly overlapping rather than falsely precise.
 - A held-out qualifier slice, never shown in the UI, to detect overfitting to
