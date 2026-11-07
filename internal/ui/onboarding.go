@@ -443,17 +443,18 @@ func (u *UI) welcomeData(ctx context.Context, st onboardingState) map[string]any
 		"PersonaGuides": personaGuides, "Assignments": assignments,
 		"Suggestions": suggestions, "Resources": resources, "Hardware": hw,
 		"Budget": budget, "ConfigPath": u.deps.ConfigPath,
-		"HasMeasurements": len(measurements) > 0 || pool.QualifiedCount > 0,
-		"Qualification":   qualificationViewFor(qual, len(measurements) > 0 || pool.QualifiedCount > 0),
-		"Pool":            pool,
-		"PoolRows":        pool.Rows,
-		"PoolRanked":      pool.Ranked,
-		"QualDetails":     qualDetailsFromState(qual, catalogNames(models)),
-		"RolePicks":       u.rolePicks(),
-		"PoolCount":       pool.Count,
-		"PoolReady":       pool.Ready,
-		"PoolWarning":     pool.Warning,
-		"PoolMin":         pool.Min,
+		"HasMeasurements":    len(measurements) > 0 || pool.QualifiedCount > 0,
+		"Qualification":      qualificationViewFor(qual, len(measurements) > 0 || pool.QualifiedCount > 0),
+		"Pool":               pool,
+		"PoolRows":           pool.Rows,
+		"PoolRanked":         pool.Ranked,
+		"QualDetails":        qualDetailsFromState(qual, catalogNames(models)),
+		"RolePicks":          u.rolePicks(),
+		"PoolCount":          pool.Count,
+		"PoolReady":          pool.Ready,
+		"PoolWarning":        pool.Warning,
+		"PoolRecommendation": pool.Recommendation,
+		"PoolMin":            pool.Min,
 		"OllamaURL": func() string {
 			if u.deps.Config == nil {
 				return ""
@@ -532,8 +533,13 @@ func (u *UI) autoAssignments(roles []setupRole, models []setupModel, hw Hardware
 			if len(prof.Scores) == 0 {
 				continue
 			}
+			overall, _, _ := overallScore(prof)
 			for _, role := range []string{"wide", "main", "tall", "security", "alternative"} {
-				if s := roleScore(prof, role); s > 0 {
+				s := roleScore(prof, role)
+				if role == "main" {
+					s = overall
+				}
+				if s > 0 {
 					scores[role+"|"+prof.Name] = s
 				}
 			}

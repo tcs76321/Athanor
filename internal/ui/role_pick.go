@@ -1,10 +1,8 @@
 package ui
 
 import (
-	"fmt"
-	"sort"
-
 	"github.com/tcs76321/athanor/internal/composition"
+	"github.com/tcs76321/athanor/internal/onboard"
 )
 
 // rolePick is the qualification's baseline cast: the best small, medium, and
@@ -26,68 +24,63 @@ var roleCapabilities = map[string][]string{
 	"tall": {"code", "judgment", "general"},
 }
 
-// rolePicks derives the small/medium/big baseline from the measured pool.
-// It is a first signal, not a permanent assignment: the selector and job
-// outcomes continue to adapt after qualification.
+// rolePicks derives the baseline cast from the measured pool using the same
+// policy the assignment layer applies: main is the smallest model in the
+// highest measured main tier, wide is genuinely smaller than main, and tall is
+// the strongest tall model even when it is much larger.
 func (u *UI) rolePicks() []rolePick {
 	p := u.pool()
 	if p == nil {
 		return nil
 	}
 	profiles := make([]composition.Profile, 0)
+	models := make([]onboard.Model, 0)
+	byName := map[string]composition.Profile{}
 	for _, prof := range p.Profiles() {
 		if prof.TooLarge || len(prof.Scores) == 0 {
 			continue
 		}
 		profiles = append(profiles, prof)
+		byName[prof.Name] = prof
+		models = append(models, onboard.Model{
+			Name: prof.Name, Family: prof.Family, SizeBytes: profileSize(prof),
+		})
 	}
 	if len(profiles) < 1 {
 		return nil
 	}
-	sort.SliceStable(profiles, func(i, j int) bool {
-		si, sj := profileSize(profiles[i]), profileSize(profiles[j])
-		if si != sj {
-			return si < sj
-		}
-		return profiles[i].Name < profiles[j].Name
-	})
-	tierFor := func(i int) string {
-		n := len(profiles)
-		if n == 1 {
-			return "single"
-		}
-		if n == 2 {
-			if i == 0 {
-				return "small"
+	scores := map[string]float64{}
+	for _, prof := range profiles {
+		overall, _, _ := overallScore(prof)
+		for _, role := range []string{"wide", "main", "tall", "security", "alternative"} {
+			// main follows the displayed overall ranking; the other roles use
+			// their capability-specific score.
+			s := roleScore(prof, role)
+			if role == "main" {
+				s = overall
 			}
-			return "big"
-		}
-		switch {
-		case i < (n+2)/3:
-			return "small"
-		case i >= 2*n/3:
-			return "big"
-		default:
-			return "medium"
+			scores[role+"|"+prof.Name] = s
 		}
 	}
-	best := func(role, tier string) *composition.Profile {
-		var chosen *composition.Profile
-		chosenScore := -1.0
-		for i := range profiles {
-			if tierFor(i) != tier {
-				continue
-			}
-			s := roleScore(profiles[i], role)
-			if s > chosenScore {
-				chosen = &profiles[i]
-				chosenScore = s
-			}
-		}
-		return chosen
+	roles := []onboard.Role{
+		{Role: "wide"}, {Role: "tall"}, {Role: "main"},
+		{Role: "security"}, {Role: "alternative"},
+	}
+	assignments := onboard.AutoAssignWithScores(roles, models, scores, p.FitLimitBytes, 0)
+	byRole := map[string]onboard.Assignment{}
+	for _, a := range assignments {
+		byRole[a.Role] = a
 	}
 	out := make([]rolePick, 0, 3)
 	for _, role := range []string{"wide", "main", "tall"} {
+		a, ok := byRole[role]
+		if !ok {
+			continue
+		}
+		prof, ok := byName[a.Model]
+		if !ok {
+			continue
+		}
 		tier := "medium"
 		switch role {
 		case "wide":
@@ -95,24 +88,10 @@ func (u *UI) rolePicks() []rolePick {
 		case "tall":
 			tier = "big"
 		}
-		chosen := best(role, tier)
-		if chosen == nil {
-			// Degenerate pool: fall back to the tier nearest the role.
-			for _, t := range []string{"medium", "small", "big", "single"} {
-				if chosen = best(role, t); chosen != nil {
-					tier = t
-					break
-				}
-			}
-		}
-		if chosen == nil {
-			continue
-		}
 		out = append(out, rolePick{
-			Role: role, Model: chosen.Name, Tier: tier,
-			Score: roleScore(*chosen, role), SizeGiB: float64(profileSize(*chosen)) / (1 << 30),
-			Context: chosen.ContextTarget, Family: chosen.Family,
-			Reason: fmt.Sprintf("best %s-tier model for %s on this machine", tier, role),
+			Role: role, Model: a.Model, Tier: tier,
+			Score: roleScore(prof, role), SizeGiB: float64(profileSize(prof)) / (1 << 30),
+			Context: prof.ContextTarget, Family: prof.Family, Reason: a.Reason,
 		})
 	}
 	return out

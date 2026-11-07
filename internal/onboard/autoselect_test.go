@@ -1,6 +1,9 @@
 package onboard
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestAutoAssignPicksLargestAndCrossFamily(t *testing.T) {
 	roles := []Role{
@@ -127,5 +130,85 @@ func TestAutoAssignUnknownMemoryStillSelects(t *testing.T) {
 	}
 	if got[0].Model != "b:7b" {
 		t.Errorf("tall = %q, want largest", got[0].Model)
+	}
+}
+
+func castByRole(got []Assignment) map[string]Assignment {
+	m := map[string]Assignment{}
+	for _, a := range got {
+		m[a.Role] = a
+	}
+	return m
+}
+
+// TestMainIsSmallestTopTier pins the baseline-cast rule: a one-point score
+// difference does not justify a larger resident model. The smallest model in
+// the highest measured main tier wins; wide must be genuinely smaller.
+func TestMainIsSmallestTopTier(t *testing.T) {
+	roles := []Role{{Role: "wide"}, {Role: "tall"}, {Role: "main"}, {Role: "security"}, {Role: "alternative"}}
+	models := []Model{
+		{Name: "big12b", SizeBytes: 8 << 30, Family: "gemma"},
+		{Name: "mid8b", SizeBytes: 5 << 30, Family: "granite"},
+		{Name: "small4b", SizeBytes: 2 << 30, Family: "nemotron"},
+		{Name: "tiny2b", SizeBytes: 1 << 30, Family: "lfm"},
+		{Name: "huge30b", SizeBytes: 18 << 30, Family: "muse"},
+	}
+	scores := map[string]float64{
+		"main|big12b": 0.82, "main|mid8b": 0.82, "main|small4b": 0.82,
+		"main|tiny2b": 0.70, "main|huge30b": 0.81,
+		"wide|tiny2b": 0.80, "wide|small4b": 0.70,
+		"tall|huge30b": 0.90, "tall|big12b": 0.82,
+		"security|mid8b": 0.90,
+	}
+	by := castByRole(AutoAssignWithScores(roles, models, scores, 64<<30, 2<<30))
+	if by["main"].Model != "small4b" {
+		t.Errorf("main = %q, want small4b (smallest of the 82%% tier)", by["main"].Model)
+	}
+	if by["wide"].Model != "tiny2b" {
+		t.Errorf("wide = %q, want tiny2b (smaller than main)", by["wide"].Model)
+	}
+	if by["tall"].Model != "huge30b" {
+		t.Errorf("tall = %q, want huge30b (highest tall score)", by["tall"].Model)
+	}
+}
+
+func TestWideMustBeSmallerThanMain(t *testing.T) {
+	roles := []Role{{Role: "wide"}, {Role: "tall"}, {Role: "main"}, {Role: "security"}, {Role: "alternative"}}
+	models := []Model{
+		{Name: "main8b", SizeBytes: 5 << 30, Family: "granite"},
+		{Name: "other8b", SizeBytes: 5 << 30, Family: "gemma"},
+		{Name: "big30b", SizeBytes: 18 << 30, Family: "muse"},
+	}
+	scores := map[string]float64{
+		"main|main8b": 0.85, "main|other8b": 0.80,
+		"wide|other8b": 0.90, "wide|main8b": 0.80,
+		"tall|big30b": 0.90,
+	}
+	by := castByRole(AutoAssignWithScores(roles, models, scores, 64<<30, 2<<30))
+	// No model is smaller than main; wide must fall back to main with a reason.
+	if by["wide"].Model != by["main"].Model {
+		t.Errorf("wide = %q, main = %q; want wide to fall back to main when nothing is smaller", by["wide"].Model, by["main"].Model)
+	}
+	if !strings.Contains(by["wide"].Reason, "no smaller model") {
+		t.Errorf("wide reason = %q, want an explicit smaller-model hint", by["wide"].Reason)
+	}
+}
+
+func TestWidePrefersDifferentFamily(t *testing.T) {
+	roles := []Role{{Role: "wide"}, {Role: "tall"}, {Role: "main"}, {Role: "security"}, {Role: "alternative"}}
+	models := []Model{
+		{Name: "main8b", SizeBytes: 5 << 30, Family: "granite"},
+		{Name: "smallA3b", SizeBytes: 2 << 30, Family: "granite"},
+		{Name: "smallB3b", SizeBytes: 2 << 30, Family: "nemotron"},
+		{Name: "tall30b", SizeBytes: 18 << 30, Family: "muse"},
+	}
+	scores := map[string]float64{
+		"main|main8b":   0.85,
+		"wide|smallA3b": 0.80, "wide|smallB3b": 0.78,
+		"tall|tall30b": 0.90, "security|smallA3b": 0.85,
+	}
+	by := castByRole(AutoAssignWithScores(roles, models, scores, 64<<30, 2<<30))
+	if by["wide"].Model != "smallB3b" {
+		t.Errorf("wide = %q, want smallB3b (different family from main)", by["wide"].Model)
 	}
 }

@@ -31,6 +31,7 @@ const modelsBody = `
     <span class="pill" title="RAM/CPU/disk capacity heuristic, not model quality">host capacity {{.Pool.MachineScore}}/100</span>
   </div>
   {{if .PoolWarning}}<p class="del">{{.PoolWarning}}</p>{{end}}
+  {{if .PoolRecommendation}}<p class="muted small">{{.PoolRecommendation}}</p>{{end}}
 </div>
 
 {{if .Qualification.Running}}
@@ -93,9 +94,11 @@ const modelsBody = `
 {{end}}
 <h2>Measured ranking</h2>
 <div class="card flush"><div class="table-wrap">
-<table><thead><tr><th>Model</th><th>Overall</th><th>Code</th><th>Data</th><th>Judgment</th><th>Samples</th></tr></thead><tbody>
+<table><thead><tr><th>Model</th><th>Family</th><th>Size</th><th>Overall</th><th>Code</th><th>Data</th><th>Judgment</th><th>Samples</th></tr></thead><tbody>
 {{range .PoolRanked}}<tr>
   <td class="mono">{{.Name}}</td>
+  <td>{{.Family}}</td>
+  <td class="mono">{{gib .SizeBytes}}</td>
   <td><span class="pill {{if ge .Score 0.75}}ok{{else if ge .Score 0.5}}warn{{else}}bad{{end}}">{{printf "%.0f%%" (mul .Score 100)}}</span></td>
   <td>{{if .Code}}{{printf "%.0f%%" (mul .Code 100)}}{{else}}—{{end}}</td>
   <td>{{if .Data}}{{printf "%.0f%%" (mul .Data 100)}}{{else}}—{{end}}</td>

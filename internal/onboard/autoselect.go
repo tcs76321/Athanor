@@ -156,41 +156,156 @@ func AutoAssignWithScores(roles []Role, models []Model, scores map[string]float6
 		return nil
 	}
 
-	// tall: the best big model unless a medium model is clearly better; a
-	// large model that loses by >0.1 is not worth the extra memory/swap.
-	tall := bestIn("tall", bigTier)
-	if tall == nil {
-		tall = bestOverall("tall")
+	hasRoleScore := func(role string) bool {
+		for _, m := range fitting {
+			if _, ok := scores[role+"|"+m.Name]; ok {
+				return true
+			}
+		}
+		return false
 	}
-	if alt := bestIn("tall", mediumTier); alt != nil && scoreOf("tall", alt) > scoreOf("tall", tall)+0.1 {
-		tall = alt
+
+	// tall: the strongest measured tall model. A big model is allowed to win
+	// even when it is several times larger; tall is where deep reasoning and
+	// small-context work justify the resident cost.
+	var tallModel Model
+	if hasRoleScore("tall") {
+		tall := append([]Model(nil), fitting...)
+		sort.SliceStable(tall, func(i, j int) bool {
+			si, sj := scoreOf("tall", &tall[i]), scoreOf("tall", &tall[j])
+			if si != sj {
+				return si > sj
+			}
+			if tall[i].SizeBytes != tall[j].SizeBytes {
+				return tall[i].SizeBytes > tall[j].SizeBytes
+			}
+			return tall[i].Name < tall[j].Name
+		})
+		tallModel = tall[0]
+	} else {
+		tall := bestIn("tall", bigTier)
+		if tall == nil {
+			tall = bestOverall("tall")
+		}
+		if alt := bestIn("tall", mediumTier); alt != nil && scoreOf("tall", alt) > scoreOf("tall", tall)+0.1 {
+			tall = alt
+		}
+		if tall == nil {
+			tall = &smallest
+		}
+		tallModel = *tall
 	}
-	if tall == nil {
-		tall = &smallest
-	}
-	tallModel := *tall
 	byRole["tall"] = Assignment{Model: tallModel.Name, Family: family(tallModel), Reason: reason("tall", tallModel.Name, "best large model for hard reasoning")}
 
-	// main: the best medium model unless a big model is clearly better.
-	main := bestIn("main", mediumTier)
-	if main == nil {
-		main = bestOverall("main")
+	// main: the smallest model in the highest measured main tier. A one-point
+	// score difference does not justify a much larger resident model; ties at
+	// the top are broken by size, then score, then name.
+	var mainModel Model
+	if hasRoleScore("main") {
+		// The tall model is already the big/deep choice. Main is the smallest
+		// model in the highest tier *below* tall, so a 1-point-better 30B does
+		// not become main while a much smaller 82% model is available.
+		mainPool := make([]Model, 0, len(fitting))
+		for _, m := range fitting {
+			if m.Name == tallModel.Name {
+				continue
+			}
+			mainPool = append(mainPool, m)
+		}
+		if len(mainPool) == 0 {
+			mainPool = append(mainPool, fitting...)
+		}
+		top := -1.0
+		for _, m := range mainPool {
+			if s := scoreOf("main", &m); s > top {
+				top = s
+			}
+		}
+		cands := make([]Model, 0, len(mainPool))
+		for _, m := range mainPool {
+			if scoreOf("main", &m) >= top-0.005 {
+				cands = append(cands, m)
+			}
+		}
+		sort.SliceStable(cands, func(i, j int) bool {
+			if cands[i].SizeBytes != cands[j].SizeBytes {
+				return cands[i].SizeBytes < cands[j].SizeBytes
+			}
+			si, sj := scoreOf("main", &cands[i]), scoreOf("main", &cands[j])
+			if si != sj {
+				return si > sj
+			}
+			return cands[i].Name < cands[j].Name
+		})
+		mainModel = cands[0]
+	} else {
+		main := bestIn("main", mediumTier)
+		if main == nil {
+			main = bestOverall("main")
+		}
+		if alt := bestIn("main", bigTier); alt != nil && scoreOf("main", alt) > scoreOf("main", main)+0.1 {
+			main = alt
+		}
+		if main == nil {
+			main = &tallModel
+		}
+		mainModel = *main
 	}
-	if alt := bestIn("main", bigTier); alt != nil && scoreOf("main", alt) > scoreOf("main", main)+0.1 {
-		main = alt
-	}
-	if main == nil {
-		main = tall
-	}
-	mainModel := *main
-	byRole["main"] = Assignment{Model: mainModel.Name, Family: family(mainModel), Reason: reason("main", mainModel.Name, "best medium model for normal execution")}
+	byRole["main"] = Assignment{Model: mainModel.Name, Family: family(mainModel), Reason: reason("main", mainModel.Name, "smallest model in the highest measured main tier")}
 
-	// wide: the smallest capable model for fast ingestion.
-	wide := bestIn("wide", smallTier)
-	if wide == nil {
-		wide = &smallest
+	// wide: the best model that is actually smaller than main, so it can feed
+	// ingestion and a future homogeneous/heterogeneous swarm without competing
+	// with main for the same resident slot. Prefer a different family, then
+	// the highest wide score, then the smaller model.
+	wideModel := mainModel
+	if hasRoleScore("wide") {
+		smaller := make([]Model, 0, len(fitting))
+		for _, m := range fitting {
+			if m.SizeBytes < mainModel.SizeBytes {
+				smaller = append(smaller, m)
+			}
+		}
+		if len(smaller) > 0 {
+			// If a model at most 85% of main's size exists, keep only that
+			// band; wide must be meaningfully smaller, not a near-tie.
+			preferred := smaller[:0]
+			for _, m := range smaller {
+				if m.SizeBytes*100 <= mainModel.SizeBytes*85 {
+					preferred = append(preferred, m)
+				}
+			}
+			if len(preferred) > 0 {
+				smaller = preferred
+			}
+			sort.SliceStable(smaller, func(i, j int) bool {
+				di := smaller[i].Family != mainModel.Family && smaller[i].Family != ""
+				dj := smaller[j].Family != mainModel.Family && smaller[j].Family != ""
+				if di != dj {
+					return di
+				}
+				si, sj := scoreOf("wide", &smaller[i]), scoreOf("wide", &smaller[j])
+				if si != sj {
+					return si > sj
+				}
+				if smaller[i].SizeBytes != smaller[j].SizeBytes {
+					return smaller[i].SizeBytes < smaller[j].SizeBytes
+				}
+				return smaller[i].Name < smaller[j].Name
+			})
+			wideModel = smaller[0]
+		}
+	} else {
+		wide := bestIn("wide", smallTier)
+		if wide == nil {
+			wide = &smallest
+		}
+		wideModel = *wide
 	}
-	byRole["wide"] = Assignment{Model: wide.Name, Family: family(*wide), Reason: reason("wide", wide.Name, "smallest capable model for fast ingestion")}
+	wideReason := reason("wide", wideModel.Name, "best measured model smaller than main for fast ingestion")
+	if wideModel.SizeBytes >= mainModel.SizeBytes {
+		wideReason = "no smaller model installed; wide shares main (add a smaller model for swarms)"
+	}
+	byRole["wide"] = Assignment{Model: wideModel.Name, Family: family(wideModel), Reason: wideReason}
 
 	// security: a cross-family judge over the generator roles. Reserve this
 	// before alternative so the only unused family goes to the judge.
@@ -200,11 +315,11 @@ func AutoAssignWithScores(roles []Role, models []Model, scores map[string]float6
 			generatorFamilies[a.Family] = true
 		}
 	}
-	judge := pickDifferent(ranked("security"), generatorFamilies)
-	judgeReason := "largest model from a family outside the generator roles (cross-family judgment)"
+	judge := pickBestDifferent(fitting, scores, "security", generatorFamilies)
+	judgeReason := "best measured judge outside the generator families (cross-family judgment)"
 	if judge == nil {
-		judge = pickDifferent(ranked("security"), map[string]bool{family(tallModel): true, family(mainModel): true})
-		judgeReason = "no cross-family judge available; using the largest different model"
+		judge = pickBestDifferent(fitting, scores, "security", map[string]bool{family(tallModel): true, family(mainModel): true})
+		judgeReason = "no cross-family judge available; using the best different model"
 	}
 	if judge == nil {
 		judge = &tallModel
@@ -217,7 +332,7 @@ func AutoAssignWithScores(roles []Role, models []Model, scores map[string]float6
 	// preferable to sharing the judge's family (the judge's cross-family
 	// guarantee is the stronger one).
 	altRanked := ranked("alternative")
-	alt := pickDifferent(altRanked, map[string]bool{
+	alt := pickBestDifferent(fitting, scores, "alternative", map[string]bool{
 		family(tallModel): true, family(mainModel): true, byRole["security"].Family: true,
 	})
 	altReason := "different family from main/tall/judge for an orthogonal candidate"
@@ -246,6 +361,28 @@ func AutoAssignWithScores(roles []Role, models []Model, scores map[string]float6
 		out = append(out, a)
 	}
 	return out
+}
+
+// pickBestDifferent returns the highest-scoring model from an unused family,
+// preferring the smaller resident model on a tie.
+func pickBestDifferent(models []Model, scores map[string]float64, role string, exclude map[string]bool) *Model {
+	var chosen *Model
+	best := -2.0
+	for i := range models {
+		m := &models[i]
+		if m.Family == "" || exclude[m.Family] {
+			continue
+		}
+		score, ok := scores[role+"|"+m.Name]
+		if !ok {
+			score = -1
+		}
+		if chosen == nil || score > best || (score == best && m.SizeBytes < chosen.SizeBytes) {
+			chosen = m
+			best = score
+		}
+	}
+	return chosen
 }
 
 // pickDifferent returns the largest model whose family is not excluded. An

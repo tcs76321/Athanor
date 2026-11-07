@@ -45,6 +45,7 @@ type poolView struct {
 	Min            int
 	Ready          bool
 	Warning        string
+	Recommendation string
 	Ranked         []poolRow
 	MachineScore   int
 	MachineHostGiB float64
@@ -268,6 +269,9 @@ func (u *UI) welcomePool(models []setupModel) poolView {
 		if a.Score != b.Score {
 			return a.Score > b.Score
 		}
+		if a.SizeBytes != b.SizeBytes {
+			return a.SizeBytes < b.SizeBytes
+		}
 		return a.Name < b.Name
 	})
 	for _, row := range view.Rows {
@@ -280,6 +284,32 @@ func (u *UI) welcomePool(models []setupModel) poolView {
 		}
 	}
 	view.Ready = view.Count >= poolMin
+	// The functional floor is four; the recommended repertoire is five or
+	// more across at least two families and three size bands, so main, wide,
+	// tall, judge, and an orthogonal candidate each have a real choice.
+	families := map[string]bool{}
+	bands := map[string]bool{}
+	for _, row := range view.Ranked {
+		if row.Family != "" {
+			families[row.Family] = true
+		}
+		switch {
+		case row.SizeBytes < 4<<30:
+			bands["small"] = true
+		case row.SizeBytes < 10<<30:
+			bands["medium"] = true
+		default:
+			bands["big"] = true
+		}
+	}
+	switch {
+	case view.Count < 5:
+		view.Recommendation = fmt.Sprintf("Add %d more model(s): five across two families gives main, wide, tall, judge, and an orthogonal candidate.", 5-view.Count)
+	case len(families) < 2:
+		view.Recommendation = "Add a second family so judgment is genuinely cross-family."
+	case len(bands) < 3:
+		view.Recommendation = "Add a smaller or larger model so wide, main, and tall cover a real size spread."
+	}
 	if view.Count == 0 {
 		view.Warning = "No models are in the pool. Pull at least four, or continue and Athanor will run on the legacy persona defaults."
 	} else if view.Count < poolMin {

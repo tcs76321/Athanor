@@ -45,6 +45,13 @@ func runLadder(ctx context.Context, cfg *config.Config, models []onboard.Model,
 
 	ctx, cancel := context.WithTimeout(ctx, opts.Wall)
 	defer cancel()
+	// Leave no model resident after a screen, including a timed-out one.
+	defer func() {
+		client := &http.Client{Timeout: 10 * time.Second}
+		for _, name := range ladderModelNames(models, roles) {
+			_ = unloadModel(context.Background(), client, cfg.Inference.OllamaURL, name)
+		}
+	}()
 
 	byRole := map[string]onboard.Role{}
 	for _, r := range roles {

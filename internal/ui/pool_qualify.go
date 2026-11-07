@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -195,6 +196,9 @@ func (u *UI) runPoolQualification(ctx context.Context, models []string, ladder o
 		if resident, ok := ollamaResident(ctx, u.deps.Config.Inference.OllamaURL, model); ok {
 			u.pool().SetMeasuredResident(model, resident, 8192)
 		}
+		// Do not leave the last screened model resident. Use a fresh context so
+		// a canceled/timed-out screen still releases the model.
+		ollamaUnload(context.Background(), u.deps.Config.Inference.OllamaURL, model)
 	}
 	state.Running = false
 	state.FinishedAt = time.Now()
@@ -371,4 +375,27 @@ func ollamaResident(ctx context.Context, baseURL, model string) (int64, bool) {
 		}
 	}
 	return 0, false
+}
+
+// ollamaUnload asks Ollama to evict a model immediately. It is best-effort: a
+// qualification result is still valid if the unload fails.
+func ollamaUnload(ctx context.Context, baseURL, model string) {
+	body, err := json.Marshal(map[string]any{
+		"model": model, "stream": false, "keep_alive": 0,
+	})
+	if err != nil {
+		return
+	}
+	cctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(cctx, http.MethodPost,
+		strings.TrimRight(baseURL, "/")+"/api/generate", bytes.NewReader(body))
+	if err != nil {
+		return
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := (&http.Client{Timeout: 10 * time.Second}).Do(req)
+	if err == nil {
+		_ = resp.Body.Close()
+	}
 }

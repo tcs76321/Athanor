@@ -328,7 +328,7 @@ func TestQualDetailsGroupCases(t *testing.T) {
 	}
 }
 
-func TestRolePicksUseSizeTiers(t *testing.T) {
+func TestRolePicksUseMeasuredPolicy(t *testing.T) {
 	p := composition.New(nil)
 	for _, m := range []struct {
 		name string
@@ -348,8 +348,10 @@ func TestRolePicksUseSizeTiers(t *testing.T) {
 	for _, pick := range picks {
 		byRole[pick.Role] = pick.Model
 	}
-	if byRole["wide"] != "small" || byRole["main"] != "medium" || byRole["tall"] != "big" {
-		t.Fatalf("role picks = %+v, want small/medium/big", byRole)
+	// All three models tie on the measured score: main is the smallest of the
+	// top tier, wide has no smaller model and shares main, tall is the largest.
+	if byRole["wide"] != "small" || byRole["main"] != "small" || byRole["tall"] != "big" {
+		t.Fatalf("role picks = %+v, want small/small/big", byRole)
 	}
 }
 
