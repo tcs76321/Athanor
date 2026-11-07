@@ -9,6 +9,9 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/tcs76321/athanor/internal/job"
@@ -103,6 +106,40 @@ type Result struct {
 	IndexWarning string
 }
 
+// normalizeRepositoryPath expands a leading ~, requires an existing absolute
+// directory, and returns a clean path. The Core Pod can only read paths its
+// container mounts; a typo must fail at create time rather than produce a
+// project whose indexing and tests silently cannot run.
+func normalizeRepositoryPath(raw string) (string, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return "", nil
+	}
+	if raw == "~" || strings.HasPrefix(raw, "~/") {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "", fmt.Errorf("resolving home directory for repository path: %w", err)
+		}
+		if raw == "~" {
+			raw = home
+		} else {
+			raw = filepath.Join(home, strings.TrimPrefix(raw, "~/"))
+		}
+	}
+	if !filepath.IsAbs(raw) {
+		return "", fmt.Errorf("repository path must be absolute (got %q)", raw)
+	}
+	clean := filepath.Clean(raw)
+	info, err := os.Stat(clean)
+	if err != nil {
+		return "", fmt.Errorf("repository path %q is not accessible: %w", clean, err)
+	}
+	if !info.IsDir() {
+		return "", fmt.Errorf("repository path %q is not a directory", clean)
+	}
+	return clean, nil
+}
+
 // Create is the single project-create path. It is deliberately synchronous
 // about the project/task/job writes (the caller needs the ids) and bounded
 // about pre-index: a failed or timed-out pass is a warning, not a failed
@@ -113,9 +150,13 @@ func Create(ctx context.Context, deps Deps, in Input) (Result, error) {
 		return Result{}, ErrFrozen
 	}
 	start := in.Start
+	repo, err := normalizeRepositoryPath(in.RepositoryPath)
+	if err != nil {
+		return Result{}, err
+	}
+	in.RepositoryPath = repo
 	var p project.Project
 	var task project.Task
-	var err error
 	if in.Archetype == "" {
 		p, task, err = deps.Projects.CreateInferred(ctx, in.Name, in.Goal, in.RepositoryPath, in.Criteria)
 	} else {

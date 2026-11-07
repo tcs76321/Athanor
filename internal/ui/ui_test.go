@@ -1355,10 +1355,11 @@ func TestNewProjectPage(t *testing.T) {
 // persisted, redirect to the project page.
 func TestCreateProjectFromUI(t *testing.T) {
 	fx := setup(t)
+	repo := t.TempDir()
 	form := url.Values{
 		"name":            {"ui-project"},
 		"goal":            {"Build a small add function with tests and a docstring."},
-		"repository_path": {"/tmp/repo"},
+		"repository_path": {repo},
 		"criteria":        {"pytest passes\ndocstring present"},
 	}
 	resp := postForm(t, fx.ts.URL+"/ui/projects", form)
@@ -1391,10 +1392,11 @@ func TestCreateProjectFromUIStartsJob(t *testing.T) {
 	fx := setup(t)
 	idx := &fakePreindexer{}
 	fx.ui.deps.Indexer = idx
+	repo := t.TempDir()
 	form := url.Values{
 		"name":            {"ui-starts"},
 		"goal":            {"Build a small add function with tests and a docstring."},
-		"repository_path": {"/tmp/repo"},
+		"repository_path": {repo},
 		"criteria":        {"pytest passes"},
 		"start":           {"1"},
 	}
@@ -1406,8 +1408,8 @@ func TestCreateProjectFromUIStartsJob(t *testing.T) {
 	if !strings.HasPrefix(loc, "/ui/jobs/") {
 		t.Fatalf("Location = %q, want a job watch page", loc)
 	}
-	if idx.calls != 1 || idx.path != "/tmp/repo" {
-		t.Fatalf("pre-index calls=%d path=%q, want one call for /tmp/repo", idx.calls, idx.path)
+	if idx.calls != 1 || idx.path != repo {
+		t.Fatalf("pre-index calls=%d path=%q, want one call for %q", idx.calls, idx.path, repo)
 	}
 	if len(fx.engine.enqueued) != 1 {
 		t.Fatalf("enqueued = %v, want one job", fx.engine.enqueued)

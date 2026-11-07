@@ -54,7 +54,7 @@ func TestCreateRunsPreindexThenStartsTheJob(t *testing.T) {
 	deps, eng := newDeps(t, idx, frozen(false))
 	res, err := Create(context.Background(), deps, Input{
 		Name: "demo", Archetype: "code", Goal: "Write a small parser.",
-		RepositoryPath: "/tmp/repo", Start: true,
+		RepositoryPath: t.TempDir(), Start: true,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -96,7 +96,7 @@ func TestCreateMetadataOnlySkipsIndexAndJob(t *testing.T) {
 	deps, eng := newDeps(t, idx, frozen(false))
 	res, err := Create(context.Background(), deps, Input{
 		Name: "meta", Archetype: "text", Goal: "Write a short note about this project.",
-		RepositoryPath: "/tmp/repo", Start: false,
+		RepositoryPath: t.TempDir(), Start: false,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -145,12 +145,22 @@ func TestCreateDegradesOnIndexFailure(t *testing.T) {
 	deps, eng := newDeps(t, idx, frozen(false))
 	res, err := Create(context.Background(), deps, Input{
 		Name: "degraded", Archetype: "code", Goal: "Write a small parser for this format.",
-		RepositoryPath: "/tmp/repo", Start: true,
+		RepositoryPath: t.TempDir(), Start: true,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if res.IndexWarning == "" || res.JobID == "" || len(eng.ids) != 1 {
 		t.Errorf("degraded create = %+v / enq %v, want a warning and a started job", res, eng.ids)
+	}
+}
+
+func TestCreateRejectsMissingRepositoryPath(t *testing.T) {
+	deps, _ := newDeps(t, nil, frozen(false))
+	if _, err := Create(context.Background(), deps, Input{
+		Name: "missing", Archetype: "code", Goal: "Write a small parser.",
+		RepositoryPath: filepath.Join(t.TempDir(), "does-not-exist"),
+	}); err == nil {
+		t.Fatal("a nonexistent repository path was accepted")
 	}
 }

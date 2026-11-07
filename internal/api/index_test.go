@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"testing"
@@ -125,11 +126,12 @@ func TestProjectCreatePreindexesRepository(t *testing.T) {
 	f := &fakeBoundedIndexer{onceSum: IndexSummary{Indexed: 3, Chunks: 7, Summarized: 3}}
 	h.api.SetIndexRunner(f)
 
-	body := []byte(`{
+	repo := t.TempDir()
+	body := []byte(fmt.Sprintf(`{
 		"name": "preindex", "archetype": "text",
 		"goal": "Write a short essay about lossless context.",
-		"repository_path": "/tmp/repo"
-	}`)
+		"repository_path": %q
+	}`, repo))
 	resp, err := http.Post(h.ts.URL+"/projects", "application/json", bytes.NewReader(body))
 	if err != nil {
 		t.Fatal(err)
@@ -142,9 +144,9 @@ func TestProjectCreatePreindexesRepository(t *testing.T) {
 	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
 		t.Fatal(err)
 	}
-	if f.onceCalls != 1 || f.oncePath != "/tmp/repo" || f.onceProject != out.ID {
-		t.Fatalf("pre-index calls=%d project=%q path=%q, want one call for (%q,/tmp/repo)",
-			f.onceCalls, f.onceProject, f.oncePath, out.ID)
+	if f.onceCalls != 1 || f.oncePath != repo || f.onceProject != out.ID {
+		t.Fatalf("pre-index calls=%d project=%q path=%q, want one call for (%q,%q)",
+			f.onceCalls, f.onceProject, f.oncePath, out.ID, repo)
 	}
 	if out.Index == nil || out.Index.Indexed != 3 || out.Index.Chunks != 7 {
 		t.Fatalf("response index = %+v, want indexed=3 chunks=7", out.Index)
@@ -165,11 +167,12 @@ func TestProjectCreateSkipsPreindexWhenStartFalse(t *testing.T) {
 	f := &fakeBoundedIndexer{onceSum: IndexSummary{Indexed: 3}}
 	h.api.SetIndexRunner(f)
 
-	body := []byte(`{
+	repo := t.TempDir()
+	body := []byte(fmt.Sprintf(`{
 		"name": "metadata", "archetype": "text",
 		"goal": "Write a short essay about lossless context.",
-		"repository_path": "/tmp/repo", "start": false
-	}`)
+		"repository_path": %q, "start": false
+	}`, repo))
 	resp, err := http.Post(h.ts.URL+"/projects", "application/json", bytes.NewReader(body))
 	if err != nil {
 		t.Fatal(err)
