@@ -270,7 +270,7 @@ When a `Goal` is submitted, Athanor uses the `tall` persona to autonomously deco
 
 ### 7.1 Decomposition Workflow
 
-1. Read Goal, Project Context, and Archetype constraints.
+1. Read Goal, Project Context, and the project’s inferred capabilities.
 2. Generate Task tree as a DAG:
    - Identify logical phases (schema, implementation, tests, documentation).
    - Create leaf tasks with explicit `AcceptanceCriteria`.
@@ -330,12 +330,14 @@ required_personas:
   - alternative
 allowed_tools:
   - read_file
-  - write_file
   - execute_code
-  - git_operation
-  - query_memory
+  - run_tests
+  - lint
   - fetch_url
+  - search_web
+  - query_memory
   - context_swap
+  # git_operation is allowlisted but has no route; the Core commits directly.
 acceptance_criteria:
   - criterion
 budget:
@@ -530,7 +532,7 @@ The MCE does not only manage context at job start — it monitors KV cache usage
 
 | Condition | Action |
 |---|---|
-| `active_tokens > 85% of max_context` | Issue `context_swap` suggestion to LLM. Move oldest non-pinned, non-critical chunks to Dormant. Provide Dormant Index. |
+| `active_tokens > 85% of max_context` | The engine evicts the oldest non-pinned, non-critical chunk to Dormant and publishes it in the Dormant Index. The model cannot invoke `context_swap` itself (ADR-0080). |
 | `active_tokens > 95% of max_context` | Force-evict lowest-priority tier to Dormant. Inject `Dormant Index` entry. LLM may swap back later. |
 | Context floor violation (effective context < task minimum) | Pause job. Recommend smaller model or reduce task scope. Escalate to HITL. |
 
@@ -1684,10 +1686,10 @@ Tools are constrained, audited, and available only to Job Pods and the Core orch
 > [ADR-0036](docs/adr/0036-hitl-git-push.md)): `athanor push` files a request
 > and only an approved request runs `git push`. `git_operation` is
 > in the closed set but has no route or handler — the Core commits directly
-> rather than exposing git to a pod (M6 may revisit). Planned: `read_file`,
+> rather than exposing git to a pod (M6 may revisit). `read_file` is live as a
+> bounded, engine-executed code-repair observation (ADR-0113). Planned:
 > `write_file`, `list_files`, `search_files`, `create_artifact`,
-> `request_approval`, `add_correction`, `install_package`,
-> `browser_mode`.
+> `request_approval`, `add_correction`, `install_package`, `browser_mode`.
 
 ---
 

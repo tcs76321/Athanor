@@ -219,6 +219,9 @@ Then watch it work in real time from the Watch View, or queue it and check the M
   [docs/probes/bench-v2-p0-findings.md](docs/probes/bench-v2-p0-findings.md);
   baseline: [docs/probes/bench-v2-findings.md](docs/probes/bench-v2-findings.md);
   focused X-code: [docs/probes/bench-xcode-p0.md](docs/probes/bench-xcode-p0.md).
+  A focused five-task document rerun (2026-11-06) passed **5/5**, but it ran on
+  the host and is diagnostic only; the aggregate stays 32/41 until the next full
+  Core Pod slice ([runner](docs/probes/bench-v2-doc-rerun-20261106.md)).
 - **Daemon on loopback** (`http://127.0.0.1:7420`). Config falls back to built-in defaults when `config.yaml` is absent; missing config is not an error on a fresh clone. `/healthz` reports status, version, uptime.
 - **CLI client.** `project create`, `goal submit`, `job watch`, `artifacts`, `freeze`, `unfreeze`, `doctor`, `models`. Talks to the Core Pod over loopback, except `doctor` and `models`, which inspect the local host directly.
 - **Doctor (M7-T5).** `athanor doctor` checks rootless Podman, Git, Ollama reachability, every persona model (with `ollama pull` remediation), memory, disk, state-dir writability, the Job Pod image, §12.6 context feasibility, and the network posture — failing loudly on hard prerequisites and warning on advisories. [ADR-0050](docs/adr/0050-doctor.md).
