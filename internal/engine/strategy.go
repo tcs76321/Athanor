@@ -225,7 +225,10 @@ func (e *Engine) eventStats(ctx context.Context, jobID string) (tokens int, conf
 		}
 		switch d.Event {
 		case "llm_call":
-			tokens += d.PromptTokens + d.CompletionTokens + d.ReasoningTokens
+			// CompletionTokens (Ollama eval_count) already includes hidden
+			// reasoning. ReasoningTokens is an estimate for telemetry, not an
+			// additional token count.
+			tokens += d.PromptTokens + d.CompletionTokens
 		case "comparison":
 			confidence = d.Confidence
 		}
