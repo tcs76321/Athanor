@@ -69,6 +69,10 @@ func TestSelectorResolvesPhaseAndSyntheticRole(t *testing.T) {
 // candidates from the selector instead of one legacy persona.
 func TestSelectorCastsDivergenceAcrossModels(t *testing.T) {
 	e := newEnv(t)
+	// This test is about the composition seam, not cross-family judgment;
+	// the fake selector deliberately returns one family for every phase.
+	off := false
+	e.cfg.Execution.Policy.RequireCrossFamily = &off
 	sel := &fakeSelector{
 		choice: ModelChoice{Model: "alpha", Family: "a", ContextTarget: 65536},
 		many: []ModelChoice{

@@ -239,8 +239,8 @@ func (e *Engine) call(ctx context.Context, j job.Job, p project.Project, t proje
 	if e.cfg == nil {
 		return llm.Response{}, errors.New("engine: cfg is nil (call requires config)")
 	}
-	// known-issues L26: guard the registry like crossFamily/difficultyHint do,
-	// so a mis-wired Engine fails loudly instead of panicking.
+	// known-issues L26: guard the registry like the family/difficulty paths
+	// do, so a mis-wired Engine fails loudly instead of panicking.
 	if e.registry == nil {
 		return llm.Response{}, errors.New("engine: registry is nil (call requires personas)")
 	}

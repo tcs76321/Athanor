@@ -591,8 +591,14 @@ func (e *Engine) rememberGeneratorFamily(jobID, family string) {
 		return
 	}
 	e.castMu.Lock()
-	e.jobFamily[jobID] = family
-	e.castMu.Unlock()
+	defer e.castMu.Unlock()
+	// The first generator is the cast's representative. A heterogeneous
+	// divergence panel may use several families, but the judge's avoid-family
+	// signal and the audit need one stable primary rather than the last
+	// candidate's family.
+	if e.jobFamily[jobID] == "" {
+		e.jobFamily[jobID] = family
+	}
 }
 
 // exploreBucket is a stable, deterministic 1-in-n bucket for budgeted
@@ -621,21 +627,28 @@ func (e *Engine) verifierRegistry() *verify.Registry {
 	return e.verifiers
 }
 
-// crossFamily reports whether the judge persona's model family differs from
-// the generator's. It returns both families (for the audit) and ok=false
-// when either is unknown or they match. Consulted only on the F4-T3
-// verification-first path, so a single-model config in the default llm mode
-// is unaffected.
-func (e *Engine) crossFamily(generatorRole, judgeRole string) (gen, judge string, ok bool) {
-	if e.registry == nil {
-		return "", "", false
+// actualCrossFamily resolves the families the pool will actually use for the
+// generator and judge phases. The legacy registry path is only a fallback:
+// when a measured pool is wired, its model families are the ones that matter
+// for the cross-family acceptance gate and its audit.
+func (e *Engine) actualCrossFamily(ctx context.Context, j job.Job, p project.Project, t project.Task,
+	generatorRole, judgeRole string) (gen, judge string, ok bool) {
+	capability := capabilityFor(p, t)
+	gen = e.generatorFamily(j.ID)
+	if gen == "" {
+		if gp, gok := e.personaFor(ctx, llm.PhaseDiverging, generatorRole, capability, p.ID, j.ID); gok {
+			gen = gp.Family
+		}
 	}
-	gp, gok := e.registry.Persona(generatorRole)
-	jp, jok := e.registry.Persona(judgeRole)
-	if !gok || !jok || gp.Family == "" || jp.Family == "" {
-		return gp.Family, jp.Family, false
+	jp, jok := e.personaFor(ctx, llm.PhaseComparing, judgeRole, capability, p.ID, j.ID)
+	if !jok {
+		return gen, "", false
 	}
-	return gp.Family, jp.Family, gp.Family != jp.Family
+	judge = jp.Family
+	if gen == "" || judge == "" {
+		return gen, judge, false
+	}
+	return gen, judge, gen != judge
 }
 
 // difficultyStateKey is the system_state key holding a job's

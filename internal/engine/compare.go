@@ -161,7 +161,7 @@ func (e *Engine) phaseCompare(ctx context.Context, j job.Job) error {
 		e.auditVerification(ctx, j.ID, "final", ver)
 	}
 	genRole := e.roleFor(plan, policy.PhaseDiverging, llm.RoleMain)
-	genFamily, judgeFamily, crossOK := e.crossFamily(genRole, judgeRole)
+	genFamily, judgeFamily, crossOK := e.actualCrossFamily(ctx, j, p, t, genRole, judgeRole)
 	// known-issues D1: the final artifact's record describes the bytes actually
 	// being compared. Build it before the decision so the verifier path can
 	// use its deterministic better-than-previous signal.
