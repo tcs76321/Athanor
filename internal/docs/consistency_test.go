@@ -187,3 +187,92 @@ func keys(m map[string]bool) []string {
 	sort.Strings(out)
 	return out
 }
+
+var testNameRe = regexp.MustCompile(`^Test[A-Za-z0-9_]+$`)
+
+// TestClaimsProofReferencesResolve keeps docs/claims.md honest: a backticked
+// path must exist, and a backticked Test* name must appear as a Go test
+// function. It deliberately ignores commands and prose.
+func TestClaimsProofReferencesResolve(t *testing.T) {
+	root, err := findModuleRoot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(filepath.Join(root, "docs", "claims.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Index every Go test function name once.
+	testFuncs := map[string]bool{}
+	err = filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			switch d.Name() {
+			case ".git", "bin", "state", "workspace", "backups", "node_modules":
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !strings.HasSuffix(d.Name(), ".go") {
+			return nil
+		}
+		b, rerr := os.ReadFile(path)
+		if rerr != nil {
+			return rerr
+		}
+		for _, m := range regexp.MustCompile(`func (Test[A-Za-z0-9_]+)\(`).FindAllStringSubmatch(string(b), -1) {
+			testFuncs[m[1]] = true
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	pathPrefixes := []string{"internal/", "cmd/", "tools/", "docs/", "scripts/", "eval/", "migrations/", "spikes/"}
+	var problems []string
+	for _, line := range strings.Split(string(raw), "\n") {
+		if !strings.HasPrefix(line, "|") {
+			continue
+		}
+		for _, m := range regexp.MustCompile("`([^`]+)`").FindAllStringSubmatch(line, -1) {
+			token := m[1]
+			if strings.ContainsAny(token, " *") || strings.HasPrefix(token, "-") {
+				continue // commands and flags, not paths/names
+			}
+			if testNameRe.MatchString(token) {
+				if !testFuncs[token] {
+					problems = append(problems, "missing test function "+token)
+				}
+				continue
+			}
+			isPath := false
+			for _, p := range pathPrefixes {
+				if strings.HasPrefix(token, p) {
+					isPath = true
+					break
+				}
+			}
+			if !isPath {
+				continue
+			}
+			// A proof may name a package and symbol (`internal/discovery.Parse`).
+			// Check the path portion, not the symbol; keep real file extensions.
+			if i := strings.LastIndex(token, "."); i > strings.LastIndex(token, "/") {
+				switch filepath.Ext(token) {
+				case ".md", ".go", ".yaml", ".yml", ".sh", ".json", ".txt":
+					// keep the full path
+				default:
+					token = token[:i]
+				}
+			}
+			if _, err := os.Stat(filepath.Join(root, token)); err != nil {
+				problems = append(problems, "missing path "+token)
+			}
+		}
+	}
+	if len(problems) > 0 {
+		t.Fatalf("claims.md proof references do not resolve:\n  %s", strings.Join(problems, "\n  "))
+	}
+}

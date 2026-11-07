@@ -64,7 +64,7 @@ demo. A claim without a proof is either removed or marked as a target.
 | A chosen direction can produce three AI-authored plans, and the operator selects one before work starts | ADR-0097 | `internal/planning` (`Validate`, `Score`, `ToTaskSpecs`, `Store`); `TestProjectOnboardingAIPlanFlow`, `TestParseValidateAndScore`, `TestScoreClampsConfidenceAndStaysBounded` | **proven with a fake generator; a live-model run is the demo** |
 | A plan generated for one direction is never shown or approved for another | ADR-0097 | option-scoped sessions and handler guard; `TestProjectOnboardingIgnoresStalePlanAfterDirectionChange` | **proven** |
 | Job Pods are sized from the task capability within an adaptive ceiling | ADR-0098 | `jobpod.AdaptiveLimits`; `TestAdaptiveLimitsScaleByCapability`, `TestPodLifecycleAdaptsLimitsToTaskCapability` | **proven** |
-| Onboarding distinguishes container-runtime memory from host memory | ADR-0098 | `TestRecommendedResourcesIsAdaptive`, `TestBudgetForUsesHostMemoryNotRuntimeMemory` | **proven** |
+| Onboarding distinguishes container-runtime memory from host memory | ADR-0098 | `TestRecommendedResourcesIsAdaptive`, `TestBudgetForSeparatesHostInferenceAndRuntimeSandbox` | **proven** |
 | A configured model is accepted only when its measured resident size fits the host budget | ADR-0099 | `athanor models -audit`; `model-fit.json`; `TestRunModelAuditMeasuresLoadedSize`, `TestCheckModelAuditFailsOnMeasuredNonFit`, `TestCheckModelAuditRejectsStaleConfig` | **proven with a fake Ollama; the live audit is the host check** |
 | A cost tie cannot overturn a failed hard verifier | ADR-0100 | `internal/engine/compare.go` (`costAwareEligible`); `TestCostAwareEligibleRefusesHardVerifierFailure` | **proven** |
 | A single-family install can accept a follow-up verifier-passed code artifact | ADR-0100 | `internal/engine/compare.go` (verifier pass at/above previous; no-cross-family fallback); `TestVerifierFirst_SameFamilyPreviousArtifactAccepted` | **proven** |
@@ -159,7 +159,7 @@ demo. A claim without a proof is either removed or marked as a target.
 | A 24/7 Core bounds in-memory run history instead of retaining every session | 2026-11-06 hardening pass | `internal/ui/runs.go` (`pruneRuns`); `TestPruneRunsDropsOldestCompleted`, `TestPruneRunsNeverDropsRunning` | **proven** |
 | Every daemon request body is capped before a handler decodes it | 2026-11-06 hardening pass | `internal/server/body_limit.go`; `TestBodyLimitMiddlewareRejectsOversize` | **proven** |
 
-| A candidate cannot modify the test harness that judges it | ADR-0120 | `internal/toolenvelope/harness.go`; `TestIsHarnessPath`, `TestSplitHarnessFiles`; git filter tests | **proven** |
+| A candidate cannot modify the test harness that judges it | ADR-0120 | `internal/toolenvelope/harness.go`; `TestIsHarnessPath`, `TestSplitHarnessFilesPreservesOrder`; git filter tests | **proven** |
 | Every terminal job uses one finalization path | ADR-0121 | `Engine.FinalizeTerminal`; `internal/hitl` observer test; `recover_pause_test.go` | **proven** |
 | Parked jobs do not retain a Job Pod indefinitely | ADR-0121 | `Engine.ReapIdlePods`; `TestReapIdlePodsStopsParkedJobs`; five-minute serve reaper | **proven structurally** |
 | Comparison recovers after acceptance without self-superseding | ADR-0121 | `TestPhaseCompareRecoversAfterAcceptance` | **proven** |
