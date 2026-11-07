@@ -10,6 +10,29 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Capacity, runtime evidence, and language breadth — 2026-11-07
+
+- **Capacity planner** (ADR-0124): `internal/capacity` is the pure source of
+  truth for solo/swarm plans, per-job context targets, coverage, degraded
+  modes, and mission lanes. It handles one-model machines, missing
+  wide/tall roles, no embedding model, no cross-family judge, no Job Pod
+  runtime, and small Podman VMs. Swarms only accept tasks smaller than the
+  machine's solo capability, with a relative rule and a mission p75 guard.
+- **SQLite read pool** (ADR-0125): one writer connection with
+  `_txlock=immediate` plus a read-only pool; reads proceed during writes,
+  writes stay serialized. `Store.ReadDB()` exposes it; event queries use it.
+- **Runtime evidence** (ADR-0126): benchmark runs write `run.json` with
+  runtime, Core image/digest, Ollama version, model digests, policy, slots, and
+  revision. `report -headline` refuses non-Core-Pod evidence; host runs are
+  `bench-host-smoke` and labeled diagnostic. `scripts/bench-core.sh preflight`
+  proves host-Ollama reachability, state, `/bench`, and the Podman socket.
+- **Division languages** (ADR-0128): TypeScript/TSX, Rust, Java, Ruby, PHP,
+  and Shell join Go/Python/JavaScript. Six ratified tree-sitter grammars; the
+  P1–P5 corpus spans ten languages and repository indexing picks them up
+  automatically.
+- **Documentation consistency gate**: ADR references, superseded phrases, the
+  closed tool set, and the config example now fail the build when they drift.
+
 ### Pre-first-use hardening — 2026-11-06
 
 - **Verification harness integrity** ([ADR-0120](docs/adr/0120-verification-harness-integrity.md)):

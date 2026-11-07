@@ -9,6 +9,7 @@
 | Milestone | State |
 |---|---|
 | Pre-first-use hardening (2026-11-06) | ✅ Landed — harness integrity, terminal finalization, pause/pod lifecycle, compare recovery, actual pool/strategy evidence, token accounting, process scorecard truth, non-code git blobs, repository snapshot failure, host-visible repo mount, path validation, pre-index gate, stale Core recreation. ADR-0120–0123. |
+| M9 pre-first-use — capacity, runtime evidence, languages (2026-11-07) | ✅ Landed — `internal/capacity` plans context/coverage/degraded modes/solo+swarm lanes (ADR-0124); SQLite single writer + read pool (ADR-0125); Core Pod `run.json` + preflight + host smoke-only evidence (ADR-0126); six new division grammars (ADR-0128); documentation consistency gate. Retention design recorded (ADR-0127) and implementation pending. |
 | TASK-000 SQLite + sqlite-vec spike | ✅ Done (findings: [docs/sqlite-setup.md](docs/sqlite-setup.md)) |
 | Power manager draft (`internal/power`) | ✅ Aligned with ARCHITECTURE §24 naming (jobs, not VMs) and fully unit-tested |
 | M0 Foundations | ✅ Done — T1–T8 complete (module, config, logging, store, migrations, EventLog API, `/healthz`, CI) + enum-normalization migration 0003 ([ADR-0005](docs/adr/0005-canonical-enum-values.md)). Gate G0 passed: kill -9 crash/restart verified, migrations forward-only and idempotent |
