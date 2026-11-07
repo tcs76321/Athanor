@@ -11,6 +11,7 @@ import (
 	"github.com/tcs76321/athanor/internal/job"
 	"github.com/tcs76321/athanor/internal/llm"
 	"github.com/tcs76321/athanor/internal/policy"
+	"github.com/tcs76321/athanor/internal/project"
 	"github.com/tcs76321/athanor/internal/store"
 	"github.com/tcs76321/athanor/internal/strategy"
 )
@@ -21,6 +22,13 @@ import (
 type StrategySink interface {
 	CreateProfile(ctx context.Context, p strategy.Profile) (strategy.Profile, error)
 	CreateOutcome(ctx context.Context, o strategy.Outcome) (strategy.Outcome, error)
+}
+
+// StrategyProfileFeatures is the optional update seam for task features that
+// became known after planning (the difficulty hint). A sink that does not
+// implement it keeps the start-of-job classification.
+type StrategyProfileFeatures interface {
+	SetTaskFeatures(ctx context.Context, jobID string, f strategy.TaskFeatures) error
 }
 
 // StrategyInsightSource is the §13.4 prompt channel (M6-T11): the statements
@@ -125,9 +133,23 @@ func (e *Engine) captureProfile(ctx context.Context, j job.Job) {
 	e.auditComputePlan(ctx, j.ID, "profile", plan)
 	if _, err := e.strategy.CreateProfile(ctx, strategy.Profile{
 		JobID: j.ID, ProjectID: p.ID, Archetype: capability,
-		Signature: e.strategySignature(capability, plan),
+		Signature:    e.strategySignature(capability, plan),
+		TaskFeatures: strategy.TaskFeatures{TaskType: t.TaskType},
 	}); err != nil {
 		slog.Error("engine: capturing strategy profile", "job", j.ID, "err", err)
+	}
+}
+
+// updateProfileFeatures records features that only become known after
+// planning. It is best-effort: a sink without the extension keeps the profile.
+func (e *Engine) updateProfileFeatures(ctx context.Context, j job.Job, t project.Task) {
+	sink, ok := e.strategy.(StrategyProfileFeatures)
+	if !ok {
+		return
+	}
+	f := strategy.TaskFeatures{TaskType: t.TaskType, DifficultyHint: e.difficultyHint(ctx, j.ID)}
+	if err := sink.SetTaskFeatures(ctx, j.ID, f); err != nil {
+		slog.Warn("engine: updating strategy task features", "job", j.ID, "err", err)
 	}
 }
 
@@ -157,7 +179,9 @@ func (e *Engine) captureOutcome(ctx context.Context, jobID string) {
 		Result:              e.outcomeResult(ctx, j),
 		Score:               e.maxEvaluationScore(ctx, jobID),
 		EvaluatorConfidence: confidence,
+		Retries:             e.taskRetries(ctx, j),
 		ReflectionLoops:     e.reflectionLoops(ctx, jobID),
+		Candidates:          e.firstCycleCandidates(ctx, jobID),
 		TokenCost:           tokens,
 		ThinkArm:            stats.arm,
 		ReasoningTokens:     stats.reasoning,
@@ -339,6 +363,49 @@ func (e *Engine) reflectionLoops(ctx context.Context, jobID string) int {
 		return 0
 	}
 	return n
+}
+
+// taskRetries is the number of earlier jobs for the task, i.e. the attempt
+// index minus one. The scheduler's retry window is per task, so this is the
+// retry evidence the strategy analysis needs.
+func (e *Engine) taskRetries(ctx context.Context, j job.Job) int {
+	if e.jobs == nil || j.TaskID == "" {
+		return 0
+	}
+	jobs, err := e.jobs.ByTask(ctx, j.TaskID)
+	if err != nil {
+		return 0
+	}
+	for i, candidate := range jobs {
+		if candidate.ID == j.ID {
+			return i
+		}
+	}
+	return 0
+}
+
+// firstCycleCandidates reads the first divergence cycle's actual candidate
+// count from the audit stream. The profile records the planned count; the
+// one-shot-first policy, the non-code cap, and the measured panel can change
+// it before the first call.
+func (e *Engine) firstCycleCandidates(ctx context.Context, jobID string) int {
+	events, err := e.db.QueryEvents(ctx, store.EventFilter{JobID: jobID, Category: "jobs"})
+	if err != nil {
+		return 0
+	}
+	for _, ev := range events {
+		var d struct {
+			Event      string `json:"event"`
+			Candidates int    `json:"candidates"`
+		}
+		if json.Unmarshal([]byte(ev.DataJSON), &d) != nil {
+			continue
+		}
+		if d.Event == "divergence_start" {
+			return d.Candidates
+		}
+	}
+	return 0
 }
 
 // trajectory derives the job's executed cognitive operations from its event

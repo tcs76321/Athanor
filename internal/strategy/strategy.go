@@ -76,8 +76,12 @@ type Outcome struct {
 	EvaluatorConfidence float64
 	Retries             int
 	ReflectionLoops     int
-	TokenCost           int
-	WallTime            time.Duration
+	// Candidates is the actual number of divergence candidates generated in
+	// the first cycle. It may differ from the profile's planned count because
+	// one-shot-first, the non-code cap, or a measured panel changed it.
+	Candidates int
+	TokenCost  int
+	WallTime   time.Duration
 	// Operations is the executed cognitive trajectory (M8-T7): the ordered
 	// operations that ran, with attributed cost and grounded verdicts.
 	Operations []cognitive.Operation
@@ -126,6 +130,26 @@ func (r *Repo) CreateProfile(ctx context.Context, p Profile) (Profile, error) {
 		return Profile{}, fmt.Errorf("inserting strategy profile: %w", err)
 	}
 	return r.GetProfileByJob(ctx, p.JobID)
+}
+
+// SetTaskFeatures updates a profile's task classification after planning has
+// produced the difficulty hint. It is idempotent and does not change the
+// profile's signature or creation time.
+func (r *Repo) SetTaskFeatures(ctx context.Context, jobID string, f TaskFeatures) error {
+	raw, err := json.Marshal(f)
+	if err != nil {
+		return fmt.Errorf("marshalling task features: %w", err)
+	}
+	res, err := r.store.DB().ExecContext(ctx,
+		`UPDATE strategy_profiles SET task_features_json = ? WHERE job_id = ?`,
+		string(raw), jobID)
+	if err != nil {
+		return fmt.Errorf("updating strategy task features: %w", err)
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return fmt.Errorf("%w: no profile for job %s", ErrNotFound, jobID)
+	}
+	return nil
 }
 
 func nonNilSignature(s []SignatureEntry) []SignatureEntry {
@@ -180,12 +204,12 @@ func (r *Repo) CreateOutcome(ctx context.Context, o Outcome) (Outcome, error) {
 	}
 	if _, err := r.store.DB().ExecContext(ctx,
 		`INSERT INTO strategy_outcomes
-		   (id, job_id, strategy_profile_id, result, score, evaluator_confidence, retries, reflection_loops, token_cost, wall_time_ms, operations_json,
+		   (id, job_id, strategy_profile_id, result, score, evaluator_confidence, retries, reflection_loops, candidates, token_cost, wall_time_ms, operations_json,
 		    think_arm, reasoning_tokens, deliberate_units, refines, reframes)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		 ON CONFLICT(job_id) DO NOTHING`,
 		ids.New(), o.JobID, profile.ID, o.Result, o.Score, o.EvaluatorConfidence,
-		o.Retries, o.ReflectionLoops, o.TokenCost, o.WallTime.Milliseconds(), string(ops),
+		o.Retries, o.ReflectionLoops, o.Candidates, o.TokenCost, o.WallTime.Milliseconds(), string(ops),
 		o.ThinkArm, o.ReasoningTokens, o.DeliberateUnits, o.Refines, o.Reframes,
 	); err != nil {
 		return Outcome{}, fmt.Errorf("inserting strategy outcome: %w", err)
@@ -196,14 +220,14 @@ func (r *Repo) CreateOutcome(ctx context.Context, o Outcome) (Outcome, error) {
 // GetOutcomeByJob loads a job's outcome.
 func (r *Repo) GetOutcomeByJob(ctx context.Context, jobID string) (Outcome, error) {
 	row := r.store.DB().QueryRowContext(ctx,
-		`SELECT id, job_id, strategy_profile_id, result, score, evaluator_confidence, retries, reflection_loops, token_cost, wall_time_ms, operations_json,
+		`SELECT id, job_id, strategy_profile_id, result, score, evaluator_confidence, retries, reflection_loops, candidates, token_cost, wall_time_ms, operations_json,
 		        think_arm, reasoning_tokens, deliberate_units, refines, reframes, created_at
 		 FROM strategy_outcomes WHERE job_id = ?`, jobID)
 	var o Outcome
 	var createdAt, opsJSON string
 	var wallMS int64
 	err := row.Scan(&o.ID, &o.JobID, &o.StrategyProfileID, &o.Result, &o.Score, &o.EvaluatorConfidence,
-		&o.Retries, &o.ReflectionLoops, &o.TokenCost, &wallMS, &opsJSON,
+		&o.Retries, &o.ReflectionLoops, &o.Candidates, &o.TokenCost, &wallMS, &opsJSON,
 		&o.ThinkArm, &o.ReasoningTokens, &o.DeliberateUnits, &o.Refines, &o.Reframes, &createdAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Outcome{}, fmt.Errorf("%w: no outcome for job %s", ErrNotFound, jobID)
@@ -223,7 +247,7 @@ func (r *Repo) GetOutcomeByJob(ctx context.Context, jobID string) (Outcome, erro
 
 // ListOutcomes returns outcomes, newest first (limit <= 0 means no limit).
 func (r *Repo) ListOutcomes(ctx context.Context, limit int) ([]Outcome, error) {
-	q := `SELECT id, job_id, strategy_profile_id, result, score, evaluator_confidence, retries, reflection_loops, token_cost, wall_time_ms, operations_json,
+	q := `SELECT id, job_id, strategy_profile_id, result, score, evaluator_confidence, retries, reflection_loops, candidates, token_cost, wall_time_ms, operations_json,
 	             think_arm, reasoning_tokens, deliberate_units, refines, reframes, created_at
 	      FROM strategy_outcomes ORDER BY created_at DESC, id DESC`
 	if limit > 0 {
@@ -240,7 +264,7 @@ func (r *Repo) ListOutcomes(ctx context.Context, limit int) ([]Outcome, error) {
 		var createdAt, opsJSON string
 		var wallMS int64
 		if err := rows.Scan(&o.ID, &o.JobID, &o.StrategyProfileID, &o.Result, &o.Score, &o.EvaluatorConfidence,
-			&o.Retries, &o.ReflectionLoops, &o.TokenCost, &wallMS, &opsJSON,
+			&o.Retries, &o.ReflectionLoops, &o.Candidates, &o.TokenCost, &wallMS, &opsJSON,
 			&o.ThinkArm, &o.ReasoningTokens, &o.DeliberateUnits, &o.Refines, &o.Reframes, &createdAt); err != nil {
 			return nil, err
 		}
@@ -314,7 +338,7 @@ func (r *Repo) CandidateStats(ctx context.Context, archetype string, limit int) 
 		limit = 200
 	}
 	rows, err := r.store.DB().QueryContext(ctx,
-		`SELECT p.signature_json, o.result
+		`SELECT p.signature_json, o.result, o.candidates
 		   FROM strategy_outcomes o
 		   JOIN strategy_profiles p ON p.id = o.strategy_profile_id
 		  WHERE p.archetype = ?
@@ -328,18 +352,23 @@ func (r *Repo) CandidateStats(ctx context.Context, archetype string, limit int) 
 	byCount := map[int]*CandidateStat{}
 	for rows.Next() {
 		var rawSignature, result string
-		if err := rows.Scan(&rawSignature, &result); err != nil {
+		var outcomeCandidates int
+		if err := rows.Scan(&rawSignature, &result, &outcomeCandidates); err != nil {
 			return nil, err
 		}
-		var signature []SignatureEntry
-		if json.Unmarshal([]byte(rawSignature), &signature) != nil {
-			continue
-		}
-		candidates := 0
-		for _, entry := range signature {
-			if entry.Phase == "diverging" && entry.Candidates > 0 {
-				candidates = entry.Candidates
-				break
+		candidates := outcomeCandidates
+		if candidates <= 0 {
+			// Legacy rows predate the outcome arm column; fall back to the
+			// planned count in the profile.
+			var signature []SignatureEntry
+			if json.Unmarshal([]byte(rawSignature), &signature) != nil {
+				continue
+			}
+			for _, entry := range signature {
+				if entry.Phase == "diverging" && entry.Candidates > 0 {
+					candidates = entry.Candidates
+					break
+				}
 			}
 		}
 		if candidates <= 0 {

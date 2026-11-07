@@ -78,6 +78,7 @@ func (e *Engine) phaseDivergeN(ctx context.Context, j job.Job) error {
 	// pre-F4 behavior.
 	plan := e.planFor(ctx, j, p, t)
 	e.auditComputePlan(ctx, j.ID, "divergence", plan)
+	e.updateProfileFeatures(ctx, j, t)
 	n := plan.Candidates
 	if max := e.cfg.Execution.MaxHardTaskVariations; max > 0 && n > max {
 		n = max

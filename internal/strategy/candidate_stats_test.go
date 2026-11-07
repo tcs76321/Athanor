@@ -68,6 +68,33 @@ func TestCandidateStatsGroupsByDivergenceArm(t *testing.T) {
 	}
 }
 
+// TestCandidateStatsUsesActualOutcomeArm proves a one-shot/panel-capped run is
+// learned under the arm that actually ran, not the planned count in the
+// profile.
+func TestCandidateStatsUsesActualOutcomeArm(t *testing.T) {
+	repo, s := openStrategy(t)
+	ctx := context.Background()
+	projectID, jobID := createNamedJob(t, s, "candidate-actual")
+	if _, err := repo.CreateProfile(ctx, Profile{
+		JobID: jobID, ProjectID: projectID, Archetype: "code",
+		Signature: []SignatureEntry{{Phase: "diverging", Persona: "main", Candidates: 10}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := repo.CreateOutcome(ctx, Outcome{
+		JobID: jobID, Result: ResultAcceptedNew, Candidates: 1,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	stats, err := repo.CandidateStats(ctx, "code", 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(stats) != 1 || stats[0].Candidates != 1 || stats[0].Samples != 1 {
+		t.Fatalf("stats = %+v, want the actual arm 1", stats)
+	}
+}
+
 func TestCandidateStatsIgnoresProfilesWithoutDivergence(t *testing.T) {
 	repo, s := openStrategy(t)
 	ctx := context.Background()
