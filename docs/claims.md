@@ -175,6 +175,7 @@ demo. A claim without a proof is either removed or marked as a target.
 | Division spans the full generation language set | ADR-0128 | `internal/mce/division`; P1–P5 corpus over ten languages; `TestDivideNewLanguagesUseASTAndTile` | **proven** |
 | Superseded architecture wording and tool/ADR drift fail the build | 2026-11-07 consistency gate | `internal/docs/consistency_test.go` | **proven** |
 | Old audit events are archived before deletion under a guarded trigger | ADR-0127 | `internal/retention`; `TestArchiveEventsMovesOldRows`, `TestGuardStillBlocksNormalDelete`, `TestPruneArchivesByAge` | **proven** |
+| `models -audit` reports solo/swarm capacity and coverage reasons | ADR-0124 | `internal/onboard/capacity.go`; `TestCapacityReportFromAudit`, `TestCapacityReportDegradesWithOneModel` | **proven structurally** |
 
 ## Rule
 
