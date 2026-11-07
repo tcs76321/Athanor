@@ -431,6 +431,7 @@ const newProjectBody = `
   <label>Goal <textarea name="goal" rows="2" minlength="3" maxlength="500" required data-refine-field="project.goal">{{.Goal}}</textarea></label>
   <div class="field-help">A sentence is enough. The onboarding brief adds the limits, sources, and definition of success before any work starts.</div>
   <label>Repository path (optional) <input name="repository_path" value="{{.RepositoryPath}}" placeholder="/absolute/path/to/repo"></label>
+  <div class="field-help">Core Pod: the repository must be visible inside the Core. The installer mounts <code>~/athanor/repos</code> at the same host path; place the repository there and use that absolute path.</div>
   <label>Acceptance criteria (optional, one per line) <textarea name="criteria" rows="4" data-refine-field="project.criteria">{{.Criteria}}</textarea></label>
   <div class="actions">
     <button name="start" value="" class="primary">Create and continue to onboarding</button>

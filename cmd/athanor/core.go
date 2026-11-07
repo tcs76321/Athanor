@@ -37,8 +37,13 @@ type coreOptions struct {
 	WorkspaceVolume string
 	TokenDir        string
 	ScratchDir      string
-	SocketPath      string
-	Addr            string
+	// ReposDir is a host-visible directory mounted at the same absolute path
+	// inside the Core. The Core cannot read an arbitrary host path through a
+	// named volume; a repository-backed project works when its path lives
+	// under this directory.
+	ReposDir   string
+	SocketPath string
+	Addr       string
 	// HostMemoryBytes is the physical host's memory, passed to the Core so
 	// model-fit budgets do not mistake the Podman VM's memory for the host's.
 	HostMemoryBytes uint64
@@ -67,8 +72,13 @@ func coreRunArgs(o coreOptions) []string {
 		"-v", o.TokenDir + ":/var/lib/athanor/state/tokens",
 		"-v", o.ScratchDir + ":/var/lib/athanor/state/scratch",
 		"-v", o.WorkspaceVolume + ":/var/lib/athanor/workspace",
-		"-v", o.ConfigPath + ":/etc/athanor/config.yaml",
 	}
+	if o.ReposDir != "" {
+		args = append(args, "-v", o.ReposDir+":"+o.ReposDir)
+	}
+	args = append(args,
+		"-v", o.ConfigPath+":/etc/athanor/config.yaml",
+	)
 	if o.HostMemoryBytes > 0 {
 		args = append(args, "-e", "ATHANOR_HOST_MEMORY_BYTES="+strconv.FormatUint(o.HostMemoryBytes, 10))
 	}
@@ -93,7 +103,7 @@ type coreMount struct {
 // with a different config path, token/scratch directory, socket, or volume set
 // cannot be repaired by `podman start`; it must be recreated.
 func coreDesiredMounts(o coreOptions) []coreMount {
-	return []coreMount{
+	mounts := []coreMount{
 		{Name: o.StateVolume, Destination: "/var/lib/athanor/state"},
 		{Name: o.WorkspaceVolume, Destination: "/var/lib/athanor/workspace"},
 		{Source: o.SocketPath, Destination: "/run/podman/podman.sock"},
@@ -101,6 +111,10 @@ func coreDesiredMounts(o coreOptions) []coreMount {
 		{Source: o.ScratchDir, Destination: "/var/lib/athanor/state/scratch"},
 		{Source: o.ConfigPath, Destination: "/etc/athanor/config.yaml"},
 	}
+	if o.ReposDir != "" {
+		mounts = append(mounts, coreMount{Source: o.ReposDir, Destination: o.ReposDir})
+	}
+	return mounts
 }
 
 // coreMountsMatch reports whether the existing container has the mounts the
@@ -213,6 +227,11 @@ func coreUp(ctx context.Context, o coreOptions) error {
 	if err := os.MkdirAll(o.ScratchDir, 0o700); err != nil {
 		return fmt.Errorf("creating scratch directory %s: %w", o.ScratchDir, err)
 	}
+	if o.ReposDir != "" {
+		if err := os.MkdirAll(o.ReposDir, 0o755); err != nil {
+			return fmt.Errorf("creating repositories directory %s: %w", o.ReposDir, err)
+		}
+	}
 	if _, stderr, err := client.Run(ctx, coreRunArgs(o)...); err != nil {
 		return fmt.Errorf("starting Core Pod: %w: %s", err, strings.TrimSpace(string(stderr)))
 	}
@@ -258,7 +277,7 @@ func waitCoreHealth(ctx context.Context, addr string) error {
 // start flags. The token host directory must be set: the Core writes tokens
 // into its state volume, while the Podman machine must be able to see the
 // same path for the Job Pod bind mount.
-func coreOptionsFromConfig(cfgTokenDir, cfgScratchDir, configPath, addr, image, name, stateVol, workVol, socket string) (coreOptions, error) {
+func coreOptionsFromConfig(cfgTokenDir, cfgScratchDir, reposDir, configPath, addr, image, name, stateVol, workVol, socket string) (coreOptions, error) {
 	if cfgTokenDir == "" {
 		return coreOptions{}, fmt.Errorf("job_pod.token_host_dir is empty: set it to a host-visible directory (e.g. ~/.config/athanor/tokens) for Core Pod mode")
 	}
@@ -277,6 +296,13 @@ func coreOptionsFromConfig(cfgTokenDir, cfgScratchDir, configPath, addr, image, 
 	if err != nil {
 		return coreOptions{}, err
 	}
+	absRepos := ""
+	if reposDir != "" {
+		absRepos, err = filepath.Abs(reposDir)
+		if err != nil {
+			return coreOptions{}, err
+		}
+	}
 	return coreOptions{
 		Image:           image,
 		Name:            name,
@@ -285,6 +311,7 @@ func coreOptionsFromConfig(cfgTokenDir, cfgScratchDir, configPath, addr, image, 
 		WorkspaceVolume: workVol,
 		TokenDir:        absTokens,
 		ScratchDir:      absScratch,
+		ReposDir:        absRepos,
 		SocketPath:      socket,
 		Addr:            addr,
 	}, nil

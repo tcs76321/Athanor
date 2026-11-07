@@ -18,6 +18,7 @@ func TestCoreRunArgs(t *testing.T) {
 		WorkspaceVolume: "athanor-workspace",
 		TokenDir:        "/home/u/.config/athanor/tokens",
 		ScratchDir:      "/home/u/.config/athanor/scratch",
+		ReposDir:        "/home/u/athanor/repos",
 		SocketPath:      "/run/user/1000/podman/podman.sock",
 		Addr:            "127.0.0.1:7420",
 		HostMemoryBytes: 34359738368,
@@ -32,6 +33,7 @@ func TestCoreRunArgs(t *testing.T) {
 		"-v athanor-state:/var/lib/athanor/state",
 		"-v /home/u/.config/athanor/tokens:/var/lib/athanor/state/tokens",
 		"-v /home/u/.config/athanor/scratch:/var/lib/athanor/state/scratch",
+		"-v /home/u/athanor/repos:/home/u/athanor/repos",
 		"-v athanor-workspace:/var/lib/athanor/workspace",
 		"-v /home/u/.config/athanor/config.yaml:/etc/athanor/config.yaml",
 		"--security-opt no-new-privileges",
@@ -53,6 +55,7 @@ func TestCoreMountsMatch(t *testing.T) {
 		WorkspaceVolume: "athanor-workspace",
 		TokenDir:        "/home/u/.config/athanor/tokens",
 		ScratchDir:      "/home/u/.config/athanor/scratch",
+		ReposDir:        "/home/u/athanor/repos",
 		SocketPath:      "/run/user/1000/podman/podman.sock",
 	}
 	desired := coreDesiredMounts(e)
@@ -62,24 +65,25 @@ func TestCoreMountsMatch(t *testing.T) {
 		{Source: "/run/user/1000/podman/podman.sock", Destination: "/run/podman/podman.sock"},
 		{Source: "/home/u/.config/athanor/tokens", Destination: "/var/lib/athanor/state/tokens"},
 		{Source: "/home/u/.config/athanor/scratch", Destination: "/var/lib/athanor/state/scratch"},
+		{Source: "/home/u/athanor/repos", Destination: "/home/u/athanor/repos"},
 		{Source: "/home/u/.config/athanor/config.yaml", Destination: "/etc/athanor/config.yaml"},
 	}
 	if !coreMountsMatch(current, desired) {
 		t.Fatal("matching mounts reported stale")
 	}
-	current[5].Source = "/home/u/old-config.yaml"
+	current[6].Source = "/home/u/old-config.yaml"
 	if coreMountsMatch(current, desired) {
 		t.Fatal("changed config bind reported as matching")
 	}
 }
 
 func TestCoreOptionsRequireTokenDir(t *testing.T) {
-	_, err := coreOptionsFromConfig("", "scratch", "config.yaml", "127.0.0.1:7420",
+	_, err := coreOptionsFromConfig("", "scratch", "", "config.yaml", "127.0.0.1:7420",
 		"img", "name", "state", "work", "/sock")
 	if err == nil || !strings.Contains(err.Error(), "token_host_dir") {
 		t.Fatalf("coreOptionsFromConfig(empty token dir) = %v, want a token_host_dir error", err)
 	}
-	_, err = coreOptionsFromConfig("tokens", "", "config.yaml", "127.0.0.1:7420",
+	_, err = coreOptionsFromConfig("tokens", "", "", "config.yaml", "127.0.0.1:7420",
 		"img", "name", "state", "work", "/sock")
 	if err == nil || !strings.Contains(err.Error(), "scratch_host_dir") {
 		t.Fatalf("coreOptionsFromConfig(empty scratch dir) = %v, want a scratch_host_dir error", err)

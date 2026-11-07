@@ -32,6 +32,7 @@ SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 ROOT=$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)
 TOKEN_DIR="$CONFIG_DIR/tokens"
 SCRATCH_DIR="$CONFIG_DIR/scratch"
+REPOS_DIR="${REPOS_DIR:-$HOME/athanor/repos}"
 
 if ! command -v podman >/dev/null 2>&1; then
     echo "athanor: podman is required (rootless mode)" >&2
@@ -89,7 +90,7 @@ if [ ! -x "$PREFIX/athanor" ] || [ "${REBUILD:-0}" = "1" ]; then
     install -m 0755 "$ROOT/bin/athanor" "$PREFIX/athanor"
 fi
 
-mkdir -p "$CONFIG_DIR" "$TOKEN_DIR" "$SCRATCH_DIR"
+mkdir -p "$CONFIG_DIR" "$TOKEN_DIR" "$SCRATCH_DIR" "$REPOS_DIR"
 chmod 700 "$TOKEN_DIR" "$SCRATCH_DIR"
 
 if [ "$HOST_MODE" = "1" ]; then
@@ -132,7 +133,7 @@ fi
 # 4. Start (or reuse) the Core Pod. Doctor is run next; it may report
 #    missing persona models, which the operator pulls with `ollama pull`.
 "$PREFIX/athanor" start -skip-doctor -config "$CONFIG_DIR/config.yaml" \
-    -core-image "$CORE_IMAGE" -container-name "$CONTAINER"
+    -core-image "$CORE_IMAGE" -container-name "$CONTAINER" -repos-dir "$REPOS_DIR"
 "$PREFIX/athanor" doctor -config "$CONFIG_DIR/config.yaml" || true
 
 # 5. Optional headless unit. It starts the existing container rather than

@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/tcs76321/athanor/internal/config"
@@ -26,6 +28,7 @@ func runStart(args []string) error {
 	containerName := fs.String("container-name", defaultCoreName, "Core Pod container name")
 	stateVol := fs.String("state-volume", defaultStateVol, "Core Pod state volume")
 	workVol := fs.String("workspace-volume", defaultWorkVol, "Core Pod workspace volume")
+	reposDir := fs.String("repos-dir", defaultReposDir(), "Core Pod: host directory mounted at the same path for repositories")
 	scratchHost := fs.String("scratch-host-dir", "", "Core Pod: host-visible scratch directory (default: job_pod.scratch_host_dir)")
 	socket := fs.String("socket", "", "Podman socket path (default: resolve from the machine)")
 	if err := fs.Parse(args); err != nil {
@@ -79,7 +82,7 @@ func runStart(args []string) error {
 	if scratch == "" {
 		scratch = cfg.JobPod.ScratchHostDir
 	}
-	opts, err := coreOptionsFromConfig(cfg.JobPod.TokenHostDir, scratch, *configPath, *addr,
+	opts, err := coreOptionsFromConfig(cfg.JobPod.TokenHostDir, scratch, *reposDir, *configPath, *addr,
 		*coreImage, *containerName, *stateVol, *workVol, sock)
 	if err != nil {
 		return err
@@ -116,6 +119,14 @@ func hostDoctorConfig(cfg *config.Config) *config.Config {
 	out := *cfg
 	out.Inference.OllamaURL = strings.Replace(cfg.Inference.OllamaURL, "host.containers.internal", "127.0.0.1", 1)
 	return &out
+}
+
+func defaultReposDir() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ""
+	}
+	return filepath.Join(home, "athanor", "repos")
 }
 
 // allowlistContains reports whether addr is in the external-API Host
