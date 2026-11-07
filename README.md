@@ -104,6 +104,15 @@ For a code project in the supported Core Pod, put the repository under
 `~/athanor/repos` on the host; that directory is mounted at the same path
 inside the Core. The installer creates it.
 
+### Fresh first-use instance
+
+For repeated first-use walkthroughs, `make fresh` wipes the clean Core Pod
+instance, backs up the old host config/scratch/state and Podman volumes to
+`~/athanor-fresh-backups/<timestamp>`, recreates a minimal Core config, and
+starts a clean `/ui/welcome`. Repositories under `~/athanor/repos` are never
+touched. `make fresh FRESH_ARGS="--no-backup --no-start"` resets without
+starting; `scripts/fresh-core.sh --help` lists the overrides.
+
 For host-side development without a container, `make run` still works (it is
 not the supported runtime). Full walkthrough (including the kill switch and
 crash recovery): [docs/demo-m1.md](docs/demo-m1.md) — that script is the Gate G1

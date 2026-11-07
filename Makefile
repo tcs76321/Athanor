@@ -15,7 +15,7 @@ export CGO_ENABLED
 # tag-less binary can never silently run.
 GO_TAGS = -tags sqlite_fts5
 
-.PHONY: build release test test-race test-integration integration-images vet lint check vuln tidy tidy-check fuzz cover cover-check run clean hooks bench probe-micro probe probe-judge probe-anchor probe-report probe-bundle probe-reconcile probe-measure jobpod-image jobpod-polyglot-image core-image core-smoke bench-core-focused bench-preflight bench-host-smoke bench-anchor-host bench-anchor-core install soak soak-mini soak-ladder diagnostic diagnostic-pair diagnostic-cascade diagnostic-categories
+.PHONY: build release test test-race test-integration integration-images vet lint check vuln tidy tidy-check fuzz cover cover-check run clean hooks bench probe-micro probe probe-judge probe-anchor probe-report probe-bundle probe-reconcile probe-measure jobpod-image jobpod-polyglot-image core-image core-smoke bench-core-focused bench-preflight bench-host-smoke bench-anchor-host bench-anchor-core fresh install soak soak-mini soak-ladder diagnostic diagnostic-pair diagnostic-cascade diagnostic-categories
 
 build:
 	go build $(GO_TAGS) -o bin/athanor ./cmd/athanor
@@ -50,6 +50,14 @@ core-image:
 # Core Pod smoke (P1): boot the supported runtime, wait for health, exercise
 # one metadata-only project create and the UI, then tear down. No Ollama and no
 # Job Pod are required. CI runs this after building both images.
+# Fresh first-use Core Pod: wipe the clean instance's container, volumes, and
+# host state (backup under ~/athanor-fresh-backups), recreate a minimal config,
+# and start at /ui/welcome. Repositories are never touched. Extra flags:
+#   make fresh FRESH_ARGS="--no-backup --no-start"
+FRESH_ARGS ?= --yes
+fresh: build
+	@sh scripts/fresh-core.sh $(FRESH_ARGS)
+
 core-smoke:
 	sh scripts/core-smoke.sh
 
