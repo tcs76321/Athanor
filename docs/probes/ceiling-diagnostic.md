@@ -250,6 +250,23 @@ cost when one shot works.
 Raw evidence:
 [`runs/bench-diagnostic-sequence-cascade-20261106/`](runs/bench-diagnostic-sequence-cascade-20261106/).
 
+## Process scorecard — verified
+
+A one-shot `diag-structured-brief` run emitted:
+
+```json
+{"event":"process_eval","verdict":"one-shot sufficient",
+ "candidates":1,"cycles":1,"escalated":false,
+ "rescued":false,"wasted_compute":false,"regression":false,
+ "tokens":5300,"wall_ms":29013}
+```
+
+That is the runtime self-evaluation the system needed: it knows this job did
+not need escalation, and it records the cost. A full-panel job with no
+escalation should instead report `wasted_compute`; an escalation that ends in
+an accepted artifact should report `rescued`; a final artifact below the best
+candidate should report `regression`.
+
 ## Caveats
 
 - One model and one pass are directional only. This is a diagnostic, not a
