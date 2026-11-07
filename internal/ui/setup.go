@@ -38,6 +38,18 @@ type qualState struct {
 	Details map[string]qualCaseRecord `json:"details,omitempty"`
 	Error   string                    `json:"error,omitempty"`
 	Deep    bool                      `json:"deep,omitempty"`
+	// BudgetMinutes is the extra-pass budget chosen by the operator; 0 means
+	// core-only. Phase is "core" or "extra".
+	BudgetMinutes int     `json:"budget_minutes,omitempty"`
+	Phase         string  `json:"phase,omitempty"`
+	CoreComplete  bool    `json:"core_complete,omitempty"`
+	CoreSeconds   float64 `json:"core_seconds,omitempty"`
+	// FirstModel is the first screened model and its core time; the extra
+	// budget is estimated from this pass rather than waiting for every model.
+	FirstModel           string   `json:"first_model,omitempty"`
+	FirstModelSeconds    float64  `json:"first_model_seconds,omitempty"`
+	EstimatedCoreSeconds float64  `json:"estimated_core_seconds,omitempty"`
+	Models               []string `json:"models,omitempty"`
 }
 
 // qualCaseRecord is one completed case: what was asked, what was expected,
@@ -76,6 +88,11 @@ type qualificationView struct {
 	Error           string
 	Stale           bool
 	Complete        bool
+	CoreComplete    bool
+	CanExtend       bool
+	BudgetMinutes   int
+	Phase           string
+	Estimate        string
 	HasMeasurements bool
 }
 
@@ -86,7 +103,12 @@ func qualificationViewFor(s qualState, hasMeasurements bool) qualificationView {
 	v := qualificationView{
 		Running: s.Running, Done: s.Done, Total: s.Total,
 		Error: s.Error, Stale: s.stale(), HasMeasurements: hasMeasurements,
+		CoreComplete: s.CoreComplete, BudgetMinutes: s.BudgetMinutes, Phase: s.Phase,
 	}
+	if s.EstimatedCoreSeconds > 0 {
+		v.Estimate = time.Duration(s.EstimatedCoreSeconds * float64(time.Second)).Round(time.Second).String()
+	}
+	v.CanExtend = s.CoreComplete && !s.Running
 	if v.Total > 0 {
 		v.Percent = v.Done * 100 / v.Total
 		if v.Percent > 100 {
@@ -113,7 +135,7 @@ func qualificationViewFor(s qualState, hasMeasurements bool) qualificationView {
 			}
 		}
 	}
-	v.Complete = !s.Running && v.Total > 0 && v.Done >= v.Total
+	v.Complete = !s.Running && v.Total > 0 && v.Done >= v.Total && s.Phase != "core"
 	return v
 }
 

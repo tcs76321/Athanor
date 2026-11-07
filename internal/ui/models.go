@@ -16,8 +16,24 @@ const modelsBody = `
     <p class="lede">You own membership. Athanor owns the measured ranking and the cast. Removing a model is the only override; the next job casts from what remains.</p>
   </div>
   <div class="actions">
-    <form method="post" action="/ui/models/qualify"><button class="primary">Run smoke</button></form>
-    <form method="post" action="/ui/models/qualify/deep"><button class="secondary">Run deep</button></form>
+    <form method="post" action="/ui/models/qualify">
+      <input type="hidden" name="mode" value="core">
+      <button class="primary">Run minimal core</button>
+    </form>
+    <form method="post" action="/ui/models/qualify">
+      <input type="hidden" name="mode" value="extra">
+      <label class="muted small">Extra time
+        <select name="minutes">
+          <option value="10">10 min</option>
+          <option value="20" selected>20 min</option>
+          <option value="30">30 min</option>
+          <option value="45">45 min</option>
+          <option value="60">60 min</option>
+        </select>
+      </label>
+      <label class="muted small"><input type="checkbox" name="deep" value="1"> deep cases</label>
+      <button class="secondary">Run core + extra</button>
+    </form>
   </div>
 </div>
 
@@ -38,7 +54,7 @@ const modelsBody = `
 <div class="card" data-live-card="models-qualification" data-live-interval="2500">
   <div class="row row-middle"><h3>Qualification running</h3><span class="pill run">{{.Qualification.Percent}}%</span></div>
   <progress class="progress" value="{{.Qualification.Percent}}" max="100">{{.Qualification.Percent}}%</progress>
-  <p><b>{{.Qualification.Done}} / {{.Qualification.Total}}</b> cases{{if .Qualification.Elapsed}} · {{.Qualification.Elapsed}} elapsed{{end}}{{if .Qualification.Remaining}} · about {{.Qualification.Remaining}} remaining{{end}}</p>
+  <p><b>{{.Qualification.Done}} / {{.Qualification.Total}}</b> cases{{if .Qualification.Elapsed}} · {{.Qualification.Elapsed}} elapsed{{end}}{{if .Qualification.Estimate}} · estimated core {{.Qualification.Estimate}}{{end}}{{if .Qualification.Remaining}} · about {{.Qualification.Remaining}} remaining{{end}}</p>
   <p class="muted">The run is resumable. It uses the same grounded screen as first use.</p>
   <form method="post" action="/ui/setup/qualify/cancel">
     <input type="hidden" name="next" value="/ui/models">
@@ -90,6 +106,26 @@ const modelsBody = `
     <p class="muted">{{printf "%.0f%%" (mul .Score 100)}} role score · {{printf "%.1f" .SizeGiB}} GiB · {{.Context}} ctx</p>
   </div>
   {{end}}
+</div>
+{{end}}
+{{if .Qualification.CanExtend}}
+<div class="card">
+  <h3>Core complete</h3>
+  <p class="muted">Every model has the minimal capability core. Add extra time to run more cases for every model; the estimate uses the first model's core pass.</p>
+  <form method="post" action="/ui/models/qualify">
+    <input type="hidden" name="mode" value="extra">
+    <label class="muted small">Extra time
+      <select name="minutes">
+        <option value="10">10 min</option>
+        <option value="20" selected>20 min</option>
+        <option value="30">30 min</option>
+        <option value="45">45 min</option>
+        <option value="60">60 min</option>
+      </select>
+    </label>
+    <label class="muted small"><input type="checkbox" name="deep" value="1"> deep cases</label>
+    <button class="primary">Add extra time</button>
+  </form>
 </div>
 {{end}}
 <h2>Measured ranking</h2>
@@ -190,7 +226,14 @@ func (u *UI) handleModelsPool(w http.ResponseWriter, r *http.Request) {
 }
 
 func (u *UI) handleModelsQualify(w http.ResponseWriter, r *http.Request) {
-	if _, _, err := u.startPoolQualification(r.Context(), false, false); err != nil {
+	if err := r.ParseForm(); err != nil {
+		u.fail(w, err)
+		return
+	}
+	mode := r.FormValue("mode")
+	minutes := parseFormInt(r, "minutes", 20)
+	deep := r.FormValue("deep") != ""
+	if _, _, err := u.startPoolQualification(r.Context(), false, deep, mode, minutes); err != nil {
 		u.fail(w, err)
 		return
 	}
@@ -198,7 +241,7 @@ func (u *UI) handleModelsQualify(w http.ResponseWriter, r *http.Request) {
 }
 
 func (u *UI) handleModelsQualifyDeep(w http.ResponseWriter, r *http.Request) {
-	if _, _, err := u.startPoolQualification(r.Context(), false, true); err != nil {
+	if _, _, err := u.startPoolQualification(r.Context(), false, true, "core", 0); err != nil {
 		u.fail(w, err)
 		return
 	}

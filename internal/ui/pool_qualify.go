@@ -15,10 +15,11 @@ import (
 	"github.com/tcs76321/athanor/internal/onboard"
 )
 
-// startPoolQualification runs the bounded screen over every model in the
-// user's pool. The legacy two-role ladder remains available on /ui/setup;
-// first use uses the pool so the ranking is per model and per capability.
-func (u *UI) startPoolQualification(ctx context.Context, fresh, deep bool) (qualState, bool, error) {
+// startPoolQualification runs the balanced screen over every model in the
+// user's pool. The core always runs; an operator-selected extra budget fills
+// with blocks sized from the first model's core pass. The legacy two-role
+// ladder remains available on /ui/setup.
+func (u *UI) startPoolQualification(ctx context.Context, fresh, deep bool, mode string, minutes int) (qualState, bool, error) {
 	p := u.pool()
 	if p == nil {
 		return qualState{}, false, fmt.Errorf("model pool is not available")
@@ -56,12 +57,37 @@ func (u *UI) startPoolQualification(ctx context.Context, fresh, deep bool) (qual
 	if len(models) == 0 {
 		return qualState{}, false, fmt.Errorf("add at least one model to the pool before qualifying")
 	}
+	mode = strings.ToLower(strings.TrimSpace(mode))
+	if mode != "extra" {
+		mode = "core"
+	}
+	if mode == "extra" {
+		if minutes <= 0 {
+			minutes = 20
+		}
+		if minutes > 120 {
+			minutes = 120
+		}
+	} else {
+		minutes = 0
+	}
 	state := u.loadQualState(ctx)
 	if state.Running && !state.stale() {
 		return state, false, nil
 	}
 	if state.stale() || fresh {
 		state = newQualState()
+	}
+	// "Run minimal core again" is a deliberate refresh; core-only starts from
+	// a clean comparison rather than silently reusing the old core.
+	if mode == "core" && state.CoreComplete && !fresh {
+		state = newQualState()
+	}
+	if !sameStrings(state.Models, models) {
+		// A changed pool invalidates the core comparison: the new model has
+		// not run the same cases as the old set.
+		state.CoreComplete = false
+		state.Models = append([]string(nil), models...)
 	}
 	u.qualMu.Lock()
 	if u.qualRunning {
@@ -81,11 +107,17 @@ func (u *UI) startPoolQualification(ctx context.Context, fresh, deep bool) (qual
 	state.StartedAt = time.Now()
 	state.Error = ""
 	state.Deep = deep
+	state.Phase = mode
+	state.BudgetMinutes = minutes
 	if state.Results == nil {
 		state.Results = map[string]bool{}
 	}
 	state.Done = len(state.Results)
-	state.Total = poolQualificationPlan(models, ladder)
+	if mode == "core" {
+		state.Total = poolCorePlan(models, ladder)
+	} else {
+		state.Total = poolQualificationPlan(models, ladder)
+	}
 	u.saveQualState(ctx, state)
 	runState := state
 	if state.Results != nil {
@@ -102,7 +134,7 @@ func (u *UI) startPoolQualification(ctx context.Context, fresh, deep bool) (qual
 			u.qualMu.Unlock()
 			cancel()
 		}()
-		u.runPoolQualification(runCtx, models, ladder, &runState)
+		u.runPoolQualification(runCtx, models, ladder, mode, time.Duration(minutes)*time.Minute, &runState)
 	}(runState)
 	return state, true, nil
 }
@@ -122,7 +154,11 @@ func poolQualificationPlan(models []string, ladder onboard.Ladder) int {
 	return len(models) * (len(ladder.Generators) + len(ladder.Judges))
 }
 
-func (u *UI) runPoolQualification(ctx context.Context, models []string, ladder onboard.Ladder, state *qualState) {
+func poolCorePlan(models []string, ladder onboard.Ladder) int {
+	return len(models) * len(onboard.QualificationCore(ladder))
+}
+
+func (u *UI) runPoolQualification(ctx context.Context, models []string, ladder onboard.Ladder, mode string, budget time.Duration, state *qualState) {
 	state.Running = true
 	state.Error = ""
 	if state.Results == nil {
@@ -131,12 +167,13 @@ func (u *UI) runPoolQualification(ctx context.Context, models []string, ladder o
 	if state.Details == nil {
 		state.Details = map[string]qualCaseRecord{}
 	}
-	// The core is one case per capability; every model runs it before any
-	// score is compared. Extra cases run in blocks for every model, so a slow
-	// model cannot starve the rest and an interrupted block is excluded from
-	// the balanced score by recordPoolQualification.
 	core := onboard.QualificationCore(ladder)
-	blocks := onboard.QualificationBlocks(ladder, 30)
+	if len(core) == 0 {
+		state.Running = false
+		state.Error = "qualification ladder has no core cases"
+		u.saveQualState(context.Background(), *state)
+		return
+	}
 	runCases := func(model string, refs []onboard.CaseRef, measure bool) {
 		defer ollamaUnload(context.Background(), u.deps.Config.Inference.OllamaURL, model)
 		for _, ref := range refs {
@@ -151,23 +188,141 @@ func (u *UI) runPoolQualification(ctx context.Context, models []string, ladder o
 			}
 		}
 	}
-	for _, model := range models {
-		if ctx.Err() != nil {
-			break
+
+	// The core always runs for every model, regardless of the extra budget.
+	// On a slow machine with a large pool this can exceed the requested extra
+	// time; that is correct, because the screen is not comparable until every
+	// model has the same core.
+	if !state.CoreComplete {
+		coreStart := time.Now()
+		first := state.FirstModelSeconds == 0
+		for _, model := range models {
+			if ctx.Err() != nil {
+				break
+			}
+			modelStart := time.Now()
+			runCases(model, core, true)
+			if first && modelCoreComplete(state, model, core) {
+				// The first successfully screened model's core pass is the
+				// cost probe. Estimate the full core and use the same per-case
+				// cost to size extra blocks instead of waiting for every model.
+				state.FirstModel = model
+				state.FirstModelSeconds = time.Since(modelStart).Seconds()
+				state.EstimatedCoreSeconds = state.FirstModelSeconds * float64(len(models))
+				first = false
+				u.saveQualState(context.Background(), *state)
+			}
 		}
-		runCases(model, core, true)
+		if coreComplete(state, models, core) {
+			state.CoreComplete = true
+			state.CoreSeconds = time.Since(coreStart).Seconds()
+		}
+		state.Done = len(state.Results)
+		u.saveQualState(context.Background(), *state)
 	}
-	for _, block := range blocks {
-		if ctx.Err() != nil {
-			break
+	if mode == "core" || !state.CoreComplete || ctx.Err() != nil {
+		u.finishPoolQualification(ctx, models, ladder, state)
+		return
+	}
+
+	extra := onboard.QualificationExtra(ladder)
+	// The selected duration is the extra-pass budget, after the mandatory
+	// core. Core time only informs the per-case estimate.
+	remaining := budget
+	for remaining > 0 && len(extra) > 0 && ctx.Err() == nil {
+		perCase := estimateCaseSeconds(state, len(models), len(core))
+		if perCase <= 0 {
+			perCase = 5 * time.Second
 		}
+		// Aim for roughly half the remaining time, so a second block (and
+		// more if the estimate was too long) fits naturally.
+		blockCases := int((remaining / 2) / (perCase * time.Duration(len(models))))
+		if blockCases < 1 {
+			blockCases = 1
+		}
+		if blockCases > 30 {
+			blockCases = 30
+		}
+		if blockCases > len(extra) {
+			blockCases = len(extra)
+		}
+		block := extra[:blockCases]
+		blockStart := time.Now()
 		for _, model := range models {
 			if ctx.Err() != nil {
 				break
 			}
 			runCases(model, block, false)
 		}
+		remaining -= time.Since(blockStart)
+		extra = extra[blockCases:]
+		state.Done = len(state.Results)
+		u.saveQualState(context.Background(), *state)
 	}
+	u.finishPoolQualification(ctx, models, ladder, state)
+}
+
+func modelCoreComplete(state *qualState, model string, core []onboard.CaseRef) bool {
+	for _, ref := range core {
+		if _, ok := state.Results[ref.Kind+"|"+model+"|"+ref.ID]; !ok {
+			return false
+		}
+	}
+	return true
+}
+
+func sameStrings(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	seen := map[string]int{}
+	for _, s := range a {
+		seen[s]++
+	}
+	for _, s := range b {
+		seen[s]--
+	}
+	for _, n := range seen {
+		if n != 0 {
+			return false
+		}
+	}
+	return true
+}
+
+func coreComplete(state *qualState, models []string, core []onboard.CaseRef) bool {
+	for _, model := range models {
+		for _, ref := range core {
+			if _, ok := state.Results[ref.Kind+"|"+model+"|"+ref.ID]; !ok {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func estimateCaseSeconds(state *qualState, models, coreCases int) time.Duration {
+	if state.FirstModelSeconds >= 1 && coreCases > 0 {
+		return time.Duration(state.FirstModelSeconds*float64(time.Second)) / time.Duration(coreCases)
+	}
+	if state.CoreSeconds > 0 && models > 0 && coreCases > 0 {
+		return time.Duration(state.CoreSeconds*float64(time.Second)) / time.Duration(models*coreCases)
+	}
+	var total time.Duration
+	n := 0
+	for _, rec := range state.Details {
+		if rec.DurationMS > 0 && (rec.Kind == "generator" || rec.Kind == "judge") {
+			total += time.Duration(rec.DurationMS) * time.Millisecond
+			n++
+		}
+	}
+	if n == 0 {
+		return 0
+	}
+	return total / time.Duration(n)
+}
+
+func (u *UI) finishPoolQualification(ctx context.Context, models []string, ladder onboard.Ladder, state *qualState) {
 	state.Running = false
 	state.FinishedAt = time.Now()
 	if ctx.Err() == context.Canceled {

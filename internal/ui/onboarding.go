@@ -1094,7 +1094,17 @@ func (u *UI) handleWelcomePost(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		st.Step = "qualify"
-		if _, _, err := u.startPoolQualification(ctx, false, false); err != nil {
+		if _, _, err := u.startPoolQualification(ctx, false, false, "core", 0); err != nil {
+			u.fail(w, err)
+			return
+		}
+	case "run_qualify_extra":
+		if u.deps.Config == nil {
+			u.fail(w, fmt.Errorf("configuration is not available to the UI"))
+			return
+		}
+		st.Step = "qualify"
+		if _, _, err := u.startPoolQualification(ctx, false, strings.Contains(r.FormValue("deep"), "1"), "extra", parseFormInt(r, "minutes", 20)); err != nil {
 			u.fail(w, err)
 			return
 		}
@@ -1104,7 +1114,7 @@ func (u *UI) handleWelcomePost(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		st.Step = "qualify"
-		if _, _, err := u.startPoolQualification(ctx, false, true); err != nil {
+		if _, _, err := u.startPoolQualification(ctx, false, true, "core", 0); err != nil {
 			u.fail(w, err)
 			return
 		}
