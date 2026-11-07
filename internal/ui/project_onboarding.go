@@ -88,6 +88,7 @@ type planRun struct {
 	Status    string
 	Error     string
 	StartedAt time.Time
+	UpdatedAt time.Time
 	Session   planning.Session
 }
 
@@ -619,6 +620,7 @@ func (u *UI) startDiscovery(p project.Project, brief projectBrief) {
 	run := &discoveryRun{Status: "running", Stage: "starting", Detail: "preparing discovery", Model: model,
 		StartedAt: time.Now(), UpdatedAt: time.Now()}
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
+	pruneRuns(u.discRuns, maxRunHistory)
 	u.discRuns[p.ID] = run
 	u.discCancels[p.ID] = cancel
 	u.discMu.Unlock()
@@ -685,8 +687,10 @@ func (u *UI) startPlanning(p project.Project, brief projectBrief, option discove
 		u.planMu.Unlock()
 		return
 	}
-	run := &planRun{OptionID: option.ID, Status: "running", StartedAt: time.Now()}
+	now := time.Now()
+	run := &planRun{OptionID: option.ID, Status: "running", StartedAt: now, UpdatedAt: now}
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Minute)
+	pruneRuns(u.planRuns, maxRunHistory)
 	u.planRuns[p.ID] = run
 	u.planCancels[p.ID] = cancel
 	u.planMu.Unlock()
@@ -706,6 +710,7 @@ func (u *UI) startPlanning(p project.Project, brief projectBrief, option discove
 			delete(u.planCancels, p.ID)
 			u.planMu.Unlock()
 		}()
+		run.UpdatedAt = time.Now()
 		if err != nil {
 			run.Status = "failed"
 			run.Error = err.Error()

@@ -113,13 +113,15 @@ func (s *Server) Mux() *http.ServeMux { return s.mux }
 //     test escape hatch).
 //   - crossSiteMiddleware rejects a browser-marked cross-site request to a
 //     state-changing route (CSRF); it is always active.
+//   - bodyLimitMiddleware caps every request body so a local client cannot
+//     force unbounded allocation through a form or JSON decoder.
 //
 // The internal API (/internal/v1/) shares this mux and is wrapped by both,
 // but its callers are Job Pods and the CLI, which send neither Origin nor
 // Sec-Fetch-Site, so the cross-site guard is a no-op there; its own
 // bearer-token middleware (ADR-0008) remains the pod-facing defense.
 func (s *Server) Handler() http.Handler {
-	h := recoverMiddleware(s.crossSiteMiddleware(s.mux))
+	h := recoverMiddleware(s.crossSiteMiddleware(bodyLimitMiddleware(s.mux)))
 	if len(s.hostAllowlist.allowed) == 0 {
 		return h
 	}

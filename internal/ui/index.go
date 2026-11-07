@@ -44,6 +44,7 @@ func (u *UI) startIndex(p project.Project) {
 		u.indexMu.Unlock()
 		return
 	}
+	pruneRuns(u.indexRuns, maxRunHistory)
 	u.indexRuns[p.ID] = &indexRun{Status: "running", StartedAt: time.Now()}
 	u.indexMu.Unlock()
 

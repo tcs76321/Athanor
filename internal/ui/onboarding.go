@@ -339,6 +339,7 @@ func (u *UI) needsOnboarding(ctx context.Context) bool {
 // pullProgress is one model pull's live state.
 type pullProgress struct {
 	Status    string
+	StartedAt time.Time
 	Completed int64
 	Total     int64
 	Error     string
@@ -1195,7 +1196,8 @@ func (u *UI) startPull(model string) {
 		u.onboardMu.Unlock()
 		return
 	}
-	u.pulls[model] = &pullProgress{Status: "starting"}
+	pruneRuns(u.pulls, maxRunHistory)
+	u.pulls[model] = &pullProgress{Status: "starting", StartedAt: time.Now()}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 	u.pullCancels[model] = cancel
 	u.onboardMu.Unlock()

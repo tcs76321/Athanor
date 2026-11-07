@@ -3,8 +3,10 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -208,5 +210,27 @@ func TestContainerAddr(t *testing.T) {
 		if got != tc.want {
 			t.Errorf("ContainerAddr(%q) = %q, want %q", tc.in, got, tc.want)
 		}
+	}
+}
+
+func TestBodyLimitMiddlewareRejectsOversize(t *testing.T) {
+	srv := New("test-version")
+	srv.Register("/echo", func(w http.ResponseWriter, r *http.Request) {
+		if _, err := io.ReadAll(r.Body); err != nil {
+			http.Error(w, "body too large", http.StatusRequestEntityTooLarge)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	})
+	ts := disableAllowlistForTest(t, srv, httptest.NewServer(srv.Handler()))
+
+	body := strings.NewReader(strings.Repeat("x", maxRequestBodyBytes+1))
+	resp, err := http.Post(ts.URL+"/echo", "text/plain", body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusRequestEntityTooLarge {
+		t.Fatalf("status = %d, want 413", resp.StatusCode)
 	}
 }
