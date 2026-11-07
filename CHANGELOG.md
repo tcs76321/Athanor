@@ -51,10 +51,15 @@ New entries are appended at the top. Do not rewrite history.
   declare `steps:`; the runner executes them in one project, patches each
   step's check, and records per-step results plus `progress`. The
   `diag-sequence-memory` task and `make diagnostic-pair` are the first
-  checkpoint and paired-arm run shapes. First measured sequence: **full 0/3,
-  single 1/3** over three passes each; step 2's required heading is the common
-  failure. One single pass first looked like a 3/3 win, then two repeats failed
-  — a concrete reminder that one paired pass is not evidence.
+  checkpoint and paired-arm run shapes. After the Markdown contract was made
+  explicit, the full arm passed **3/3** on the sequence; the earlier failures
+  were unstated `#` headings, not missing content.
+- **Quality monotonicity** ([ADR-0117](docs/adr/0117-quality-monotonicity.md)):
+  when no candidate passes, synthesis now seeds from the **best-scoring**
+  candidate, not the last; a final hard-verifier failure falls back to a
+  candidate that passed or scored better. Extra compute may cost more; it must
+  not lower quality. The paired report flags any single→full quality
+  regression and shows the token multiple.
 
 ### Correctness, benchmark parity, and endurance — 2026-11-06
 

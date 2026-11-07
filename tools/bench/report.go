@@ -249,6 +249,80 @@ type heldOutRow struct {
 	Pass    int
 }
 
+type pairedRow struct {
+	Goal           string
+	SingleN        int
+	SinglePass     int
+	FullN          int
+	FullPass       int
+	Rescued        int
+	Regressed      int
+	SingleTokens   int
+	FullTokens     int
+	TokenMultiple  float64
+	QualityRegress bool
+}
+
+// pairedRows pairs the single and full arms by goal (any model/run within an
+// arm). It is the single-first gate: a task where single passes is saturated;
+// a task where single fails and full passes is a rescue; the reverse is a
+// regression. With multiple runs the counts are pass rates, not one sample.
+func pairedRows(metrics []jobMetrics) []pairedRow {
+	type pair struct{ sN, sP, fN, fP, sT, fT int }
+	pairs := map[string]*pair{}
+	for _, m := range metrics {
+		p := pairs[m.GoalName]
+		if p == nil {
+			p = &pair{}
+			pairs[m.GoalName] = p
+		}
+		switch m.Arm {
+		case "single":
+			p.sN++
+			p.sT += m.TokenCost
+			if jobPassed(m) {
+				p.sP++
+			}
+		case "full":
+			p.fN++
+			p.fT += m.TokenCost
+			if jobPassed(m) {
+				p.fP++
+			}
+		}
+	}
+	var out []pairedRow
+	for goal, p := range pairs {
+		if p.sN == 0 || p.fN == 0 {
+			continue
+		}
+		row := pairedRow{
+			Goal: goal, SingleN: p.sN, SinglePass: p.sP, FullN: p.fN, FullPass: p.fP,
+			SingleTokens: p.sT, FullTokens: p.fT,
+		}
+		if p.sP == 0 && p.fP > 0 {
+			row.Rescued = 1
+		}
+		if p.sP*maxInt(p.fN, 1) > p.fP*maxInt(p.sN, 1) {
+			row.Regressed = 1
+			row.QualityRegress = true
+		}
+		if p.sT > 0 {
+			row.TokenMultiple = float64(p.fT) / float64(p.sT)
+		}
+		out = append(out, row)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Goal < out[j].Goal })
+	return out
+}
+
+func maxInt(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}
+
 type sequenceReportRow struct {
 	Goal     string
 	Arm      string
@@ -463,6 +537,21 @@ func renderReport(metrics []jobMetrics) string {
 		fmt.Fprintf(&b, "\n**Saturated:** %d/%d completed rows were first-pass successes "+
 			"(no repair, reflection, replan, or observation). They are ranking rows, "+
 			"not evidence for the iterative loop (ADR-0116).\n", sat, total)
+	}
+	if pairs := pairedRows(metrics); len(pairs) > 0 {
+		b.WriteString("\n## Paired control — single-first gate\n\n")
+		b.WriteString("A task is allowed to stay one-shot when the single arm passes. " +
+			"`rescued` means single failed and full passed; `regressed` means the reverse.\n\n")
+		b.WriteString("| goal | single | full | rescued | regressed | tokens single→full | quality |\n|---|---|---|---|---|---|---|\n")
+		for _, p := range pairs {
+			quality := "ok"
+			if p.QualityRegress {
+				quality = "**regression**"
+			}
+			fmt.Fprintf(&b, "| %s | %d/%d | %d/%d | %d | %d | %d→%d (%.1fx) | %s |\n",
+				p.Goal, p.SinglePass, p.SingleN, p.FullPass, p.FullN,
+				p.Rescued, p.Regressed, p.SingleTokens, p.FullTokens, p.TokenMultiple, quality)
+		}
 	}
 
 	b.WriteString("\n## Corpus — held-out vs tuning\n\n")

@@ -126,6 +126,36 @@ func TestSaturatedFirstPass(t *testing.T) {
 	}
 }
 
+func TestPairedRows(t *testing.T) {
+	pass := true
+	fail := false
+	rows := []jobMetrics{
+		{GoalName: "same", Arm: "single", State: "completed", Winner: "new", CheckPass: &pass, TokenCost: 100},
+		{GoalName: "same", Arm: "full", State: "completed", Winner: "new", CheckPass: &pass, TokenCost: 300},
+		{GoalName: "regressed", Arm: "single", State: "completed", Winner: "new", CheckPass: &pass, TokenCost: 100},
+		{GoalName: "regressed", Arm: "full", State: "completed", Winner: "none", CheckPass: &fail, TokenCost: 300},
+	}
+	got := pairedRows(rows)
+	if len(got) != 2 {
+		t.Fatalf("pairs = %+v", got)
+	}
+	byGoal := map[string]pairedRow{}
+	for _, p := range got {
+		byGoal[p.Goal] = p
+	}
+	same := byGoal["same"]
+	if same.SinglePass != 1 || same.FullPass != 1 || same.QualityRegress {
+		t.Fatalf("same = %+v", same)
+	}
+	if same.TokenMultiple < 2.9 || same.TokenMultiple > 3.1 {
+		t.Fatalf("token multiple = %v, want ~3", same.TokenMultiple)
+	}
+	reg := byGoal["regressed"]
+	if !reg.QualityRegress || reg.Regressed != 1 {
+		t.Fatalf("regressed = %+v", reg)
+	}
+}
+
 func TestSequenceRows(t *testing.T) {
 	rows := []jobMetrics{
 		{GoalName: "seq", Arm: "full", Progress: 0.66, Sequence: []sequenceStep{{}, {}, {}}},

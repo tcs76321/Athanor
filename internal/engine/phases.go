@@ -20,6 +20,7 @@ import (
 	"github.com/tcs76321/athanor/internal/policy"
 	"github.com/tcs76321/athanor/internal/project"
 	"github.com/tcs76321/athanor/internal/prompt"
+	"github.com/tcs76321/athanor/internal/verify"
 )
 
 // tierNames renders tiers for audit rows, ascending, nil-safe.
@@ -637,7 +638,44 @@ func (e *Engine) bestPassingCandidate(ctx context.Context, j job.Job) (artifact.
 	if chosen != nil {
 		return *chosen, true, nil
 	}
+	// No candidate passed. Start synthesis from the BEST-scoring candidate,
+	// not the last one: with multiple candidates the last is arbitrary, and
+	// letting it seed synthesis can make the full loop deliver a worse
+	// artifact than a one-shot arm (ADR-0117).
+	var best *artifact.Artifact
+	bestScore := 0.0
+	for i := range candidates {
+		candidateScore, ok := score[candidates[i].ID]
+		if !ok {
+			continue
+		}
+		if best == nil || candidateScore > bestScore {
+			c := candidates[i]
+			best = &c
+			bestScore = candidateScore
+		}
+	}
+	if best != nil {
+		return *best, false, nil
+	}
 	return candidates[len(candidates)-1], false, nil
+}
+
+// shouldFallbackToCandidate implements the ADR-0117 monotonicity rule: a
+// synthesis rewrite must never be worse than its source candidate. A passing
+// candidate is always kept on a final hard failure; a non-passing candidate is
+// kept only when it also passed or scored higher than the rewrite.
+func shouldFallbackToCandidate(wasPassing bool, final, candidate verify.Result) bool {
+	if wasPassing {
+		return true
+	}
+	if !final.HardDecisive() || final.HardPassed {
+		return false
+	}
+	if candidate.HardDecisive() && candidate.HardPassed {
+		return true
+	}
+	return candidate.Score > final.Score
 }
 
 // phaseSynthesize (§13.1 Phase 5): main persona refines the persisted
@@ -693,14 +731,22 @@ func (e *Engine) phaseSynthesize(ctx context.Context, j job.Job) error {
 	// checks, data schema), not only code: the v2 trace showed a text job
 	// whose passing candidate was rewritten into a final that failed a
 	// declared check, ending `failed` while the external check passed.
-	if passed {
-		if ver, _, verr := e.verifyCandidate(ctx, j, p, t, content, 0); verr == nil {
-			e.auditVerification(ctx, j.ID, "final", ver)
-			if ver.HardDecisive() && !ver.HardPassed {
+	if ver, _, verr := e.verifyCandidate(ctx, j, p, t, content, 0); verr == nil {
+		e.auditVerification(ctx, j.ID, "final", ver)
+		if ver.HardDecisive() && !ver.HardPassed {
+			fallback := passed
+			reason := "source candidate passed the verifier"
+			if !fallback {
+				if candVer, _, cerr := e.verifyCandidate(ctx, j, p, t, string(candidateContent), 0); cerr == nil {
+					fallback = shouldFallbackToCandidate(false, ver, candVer)
+					reason = "source candidate scored better than the synthesis"
+				}
+			}
+			if fallback {
 				content = string(candidateContent)
 				e.audit(ctx, j.ID, map[string]any{
 					"event": "synthesis_fallback_to_candidate", "candidate_id": candidate.ID,
-					"archetype": capability,
+					"archetype": capability, "reason": reason,
 				})
 			}
 		}
