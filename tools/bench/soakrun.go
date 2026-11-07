@@ -385,6 +385,15 @@ func (c *soakRunConfig) run() error {
 	}
 	logEvent("conformance: %d passed, %d skipped, %d failed", passed, skipped, len(scenarios)-passed-skipped)
 
+	// Finalize run metadata before rendering the report so its header reflects
+	// the same completion state as the marker, not the pre-completion snapshot.
+	meta.Complete = !interrupted.Load()
+	meta.CompletedAt = time.Now().UTC().Format(time.RFC3339)
+	meta.Rows = len(prior)
+	meta.Passes = pass
+	if err := writeRunMeta(c.outDir, meta); err != nil {
+		return fmt.Errorf("writing run metadata: %w", err)
+	}
 	if err := writeRollingReport(c.outDir, prior); err != nil {
 		return err
 	}
@@ -400,13 +409,6 @@ func (c *soakRunConfig) run() error {
 		_ = os.Remove(filepath.Join(c.outDir, "complete"))
 	} else if err := writeComplete(c.outDir, len(prior), pass); err != nil {
 		return err
-	}
-	meta.Complete = !interrupted.Load()
-	meta.CompletedAt = time.Now().UTC().Format(time.RFC3339)
-	meta.Rows = len(prior)
-	meta.Passes = pass
-	if err := writeRunMeta(c.outDir, meta); err != nil {
-		return fmt.Errorf("writing run metadata: %w", err)
 	}
 	logEvent("soak end: %s; %d rows, %d passes", reason, len(prior), pass)
 	return nil
