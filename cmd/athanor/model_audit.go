@@ -106,6 +106,36 @@ func runModelAudit(ctx context.Context, cfg *config.Config, probes *osProbes, ho
 		audit.Roles = append(audit.Roles, entry)
 	}
 	audit.Resident = residentModels(ctx, probes, baseURL)
+	// Capacity is derived from the measured roles. The Podman VM size is not
+	// measured here, so CapacityReport assumes the host budget and labels the
+	// result; the Core Pod passes its own runtime budget when it starts.
+	perPod := int64(0)
+	if cfg != nil && cfg.JobPod.MemoryMB > 0 {
+		perPod = int64(cfg.JobPod.MemoryMB) << 20
+	}
+	embedBytes := int64(0)
+	embedModel := ""
+	if cfg != nil {
+		embedModel = cfg.ContextEngine.MemoryEmbeddingModel
+		if embedModel != "" {
+			embedBytes = 300 << 20 // nomic-class embedding model
+		}
+	}
+	maxJobs, maxLLM := 1, 1
+	podman := false
+	jobPodImage := ""
+	if cfg != nil {
+		maxJobs = cfg.Limits.MaxConcurrentJobs
+		maxLLM = cfg.Limits.MaxConcurrentLLMCalls
+		jobPodImage = cfg.JobPod.Image
+		podman = jobPodImage != ""
+	}
+	audit.Capacity = ptr(onboard.CapacityReport(audit, onboard.CapacityOptions{
+		CoreReserveBytes: 1 << 30, PerPodBytes: perPod, MaxJobs: maxJobs,
+		MaxLLMCalls: maxLLM, Podman: podman, JobPodImage: jobPodImage,
+		EmbeddingModel: embedModel, EmbeddingBytes: embedBytes,
+		RepoScratchBytes: 2 << 30,
+	}))
 	return audit, nil
 }
 
@@ -340,6 +370,23 @@ func printModelAudit(a onboard.Audit) {
 	if len(a.Resident) > 1 {
 		fmt.Printf("resident at end: %s\n", strings.Join(a.Resident, ", "))
 	}
+	if c := a.Capacity; c != nil {
+		solo := "none"
+		if c.Solo != nil {
+			solo = fmt.Sprintf("%s@%d", c.Solo.Model, c.Solo.Context)
+		}
+		fmt.Printf("capacity: solo=%s", solo)
+		if c.SwarmPods != nil {
+			fmt.Printf(" pods=%d×%d", c.SwarmPods.Slots, c.SwarmPods.Context)
+		}
+		if c.SwarmLight != nil {
+			fmt.Printf(" light=%d×%d", c.SwarmLight.Slots, c.SwarmLight.Context)
+		}
+		fmt.Println()
+		for _, r := range c.Reasons {
+			fmt.Printf("  %-5s %s: %s\n", r.Severity, r.Code, r.Detail)
+		}
+	}
 }
 
 func auditOutPath(configPath, explicit string) string {
@@ -373,3 +420,5 @@ func unloadConfiguredModels(ctx context.Context, cfg *config.Config) {
 		}
 	}
 }
+
+func ptr[T any](v T) *T { return &v }
