@@ -48,8 +48,8 @@ func TestRefineParsesStructuredProposal(t *testing.T) {
 	if !strings.Contains(gen.system, "Never invent facts") {
 		t.Fatalf("system prompt = %q", gen.system)
 	}
-	if !strings.Contains(gen.system, "generic adjectives") || !strings.Contains(gen.system, "already the ideal version") {
-		t.Fatalf("system prompt lost the conservative rules: %q", gen.system)
+	if !strings.Contains(gen.system, "generic adjectives") || !strings.Contains(gen.system, "Improvement is the default") {
+		t.Fatalf("system prompt lost the editing principles: %q", gen.system)
 	}
 }
 
@@ -109,8 +109,8 @@ func TestRefineMarksIdealTextUnchanged(t *testing.T) {
 	if res.Text != text {
 		t.Fatalf("unchanged text = %q, want the original", res.Text)
 	}
-	if !strings.Contains(gen.system, "already the ideal version") {
-		t.Fatalf("system prompt does not ask for the ideal check: %q", gen.system)
+	if !strings.Contains(gen.system, "Improvement is the default") {
+		t.Fatalf("system prompt does not make improvement the default: %q", gen.system)
 	}
 }
 
@@ -216,6 +216,59 @@ func TestProofreadModeHasStrictContract(t *testing.T) {
 	}
 }
 
+func TestRefineForcesImprovementWhenFirstPassEchoes(t *testing.T) {
+	const text = "Build a small todo app"
+	gen := &fakeGen{outs: []string{
+		`{"text":"Build a small todo app","unchanged":true}`,
+		`{"text":"Build a small local todo app with add, complete, and remove flows, and a passing test for each.","notes":["made the outcome and scope concrete"],"added_assumptions":["the first version is local and single-user"]}`,
+	}}
+	res, err := New(gen).Refine(context.Background(), "project.goal", text, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Unchanged || !strings.Contains(res.Text, "add, complete, and remove") {
+		t.Fatalf("forced improvement = %+v", res)
+	}
+	if !strings.Contains(gen.user, "OPERATOR ACTION") {
+		t.Fatalf("forced prompt missing operator action: %q", gen.user)
+	}
+}
+
+func TestRefineContextReachesPrompt(t *testing.T) {
+	gen := &fakeGen{out: `{"text":"Build a tested CSV parser for the importer.","notes":["used the repository context"]}`}
+	res, err := New(gen).RefineContext(context.Background(), "project.goal", "build a csv parser", "", Context{
+		ProjectName:    "importer",
+		RepositoryPath: "/Users/me/athanor/repos/importer",
+		Runtime:        "Core Pod",
+		Version:        "0.0.0-dev",
+		Fields:         map[string]string{"criteria": "pytest passes"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Text == "" {
+		t.Fatal("empty result")
+	}
+	for _, want := range []string{"ATHANOR CONTEXT", "project name: importer", "form field criteria: pytest passes", "runtime: Core Pod"} {
+		if !strings.Contains(gen.user, want) {
+			t.Errorf("prompt missing %q: %q", want, gen.user)
+		}
+	}
+}
+
+func TestRefineBlankExplainsWhyItNeedsInput(t *testing.T) {
+	gen := &fakeGen{out: `{"text":"ignored"}`}
+	res, err := New(gen).Refine(context.Background(), "project.goal", "   ", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !res.NeedsClarification || len(res.Questions) == 0 || len(res.Notes) == 0 {
+		t.Fatalf("blank result = %+v", res)
+	}
+	if gen.called {
+		t.Fatal("blank field spent a model call")
+	}
+}
 func TestRefineRejectsRunawayOutput(t *testing.T) {
 	s := New(&fakeGen{out: strings.Repeat("long ", 6000)})
 	if _, err := s.Refine(context.Background(), "project.goal", "short", ""); err == nil {

@@ -523,6 +523,23 @@
   document.addEventListener("htmx:sendError", () => toast("Network error", "bad"));
 
   /* ---------- field refinement ---------- */
+  function refineProjectID() {
+    const m = location.pathname.match(/^\/ui\/projects\/([^/]+)/);
+    return m && m[1] !== "new" ? decodeURIComponent(m[1]) : "";
+  }
+
+  function refineContext(field) {
+    const context = {};
+    const form = field.closest("form");
+    if (!form) return context;
+    form.querySelectorAll("input, textarea, select").forEach((el) => {
+      if (el === field || !el.name || el.type === "password" || el.type === "file") return;
+      const value = String(el.value || "").trim();
+      if (value) context[el.name] = value.slice(0, 2000);
+    });
+    return context;
+  }
+
   function wireRefiners() {
     $$("[data-refine-field]").forEach((field) => {
       if (field.dataset.refineReady) return;
@@ -572,6 +589,8 @@
               field: field.dataset.refineField,
               text,
               mode: field.dataset.refineMode || "improve",
+              project_id: refineProjectID(),
+              context: refineContext(field),
             }),
           });
           const data = await resp.json().catch(() => ({}));
@@ -590,7 +609,8 @@
             hint.textContent = "Answer in the field, then press ✨ again.";
             questions.replaceChildren(title, list, hint);
             questions.hidden = false;
-            status.textContent = "Needs clarification — answer the questions, then refine again.";
+            const why = (data.notes || []).join(" · ");
+            status.textContent = why || "Needs clarification — answer the questions, then refine again.";
             status.classList.add("warn");
             field.focus();
             toast("Athanor needs a bit more — see the questions.");

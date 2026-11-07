@@ -56,6 +56,42 @@ func TestAssistHandler(t *testing.T) {
 	}
 }
 
+type contextFakeAssist struct {
+	fakeAssist
+	gotContext assist.Context
+}
+
+func (f *contextFakeAssist) RefineContext(ctx context.Context, field, text, mode string, ac assist.Context) (assist.Result, error) {
+	f.gotField, f.gotText, f.gotMode = field, text, mode
+	f.gotContext = ac
+	return f.result, f.err
+}
+
+func TestAssistHandlerPassesFormAndSystemContext(t *testing.T) {
+	fa := &contextFakeAssist{fakeAssist: fakeAssist{result: assist.Result{Text: "A refined goal."}}}
+	u := New(Deps{Assist: fa, Runtime: "Core Pod", Version: "9.9.9"})
+	mux := http.NewServeMux()
+	u.Register(mux)
+	ts := httptest.NewServer(mux)
+	t.Cleanup(ts.Close)
+
+	body := strings.NewReader(`{"field":"project.goal","text":"build a csv parser","context":{"name":"importer","criteria":"pytest passes"}}`)
+	resp, err := http.Post(ts.URL+"/ui/assist", "application/json", body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d", resp.StatusCode)
+	}
+	if fa.gotContext.Fields["name"] != "importer" || fa.gotContext.Fields["criteria"] != "pytest passes" {
+		t.Fatalf("context = %+v", fa.gotContext)
+	}
+	if fa.gotContext.Runtime != "Core Pod" || fa.gotContext.Version != "9.9.9" {
+		t.Fatalf("system context = %+v", fa.gotContext)
+	}
+}
+
 func TestAssistHandlerRejectsBadJSON(t *testing.T) {
 	u := New(Deps{Assist: &fakeAssist{}})
 	mux := http.NewServeMux()

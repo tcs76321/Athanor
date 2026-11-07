@@ -91,6 +91,28 @@ The editor now treats clarification as a **budgeted exception**, not the default
 This preserves the “never guess” rule without turning the wand into a
 clarification trap.
 
+## Amendment (2026-11-06, second)
+
+The refinement button drifted into a no-op: the prompt asked the model to
+return the text unchanged whenever it looked “ideal,” so local models did so
+almost every time. The editor now treats **improvement as the default for a
+usable non-empty field**:
+
+- The system prompt asks for a materially improved version: sharpen the
+  outcome, make scope concrete, remove filler, and add one level of
+  specificity. Returning the original is reserved for text already at its
+  field limit with every sentence load-bearing.
+- If the first response still echoes the original, the service makes one
+  explicit **forced-improvement** pass at a slightly higher temperature. If
+  that also echoes, the field is left unchanged with a note.
+- Clarification remains for blank or genuinely unusable drafts; blank fields
+  return the field-specific questions plus an explicit empty-field note and
+  spend no model call.
+- The request carries Athanor context: project name, goal, capabilities,
+  repository path, priority, existing criteria, runtime, version, and the
+  sibling form values. The prompt labels this as data, never instructions, and
+  forbids copying internal paths/ids into the field text.
+
 ## Open questions
 
 - Should accepted rewrites be attributed to the editor model in the strategy

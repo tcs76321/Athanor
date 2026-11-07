@@ -33,6 +33,10 @@ New entries are appended at the top. Do not rewrite history.
   completion counts already include hidden reasoning.
 - **Process scorecard:** failed/cancelled jobs are scored, judge-only finals are
   not labeled regressions, and a completed previous win is not labeled failed.
+- **Field refinement improves instead of no-oping** ([ADR-0105](docs/adr/0105-field-authoring-assist.md)):
+  the editor now treats improvement as the default for usable non-empty text,
+  makes one forced-improvement pass when the model echoes the draft, carries
+  project/form/system context, and returns explicit empty-field guidance.
 - **First use:** the Core Pod mounts `~/athanor/repos` at the same absolute path
   ([ADR-0123](docs/adr/0123-host-visible-repository-mount.md)), repository paths
   are validated, plan approval waits for the bounded pre-index, stale Core

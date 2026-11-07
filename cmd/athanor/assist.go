@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/tcs76321/athanor/internal/composition"
@@ -44,13 +45,20 @@ func (g *assistGenerator) Generate(ctx context.Context, system, user string) (st
 	if len(user) > 4000 {
 		maxTokens = 4000
 	}
+	temperature := 0.2
+	if strings.Contains(user, "OPERATOR ACTION") {
+		// The forced pass exists because the model echoed the original. A
+		// little more sampling freedom helps it produce a real revision while
+		// JSON mode keeps the shape stable.
+		temperature = 0.5
+	}
 	resp, err := g.client.Chat(ctx, llm.Request{
 		Model: model,
 		Messages: []llm.Message{
 			{Role: "system", Content: system},
 			{Role: "user", Content: user},
 		},
-		Temperature:   0.2,
+		Temperature:   temperature,
 		ContextTarget: contextTarget,
 		Format:        "json",
 		MaxTokens:     maxTokens,
