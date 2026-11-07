@@ -219,7 +219,7 @@ func notebookSection(lines []string) string {
 		return ""
 	}
 	var b strings.Builder
-	b.WriteString("WORKING NOTES (persistent; recorded by earlier phases)\n")
+	b.WriteString("WORKING NOTES (persistent; recorded by earlier phases; a later plan supersedes an earlier one when they conflict)\n")
 	for _, line := range lines {
 		if strings.TrimSpace(line) == "" {
 			continue

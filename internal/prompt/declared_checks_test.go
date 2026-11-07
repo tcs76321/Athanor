@@ -51,6 +51,7 @@ func TestNotebookIsPinnedAndRendered(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !strings.Contains(res.Text, "WORKING NOTES") ||
+		!strings.Contains(res.Text, "a later plan supersedes") ||
 		!strings.Contains(res.Text, "write an outline") ||
 		!strings.Contains(res.Text, "candidate 1 failed") {
 		t.Fatalf("notebook missing from prompt:\n%s", res.Text)

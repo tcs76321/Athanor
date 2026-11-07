@@ -258,6 +258,13 @@ func (e *Engine) phaseReflect(ctx context.Context, j job.Job) error {
 		"proposal":   truncateForEvent(resp.Content, 1024),
 	})
 	e.note(ctx, j.ID, p.ID, notebook.KindObservation, "reflecting", resp.Content)
+	if decision.Decision == regulator.Reframe {
+		// ADR-0115: a reframe is a plan revision, not just an observation.
+		// Record it as the latest plan so the next divergence reads it as
+		// the current approach (later plan entries supersede earlier ones).
+		e.note(ctx, j.ID, p.ID, notebook.KindPlan, "replanning", resp.Content)
+		e.audit(ctx, j.ID, map[string]any{"event": "replanned", "reason": decision.Reason})
+	}
 
 	// H1: persist the proposal so phaseDivergeN can inject it into the next
 	// divergence pass. The regulator directive leads it, so a refine or

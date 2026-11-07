@@ -35,6 +35,9 @@ New entries are appended at the top. Do not rewrite history.
 - **Job-summary memory** ([ADR-0114](docs/adr/0114-job-summary-memory.md)):
   a completed job writes a bounded deterministic memo into project memory; the
   existing tier-5 retrieval can find it for the next job.
+- **Reframe as replanning** ([ADR-0115](docs/adr/0115-replanning-in-notebook.md)):
+  a regulator reframe appends a revised plan to the notebook; later plan
+  entries supersede earlier ones.
 
 ### Correctness, benchmark parity, and endurance — 2026-11-06
 
