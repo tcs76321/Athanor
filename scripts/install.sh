@@ -16,14 +16,16 @@ CONTAINER="${CONTAINER:-athanor-core}"
 INSTALL_SERVICE=0
 HOST_MODE=0
 NO_BUILD=0
+FORCE_BUILD=0
 NO_OPEN=0
 for arg in "$@"; do
     case "$arg" in
         --service) INSTALL_SERVICE=1 ;;
         --host) HOST_MODE=1 ;;
         --no-build) NO_BUILD=1 ;;
+        --rebuild) FORCE_BUILD=1 ;;
         --no-open) NO_OPEN=1 ;;
-        *) echo "usage: $0 [--service] [--host] [--no-build] [--no-open]" >&2; exit 2 ;;
+        *) echo "usage: $0 [--service] [--host] [--no-build] [--rebuild] [--no-open]" >&2; exit 2 ;;
     esac
 done
 
@@ -108,10 +110,10 @@ fi
 
 # 2. Build the images if missing (skip with --no-build).
 if [ "$NO_BUILD" = "0" ]; then
-    if ! podman image exists "$JOBPOD_IMAGE"; then
+    if [ "$FORCE_BUILD" = "1" ] || ! podman image exists "$JOBPOD_IMAGE"; then
         ( cd "$ROOT" && make jobpod-image )
     fi
-    if ! podman image exists "$CORE_IMAGE"; then
+    if [ "$FORCE_BUILD" = "1" ] || ! podman image exists "$CORE_IMAGE"; then
         ( cd "$ROOT" && make core-image )
     fi
 fi
