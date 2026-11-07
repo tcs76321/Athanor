@@ -321,6 +321,17 @@ const runtimeBody = inspectTabs + `
   <div class="card stat"><div class="n">{{.Counts.Quarantined}}</div><div class="l">quarantined files</div></div>
 </div>
 
+{{if .Capacity}}
+<h2>Capacity</h2>
+<div class="card"><dl class="kv">
+  <dt>solo plan</dt><dd class="mono">{{.Capacity.Solo}}</dd>
+  <dt>pod swarm</dt><dd class="mono">{{.Capacity.Pods}}</dd>
+  <dt>light swarm</dt><dd class="mono">{{.Capacity.Light}}</dd>
+  <dt>coverage</dt><dd>{{.Capacity.Coverage}}</dd>
+</dl></div>
+{{if .Capacity.Reasons}}<ul class="muted">{{range .Capacity.Reasons}}<li><strong>{{.Code}}</strong> ({{.Severity}}): {{.Detail}}</li>{{end}}</ul>{{end}}
+{{end}}
+
 <h2>Personas</h2>
 {{if .Personas}}
 <table><thead><tr><th>Role</th><th>Model</th><th>Family</th><th>Context target</th></tr></thead><tbody>

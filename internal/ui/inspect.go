@@ -523,6 +523,7 @@ func (u *UI) handleRuntime(w http.ResponseWriter, r *http.Request) {
 		"Alarms": alarms, "Decisions": decisions, "Counts": counts,
 		"State": state, "Quarantine": quarantine, "Config": u.deps.Config,
 		"ConfigPath": configPath(u.deps.Config), "Tab": "runtime",
+		"Capacity": u.capacityView(),
 	})
 }
 
