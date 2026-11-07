@@ -123,8 +123,10 @@ func languageFromCommand(cmd string) string {
 		return LanguageRust
 	case strings.Contains(c, "go test") || strings.Contains(c, "go build"):
 		return LanguageGo
-	case strings.Contains(c, "pytest") || strings.Contains(c, "python -m unittest") ||
-		strings.Contains(c, "python -m pytest"):
+	case strings.Contains(c, "pytest") || strings.Contains(c, "python"):
+		// `python -c`, `python script.py`, `python -m unittest`, and
+		// `python -m pytest` are all Python execution. The previous
+		// narrower match sent `python -c` down the multi-file path.
 		return LanguagePython
 	case strings.Contains(c, "npm test") || strings.Contains(c, "yarn test") ||
 		strings.Contains(c, "pnpm test") || strings.Contains(c, "jest"):

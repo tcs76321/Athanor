@@ -14,6 +14,8 @@ func TestDetectLanguageFromCommand(t *testing.T) {
 		{"go test ./...", LanguageGo},
 		{"pytest -q", LanguagePython},
 		{"python -m pytest", LanguagePython},
+		{"python -c 'import solution'", LanguagePython},
+		{"python solution.py", LanguagePython},
 		{"cargo test", LanguageRust},
 		{"npm test", LanguageJavaScript},
 		{"mvn -q test", LanguageJava},
