@@ -290,7 +290,7 @@ func run(configPath, addr, stateDir string, container bool) error {
 		llmClient,
 		registry,
 		killSwitch,
-		operator.Ceiling{Controller: opCtrl, Base: power.Ceiling{Manager: powerMgr, Jobs: cfg.Limits.MaxConcurrentJobs}},
+		operator.Ceiling{Controller: opCtrl, Base: power.Ceiling{Manager: powerMgr, Jobs: cfg.Limits.MaxConcurrentJobs, AllowInteractive: cfg.Limits.AllowInteractiveConcurrency}},
 		// M2-T4: the engine's window onto the internal API.
 		// It authenticates each call with the per-job bearer
 		// token retrieved from the Job Pod manager, so the

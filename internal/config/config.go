@@ -816,6 +816,11 @@ type Limits struct {
 	MaxConcurrentFetches     int `yaml:"max_concurrent_fetches"`
 	MaxTasksPerHour          int `yaml:"max_tasks_per_hour"`
 	MaxTotalRecoveriesPerJob int `yaml:"max_total_recoveries_per_job"`
+	// AllowInteractiveConcurrency lets the interactive power profile use the
+	// operator ceiling instead of throttling to one job. It is off by default:
+	// a foreground user should not compete with a swarm. Autonomous work
+	// already uses the ceiling.
+	AllowInteractiveConcurrency bool `yaml:"allow_interactive_concurrency"`
 }
 
 // Recovery bounds retry behavior.

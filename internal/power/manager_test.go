@@ -173,3 +173,18 @@ func TestCeilingRespectsInteractiveAndOperatorMax(t *testing.T) {
 		t.Errorf("unset ceiling = %d, want 1", got)
 	}
 }
+
+func TestCeilingAllowInteractive(t *testing.T) {
+	pm := NewPowerManager(nil)
+	pm.SetProfile(ProfileInteractive)
+	if got := (Ceiling{Manager: pm, Jobs: 3}).MaxConcurrentJobs(); got != 1 {
+		t.Errorf("interactive default = %d, want 1", got)
+	}
+	if got := (Ceiling{Manager: pm, Jobs: 3, AllowInteractive: true}).MaxConcurrentJobs(); got != 3 {
+		t.Errorf("interactive override = %d, want 3", got)
+	}
+	pm.SetProfile(ProfileAutonomous)
+	if got := (Ceiling{Manager: pm, Jobs: 3}).MaxConcurrentJobs(); got != 3 {
+		t.Errorf("autonomous = %d, want 3", got)
+	}
+}

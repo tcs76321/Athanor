@@ -272,6 +272,10 @@ limits:
   # throttles back to one job. Keep max_concurrent_llm_calls low enough for
   # one resident Ollama model.
   max_concurrent_jobs: 1
+  # Let the interactive power profile use max_concurrent_jobs instead of
+  # throttling to one job. Off by default: a foreground user should not
+  # compete with a swarm. Autonomous work already uses the ceiling.
+  allow_interactive_concurrency: false
   # Concurrent chat/embedding calls. Keep at 1 for a single-GPU/small-RAM host
   # so one model stays resident and its context can be used fully. Raise only
   # when OLLAMA_MAX_LOADED_MODELS / NUM_PARALLEL and RAM allow it.

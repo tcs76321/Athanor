@@ -227,11 +227,17 @@ func (pm *PowerManager) MaxConcurrentJobs() int {
 type Ceiling struct {
 	Manager *PowerManager
 	Jobs    int
+	// AllowInteractive lets the interactive profile use Jobs instead of
+	// throttling to one job. Autonomous work already uses Jobs.
+	AllowInteractive bool
 }
 
 func (c Ceiling) MaxConcurrentJobs() int {
 	if c.Jobs < 1 {
 		return 1
+	}
+	if c.AllowInteractive {
+		return c.Jobs
 	}
 	// Only the autonomous profile may use the operator's full ceiling;
 	// every other profile (interactive, paused, or an unknown value) is
