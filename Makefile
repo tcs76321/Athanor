@@ -15,7 +15,7 @@ export CGO_ENABLED
 # tag-less binary can never silently run.
 GO_TAGS = -tags sqlite_fts5
 
-.PHONY: build release test test-race test-integration integration-images vet lint check vuln tidy tidy-check fuzz cover cover-check run clean hooks bench probe-micro probe probe-judge probe-anchor probe-report probe-bundle probe-reconcile probe-measure jobpod-image jobpod-polyglot-image core-image core-smoke bench-core-focused install soak soak-mini soak-ladder diagnostic
+.PHONY: build release test test-race test-integration integration-images vet lint check vuln tidy tidy-check fuzz cover cover-check run clean hooks bench probe-micro probe probe-judge probe-anchor probe-report probe-bundle probe-reconcile probe-measure jobpod-image jobpod-polyglot-image core-image core-smoke bench-core-focused install soak soak-mini soak-ladder diagnostic diagnostic-pair
 
 build:
 	go build $(GO_TAGS) -o bin/athanor ./cmd/athanor
@@ -148,10 +148,19 @@ corpus-digest-v2:
 # benchmark: it exists to observe the notebook, replanning, observation,
 # clarification, and memory-write counters on tasks that need iteration.
 DIAGNOSTIC_OUT  ?= tools/bench/results/diagnostic
-DIAGNOSTIC_ONLY ?= diag-layered-code,diag-structured-brief,diag-contradiction-brief
+DIAGNOSTIC_ONLY ?= diag-layered-code,diag-structured-brief,diag-contradiction-brief,diag-sequence-memory
+DIAGNOSTIC_ARM  ?= full
 diagnostic:
 	$(MAKE) soak-mini MINI_SOAK_CORPUS=eval/diagnostic/tasks.yaml \
+		MINI_SOAK_ARM=$(DIAGNOSTIC_ARM) \
 		MINI_SOAK_ONLY=$(DIAGNOSTIC_ONLY) MINI_SOAK_OUT=$(DIAGNOSTIC_OUT)
+
+# Paired control: the same diagnostic once with the full loop and once with a
+# single-shot arm. Compare per-task deltas, not the aggregate alone.
+diagnostic-pair:
+	$(MAKE) diagnostic DIAGNOSTIC_ARM=full DIAGNOSTIC_OUT=$(DIAGNOSTIC_OUT)/full
+	$(MAKE) diagnostic DIAGNOSTIC_ARM=single DIAGNOSTIC_OUT=$(DIAGNOSTIC_OUT)/single
+	$(MAKE) probe-report PROBE_OUT=$(DIAGNOSTIC_OUT)
 
 SOAK_SMOKE_OUT  ?= tools/bench/results/smoke
 SOAK_SMOKE_ONLY ?= code-bank-atomic,code-expr-eval,x-code-interpreter,doc-cited-brief,text-level-rewrite,data-json-normalize

@@ -31,6 +31,21 @@ type corpusTask struct {
 	HeldOut       bool           `yaml:"held_out"`
 	ContextDemand string         `yaml:"context_demand"`
 	Category      string         `yaml:"category"`
+	// Steps turns the task into a multi-goal sequence in one project
+	// (ADR-0116): each step is submitted only after the previous one reaches
+	// a terminal state. The top-level Goal is the sequence description; a
+	// step supplies its own goal/criteria/check.
+	Steps []corpusStep `yaml:"steps"`
+}
+
+// corpusStep is one goal in a sequence. It is intentionally a small subset:
+// goal, criteria, and the deterministic check (test command or declared
+// checks).
+type corpusStep struct {
+	Goal        string         `yaml:"goal"`
+	Criteria    []string       `yaml:"criteria"`
+	TestCommand string         `yaml:"test_command"`
+	Checks      map[string]any `yaml:"checks"`
 }
 
 // indexSummary mirrors the daemon's IndexSummary JSON (M8-T19).
@@ -97,6 +112,17 @@ func normalizeCorpusPaths(root string, t *corpusTask) {
 	}
 }
 
+func convertSteps(in []corpusStep) []sampleStep {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]sampleStep, 0, len(in))
+	for _, s := range in {
+		out = append(out, sampleStep(s))
+	}
+	return out
+}
+
 // loadCorpus reads a bench corpus and converts it to probe goals. Number is
 // the 1-based position (the probe's stable ordering); Source records the tier
 // ("bench:H" etc.) so reports can group by difficulty.
@@ -133,6 +159,7 @@ func loadCorpus(path string) ([]sampleGoal, error) {
 			HeldOut:       t.HeldOut,
 			ContextDemand: t.ContextDemand,
 			Category:      t.Category,
+			Steps:         convertSteps(t.Steps),
 		})
 	}
 	return out, nil

@@ -23,6 +23,7 @@ when the loop's distinctive mechanisms matter, do they run, and do they help?
 | `diag-layered-code` | code | multi-condition validation, a shared failure path, self-refine and optional file observation |
 | `diag-structured-brief` | document | exact headings/order/word limit, declared checks, notebook-carried limits |
 | `diag-contradiction-brief` | document | contradictory source handling, required sections, no invented source |
+| `diag-sequence-memory` | document | **three dependent goals in one project**; later steps must preserve the option chosen in step 1; `progress` and per-step checkpoints are scored |
 
 ## Run
 
@@ -65,6 +66,41 @@ rate:
 Report the **counter deltas** before the pass-rate delta. A mechanism that never
 runs cannot have caused a change; a mechanism that runs but never changes an
 outcome is a cost, not evidence.
+
+## Sequence scoring
+
+A task may declare `steps:` instead of one `goal`:
+
+```yaml
+- id: diag-sequence-memory
+  steps:
+    - goal: ...
+      checks: {required_sections: [Decision], max_words: 120}
+    - goal: ...
+      checks: {required_sections: [Implementation], max_words: 160}
+    - goal: ...
+      checks: {required_sections: [Risks], min_items: [{noun: risks, min: 2}]}
+```
+
+The runner creates one project, submits each step as a follow-up goal, patches
+the execution config for that step's test/checks, and records:
+
+- `sequence[]` — per-step state, artifact, pass/fail, check failures;
+- `progress` — passed checkpoints / total steps;
+- the final step's deterministic outcome as the row's pass/fail.
+
+The sequence stops at the first failed checkpoint. A three-step task that
+passes step 1 and fails step 2 reports `progress = 0.33`, which is useful
+even though the final pass is false.
+
+Run the paired control with:
+
+```bash
+make diagnostic-pair
+```
+
+It writes `full/` and `single/` under `DIAGNOSTIC_OUT` and merges the report,
+so the delta is per task rather than an aggregate.
 
 ## First run — 2026-11-06
 

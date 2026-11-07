@@ -96,6 +96,56 @@ tasks:
   - risks merged into one sentence
   - headings renamed
 
+- id: diag-sequence-memory
+  title: Three-step project brief that must carry a decision
+  archetype: document
+  tier: X
+  context_demand: long
+  goal: 'A three-step brief sequence in one project: choose an option, implement
+    it, then record its risks. Each step is a separate goal. The later steps must
+    preserve the option chosen in the first step.'
+  criteria:
+  - step 1 chooses local-first
+  - step 2 implements the same option
+  - step 3 records at least two risks for the same option
+  steps:
+  - goal: 'Write a Decision brief for a team choosing between local-first and
+      hosted tooling. Choose local-first, explain why, and keep it under 120 words.
+      Use exactly the heading Decision.'
+    criteria:
+    - chooses local-first
+    - under 120 words
+    - heading Decision
+    checks:
+      required_sections: [Decision]
+      max_words: 120
+      must_contain_any: [local-first]
+  - goal: 'Continue the same project. Write an Implementation note for the option
+      chosen in the previous brief. Keep it under 160 words, use exactly the
+      heading Implementation, and name the option you are implementing.'
+    criteria:
+    - uses the same option as the previous brief
+    - under 160 words
+    - heading Implementation
+    checks:
+      required_sections: [Implementation]
+      max_words: 160
+      must_contain_any: [local-first]
+  - goal: 'Continue the same project. Write a Risks note for the option you are
+      implementing. Keep it under 160 words, use exactly the heading Risks, and
+      list at least two distinct risks as bullet items.'
+    criteria:
+    - same option as the previous steps
+    - under 160 words
+    - heading Risks
+    - at least two risks
+    checks:
+      required_sections: [Risks]
+      max_words: 160
+      min_items:
+      - {noun: risks, min: 2}
+      must_contain_any: [local-first]
+
 - id: diag-contradiction-brief
   title: Resolve a contradictory source pair
   archetype: document

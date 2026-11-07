@@ -47,6 +47,11 @@ New entries are appended at the top. Do not rewrite history.
   iterative-repair and long-horizon families, checkpoint scoring, injected
   adversity, and process metrics. v2 remains the historical floor and is not
   edited.
+- **Sequence tasks** (`tools/bench/sequence.go`): a diagnostic task may
+  declare `steps:`; the runner executes them in one project, patches each
+  step's check, and records per-step results plus `progress`. The
+  `diag-sequence-memory` task and `make diagnostic-pair` are the first
+  checkpoint and paired-arm run shapes.
 
 ### Correctness, benchmark parity, and endurance — 2026-11-06
 

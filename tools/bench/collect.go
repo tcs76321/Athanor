@@ -105,6 +105,11 @@ type jobMetrics struct {
 	// 15), false for the locked M3-T7 set; the held-out table uses it to keep
 	// the locked set out of the tuning count.
 	Bench bool `json:"bench,omitempty"`
+	// Sequence holds per-step results for a multi-goal task (ADR-0116).
+	// Progress is the fraction of checkpoint steps that passed; final pass is
+	// still jobPassed on the last step's outcome.
+	Sequence []sequenceStep `json:"sequence,omitempty"`
+	Progress float64        `json:"progress,omitempty"`
 	// Saturated marks a completed row that needed no repair, reflection,
 	// replan, or observation: a first-pass success. It is a ranking-slice
 	// signal, not evidence for the iterative loop (ADR-0116).
@@ -113,6 +118,19 @@ type jobMetrics struct {
 	// calls and tokens plus the engine's lever counters. Nil when the job
 	// produced no events (e.g. it errored before execution).
 	Telemetry *jobTelemetry `json:"telemetry,omitempty"`
+}
+
+// sequenceStep is one goal's checkpoint outcome in a multi-step task.
+type sequenceStep struct {
+	Index       int      `json:"index"`
+	Goal        string   `json:"goal"`
+	JobID       string   `json:"job_id,omitempty"`
+	State       string   `json:"state"`
+	ArtifactID  string   `json:"artifact_id,omitempty"`
+	Pass        bool     `json:"pass"`
+	CheckPass   *bool    `json:"check_pass,omitempty"`
+	CheckFailed []string `json:"check_failures,omitempty"`
+	Error       string   `json:"error,omitempty"`
 }
 
 // benchLabelVersion marks rows collected under the ADR-0092 label rules.

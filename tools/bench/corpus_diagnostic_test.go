@@ -10,16 +10,21 @@ func TestDiagnosticCorpusParses(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(goals) != 3 {
-		t.Fatalf("goals = %d, want 3", len(goals))
+	if len(goals) != 4 {
+		t.Fatalf("goals = %d, want 4", len(goals))
 	}
 	seen := map[string]bool{}
 	for _, goal := range goals {
 		seen[goal.Name] = true
 	}
-	for _, want := range []string{"diag-layered-code", "diag-structured-brief", "diag-contradiction-brief"} {
+	for _, want := range []string{"diag-layered-code", "diag-structured-brief", "diag-contradiction-brief", "diag-sequence-memory"} {
 		if !seen[want] {
 			t.Errorf("missing diagnostic task %q", want)
+		}
+	}
+	for _, goal := range goals {
+		if goal.Name == "diag-sequence-memory" && len(goal.Steps) != 3 {
+			t.Errorf("sequence steps = %d, want 3", len(goal.Steps))
 		}
 	}
 }

@@ -510,6 +510,11 @@ func (r *runnerConfig) runOne(g sampleGoal, m probeModel, a arm, run int, stateD
 		}
 	}
 
+	if len(g.Steps) > 0 {
+		r.runSequence(g, pr.ID, stateDir, &mx)
+		return mx
+	}
+
 	var gr struct {
 		JobID  string   `json:"job_id"`
 		JobIDs []string `json:"job_ids"`

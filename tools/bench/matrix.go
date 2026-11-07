@@ -38,6 +38,17 @@ type sampleGoal struct {
 	ContextDemand string
 	// Category is the optional cross-cutting tag (adversarial | odd | "").
 	Category string
+	// Steps turns the task into a multi-goal sequence in one project
+	// (ADR-0116). Empty keeps the one-goal behavior.
+	Steps []sampleStep
+}
+
+// sampleStep is one goal in a multi-step task.
+type sampleStep struct {
+	Goal        string
+	Criteria    []string
+	TestCommand string
+	Checks      map[string]any
 }
 
 // sampleGoals is the 10-goal set: M1-T8's five then M3-T2's five, with no

@@ -126,6 +126,17 @@ func TestSaturatedFirstPass(t *testing.T) {
 	}
 }
 
+func TestSequenceRows(t *testing.T) {
+	rows := []jobMetrics{
+		{GoalName: "seq", Arm: "full", Progress: 0.66, Sequence: []sequenceStep{{}, {}, {}}},
+		{GoalName: "single", Arm: "full"},
+	}
+	got := sequenceRows(rows)
+	if len(got) != 1 || got[0].Goal != "seq" || got[0].Steps != 3 {
+		t.Fatalf("sequence rows = %+v", got)
+	}
+}
+
 func TestSaturationCount(t *testing.T) {
 	rows := []jobMetrics{
 		{State: "completed", Saturated: true},

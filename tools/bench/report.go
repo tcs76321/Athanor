@@ -249,6 +249,30 @@ type heldOutRow struct {
 	Pass    int
 }
 
+type sequenceReportRow struct {
+	Goal     string
+	Arm      string
+	Progress float64
+	Steps    int
+	Final    bool
+}
+
+// sequenceRows renders multi-goal rows for the report: progress and final
+// pass are separate so a partial sequence is visible.
+func sequenceRows(metrics []jobMetrics) []sequenceReportRow {
+	var out []sequenceReportRow
+	for _, m := range metrics {
+		if len(m.Sequence) == 0 {
+			continue
+		}
+		out = append(out, sequenceReportRow{
+			Goal: m.GoalName, Arm: m.Arm, Progress: m.Progress,
+			Steps: len(m.Sequence), Final: jobPassed(m),
+		})
+	}
+	return out
+}
+
 // saturationCount reports first-pass completed rows over all completed rows.
 // It makes the one-shot-solvable slice explicit (ADR-0116).
 func saturationCount(metrics []jobMetrics) (saturated, total int) {
@@ -415,6 +439,15 @@ func renderReport(metrics []jobMetrics) string {
 	for _, r := range armTable(metrics) {
 		fmt.Fprintf(&b, "| %s | %s | %s | %s | %s | %d | %.2f | %.0f |\n",
 			r.Model, r.Family, r.Goal, r.Archetype, r.Arm, r.N, r.Score, r.Tokens)
+	}
+
+	if seqs := sequenceRows(metrics); len(seqs) > 0 {
+		b.WriteString("\n## Sequences — checkpoint progress\n\n")
+		b.WriteString("| goal | arm | progress | steps | final pass |\n|---|---|---|---|---|\n")
+		for _, s := range seqs {
+			fmt.Fprintf(&b, "| %s | %s | %.0f%% | %d | %v |\n",
+				s.Goal, s.Arm, s.Progress*100, s.Steps, s.Final)
+		}
 	}
 
 	b.WriteString("\n## Corpus — deterministic pass rate (tier × arm)\n\n")
