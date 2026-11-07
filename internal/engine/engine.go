@@ -1127,24 +1127,42 @@ func (e *Engine) finishQueuedCancel(jobID string) {
 	e.audit(ctx, jobID, map[string]any{
 		"event": "job_cancelled", "state": string(j.State), "reason": "queued",
 	})
-	e.signalTerminal(ctx, jobID, job.StateCancelled)
-	e.settleHorizon(ctx, jobID)
+	e.FinalizeTerminal(ctx, jobID)
 }
 
-// Cancel asks a running job to stop. It marks the cancellation so Run commits
-// `cancelled` (not `failed`) when the phase returns context.Canceled, then
-// cancels the job's context. It reports false when no job goroutine owns the
-// id (already terminal or never enqueued).
+// Cancel asks a job to stop. A job with a live goroutine is marked and its
+// context cancelled, so Run commits `cancelled` and finalizes it. A job with
+// no goroutine — paused, awaiting approval, or still queued — is cancelled
+// directly and finalized here; otherwise those states could not be cancelled
+// from the operator surface at all.
 func (e *Engine) Cancel(jobID string) bool {
 	e.cancelMu.Lock()
 	cancel := e.cancels[jobID]
-	if cancel == nil {
+	if cancel != nil {
+		e.cancelled[jobID] = true
 		e.cancelMu.Unlock()
+		cancel()
+		return true
+	}
+	e.cancelMu.Unlock()
+
+	ctx, done := context.WithTimeout(context.Background(), 10*time.Second)
+	defer done()
+	j, err := e.jobs.Get(ctx, jobID)
+	if err != nil || j.State.Terminal() {
 		return false
 	}
-	e.cancelled[jobID] = true
-	e.cancelMu.Unlock()
-	cancel()
+	if !job.CanTransition(j.State, job.StateCancelled) {
+		return false
+	}
+	if _, err := e.jobs.Transition(ctx, jobID, job.StateCancelled); err != nil {
+		slog.Error("engine: cancelling parked job", "job", jobID, "state", j.State, "err", err)
+		return false
+	}
+	e.audit(ctx, jobID, map[string]any{
+		"event": "job_cancelled", "state": string(j.State), "reason": "operator",
+	})
+	e.FinalizeTerminal(ctx, jobID)
 	return true
 }
 
@@ -1350,10 +1368,15 @@ func (e *Engine) Run(ctx context.Context, jobID string) {
 			slog.Error("engine: loading job", "job", jobID, "err", err)
 			return
 		}
-		if j.State.Terminal() || j.State == job.StatePaused || j.State == job.StateAwaitingApproval {
-			if j.State.Terminal() {
-				e.finalizeTerminal(ctx, jobID, j)
-			}
+		if j.State.Terminal() {
+			e.FinalizeTerminal(ctx, jobID)
+			return
+		}
+		if j.State == job.StatePaused || j.State == job.StateAwaitingApproval {
+			// A parked job is resumable, not running. Its Job Pod must not
+			// stay resident while it waits for a human, a power event, or a
+			// budget window; resume re-stages it.
+			e.stopPod(ctx, jobID)
 			return
 		}
 
@@ -1379,6 +1402,7 @@ func (e *Engine) Run(ctx context.Context, jobID string) {
 					})
 				}
 			}
+			e.stopPod(ctx, jobID)
 			return
 		}
 
@@ -1389,6 +1413,7 @@ func (e *Engine) Run(ctx context.Context, jobID string) {
 
 		if err := e.step(ctx, j); err != nil {
 			if errors.Is(err, ErrPaused) {
+				e.stopPod(ctx, jobID)
 				return
 			}
 			// An external state write can land while a phase is running:
@@ -1405,9 +1430,10 @@ func (e *Engine) Run(ctx context.Context, jobID string) {
 						"phase": string(j.State), "to": string(cur.State),
 						"error": err.Error(),
 					})
+					e.stopPod(ctx, jobID)
 					return
 				case cur.State.Terminal():
-					e.finalizeTerminal(ctx, jobID, cur)
+					e.FinalizeTerminal(ctx, jobID)
 					return
 				}
 			}
@@ -1439,12 +1465,8 @@ func (e *Engine) Run(ctx context.Context, jobID string) {
 					e.audit(cctx, jobID, map[string]any{
 						"event": "job_cancelled", "state": string(j.State),
 					})
-					e.signalTerminal(cctx, jobID, job.StateCancelled)
+					e.FinalizeTerminal(cctx, jobID)
 				}
-				e.captureOutcome(cctx, jobID)
-				e.clearJobScratch(cctx, jobID)
-				e.settleHorizon(cctx, jobID)
-				e.stopPod(cctx, jobID)
 				cancel()
 				return
 			}
@@ -1452,22 +1474,12 @@ func (e *Engine) Run(ctx context.Context, jobID string) {
 			if _, terr := e.jobs.Transition(ctx, jobID, job.StateFailed); terr != nil {
 				slog.Error("engine: marking job failed", "job", jobID, "err", terr)
 			} else {
-				// M6-T2 (ADR-0033): the failure path is a terminal
-				// transition too; the scheduler learns of it here. M6-T6
-				// records the failure as a CorrectionRecord (§18.1).
-				e.signalTerminal(ctx, jobID, job.StateFailed)
+				// M6-T6 records the failure as a CorrectionRecord (§18.1).
 				e.recordFailureCorrection(ctx, jobID, j.ProjectID, j.State, err)
-				e.captureOutcome(ctx, jobID)
-				// A failed job is terminal too; clear its §10.5 suppression
-				// row so `system_state` does not accumulate one row per
-				// failed job (the loop-top terminal branch clears the
-				// success/compare paths).
-				e.clearJobScratch(ctx, jobID)
-				e.settleHorizon(ctx, jobID)
-				// M2-T4b.5 (ADR-0024 §2): a failed job is terminal too; stop
-				// its pod now. The failure path used to return without
-				// teardown, leaving the pod for the next boot's sweep.
-				e.stopPod(ctx, jobID)
+				// One terminal path owns outcome/process capture, scratch
+				// cleanup, budget settlement, scheduler notification, and pod
+				// teardown. A failure is terminal too.
+				e.FinalizeTerminal(ctx, jobID)
 			}
 			e.audit(ctx, jobID, map[string]any{
 				"event": "job_failed", "state": string(j.State), "error": err.Error(),
@@ -1485,12 +1497,33 @@ func (e *Engine) Run(ctx context.Context, jobID string) {
 	}
 }
 
+// FinalizeTerminal runs the one-time teardown for any terminal job. It is the
+// public seam external writers (HITL rejection/expiry, the UI) use after they
+// commit a terminal transition; it is idempotent enough to run more than once.
+func (e *Engine) FinalizeTerminal(ctx context.Context, jobID string) {
+	j, err := e.jobs.Get(ctx, jobID)
+	if err != nil {
+		slog.Error("engine: loading terminal job", "job", jobID, "err", err)
+		return
+	}
+	if !j.State.Terminal() {
+		return
+	}
+	e.finalizeTerminal(ctx, jobID, j)
+}
+
 // finalizeTerminal performs the one-time teardown for a job that has reached a
-// terminal state: clear per-job scratch, settle the horizon grant, capture the
-// strategy outcome, tell the scheduler, and stop the Job Pod. It is idempotent
-// enough to run from either the loop-top terminal branch or an external-state
-// re-read after a failed phase.
+// terminal state. Order matters: captureOutcome reads the per-job reflection
+// counter from system_state, so scratch must not be cleared until after the
+// outcome is written.
 func (e *Engine) finalizeTerminal(ctx context.Context, jobID string, j job.Job) {
+	// ADR-0114: leave a bounded deterministic summary for later projects/jobs.
+	e.rememberCompletedJob(ctx, j)
+	// ADR-0119: evaluate the trajectory itself, not only the final artifact.
+	e.evaluateProcess(ctx, j)
+	// M6-T10 (§13.3): capture the immutable outcome before any teardown that
+	// can block and before clearJobScratch removes the reflection counter.
+	e.captureOutcome(ctx, jobID)
 	// M5-T5 (ADR-0023 §5): a finished job's evictions are history, not state.
 	// Clearing here (and only here) keeps `system_state` bounded while a
 	// paused job keeps its suppression for the resume.
@@ -1498,15 +1531,6 @@ func (e *Engine) finalizeTerminal(ctx context.Context, jobID string, j job.Job) 
 	// ADR-0091: close the horizon grant with actual spend before any teardown
 	// that can block.
 	e.settleHorizon(ctx, jobID)
-	// ADR-0114: leave a bounded deterministic summary for later projects/jobs.
-	e.rememberCompletedJob(ctx, j)
-	// ADR-0119: evaluate the trajectory itself, not only the final artifact.
-	e.evaluateProcess(ctx, j)
-	// M6-T10 (§13.3): capture the immutable outcome before any teardown that
-	// can block. stopPod can take seconds on a real pod, and an offline
-	// collector must never observe a terminal job with no strategy_outcomes
-	// row (the M3-T7 code-goal capture gap F4 deferred).
-	e.captureOutcome(ctx, jobID)
 	// M6-T2 (ADR-0033): let the scheduler advance the graph.
 	e.signalTerminal(ctx, jobID, j.State)
 	// M2-T4b.5 (ADR-0024 §2): a terminal job's Job Pod has no further use;
@@ -1558,13 +1582,12 @@ func (e *Engine) handleJobPanic(jobID string, recovered any) {
 		if _, terr := e.jobs.Transition(ctx, jobID, job.StateFailed); terr != nil {
 			slog.Error("engine: failing panicked job", "job", jobID, "err", terr)
 		} else {
-			e.signalTerminal(ctx, jobID, job.StateFailed)
 			e.recordFailureCorrection(ctx, jobID, j.ProjectID, j.State,
 				fmt.Errorf("panic: %v", recovered))
-			e.captureOutcome(ctx, jobID)
-			e.clearJobScratch(ctx, jobID)
-			e.settleHorizon(ctx, jobID)
+			e.FinalizeTerminal(ctx, jobID)
 		}
+	} else {
+		e.FinalizeTerminal(ctx, jobID)
 	}
 	e.stopPod(ctx, jobID)
 }

@@ -334,6 +334,7 @@ func run(configPath, addr, stateDir string, container bool) error {
 	// fails on rejection, and denies on expiry.
 	hitlRepo := hitl.NewRepo(st)
 	hitlSvc := hitl.NewService(hitlRepo, job.NewRepository(st), eng, cfg.HITL.DefaultTTL.D())
+	hitlSvc.SetTerminalObserver(eng.FinalizeTerminal)
 	eng.SetClarifier(hitlClarifier{svc: hitlSvc})
 	hitlSvc.SetPreApprover(hitl.TypeClarification, clarificationAnswer{nb: notebook.New(st)}.Approve)
 	sched.SetEscalator(hitlEscalator{repo: hitlRepo, ttl: cfg.HITL.DefaultTTL.D()})

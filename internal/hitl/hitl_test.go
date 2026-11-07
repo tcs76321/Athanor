@@ -209,6 +209,27 @@ func TestServiceRejectFailsJob(t *testing.T) {
 	}
 }
 
+// TestServiceRejectNotifiesTerminalObserver proves a rejected request does not
+// bypass the engine's terminal finalization (scheduler, outcomes, process
+// scorecard, budget, pod teardown).
+func TestServiceRejectNotifiesTerminalObserver(t *testing.T) {
+	svc, _, _, jobID := serviceFixture(t)
+	ctx := context.Background()
+	var finalized []string
+	svc.SetTerminalObserver(func(_ context.Context, id string) { finalized = append(finalized, id) })
+
+	req, err := svc.Await(ctx, jobID, TypeTaskEscalation, SeverityHigh, "s", nil, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.Decide(ctx, req.ID, ActionReject, "no", 0); err != nil {
+		t.Fatal(err)
+	}
+	if len(finalized) != 1 || finalized[0] != jobID {
+		t.Fatalf("finalized = %v, want [%s]", finalized, jobID)
+	}
+}
+
 func TestServiceExpiryDeniesByDefault(t *testing.T) {
 	svc, jobs, _, jobID := serviceFixture(t)
 	ctx := context.Background()

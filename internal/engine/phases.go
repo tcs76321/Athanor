@@ -64,6 +64,7 @@ func (e *Engine) pauseForPressure(ctx context.Context, j job.Job, phase, role st
 		"active_tokens": activeTokens, "max_context": maxContext, "pressure": a.Pressure,
 		"action": string(a.Action), "recommendation": a.Recommendation,
 	})
+	e.stopPod(ctx, j.ID)
 	return ErrPaused
 }
 

@@ -30,6 +30,10 @@ type Service struct {
 	DefaultTTL   time.Duration
 	approvers    map[string]Approver
 	preApprovers map[string]Approver
+	// onTerminal, when set, is called after a rejected/expired request fails
+	// its linked job. The engine uses it to finalize the job (scheduler,
+	// outcome, process scorecard, scratch, budget, pod) exactly once.
+	onTerminal func(context.Context, string)
 	// Now is injectable for tests; it defaults to time.Now.
 	Now func() time.Time
 }
@@ -40,6 +44,14 @@ func NewService(repo *Repo, jobs *job.Repository, engine Enqueuer, defaultTTL ti
 		defaultTTL = 24 * time.Hour
 	}
 	return &Service{repo: repo, jobs: jobs, engine: engine, DefaultTTL: defaultTTL, Now: time.Now}
+}
+
+// SetTerminalObserver registers the engine's terminal-finalization hook. It is
+// called after a rejected or expired request has transitioned its linked job
+// to failed, so scheduler advance, strategy/process capture, scratch cleanup,
+// budget settlement, and pod teardown are not skipped.
+func (s *Service) SetTerminalObserver(fn func(context.Context, string)) {
+	s.onTerminal = fn
 }
 
 // SetApprover registers the approved side effect for a request type
@@ -225,5 +237,8 @@ func (s *Service) applyOutcome(ctx context.Context, req Request) {
 	}
 	if req.Status == StatusApproved && s.engine != nil {
 		s.engine.Enqueue(req.JobID)
+	}
+	if (req.Status == StatusRejected || req.Status == StatusExpired) && s.onTerminal != nil {
+		s.onTerminal(ctx, req.JobID)
 	}
 }

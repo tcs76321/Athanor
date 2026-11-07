@@ -1205,6 +1205,11 @@ func (u *UI) handleControl(w http.ResponseWriter, r *http.Request) {
 			u.fail(w, err)
 			return
 		}
+		if f, ok := u.deps.Engine.(interface {
+			FinalizeTerminal(context.Context, string)
+		}); ok {
+			f.FinalizeTerminal(ctx, id)
+		}
 	case "retry":
 		if !j.State.Terminal() {
 			u.fail(w, fmt.Errorf("job %s is not terminal", id))
