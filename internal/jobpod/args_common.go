@@ -2,7 +2,10 @@
 
 package jobpod
 
-import "strings"
+import (
+	"strconv"
+	"strings"
+)
 
 // buildArgs constructs the `podman run` argv for a Spec. The result
 // is the full argv, beginning with "run". Per-platform hardening is
@@ -77,9 +80,10 @@ func mountFlags(tokenDir string) []string {
 // joinArgs concatenates argv for substring assertions in tests.
 func joinArgs(args []string) string { return strings.Join(args, " ") }
 
-// itoa / ftoa are tiny stdlib-free integer and float formatters. We
-// avoid strconv in this file so the build-tag split is symmetric
-// across platforms.
+// itoa / ftoa format the integer and fractional resource limits for the
+// podman argv. ftoa must preserve every digit the operator chose: the UI
+// accepts 0.25-step CPU values, and truncating 1.25 to 1.2 silently
+// under-allocates the pod.
 func itoa(n int) string {
 	if n == 0 {
 		return "0"
@@ -103,11 +107,9 @@ func itoa(n int) string {
 }
 
 func ftoa(f float64) string {
-	// One decimal place is enough for the values we use (1.0, 0.5).
-	whole := int(f)
-	frac := int((f - float64(whole)) * 10)
-	if frac < 0 {
-		frac = -frac
+	s := strconv.FormatFloat(f, 'f', -1, 64)
+	if !strings.Contains(s, ".") {
+		s += ".0"
 	}
-	return itoa(whole) + "." + itoa(frac)
+	return s
 }

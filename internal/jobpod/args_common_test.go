@@ -4,6 +4,7 @@ package jobpod
 
 import (
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -64,6 +65,21 @@ func TestBuildArgs_AppliesDefaults(t *testing.T) {
 	for _, want := range []string{"--pids-limit 64", "--memory 512m", "--cpus 1.0"} {
 		if !strings.Contains(joined, want) {
 			t.Errorf("defaulted argv missing %q\ngot: %s", want, joined)
+		}
+	}
+}
+
+// TestBuildArgs_PreservesFractionalCPU pins that every digit of the
+// operator-selected CPU quota reaches podman. The UI accepts 0.25 steps;
+// truncating 1.25 to 1.2 silently under-allocates the pod.
+func TestBuildArgs_PreservesFractionalCPU(t *testing.T) {
+	for _, cpus := range []float64{0.25, 0.75, 1.25, 2.75} {
+		s := sampleSpec()
+		s.ResourceLimits.CPUs = cpus
+		joined := joinArgs(buildArgs(s))
+		want := "--cpus " + strconv.FormatFloat(cpus, 'f', -1, 64)
+		if !strings.Contains(joined, want) {
+			t.Errorf("argv missing %q for CPUs=%v\ngot: %s", want, cpus, joined)
 		}
 	}
 }
