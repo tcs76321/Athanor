@@ -1030,13 +1030,13 @@ details[open] summary { margin-bottom: var(--space-2); }
   :root { --rail: 300px; --content-max: 1900px; }
   body { font-size: 1.02rem; }
   .wizard { grid-template-columns: 340px minmax(0, 1fr); }
-  .wizard-main { max-width: 2100px; }
+  .wizard-main { max-width: 2200px; }
 }
 @media (min-width: 3000px) {
   :root { --rail: 340px; --content-max: 2400px; }
   body { font-size: 1.08rem; }
   .wizard { grid-template-columns: 380px minmax(0, 1fr); }
-  .wizard-main { max-width: 2500px; }
+  .wizard-main { max-width: 2600px; }
   .grid.cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .grid.cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
