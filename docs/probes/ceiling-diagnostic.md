@@ -164,6 +164,28 @@ harness after the two fixes, and it demonstrates that these tasks are too easy
 to test Athanor's distinctive machinery. The next diagnostic version needs an
 injected failure, a hidden check, or a multi-step sequence.
 
+## First sequence run — 2026-11-06
+
+`diag-sequence-memory` is the first differentiating task: step 1 passed, step 2
+failed, step 3 never ran. **Progress 1/3.**
+
+The mechanism counters are the point:
+
+- **23 memory hits** — the step-2 job retrieved prior project memory.
+- **2 repair loops, 3 reflection loops, 1 replan** — the loop tried to
+  recover.
+- It still failed the step-2 checks.
+
+This is qualitatively different from the one-shot tasks: memory was actually
+used, the iterative machinery ran, and the step still failed. That is a real
+capability signal, not a harness failure (the earlier harness failures were
+clarification parking and `python -c` staging).
+
+The first run also exposed a reporting bug: the sequence row inherited
+step 1's `check_pass=true` while `state=failed`, producing `failed / pass=true`.
+The runner now resets the checkpoint state per step and reads the best
+candidate's checks on a failed step. The rerun is the evidence.
+
 ## Caveats
 
 - One model and one pass are directional only. This is a diagnostic, not a
