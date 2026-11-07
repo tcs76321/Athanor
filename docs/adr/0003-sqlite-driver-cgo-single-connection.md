@@ -1,6 +1,6 @@
 # ADR 0003 — SQLite driver: mattn/go-sqlite3 with CGO and a single connection
 
-**Status:** Accepted · **Date:** 2026-08-25 · **Refs:** ARCHITECTURE §23; ROADMAP M0-T4, TASK-000; `docs/sqlite-setup.md`
+**Status:** Amended by ADR-0125 (single writer + read-only pool) · **Date:** 2026-08-25 · **Refs:** ARCHITECTURE §23; ROADMAP M0-T4, TASK-000; `docs/sqlite-setup.md`
 
 ## Context
 

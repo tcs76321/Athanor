@@ -89,7 +89,7 @@ func (r *QuarantineRepo) Put(ctx context.Context, q Quarantine) (existed bool, e
 	if len(details) == 0 {
 		details = json.RawMessage("{}")
 	}
-	tx, err := r.db.db.BeginTx(ctx, nil)
+	tx, err := r.db.write.BeginTx(ctx, nil)
 	if err != nil {
 		return false, fmt.Errorf("quarantine: begin: %w", err)
 	}
@@ -161,7 +161,7 @@ func (r *QuarantineRepo) Get(ctx context.Context, sha256 string) (Quarantine, er
 		ingestedAt string
 		jobID      sql.NullString
 	)
-	err := r.db.db.QueryRowContext(ctx,
+	err := r.db.ReadDB().QueryRowContext(ctx,
 		`SELECT sha256, relpath, reason, details, source_size,
 		        stored_path, ingested_at, pipeline, COALESCE(job_id, '')
 		 FROM quarantined_files WHERE sha256 = ?`, sha256,
@@ -210,7 +210,7 @@ func (r *QuarantineRepo) List(ctx context.Context, since time.Time, pipeline str
 		q += ` LIMIT ?`
 		args = append(args, limit)
 	}
-	rows, err := r.db.db.QueryContext(ctx, q, args...)
+	rows, err := r.db.ReadDB().QueryContext(ctx, q, args...)
 	if err != nil {
 		return nil, fmt.Errorf("quarantine: list: %w", err)
 	}

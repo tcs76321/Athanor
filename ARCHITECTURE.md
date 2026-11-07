@@ -1485,6 +1485,14 @@ PRAGMA busy_timeout=5000;
 PRAGMA foreign_keys=ON;
 ```
 
+> **Pool shape (ADR-0125).** Writes use one connection with
+> `_txlock=immediate`; reads use a separate read-only pool (`mode=ro`, N
+> connections). SQLite still serializes writes, but a read no longer waits for
+> a job's short write transaction. Migrations run on the writer at boot before
+> the read pool is used. The writer/read split is the strategy ADR-0003
+> deferred; sqlite-vec, when adopted, needs a dedicated connection or a
+> per-connection loader.
+
 ### 23.2 Stored State
 
 SQLite stores:

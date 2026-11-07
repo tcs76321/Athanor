@@ -73,7 +73,7 @@ func (s *Store) AppendEvent(ctx context.Context, e Event) (int64, error) {
 		data = raw
 	}
 
-	res, err := s.db.ExecContext(ctx,
+	res, err := s.write.ExecContext(ctx,
 		`INSERT INTO events (category, level, project_id, job_id, data_json)
 		 VALUES (?, ?, ?, ?, ?)`,
 		e.Category, string(level), nullIfEmpty(e.ProjectID), nullIfEmpty(e.JobID), string(data),
@@ -152,7 +152,7 @@ func (s *Store) QueryEvents(ctx context.Context, f EventFilter) ([]EventRecord, 
 		args = append(args, f.Limit)
 	}
 
-	rows, err := s.db.QueryContext(ctx, q, args...)
+	rows, err := s.ReadDB().QueryContext(ctx, q, args...)
 	if err != nil {
 		return nil, fmt.Errorf("querying events: %w", err)
 	}
@@ -201,7 +201,7 @@ func (s *Store) LatestEventID(ctx context.Context, f EventFilter) (int64, error)
 		args = append(args, f.JobID)
 	}
 	var id int64
-	if err := s.db.QueryRowContext(ctx, q, args...).Scan(&id); err != nil {
+	if err := s.ReadDB().QueryRowContext(ctx, q, args...).Scan(&id); err != nil {
 		return 0, fmt.Errorf("reading latest event id: %w", err)
 	}
 	return id, nil

@@ -1,6 +1,6 @@
 # ADR 0027 — SQLite single-connection discipline (F2)
 
-**Status:** Accepted · **Date:** 2026-09-30 · **Refs:** ARCHITECTURE §23, §23.1,
+**Status:** Amended by ADR-0125 (single writer + read-only pool) · **Date:** 2026-09-30 · **Refs:** ARCHITECTURE §23, §23.1,
 §23.5, §28; ROADMAP (F2, foundational); ADR-0003 (SQLite/CGO single
 connection), ADR-0004 (DB concurrency model), ADR-0026 (memory retrieval — the
 first consumer that could hold a connection).

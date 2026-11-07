@@ -1,14 +1,15 @@
 package gate
 
-// SQLite single-connection discipline as an executable gate (F2; ADR-0027).
+// SQLite transaction discipline as an executable gate (F2; ADR-0027, amended
+// by ADR-0125).
 //
-// ADR-0003 pins the daemon to one SQLite connection
-// (`SetMaxOpenConns(1)`), so anything that holds that connection also holds
-// the whole database. The way that happens accidentally is a transaction — or
-// a taken `*sql.Conn` — opened in an orchestration package that also does
-// network, model, or process I/O: every other goroutine then blocks on the
-// pool and the daemon stalls with no error (a 5 s `busy_timeout` over WAL
-// turns a deadlock into a hang, not a failure).
+// Writes use one writer connection (`SetMaxOpenConns(1)`); reads use a
+// separate read-only pool. A transaction — or a taken `*sql.Conn` — opened in
+// an orchestration package that also does network, model, or process I/O holds
+// the writer across I/O: every other write then waits, and the daemon stalls
+// with no error (a 5 s `busy_timeout` over WAL turns a deadlock into a hang,
+// not a failure). Reads no longer block on it, but the writer contract is
+// unchanged.
 //
 // The rule is package-shaped, not file-shaped:
 //

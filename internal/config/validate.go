@@ -461,7 +461,10 @@ func (c *Config) Warnings() []string {
 		out = append(out, "inference.cloud_enabled=true has no effect in 0.0.0 (no cloud client); the daemon uses Ollama")
 	}
 	if c.Limits.MaxConcurrentJobs > 1 {
-		out = append(out, "limits.max_concurrent_jobs > 1: SQLite access is serialized on one connection (ADR-0003), so job/DB throughput will not scale linearly; keep inference at one call unless the host is sized for it")
+		out = append(out, "limits.max_concurrent_jobs > 1: SQLite writes are serialized and model residency/pod memory bound the real slot count (ADR-0125); the capacity plan is authoritative, not this ceiling")
+	}
+	if c.Limits.MaxConcurrentJobs > c.Limits.MaxConcurrentLLMCalls {
+		out = append(out, "limits.max_concurrent_jobs exceeds limits.max_concurrent_llm_calls: extra jobs wait for an inference slot, which can consume a phase budget; raise max_concurrent_llm_calls or lower max_concurrent_jobs")
 	}
 	return out
 }

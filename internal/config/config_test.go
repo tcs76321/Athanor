@@ -952,16 +952,20 @@ func TestUnenforcedKnobRejected(t *testing.T) {
 	}
 }
 
-// TestConcurrentJobsWarning names the SQLite serialization trade-off instead
-// of implying that max_concurrent_jobs > 1 makes DB work parallel.
+// TestConcurrentJobsWarning names the serialized-write and inference-queue
+// trade-offs instead of implying that max_concurrent_jobs > 1 makes DB work
+// parallel.
 func TestConcurrentJobsWarning(t *testing.T) {
 	cfg, err := Parse([]byte("version: 2\nlimits:\n  max_concurrent_jobs: 2\n"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	warns := cfg.Warnings()
-	if !strings.Contains(strings.Join(warns, " "), "SQLite access is serialized") {
-		t.Errorf("warnings = %v, want the SQLite serialization warning", warns)
+	warns := strings.Join(cfg.Warnings(), " ")
+	if !strings.Contains(warns, "SQLite writes are serialized") {
+		t.Errorf("warnings = %v, want the serialized-write warning", warns)
+	}
+	if !strings.Contains(warns, "max_concurrent_llm_calls") {
+		t.Errorf("warnings = %v, want the inference-queue warning", warns)
 	}
 }
 

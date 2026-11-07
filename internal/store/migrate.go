@@ -92,7 +92,7 @@ func currentVersion(db *sql.DB) (int, error) {
 // accessor reads 0 on a query error; callers that must distinguish a broken
 // database use currentVersion through Migrate.
 func (s *Store) Version() int {
-	v, err := currentVersion(s.db)
+	v, err := currentVersion(s.write)
 	if err != nil {
 		return 0
 	}
