@@ -43,8 +43,15 @@ func runLadder(ctx context.Context, cfg *config.Config, models []onboard.Model,
 		return nil, err
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, opts.Wall)
-	defer cancel()
+	if opts.Wall > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, opts.Wall)
+		defer cancel()
+	} else {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithCancel(ctx)
+		defer cancel()
+	}
 	// Leave no model resident after a screen, including a timed-out one.
 	defer func() {
 		client := &http.Client{Timeout: 10 * time.Second}

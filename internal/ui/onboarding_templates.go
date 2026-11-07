@@ -317,7 +317,7 @@ const welcomeBody = `
     {{else}}
     <div class="grid cols-2">
       <div class="card"><h3>Why run it</h3><p class="muted">It ranks the models on this computer for the work you actually do, so Athanor can cast each job instead of guessing from model size or reputation.</p></div>
-      <div class="card"><h3>What it costs</h3><p class="muted">Smoke is roughly 14 calls per model; deep is roughly 24 and adds long-context, schema, code repair, injection, and data-integrity cases. Both are bounded and resumable. Deep takes longer and is more accurate.</p></div>
+      <div class="card"><h3>What it costs</h3><p class="muted">The default screen is 60 cases per model; deep adds 25 longer-context, repair, security, and adversarial cases. A balanced core (one case per capability) runs first for every model, then extra blocks. The run is resumable and open-ended: cancel any time, and scores use only cases every model completed.</p></div>
     </div>
     <div class="card">
       {{if .Qualification.Error}}<p class="del">{{.Qualification.Error}}</p>{{end}}

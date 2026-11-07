@@ -51,14 +51,21 @@ generators, fixed good/bad labels for judges. No judge model is consulted during
 qualification. A qualification pass evicts each screened model (`keep_alive: 0`)
 after measuring it, so the last model is not left resident.
 
-### 2. Ten minutes, not two hours
+### 2. Open-ended, balanced, and resumable
 
-- Default: **20 minutes** wall time.
-- Deep: **40 minutes**.
-- The run is resumable at case granularity; completing a later session skips
-  recorded cases.
-- Partial results still feed the pool, with the sample count and the wall
-  status visible.
+There is no hard time cutoff. The run has two layers:
+
+- **Core**: one case per capability (general, code, data, document, text,
+  media, summarize, security, agentry, instruction, grounding, judgment) for
+  every model. This is the bare minimum and is always attempted first.
+- **Extra blocks**: fixed-size blocks of the remaining cases. A block is run
+  for every model or not at all, so a slow model cannot starve the others.
+
+The run continues until the work is done or the operator cancels. The state is
+resumable at case granularity. Scores are computed only on the **intersection**
+of cases completed by every model, so an interrupted block never advantages
+the models that happened to run first. A model that is unavailable is marked
+failed for its cases, not silently skipped.
 
 The screen is deliberately a **subset and a prior**. The frozen benchmark is the
 controlled study and is not edited here.

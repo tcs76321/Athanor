@@ -39,7 +39,7 @@ func runModels(args []string) error {
 	ladderMax := fs.Int("ladder-max-models", 3, "maximum candidate models per role")
 	ladderRoles := fs.String("ladder-roles", "security,main", "comma-separated roles to qualify")
 	ladderTimeout := fs.Duration("ladder-case-timeout", 90*time.Second, "per-case model timeout")
-	ladderWall := fs.Duration("ladder-wall", 30*time.Minute, "total ladder wall-time budget")
+	ladderWall := fs.Duration("ladder-wall", 0, "total ladder wall-time budget (0 = open-ended)")
 	audit := fs.Bool("audit", false, "measure each configured model's loaded size at its context and write a fit plan")
 	auditOut := fs.String("audit-out", "", "audit output path (default <config dir>/model-fit.json)")
 	auditReserve := fs.Int64("audit-reserve", 0, "bytes reserved for the OS, apps, Core, and Podman VM (default config inference.host_reserve_mb or 4 GiB)")

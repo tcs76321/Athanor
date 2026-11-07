@@ -424,10 +424,11 @@ func setupRolesAndModels(cfg *config.Config) ([]onboard.Role, []onboard.Model) {
 	return roles, out
 }
 
-// runQualification is the bounded worker. It skips completed cases, saves
-// after each one, and stops at the total wall bound.
+// runQualification is the legacy two-role worker. It skips completed cases,
+// saves after each one, and runs until the work is done or the operator
+// cancels it.
 func (u *UI) runQualification(ctx context.Context, cfg *config.Config, roles []onboard.Role, models []onboard.Model, state *qualState) {
-	ctx, cancel := context.WithTimeout(ctx, 8*time.Minute)
+	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	if state.Results == nil {
 		state.Results = map[string]bool{}
@@ -505,7 +506,7 @@ func (u *UI) runQualification(ctx context.Context, cfg *config.Config, roles []o
 	state.Running = false
 	state.FinishedAt = time.Now()
 	if ctx.Err() != nil {
-		state.Error = "qualification stopped at the wall bound; start again to resume"
+		state.Error = "qualification cancelled; start again to resume"
 	}
 	u.saveQualState(context.Background(), *state)
 }

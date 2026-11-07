@@ -74,10 +74,8 @@ func (u *UI) startPoolQualification(ctx context.Context, fresh, deep bool) (qual
 	u.qualMu.Unlock()
 
 	ladder := onboard.DefaultLadder()
-	wall := 20 * time.Minute
 	if deep {
 		ladder = onboard.DeepLadder()
-		wall = 40 * time.Minute
 	}
 	state.Running = true
 	state.StartedAt = time.Now()
@@ -104,7 +102,7 @@ func (u *UI) startPoolQualification(ctx context.Context, fresh, deep bool) (qual
 			u.qualMu.Unlock()
 			cancel()
 		}()
-		u.runPoolQualification(runCtx, models, ladder, wall, &runState)
+		u.runPoolQualification(runCtx, models, ladder, &runState)
 	}(runState)
 	return state, true, nil
 }
@@ -124,91 +122,116 @@ func poolQualificationPlan(models []string, ladder onboard.Ladder) int {
 	return len(models) * (len(ladder.Generators) + len(ladder.Judges))
 }
 
-func (u *UI) runPoolQualification(ctx context.Context, models []string, ladder onboard.Ladder, wall time.Duration, state *qualState) {
-	if wall <= 0 {
-		wall = 20 * time.Minute
-	}
-	ctx, cancel := context.WithTimeout(ctx, wall)
-	defer cancel()
+func (u *UI) runPoolQualification(ctx context.Context, models []string, ladder onboard.Ladder, state *qualState) {
 	state.Running = true
 	state.Error = ""
 	if state.Results == nil {
 		state.Results = map[string]bool{}
 	}
+	if state.Details == nil {
+		state.Details = map[string]qualCaseRecord{}
+	}
+	// The core is one case per capability; every model runs it before any
+	// score is compared. Extra cases run in blocks for every model, so a slow
+	// model cannot starve the rest and an interrupted block is excluded from
+	// the balanced score by recordPoolQualification.
+	core := onboard.QualificationCore(ladder)
+	blocks := onboard.QualificationBlocks(ladder, 30)
+	runCases := func(model string, refs []onboard.CaseRef, measure bool) {
+		for _, ref := range refs {
+			if ctx.Err() != nil {
+				return
+			}
+			u.runQualCase(ctx, model, ref, ladder, state)
+		}
+		if measure {
+			if resident, ok := ollamaResident(ctx, u.deps.Config.Inference.OllamaURL, model); ok {
+				u.pool().SetMeasuredResident(model, resident, 8192)
+			}
+		}
+		// Release the model between blocks. Use a fresh context so a canceled
+		// screen still evicts it.
+		ollamaUnload(context.Background(), u.deps.Config.Inference.OllamaURL, model)
+	}
 	for _, model := range models {
 		if ctx.Err() != nil {
 			break
 		}
-		for _, c := range ladder.Generators {
+		runCases(model, core, true)
+	}
+	for _, block := range blocks {
+		if ctx.Err() != nil {
+			break
+		}
+		for _, model := range models {
 			if ctx.Err() != nil {
 				break
 			}
-			key := "generator|" + model + "|" + c.ID
-			if _, done := state.Results[key]; done {
-				continue
-			}
-			start := time.Now()
-			answer, err := ollamaChat(ctx, u.deps.Config.Inference.OllamaURL, model, onboard.GenPrompt(c))
-			correct := err == nil && onboard.ScoreGen(c, answer)
-			state.Results[key] = correct
-			state.Details[key] = qualCaseRecord{
-				Kind: "generator", CaseID: c.ID, Capability: c.Capability,
-				Prompt: c.Prompt, Want: c.Want, Answer: answer,
-				Correct: correct, DurationMS: time.Since(start).Milliseconds(),
-			}
-			if err != nil {
-				rec := state.Details[key]
-				rec.Error = err.Error()
-				state.Details[key] = rec
-			}
-			state.Done = len(state.Results)
-			u.saveQualState(ctx, *state)
+			runCases(model, block, false)
 		}
-		for i, c := range ladder.Judges {
-			if ctx.Err() != nil {
-				break
-			}
-			key := "judge|" + model + "|" + c.ID
-			if _, done := state.Results[key]; done {
-				continue
-			}
-			prompt, want := onboard.JudgePrompt(c, i%2 == 0)
-			start := time.Now()
-			answer, err := ollamaChat(ctx, u.deps.Config.Inference.OllamaURL, model, prompt)
-			correct := err == nil && onboard.ScoreJudge(answer, want)
-			state.Results[key] = correct
-			state.Details[key] = qualCaseRecord{
-				Kind: "judge", CaseID: c.ID, Capability: c.Capability,
-				Prompt: prompt, Want: want, Answer: answer,
-				Correct: correct, DurationMS: time.Since(start).Milliseconds(),
-			}
-			if err != nil {
-				rec := state.Details[key]
-				rec.Error = err.Error()
-				state.Details[key] = rec
-			}
-			state.Done = len(state.Results)
-			u.saveQualState(ctx, *state)
-		}
-		// Qualification already loaded the model at num_ctx=8192. Reading the
-		// resident size here gives every pool model a measured KV fallback,
-		// including MLX models whose architecture metadata omits KV heads.
-		if resident, ok := ollamaResident(ctx, u.deps.Config.Inference.OllamaURL, model); ok {
-			u.pool().SetMeasuredResident(model, resident, 8192)
-		}
-		// Do not leave the last screened model resident. Use a fresh context so
-		// a canceled/timed-out screen still releases the model.
-		ollamaUnload(context.Background(), u.deps.Config.Inference.OllamaURL, model)
 	}
 	state.Running = false
 	state.FinishedAt = time.Now()
 	if ctx.Err() == context.Canceled {
 		state.Error = "qualification cancelled; start again to resume"
-	} else if ctx.Err() != nil {
-		state.Error = "qualification stopped at the wall bound; start again to resume"
 	}
 	u.saveQualState(context.Background(), *state)
 	u.recordPoolQualification(context.Background(), models, ladder, *state)
+}
+
+// runQualCase runs and records one ladder case. The state key is the same
+// kind|model|id key the resumable file uses.
+func (u *UI) runQualCase(ctx context.Context, model string, ref onboard.CaseRef, ladder onboard.Ladder, state *qualState) {
+	key := ref.Kind + "|" + model + "|" + ref.ID
+	if _, done := state.Results[key]; done {
+		return
+	}
+	start := time.Now()
+	switch ref.Kind {
+	case "generator":
+		for _, c := range ladder.Generators {
+			if c.ID != ref.ID {
+				continue
+			}
+			answer, err := ollamaChat(ctx, u.deps.Config.Inference.OllamaURL, model, onboard.GenPrompt(c))
+			correct := err == nil && onboard.ScoreGen(c, answer)
+			rec := qualCaseRecord{
+				Kind: "generator", CaseID: c.ID, Capability: c.Capability,
+				Prompt: c.Prompt, Want: c.Want, Answer: answer,
+				Correct: correct, DurationMS: time.Since(start).Milliseconds(),
+			}
+			if err != nil {
+				rec.Error = err.Error()
+			}
+			state.Results[key] = correct
+			state.Details[key] = rec
+			state.Done = len(state.Results)
+			u.saveQualState(ctx, *state)
+			return
+		}
+	case "judge":
+		for i, c := range ladder.Judges {
+			if c.ID != ref.ID {
+				continue
+			}
+			prompt, want := onboard.JudgePrompt(c, i%2 == 0)
+			answer, err := ollamaChat(ctx, u.deps.Config.Inference.OllamaURL, model, prompt)
+			correct := err == nil && onboard.ScoreJudge(answer, want)
+			rec := qualCaseRecord{
+				Kind: "judge", CaseID: c.ID, Capability: c.Capability,
+				Prompt: prompt, Want: want, Answer: answer,
+				Correct: correct, DurationMS: time.Since(start).Milliseconds(),
+			}
+			if err != nil {
+				rec.Error = err.Error()
+			}
+			state.Results[key] = correct
+			state.Details[key] = rec
+			state.Done = len(state.Results)
+			u.saveQualState(ctx, *state)
+			return
+		}
+	}
 }
 
 // qualModelDetail is the per-model case evidence shown under the ranking.
@@ -280,6 +303,12 @@ func (u *UI) recordPoolQualification(ctx context.Context, models []string, ladde
 		return
 	}
 	type tally struct{ successes, trials int }
+	// Scores are computed only on cases every model completed. A canceled or
+	// failed extra block therefore cannot advantage the models that ran first.
+	balanced := onboard.BalancedCaseKeys(state.Results, models)
+	if len(balanced) == 0 {
+		return
+	}
 	for _, model := range models {
 		byCapability := map[string]*tally{}
 		add := func(capability string, correct bool) {
@@ -298,6 +327,9 @@ func (u *UI) recordPoolQualification(ctx context.Context, models []string, ladde
 		}
 		gen := &tally{}
 		for _, c := range ladder.Generators {
+			if !balanced["generator|"+c.ID] {
+				continue
+			}
 			v, ok := state.Results["generator|"+model+"|"+c.ID]
 			if !ok {
 				continue
@@ -310,6 +342,9 @@ func (u *UI) recordPoolQualification(ctx context.Context, models []string, ladde
 		}
 		judge := &tally{}
 		for _, c := range ladder.Judges {
+			if !balanced["judge|"+c.ID] {
+				continue
+			}
 			v, ok := state.Results["judge|"+model+"|"+c.ID]
 			if !ok {
 				continue
