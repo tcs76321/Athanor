@@ -539,6 +539,10 @@ type PolicyConfig struct {
 	// count from observed strategy outcomes (ADR-0110). It is data-gated:
 	// with no arm at LearnedSelectionMinSamples the plan is unchanged.
 	LearnedSelection *bool `yaml:"learned_selection"`
+	// PairwiseJudge runs the comparison judge in both A/B orders and only
+	// accepts an agreed verdict (ADR-0111). It is opt-in: two extra judge
+	// calls per comparison.
+	PairwiseJudge *bool `yaml:"pairwise_judge"`
 	// QualityTieMargin is the score delta within which two artifacts are
 	// considered tied for cost-aware acceptance (F4-T6).
 	QualityTieMargin *float64 `yaml:"quality_tie_margin"`
@@ -639,6 +643,12 @@ func (e *Execution) CostAwareEnabled() bool {
 // selector is evidence-gated, so an empty history is a no-op.
 func (e *Execution) LearnedSelectionEnabled() bool {
 	return Val(e.Policy.LearnedSelection, true)
+}
+
+// PairwiseJudgeEnabled resolves pairwise_judge (default false: two extra
+// judgment calls are an explicit cost choice).
+func (e *Execution) PairwiseJudgeEnabled() bool {
+	return Val(e.Policy.PairwiseJudge, false)
 }
 
 // QualityTieMarginValue resolves quality_tie_margin (default 0.02).

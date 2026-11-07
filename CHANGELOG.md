@@ -22,6 +22,9 @@ New entries are appended at the top. Do not rewrite history.
   a data-gated UCB selector reads observed candidate-count arms from strategy
   outcomes and adjusts the first attempt. It is a no-op until an arm has eight
   samples, never overrides the retry ladder, and audits every change.
+- **Pairwise judge** ([ADR-0111](docs/adr/0111-pairwise-judge.md)): opt-in
+  A/B comparison in both orders. Agreement decides; disagreement is audited as
+  `judge_position_bias` and falls back to the pointwise judge.
 
 ### Correctness, benchmark parity, and endurance — 2026-11-06
 

@@ -206,6 +206,25 @@ func (e *Engine) phaseCompare(ctx context.Context, j job.Job) error {
 			Reasons: []string{"no cross-family judge available; deterministic evidence not decisive"}}
 		decided = true
 	}
+	if !decided && e.cfg.Execution.PairwiseJudgeEnabled() && previousID != "" {
+		prevContent, perr := e.artifacts.ReadContent(ctx, previousID)
+		if perr != nil {
+			e.audit(ctx, j.ID, map[string]any{
+				"event": "pairwise_judge_fallback", "reason": "previous content unavailable",
+				"error": perr.Error(),
+			})
+		} else if pv, ok, jerr := e.runPairwiseJudge(ctx, j, p, t, judgeRole,
+			string(fullContent), string(prevContent)); jerr != nil {
+			e.audit(ctx, j.ID, map[string]any{
+				"event": "pairwise_judge_fallback", "reason": "judge call failed",
+				"error": jerr.Error(),
+			})
+		} else if ok {
+			verdict = pv
+			judgeCalled = true
+			decided = true
+		}
+	}
 	if !decided {
 		instructions := buildComparisonInstructions(final, records, previousID, previousRecords, previousAvgScore, previousAvgConf)
 		judgeContent := truncateForLimit(string(fullContent), comparisonContentLimit)

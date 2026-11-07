@@ -1223,7 +1223,10 @@ Where `threshold` is `execution.min_judge_confidence` in the configuration refer
 > ([ADR-0100](docs/adr/0100-acceptance-and-feedback-evidence.md)). The judge is
 > additionally bounded by quorum (`judge_count`) and a reward-hacking guard
 > that resolves a judge/verifier contradiction to the verifier
-> ([ADR-0046](docs/adr/0046-judge-protocol.md)). The F4-T6 cost tie-break runs
+> ([ADR-0046](docs/adr/0046-judge-protocol.md)). An opt-in **pairwise judge**
+> runs the comparison in both A/B orders and accepts only an agreed verdict;
+> disagreement is audited as `judge_position_bias` and falls back to the
+> pointwise path ([ADR-0111](docs/adr/0111-pairwise-judge.md)). The F4-T6 cost tie-break runs
 > only when the final artifact has no hard-verifier failure, uses the final
 > artifact's own record, and requires a known previous score; a cheaper failed
 > candidate can never be accepted. Because the M3-T7 probe found the confidence

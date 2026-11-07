@@ -230,6 +230,9 @@ execution:
     # ADR-0110: data-gated candidate-count selection from strategy outcomes.
     # It is a no-op until an arm reaches eight samples.
     learned_selection: true
+    # ADR-0111: run the comparison judge in both A/B orders and accept only an
+    # agreed verdict. Costs two extra judge calls; off by default.
+    pairwise_judge: false
     quality_tie_margin: 0.02
     require_cross_family: true
     heterogeneous_diversity: true

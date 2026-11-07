@@ -255,6 +255,10 @@ func applyDefaults(c *Config) {
 	}
 	setTrue(&c.Execution.Policy.CostAware)
 	setTrue(&c.Execution.Policy.LearnedSelection)
+	if c.Execution.Policy.PairwiseJudge == nil {
+		off := false
+		c.Execution.Policy.PairwiseJudge = &off
+	}
 	setTrue(&c.Execution.Policy.RequireCrossFamily)
 	setTrue(&c.Execution.Policy.HeterogeneousDiversity)
 	setStr(&c.Execution.Policy.NoveltyReset, NoveltyResetAuto)
