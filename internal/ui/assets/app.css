@@ -595,6 +595,8 @@ html[data-density="compact"] th, html[data-density="compact"] td { padding: 6px 
 html[data-density="compact"] h1 { font-size: var(--step-3); }
 html[data-density="compact"] h2 { margin-top: var(--space-5); }
 
+.case-detail > summary { padding: 4px 0; }
+.case-detail pre { max-height: 220px; }
 .file-block { margin: var(--space-3) 0; border: var(--line); border-radius: var(--radius); overflow: hidden; background: var(--code-bg); }
 .file-head { display: flex; align-items: center; gap: var(--space-3); justify-content: space-between; padding: 6px 10px; background: var(--panel-2); border-bottom: var(--line); }
 .file-head .mono { font-size: 0.82rem; color: var(--text-soft); overflow-wrap: anywhere; }

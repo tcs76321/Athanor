@@ -127,6 +127,9 @@ demo. A claim without a proof is either removed or marked as a target.
 | Per-project execution overrides are editable in the UI | 2026-11-06 backlog pass | `POST /ui/projects/{id}/execution`; `TestProjectExecutionEditor` | **proven** |
 | `athanor job watch` streams audit events | 2026-11-06 backlog pass | `cmd/athanor/cli_project.go`; `TestFormatJobEvent` | **proven** |
 | The host-reserve warning is fixable on the page that shows it, and returning after restart keeps the step | 2026-11-06 first-use fix | `internal/ui/onboarding_templates.go`; `TestCurrentResourcesWarnsWhenReserveBelowVM`, `TestReserveFixReturnsToModels` | **proven** |
+| Qualification is a broader 41-case screen with per-case evidence and a 10-minute bound | `docs/qualification-v2.md` | `internal/onboard/ladder.go`; `TestDefaultLadderIsBroadEnough`, `TestQualDetailsGroupCases` | **proven structurally** |
+| The measured pool derives a small/medium/big baseline for wide/main/tall | `docs/qualification-v2.md` | `internal/ui/role_pick.go`; `TestRolePicksUseSizeTiers` | **proven** |
+| Resource fields can be fine-tuned without step-validation errors | 2026-11-06 | `internal/ui/onboarding_templates.go` (step 1/64/0.25/8/32) | **proven structurally** |
 | A project can be critical/high/medium/low, and at most one project is critical | ADR-0108 | migration 0037; `Project.SetPriority`; `TestProjectPrioritySingleCritical`, `TestProjectPriority` | **proven** |
 | Field refinement retries an over-eager clarification and leaves usable text unchanged rather than blocking | ADR-0105 amendment | `internal/assist` (`retryRefine`, `usableFieldText`); `TestRefineRetriesOverEagerClarification`, `TestRefineLeavesUsableTextUnchangedWhenRetryStillClarifies` | **proven** |
 | Every advertised theme has a distinct palette/background | 2026-11-06 theme pass | `internal/ui/theme_test.go` (`TestThemeBackgroundsAreUnique`) | **proven** |

@@ -24,6 +24,16 @@ func TestDeepLadderExtendsSmoke(t *testing.T) {
 	}
 }
 
+func TestDefaultLadderIsBroadEnough(t *testing.T) {
+	l := DefaultLadder()
+	if len(l.Generators) < 18 || len(l.Judges) < 20 {
+		t.Fatalf("default ladder = %d generators / %d judges, want at least 18/20", len(l.Generators), len(l.Judges))
+	}
+	if deep := DeepLadder(); len(deep.Generators) <= len(l.Generators) || len(deep.Judges) <= len(l.Judges) {
+		t.Fatal("deep ladder does not add breadth")
+	}
+}
+
 func TestDefaultLadderIsWellFormed(t *testing.T) {
 	l := DefaultLadder()
 	if len(l.Generators) == 0 || len(l.Judges) == 0 {

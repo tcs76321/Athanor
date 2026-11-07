@@ -25,10 +25,10 @@ const modelsBody = `
   <div class="row row-middle">
     <div>
       <div class="eyebrow">{{.PoolCount}} eligible model(s) · minimum {{.PoolMin}}</div>
-      <p class="muted">{{if .PoolReady}}Full repertoire: multiple candidates, an independent judge when a different family exists, and second opinions within budget.{{else}}Degraded mode: fewer independent perspectives. Four or more eligible models enable the full repertoire.{{end}} Machine: {{printf "%.0f" .Pool.MachineHostGiB}} GiB host, {{.Pool.MachineCPUs}} CPU, score {{.Pool.MachineScore}}/100.</p>
+      <p class="muted">{{if .PoolReady}}Full repertoire: multiple candidates, an independent judge when a different family exists, and second opinions within budget.{{else}}Degraded mode: fewer independent perspectives. Four or more eligible models enable the full repertoire.{{end}} Host capacity: {{printf "%.0f" .Pool.MachineHostGiB}} GiB RAM, {{.Pool.MachineCPUs}} CPU, capacity {{.Pool.MachineScore}}/100 — a RAM/CPU/disk heuristic, not a model-quality score. The measured ranking below is the model score.</p>
     </div>
     <span class="pill {{if .PoolReady}}ok{{else}}warn{{end}}">{{if .PoolReady}}full{{else}}degraded{{end}}</span>
-    <span class="pill">machine {{.Pool.MachineScore}}/100</span>
+    <span class="pill" title="RAM/CPU/disk capacity heuristic, not model quality">host capacity {{.Pool.MachineScore}}/100</span>
   </div>
   {{if .PoolWarning}}<p class="del">{{.PoolWarning}}</p>{{end}}
 </div>
@@ -78,6 +78,19 @@ const modelsBody = `
 </div></div>
 
 {{if .Pool.QualifiedCount}}
+{{if .RolePicks}}
+<h2>Baseline cast</h2>
+<p class="muted">The best small, medium, and big models on this machine for the everyday roles. This is a first signal; job outcomes keep updating selection.</p>
+<div class="grid cols-3">
+  {{range .RolePicks}}
+  <div class="card">
+    <div class="eyebrow">{{roleLabel .Role}} · {{.Tier}}</div>
+    <h3 class="mono">{{.Model}}</h3>
+    <p class="muted">{{printf "%.0f%%" (mul .Score 100)}} role score · {{printf "%.1f" .SizeGiB}} GiB · {{.Context}} ctx</p>
+  </div>
+  {{end}}
+</div>
+{{end}}
 <h2>Measured ranking</h2>
 <div class="card flush"><div class="table-wrap">
 <table><thead><tr><th>Model</th><th>Overall</th><th>Code</th><th>Data</th><th>Judgment</th><th>Samples</th></tr></thead><tbody>
@@ -92,6 +105,33 @@ const modelsBody = `
 </tbody></table>
 </div></div>
 <p class="muted small">Scores are smoothed success rates on this machine; samples are grounded cases. Ties break by name. Real job outcomes continue to update the ranking.</p>
+{{if .QualDetails}}
+<h2>Case detail</h2>
+<p class="muted">Expand a model to see every case, the question, the expected answer, and what it produced.</p>
+{{range .QualDetails}}
+<details class="case-detail">
+  <summary><b class="mono">{{.Model}}</b> — {{.Passed}}/{{.Total}} passed</summary>
+  <div class="table-wrap">
+  <table><thead><tr><th>Case</th><th>Capability</th><th>Result</th><th>Question / expected / answer</th></tr></thead><tbody>
+  {{range .Cases}}<tr>
+    <td class="mono">{{.Kind}} · {{.CaseID}}</td>
+    <td>{{if .Capability}}{{.Capability}}{{else}}—{{end}}</td>
+    <td>{{if .Passed}}<span class="pill ok">pass</span>{{else}}<span class="pill bad">fail</span>{{end}}</td>
+    <td><details><summary>{{printf "%.120s" .Prompt}}</summary>
+      <div class="stack">
+        <div><b>Question</b><pre class="wrap">{{.Prompt}}</pre></div>
+        {{if .Want}}<div><b>Expected</b><pre class="wrap">{{.Want}}</pre></div>{{end}}
+        {{if .Answer}}<div><b>Answer</b><pre class="wrap">{{.Answer}}</pre></div>{{end}}
+        {{if .Error}}<div class="del">{{.Error}}</div>{{end}}
+        {{if .DurationMS}}<div class="muted">Took {{.DurationMS}} ms</div>{{end}}
+      </div>
+    </details></td>
+  </tr>{{end}}
+  </tbody></table>
+  </div>
+</details>
+{{end}}
+{{end}}
 {{end}}
 `
 

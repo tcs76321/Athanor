@@ -21,6 +21,11 @@ The 2026-11-06 pass closed the biggest presentation and daily-loop gaps:
   catches up after a gap; the model catalog is cached; assets revalidate with an
   ETag; search covers tasks and artifacts by project; project pages bound their
   history.
+- **Qualification.** A broader 41-case screen (10-minute default, 20-minute
+  deep) records every question, expected answer, actual answer, and failure.
+  Models/Qualification show the evidence per model and a small/medium/big
+  baseline cast for wide/main/tall; `main` is the medium default
+  ([qualification-v2.md](qualification-v2.md)).
 - **Accelerators.** Resources and Models show the host GPU/NPU probe; a
   discrete GPU budgets VRAM and reports spill, while unified Apple memory keeps
   the host budget. NPU is inventory-only (ADR-0107).

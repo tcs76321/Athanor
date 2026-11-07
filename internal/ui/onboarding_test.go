@@ -309,6 +309,50 @@ func TestBudgetForSeparatesHostInferenceAndRuntimeSandbox(t *testing.T) {
 	}
 }
 
+func TestQualDetailsGroupCases(t *testing.T) {
+	state := newQualState()
+	state.Results["generator|m|g1"] = true
+	state.Results["judge|m|j1"] = false
+	state.Details["generator|m|g1"] = qualCaseRecord{
+		Kind: "generator", CaseID: "g1", Capability: "code", Prompt: "q", Want: "w", Answer: "w", Correct: true,
+	}
+	state.Details["judge|m|j1"] = qualCaseRecord{
+		Kind: "judge", CaseID: "j1", Capability: "general", Prompt: "q", Want: "A", Answer: "B", Correct: false,
+	}
+	got := qualDetailsFromState(state, []string{"m", "missing"})
+	if len(got) != 1 || got[0].Model != "m" || got[0].Passed != 1 || got[0].Total != 2 {
+		t.Fatalf("details = %+v, want one model with 1/2", got)
+	}
+	if got[0].Cases[0].Prompt == "" || got[0].Cases[0].Want == "" || got[0].Cases[0].Answer == "" {
+		t.Errorf("case evidence is incomplete: %+v", got[0].Cases[0])
+	}
+}
+
+func TestRolePicksUseSizeTiers(t *testing.T) {
+	p := composition.New(nil)
+	for _, m := range []struct {
+		name string
+		size int64
+	}{{"small", 2 << 30}, {"medium", 6 << 30}, {"big", 14 << 30}} {
+		p.Upsert(composition.ModelInfo{Name: m.name, SizeBytes: m.size, FileBytes: m.size, ContextTarget: 8192})
+		p.SetMeasured(m.name, "general", 8, 10)
+		p.SetMeasured(m.name, "code", 8, 10)
+		p.SetMeasured(m.name, "judgment", 8, 10)
+	}
+	u := &UI{deps: Deps{Pool: p}}
+	picks := u.rolePicks()
+	if len(picks) != 3 {
+		t.Fatalf("picks = %+v, want three", picks)
+	}
+	byRole := map[string]string{}
+	for _, pick := range picks {
+		byRole[pick.Role] = pick.Model
+	}
+	if byRole["wide"] != "small" || byRole["main"] != "medium" || byRole["tall"] != "big" {
+		t.Fatalf("role picks = %+v, want small/medium/big", byRole)
+	}
+}
+
 func TestBudgetForUsesVRAMOnDiscreteGPU(t *testing.T) {
 	roles := []setupRole{{Role: "main", Model: "big"}}
 	models := []setupModel{{Name: "big", SizeBytes: 19 << 30, Measured: true}}

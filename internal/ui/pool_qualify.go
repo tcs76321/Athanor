@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
@@ -72,8 +73,10 @@ func (u *UI) startPoolQualification(ctx context.Context, fresh, deep bool) (qual
 	u.qualMu.Unlock()
 
 	ladder := onboard.DefaultLadder()
+	wall := 10 * time.Minute
 	if deep {
 		ladder = onboard.DeepLadder()
+		wall = 20 * time.Minute
 	}
 	state.Running = true
 	state.StartedAt = time.Now()
@@ -100,7 +103,7 @@ func (u *UI) startPoolQualification(ctx context.Context, fresh, deep bool) (qual
 			u.qualMu.Unlock()
 			cancel()
 		}()
-		u.runPoolQualification(runCtx, models, ladder, &runState)
+		u.runPoolQualification(runCtx, models, ladder, wall, &runState)
 	}(runState)
 	return state, true, nil
 }
@@ -120,8 +123,11 @@ func poolQualificationPlan(models []string, ladder onboard.Ladder) int {
 	return len(models) * (len(ladder.Generators) + len(ladder.Judges))
 }
 
-func (u *UI) runPoolQualification(ctx context.Context, models []string, ladder onboard.Ladder, state *qualState) {
-	ctx, cancel := context.WithTimeout(ctx, 2*time.Hour)
+func (u *UI) runPoolQualification(ctx context.Context, models []string, ladder onboard.Ladder, wall time.Duration, state *qualState) {
+	if wall <= 0 {
+		wall = 10 * time.Minute
+	}
+	ctx, cancel := context.WithTimeout(ctx, wall)
 	defer cancel()
 	state.Running = true
 	state.Error = ""
@@ -140,8 +146,20 @@ func (u *UI) runPoolQualification(ctx context.Context, models []string, ladder o
 			if _, done := state.Results[key]; done {
 				continue
 			}
+			start := time.Now()
 			answer, err := ollamaChat(ctx, u.deps.Config.Inference.OllamaURL, model, onboard.GenPrompt(c))
-			state.Results[key] = err == nil && onboard.ScoreGen(c, answer)
+			correct := err == nil && onboard.ScoreGen(c, answer)
+			state.Results[key] = correct
+			state.Details[key] = qualCaseRecord{
+				Kind: "generator", CaseID: c.ID, Capability: c.Capability,
+				Prompt: c.Prompt, Want: c.Want, Answer: answer,
+				Correct: correct, DurationMS: time.Since(start).Milliseconds(),
+			}
+			if err != nil {
+				rec := state.Details[key]
+				rec.Error = err.Error()
+				state.Details[key] = rec
+			}
 			state.Done = len(state.Results)
 			u.saveQualState(ctx, *state)
 		}
@@ -154,8 +172,20 @@ func (u *UI) runPoolQualification(ctx context.Context, models []string, ladder o
 				continue
 			}
 			prompt, want := onboard.JudgePrompt(c, i%2 == 0)
+			start := time.Now()
 			answer, err := ollamaChat(ctx, u.deps.Config.Inference.OllamaURL, model, prompt)
-			state.Results[key] = err == nil && onboard.ScoreJudge(answer, want)
+			correct := err == nil && onboard.ScoreJudge(answer, want)
+			state.Results[key] = correct
+			state.Details[key] = qualCaseRecord{
+				Kind: "judge", CaseID: c.ID, Capability: c.Capability,
+				Prompt: prompt, Want: want, Answer: answer,
+				Correct: correct, DurationMS: time.Since(start).Milliseconds(),
+			}
+			if err != nil {
+				rec := state.Details[key]
+				rec.Error = err.Error()
+				state.Details[key] = rec
+			}
 			state.Done = len(state.Results)
 			u.saveQualState(ctx, *state)
 		}
@@ -175,6 +205,66 @@ func (u *UI) runPoolQualification(ctx context.Context, models []string, ladder o
 	}
 	u.saveQualState(context.Background(), *state)
 	u.recordPoolQualification(context.Background(), models, ladder, *state)
+}
+
+// qualModelDetail is the per-model case evidence shown under the ranking.
+type qualModelDetail struct {
+	Model  string
+	Passed int
+	Total  int
+	Cases  []qualCaseView
+}
+
+type qualCaseView struct {
+	Kind       string
+	CaseID     string
+	Capability string
+	Passed     bool
+	Prompt     string
+	Want       string
+	Answer     string
+	Error      string
+	DurationMS int64
+}
+
+// qualDetailsFromState groups stored case evidence by model. It is deliberately
+// derived from the same Results/Details state as the score, so the table and
+// the expandable evidence cannot disagree.
+func qualDetailsFromState(s qualState, models []string) []qualModelDetail {
+	out := make([]qualModelDetail, 0, len(models))
+	for _, model := range models {
+		d := qualModelDetail{Model: model}
+		for _, kind := range []string{"generator", "judge"} {
+			prefix := kind + "|" + model + "|"
+			for key, rec := range s.Details {
+				if !strings.HasPrefix(key, prefix) {
+					continue
+				}
+				if rec.Kind == "" {
+					rec.Kind = kind
+				}
+				d.Total++
+				if rec.Correct {
+					d.Passed++
+				}
+				d.Cases = append(d.Cases, qualCaseView{
+					Kind: rec.Kind, CaseID: rec.CaseID, Capability: rec.Capability,
+					Passed: rec.Correct, Prompt: rec.Prompt, Want: rec.Want,
+					Answer: rec.Answer, Error: rec.Error, DurationMS: rec.DurationMS,
+				})
+			}
+		}
+		sort.Slice(d.Cases, func(i, j int) bool {
+			if d.Cases[i].Kind != d.Cases[j].Kind {
+				return d.Cases[i].Kind < d.Cases[j].Kind
+			}
+			return d.Cases[i].CaseID < d.Cases[j].CaseID
+		})
+		if d.Total > 0 {
+			out = append(out, d)
+		}
+	}
+	return out
 }
 
 // recordPoolQualification writes the run into the measured pool. It replaces

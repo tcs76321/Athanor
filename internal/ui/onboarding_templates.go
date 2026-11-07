@@ -128,23 +128,23 @@ const welcomeBody = `
         <input type="hidden" name="step" value="resources">
         <div class="grid cols-2">
           <label>Memory ceiling (MB)
-            <input type="number" name="memory_mb" value="{{.Resources.MemoryMB}}" min="256" max="{{.Resources.MemoryMaxMB}}" step="256">
+            <input type="number" name="memory_mb" value="{{.Resources.MemoryMB}}" min="256" max="{{.Resources.MemoryMaxMB}}" step="64">
             <span class="field-help">Runtime memory {{printf "%.0f" .Resources.TotalMemoryGiB}} GiB minus a {{.Resources.ReserveMB}} MB reserve; max {{.Resources.MemoryMaxMB}} MB.</span>
           </label>
           <label>Host reserve (MB)
-            <input type="number" name="host_reserve_mb" value="{{.Resources.EffectiveHostReserveMB}}" min="{{.Resources.MinHostReserveMB}}" max="65536" step="512">
+            <input type="number" name="host_reserve_mb" value="{{.Resources.EffectiveHostReserveMB}}" min="{{.Resources.MinHostReserveMB}}" max="65536" step="1">
             <span class="field-help">Memory left outside any model: OS, apps, the Core, and the Podman VM. This machine's minimum is {{.Resources.MinHostReserveMB}} MB (the VM size); {{.Resources.RecommendedReserveMB}} MB is recommended. Higher is safer; lower leaves more room for models.</span>
           </label>
           <label>CPUs
-            <input type="number" name="cpus" value="{{printf "%.2f" .Resources.CPUsAllocated}}" min="0.5" max="{{printf "%.2f" .Resources.CPUsMax}}" step="0.5">
+            <input type="number" name="cpus" value="{{printf "%.2f" .Resources.CPUsAllocated}}" min="0.5" max="{{printf "%.2f" .Resources.CPUsMax}}" step="0.25">
             <span class="field-help">Runtime has {{.Resources.CPUs}} core(s). A fraction is a CPU quota, not a dedicated core.</span>
           </label>
           <label>/tmp size (MB)
-            <input type="number" name="tmpfs_mb" value="{{.Resources.TmpfsMB}}" min="64" max="32768" step="64">
+            <input type="number" name="tmpfs_mb" value="{{.Resources.TmpfsMB}}" min="64" max="32768" step="32">
             <span class="field-help">Scratch space inside the Job Pod.</span>
           </label>
           <label>PID limit
-            <input type="number" name="pids_limit" value="{{.Resources.PidsLimit}}" min="32" max="8192" step="32">
+            <input type="number" name="pids_limit" value="{{.Resources.PidsLimit}}" min="32" max="8192" step="8">
             <span class="field-help">Bounds process fan-out. Default 128; raise it for test suites that fork many workers.</span>
           </label>
         </div>
@@ -211,7 +211,7 @@ const welcomeBody = `
           <p class="muted">{{if .PoolReady}}The full repertoire is available: heterogeneous candidates, an independent judge when a different family exists, and second opinions within budget.{{else}}Athanor runs in a degraded mode until four or more models are in the pool. It still works; it has fewer independent perspectives to draw on.{{end}}</p>
         </div>
         <span class="pill {{if .PoolReady}}ok{{else}}warn{{end}}">{{if .PoolReady}}full repertoire{{else}}degraded{{end}}</span>
-        <span class="pill">machine {{.Pool.MachineScore}}/100</span>
+        <span class="pill" title="RAM/CPU/disk capacity heuristic, not model quality">host capacity {{.Pool.MachineScore}}/100</span>
       </div>
       {{if .PoolWarning}}<p class="del">{{.PoolWarning}}</p>{{end}}
       <p class="muted small">A minimum of {{.PoolMin}} is recommended, with a sanity cap of 100. Models do not need different sizes or families; ties are broken by name, and diversity is measured rather than assumed.</p>
@@ -330,6 +330,20 @@ const welcomeBody = `
     </div>
     {{end}}
     {{if .Pool.QualifiedCount}}
+    {{if .RolePicks}}
+    <h2>Baseline cast</h2>
+    <p class="muted">A first signal from this machine's screen: the best small, medium, and big models for the everyday roles. The selector keeps adapting from real job outcomes after this.</p>
+    <div class="grid cols-3">
+      {{range .RolePicks}}
+      <div class="card">
+        <div class="eyebrow">{{roleLabel .Role}} · {{.Tier}}</div>
+        <h3 class="mono">{{.Model}}</h3>
+        <p class="muted">{{printf "%.0f%%" (mul .Score 100)}} role score · {{printf "%.1f" .SizeGiB}} GiB · {{.Context}} ctx</p>
+        <p class="muted small">{{.Reason}}</p>
+      </div>
+      {{end}}
+    </div>
+    {{end}}
     <h2>Measured ranking</h2>
     <div class="card flush"><div class="table-wrap">
       <table><thead><tr><th>Model</th><th>Overall</th><th>Code</th><th>Data</th><th>Judgment</th><th>Samples</th><th></th></tr></thead><tbody>
@@ -352,6 +366,33 @@ const welcomeBody = `
       </tbody></table>
     </div></div>
     <p class="muted small">The score is a smoothed success rate on this machine; samples are the number of grounded cases behind it. Ties break by name. Removing a model is the only override.</p>
+    {{if .QualDetails}}
+    <h2>Case detail</h2>
+    <p class="muted">Expand a model to see every case, the question it was asked, the expected answer, and what it produced.</p>
+    {{range .QualDetails}}
+    <details class="case-detail">
+      <summary><b class="mono">{{.Model}}</b> — {{.Passed}}/{{.Total}} passed</summary>
+      <div class="table-wrap">
+      <table><thead><tr><th>Case</th><th>Capability</th><th>Result</th><th>Question / expected / answer</th></tr></thead><tbody>
+      {{range .Cases}}<tr>
+        <td class="mono">{{.Kind}} · {{.CaseID}}</td>
+        <td>{{if .Capability}}{{.Capability}}{{else}}—{{end}}</td>
+        <td>{{if .Passed}}<span class="pill ok">pass</span>{{else}}<span class="pill bad">fail</span>{{end}}</td>
+        <td><details><summary>{{printf "%.120s" .Prompt}}</summary>
+          <div class="stack">
+            <div><b>Question</b><pre class="wrap">{{.Prompt}}</pre></div>
+            {{if .Want}}<div><b>Expected</b><pre class="wrap">{{.Want}}</pre></div>{{end}}
+            {{if .Answer}}<div><b>Answer</b><pre class="wrap">{{.Answer}}</pre></div>{{end}}
+            {{if .Error}}<div class="del">{{.Error}}</div>{{end}}
+            {{if .DurationMS}}<div class="muted">Took {{.DurationMS}} ms</div>{{end}}
+          </div>
+        </details></td>
+      </tr>{{end}}
+      </tbody></table>
+      </div>
+    </details>
+    {{end}}
+    {{end}}
     {{end}}
     <div class="actions">
       <form method="post" action="/ui/welcome"><input type="hidden" name="step" value="qualify"><button class="secondary" name="action" value="back">Back</button></form>

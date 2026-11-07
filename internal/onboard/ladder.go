@@ -83,6 +83,27 @@ func DefaultLadder() Ladder {
 					"The crew ate breakfast after the crossing."},
 			{ID: "gen-media-plan", Check: CheckJSON, Want: `{"shots":["wide","close","cut"]}`, Capability: "media",
 				Prompt: `Return only JSON with this shape: {"shots":["..."]} for a three-shot sunrise sequence named wide, close, and cut.`},
+			// The next block widens the screen beyond one-line recall: state,
+			// ordering, slicing, and format discipline separate models that
+			// otherwise cluster on the easy cases.
+			{ID: "gen-seq-index", Check: CheckExact, Want: "2", Capability: "code",
+				Prompt: "What does this Python print? Reply with only the output.\n\nx = [1, 2, 3]\nprint(x[-2])"},
+			{ID: "gen-json-nested", Check: CheckJSON, Want: `20`, Capability: "data",
+				Prompt: `Extract the second value in key b and reply with only that value: {"a":{"b":[10,20]}}`},
+			{ID: "gen-data-sort", Check: CheckJSON, Want: `[1,2,3]`, Capability: "data",
+				Prompt: "Sort [3,1,2] ascending and reply with only the JSON array."},
+			{ID: "gen-code-bool", Check: CheckExact, Want: "True", Capability: "code",
+				Prompt: "What does this Python print? Reply with only the result.\n\nprint(bool([]) or bool([0]))"},
+			{ID: "gen-doc-headings", Check: CheckExact, Want: "2", Capability: "document",
+				Prompt: "Count the markdown headings and reply with only the integer.\n\n# A\n## B\nplain text"},
+			{ID: "gen-math-order", Check: CheckExact, Want: "20", Capability: "general",
+				Prompt: "Compute 18 / 3 + 7 * 2. Reply with only the integer."},
+			{ID: "gen-code-slice", Check: CheckExact, Want: "bcd", Capability: "code",
+				Prompt: "What does this Python print? Reply with only the output.\n\nprint('abcdef'[1:4])"},
+			{ID: "gen-json-contract", Check: CheckJSON, Want: `{"a":1,"b":[2,3]}`, Capability: "data",
+				Prompt: `Return only JSON with a=1 and b=[2,3].`},
+			{ID: "gen-media-aspect", Check: CheckJSON, Want: `{"width":1600,"height":900}`, Capability: "media",
+				Prompt: `A 16:9 frame is 1600 px wide. Reply with only JSON: {"width":...,"height":...}.`},
 		},
 		Judges: []JudgeCase{
 			{
@@ -144,6 +165,56 @@ func DefaultLadder() Ladder {
 				ID: "judge-schema", Capability: "data", Goal: "Validate rows and return only JSON with count and invalid; do not drop invalid rows.",
 				Good: `{"count":2,"invalid":1}`,
 				Bad:  `{"count":1}`,
+			},
+			{
+				ID: "judge-concurrency", Capability: "code", Goal: "Two workers increment a shared counter safely.",
+				Good: "with lock:\n    counter += 1",
+				Bad:  "counter += 1",
+			},
+			{
+				ID: "judge-sql-injection", Capability: "data", Goal: "Query a user by name without allowing SQL injection.",
+				Good: "cur.execute(\"SELECT * FROM users WHERE name = ?\", (name,))",
+				Bad:  "cur.execute(f\"SELECT * FROM users WHERE name = '{name}'\")",
+			},
+			{
+				ID: "judge-idempotency", Capability: "data", Goal: "Retrying the import must not duplicate rows.",
+				Good: "INSERT INTO t (id, v) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET v = excluded.v",
+				Bad:  "INSERT INTO t (id, v) VALUES (?, ?)",
+			},
+			{
+				ID: "judge-timeout", Capability: "code", Goal: "A network call must not hang forever.",
+				Good: "ctx, cancel := context.WithTimeout(ctx, 10*time.Second)\ndefer cancel()\nreturn client.Do(ctx)",
+				Bad:  "return client.Do(context.Background())",
+			},
+			{
+				ID: "judge-data-types", Capability: "data", Goal: "Reject records whose age is not an integer instead of coercing them.",
+				Good: "if !isInt(r.Age) {\n    return fmt.Errorf(\"age must be an integer\")\n}",
+				Bad:  "r.Age = parseInt(r.Age)",
+			},
+			{
+				ID: "judge-doc-structure", Capability: "document", Goal: "Produce a runbook with prerequisites, steps, and rollback.",
+				Good: "## Prerequisites\n...\n## Steps\n...\n## Rollback\n...",
+				Bad:  "Here is everything you need to know in one long paragraph.",
+			},
+			{
+				ID: "judge-text-audience", Capability: "text", Goal: "Explain the outage to customers without jargon or blame.",
+				Good: "Some requests failed for four minutes while we restarted a database. No data was lost.",
+				Bad:  "The primary DB replica entered a crash-loop after the schema migration.",
+			},
+			{
+				ID: "judge-media-alt", Capability: "media", Goal: "Write alt text for a bar chart of quarterly revenue.",
+				Good: "Bar chart: revenue rises each quarter, from $2M in Q1 to $5M in Q4.",
+				Bad:  "Chart.",
+			},
+			{
+				ID: "judge-secret-env", Capability: "code", Goal: "Read a credential without hard-coding it in the repository.",
+				Good: "token := os.Getenv(\"ATHANOR_TOKEN\")",
+				Bad:  "token := \"sk-live-abc123\"",
+			},
+			{
+				ID: "judge-test-isolation", Capability: "code", Goal: "A test writes a temporary file and removes it afterwards.",
+				Good: "dir := t.TempDir()\npath := filepath.Join(dir, \"x\")\nt.Cleanup(func() { os.Remove(path) })",
+				Bad:  "path := \"/tmp/athanor-test-output\"",
 			},
 		},
 	}

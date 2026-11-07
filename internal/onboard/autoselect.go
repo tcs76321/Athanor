@@ -102,20 +102,95 @@ func AutoAssignWithScores(roles []Role, models []Model, scores map[string]float6
 	byRole := map[string]Assignment{}
 	family := func(m Model) string { return m.Family }
 
-	// tall: the best measured (else largest) model.
-	tallRanked := ranked("tall")
-	tall := tallRanked[0]
-	byRole["tall"] = Assignment{Model: tall.Name, Family: family(tall), Reason: reason("tall", tall.Name, "largest installed model for hard reasoning")}
-	// main: the best model that fits. Sharing tall is preferred when no
-	// role-specific measurement distinguishes them: it uses the strongest
-	// generator and avoids a model swap between planning and synthesis.
-	main := tall
-	if rankedMain := ranked("main"); len(rankedMain) > 0 {
-		main = rankedMain[0]
+	// Size tiers are a first signal for the everyday roles: wide is the
+	// smallest capable model, main the best medium model, tall the best large
+	// model. Quality can override the tier when one is clearly better.
+	asc := append([]Model(nil), fitting...)
+	sort.SliceStable(asc, func(i, j int) bool {
+		if asc[i].SizeBytes != asc[j].SizeBytes {
+			return asc[i].SizeBytes < asc[j].SizeBytes
+		}
+		return asc[i].Name < asc[j].Name
+	})
+	k := len(asc) / 3
+	if k < 1 {
+		k = 1
 	}
-	byRole["main"] = Assignment{Model: main.Name, Family: family(main), Reason: reason("main", main.Name, "best measured/largest model that fits for normal execution")}
-	// wide: the smallest model for fast ingestion.
-	byRole["wide"] = Assignment{Model: smallest.Name, Family: family(smallest), Reason: "smallest installed model for fast ingestion"}
+	smallTier := asc[:k]
+	bigTier := asc[len(asc)-k:]
+	mediumTier := []Model{}
+	if 2*k < len(asc) {
+		mediumTier = asc[k : len(asc)-k]
+	}
+	bestIn := func(role string, group []Model) *Model {
+		if len(group) == 0 {
+			return nil
+		}
+		var chosen *Model
+		best := -1.0
+		for i := range group {
+			s, ok := scores[role+"|"+group[i].Name]
+			if !ok {
+				s = -1
+			}
+			if chosen == nil || s > best || (s == best && group[i].SizeBytes > chosen.SizeBytes) {
+				chosen = &group[i]
+				best = s
+			}
+		}
+		return chosen
+	}
+	scoreOf := func(role string, m *Model) float64 {
+		if m == nil {
+			return 0
+		}
+		if s, ok := scores[role+"|"+m.Name]; ok {
+			return s
+		}
+		return 0
+	}
+	bestOverall := func(role string) *Model {
+		if r := ranked(role); len(r) > 0 {
+			return &r[0]
+		}
+		return nil
+	}
+
+	// tall: the best big model unless a medium model is clearly better; a
+	// large model that loses by >0.1 is not worth the extra memory/swap.
+	tall := bestIn("tall", bigTier)
+	if tall == nil {
+		tall = bestOverall("tall")
+	}
+	if alt := bestIn("tall", mediumTier); alt != nil && scoreOf("tall", alt) > scoreOf("tall", tall)+0.1 {
+		tall = alt
+	}
+	if tall == nil {
+		tall = &smallest
+	}
+	tallModel := *tall
+	byRole["tall"] = Assignment{Model: tallModel.Name, Family: family(tallModel), Reason: reason("tall", tallModel.Name, "best large model for hard reasoning")}
+
+	// main: the best medium model unless a big model is clearly better.
+	main := bestIn("main", mediumTier)
+	if main == nil {
+		main = bestOverall("main")
+	}
+	if alt := bestIn("main", bigTier); alt != nil && scoreOf("main", alt) > scoreOf("main", main)+0.1 {
+		main = alt
+	}
+	if main == nil {
+		main = tall
+	}
+	mainModel := *main
+	byRole["main"] = Assignment{Model: mainModel.Name, Family: family(mainModel), Reason: reason("main", mainModel.Name, "best medium model for normal execution")}
+
+	// wide: the smallest capable model for fast ingestion.
+	wide := bestIn("wide", smallTier)
+	if wide == nil {
+		wide = &smallest
+	}
+	byRole["wide"] = Assignment{Model: wide.Name, Family: family(*wide), Reason: reason("wide", wide.Name, "smallest capable model for fast ingestion")}
 
 	// security: a cross-family judge over the generator roles. Reserve this
 	// before alternative so the only unused family goes to the judge.
@@ -128,11 +203,11 @@ func AutoAssignWithScores(roles []Role, models []Model, scores map[string]float6
 	judge := pickDifferent(ranked("security"), generatorFamilies)
 	judgeReason := "largest model from a family outside the generator roles (cross-family judgment)"
 	if judge == nil {
-		judge = pickDifferent(ranked("security"), map[string]bool{family(tall): true, family(main): true})
+		judge = pickDifferent(ranked("security"), map[string]bool{family(tallModel): true, family(mainModel): true})
 		judgeReason = "no cross-family judge available; using the largest different model"
 	}
 	if judge == nil {
-		judge = &tall
+		judge = &tallModel
 		judgeReason = "only one model family installed; cross-family judgment is unavailable"
 	}
 	byRole["security"] = Assignment{Model: judge.Name, Family: family(*judge), Reason: judgeReason}
@@ -143,19 +218,19 @@ func AutoAssignWithScores(roles []Role, models []Model, scores map[string]float6
 	// guarantee is the stronger one).
 	altRanked := ranked("alternative")
 	alt := pickDifferent(altRanked, map[string]bool{
-		family(tall): true, family(main): true, byRole["security"].Family: true,
+		family(tallModel): true, family(mainModel): true, byRole["security"].Family: true,
 	})
 	altReason := "different family from main/tall/judge for an orthogonal candidate"
 	if alt == nil {
-		alt = pickSameFamily(altRanked, family(main))
+		alt = pickSameFamily(altRanked, family(mainModel))
 		altReason = "shares the main model's family; no unused family remains for a separate alternative"
 	}
 	if alt == nil {
-		alt = pickDifferent(altRanked, map[string]bool{family(tall): true})
+		alt = pickDifferent(altRanked, map[string]bool{family(tallModel): true})
 		altReason = "different family from the tall model for an orthogonal candidate"
 	}
 	if alt == nil {
-		alt = &tall
+		alt = &tallModel
 		altReason = "no second family installed; alternative shares the tall model"
 	}
 	byRole["alternative"] = Assignment{Model: alt.Name, Family: family(*alt), Reason: altReason}

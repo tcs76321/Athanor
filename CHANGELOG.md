@@ -10,6 +10,29 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Qualification v2 — broader, inspectable, ten-minute prior — 2026-11-06
+
+- The default qualification ladder grows from 22 to **41 cases** (19 grounded
+  generators + 22 fixed-label judges), with a **53-case** deep ladder. The new
+  cases put pressure on state, ordering, schema shape, concurrency, injection,
+  idempotency, timeouts, data integrity, document structure, audience,
+  accessibility, secrets, and test isolation.
+- The screen is capped at **10 minutes** (deep 20), resumable per case, and
+  still records partial results. It is explicitly a prior, not the frozen
+  benchmark.
+- Every case now stores its question, expected answer, actual answer, pass/fail,
+  duration, and error. Qualification and Models render per-model expandable
+  evidence.
+- The measured pool derives a **small/medium/big baseline** for `wide`, `main`,
+  and `tall` from size tiers plus role-specific capability scores. `main` is
+  the medium default; a clearly better tier can override by a >0.1 score gap.
+- The Models page calls the `N/100` number **host capacity**, not model quality,
+  and explains the RAM/CPU/disk heuristic.
+- Resource inputs use finer increments (1 MB for reserve, 64 MB memory, 0.25
+  CPU, 8 PIDs, 32 MB /tmp) so values can be tuned without step-validation
+  errors.
+- Design and benchmark analysis: [qualification-v2.md](docs/qualification-v2.md).
+
 ### Project priority, refinement reliability, and theme distinction — 2026-11-06
 
 - **Project priority** ([ADR-0108](docs/adr/0108-project-priority.md)):

@@ -35,12 +35,30 @@ type qualState struct {
 	Total      int             `json:"total"`
 	Done       int             `json:"done"`
 	Results    map[string]bool `json:"results"`
-	Error      string          `json:"error,omitempty"`
-	Deep       bool            `json:"deep,omitempty"`
+	// Details is the per-case evidence behind Results. It is optional for
+	// state written before this field existed; the UI degrades to the summary.
+	Details map[string]qualCaseRecord `json:"details,omitempty"`
+	Error   string                    `json:"error,omitempty"`
+	Deep    bool                      `json:"deep,omitempty"`
+}
+
+// qualCaseRecord is one completed case: what was asked, what was expected,
+// what the model answered, and whether it passed. It is the inspection
+// surface behind the score.
+type qualCaseRecord struct {
+	Kind       string `json:"kind"`
+	CaseID     string `json:"case_id"`
+	Capability string `json:"capability,omitempty"`
+	Prompt     string `json:"prompt,omitempty"`
+	Want       string `json:"want,omitempty"`
+	Answer     string `json:"answer,omitempty"`
+	Correct    bool   `json:"correct"`
+	DurationMS int64  `json:"duration_ms,omitempty"`
+	Error      string `json:"error,omitempty"`
 }
 
 func newQualState() qualState {
-	return qualState{Results: map[string]bool{}}
+	return qualState{Results: map[string]bool{}, Details: map[string]qualCaseRecord{}}
 }
 
 func (s qualState) stale() bool {
@@ -251,6 +269,7 @@ func (u *UI) handleSetup(w http.ResponseWriter, r *http.Request) {
 	data["Models"] = models
 	data["Roles"] = roles
 	data["State"] = state
+	data["RolePicks"] = u.rolePicks()
 	data["Applied"] = r.URL.Query().Get("applied")
 	data["Stale"] = stale
 	hasMeasurements := false
@@ -258,6 +277,9 @@ func (u *UI) handleSetup(w http.ResponseWriter, r *http.Request) {
 		ms := qualMeasurementsFromState(state)
 		hasMeasurements = len(ms) > 0
 		data["Measurements"] = ms
+		if p := u.pool(); p != nil {
+			data["QualDetails"] = qualDetailsFromState(state, p.EligibleNames())
+		}
 		if len(ms) > 0 {
 			recs := onboard.Route(setupOnboardRoles(roles), families, ms, setupRoutingOptions())
 			data["Recommendations"] = recs
@@ -546,6 +568,9 @@ func (u *UI) loadQualState(ctx context.Context) qualState {
 	var s qualState
 	if json.Unmarshal([]byte(raw), &s) != nil || s.Results == nil {
 		return newQualState()
+	}
+	if s.Details == nil {
+		s.Details = map[string]qualCaseRecord{}
 	}
 	return s
 }

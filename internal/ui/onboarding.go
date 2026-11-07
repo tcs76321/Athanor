@@ -457,6 +457,8 @@ func (u *UI) welcomeData(ctx context.Context, st onboardingState) map[string]any
 		"Pool":            pool,
 		"PoolRows":        pool.Rows,
 		"PoolRanked":      pool.Ranked,
+		"QualDetails":     qualDetailsFromState(qual, catalogNames(models)),
+		"RolePicks":       u.rolePicks(),
 		"PoolCount":       pool.Count,
 		"PoolReady":       pool.Ready,
 		"PoolWarning":     pool.Warning,
@@ -529,6 +531,21 @@ func (u *UI) autoAssignments(roles []setupRole, models []setupModel, hw Hardware
 		key := m.Role + "|" + m.Model
 		if m.Score > scores[key] {
 			scores[key] = m.Score
+		}
+	}
+	// The pool stores per-capability measurements. Derive role-specific scores
+	// so the small/medium/big baseline is based on what each model actually
+	// measured for that role, not on raw size alone.
+	if p := u.pool(); p != nil {
+		for _, prof := range p.Profiles() {
+			if len(prof.Scores) == 0 {
+				continue
+			}
+			for _, role := range []string{"wide", "main", "tall", "security", "alternative"} {
+				if s := roleScore(prof, role); s > 0 {
+					scores[role+"|"+prof.Name] = s
+				}
+			}
 		}
 	}
 	oroles := make([]onboard.Role, 0, len(roles))
@@ -719,6 +736,16 @@ type healthCheck struct {
 }
 
 // personaRoles maps the configured personas to the installed model catalog.
+func catalogNames(models []setupModel) []string {
+	out := make([]string, 0, len(models))
+	for _, m := range models {
+		if m.Name != "" {
+			out = append(out, m.Name)
+		}
+	}
+	return out
+}
+
 func (u *UI) personaRoles(models []setupModel) []setupRole {
 	roles := make([]setupRole, 0, 5)
 	if u.deps.Config == nil {
