@@ -177,6 +177,7 @@ demo. A claim without a proof is either removed or marked as a target.
 | Old audit events are archived before deletion under a guarded trigger | ADR-0127 | `internal/retention`; `TestArchiveEventsMovesOldRows`, `TestGuardStillBlocksNormalDelete`, `TestPruneArchivesByAge` | **proven** |
 | `models -audit` reports solo/swarm capacity and coverage reasons | ADR-0124 | `internal/onboard/capacity.go`; `TestCapacityReportFromAudit`, `TestCapacityReportDegradesWithOneModel` | **proven structurally** |
 | Adaptive context planning chooses a per-phase window and audits it | ADR-0124 | `cmd/athanor/context_planner.go`; `internal/engine/context_plan.go`; `TestContextPlannerSetsWindowAndAudits`, `TestContextPlannerFailurePausesJob`, `TestContextPlannerJudgeIgnoresRepoFloor` | **proven; opt-in via context_policy: adaptive** |
+| The adaptive floor reaches model selection before the target is planned | ADR-0124 | `Engine.minContextFor`; `TestFloorPlannerDrivesModelSelection` | **proven** |
 
 ## Rule
 
