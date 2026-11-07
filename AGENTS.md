@@ -180,11 +180,12 @@ signing flow); signatures are not required for the agent's commits.
 
 - The project stays deliberately lean. Every direct dependency is
   pinned by an executable allowlist in `internal/deps/deps_test.go`;
-  ten today, spanning state (`mattn/go-sqlite3`), config
+  sixteen today, spanning state (`mattn/go-sqlite3`), config
   (`gopkg.in/yaml.v3`), Reader Mode
   (`codeberg.org/readeck/go-readability/v2`,
   `github.com/microcosm-cc/bluemonday`, `golang.org/x/net`), MCE
-  division (the four `github.com/tree-sitter/*` modules), and the
+  division (ten `github.com/tree-sitter/*` modules: Go, Python,
+  JavaScript, TypeScript/TSX, Rust, Java, Ruby, PHP, and Shell), and the
   ingress watcher (`github.com/fsnotify/fsnotify`).
 - Adding a dependency is a project decision, not an agent decision.
   Surface the request in the plan, don't act on it. Ratification is

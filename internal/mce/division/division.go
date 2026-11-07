@@ -123,7 +123,7 @@ func (d *Divider) Divide(filePath, lang string, src []byte) []Chunk {
 		lang = LangFor(filePath)
 	}
 	switch lang {
-	case "go", "python", "javascript":
+	case "go", "python", "javascript", "typescript", "rust", "java", "ruby", "php", "shell":
 		if chunks, ok := d.tsChunks(filePath, lang, src); ok {
 			return chunks
 		}
@@ -157,8 +157,20 @@ func LangFor(path string) string {
 		return "go"
 	case ".py":
 		return "python"
-	case ".js", ".mjs", ".cjs":
+	case ".js", ".mjs", ".cjs", ".jsx":
 		return "javascript"
+	case ".ts", ".tsx", ".mts", ".cts":
+		return "typescript"
+	case ".rs":
+		return "rust"
+	case ".java":
+		return "java"
+	case ".rb":
+		return "ruby"
+	case ".php", ".phtml":
+		return "php"
+	case ".sh", ".bash":
+		return "shell"
 	case ".md", ".markdown":
 		return "markdown"
 	case ".txt":

@@ -477,7 +477,7 @@ Athanor abandons simple 2D progressive summarization in favor of an N-Dimensiona
 
 Critical artifacts (source code, test outputs, exact user constraints) are never summarized. They are structurally divided.
 
-- **Division Engine:** Algorithmic. Splits by AST (Abstract Syntax Tree) boundaries for code, or by structural headers for text/markdown. No LLM inference required. Zero information loss.
+- **Division Engine:** Algorithmic. Splits by AST (Abstract Syntax Tree) boundaries for Go, Python, JavaScript/TypeScript, Rust, Java, Ruby, PHP, and Shell, or by structural headers for text/markdown. No LLM inference required. Zero information loss.
 - **Active Chunk:** Loaded into the LLM context window.
 - **Dormant Chunks:** Held intact in fast local storage (SQLite/RAM).
 - **Dormant Index:** A table of contents provided to the LLM in the prompt. Contains chunk IDs, summaries (1-line), and metadata (file path, line range, type).

@@ -1,6 +1,6 @@
 # ADR 0020 — Division strategy for the MCE (M5-T1)
 
-**Status:** Accepted · **Date:** 2026-09-16 (accepted 2026-09-27) · **Refs:** ARCHITECTURE §10.1; ROADMAP M5-T1, M5-T2, M5-T3; findings [docs/probes/m5-t1-division.md](../probes/m5-t1-division.md); spike `spikes/m5-t1-division/`; implementation decisions [ADR-0021](0021-mce-chunk-store.md)
+**Status:** Accepted · amended by ADR-0128 (full language set) · **Date:** 2026-09-16 (accepted 2026-09-27) · **Refs:** ARCHITECTURE §10.1; ROADMAP M5-T1, M5-T2, M5-T3; findings [docs/probes/m5-t1-division.md](../probes/m5-t1-division.md); spike `spikes/m5-t1-division/`; implementation decisions [ADR-0021](0021-mce-chunk-store.md)
 
 ## Context
 

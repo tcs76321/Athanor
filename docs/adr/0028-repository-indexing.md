@@ -27,7 +27,7 @@ returns real memory.
 Three facts shape the design.
 
 1. **Division already exists and is deterministic.** `internal/mce/division`
-   splits Go/Python/JavaScript via tree-sitter, markdown/plain text via
+   splits Go/Python/JavaScript/TypeScript/Rust/Java/Ruby/PHP/Shell via tree-sitter, markdown/plain text via
    structural headers, and everything else via fixed-line fallback. Chunk IDs
    are content-derived (`sha256(source_hash|start-end)`), so re-ingesting an
    unchanged source is a no-op. `ChunkStore.IngestFile` already routes file

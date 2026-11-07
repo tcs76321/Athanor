@@ -1,12 +1,19 @@
 package division
 
 import (
+	"strings"
 	"sync"
 
 	sitter "github.com/tree-sitter/go-tree-sitter"
+	tree_sitter_bash "github.com/tree-sitter/tree-sitter-bash/bindings/go"
 	tree_sitter_go "github.com/tree-sitter/tree-sitter-go/bindings/go"
+	tree_sitter_java "github.com/tree-sitter/tree-sitter-java/bindings/go"
 	tree_sitter_javascript "github.com/tree-sitter/tree-sitter-javascript/bindings/go"
+	tree_sitter_php "github.com/tree-sitter/tree-sitter-php/bindings/go"
 	tree_sitter_python "github.com/tree-sitter/tree-sitter-python/bindings/go"
+	tree_sitter_ruby "github.com/tree-sitter/tree-sitter-ruby/bindings/go"
+	tree_sitter_rust "github.com/tree-sitter/tree-sitter-rust/bindings/go"
+	tree_sitter_typescript "github.com/tree-sitter/tree-sitter-typescript/bindings/go"
 )
 
 // tsGrammar pairs a language pointer with the root-child kinds that do not
@@ -25,7 +32,7 @@ var (
 
 // grammarFor lazily builds the grammar registry exactly once (ADR-0021 §4).
 // Language values are immutable and shared across goroutines.
-func grammarFor(lang string) (tsGrammar, bool) {
+func grammarFor(lang, filePath string) (tsGrammar, bool) {
 	grammarOnce.Do(func() {
 		grammars = map[string]tsGrammar{
 			"go": {
@@ -51,8 +58,59 @@ func grammarFor(lang string) (tsGrammar, bool) {
 					"comment":          true,
 				},
 			},
+			"typescript": {
+				lang: sitter.NewLanguage(tree_sitter_typescript.LanguageTypescript()),
+				skip: map[string]bool{
+					"import_statement": true,
+					"comment":          true,
+				},
+			},
+			"typescript-tsx": {
+				lang: sitter.NewLanguage(tree_sitter_typescript.LanguageTSX()),
+				skip: map[string]bool{"import_statement": true, "comment": true},
+			},
+			"rust": {
+				lang: sitter.NewLanguage(tree_sitter_rust.Language()),
+				skip: map[string]bool{
+					"use_declaration": true,
+					"attribute_item":  true,
+					"line_comment":    true,
+					"block_comment":   true,
+				},
+			},
+			"java": {
+				lang: sitter.NewLanguage(tree_sitter_java.Language()),
+				skip: map[string]bool{
+					"package_declaration": true,
+					"import_declaration":  true,
+					"line_comment":        true,
+					"block_comment":       true,
+				},
+			},
+			"ruby": {
+				lang: sitter.NewLanguage(tree_sitter_ruby.Language()),
+				skip: map[string]bool{"comment": true},
+			},
+			"php": {
+				// PHP-only removes the HTML wrapper from the root; code files
+				// should not chunk on tags or text nodes.
+				lang: sitter.NewLanguage(tree_sitter_php.LanguagePHPOnly()),
+				skip: map[string]bool{
+					"php_tag":                   true,
+					"namespace_definition":      true,
+					"namespace_use_declaration": true,
+					"comment":                   true,
+				},
+			},
+			"shell": {
+				lang: sitter.NewLanguage(tree_sitter_bash.Language()),
+				skip: map[string]bool{"comment": true},
+			},
 		}
 	})
+	if lang == "typescript" && strings.HasSuffix(strings.ToLower(filePath), ".tsx") {
+		lang = "typescript-tsx"
+	}
 	g, ok := grammars[lang]
 	return g, ok
 }
@@ -68,7 +126,7 @@ var parserPool = sync.Pool{New: func() any { return sitter.NewParser() }}
 // (P5). Tree-sitter error-recovers on broken files: the root still spans
 // the document, so boundaries remain valid tiling offsets.
 func (d *Divider) tsChunks(filePath, lang string, src []byte) ([]Chunk, bool) {
-	g, ok := grammarFor(lang)
+	g, ok := grammarFor(lang, filePath)
 	if !ok || g.lang == nil {
 		return nil, false
 	}

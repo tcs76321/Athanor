@@ -2,6 +2,7 @@ package division
 
 import (
 	"bytes"
+	"path/filepath"
 	"testing"
 )
 
@@ -87,6 +88,49 @@ func TestLangFor(t *testing.T) {
 	cases := map[string]string{
 		"a.go": "go", "a.py": "python", "a.js": "javascript", "a.mjs": "javascript",
 		"a.md": "markdown", "a.txt": "text", "a.xyz": "",
+	}
+	for name, want := range cases {
+		if got := LangFor(name); got != want {
+			t.Errorf("LangFor(%q) = %q, want %q", name, got, want)
+		}
+	}
+}
+
+func TestDivideNewLanguagesUseASTAndTile(t *testing.T) {
+	cases := []struct {
+		path string
+		lang string
+		src  string
+	}{
+		{"a.rs", "rust", "use std::fmt;\n\nstruct A;\n\nimpl A {\n    fn f(&self) {}\n}\n"},
+		{"a.ts", "typescript", "import { x } from 'y';\n\nexport function f(): number { return 1; }\n"},
+		{"a.tsx", "typescript", "import React from 'react';\n\nexport function C() { return <div>hi</div>; }\n"},
+		{"a.java", "java", "package a;\n\nimport java.util.List;\n\nclass A { void f() {} }\n"},
+		{"a.rb", "ruby", "require 'json'\n\nclass A\n  def f\n  end\nend\n"},
+		{"a.php", "php", "<?php\nnamespace A;\n\nclass B { public function f(): void {} }\n"},
+		{"a.sh", "shell", "#!/bin/sh\nset -eu\n\nf() { echo hi; }\nf\n"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.lang+"/"+filepath.Ext(tc.path), func(t *testing.T) {
+			src := []byte(tc.src)
+			chunks := New(Options{}).Divide(tc.path, "", src)
+			assertTiles(t, chunks, src)
+			if chunks[0].Kind != KindAST {
+				t.Errorf("kind = %s, want ast for %s", chunks[0].Kind, tc.path)
+			}
+			if chunks[0].Lang != tc.lang {
+				t.Errorf("lang = %s, want %s", chunks[0].Lang, tc.lang)
+			}
+		})
+	}
+}
+
+func TestLangForNewLanguages(t *testing.T) {
+	cases := map[string]string{
+		"a.rs": "rust", "a.ts": "typescript", "a.tsx": "typescript",
+		"a.mts": "typescript", "a.cts": "typescript",
+		"a.java": "java", "a.rb": "ruby", "a.php": "php",
+		"a.sh": "shell", "a.bash": "shell",
 	}
 	for name, want := range cases {
 		if got := LangFor(name); got != want {

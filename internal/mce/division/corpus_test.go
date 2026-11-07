@@ -183,8 +183,8 @@ func TestRoundTripProperty(t *testing.T) {
 		langs[s.Lang]++
 	}
 	t.Logf("corpus: %d files, languages: %v", len(corpus), langs)
-	if len(langs) < 4 {
-		t.Fatalf("corpus must span >=4 languages, got %v", langs)
+	if len(langs) < 10 {
+		t.Fatalf("corpus must span >=10 languages, got %v", langs)
 	}
 	for _, s := range corpus {
 		checkProperties(t, d, s)
