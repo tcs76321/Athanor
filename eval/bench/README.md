@@ -307,7 +307,7 @@ pass rate. Three are held out.
 5. **Done:** the full benchmark runs **inside the Core Pod** via
    `scripts/bench-core.sh`: the probe reads the named state volume, calls the
    daemon at `127.0.0.1:7420`, and writes the report to the host-mounted
-   `/bench` (`BENCH_OUT/out`). `make bench-full-host` is the dev-only host path.
+   `/bench` (`BENCH_OUT/out`). `make bench-host-smoke` is the diagnostic-only host path; it is never a headline (ADR-0126).
 6. **Next:** the memory-script sequence runner, the human-review queue, and the
    Core Pod anchor loop (one model per Core restart). The corpus and protocol are
    frozen; only the runner changes.

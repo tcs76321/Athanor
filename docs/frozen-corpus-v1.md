@@ -241,6 +241,6 @@ Run it with `make soak-smoke` (it sets `MINI_SOAK_ONLY` and a fresh output dir).
 - Implement the mechanism-metric reducer over the run's event log.
 - Run the first **≤12 h full slice** on the reference host (`make bench-full`)
   and confirm the wall time, the per-job distribution, and the 12 h cap.
-- Add the **Core Pod run mode** to the probe: the protocol pins
-  `athanor-core:0.0.0`, but the probe still starts the host binary. The benchmark
-  runtime is the Core Pod (ADR-0078); the host path is a development mode.
+- **Core Pod run mode is live:** `make bench-full` runs inside the Core Pod and
+  `scripts/bench-core.sh preflight` proves the runtime. The host path is
+  smoke/diagnostic only (ADR-0126).
