@@ -49,7 +49,7 @@ func TestSelectorResolvesPhaseAndSyntheticRole(t *testing.T) {
 	}}
 	e.eng.SetModelSelector(sel)
 
-	p, ok := e.eng.personaFor(context.Background(), "diverging", "main", "text", "project-1", "job-1")
+	p, ok := e.eng.personaFor(context.Background(), "diverging", "main", "text", "", "project-1", "job-1")
 	if !ok || p.Model != "alpha" || p.ContextTarget != 65536 {
 		t.Fatalf("phase persona = %+v ok=%v, want alpha", p, ok)
 	}
@@ -59,7 +59,7 @@ func TestSelectorResolvesPhaseAndSyntheticRole(t *testing.T) {
 
 	// A synthetic role names a model directly and does not re-ask for a phase
 	// choice.
-	p, ok = e.eng.personaFor(context.Background(), "diverging", PoolModelPrefix+"beta", "text", "", "")
+	p, ok = e.eng.personaFor(context.Background(), "diverging", PoolModelPrefix+"beta", "text", "", "", "")
 	if !ok || p.Model != "beta" || p.Role != "pool" {
 		t.Fatalf("synthetic persona = %+v ok=%v, want beta", p, ok)
 	}
@@ -106,5 +106,31 @@ func TestSelectorCastsDivergenceAcrossModels(t *testing.T) {
 	}
 	if !foundDivergence {
 		t.Fatal("divergence did not ask the selector")
+	}
+}
+
+type fakeFloorPlanner struct{ floor int }
+
+func (f fakeFloorPlanner) ContextFloor(phase, capability, demand string) (int, bool) {
+	return f.floor, f.floor > 0
+}
+
+// TestFloorPlannerDrivesModelSelection proves the adaptive floor reaches the
+// selector before a target is known, so a short code task can choose a
+// small-context model instead of being filtered by the 32k coding floor.
+func TestFloorPlannerDrivesModelSelection(t *testing.T) {
+	e := newEnv(t)
+	sel := &fakeSelector{choice: ModelChoice{Model: "small", Family: "s", ContextTarget: 8192}}
+	e.eng.SetModelSelector(sel)
+	e.eng.SetFloorPlanner(fakeFloorPlanner{floor: 8192})
+
+	if _, ok := e.eng.personaFor(context.Background(), "diverging", "main", "code", "short", "p", "j"); !ok {
+		t.Fatal("personaFor = false")
+	}
+	if len(sel.seen) != 1 {
+		t.Fatalf("selector requests = %d, want 1", len(sel.seen))
+	}
+	if got := sel.seen[0].MinContext; got != 8192 {
+		t.Errorf("MinContext = %d, want 8192 from the adaptive floor", got)
 	}
 }

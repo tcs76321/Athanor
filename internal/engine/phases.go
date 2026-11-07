@@ -245,7 +245,7 @@ func (e *Engine) call(ctx context.Context, j job.Job, p project.Project, t proje
 		return llm.Response{}, errors.New("engine: registry is nil (call requires personas)")
 	}
 
-	persona, ok := e.personaFor(ctx, phase, role, capabilityFor(p, t), p.ID, j.ID)
+	persona, ok := e.personaFor(ctx, phase, role, capabilityFor(p, t), contextDemandFor(p, t), p.ID, j.ID)
 	if !ok {
 		return llm.Response{}, fmt.Errorf("persona %q missing from registry", role)
 	}

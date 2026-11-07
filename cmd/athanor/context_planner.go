@@ -37,6 +37,16 @@ func newContextPlanner(cfg *config.Config) engine.ContextPlanner {
 	}
 }
 
+// ContextFloor implements engine.FloorPlanner so model selection sees the
+// adaptive floor before a target is computed.
+func (p *capacityContextPlanner) ContextFloor(phase, capability, demand string) (int, bool) {
+	f := capacity.FloorFor(phase, capability, capacity.Demand(demand), p.floors)
+	if f <= 0 {
+		return 0, false
+	}
+	return f, true
+}
+
 func (p *capacityContextPlanner) PlanContext(req engine.ContextRequest) (engine.ContextDecision, error) {
 	demand := capacity.Demand(req.Demand)
 	if demand == "" {

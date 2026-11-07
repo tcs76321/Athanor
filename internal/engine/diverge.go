@@ -105,10 +105,7 @@ func (e *Engine) phaseDivergeN(ctx context.Context, j job.Job) error {
 	// ADR-0104: when a measured pool exists, draw the candidates from it and
 	// prefer different families. The legacy role list remains the fallback.
 	if e.selector != nil {
-		minContext := 0
-		if floor, ok := llm.FloorFor(capability, e.cfg.ContextEngine); ok {
-			minContext = floor
-		}
+		minContext := e.minContextFor(llm.PhaseDiverging, capability, contextDemandFor(p, t))
 		req := ModelRequest{
 			Phase: llm.PhaseDiverging, Capability: capability, Stance: "generate",
 			MinContext: minContext, ProjectID: p.ID, JobID: j.ID,

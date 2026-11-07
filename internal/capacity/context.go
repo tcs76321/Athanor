@@ -163,16 +163,23 @@ func PlanContext(in ContextInput) (ContextPlan, error) {
 // phaseFloor applies the phase-aware rule: planning and judgment do not inherit
 // the repo/demand floor; generation and synthesis do.
 func phaseFloor(in ContextInput) int {
-	capFloor := in.Floors.Capability[in.Capability]
-	switch in.Phase {
+	return FloorFor(in.Phase, in.Capability, in.Demand, in.Floors)
+}
+
+// FloorFor is the exported floor rule used by model selection before a target
+// is known. It is model-independent: the caller then chooses a model whose
+// measured max is at least this value.
+func FloorFor(phase, capability string, demand Demand, floors Floors) int {
+	capFloor := floors.Capability[capability]
+	switch phase {
 	case "planning":
-		return maxInt(in.Floors.Planning, capFloor)
+		return maxInt(floors.Planning, capFloor)
 	case "evaluating", "comparing", "reflecting":
-		return maxInt(in.Floors.Judge, capFloor)
+		return maxInt(floors.Judge, capFloor)
 	case "diverging", "synthesizing":
-		return maxInt(in.Floors.Demand[in.Demand], capFloor)
+		return maxInt(floors.Demand[demand], capFloor)
 	default:
-		if d := in.Floors.Demand[in.Demand]; d > 0 {
+		if d := floors.Demand[demand]; d > 0 {
 			return maxInt(d, capFloor)
 		}
 		return capFloor

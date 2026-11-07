@@ -313,7 +313,12 @@ func run(configPath, addr, stateDir string, container bool) error {
 		// (TokenFor) exists when the internal API execs into it.
 		podLife,
 	)
-	eng.SetContextPlanner(newContextPlanner(cfg))
+	if planner := newContextPlanner(cfg); planner != nil {
+		eng.SetContextPlanner(planner)
+		if fp, ok := planner.(engine.FloorPlanner); ok {
+			eng.SetFloorPlanner(fp)
+		}
+	}
 	// M7-T1 (§24): the engine consults the power gate before each phase, so
 	// a battery/sleep pause parks active jobs and ResumePaused re-drives them.
 	eng.SetPauseGate(powerMgr)

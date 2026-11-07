@@ -3,6 +3,7 @@ package engine
 import (
 	"strings"
 
+	"github.com/tcs76321/athanor/internal/llm"
 	"github.com/tcs76321/athanor/internal/project"
 )
 
@@ -36,8 +37,34 @@ type ContextPlanner interface {
 	PlanContext(req ContextRequest) (ContextDecision, error)
 }
 
+// FloorPlanner supplies the model-independent floor before model selection, so
+// a short code task can select a small-context model. A nil floor planner uses
+// the legacy archetype floors.
+type FloorPlanner interface {
+	ContextFloor(phase, capability, demand string) (int, bool)
+}
+
 // SetContextPlanner wires the planner. Call before the engine serves work.
 func (e *Engine) SetContextPlanner(p ContextPlanner) { e.contextPlanner = p }
+
+// SetFloorPlanner wires the floor seam.
+func (e *Engine) SetFloorPlanner(p FloorPlanner) { e.floorPlanner = p }
+
+// minContextFor resolves the selection floor, preferring the adaptive planner
+// and falling back to the legacy archetype floor.
+func (e *Engine) minContextFor(phase, capability, demand string) int {
+	if e.floorPlanner != nil {
+		if f, ok := e.floorPlanner.ContextFloor(phase, capability, demand); ok {
+			return f
+		}
+	}
+	if e.cfg != nil {
+		if floor, ok := llm.FloorFor(capability, e.cfg.ContextEngine); ok {
+			return floor
+		}
+	}
+	return 0
+}
 
 // contextDemandFor is the deterministic pre-planning demand signal. A planner
 // hint may raise it later; this never guesses beyond repository/length facts.

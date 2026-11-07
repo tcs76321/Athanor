@@ -97,7 +97,7 @@ func (e *Engine) strategySignature(archetype string, plan policy.Plan) []strateg
 	out := make([]strategy.SignatureEntry, 0, len(phaseStrategies))
 	for _, s := range phaseStrategies {
 		role := e.roleFor(plan, s.phase, s.role)
-		persona, ok := e.personaFor(context.Background(), s.phase, role, archetype, "", "")
+		persona, ok := e.personaFor(context.Background(), s.phase, role, archetype, "", "", "")
 		if !ok {
 			continue
 		}

@@ -258,6 +258,7 @@ type Engine struct {
 	// contextPlanner is the ADR-0124 per-job context seam. nil preserves the
 	// legacy fixed-floor behavior.
 	contextPlanner ContextPlanner
+	floorPlanner   FloorPlanner
 	// podLifecycle ensures/tears down the job's Job Pod (M2-T4b.5,
 	// ADR-0024 §2). nil means "no lifecycle seam": the engine never starts
 	// a pod, which is the pre-T4b behavior unit tests rely on.
@@ -532,17 +533,14 @@ func personaFromChoice(c ModelChoice) llm.Persona {
 // personaFor resolves a phase's model. A synthetic `pool:<model>` role names
 // a candidate directly; otherwise the composition selector chooses from the
 // measured pool. The legacy registry is the fallback when no pool is wired.
-func (e *Engine) personaFor(ctx context.Context, phase, role, capability, projectID, jobID string) (llm.Persona, bool) {
+func (e *Engine) personaFor(ctx context.Context, phase, role, capability, demand, projectID, jobID string) (llm.Persona, bool) {
 	if e.selector != nil && strings.HasPrefix(role, PoolModelPrefix) {
 		if c, ok := e.selector.Persona(strings.TrimPrefix(role, PoolModelPrefix)); ok {
 			return personaFromChoice(c), true
 		}
 	}
 	if e.selector != nil && capability != "" && e.cfg != nil {
-		minContext := 0
-		if floor, ok := llm.FloorFor(capability, e.cfg.ContextEngine); ok {
-			minContext = floor
-		}
+		minContext := e.minContextFor(phase, capability, demand)
 		req := ModelRequest{
 			Phase:      phase,
 			Capability: capability,
@@ -639,11 +637,11 @@ func (e *Engine) actualCrossFamily(ctx context.Context, j job.Job, p project.Pro
 	capability := capabilityFor(p, t)
 	gen = e.generatorFamily(j.ID)
 	if gen == "" {
-		if gp, gok := e.personaFor(ctx, llm.PhaseDiverging, generatorRole, capability, p.ID, j.ID); gok {
+		if gp, gok := e.personaFor(ctx, llm.PhaseDiverging, generatorRole, capability, contextDemandFor(p, t), p.ID, j.ID); gok {
 			gen = gp.Family
 		}
 	}
-	jp, jok := e.personaFor(ctx, llm.PhaseComparing, judgeRole, capability, p.ID, j.ID)
+	jp, jok := e.personaFor(ctx, llm.PhaseComparing, judgeRole, capability, contextDemandFor(p, t), p.ID, j.ID)
 	if !jok {
 		return gen, "", false
 	}
