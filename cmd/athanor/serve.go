@@ -41,6 +41,7 @@ import (
 	"github.com/tcs76321/athanor/internal/jobpod"
 	"github.com/tcs76321/athanor/internal/llm"
 	"github.com/tcs76321/athanor/internal/logging"
+	"github.com/tcs76321/athanor/internal/notebook"
 	"github.com/tcs76321/athanor/internal/operator"
 	"github.com/tcs76321/athanor/internal/planning"
 	"github.com/tcs76321/athanor/internal/policy"
@@ -362,6 +363,8 @@ func run(configPath, addr, stateDir string, container bool) error {
 		eng.SetPolicy(policy.Default{})
 	}
 	eng.SetStrategyHistory(strategyRepo)
+	// ADR-0109: persistent per-job working memory reaches every phase.
+	eng.SetNotebook(notebook.New(st))
 	// ADR-0091: horizon budget. The ledger is inert while
 	// budget.tokens_per_window and wall_time_per_window are both 0.
 	eng.SetBudgetLedger(budget.New(st.DB()))

@@ -56,6 +56,7 @@ func renderSections(in Input) ([]sectionSpec, error) {
 		{SectionAcceptanceCriteria, TierTaskCriteria, criteria(in.Criteria)},
 		{SectionDeclaredChecks, TierTaskCriteria, declaredChecksSection(in.Checks)},
 		{SectionDataSchema, TierTaskCriteria, dataSchemaSection(in.DataSchema)},
+		{SectionNotebook, TierTaskCriteria, notebookSection(in.Notebook)},
 		{SectionActiveChunk, TierWorkingSet, activeChunkOrEmpty(in.ActiveChunk)},
 		{SectionRepositoryWorkingSet, TierWorkingSet, repositoryWorkingSetSection(in.ActiveChunk, in.WorkingSet)},
 		{SectionCorrections, TierCorrections, correctionsSection(in.Corrections)},
@@ -206,6 +207,25 @@ func declaredChecksSection(checks []string) string {
 		}
 		b.WriteString("- ")
 		b.WriteString(check)
+		b.WriteString("\n")
+	}
+	return strings.TrimRight(b.String(), "\n")
+}
+
+// notebookSection renders the job's persistent working memory. It is pinned
+// so a plan or an observed failure cannot be evicted by context pressure.
+func notebookSection(lines []string) string {
+	if len(lines) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString("WORKING NOTES (persistent; recorded by earlier phases)\n")
+	for _, line := range lines {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		b.WriteString("- ")
+		b.WriteString(line)
 		b.WriteString("\n")
 	}
 	return strings.TrimRight(b.String(), "\n")

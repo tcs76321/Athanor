@@ -38,6 +38,34 @@ func TestDeclaredChecksArePinned(t *testing.T) {
 	}
 }
 
+func TestNotebookIsPinnedAndRendered(t *testing.T) {
+	in := Input{
+		Phase:    "diverging",
+		Project:  Project{Name: "demo", Archetype: "text", Goal: "write"},
+		Task:     Task{Title: "draft"},
+		Notebook: []string{"[plan/planning] write an outline", "[result/evaluating] candidate 1 failed: too long"},
+		Ceiling:  1,
+	}
+	res, err := Assemble(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(res.Text, "WORKING NOTES") ||
+		!strings.Contains(res.Text, "write an outline") ||
+		!strings.Contains(res.Text, "candidate 1 failed") {
+		t.Fatalf("notebook missing from prompt:\n%s", res.Text)
+	}
+	found := false
+	for _, s := range res.Sections {
+		if s.Name == SectionNotebook {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("notebook section missing: %+v", res.Sections)
+	}
+}
+
 func TestDeclaredChecksOmittedWhenEmpty(t *testing.T) {
 	in := Input{
 		Phase:   "synthesizing",

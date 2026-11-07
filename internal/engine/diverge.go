@@ -8,6 +8,7 @@ import (
 	"github.com/tcs76321/athanor/internal/artifact"
 	"github.com/tcs76321/athanor/internal/job"
 	"github.com/tcs76321/athanor/internal/llm"
+	"github.com/tcs76321/athanor/internal/notebook"
 	"github.com/tcs76321/athanor/internal/project"
 )
 
@@ -202,6 +203,9 @@ func (e *Engine) phaseDivergeN(ctx context.Context, j job.Job) error {
 			"archetype":   capability,
 			"roles":       roles,
 		})
+		e.note(ctx, j.ID, p.ID, notebook.KindHypothesis, "diverging",
+			fmt.Sprintf("attempt %d: %d candidate(s), mean diversity %.2f, roles %v",
+				attempt+1, n, avgJaccard, roles))
 		if n < 2 || avgJaccard >= floor || attempt >= maxRerolls {
 			break
 		}

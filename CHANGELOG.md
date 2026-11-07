@@ -10,6 +10,15 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Cognitive loop — job notebook and persistent working memory — 2026-11-06
+
+- **Job notebook** ([ADR-0109](docs/adr/0109-job-notebook.md)): migration 0038
+  adds a bounded, append-only per-job record of the plan, hypotheses,
+  evaluation results, regulator decisions, synthesis, and comparison. It is
+  injected in pinned tier 2 (`WORKING NOTES`), capped at 200 entries per job
+  and 4 KiB per prompt, and is engine-written rather than model-self-reported.
+  The plan, candidate outcomes, and decisions now survive every phase.
+
 ### Correctness, benchmark parity, and endurance — 2026-11-06
 
 - **Fractional CPU quotas survive the argv** (`internal/jobpod/args_common.go`):

@@ -13,6 +13,7 @@ import (
 	"github.com/tcs76321/athanor/internal/evaluation"
 	"github.com/tcs76321/athanor/internal/job"
 	"github.com/tcs76321/athanor/internal/llm"
+	"github.com/tcs76321/athanor/internal/notebook"
 	"github.com/tcs76321/athanor/internal/regulator"
 )
 
@@ -220,6 +221,8 @@ func (e *Engine) phaseReflect(ctx context.Context, j job.Job) error {
 		"signature": sig, "implicated": implicated, "iter": iter,
 	})
 	e.captureRegulatorCorrection(ctx, p.ID, j.ID, decision)
+	e.note(ctx, j.ID, p.ID, notebook.KindDecision, "reflecting",
+		fmt.Sprintf("regulator: %s — %s", decision.Decision, decision.Reason))
 
 	switch decision.Decision {
 	case regulator.Defer:
@@ -251,6 +254,7 @@ func (e *Engine) phaseReflect(ctx context.Context, j job.Job) error {
 		"candidates": len(records),
 		"proposal":   truncateForEvent(resp.Content, 1024),
 	})
+	e.note(ctx, j.ID, p.ID, notebook.KindObservation, "reflecting", resp.Content)
 
 	// H1: persist the proposal so phaseDivergeN can inject it into the next
 	// divergence pass. The regulator directive leads it, so a refine or

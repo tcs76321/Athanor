@@ -16,6 +16,7 @@ import (
 	"github.com/tcs76321/athanor/internal/job"
 	"github.com/tcs76321/athanor/internal/llm"
 	"github.com/tcs76321/athanor/internal/mce"
+	"github.com/tcs76321/athanor/internal/notebook"
 	"github.com/tcs76321/athanor/internal/policy"
 	"github.com/tcs76321/athanor/internal/project"
 	"github.com/tcs76321/athanor/internal/prompt"
@@ -303,6 +304,7 @@ func (e *Engine) call(ctx context.Context, j job.Job, p project.Project, t proje
 		Criteria:               t.Criteria,
 		Checks:                 p.Execution.Checks.Describe(),
 		DataSchema:             p.Execution.DataSchema,
+		Notebook:               e.notebookLines(ctx, j.ID),
 		EvaluationInstructions: planInstructions(extraInstructions, plan, isJudgmentPhase(phase)),
 		Tools:                  tiers.Tools,
 		ActiveChunk:            tiers.ActiveChunk,
@@ -703,6 +705,8 @@ func (e *Engine) phaseSynthesize(ctx context.Context, j job.Job) error {
 		}
 	}
 
+	e.note(ctx, j.ID, p.ID, notebook.KindDecision, "synthesizing",
+		fmt.Sprintf("final %s artifact synthesized (%d bytes)", capability, len(content)))
 	kind := finalKindFor(capability)
 	if prev, err := e.artifacts.LatestForJob(ctx, j.ID, kind); err == nil {
 		if _, err := e.artifacts.NewVersion(ctx, prev.ID, []byte(content)); err != nil {
@@ -741,6 +745,7 @@ func (e *Engine) phasePlan(ctx context.Context, j job.Job) error {
 	if err != nil {
 		return err
 	}
+	e.note(ctx, j.ID, p.ID, notebook.KindPlan, "planning", resp.Content)
 	if d := parseDifficultyHint(resp.Content); d != "" {
 		e.setDifficultyHint(ctx, j.ID, d)
 		e.audit(ctx, j.ID, map[string]any{"event": "difficulty_hint", "difficulty": d})

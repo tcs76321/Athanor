@@ -556,6 +556,17 @@ If the assembled context exceeds the hardware limit, tiers are evicted strictly 
 
 ---
 
+### 10.6 Job notebook (persistent working memory)
+
+Each job carries a bounded **notebook** ([ADR-0109](docs/adr/0109-job-notebook.md)):
+an append-only, engine-written record of the plan, hypotheses, evaluation
+results, regulator decisions, and the final comparison verdict. It is not the
+event log — it is the compact, chronological state the model should carry
+between phases. The notebook is rendered in the pinned task tier (never
+evicted), capped at 200 entries per job and 4 KiB per prompt, and a notebook
+write failure never fails the job. It is the explicit working-memory
+counterpart to the MCE's long-term chunk store.
+
 ## 11. Prompt Architecture
 
 Athanor separates prompts by ownership, mutability, and function. Prompt assembly is deterministic and auditable.
@@ -582,6 +593,7 @@ User prompts **cannot override** static security constraints. Meta-prompts **can
 4. Project Context (goal, capabilities, preferences)
 5. Task Context (description, dependencies, budget)
 6. Acceptance Criteria
+6a. Declared checks, data schema, and the job notebook (pinned task state)
 7. Active Code Division Chunk (full fidelity)
 8. Relevant CorrectionRecords (temp 0.0 compacted)
 9. Episodic Context (temp 0.0 compacted synopses)
@@ -1459,6 +1471,7 @@ SQLite stores:
 - Token usage, Network rules.
 - Model persona assignments, Configuration metadata.
 - Strategy profiles, outcomes, and insights.
+- Job notebooks (bounded working memory, ADR-0109).
 - Daydream logs.
 
 ### 23.3 State Persistence Rules

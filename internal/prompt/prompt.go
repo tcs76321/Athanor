@@ -37,6 +37,7 @@ const (
 	SectionAcceptanceCriteria     = "acceptance_criteria"
 	SectionDeclaredChecks         = "declared_checks"
 	SectionDataSchema             = "data_schema"
+	SectionNotebook               = "notebook"
 	SectionActiveChunk            = "active_chunk"
 	SectionRepositoryWorkingSet   = "repository_working_set"
 	SectionCorrections            = "corrections"
@@ -100,6 +101,10 @@ type Input struct {
 	Task    Task
 	// Criteria are the acceptance criteria, in given order.
 	Criteria []string
+	// Notebook is the job's persistent working memory (ADR-0109),
+	// newest-last. It is pinned beside the criteria so the plan, observed
+	// results, and decisions survive every phase and cannot be evicted.
+	Notebook []string
 	// Checks are the operator-declared machine-checkable requirements
 	// rendered from project.ExecutionChecks.Describe (ADR-0070). They are
 	// pinned in tier 2 next to the criteria: the model must see the exact

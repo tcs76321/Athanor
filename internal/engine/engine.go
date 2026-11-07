@@ -51,6 +51,7 @@ import (
 	"github.com/tcs76321/athanor/internal/job"
 	"github.com/tcs76321/athanor/internal/llm"
 	"github.com/tcs76321/athanor/internal/mce"
+	"github.com/tcs76321/athanor/internal/notebook"
 	"github.com/tcs76321/athanor/internal/policy"
 	"github.com/tcs76321/athanor/internal/project"
 	"github.com/tcs76321/athanor/internal/store"
@@ -291,6 +292,9 @@ type Engine struct {
 	// outcome statistics feed the policy's familiarity signal. nil leaves
 	// the signal absent (the criteria heuristic still applies).
 	history StrategyHistory
+	// notebook is the ADR-0109 persistent working-memory seam. nil keeps
+	// the pre-notebook prompt and behavior.
+	notebook Notebook
 	// verifiers is the F4-T3 deterministic verification registry. nil uses
 	// verify.Default(), so the engine always has a verifier set.
 	verifiers *verify.Registry
@@ -440,9 +444,19 @@ type StrategyOperationHistory interface {
 	OperationSamples(ctx context.Context, archetype string, limit int) (map[string]int, error)
 }
 
+// Notebook is the persistent per-job working-memory seam (ADR-0109). It is
+// nil-safe: a nil notebook leaves the prompt unchanged.
+type Notebook interface {
+	Append(ctx context.Context, entry notebook.Entry) (notebook.Entry, error)
+	Recent(ctx context.Context, jobID string, limit int) ([]notebook.Entry, error)
+}
+
 // SetStrategyHistory wires the F4-T2 outcome-history seam. A nil seam
 // disables the familiarity signal (difficulty and criteria still apply).
 func (e *Engine) SetStrategyHistory(h StrategyHistory) { e.history = h }
+
+// SetNotebook wires the ADR-0109 working-memory store.
+func (e *Engine) SetNotebook(n Notebook) { e.notebook = n }
 
 // SetPauseGate wires the §24 power pause signal (M7-T1). A nil gate means
 // the engine never pauses for power.

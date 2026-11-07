@@ -11,6 +11,7 @@ import (
 	"github.com/tcs76321/athanor/internal/evaluation"
 	"github.com/tcs76321/athanor/internal/job"
 	"github.com/tcs76321/athanor/internal/llm"
+	"github.com/tcs76321/athanor/internal/notebook"
 	"github.com/tcs76321/athanor/internal/policy"
 	"github.com/tcs76321/athanor/internal/project"
 	"github.com/tcs76321/athanor/internal/prompt"
@@ -322,6 +323,9 @@ func (e *Engine) phaseCompare(ctx context.Context, j job.Job) error {
 		"final_verifier_hard":        ver.HardDecisive(),
 		"final_verifier_hard_passed": ver.HardPassed,
 	})
+
+	e.note(ctx, j.ID, p.ID, notebook.KindDecision, "comparing",
+		fmt.Sprintf("winner=%s confidence=%.2f reasons=%v", verdict.Winner, verdict.Confidence, verdict.Reasons))
 
 	// §9.3 status transitions.
 	if verdict.Winner != "new" {

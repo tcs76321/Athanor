@@ -10,6 +10,7 @@ import (
 	"github.com/tcs76321/athanor/internal/evaluation"
 	"github.com/tcs76321/athanor/internal/job"
 	"github.com/tcs76321/athanor/internal/llm"
+	"github.com/tcs76321/athanor/internal/notebook"
 	"github.com/tcs76321/athanor/internal/project"
 	"github.com/tcs76321/athanor/internal/prompt"
 )
@@ -316,6 +317,9 @@ func (e *Engine) evaluateCandidate(ctx context.Context, j job.Job, p project.Pro
 	rec.Confidence = verdict.Confidence
 	rec.Summary = verdict.Summary
 	e.captureEvaluationCorrection(ctx, p.ID, j.ID, cand.ID, rec, vin)
+	e.note(ctx, j.ID, p.ID, notebook.KindResult, "evaluating",
+		fmt.Sprintf("candidate %s: passed=%v score=%.2f missing=%v security=%v",
+			cand.ID, rec.PassedTests, rec.Score, rec.MissingCriteria, rec.SecurityIssues))
 	return e.eval.Create(ctx, rec)
 }
 
