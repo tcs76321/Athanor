@@ -3,12 +3,10 @@ package ui
 import (
 	"bytes"
 	"context"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"net/http"
 	"sort"
 	"strings"
@@ -555,14 +553,8 @@ func setupCandidates(role onboard.Role, models []onboard.Model) []string {
 }
 
 func (u *UI) loadQualState(ctx context.Context) qualState {
-	var raw string
-	err := u.deps.Store.DB().QueryRowContext(ctx,
-		`SELECT value FROM system_state WHERE key = ?`, qualKey).Scan(&raw)
-	if errors.Is(err, sql.ErrNoRows) {
-		return newQualState()
-	}
-	if err != nil {
-		slog.Error("ui: reading qualification state", "err", err)
+	raw, ok := u.loadSystemState(ctx, qualKey)
+	if !ok {
 		return newQualState()
 	}
 	var s qualState
@@ -580,9 +572,7 @@ func (u *UI) saveQualState(ctx context.Context, s qualState) {
 	if err != nil {
 		return
 	}
-	_, _ = u.deps.Store.DB().ExecContext(ctx,
-		`INSERT INTO system_state (key, value) VALUES (?, ?)
-		 ON CONFLICT(key) DO UPDATE SET value = excluded.value`, qualKey, string(raw))
+	_ = u.saveSystemState(ctx, qualKey, string(raw))
 }
 
 // qualMeasurementsFromState aggregates the stored case results.

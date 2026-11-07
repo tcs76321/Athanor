@@ -268,20 +268,11 @@ func New(deps Deps) *UI {
 		planRuns: map[string]*planRun{}, planCancels: map[string]context.CancelFunc{},
 		indexRuns: map[string]*indexRun{}, done: make(chan struct{}),
 	}
-	if deps.Store != nil {
-		var saved string
-		if err := deps.Store.DB().QueryRow(
-			`SELECT value FROM system_state WHERE key = ?`, "ui:theme").Scan(&saved); err == nil {
-			if validTheme(saved) {
-				u.theme = saved
-			}
-		}
-		if err := deps.Store.DB().QueryRow(
-			`SELECT value FROM system_state WHERE key = ?`, "ui:density").Scan(&saved); err == nil {
-			if validDensity(saved) {
-				u.density = saved
-			}
-		}
+	if saved, ok := u.loadSystemState(context.Background(), "ui:theme"); ok && validTheme(saved) {
+		u.theme = saved
+	}
+	if saved, ok := u.loadSystemState(context.Background(), "ui:density"); ok && validDensity(saved) {
+		u.density = saved
 	}
 	return u
 }
@@ -321,13 +312,7 @@ func (u *UI) setDensity(id string) error {
 	u.themeMu.Lock()
 	u.density = id
 	u.themeMu.Unlock()
-	if u.deps.Store == nil {
-		return nil
-	}
-	if _, err := u.deps.Store.DB().Exec(
-		`INSERT INTO system_state (key, value) VALUES (?, ?)
-		 ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
-		"ui:density", id); err != nil {
+	if err := u.saveSystemState(context.Background(), "ui:density", id); err != nil {
 		return fmt.Errorf("persisting density: %w", err)
 	}
 	return nil
@@ -341,14 +326,7 @@ func (u *UI) setTheme(id string) error {
 	u.themeMu.Lock()
 	u.theme = id
 	u.themeMu.Unlock()
-	if u.deps.Store == nil {
-		return nil
-	}
-	_, err := u.deps.Store.DB().Exec(
-		`INSERT INTO system_state (key, value) VALUES (?, ?)
-		 ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
-		"ui:theme", id)
-	if err != nil {
+	if err := u.saveSystemState(context.Background(), "ui:theme", id); err != nil {
 		return fmt.Errorf("persisting theme: %w", err)
 	}
 	return nil
@@ -363,119 +341,6 @@ func (u *UI) Hub() *Hub { return u.hub }
 func (u *UI) SetExporter(e Exporter) { u.exporter = e }
 
 // Register mounts the UI routes.
-func (u *UI) Register(mux *http.ServeMux) {
-	mux.HandleFunc("GET /ui/assets/", u.handleAssets)
-	mux.HandleFunc("GET /ui/welcome", u.handleWelcome)
-	mux.HandleFunc("POST /ui/welcome", u.handleWelcomePost)
-	mux.HandleFunc("GET /ui/models", u.handleModels)
-	mux.HandleFunc("POST /ui/models/pool", u.handleModelsPool)
-	mux.HandleFunc("POST /ui/models/qualify", u.handleModelsQualify)
-	mux.HandleFunc("POST /ui/models/qualify/deep", u.handleModelsQualifyDeep)
-	mux.HandleFunc("POST /ui/assist", u.handleAssist)
-	mux.HandleFunc("GET /ui", u.handleDashboard)
-	mux.HandleFunc("GET /ui/events/stream", u.handleDashboardStream)
-	mux.HandleFunc("GET /ui/projects", u.handleProjects)
-	mux.HandleFunc("GET /ui/projects/new", u.handleNewProject)
-	mux.HandleFunc("POST /ui/projects", u.handleProjectCreate)
-	mux.HandleFunc("GET /ui/projects/{id}", u.handleProject)
-	mux.HandleFunc("GET /ui/projects/{id}/interview", u.handleInterviewPage)
-	mux.HandleFunc("POST /ui/projects/{id}/interview", u.handleInterviewSave)
-	mux.HandleFunc("POST /ui/projects/{id}/interview/approve", u.handleInterviewApprove)
-	mux.HandleFunc("POST /ui/projects/{id}/interview/skip", u.handleInterviewSkip)
-	mux.HandleFunc("GET /ui/projects/{id}/onboarding", u.handleProjectOnboarding)
-	mux.HandleFunc("POST /ui/projects/{id}/onboarding", u.handleProjectOnboardingPost)
-	mux.HandleFunc("POST /ui/projects/{id}/goals", u.handleGoalCreate)
-	mux.HandleFunc("POST /ui/projects/{id}/index", u.handleProjectIndex)
-	mux.HandleFunc("POST /ui/projects/{id}/execution", u.handleProjectExecution)
-	mux.HandleFunc("POST /ui/projects/{id}/priority", u.handleProjectPriority)
-	mux.HandleFunc("POST /ui/tasks/{id}/reset", u.handleTaskReset)
-	mux.HandleFunc("POST /ui/projects/{id}/corrections", u.handleCorrectionCreate)
-	mux.HandleFunc("GET /ui/corrections", u.handleCorrections)
-	mux.HandleFunc("GET /ui/reviews", u.handleReviews)
-	mux.HandleFunc("GET /ui/notifications", u.handleNotifications)
-	mux.HandleFunc("GET /ui/notifications/count", u.handleNotificationCount)
-	mux.HandleFunc("GET /ui/setup", u.handleSetup)
-	mux.HandleFunc("POST /ui/setup/qualify", u.handleQualifyStart)
-	mux.HandleFunc("POST /ui/setup/qualify/cancel", u.handleQualifyCancel)
-	mux.HandleFunc("POST /ui/setup/personas", u.handleSetupPersonas)
-	mux.HandleFunc("GET /ui/statistics", u.handleStatistics)
-	mux.HandleFunc("GET /ui/jobs", u.handleJobsIndex)
-	mux.HandleFunc("GET /ui/digest", u.handleDigest)
-	mux.HandleFunc("POST /ui/alarms/{id}/resolve", u.handleAlarmResolve)
-	mux.HandleFunc("POST /ui/strategy/insights/{id}", u.handleInsightAction)
-	mux.HandleFunc("POST /ui/projects/{id}/push", u.handleProjectPush)
-	mux.HandleFunc("POST /ui/corrections/{id}", u.handleCorrectionUpdate)
-	mux.HandleFunc("GET /ui/jobs/{id}", u.handleWatch)
-	mux.HandleFunc("GET /ui/jobs/{id}/stream", u.handleJobStream)
-	mux.HandleFunc("POST /ui/jobs/{id}/note", u.handleNote)
-	mux.HandleFunc("POST /ui/jobs/{id}/control", u.handleControl)
-	mux.HandleFunc("GET /ui/artifacts/{id}", u.handleArtifact)
-	mux.HandleFunc("GET /ui/artifacts/{id}/download", u.handleArtifactDownload)
-	mux.HandleFunc("POST /ui/artifacts/{id}/export", u.handleArtifactExport)
-	mux.HandleFunc("POST /ui/artifacts/{id}/review", u.handleReviewCreate)
-	mux.HandleFunc("GET /ui/artifacts/{id}/diff", u.handleDiff)
-	mux.HandleFunc("GET /ui/compare", u.handleCompare)
-	mux.HandleFunc("POST /ui/approvals/{id}", u.handleApproval)
-	mux.HandleFunc("GET /ui/events", u.handleEvents)
-	mux.HandleFunc("GET /ui/artifacts", u.handleArtifactIndex)
-	mux.HandleFunc("GET /ui/memory", u.handleMemory)
-	mux.HandleFunc("GET /ui/memory/compacted/{id}", u.handleCompacted)
-	mux.HandleFunc("GET /ui/memory/chunks/{id}", u.handleChunk)
-	mux.HandleFunc("GET /ui/daydream", u.handleDaydream)
-	mux.HandleFunc("GET /ui/runtime", u.handleRuntime)
-	mux.HandleFunc("GET /ui/jobs/{id}/trace", u.handleTrace)
-	mux.HandleFunc("GET /ui/settings", u.handleSettings)
-	mux.HandleFunc("POST /ui/freeze", u.handleFreeze)
-	mux.HandleFunc("POST /ui/mode", u.handleMode)
-	mux.HandleFunc("POST /ui/theme", u.handleTheme)
-	mux.HandleFunc("POST /ui/density", u.handleDensity)
-	mux.HandleFunc("GET /ui/sitemap", u.handleSitemap)
-	mux.HandleFunc("GET /ui/search", u.handleSearch)
-}
-
-// --- Hub ---
-
-// Hub is a per-job token fan-out.
-type Hub struct {
-	mu   sync.Mutex
-	subs map[string]map[chan string]struct{}
-}
-
-// NewHub returns an empty hub.
-func NewHub() *Hub { return &Hub{subs: map[string]map[chan string]struct{}{}} }
-
-// Publish sends a token chunk to every subscriber of jobID, dropping it for
-// a subscriber whose buffer is full.
-func (h *Hub) Publish(jobID, text string) {
-	if text == "" {
-		return
-	}
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	for ch := range h.subs[jobID] {
-		select {
-		case ch <- text:
-		default:
-		}
-	}
-}
-
-// Subscribe returns a channel of token chunks and an unsubscribe function.
-func (h *Hub) Subscribe(jobID string) (<-chan string, func()) {
-	ch := make(chan string, 256)
-	h.mu.Lock()
-	if h.subs[jobID] == nil {
-		h.subs[jobID] = map[chan string]struct{}{}
-	}
-	h.subs[jobID][ch] = struct{}{}
-	h.mu.Unlock()
-	return ch, func() {
-		h.mu.Lock()
-		delete(h.subs[jobID], ch)
-		h.mu.Unlock()
-	}
-}
-
 // --- Handlers ---
 
 func (u *UI) handleDashboard(w http.ResponseWriter, r *http.Request) {

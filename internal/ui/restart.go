@@ -24,10 +24,7 @@ func (u *UI) markRestartRequired(ctx context.Context, reason string) {
 	raw, _ := json.Marshal(restartState{Reason: reason, At: time.Now().UTC()})
 	cctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 	defer cancel()
-	_, _ = u.deps.Store.DB().ExecContext(cctx,
-		`INSERT INTO system_state (key, value) VALUES (?, ?)
-		 ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
-		restartStateKey, string(raw))
+	_ = u.saveSystemState(cctx, restartStateKey, string(raw))
 }
 
 func (u *UI) restartRequired(ctx context.Context) string {
@@ -36,9 +33,8 @@ func (u *UI) restartRequired(ctx context.Context) string {
 	}
 	cctx, cancel := context.WithTimeout(ctx, time.Second)
 	defer cancel()
-	var raw string
-	if err := u.deps.Store.DB().QueryRowContext(cctx,
-		`SELECT value FROM system_state WHERE key = ?`, restartStateKey).Scan(&raw); err != nil {
+	raw, ok := u.loadSystemState(cctx, restartStateKey)
+	if !ok {
 		return ""
 	}
 	var st restartState

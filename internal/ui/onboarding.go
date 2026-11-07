@@ -4,9 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
-	"database/sql"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -261,12 +259,8 @@ func (u *UI) loadOnboarding(ctx context.Context) onboardingState {
 	if u.deps.Store == nil {
 		return st
 	}
-	var raw string
-	if err := u.deps.Store.DB().QueryRowContext(ctx,
-		`SELECT value FROM system_state WHERE key = ?`, onboardingKey).Scan(&raw); err != nil {
-		if !errors.Is(err, sql.ErrNoRows) {
-			slog.Error("ui: reading onboarding state", "err", err)
-		}
+	raw, ok := u.loadSystemState(ctx, onboardingKey)
+	if !ok {
 		return st
 	}
 	if err := json.Unmarshal([]byte(raw), &st); err != nil {
@@ -291,11 +285,7 @@ func (u *UI) saveOnboarding(ctx context.Context, st onboardingState) error {
 	if err != nil {
 		return err
 	}
-	_, err = u.deps.Store.DB().ExecContext(ctx,
-		`INSERT INTO system_state (key, value) VALUES (?, ?)
-		 ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
-		onboardingKey, string(raw))
-	if err != nil {
+	if err := u.saveSystemState(ctx, onboardingKey, string(raw)); err != nil {
 		return fmt.Errorf("saving onboarding: %w", err)
 	}
 	return nil
