@@ -60,6 +60,21 @@ func TestRenderMarkdownRejectsUnsafeLinks(t *testing.T) {
 	}
 }
 
+func TestRenderMarkdownLinkURLKeepsUnderscores(t *testing.T) {
+	got := string(renderMarkdown(`[docs](https://example.com/a_b_c)`))
+	if !strings.Contains(got, `href="https://example.com/a_b_c"`) {
+		t.Fatalf("link URL underscores were rewritten: %s", got)
+	}
+	if strings.Contains(got, "href=\"https://example.com/a<em>") {
+		t.Fatalf("emphasis leaked into the href attribute: %s", got)
+	}
+	// Emphasis inside the label is still applied.
+	got = string(renderMarkdown(`[**bold** label](https://example.com/a_b_c)`))
+	if !strings.Contains(got, "<strong>bold</strong> label") {
+		t.Fatalf("link label emphasis was dropped: %s", got)
+	}
+}
+
 func TestRenderMarkdownHeadingIDsUnique(t *testing.T) {
 	got := string(renderMarkdown("# Same\n\n# Same\n"))
 	if !strings.Contains(got, `id="same"`) || !strings.Contains(got, `id="same-2"`) {

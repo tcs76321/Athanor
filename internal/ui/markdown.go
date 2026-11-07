@@ -207,14 +207,28 @@ func renderInline(s string) string {
 		if err != nil || (u.Scheme != "http" && u.Scheme != "https" && u.Scheme != "mailto") {
 			return sub[1]
 		}
+		// The label is escaped and emphasized here, before the anchor is
+		// placed in the stream: emphasis must never run over link markup
+		// (an underscore in a URL used to become an <em> inside the href).
+		label := applyEmphasis(html.EscapeString(sub[1]))
 		links = append(links, fmt.Sprintf(`<a href="%s" rel="noopener noreferrer" target="_blank">%s</a>`,
-			html.EscapeString(href), html.EscapeString(sub[1])))
+			html.EscapeString(href), label))
 		return fmt.Sprintf("\x01%d\x01", len(links)-1)
 	})
-	s = html.EscapeString(s)
+	s = applyEmphasis(html.EscapeString(s))
 	for i, l := range links {
 		s = strings.ReplaceAll(s, fmt.Sprintf("\x01%d\x01", i), l)
 	}
+	for i, c := range codes {
+		s = strings.ReplaceAll(s, fmt.Sprintf("\x00%d\x00", i), c)
+	}
+	return s
+}
+
+// applyEmphasis applies the closed bold/italic set to already-escaped
+// text. It is deliberately separate from link extraction so emphasis can
+// never rewrite an href attribute.
+func applyEmphasis(s string) string {
 	s = mdBold.ReplaceAllStringFunc(s, func(m string) string {
 		sub := mdBold.FindStringSubmatch(m)
 		if sub == nil {
@@ -237,9 +251,6 @@ func renderInline(s string) string {
 		}
 		return "<em>" + text + "</em>"
 	})
-	for i, c := range codes {
-		s = strings.ReplaceAll(s, fmt.Sprintf("\x00%d\x00", i), c)
-	}
 	return s
 }
 
