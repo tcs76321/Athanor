@@ -185,14 +185,22 @@ clarification parking and `python -c` staging).
 
 The first run also exposed a reporting bug: the sequence row inherited
 step 1's `check_pass=true` while `state=failed`, producing `failed / pass=true`.
-The runner now resets the checkpoint state per step and reads the best
-candidate's checks on a failed step.
+The runner now resets the checkpoint state per step. A second run exposed a
+scoring bug: step 2’s **final artifact** had the required `Implementation`
+heading, but the checkpoint inspected the best intermediate candidate, which
+did not. A sequence step is now judged on its delivered artifact first, with
+the best candidate only as a fallback.
 
-The corrected rerun showed a second issue: step 2’s **final artifact** had the
-required `Implementation` heading, but the checkpoint scorer inspected the
-best intermediate candidate, which did not. A sequence step is now judged on
-its delivered artifact first, with the best candidate only as a fallback. The
-next rerun is the evidence.
+### Corrected run — final
+
+**Progress 1/3, final pass false.** Step 1 passed. Step 2 failed after
+**1 repair loop, 2 reflection loops, 1 replan, and 23 memory hits**. The
+failure was the required `Implementation` heading. Step 3 never ran. The
+sequence row now reports `state=failed, pass=false`, and the report shows
+33% progress with two steps executed.
+
+Raw evidence:
+[`runs/bench-diagnostic-sequence-20261106/`](runs/bench-diagnostic-sequence-20261106/).
 
 ## Caveats
 
