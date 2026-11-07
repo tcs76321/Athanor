@@ -35,6 +35,7 @@ const (
 	SectionProjectContext         = "project_context"
 	SectionTaskContext            = "task_context"
 	SectionAcceptanceCriteria     = "acceptance_criteria"
+	SectionDeclaredChecks         = "declared_checks"
 	SectionDataSchema             = "data_schema"
 	SectionActiveChunk            = "active_chunk"
 	SectionRepositoryWorkingSet   = "repository_working_set"
@@ -99,6 +100,11 @@ type Input struct {
 	Task    Task
 	// Criteria are the acceptance criteria, in given order.
 	Criteria []string
+	// Checks are the operator-declared machine-checkable requirements
+	// rendered from project.ExecutionChecks.Describe (ADR-0070). They are
+	// pinned in tier 2 next to the criteria: the model must see the exact
+	// limits a parser will enforce, not infer them from prose.
+	Checks []string
 	// DataSchema is the operator-supplied JSON Schema a `data` candidate must
 	// validate against (M9-T3). It is a hard requirement, not model input: the
 	// model must see it, and the engine's verifier is the acceptance edge. The

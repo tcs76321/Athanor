@@ -89,6 +89,40 @@ func TestRun_DataArchetypePromptIncludesSchema(t *testing.T) {
 	}
 }
 
+// TestRun_DeclaredChecksReachPrompt pins the document regression fix: the
+// exact parser-enforced limits are prompt-visible, not only implied by prose
+// criteria.
+func TestRun_DeclaredChecksReachPrompt(t *testing.T) {
+	env := newEnv(t)
+	ctx := context.Background()
+	projectID, _, jobID := env.createProjectTask(t, "document",
+		"Write a short brief that respects the declared limits.")
+	if err := env.projects.SetExecution(ctx, projectID, project.Execution{
+		Checks: &project.ExecutionChecks{MaxWords: 110, ForbiddenPhrases: []string{"click here"}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	env.eng.Run(ctx, jobID)
+
+	prompts := env.ollama.promptTexts()
+	if len(prompts) == 0 {
+		t.Fatal("no model call recorded")
+	}
+	found := false
+	for _, p := range prompts {
+		if strings.Contains(p, "DECLARED CHECKS") &&
+			strings.Contains(p, "word count must be at most 110") &&
+			strings.Contains(p, `must not contain: "click here"`) {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("declared checks did not reach the prompt")
+	}
+}
+
 // TestRun_DataArchetypeAcceptsWrappedJSON is the end-to-end data proof: the
 // schema reaches the prompt, the verifier extracts a single fenced value, and
 // the job completes without a judge-only accept.

@@ -202,6 +202,43 @@ func TestValidArchetype(t *testing.T) {
 // TestCodeArchetypeGetsToolDefaults pins M9-T4: a code project's tasks carry
 // the three execution tools so the real test command can run; non-code
 // projects keep the daemon-wide default (no tools) and stay explicit.
+func TestExecutionChecksDescribeIsDeterministic(t *testing.T) {
+	var nilChecks *ExecutionChecks
+	if got := nilChecks.Describe(); got != nil {
+		t.Errorf("nil checks described as %v, want nil", got)
+	}
+	checks := &ExecutionChecks{
+		MaxWords:         110,
+		RequiredSections: []string{"Context"},
+		ForbiddenPhrases: []string{"click here"},
+		MinItems:         []ItemCount{{Noun: "risks", Min: 2}},
+		ArrayLength:      2,
+		ArrayUniqueBy:    "id",
+		ArraySortedBy:    "id",
+		JSONFieldMatches: map[string]string{"created_at": `^\d{4}`},
+	}
+	lines := checks.Describe()
+	joined := strings.Join(lines, "\n")
+	for _, want := range []string{
+		"at most 110",
+		`required section: "Context"`,
+		`must not contain: "click here"`,
+		"at least 2 risks",
+		"exactly 2 array item(s)",
+		`unique by "id"`,
+		`sorted ascending by "id"`,
+		`field "created_at" must match regex`,
+	} {
+		if !strings.Contains(joined, want) {
+			t.Errorf("Describe() missing %q in:\n%s", want, joined)
+		}
+	}
+	// The field order is stable across calls (sorted regex keys).
+	if again := checks.Describe(); strings.Join(again, "\n") != joined {
+		t.Errorf("Describe() is not deterministic:\n%s\n---\n%s", joined, strings.Join(again, "\n"))
+	}
+}
+
 func TestCodeArchetypeGetsToolDefaults(t *testing.T) {
 	r, _ := openRepo(t)
 	ctx := context.Background()

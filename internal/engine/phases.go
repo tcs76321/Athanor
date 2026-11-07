@@ -301,6 +301,7 @@ func (e *Engine) call(ctx context.Context, j job.Job, p project.Project, t proje
 		Project:                prompt.Project{Name: p.Name, Archetype: capability, Goal: p.Goal},
 		Task:                   prompt.Task{Title: t.Title, Description: t.Description, TestCommand: p.TestCommand()},
 		Criteria:               t.Criteria,
+		Checks:                 p.Execution.Checks.Describe(),
 		DataSchema:             p.Execution.DataSchema,
 		EvaluationInstructions: planInstructions(extraInstructions, plan, isJudgmentPhase(phase)),
 		Tools:                  tiers.Tools,

@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"time"
 	"unicode/utf8"
 
@@ -197,6 +198,91 @@ func (c ExecutionChecks) IsZero() bool {
 		!c.NoHeadings && !c.NoPlaceholders && len(c.MinItems) == 0 &&
 		c.ArrayLength == 0 && c.ArrayUniqueBy == "" && c.ArraySortedBy == "" &&
 		len(c.JSONFieldMatches) == 0
+}
+
+// Describe renders the declared checks as deterministic, prompt-visible
+// requirements. The parser enforces them, so the model must see the exact
+// limits rather than infer them from prose criteria; this closes the
+// "declared check the model never saw" gap the document max_words regression
+// exposed. The order is stable (struct order, sorted map keys).
+func (c *ExecutionChecks) Describe() []string {
+	if c == nil || c.IsZero() {
+		return nil
+	}
+	var out []string
+	if c.MinWords > 0 && c.MaxWords > 0 {
+		out = append(out, fmt.Sprintf("word count must be between %d and %d", c.MinWords, c.MaxWords))
+	} else if c.MaxWords > 0 {
+		out = append(out, fmt.Sprintf("word count must be at most %d", c.MaxWords))
+	} else if c.MinWords > 0 {
+		out = append(out, fmt.Sprintf("word count must be at least %d", c.MinWords))
+	}
+	if c.ExactParagraphs > 0 {
+		out = append(out, fmt.Sprintf("exactly %d prose paragraphs", c.ExactParagraphs))
+	}
+	for _, section := range c.RequiredSections {
+		out = append(out, fmt.Sprintf("required section: %q", section))
+	}
+	if len(c.StrictSectionOrder) > 0 {
+		out = append(out, "sections must appear in this order: "+quoteList(c.StrictSectionOrder))
+	}
+	for _, phrase := range c.MustContain {
+		out = append(out, fmt.Sprintf("must contain: %q", phrase))
+	}
+	for _, phrase := range c.ForbiddenPhrases {
+		out = append(out, fmt.Sprintf("must not contain: %q", phrase))
+	}
+	if c.NoHeadings {
+		out = append(out, "no markdown headings")
+	}
+	if c.NoPlaceholders {
+		out = append(out, "no TODO/FIXME/lorem-ipsum placeholders")
+	}
+	for _, item := range c.MinItems {
+		if item.Min > 0 {
+			out = append(out, fmt.Sprintf("at least %d %s item(s)", item.Min, item.Noun))
+		}
+	}
+	if c.ArrayLength > 0 {
+		out = append(out, fmt.Sprintf("exactly %d array item(s)", c.ArrayLength))
+	}
+	if c.ArrayUniqueBy != "" {
+		out = append(out, fmt.Sprintf("array items must be unique by %q", c.ArrayUniqueBy))
+	}
+	if c.ArraySortedBy != "" {
+		out = append(out, fmt.Sprintf("array items must be sorted ascending by %q", c.ArraySortedBy))
+	}
+	if len(c.JSONFieldMatches) > 0 {
+		keys := make([]string, 0, len(c.JSONFieldMatches))
+		for key := range c.JSONFieldMatches {
+			keys = append(keys, key)
+		}
+		sort.Strings(keys)
+		for _, key := range keys {
+			out = append(out,
+				fmt.Sprintf("field %q must match regex %q", key, c.JSONFieldMatches[key]))
+		}
+	}
+	return out
+}
+
+func quoteList(items []string) string {
+	quoted := make([]string, len(items))
+	for i, item := range items {
+		quoted[i] = fmt.Sprintf("%q", item)
+	}
+	return joinStrings(quoted, " → ")
+}
+
+func joinStrings(items []string, sep string) string {
+	if len(items) == 0 {
+		return ""
+	}
+	out := items[0]
+	for _, item := range items[1:] {
+		out += sep + item
+	}
+	return out
 }
 
 // DefaultCodeTestCommand is retained as a compatibility constant for callers

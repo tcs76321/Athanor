@@ -54,6 +54,7 @@ func renderSections(in Input) ([]sectionSpec, error) {
 		{SectionProjectContext, TierTaskCriteria, projectContext(in.Project)},
 		{SectionTaskContext, TierTaskCriteria, taskContext(in.Task)},
 		{SectionAcceptanceCriteria, TierTaskCriteria, criteria(in.Criteria)},
+		{SectionDeclaredChecks, TierTaskCriteria, declaredChecksSection(in.Checks)},
 		{SectionDataSchema, TierTaskCriteria, dataSchemaSection(in.DataSchema)},
 		{SectionActiveChunk, TierWorkingSet, activeChunkOrEmpty(in.ActiveChunk)},
 		{SectionRepositoryWorkingSet, TierWorkingSet, repositoryWorkingSetSection(in.ActiveChunk, in.WorkingSet)},
@@ -188,6 +189,26 @@ func criteria(cs []string) string {
 		}
 	}
 	return b.String()
+}
+
+// declaredChecksSection renders the operator-declared, machine-checkable
+// requirements. It sits beside the criteria in tier 2 so the exact limits a
+// parser will enforce can never be evicted or left implicit.
+func declaredChecksSection(checks []string) string {
+	if len(checks) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString("DECLARED CHECKS (hard requirements; a parser will verify them)\n")
+	for _, check := range checks {
+		if strings.TrimSpace(check) == "" {
+			continue
+		}
+		b.WriteString("- ")
+		b.WriteString(check)
+		b.WriteString("\n")
+	}
+	return strings.TrimRight(b.String(), "\n")
 }
 
 // dataSchemaSection renders the operator's JSON Schema as a hard requirement.
