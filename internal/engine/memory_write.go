@@ -46,5 +46,9 @@ func (e *Engine) rememberCompletedJob(ctx context.Context, j job.Job) {
 		e.audit(ctx, j.ID, map[string]any{"event": "memory_remember_failed", "error": err.Error()})
 		return
 	}
-	e.audit(ctx, j.ID, map[string]any{"event": "memory_remembered", "inserted": inserted, "bytes": len(summary)})
+	if inserted {
+		e.audit(ctx, j.ID, map[string]any{"event": "memory_remembered", "bytes": len(summary)})
+	} else {
+		e.audit(ctx, j.ID, map[string]any{"event": "memory_remember_skipped", "bytes": len(summary)})
+	}
 }

@@ -29,6 +29,9 @@ func parseQuestion(content string) string {
 // marker and a clarifier is wired. It returns true when the job was parked, so
 // the caller returns ErrPaused instead of transitioning the phase.
 func (e *Engine) askForClarification(ctx context.Context, jobID, projectID, phase, content string) bool {
+	if e.cfg == nil || !e.cfg.Execution.ClarificationsEnabled() {
+		return false
+	}
 	question := parseQuestion(content)
 	if question == "" || e.clarifier == nil {
 		return false

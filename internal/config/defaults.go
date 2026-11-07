@@ -260,6 +260,10 @@ func applyDefaults(c *Config) {
 		off := false
 		c.Execution.Policy.PairwiseJudge = &off
 	}
+	if c.Execution.Policy.Clarifications == nil {
+		off := false
+		c.Execution.Policy.Clarifications = &off
+	}
 	setTrue(&c.Execution.Policy.RequireCrossFamily)
 	setTrue(&c.Execution.Policy.HeterogeneousDiversity)
 	setStr(&c.Execution.Policy.NoveltyReset, NoveltyResetAuto)

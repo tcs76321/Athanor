@@ -304,6 +304,7 @@ func (e *Engine) call(ctx context.Context, j job.Job, p project.Project, t proje
 		Criteria:               t.Criteria,
 		Checks:                 p.Execution.Checks.Describe(),
 		DataSchema:             p.Execution.DataSchema,
+		AllowQuestions:         e.cfg != nil && e.cfg.Execution.ClarificationsEnabled(),
 		Notebook:               e.notebookLines(ctx, j.ID),
 		EvaluationInstructions: planInstructions(extraInstructions, plan, isJudgmentPhase(phase)),
 		Tools:                  tiers.Tools,

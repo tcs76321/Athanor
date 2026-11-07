@@ -101,6 +101,10 @@ type Input struct {
 	Task    Task
 	// Criteria are the acceptance criteria, in given order.
 	Criteria []string
+	// AllowQuestions renders the planning clarification instruction
+	// (ADR-0112). It is false by default: an unattended run must not be
+	// invited to park on a human question.
+	AllowQuestions bool
 	// Notebook is the job's persistent working memory (ADR-0109),
 	// newest-last. It is pinned beside the criteria so the plan, observed
 	// results, and decisions survive every phase and cannot be evicted.

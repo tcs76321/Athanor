@@ -547,6 +547,10 @@ type PolicyConfig struct {
 	// before rewriting (ADR-0113). It is a single bounded LLM call and a
 	// read-only tool; default true.
 	ObservationTools *bool `yaml:"observation_tools"`
+	// Clarifications lets the planning phase ask the operator a blocking
+	// question (ADR-0112). Default false: an unattended run must never park
+	// itself waiting for a human. Enable it for interactive use.
+	Clarifications *bool `yaml:"allow_clarifications"`
 	// QualityTieMargin is the score delta within which two artifacts are
 	// considered tied for cost-aware acceptance (F4-T6).
 	QualityTieMargin *float64 `yaml:"quality_tie_margin"`
@@ -658,6 +662,12 @@ func (e *Execution) PairwiseJudgeEnabled() bool {
 // ObservationToolsEnabled resolves observation_tools (default true).
 func (e *Execution) ObservationToolsEnabled() bool {
 	return Val(e.Policy.ObservationTools, true)
+}
+
+// ClarificationsEnabled resolves allow_clarifications (default false: an
+// unattended job must never park on a question).
+func (e *Execution) ClarificationsEnabled() bool {
+	return Val(e.Policy.Clarifications, false)
 }
 
 // QualityTieMarginValue resolves quality_tie_margin (default 0.02).

@@ -40,6 +40,8 @@ func TestPlanningQuestionParksTheJob(t *testing.T) {
 	e := newEnv(t)
 	clarifier := &fakeClarifier{}
 	e.eng.SetClarifier(clarifier)
+	on := true
+	e.cfg.Execution.Policy.Clarifications = &on
 	e.ollama.setPlanning("I need one fact first.\nQUESTION: Which database should this target?")
 
 	jobID := e.submit(t)

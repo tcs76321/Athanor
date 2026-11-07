@@ -236,6 +236,9 @@ execution:
     # ADR-0113: a code repair may ask to read one repository file before
     # rewriting. Read-only and bounded; on by default.
     observation_tools: true
+    # ADR-0112: allow the planning phase to ask the operator a blocking
+    # question. Off by default: an unattended run must never park itself.
+    allow_clarifications: false
     quality_tie_margin: 0.02
     require_cross_family: true
     heterogeneous_diversity: true

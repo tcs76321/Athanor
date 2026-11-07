@@ -247,10 +247,6 @@ func (e *Engine) phaseReflect(ctx context.Context, j job.Job) error {
 	if err != nil {
 		return err
 	}
-	if e.askForClarification(ctx, j.ID, p.ID, "reflecting", resp.Content) {
-		return ErrPaused
-	}
-
 	e.audit(ctx, j.ID, map[string]any{
 		"event":      "reflection",
 		"iter":       iter + 1,

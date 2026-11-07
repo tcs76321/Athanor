@@ -24,9 +24,13 @@ question/answer request.
 Add a **clarification request** to the HITL queue, initiated by the model and
 answered by the operator.
 
-- **Marker.** Planning and reflection prompts tell the model: if a fact only
-  the operator can supply blocks a correct plan, end with one line
-  `QUESTION: <one sentence>` and do not invent it.
+- **Marker.** With `execution.policy.allow_clarifications: true`, the
+  **planning** prompt tells the model: if a task fact only the operator can
+  supply blocks a correct plan, end with one line `QUESTION: <one sentence>`
+  and do not invent it. It explicitly forbids asking about the verifier,
+  tools, harness, or scoring. The instruction is off by default
+  (`allow_clarifications: false`) so an unattended job cannot park itself
+  waiting for a human.
 - **Park.** The engine detects the marker, writes a `question` notebook entry,
   and calls the `Clarifier` seam. The concrete adapter files a
   `clarification` HITL request via `Service.Await`, which moves the job to
