@@ -434,6 +434,10 @@ func (u *UI) welcomeData(ctx context.Context, st onboardingState) map[string]any
 			break
 		}
 	}
+	rankedNames := make([]string, 0, len(pool.Ranked))
+	for _, row := range pool.Ranked {
+		rankedNames = append(rankedNames, row.Name)
+	}
 	return map[string]any{
 		"State": st, "Step": st.Step, "Steps": onboardingSteps,
 		"StepIndex": onboardingIndex(st.Step), "StepNumber": onboardingIndex(st.Step) + 1,
@@ -448,7 +452,7 @@ func (u *UI) welcomeData(ctx context.Context, st onboardingState) map[string]any
 		"Pool":               pool,
 		"PoolRows":           pool.Rows,
 		"PoolRanked":         pool.Ranked,
-		"QualDetails":        qualDetailsFromState(qual, catalogNames(models)),
+		"QualDetails":        qualDetailsFromState(qual, rankedNames),
 		"RolePicks":          u.rolePicks(),
 		"PoolCount":          pool.Count,
 		"PoolReady":          pool.Ready,
@@ -733,16 +737,6 @@ type healthCheck struct {
 }
 
 // personaRoles maps the configured personas to the installed model catalog.
-func catalogNames(models []setupModel) []string {
-	out := make([]string, 0, len(models))
-	for _, m := range models {
-		if m.Name != "" {
-			out = append(out, m.Name)
-		}
-	}
-	return out
-}
-
 func (u *UI) personaRoles(models []setupModel) []setupRole {
 	roles := make([]setupRole, 0, 5)
 	if u.deps.Config == nil {

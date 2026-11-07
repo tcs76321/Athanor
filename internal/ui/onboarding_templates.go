@@ -317,44 +317,45 @@ const welcomeBody = `
     {{else}}
     <div class="grid cols-2">
       <div class="card"><h3>Why run it</h3><p class="muted">It ranks the models on this computer for the work you actually do, so Athanor can cast each job instead of guessing from model size or reputation.</p></div>
-      <div class="card"><h3>What it costs</h3><p class="muted">The default screen is 80 cases per model; deep adds 39 more across long-context, repair, operation, planning, calibration, security, and adversarial cases. A balanced core (one case per capability) runs first for every model, then extra blocks. The core always runs; choose a minimum run time (10–60 min) and the first model’s core pass sets the estimate. The run is resumable, and scores use only cases every model completed.</p></div>
+      <div class="card"><h3>What it costs</h3><p class="muted">The default screen is 80 cases per model; deep adds 39 more. A balanced core (one case per capability) runs first for every model. The core always runs; choose a minimum run time (10–60 min) and the first model’s core pass sets the estimate. The run is resumable, and scores use only cases every model completed.</p></div>
+      <div class="card"><h3>What it measures</h3><p class="muted">Code, data, documents, text, media, summarization/compaction, security, agentic decisions, instruction following, grounding, repair, long-context recall, engine-operation choice, planning, calibration, and judgment. Each family is scored separately, not folded into one general number.</p></div>
     </div>
     <div class="card">
+      <div class="grid cols-4">
+        <div class="card stat"><div class="n">{{.PoolCount}}</div><div class="l">models in the pool</div></div>
+        <div class="card stat"><div class="n">{{.Qualification.Total}}</div><div class="l">cases planned</div></div>
+        <div class="card stat"><div class="n">{{.Qualification.Done}}</div><div class="l">cases recorded</div></div>
+        <div class="card stat"><div class="n">{{if .Qualification.Estimate}}{{.Qualification.Estimate}}{{else}}—{{end}}</div><div class="l">estimated core</div></div>
+      </div>
       {{if .Qualification.Error}}<p class="del">{{.Qualification.Error}}</p>{{end}}
       {{if .Qualification.Stale}}<p class="muted">A previous run looks stale; starting again resets it.</p>{{end}}
-      {{if .Qualification.Complete}}<p class="ok"><b>Qualification complete.</b> {{.Qualification.Done}} cases recorded. The ranking below feeds the next cast; remove any model you do not want Athanor to use.</p>{{else}}<p class="muted">Run the screen here, or continue and use the measured roster from a previous run. The run stays inside this setup step.</p>{{end}}
-      {{if .Qualification.CanExtend}}
-      <p class="ok"><b>Core complete.</b> Every model has the minimal capability core. Choose a minimum run time to fill with more cases on every model; the first model's core pass is the estimate.</p>
-      <form method="post" action="/ui/welcome">
-        <input type="hidden" name="step" value="qualify">
-        <label class="muted small">Minimum run time
-          <select name="minutes">
-            <option value="10">10 min</option>
-            <option value="20" selected>20 min</option>
-            <option value="30">30 min</option>
-            <option value="45">45 min</option>
-            <option value="60">60 min</option>
-          </select>
-        </label>
-        <label class="muted small"><input type="checkbox" name="deep" value="1"> deep cases</label>
-        <button class="primary" name="action" value="run_qualify_extra">Run for at least this long</button>
-      </form>
+      {{if .Qualification.Complete}}
+        <p class="ok"><b>{{if eq .Qualification.MinimumMinutes 0}}Core complete{{else if .Qualification.AllCases}}All cases complete{{else}}Minimum met{{end}}.</b> {{.Qualification.Done}} cases recorded. The ranking below feeds the next cast; remove any model you do not want Athanor to use.</p>
+      {{else if .Qualification.CanExtend}}
+        <p class="ok"><b>Core complete.</b> Every model has the minimal capability core. Choose a minimum run time below to fill with more cases on every model; the first model's core pass is the estimate.</p>
+      {{else}}
+        <p class="muted">Run the screen here, or continue and use the measured roster from a previous run. The core always runs; the selected time is a minimum, and the run stays inside this setup step.</p>
       {{end}}
       <form method="post" action="/ui/welcome">
         <input type="hidden" name="step" value="qualify">
-        <label class="muted small">Minimum run time
-          <select name="minutes">
-            <option value="10">10 min</option>
-            <option value="20" selected>20 min</option>
-            <option value="30">30 min</option>
-            <option value="45">45 min</option>
-            <option value="60">60 min</option>
-          </select>
-        </label>
-        <label class="muted small"><input type="checkbox" name="deep" value="1"> deep cases</label>
-        <button class="primary" name="action" value="run_qualify">{{if .Qualification.Complete}}Run minimal core again{{else}}Run minimal core{{end}}</button>
-        <button class="secondary" name="action" value="run_qualify_extra">Run core + fill minimum</button>
-        <button class="secondary" name="action" value="run_qualify_deep">Run deep core</button>
+        <div class="row">
+          <label class="muted small">Minimum run time
+            <select name="minutes">
+              <option value="10">10 min</option>
+              <option value="20" selected>20 min</option>
+              <option value="30">30 min</option>
+              <option value="45">45 min</option>
+              <option value="60">60 min</option>
+            </select>
+          </label>
+          <label class="muted small"><input type="checkbox" name="deep" value="1"> deep cases</label>
+        </div>
+        <div class="actions">
+          <button class="primary" name="action" value="run_qualify">Run minimal core</button>
+          <button class="secondary" name="action" value="run_qualify_extra">Run for at least this long</button>
+          <button class="secondary" name="action" value="run_qualify_deep">Run deep core</button>
+        </div>
+        <p class="muted small">The core always runs and may exceed the minimum. Extra cases fill the remaining time; scores use only cases every model completed.</p>
       </form>
     </div>
     {{end}}

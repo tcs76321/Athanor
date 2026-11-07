@@ -15,26 +15,20 @@ const modelsBody = `
     <h1>What Athanor may choose from.</h1>
     <p class="lede">You own membership. Athanor owns the measured ranking and the cast. Removing a model is the only override; the next job casts from what remains.</p>
   </div>
-  <div class="actions">
-    <form method="post" action="/ui/models/qualify">
-      <input type="hidden" name="mode" value="core">
-      <button class="primary">Run minimal core</button>
-    </form>
-    <form method="post" action="/ui/models/qualify">
-      <input type="hidden" name="mode" value="extra">
-      <label class="muted small">Minimum run time
-        <select name="minutes">
-          <option value="10">10 min</option>
-          <option value="20" selected>20 min</option>
-          <option value="30">30 min</option>
-          <option value="45">45 min</option>
-          <option value="60">60 min</option>
-        </select>
-      </label>
-      <label class="muted small"><input type="checkbox" name="deep" value="1"> deep cases</label>
-      <button class="secondary">Run core + fill minimum</button>
-    </form>
-  </div>
+  <form method="post" action="/ui/models/qualify" class="actions">
+    <label class="muted small">Minimum run time
+      <select name="minutes">
+        <option value="10">10 min</option>
+        <option value="20" selected>20 min</option>
+        <option value="30">30 min</option>
+        <option value="45">45 min</option>
+        <option value="60">60 min</option>
+      </select>
+    </label>
+    <label class="muted small"><input type="checkbox" name="deep" value="1"> deep cases</label>
+    <button class="primary" name="mode" value="core">Run minimal core</button>
+    <button class="secondary" name="mode" value="extra">Run for at least this long</button>
+  </form>
 </div>
 
 <div class="card {{if not .PoolReady}}card-accent{{end}}">
@@ -62,7 +56,7 @@ const modelsBody = `
   </form>
 </div>
 {{else if .Qualification.Complete}}
-<div class="card"><p class="ok"><b>Qualification complete.</b> {{.Qualification.Done}} cases recorded. The ranking below is the current prior.</p></div>
+<div class="card"><p class="ok"><b>{{if eq .Qualification.MinimumMinutes 0}}Core complete{{else if .Qualification.AllCases}}All cases complete{{else}}Minimum met{{end}}.</b> {{.Qualification.Done}} cases recorded{{if .Qualification.Estimate}} · estimated core {{.Qualification.Estimate}}{{end}}. The ranking below is the current prior.{{if .Qualification.CanExtend}} Use the qualification controls above to run longer.{{end}}</p></div>
 {{else if .Qualification.Error}}
 <div class="card"><p class="del">{{.Qualification.Error}}</p></div>
 {{end}}
@@ -108,26 +102,7 @@ const modelsBody = `
   {{end}}
 </div>
 {{end}}
-{{if .Qualification.CanExtend}}
-<div class="card">
-  <h3>Core complete</h3>
-  <p class="muted">Every model has the minimal capability core. Choose a minimum run time; extra cases fill it, and the first model's core pass sets the estimate.</p>
-  <form method="post" action="/ui/models/qualify">
-    <input type="hidden" name="mode" value="extra">
-    <label class="muted small">Minimum run time
-      <select name="minutes">
-        <option value="10">10 min</option>
-        <option value="20" selected>20 min</option>
-        <option value="30">30 min</option>
-        <option value="45">45 min</option>
-        <option value="60">60 min</option>
-      </select>
-    </label>
-    <label class="muted small"><input type="checkbox" name="deep" value="1"> deep cases</label>
-    <button class="primary">Run for at least this long</button>
-  </form>
-</div>
-{{end}}
+{{if .Qualification.CanExtend}}<p class="muted small"><b>Core complete.</b> Use the qualification controls above to fill a minimum run time; extra cases run on every model.</p>{{end}}
 <h2>Measured ranking</h2>
 <div class="card flush"><div class="table-wrap">
 <table><thead><tr><th>Model</th><th>Family</th><th>Size</th><th>Overall</th><th>Code</th><th>Data</th><th>Judgment</th><th>Summ.</th><th>Sec.</th><th>Agent</th><th>Samples</th></tr></thead><tbody>

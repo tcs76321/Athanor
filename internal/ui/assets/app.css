@@ -288,6 +288,7 @@ pre code { background: none; border: 0; padding: 0; }
 .wizard {
   display: grid;
   grid-template-columns: 300px minmax(0, 1fr);
+  justify-content: center;
   min-height: 100vh;
 }
 .wizard-rail {
@@ -304,8 +305,9 @@ pre code { background: none; border: 0; padding: 0; }
 }
 .wizard-main {
   width: 100%;
-  max-width: 1000px;
-  padding: clamp(28px, 5vw, 72px) clamp(20px, 4vw, 64px);
+  max-width: min(1800px, 100%);
+  margin: 0 auto;
+  padding: clamp(28px, 4vw, 64px) clamp(20px, 3.2vw, 56px);
 }
 .lede {
   font-size: var(--step-1);
@@ -1027,10 +1029,14 @@ details[open] summary { margin-bottom: var(--space-2); }
 @media (min-width: 2200px) {
   :root { --rail: 300px; --content-max: 1900px; }
   body { font-size: 1.02rem; }
+  .wizard { grid-template-columns: 340px minmax(0, 1fr); }
+  .wizard-main { max-width: 2100px; }
 }
 @media (min-width: 3000px) {
   :root { --rail: 340px; --content-max: 2400px; }
   body { font-size: 1.08rem; }
+  .wizard { grid-template-columns: 380px minmax(0, 1fr); }
+  .wizard-main { max-width: 2500px; }
   .grid.cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .grid.cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
