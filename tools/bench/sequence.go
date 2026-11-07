@@ -63,6 +63,8 @@ func (r *runnerConfig) runSequence(g sampleGoal, projectID, stateDir string, mx 
 			State: state, ArtifactID: artifactID,
 		}
 		stepPass := state == "completed"
+		mx.CheckPass = nil
+		mx.Winner = ""
 		if g.Archetype == "code" {
 			tm := jobMetrics{JobID: jobIDs[0], Archetype: "code"}
 			tm.fillCodeTest(db)
@@ -76,7 +78,10 @@ func (r *runnerConfig) runSequence(g sampleGoal, projectID, stateDir string, mx 
 			}
 		}
 		text := ""
-		if artifactID != "" {
+		scoredID := artifactID
+		if len(step.Checks) > 0 {
+			scoredID, text = checkArtifactText(db, stateDir, jobIDs[0], artifactID, "")
+		} else if artifactID != "" {
 			text, _ = readArtifact(stateDir, artifactID)
 		}
 		if len(step.Checks) > 0 && text != "" {
@@ -92,10 +97,12 @@ func (r *runnerConfig) runSequence(g sampleGoal, projectID, stateDir string, mx 
 		}
 		sr.Pass = stepPass
 		mx.Sequence = append(mx.Sequence, sr)
-		mx.State, mx.ArtifactID, mx.ArtifactText = state, artifactID, text
-		mx.Winner = "new"
+		mx.State, mx.ArtifactID, mx.ArtifactText = state, scoredID, text
 		if stepPass {
+			mx.Winner = "new"
 			passed++
+		} else {
+			mx.Winner = "none"
 		}
 		mx.TokenCost += stepTokens(db, jobIDs[0])
 		if tm := stepMetrics(db, jobIDs[0], g.Archetype); tm != nil {
