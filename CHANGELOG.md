@@ -29,6 +29,9 @@ New entries are appended at the top. Do not rewrite history.
   discovery, plan, index, and pull entries are capped at 64 per map.
 - **Request bodies are capped** (`internal/server/body_limit.go`): an 8 MiB
   outer limit protects every external handler.
+- **SQLite driver currency**: `github.com/mattn/go-sqlite3` moves from
+  v1.14.0 to v1.14.53; FTS5, migrations, backup/restore, and the Core Pod
+  smoke were re-run against the new amalgamation.
 
 ### Qualification v2 — broader, inspectable, ten-minute prior — 2026-11-06
 

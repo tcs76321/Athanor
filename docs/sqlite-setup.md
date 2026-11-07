@@ -16,8 +16,8 @@
 require github.com/mattn/go-sqlite3 v1.14.0
 ```
 
-> **Pin note (2026-11-06):** the spike used v1.14.0. Check `go.mod` for the
-> current pin; the driver bundles a SQLite amalgamation, so its currency is a
+> **Pin note (2026-11-06):** the spike used v1.14.0; the module now pins
+> **v1.14.53**. The driver bundles a SQLite amalgamation, so its currency is a
 > supply-chain concern even when `govulncheck` is clean (Go's vulnerability
 > database does not cover the bundled C code).
 
