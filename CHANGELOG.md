@@ -51,9 +51,10 @@ New entries are appended at the top. Do not rewrite history.
   declare `steps:`; the runner executes them in one project, patches each
   step's check, and records per-step results plus `progress`. The
   `diag-sequence-memory` task and `make diagnostic-pair` are the first
-  checkpoint and paired-arm run shapes. First measured run: **1/3 progress**;
-  step 2 used 23 memory hits and 1 repair/2 reflections/1 replan, and still
-  failed the required heading. This is the first differentiating result.
+  checkpoint and paired-arm run shapes. First measured sequence: **full 0/3,
+  single 1/3** over three passes each; step 2's required heading is the common
+  failure. One single pass first looked like a 3/3 win, then two repeats failed
+  — a concrete reminder that one paired pass is not evidence.
 
 ### Correctness, benchmark parity, and endurance — 2026-11-06
 

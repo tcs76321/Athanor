@@ -202,6 +202,27 @@ sequence row now reports `state=failed, pass=false`, and the report shows
 Raw evidence:
 [`runs/bench-diagnostic-sequence-20261106/`](runs/bench-diagnostic-sequence-20261106/).
 
+### Paired control — corrected
+
+| Arm | Passes | Progress | Step-2 failure |
+|---|---:|---|---|
+| `full` | 0/3 | 1/3 each | required `Implementation` heading |
+| `single` | 1/3 | 3/3 once; 1/3 twice | required `Implementation` heading |
+
+The first single-arm run passed all three checkpoints; two repeats failed at
+the same step-2 heading check. **This is not a negative delta and not evidence
+for the loop.** It is a single-run false signal: the task is hard for both arms,
+and one pass is not enough to compare them. At n=3 per arm the honest statement
+is "no measured difference; both mostly fail at the same checkpoint."
+
+Raw single-arm evidence:
+[`runs/bench-diagnostic-sequence-single-20261106/`](runs/bench-diagnostic-sequence-single-20261106/).
+
+The next study should run more passes and the `bestof3` / `reflect` / `full`
+ablation, and inspect the candidate sets on the failing step. The diagnostic
+has already taught the most important lesson: **a single paired pass can
+produce a completely wrong conclusion.**
+
 ## Caveats
 
 - One model and one pass are directional only. This is a diagnostic, not a
