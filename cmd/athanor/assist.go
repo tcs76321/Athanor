@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -67,5 +68,10 @@ func (g *assistGenerator) Generate(ctx context.Context, system, user string) (st
 	if err != nil {
 		return "", fmt.Errorf("refinement model (%s, %s): %w", model, family, err)
 	}
+	raw := strings.TrimSpace(resp.Content)
+	if len(raw) > 600 {
+		raw = raw[:600] + "…"
+	}
+	slog.Debug("assist: model response", "model", model, "chars", len(resp.Content), "raw", raw)
 	return resp.Content, nil
 }

@@ -73,7 +73,7 @@ func TestRefineAcceptsStringNotesAndAssumptions(t *testing.T) {
 
 func TestRefineUnwrapsNestedJSONText(t *testing.T) {
 	gen := &fakeGen{out: `{"text":"{\"text\":\"A clear goal.\",\"notes\":[\"restructured\"]}","notes":[],"added_assumptions":[],"unchanged":false}`}
-	res, err := New(gen).Refine(context.Background(), "project.goal", "rough goal", "")
+	res, err := New(gen).Refine(context.Background(), "project.goal", "make a clear goal", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -87,7 +87,7 @@ func TestRefineUnwrapsNestedJSONText(t *testing.T) {
 
 func TestRefineAcceptsPlainTextFallback(t *testing.T) {
 	s := New(&fakeGen{out: "A clearer goal."})
-	res, err := s.Refine(context.Background(), "project.goal", "rough goal", "")
+	res, err := s.Refine(context.Background(), "project.goal", "make a clear goal", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -150,13 +150,13 @@ func TestRefineAsksForClarificationWhenVague(t *testing.T) {
 	}
 }
 
-func TestRefineFallsBackToQuestionsWhenModelReturnsNothing(t *testing.T) {
-	res, err := New(&fakeGen{out: `{"text":""}`}).Refine(context.Background(), "project.goal", "rough goal", "")
+func TestRefineEmptyModelLeavesUsableTextUnchanged(t *testing.T) {
+	res, err := New(&fakeGen{out: `{"text":""}`}).Refine(context.Background(), "project.goal", "make a rough goal", "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !res.NeedsClarification || len(res.Questions) < 2 {
-		t.Fatalf("fallback = %+v", res)
+	if res.NeedsClarification || !res.Unchanged || res.Text != "make a rough goal" {
+		t.Fatalf("empty model fallback = %+v", res)
 	}
 }
 
@@ -208,7 +208,7 @@ func TestRefineRejectsUnknownField(t *testing.T) {
 func TestProofreadModeHasStrictContract(t *testing.T) {
 	gen := &fakeGen{out: `{"text":"A clearer goal."}`}
 	s := New(gen)
-	if _, err := s.Refine(context.Background(), "project.goal", "rough goal", "proofread"); err != nil {
+	if _, err := s.Refine(context.Background(), "project.goal", "make a rough goal", "proofread"); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(gen.user, "Fix grammar, spelling, and punctuation only") {
@@ -269,9 +269,36 @@ func TestRefineBlankExplainsWhyItNeedsInput(t *testing.T) {
 		t.Fatal("blank field spent a model call")
 	}
 }
+
+func TestRefineForcesCosmeticOnlyChange(t *testing.T) {
+	const text = "build a todo app"
+	gen := &fakeGen{outs: []string{
+		`{"text":"Build a todo app.","notes":["capitalized"]}`,
+		`{"text":"Build a small todo app with an add-and-complete flow and a passing test.","notes":["made the scope concrete"]}`,
+	}}
+	res, err := New(gen).Refine(context.Background(), "project.goal", text, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Unchanged || !strings.Contains(res.Text, "add-and-complete") {
+		t.Fatalf("cosmetic-only result = %+v", res)
+	}
+}
+
+func TestRefineRecoversMalformedJSONText(t *testing.T) {
+	gen := &fakeGen{out: `{" \t,"text": "Build a todo app.", "notes": ["restructured"]}`}
+	res, err := New(gen).Refine(context.Background(), "project.goal", "build a todo app", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(res.Text, `"text"`) || strings.Contains(res.Text, "{") {
+		t.Fatalf("broken JSON leaked into the field: %q", res.Text)
+	}
+}
+
 func TestRefineRejectsRunawayOutput(t *testing.T) {
 	s := New(&fakeGen{out: strings.Repeat("long ", 6000)})
-	if _, err := s.Refine(context.Background(), "project.goal", "short", ""); err == nil {
+	if _, err := s.Refine(context.Background(), "project.goal", "make a short goal", ""); err == nil {
 		t.Fatal("runaway output was accepted")
 	}
 }

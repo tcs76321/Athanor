@@ -279,9 +279,10 @@ func questionsFor(spec Spec) []string {
 const systemPrompt = `You are Athanor's field editor. The operator pressed Refine. For any non-empty, intelligible input, return a materially improved version for the field's downstream purpose.
 
 What "improve" means:
-- Sharpen the outcome: make the deliverable, the primary use, and what done looks like explicit when the input or Athanor context supports it.
+- Sharpen the outcome: make the deliverable, the primary use, and what done looks like explicit when the input or Athanor context supports it. For a short but meaningful goal, expand by one natural, bounded assumption (for example the primary interaction or the expected output) and record it in added_assumptions.
 - Make the scope concrete: turn vague phrasing into a bounded, testable statement. Prefer one concrete step of specificity over a feature list.
 - Remove filler, repetition, and meta-commentary. Organize the sentences so the field reads as a requirement, not a note to self.
+- A change that only capitalizes a letter or changes punctuation is not an improvement. If the input is otherwise unchanged, add one useful, bounded detail.
 - Keep the user's voice and language. Prefer the input's own words over a generic preamble.
 - Do not add generic adjectives or claims (quick, reliable, robust, scalable, seamless, easy, powerful) unless the user used them.
 
@@ -331,6 +332,15 @@ func (s *Service) RefineContext(ctx context.Context, field, text, mode string, a
 			NeedsClarification: true,
 			Questions:          questionsFor(spec),
 			Notes:              []string{"This field is empty; add a starting point before refining."},
+			Field:              field,
+			Mode:               mode,
+		}, nil
+	}
+	if !usableFieldText(text) {
+		return Result{
+			NeedsClarification: true,
+			Questions:          questionsFor(spec),
+			Notes:              []string{"This is too short to build on; add the outcome, the input, or what done looks like."},
 			Field:              field,
 			Mode:               mode,
 		}, nil
@@ -402,9 +412,10 @@ func (s *Service) RefineContext(ctx context.Context, field, text, mode string, a
 		}
 	}
 	// Improvement is the contract for a usable non-empty field. If the first
-	// pass simply echoed the original (the old "already ideal" failure), make
-	// one explicit forced-improvement call. Proofread remains literal.
-	if usableFieldText(text) && Mode(mode) != ModeProofread && sameText(res.Text, original) {
+	// pass simply echoed the original or made only a cosmetic change (the old
+	// "already ideal" failure), make one explicit forced-improvement call.
+	// Proofread remains literal.
+	if usableFieldText(text) && Mode(mode) != ModeProofread && materiallySame(res.Text, original) {
 		if forced, ok := s.forceImprove(ctx, spec, text, mode, ac); ok {
 			res = forced
 		}
@@ -412,7 +423,7 @@ func (s *Service) RefineContext(ctx context.Context, field, text, mode string, a
 	if len(res.Text) > len(text)*3+2000 || len(res.Text) > 20000 {
 		return Result{}, fmt.Errorf("the refinement was too long to apply safely")
 	}
-	if sameText(res.Text, original) {
+	if sameText(res.Text, original) || (Mode(mode) != ModeProofread && materiallySame(res.Text, original)) {
 		res.Unchanged = true
 		res.Text = original
 	} else {
@@ -459,7 +470,7 @@ func (s *Service) forceImprove(ctx context.Context, spec Spec, text, mode string
 	}
 	res := parseResult(raw)
 	res.Questions = cleanQuestions(res.Questions)
-	if res.NeedsClarification || strings.TrimSpace(res.Text) == "" || sameText(res.Text, text) {
+	if res.NeedsClarification || strings.TrimSpace(res.Text) == "" || materiallySame(res.Text, text) {
 		return Result{}, false
 	}
 	return res, true
@@ -484,6 +495,18 @@ func cleanQuestions(qs []string) []string {
 // whitespace. A cosmetic-only rewrite still counts as a change and is shown.
 func sameText(a, b string) bool {
 	norm := func(s string) string { return strings.Join(strings.Fields(s), " ") }
+	return norm(a) == norm(b)
+}
+
+// materiallySame ignores case, surrounding punctuation, and whitespace. A
+// refinement that only capitalizes the draft or adds a period is not an
+// improvement; the forced pass should run.
+func materiallySame(a, b string) bool {
+	norm := func(s string) string {
+		s = strings.ToLower(strings.TrimSpace(s))
+		s = strings.Trim(s, ".,;:!?\"'()[]{}")
+		return strings.Join(strings.Fields(s), " ")
+	}
 	return norm(a) == norm(b)
 }
 
@@ -608,8 +631,46 @@ func parseResult(raw string) Result {
 			}
 		}
 	}
+	// Local models can emit a malformed object with a valid string field
+	// (seen: `{" \t,"text": "Build a todo app.", ...}`). Recover the prose
+	// instead of treating the whole object as the field value.
+	if text, ok := extractStringField(clean, "text"); ok {
+		return Result{
+			Text:  text,
+			Notes: []string{"the model returned malformed JSON; recovered the text field"},
+		}
+	}
+	// Do not leak a broken JSON object into a user's field.
+	if strings.HasPrefix(clean, "{") || strings.HasPrefix(clean, "[") || strings.Contains(clean, `"text"`) {
+		return Result{}
+	}
 	// Tolerant fallback: a plain-text answer is still usable.
 	return Result{Text: clean, Notes: []string{"the model returned plain text instead of structured notes"}}
+}
+
+// extractStringField decodes one named string from a loose/malformed JSON
+// object. It is deliberately narrow: it finds the key, the colon, and a JSON
+// string value, then lets json.Decoder handle escaping.
+func extractStringField(raw, key string) (string, bool) {
+	needle := `"` + key + `"`
+	idx := strings.Index(raw, needle)
+	if idx < 0 {
+		return "", false
+	}
+	rest := strings.TrimSpace(raw[idx+len(needle):])
+	if !strings.HasPrefix(rest, ":") {
+		return "", false
+	}
+	rest = strings.TrimSpace(strings.TrimPrefix(rest, ":"))
+	if !strings.HasPrefix(rest, `"`) {
+		return "", false
+	}
+	var s string
+	if err := json.NewDecoder(strings.NewReader(rest)).Decode(&s); err != nil {
+		return "", false
+	}
+	s = strings.TrimSpace(s)
+	return s, s != ""
 }
 
 func decodeResult(b []byte) (Result, bool) {
