@@ -33,6 +33,7 @@ package engine
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -1236,8 +1237,11 @@ func (e *Engine) ResumeAll(ctx context.Context) {
 }
 
 // Recover resumes every active job after a daemon restart or an unfreeze
-// (§23.6): each job continues from its last committed state, paused jobs
-// resume to paused_from.
+// (§23.6): running and queued jobs continue from their last committed state.
+// A paused job is resumed only when its pause reason is transient (power,
+// operator stop, or kill switch reopened) and the gate is currently open;
+// manual and context-floor pauses stay parked for the operator. Every parked
+// job's pod is stopped so a restart cannot leave resident sandboxes behind.
 func (e *Engine) Recover(ctx context.Context) {
 	active, err := e.jobs.Active(ctx)
 	if err != nil {
@@ -1248,11 +1252,88 @@ func (e *Engine) Recover(ctx context.Context) {
 		if j.State.Terminal() {
 			continue
 		}
+		if j.State == job.StateAwaitingApproval {
+			e.stopPod(ctx, j.ID)
+			continue
+		}
+		if j.State == job.StatePaused {
+			e.stopPod(ctx, j.ID)
+			if !e.resumableOnBoot(ctx, j) {
+				continue
+			}
+			if _, err := e.jobs.Transition(ctx, j.ID, j.PausedFrom); err != nil {
+				slog.Error("recovery: resuming paused job", "job", j.ID, "to", j.PausedFrom, "err", err)
+				continue
+			}
+			e.audit(ctx, j.ID, map[string]any{
+				"event": "job_resumed", "reason": "recover", "to": string(j.PausedFrom),
+			})
+		}
 		if err := e.jobs.SetRecoveryFlag(ctx, j.ID, "interrupted"); err != nil {
 			slog.Error("recovery: marking interrupted", "job", j.ID, "err", err)
 		}
 		slog.Info("resuming job after restart", "job", j.ID, "state", j.State)
 		e.Enqueue(j.ID)
+	}
+}
+
+// resumableOnBoot reports whether a paused job's reason is transient and its
+// gate is open. A manual pause or a context-floor pause is deliberately not
+// resumed; the operator must act.
+func (e *Engine) resumableOnBoot(ctx context.Context, j job.Job) bool {
+	if j.PausedFrom == "" {
+		return false
+	}
+	switch e.lastPauseReason(ctx, j.ID) {
+	case "power":
+		return e.pauseGate == nil || !e.pauseGate.Paused()
+	case "operator_stopped":
+		return e.operatorGate == nil || e.operatorGate.Allowed()
+	case "kill_switch":
+		return e.freezer == nil || !e.freezer.Frozen()
+	default:
+		return false
+	}
+}
+
+// lastPauseReason reads the most recent job_paused audit reason for a job.
+// A missing event is the manual/context-floor case and is not resumable.
+func (e *Engine) lastPauseReason(ctx context.Context, jobID string) string {
+	if e.db == nil {
+		return ""
+	}
+	events, err := e.db.QueryEvents(ctx, store.EventFilter{JobID: jobID, Category: "jobs"})
+	if err != nil {
+		return ""
+	}
+	for i := len(events) - 1; i >= 0; i-- {
+		var d struct {
+			Event  string `json:"event"`
+			Reason string `json:"reason"`
+		}
+		if json.Unmarshal([]byte(events[i].DataJSON), &d) != nil {
+			continue
+		}
+		if d.Event == "job_paused" {
+			return d.Reason
+		}
+	}
+	return ""
+}
+
+// ReapIdlePods stops the Job Pods of parked jobs. It is safe to call
+// periodically: a paused or awaiting job does not need a resident sandbox,
+// and resuming re-stages it on demand.
+func (e *Engine) ReapIdlePods(ctx context.Context) {
+	active, err := e.jobs.Active(ctx)
+	if err != nil {
+		slog.Warn("reaper: listing active jobs", "err", err)
+		return
+	}
+	for _, j := range active {
+		if j.State == job.StatePaused || j.State == job.StateAwaitingApproval {
+			e.stopPod(ctx, j.ID)
+		}
 	}
 }
 

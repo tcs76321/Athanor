@@ -106,6 +106,22 @@ func runServe(f *daemonFlags) {
 // errRestartRequested asks the Core supervisor to relaunch the daemon.
 var errRestartRequested = errors.New("restart requested")
 
+// reapIdlePods periodically stops the sandboxes of parked jobs. A paused or
+// awaiting job can wait for hours; keeping a `sleep infinity` pod resident for
+// that time is pure memory waste, and resuming re-stages the pod on demand.
+func reapIdlePods(ctx context.Context, eng *engine.Engine) {
+	t := time.NewTicker(5 * time.Minute)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			eng.ReapIdlePods(ctx)
+		}
+	}
+}
+
 // run boots the daemon and blocks until an OS signal or server failure.
 func run(configPath, addr, stateDir string, container bool) error {
 	// The Job Pod spec requires absolute mount sources (RepoDir, token dir).
@@ -802,6 +818,10 @@ func run(configPath, addr, stateDir string, container bool) error {
 		log:         slog.Default(),
 	})
 	defer daydream.Close()
+
+	reaperCtx, stopReaper := context.WithCancel(context.Background())
+	defer stopReaper()
+	go reapIdlePods(reaperCtx, eng)
 
 	fmt.Printf("athanor %s listening on http://%s\n", version, listenAddr)
 
