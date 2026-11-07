@@ -1,11 +1,14 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
 
 	"github.com/tcs76321/athanor/internal/capacity"
 	"github.com/tcs76321/athanor/internal/config"
 	"github.com/tcs76321/athanor/internal/engine"
+	"github.com/tcs76321/athanor/internal/onboard"
 )
 
 // capacityContextPlanner adapts ADR-0124's pure planner to the engine's
@@ -74,4 +77,25 @@ func (p *capacityContextPlanner) PlanContext(req engine.ContextRequest) (engine.
 		Target: plan.Target, Bucket: plan.Bucket, Floor: plan.Floor,
 		Demand: string(plan.Demand), Binding: plan.Binding,
 	}, nil
+}
+
+// loadLaneAdmission builds lane admission from the measured audit, when one is
+// available. No audit (or an old audit without a capacity report) leaves the
+// aggregate cap in place.
+func loadLaneAdmission(configPath string) engine.LaneAdmission {
+	var raw []byte
+	if env := os.Getenv("ATHANOR_MODEL_AUDIT"); env != "" {
+		raw = []byte(env)
+	} else {
+		b, err := os.ReadFile(modelAuditPath(configPath))
+		if err != nil {
+			return nil
+		}
+		raw = b
+	}
+	var a onboard.Audit
+	if err := json.Unmarshal(raw, &a); err != nil || a.Capacity == nil {
+		return nil
+	}
+	return capacity.NewAdmission(*a.Capacity)
 }

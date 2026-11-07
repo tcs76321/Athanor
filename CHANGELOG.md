@@ -38,7 +38,9 @@ New entries are appended at the top. Do not rewrite history.
   demand floor; a planner failure pauses with a `context_plan_failed` audit.
   The default remains `archetype`, so the frozen v2 behavior is unchanged.
   The adaptive floor also reaches model selection, so a short code task can
-  choose a small-context model before the window is planned.
+  choose a small-context model before the window is planned. When a measured
+  audit is present, lane admission (solo/pods/light) bounds concurrent jobs;
+  without one, the aggregate cap remains.
 - **Retention** (ADR-0127): events older than `retention.events_days` (default
   365) are archived to gzip JSONL under `state/archive/events` and deleted
   under a guarded exception to the append-only trigger. Daydream logs, closed

@@ -178,6 +178,7 @@ demo. A claim without a proof is either removed or marked as a target.
 | `models -audit` reports solo/swarm capacity and coverage reasons | ADR-0124 | `internal/onboard/capacity.go`; `TestCapacityReportFromAudit`, `TestCapacityReportDegradesWithOneModel` | **proven structurally** |
 | Adaptive context planning chooses a per-phase window and audits it | ADR-0124 | `cmd/athanor/context_planner.go`; `internal/engine/context_plan.go`; `TestContextPlannerSetsWindowAndAudits`, `TestContextPlannerFailurePausesJob`, `TestContextPlannerJudgeIgnoresRepoFloor` | **proven; opt-in via context_policy: adaptive** |
 | The adaptive floor reaches model selection before the target is planned | ADR-0124 | `Engine.minContextFor`; `TestFloorPlannerDrivesModelSelection` | **proven** |
+| Lane admission bounds solo/pod/light concurrency from a measured plan | ADR-0125 | `internal/capacity/admission.go`; `TestAdmissionLaneCap`, `TestAdmissionMixedUsesSmallerPlan`; `TestLaneAdmissionUsedByEnqueue` | **proven structurally; enabled when an audit is present** |
 
 ## Rule
 

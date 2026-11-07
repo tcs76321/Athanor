@@ -259,6 +259,7 @@ type Engine struct {
 	// legacy fixed-floor behavior.
 	contextPlanner ContextPlanner
 	floorPlanner   FloorPlanner
+	admission      LaneAdmission
 	// podLifecycle ensures/tears down the job's Job Pod (M2-T4b.5,
 	// ADR-0024 §2). nil means "no lifecycle seam": the engine never starts
 	// a pod, which is the pre-T4b behavior unit tests rely on.
@@ -1081,6 +1082,27 @@ func (e *Engine) EnqueueContext(ctx context.Context, jobID string) {
 				case <-timer.C:
 				}
 			}
+		}
+		// ADR-0125: when a lane admission is wired, it owns the slot. A
+		// policy refusal falls back to the aggregate cap rather than
+		// stranding the job; a canceled wait abandons it.
+		if e.admission != nil {
+			lane := e.laneFor(jobCtx, jobID)
+			release, aerr := e.admission.Acquire(jobCtx, lane)
+			if aerr == nil {
+				defer release()
+				e.Run(jobCtx, jobID)
+				return
+			}
+			if jobCtx.Err() != nil {
+				e.finishQueuedCancel(jobID)
+				return
+			}
+			if !isAdmissionDenied(aerr) {
+				slog.Error("engine: lane admission failed", "job", jobID, "lane", lane, "err", aerr)
+				return
+			}
+			slog.Warn("engine: lane admission unavailable; using the aggregate cap", "job", jobID, "lane", lane, "err", aerr)
 		}
 		for {
 			if jobCtx.Err() != nil {

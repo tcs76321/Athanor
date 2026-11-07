@@ -319,6 +319,10 @@ func run(configPath, addr, stateDir string, container bool) error {
 			eng.SetFloorPlanner(fp)
 		}
 	}
+	if adm := loadLaneAdmission(configPath); adm != nil {
+		eng.SetAdmission(adm)
+		slog.Info("capacity: lane admission enabled", "slots", adm.MaxConcurrentJobs())
+	}
 	// M7-T1 (§24): the engine consults the power gate before each phase, so
 	// a battery/sleep pause parks active jobs and ResumePaused re-drives them.
 	eng.SetPauseGate(powerMgr)
