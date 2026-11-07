@@ -66,6 +66,27 @@ Report the **counter deltas** before the pass-rate delta. A mechanism that never
 runs cannot have caused a change; a mechanism that runs but never changes an
 outcome is a cost, not evidence.
 
+## First run — 2026-11-06
+
+Host path, `ornith9b`, full arm, one pass: **1/3** (`diag-structured-brief`
+passed; the code and contradiction tasks failed).
+
+The failures were not capability failures. Both parked on a clarification
+question emitted during **reflection**, and with no operator present the job
+timed out. The questions were meta-questions about the harness ("does the
+verifier import `solution`?" and "does the section-order parser scan the
+artifact?"), not missing task facts. That is a real design bug the diagnostic
+caught:
+
+- Clarification is now **opt-in** (`allow_clarifications: false` by default),
+  so an unattended run cannot park itself.
+- It is **planning-only**; reflection is expected to act, not ask the harness.
+- The prompt forbids asking about the verifier, tools, or scoring.
+- The duplicate `memory_remembered` audit for one job was fixed.
+
+The rerun is the evidence for the fix. This is exactly the class of failure
+the old v2 corpus could not surface.
+
 ## Caveats
 
 - One model and one pass are directional only. This is a diagnostic, not a
