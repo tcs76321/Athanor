@@ -53,7 +53,7 @@ func (c *CompactStore) RememberJobSummary(ctx context.Context, projectID, jobID,
 		Category:  "context",
 		ProjectID: projectID, JobID: jobID,
 		Data: map[string]any{
-			"event": "memory_remembered", "kind": string(kind),
+			"event": "memory_memo_written", "kind": string(kind),
 			"bytes": len(summary), "template": JobSummaryTemplateVersion,
 		},
 	}); err != nil {
