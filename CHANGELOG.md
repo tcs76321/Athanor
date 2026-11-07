@@ -10,6 +10,26 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Correctness, benchmark parity, and endurance — 2026-11-06
+
+- **Fractional CPU quotas survive the argv** (`internal/jobpod/args_common.go`):
+  the job-pod formatter now preserves 0.25-step values, so `1.25` is not
+  silently rendered as `1.2`.
+- **Markdown URLs keep their underscores** (`internal/ui/markdown.go`):
+  emphasis runs before link markup is restored, so `a_b_c` is no longer
+  rewritten to `a<em>b</em>c` inside an `href`.
+- **The data verifier matches the benchmark contract**
+  (`internal/verify/data_checks.go`): `array_length`, `array_unique_by`,
+  `array_sorted_by`, and `json_field_matches` are hard engine checks, and
+  `checksToExecution` carries them from the corpus.
+- **Declared checks are prompt-visible** (`internal/prompt/assemble.go`):
+  the exact parser-enforced limits render in pinned tier 2 instead of being
+  left implicit in prose criteria.
+- **The UI bounds its run history** (`internal/ui/runs.go`): completed
+  discovery, plan, index, and pull entries are capped at 64 per map.
+- **Request bodies are capped** (`internal/server/body_limit.go`): an 8 MiB
+  outer limit protects every external handler.
+
 ### Qualification v2 — broader, inspectable, ten-minute prior — 2026-11-06
 
 - The default qualification ladder grows from 22 to **41 cases** (19 grounded

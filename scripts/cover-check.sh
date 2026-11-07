@@ -42,7 +42,7 @@ internal/config:75
 internal/mce:75
 internal/scheduler:70
 internal/api:60
-internal/ui:50
+internal/ui:65
 internal/project:55
 internal/evaluation:55
 internal/composition:65

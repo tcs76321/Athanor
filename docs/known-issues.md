@@ -15,6 +15,17 @@ are under "Open (2026-10-16 review)".
 
 ---
 
+## Fixed (2026-11-06 correctness pass)
+
+| Area | Fix |
+|---|---|
+| Job Pod argv | Fractional CPU quotas are no longer truncated to one decimal: `1.25` reaches podman as `1.25`, not `1.2` (`internal/jobpod/args_common.go`; `TestBuildArgs_PreservesFractionalCPU`). |
+| Markdown links | Emphasis no longer runs over link markup, so a URL containing underscores keeps its `href` (`internal/ui/markdown.go`; `TestRenderMarkdownLinkURLKeepsUnderscores`). |
+| Data verifier | The engine now enforces `array_length`, `array_unique_by`, `array_sorted_by`, and `json_field_matches`, and the benchmark translation carries them (`internal/verify/data_checks.go`; `TestDataChecksPassthroughAndFailures`). |
+| Prompt visibility | Declared checks render in pinned tier 2, so the model sees the exact parser-enforced limits (`internal/prompt/assemble.go`; `TestDeclaredChecksArePinned`). |
+| UI endurance | Completed discovery/plan/index/pull runs are capped at 64 entries per map instead of retained for the process lifetime (`internal/ui/runs.go`). |
+| Request bodies | Every external request body is capped at 8 MiB before a handler decodes it (`internal/server/body_limit.go`; `TestBodyLimitMiddlewareRejectsOversize`). |
+
 ## Fixed (2026-11-06 UX review)
 
 Static review of the web surface (`internal/ui`, `internal/server`) with the

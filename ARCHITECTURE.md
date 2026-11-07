@@ -1990,8 +1990,10 @@ hitl:
   expiry_interval: "1m"
 ```
 
-> **Implementation status (2026-10-24).** The following fields are parsed and
-> validated but **not yet enforced**: `limits.max_tasks_per_hour`,
+> **Implementation status (2026-11-06).** `limits.max_tasks_per_hour` is
+> enforced at the budget admission gate (`internal/engine/horizon.go`): a job
+> that would exceed the hourly cap waits rather than starting. The following
+> fields are parsed and validated but **not yet enforced**:
 > `limits.max_total_recoveries_per_job`, `recovery.max_tool_call_retries`,
 > `recovery.max_loop_interventions`, `recovery.max_context_compactions`,
 > `agent.max_proactive_tasks_per_day`, `power.daydream_max_concurrent`,

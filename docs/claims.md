@@ -138,6 +138,10 @@ demo. A claim without a proof is either removed or marked as a target.
 | An NPU is shown as inventory and is never used for inference budgeting | ADR-0107 | `internal/doctor` GPU check; UI accelerator card | **proven** |
 | The host accelerator probe reaches the Core Pod | ADR-0107 | `cmd/athanor/start.go`, `coreRunArgs`; `TestCoreRunArgs` | **proven** |
 | A host reserve below the detected Podman VM floor is clamped, and the UI cannot save below it | ADR-0106 | `internal/ui/onboarding.go` (`currentResources`, `apply_resources`); `TestReserveFixReturnsToModels`, `TestCurrentResourcesWarnsWhenReserveBelowVM` | **proven** |
+| Data array checks are enforced by the engine, not only the offline scorer | ADR-0070 amendment | `internal/verify/data_checks.go`; `TestDataChecksPassthroughAndFailures`, `TestDataChecksAndSchemaBothApply`; `tools/bench/checks_test.go` | **proven** |
+| Declared checks are prompt-visible in pinned tier 2 | ADR-0070 amendment | `internal/prompt/assemble.go` (`declaredChecksSection`); `TestDeclaredChecksArePinned`; `TestRun_DeclaredChecksReachPrompt` | **proven** |
+| A 24/7 Core bounds in-memory run history instead of retaining every session | 2026-11-06 hardening pass | `internal/ui/runs.go` (`pruneRuns`); `TestPruneRunsDropsOldestCompleted`, `TestPruneRunsNeverDropsRunning` | **proven** |
+| Every daemon request body is capped before a handler decodes it | 2026-11-06 hardening pass | `internal/server/body_limit.go`; `TestBodyLimitMiddlewareRejectsOversize` | **proven** |
 
 ## Rule
 
