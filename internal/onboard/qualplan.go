@@ -19,7 +19,8 @@ type CaseRef struct {
 
 var qualificationCapabilityOrder = []string{
 	"general", "code", "data", "document", "text", "media",
-	"summarize", "security", "agentry", "instruction", "grounding", "judgment",
+	"summarize", "security", "agentry", "instruction", "grounding",
+	"repair", "longctx", "operation", "planning", "calibration", "judgment",
 }
 
 // AllCaseRefs returns every ladder case in a stable order.

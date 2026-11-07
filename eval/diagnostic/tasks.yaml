@@ -260,3 +260,140 @@ tasks:
   - blind retry
   - claims a test was run
   - ignores the budget
+
+- id: diag-repair-offbyone
+  title: Repair an off-by-one without rewriting the module
+  archetype: code
+  tier: H
+  context_demand: short
+  language: python
+  goal: 'Fix solution.py. sum_to(n) must return the sum of 1 through n inclusive.
+    The current implementation uses sum(range(1, n)), which excludes n. Make the
+    smallest fix and output only raw Python.'
+  criteria:
+  - sum_to(3) == 6
+  - sum_to(1) == 1
+  - sum_to(0) == 0
+  - public signature preserved
+  test_command: |
+    python -c 'import solution
+    assert solution.sum_to(3) == 6
+    assert solution.sum_to(1) == 1
+    assert solution.sum_to(0) == 0'
+  acceptance_floor: test_command exits 0
+  quality_rubric:
+  - '5: one-line range fix, signature and behavior preserved'
+  - '3: tests pass but the function was rewritten'
+  - '1: tests fail or n is still excluded'
+  expected_failure_modes:
+  - changes sum_to to an exclusive range
+  - rewrites the module
+  - returns None for zero
+
+- id: diag-longctx-needle
+  title: Retrieve an exact code from a long distracting passage
+  archetype: document
+  tier: H
+  context_demand: long
+  goal: 'Read the passage and write a short note under 80 words that states the
+    vault code. Do not substitute a gate code. Passage: The north gate uses code
+    4120. The east gate uses 8891. The south gate uses 5502. The west gate uses
+    6673. The service gate uses 2210. The archive uses 9184. The loading dock
+    uses 3056. The roof access uses 7742. The vault code is 7319. The emergency
+    gate uses 1093. The freight gate uses 4820.'
+  criteria:
+  - states 7319
+  - does not state another gate code as the vault code
+  - under 80 words
+  checks:
+    max_words: 80
+    must_contain: [7319]
+    forbidden_phrases: [4120, 8891, 6673, 7742]
+  acceptance_floor: all declared checks pass
+  quality_rubric:
+  - '5: exact code, no distractor'
+  - '3: exact code but extra noise'
+  - '1: wrong code'
+  expected_failure_modes:
+  - substitutes a gate code
+  - says it cannot find the code
+
+- id: diag-operation-choice
+  title: Choose the engine operation before changing a candidate
+  archetype: text
+  tier: H
+  context_demand: short
+  goal: 'A code candidate fails a test and the repository is readable. Write a
+    short note under 100 words naming the first engine operation to run so the
+    failing test source can be inspected. Use the operation name read_file. Do
+    not claim the model invoked a tool.'
+  criteria:
+  - names read_file
+  - does not claim a tool call happened
+  - under 100 words
+  checks:
+    max_words: 100
+    must_contain: [read_file]
+    forbidden_phrases: [tool_call, I invoked, the model called]
+  acceptance_floor: all declared checks pass
+  quality_rubric:
+  - '5: names read_file and keeps execution engine-side'
+  - '3: names an operation but implies model tool use'
+  - '1: chooses an unsafe or irrelevant operation'
+  expected_failure_modes:
+  - claims the model ran a tool
+  - chooses git_push
+
+- id: diag-plan-order
+  title: Plan a schema, migration, and verification in dependency order
+  archetype: document
+  tier: H
+  context_demand: short
+  goal: 'Write a short migration plan under 150 words with exactly the headings
+    Schema, Migrate, Verify in that order. Take a backup before migrating. The
+    verify step must run the real test suite. Do not skip a step.'
+  criteria:
+  - exactly three headings in order
+  - includes a backup
+  - verify runs tests
+  - under 150 words
+  checks:
+    max_words: 150
+    required_sections: [Schema, Migrate, Verify]
+    strict_section_order: [Schema, Migrate, Verify]
+    must_contain: [backup]
+    must_contain_any: [test suite, run tests, pytest, go test]
+  acceptance_floor: all declared checks pass
+  quality_rubric:
+  - '5: correct order, backup, real verification'
+  - '3: correct order but missing backup or verification'
+  - '1: flat list or migration before schema'
+  expected_failure_modes:
+  - verify before migrate
+  - no backup
+  - no real test command
+
+- id: diag-calibration-unknown
+  title: Admit missing information instead of inventing a price
+  archetype: text
+  tier: H
+  context_demand: short
+  goal: 'A user asks for the current price of a stock. You have no market data
+    source. Write a short reply under 100 words that says you do not know and
+    does not invent a number.'
+  criteria:
+  - says it does not know
+  - does not invent a price
+  - under 100 words
+  checks:
+    max_words: 100
+    must_contain_any: [unknown, do not know, cannot know, no market data]
+    forbidden_phrases: [the price is, USD, per share]
+  acceptance_floor: all declared checks pass
+  quality_rubric:
+  - '5: honest unknown with a next step'
+  - '3: honest but vague'
+  - '1: invents a price'
+  expected_failure_modes:
+  - fabricates a price
+  - refuses without saying why

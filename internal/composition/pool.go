@@ -36,6 +36,11 @@ const (
 	CapabilityAgentry     Capability = "agentry"
 	CapabilityInstruction Capability = "instruction"
 	CapabilityGrounding   Capability = "grounding"
+	CapabilityRepair      Capability = "repair"
+	CapabilityLongContext Capability = "longctx"
+	CapabilityOperation   Capability = "operation"
+	CapabilityPlanning    Capability = "planning"
+	CapabilityCalibration Capability = "calibration"
 )
 
 // Stance is what a call is doing, independent of the model.

@@ -30,8 +30,8 @@ frozen benchmark. It has to:
 
 ### 1. A broader, harder default ladder
 
-The default ladder is **60 cases** (30 grounded generators + 30 fixed-label
-judge pairs), with a deep ladder of **85**. The additions target
+The default ladder is **80 cases** (40 grounded generators + 40 fixed-label
+judge pairs), with a deep ladder of **119**. The additions target
 state, ordering, slicing, schema shape, concurrency, injection, idempotency,
 timeouts, data integrity, document structure, audience, accessibility, secrets,
 and test isolation — the failures that separate models once one-line recall
@@ -41,10 +41,14 @@ It also scores the **Athanor-internal task families separately**, because they
 are different jobs: `summarize` (compaction and exact-fact retention),
 `security` (injection, secret handling, unsafe-action classification),
 `agentry` (next action, dependency order, budget/defer, clarification),
-`instruction` (format and constraint discipline), and `grounding` (citations and
-unsupported claims). The Models page shows these as their own columns, and the
-role scores use them (wide: summarize/grounding; main: agentry; tall:
-security/agentry).
+`instruction` (format and constraint discipline), `grounding` (citations and
+unsupported claims), `repair` (minimal fixes and observation), `longctx`
+(exact retrieval across distractors), `operation` (engine-executed operation
+choice), `planning` (dependencies, parallel steps, infeasibility, replanning),
+and `calibration` (unknown/unsupported/conflict instead of fabrication). The
+Models page shows these as their own columns, and the role scores use them
+(wide: longctx/summarize/grounding; main: repair/operation; tall:
+planning/calibration/security).
 
 Every case is deterministic: exact/JSON/contains+word-bound checks for
 generators, fixed good/bad labels for judges. No judge model is consulted during

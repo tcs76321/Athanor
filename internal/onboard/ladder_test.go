@@ -75,6 +75,7 @@ func TestDefaultLadderIsWellFormed(t *testing.T) {
 	for _, want := range []string{
 		"general", "code", "data", "document", "text", "media",
 		"summarize", "security", "agentry", "instruction", "grounding",
+		"repair", "longctx", "operation", "planning", "calibration",
 	} {
 		if !caps[want] {
 			t.Errorf("ladder has no case for capability %q", want)
@@ -171,7 +172,7 @@ func TestLadderCoversAthanorInternalCategories(t *testing.T) {
 		for _, c := range l.Judges {
 			caps[c.Capability]++
 		}
-		for _, want := range []string{"summarize", "security", "agentry", "instruction", "grounding"} {
+		for _, want := range []string{"summarize", "security", "agentry", "instruction", "grounding", "repair", "longctx", "operation", "planning", "calibration"} {
 			if caps[want] == 0 {
 				t.Errorf("%s ladder has no %s case", name, want)
 			}
@@ -213,6 +214,25 @@ func TestNewCategoryCasesScore(t *testing.T) {
 		{"gen-grounding-source", "S2", "S1"},
 		{"gen-grounding-unsupported", "UNSUPPORTED", "SUPPORTED"},
 		{"gen-grounding-conflict", "CONFLICT", "SUPPORTED"},
+		{"gen-repair-max", "-2", "0"},
+		{"gen-repair-expression", "return len(args)", "return len(args) - 1"},
+		{"gen-longctx-needle", "7319", "4120"},
+		{"gen-longctx-aggregate", "12", "9"},
+		{"gen-operation-read", "read_file", "run_tests"},
+		{"gen-operation-lint", "lint", "run_tests"},
+		{"gen-planning-order", `["schema","migrate","verify"]`, `["verify","schema","migrate"]`},
+		{"gen-planning-parallel", "docs", "migrate"},
+		{"gen-calibration-unknown", "UNKNOWN", "42"},
+		{"gen-calibration-json", `{"answer":"unknown","confidence":"low"}`, `{"answer":5550142,"confidence":"high"}`},
+		{"gen-repair-offbyone", "range(1, n + 1)", "range(1, n)"},
+		{"gen-repair-test", "A", "B"},
+		{"gen-longctx-two", `{"gate":"4120","vault":"7319"}`, `{"gate":"8891","vault":"7319"}`},
+		{"gen-operation-sequence", `["read_file","execute_code","run_tests"]`, `["git_push","read_file"]`},
+		{"gen-operation-refuse", "git_push", "lint"},
+		{"gen-planning-replan", "B", "A"},
+		{"gen-planning-infeasible", "INFEASIBLE", "FEASIBLE"},
+		{"gen-calibration-confidence", `{"answer":391,"confidence":"high"}`, `{"answer":390,"confidence":"high"}`},
+		{"gen-calibration-conflict", "CONFLICT", "SUPPORTED"},
 		{"gen-summarize-stack", "phasePlan panicked with assignment to entry in nil map at engine.go:42.", "The service ran out of memory."},
 		{"gen-compact-ids", "A-17 and B-04 are open; do not deploy until both are green.", "Deploy now."},
 	}

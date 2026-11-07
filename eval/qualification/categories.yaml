@@ -27,3 +27,18 @@ categories:
     - doc-cited-brief
     - x-adv-contradictory-sources
     - diag-contradiction-brief
+  repair:
+    - diag-repair-offbyone
+    - diag-layered-code
+  longctx:
+    - diag-longctx-needle
+    - doc-cited-brief
+  operation:
+    - diag-operation-choice
+    - diag-agentry-decision
+  planning:
+    - diag-plan-order
+    - diag-sequence-memory
+  calibration:
+    - diag-calibration-unknown
+    - diag-contradiction-brief

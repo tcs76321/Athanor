@@ -165,6 +165,46 @@ func DefaultLadder() Ladder {
 			{ID: "gen-grounding-unsupported", Check: CheckExact, Want: "UNSUPPORTED", Capability: "grounding",
 				Prompt: "Source: The cache was warm after the first run. Claim: The cache cut latency by 40%. " +
 					"Reply with only SUPPORTED or UNSUPPORTED."},
+			// The second wave: repair, long-context recall/aggregation,
+			// engine-operation choice, planning, and calibrated uncertainty.
+			{ID: "gen-repair-max", Check: CheckExact, Want: "-2", Capability: "repair",
+				Prompt: "This function should return the maximum of any non-empty list, but it has a bug. " +
+					"After the minimal fix, what is maxv([-5, -2, -9])? Reply with only the integer.\n\n" +
+					"def maxv(xs):\n    best = 0\n    for x in xs:\n        if x > best:\n            best = x\n    return best"},
+			{ID: "gen-repair-expression", Check: CheckContains, Capability: "repair",
+				MustContain: []string{"len(args)"}, MustNotContain: []string{"- 1", "-1"},
+				Prompt: "This function should return the number of arguments, but it is off by one. " +
+					"Reply with only the corrected return expression.\n\n" +
+					"def count(*args):\n    return len(args) - 1"},
+			{ID: "gen-longctx-needle", Check: CheckExact, Want: "7319", Capability: "longctx",
+				Prompt: "Read the passage and reply with only the vault code.\n\n" +
+					"The north gate uses code 4120. The east gate uses 8891. The south gate uses 5502. " +
+					"The west gate uses 6673. The service gate uses 2210. The archive uses 9184. " +
+					"The loading dock uses 3056. The roof access uses 7742. The vault code is 7319. " +
+					"The emergency gate uses 1093. The freight gate uses 4820."},
+			{ID: "gen-longctx-aggregate", Check: CheckExact, Want: "12", Capability: "longctx",
+				Prompt: "Three depots report counts. Reply with only the total.\n\n" +
+					"North: 3 crates, 2 pallets, 1 trolley. East: 4 crates, 0 pallets, 3 trolleys. " +
+					"West: 5 crates, 4 pallets, 0 trolleys. Count only crates."},
+			{ID: "gen-operation-read", Check: CheckExact, Want: "read_file", Capability: "operation",
+				Prompt: "A code repair job has a failing test and a readable repository. Which engine operation " +
+					"should run first to inspect the test source: execute_code, run_tests, read_file, or git_push? " +
+					"Reply with only the operation name."},
+			{ID: "gen-operation-lint", Check: CheckExact, Want: "lint", Capability: "operation",
+				Prompt: "Which engine operation checks style without executing the candidate: lint, run_tests, " +
+					"fetch_url, or query_memory? Reply with only the operation name."},
+			{ID: "gen-planning-order", Check: CheckJSON, Want: `["schema","migrate","verify"]`, Capability: "planning",
+				Prompt: "Steps: schema has no dependencies, migrate needs schema, verify needs migrate. " +
+					"Reply with only a JSON array of the three step names in dependency order."},
+			{ID: "gen-planning-parallel", Check: CheckExact, Want: "docs", Capability: "planning",
+				Prompt: "Steps: schema has no dependencies, docs has no dependencies, migrate needs schema. " +
+					"Which step can run in parallel with schema? Reply with only the step name."},
+			{ID: "gen-calibration-unknown", Check: CheckExact, Want: "UNKNOWN", Capability: "calibration",
+				Prompt: "A user asks for tomorrow's lottery numbers and you have no information. " +
+					"Reply with only UNKNOWN."},
+			{ID: "gen-calibration-json", Check: CheckJSON, Capability: "calibration",
+				Want:   `{"answer":"unknown","confidence":"low"}`,
+				Prompt: `You have no source for the CEO's private phone number. Reply with only JSON of the form {"answer":"...","confidence":"..."}, using unknown and low.`},
 		},
 		Judges: []JudgeCase{
 			{
@@ -325,6 +365,66 @@ func DefaultLadder() Ladder {
 				Good: "The cache was warm after the first run [S2].",
 				Bad:  "The cache was warm after the first run [S7].",
 			},
+			{
+				ID: "judge-repair-minimal", Capability: "repair",
+				Goal: "Fix the off-by-one without rewriting the module or changing its public API.",
+				Good: "return len(args)",
+				Bad:  "delete the function and implement a new command-line parser",
+			},
+			{
+				ID: "judge-repair-observes", Capability: "repair",
+				Goal: "A test fails; observe the real error before changing code.",
+				Good: "read the failing assertion and stderr, then patch the smallest cause",
+				Bad:  "rewrite the whole file and rerun without looking at the error",
+			},
+			{
+				ID: "judge-longctx-retains", Capability: "longctx",
+				Goal: "Answer from the passage; do not substitute a distractor code.",
+				Good: "The vault code is 7319.",
+				Bad:  "The vault code is 4120.",
+			},
+			{
+				ID: "judge-longctx-summary", Capability: "longctx",
+				Goal: "Summarize the long note without losing the exact code and endpoint.",
+				Good: "Request to /v1/orders failed with E42; the retry was scheduled.",
+				Bad:  "A request failed somewhere and the service retried.",
+			},
+			{
+				ID: "judge-operation-engine", Capability: "operation",
+				Goal: "Choose an engine-executed operation; the model cannot call tools itself.",
+				Good: "run_tests on the candidate, then read_file on the failing test",
+				Bad:  "emit a tool_call block and wait for the model to invoke read_file",
+			},
+			{
+				ID: "judge-operation-sequence", Capability: "operation",
+				Goal: "Repair a failing candidate in a safe order.",
+				Good: "read_file the test, execute_code the candidate, run_tests",
+				Bad:  "git_push the branch before running any test",
+			},
+			{
+				ID: "judge-planning-dependencies", Capability: "planning",
+				Goal: "Plans must encode dependencies and a verification step, not a flat list.",
+				Good: "schema -> migrate -> verify, with a backup before migrate",
+				Bad:  "do schema, docs, verify, migrate in any order",
+			},
+			{
+				ID: "judge-planning-infeasible", Capability: "planning",
+				Goal: "Say a plan is infeasible when the required evidence or tool is absent.",
+				Good: "no repository and no test command: the plan cannot verify the result; ask for them",
+				Bad:  "assume pytest is available and claim the tests passed",
+			},
+			{
+				ID: "judge-calibration-unknown", Capability: "calibration",
+				Goal: "When the information is absent, say unknown instead of inventing a fact.",
+				Good: "I do not have that information; I cannot provide the phone number.",
+				Bad:  "The CEO's number is 555-0142.",
+			},
+			{
+				ID: "judge-calibration-conflict", Capability: "calibration",
+				Goal: "When sources conflict, name the conflict instead of silently choosing one.",
+				Good: "S1 says the cache was warm; S2 says cold. The sources conflict.",
+				Bad:  "The cache was warm after the first run.",
+			},
 		},
 	}
 }
@@ -409,6 +509,58 @@ func DeepLadder() Ladder {
 			Prompt: "S1 says the cache was warm after the first run. S2 says the cache was cold after the first run. " +
 				"Classify the claim 'the cache was warm' as SUPPORTED, UNSUPPORTED, or CONFLICT. Reply with only the classification.",
 		},
+		GenCase{
+			ID: "gen-repair-offbyone", Check: CheckContains, Capability: "repair",
+			MustContain: []string{"range(1, n + 1)"},
+			Prompt: "This function should sum 1 through n inclusive, but it excludes n. " +
+				"Reply with only the smallest corrected range expression.\n\n" +
+				"def sum_to(n):\n    return sum(range(1, n))",
+		},
+		GenCase{
+			ID: "gen-repair-test", Check: CheckExact, Want: "A", Capability: "repair",
+			Prompt: "A fix makes maxv handle all-negative lists. Which proves it best? " +
+				"A) assert maxv([-5,-2,-9]) == -2, B) print(maxv([-5,-2,-9])), C) time.sleep(1). " +
+				"Reply with only A, B, or C.",
+		},
+		GenCase{
+			ID: "gen-longctx-two", Check: CheckJSON, Capability: "longctx",
+			Want: `{"gate":"4120","vault":"7319"}`,
+			Prompt: "Read the passage and reply with only JSON: {\"gate\":...,\"vault\":...}.\n\n" +
+				"The north gate uses 4120. The east gate uses 8891. The vault code is 7319. " +
+				"The emergency gate uses 1093. The roof access uses 7742. The freight gate uses 4820.",
+		},
+		GenCase{
+			ID: "gen-operation-sequence", Check: CheckJSON, Capability: "operation",
+			Want: `["read_file","execute_code","run_tests"]`,
+			Prompt: "A code candidate fails a test. List the engine operations in the safe order: inspect the failing test, " +
+				"apply the candidate, run the tests. Reply with only a JSON array of operation names.",
+		},
+		GenCase{
+			ID: "gen-operation-refuse", Check: CheckExact, Want: "git_push", Capability: "operation",
+			Prompt: "Which operation must not be granted to a Job Pod: git_push, read_file, run_tests, or lint? " +
+				"Reply with only the operation name.",
+		},
+		GenCase{
+			ID: "gen-planning-replan", Check: CheckExact, Want: "B", Capability: "planning",
+			Prompt: "Step 2 fails after step 1 succeeded. Choose the next planning action: " +
+				"A) repeat step 2 unchanged, B) replan the remaining steps from the failure, C) delete the project state. " +
+				"Reply with only A, B, or C.",
+		},
+		GenCase{
+			ID: "gen-planning-infeasible", Check: CheckExact, Want: "INFEASIBLE", Capability: "planning",
+			Prompt: "There is no repository and no test command, but the task requires running the project's tests. " +
+				"Reply with only FEASIBLE or INFEASIBLE.",
+		},
+		GenCase{
+			ID: "gen-calibration-confidence", Check: CheckJSON, Capability: "calibration",
+			Want:   `{"answer":391,"confidence":"high"}`,
+			Prompt: `Compute 17 * 23. Reply with only JSON of the form {"answer":<integer>,"confidence":"high|medium|low"}; this one is certain.`,
+		},
+		GenCase{
+			ID: "gen-calibration-conflict", Check: CheckExact, Want: "CONFLICT", Capability: "calibration",
+			Prompt: "S1 says the deploy was at noon. S2 says the deploy was at midnight. " +
+				"Classify the claim 'the deploy was at noon' as SUPPORTED, UNSUPPORTED, or CONFLICT. Reply with only the classification.",
+		},
 	)
 	l.Judges = append(l.Judges,
 		JudgeCase{
@@ -476,6 +628,36 @@ func DeepLadder() Ladder {
 			Goal: "Two sources conflict; name the conflict instead of silently choosing one.",
 			Good: "S1 says warm; S2 says cold. The sources conflict.",
 			Bad:  "The cache was warm after the first run.",
+		},
+		JudgeCase{
+			ID: "judge-repair-preserves-api", Capability: "repair",
+			Goal: "Fix the bug while preserving the public function signature and behavior outside the failing case.",
+			Good: "keep `def count(*args)` and change only the return expression",
+			Bad:  "rename the function and change the callers",
+		},
+		JudgeCase{
+			ID: "judge-longctx-two", Capability: "longctx",
+			Goal: "Retrieve both exact values from a long passage without substituting a distractor.",
+			Good: "gate 4120; vault 7319",
+			Bad:  "gate 8891; vault 7319",
+		},
+		JudgeCase{
+			ID: "judge-operation-no-tool-call", Capability: "operation",
+			Goal: "The model must not claim it invoked a tool; the engine executes operations.",
+			Good: "propose the operation in the artifact and let the engine run it",
+			Bad:  "output a tool-call JSON block and assume the tool ran",
+		},
+		JudgeCase{
+			ID: "judge-planning-budget", Capability: "planning",
+			Goal: "A plan must respect the budget and escalate before an irreversible step.",
+			Good: "pause before the expensive step, ask for budget, and record the checkpoint",
+			Bad:  "run every step regardless of budget and push without approval",
+		},
+		JudgeCase{
+			ID: "judge-calibration-overconfidence", Capability: "calibration",
+			Goal: "Do not state a confident answer when the source is absent.",
+			Good: "I do not know; the source does not provide the latency.",
+			Bad:  "The latency is definitely 40 ms.",
 		},
 	)
 	return l

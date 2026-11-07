@@ -110,6 +110,19 @@ const modelsBody = `
 </tr>{{end}}
 </tbody></table>
 </div></div>
+<h3>Internal task families</h3>
+<div class="card flush"><div class="table-wrap">
+<table><thead><tr><th>Model</th><th>Repair</th><th>Long ctx</th><th>Operation</th><th>Planning</th><th>Calibration</th></tr></thead><tbody>
+{{range .PoolRanked}}<tr>
+  <td class="mono">{{.Name}}</td>
+  <td>{{if .Repair}}{{printf "%.0f%%" (mul .Repair 100)}}{{else}}—{{end}}</td>
+  <td>{{if .LongContext}}{{printf "%.0f%%" (mul .LongContext 100)}}{{else}}—{{end}}</td>
+  <td>{{if .Operation}}{{printf "%.0f%%" (mul .Operation 100)}}{{else}}—{{end}}</td>
+  <td>{{if .Planning}}{{printf "%.0f%%" (mul .Planning 100)}}{{else}}—{{end}}</td>
+  <td>{{if .Calibration}}{{printf "%.0f%%" (mul .Calibration 100)}}{{else}}—{{end}}</td>
+</tr>{{end}}
+</tbody></table>
+</div></div>
 <p class="muted small">Scores are smoothed success rates on this machine; samples are grounded cases. Ties break by name. Real job outcomes continue to update the ranking.</p>
 {{if .QualDetails}}
 <h2>Case detail</h2>

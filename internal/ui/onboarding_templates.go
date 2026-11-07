@@ -317,7 +317,7 @@ const welcomeBody = `
     {{else}}
     <div class="grid cols-2">
       <div class="card"><h3>Why run it</h3><p class="muted">It ranks the models on this computer for the work you actually do, so Athanor can cast each job instead of guessing from model size or reputation.</p></div>
-      <div class="card"><h3>What it costs</h3><p class="muted">The default screen is 60 cases per model; deep adds 25 longer-context, repair, security, and adversarial cases. A balanced core (one case per capability) runs first for every model, then extra blocks. The run is resumable and open-ended: cancel any time, and scores use only cases every model completed.</p></div>
+      <div class="card"><h3>What it costs</h3><p class="muted">The default screen is 80 cases per model; deep adds 39 longer-context, repair, security, and adversarial cases. A balanced core (one case per capability) runs first for every model, then extra blocks. The run is resumable and open-ended: cancel any time, and scores use only cases every model completed.</p></div>
     </div>
     <div class="card">
       {{if .Qualification.Error}}<p class="del">{{.Qualification.Error}}</p>{{end}}
@@ -372,7 +372,20 @@ const welcomeBody = `
       </tbody></table>
     </div></div>
     <p class="muted small">The score is a smoothed success rate on this machine; samples are the number of grounded cases behind it. Ties break by name. Removing a model is the only override.</p>
-    {{if .QualDetails}}
+    <h3>Internal task families</h3>
+<div class="card flush"><div class="table-wrap">
+<table><thead><tr><th>Model</th><th>Repair</th><th>Long ctx</th><th>Operation</th><th>Planning</th><th>Calibration</th></tr></thead><tbody>
+{{range .PoolRanked}}<tr>
+  <td class="mono">{{.Name}}</td>
+  <td>{{if .Repair}}{{printf "%.0f%%" (mul .Repair 100)}}{{else}}—{{end}}</td>
+  <td>{{if .LongContext}}{{printf "%.0f%%" (mul .LongContext 100)}}{{else}}—{{end}}</td>
+  <td>{{if .Operation}}{{printf "%.0f%%" (mul .Operation 100)}}{{else}}—{{end}}</td>
+  <td>{{if .Planning}}{{printf "%.0f%%" (mul .Planning 100)}}{{else}}—{{end}}</td>
+  <td>{{if .Calibration}}{{printf "%.0f%%" (mul .Calibration 100)}}{{else}}—{{end}}</td>
+</tr>{{end}}
+</tbody></table>
+</div></div>
+{{if .QualDetails}}
     <h2>Case detail</h2>
     <p class="muted">Expand a model to see every case, the question it was asked, the expected answer, and what it produced.</p>
     {{range .QualDetails}}
