@@ -87,6 +87,19 @@ caught:
 The rerun is the evidence for the fix. This is exactly the class of failure
 the old v2 corpus could not surface.
 
+## Second run — after the clarification fix
+
+**2/3.** `diag-contradiction-brief` now passes; the code task still failed.
+The clarification counter is zero for the contradiction task, and no job
+parked. That is the intended behavior.
+
+The code failure was a **language-detection bug**, not a model failure:
+`DetectLanguage` did not recognize `python -c ...`, so the candidate took the
+multi-file staging path instead of the single-file `solution.py` path. The
+test command imported `solution`, found nothing, and failed every candidate
+with `ModuleNotFoundError`. Fixed by recognizing plain `python` commands; the
+code-task rerun is the evidence.
+
 ## Caveats
 
 - One model and one pass are directional only. This is a diagnostic, not a
