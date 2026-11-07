@@ -42,6 +42,11 @@ New entries are appended at the top. Do not rewrite history.
   [protocol](docs/probes/ceiling-diagnostic.md)): a non-frozen corpus and
   `make diagnostic` target; bench telemetry now reports learned selections,
   replans, observations, clarifications, and memory writes.
+- **Benchmark v3 portfolio** ([ADR-0116](docs/adr/0116-benchmark-portfolio.md),
+  [plan](docs/frozen-corpus-v3-plan.md)): paired single-shot controls,
+  iterative-repair and long-horizon families, checkpoint scoring, injected
+  adversity, and process metrics. v2 remains the historical floor and is not
+  edited.
 
 ### Correctness, benchmark parity, and endurance — 2026-11-06
 
