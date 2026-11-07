@@ -39,6 +39,9 @@ func (h *Hub) Subscribe(jobID string) (<-chan string, func()) {
 	return ch, func() {
 		h.mu.Lock()
 		delete(h.subs[jobID], ch)
+		if len(h.subs[jobID]) == 0 {
+			delete(h.subs, jobID)
+		}
 		h.mu.Unlock()
 	}
 }

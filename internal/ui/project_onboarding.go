@@ -948,6 +948,9 @@ func (u *UI) approveProjectPlan(ctx context.Context, p project.Project, b projec
 	if len(goalText) < 3 {
 		goalText = p.Goal
 	}
+	if err := u.waitForIndex(ctx, p); err != nil {
+		return err
+	}
 	goalID, tasks, err := u.deps.Projects.CreateDAG(ctx, p.ID, goalText, criteria, specs)
 	if err != nil {
 		return fmt.Errorf("creating the plan: %w", err)
