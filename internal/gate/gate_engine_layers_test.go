@@ -38,6 +38,7 @@ var engineLayerRules = []engineLayerRule{
 	{pkg: "jobstate", forbidImports: []string{engineRootImport}},
 	{pkg: "acceptance", forbidImports: []string{engineRootImport, jobstateImport}},
 	{pkg: "contextasm", forbidImports: []string{engineRootImport}},
+	{pkg: "repair", forbidImports: []string{engineRootImport}},
 }
 
 // TestGateEngineLayerDirections fails when an extracted engine package imports

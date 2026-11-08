@@ -4,10 +4,9 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"strings"
 
 	"github.com/tcs76321/athanor/internal/artifact"
-	"github.com/tcs76321/athanor/internal/evaluation"
+	"github.com/tcs76321/athanor/internal/engine/repair"
 	"github.com/tcs76321/athanor/internal/job"
 	"github.com/tcs76321/athanor/internal/llm"
 	"github.com/tcs76321/athanor/internal/project"
@@ -32,14 +31,22 @@ func (e *Engine) selfRefine(ctx context.Context, j job.Job, p project.Project, t
 	}
 	max := e.cfg.Execution.MaxSelfRefineLoopsValue()
 	iter := e.state.RefineCount(ctx, j.ID)
-	if max <= 0 || iter >= max {
+	if !(repair.Budget{Enabled: true, Max: max, Used: iter}).Allows() {
 		e.audit(ctx, j.ID, map[string]any{
 			"event": "self_refine_budget_exhausted", "iter": iter, "max": max,
 		})
 		return false, nil
 	}
 
-	cand, rec, ok := e.bestCandidate(ctx, j)
+	recs, rerr := e.eval.ListByJob(ctx, j.ID)
+	if rerr != nil {
+		return false, nil
+	}
+	cands, cerr := e.listCandidateArtifacts(ctx, j)
+	if cerr != nil {
+		return false, nil
+	}
+	cand, rec, ok := repair.BestCandidate(cands, recs)
 	if !ok {
 		return false, nil
 	}
@@ -54,7 +61,7 @@ func (e *Engine) selfRefine(ctx context.Context, j job.Job, p project.Project, t
 	if e.cfg.Execution.ObservationToolsEnabled() && capability == project.CapabilityCode {
 		e.observeForRepair(ctx, j, p, t, role)
 	}
-	instructions := buildSelfRefineInstructions(rec, capability, e.languageFor(ctx, j, p, t))
+	instructions := repair.Instructions(rec, capability, e.languageFor(ctx, j, p, t))
 	ctxCandidates := []prompt.CandidateArtifact{{Kind: "candidate", Content: string(content)}}
 	resp, err := e.call(ctx, j, p, t, llm.PhaseRefining, role, instructions, ctxCandidates)
 	if err != nil {
@@ -78,68 +85,10 @@ func (e *Engine) selfRefine(ctx context.Context, j job.Job, p project.Project, t
 	if err != nil {
 		return false, fmt.Errorf("evaluating self-refine artifact: %w", err)
 	}
-	passed := newRec.PassedTests && len(newRec.MissingCriteria) == 0 && len(newRec.SecurityIssues) == 0
+	passed := repair.Passed(newRec)
 	e.audit(ctx, j.ID, map[string]any{
 		"event": "self_refine", "iter": iter + 1, "source_artifact": cand.ID,
 		"artifact_id": art.ID, "passed": passed, "score": newRec.Score,
 	})
 	return passed, nil
-}
-
-// bestCandidate returns the job's highest-scoring evaluated proposal. Among
-// multiple records for one artifact it takes the highest score. ok is false
-// when there is nothing evaluated to repair.
-func (e *Engine) bestCandidate(ctx context.Context, j job.Job) (artifact.Artifact, evaluation.Record, bool) {
-	recs, err := e.eval.ListByJob(ctx, j.ID)
-	if err != nil || len(recs) == 0 {
-		return artifact.Artifact{}, evaluation.Record{}, false
-	}
-	bestByArtifact := map[string]evaluation.Record{}
-	for _, r := range recs {
-		if cur, ok := bestByArtifact[r.ArtifactID]; !ok || r.Score > cur.Score {
-			bestByArtifact[r.ArtifactID] = r
-		}
-	}
-	cands, err := e.listCandidateArtifacts(ctx, j)
-	if err != nil {
-		return artifact.Artifact{}, evaluation.Record{}, false
-	}
-	var best artifact.Artifact
-	var bestRec evaluation.Record
-	found := false
-	for _, c := range cands {
-		r, ok := bestByArtifact[c.ID]
-		if !ok {
-			continue
-		}
-		if !found || r.Score > bestRec.Score {
-			best, bestRec, found = c, r, true
-		}
-	}
-	return best, bestRec, found
-}
-
-// buildSelfRefineInstructions composes the targeted-repair prompt: the
-// evaluator's recorded failures plus an instruction to change only what is
-// necessary and return the full artifact.
-func buildSelfRefineInstructions(rec evaluation.Record, capability, language string) string {
-	var b strings.Builder
-	b.WriteString("SELF-REFINE. The candidate above failed acceptance. Rewrite it to fix exactly these failures:\n")
-	if len(rec.MissingCriteria) > 0 {
-		fmt.Fprintf(&b, "  missing criteria: %v\n", rec.MissingCriteria)
-	}
-	if len(rec.FailedTests) > 0 {
-		fmt.Fprintf(&b, "  failed tests: %v\n", rec.FailedTests)
-	}
-	if len(rec.SecurityIssues) > 0 {
-		fmt.Fprintf(&b, "  security issues: %v\n", rec.SecurityIssues)
-	}
-	if rec.Summary != "" {
-		fmt.Fprintf(&b, "  evaluator summary: %q\n", rec.Summary)
-	}
-	b.WriteString("\nKeep what already works; change only what is necessary. Output the full corrected artifact.")
-	if capability == project.CapabilityCode {
-		b.WriteString(" " + codeInstruction(language))
-	}
-	return b.String()
 }

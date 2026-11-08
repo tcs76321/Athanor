@@ -4,9 +4,8 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"strings"
 
-	"github.com/tcs76321/athanor/internal/engine/acceptance"
+	"github.com/tcs76321/athanor/internal/engine/repair"
 	"github.com/tcs76321/athanor/internal/job"
 	"github.com/tcs76321/athanor/internal/llm"
 	"github.com/tcs76321/athanor/internal/notebook"
@@ -17,10 +16,6 @@ import (
 // observationInstructions asks the model for exactly one optional file read
 // before a repair. The engine executes the read; the model never gets a
 // general tool loop or a write/exec surface (ADR-0113).
-type observationRequest struct {
-	ReadFile *string `json:"read_file"`
-}
-
 const observationInstructions = `Before repairing the candidate, you may inspect ONE repository file.
 Choose the file most likely to contain the code or test the failure points at.
 Reply with one JSON object only:
@@ -42,16 +37,12 @@ func (e *Engine) observeForRepair(ctx context.Context, j job.Job, p project.Proj
 		e.audit(ctx, j.ID, map[string]any{"event": "observation_request_failed", "error": err.Error()})
 		return
 	}
-	req, perr := acceptance.ParseVerdict[observationRequest](resp.Content)
+	path, requested, perr := repair.ParseObservation(resp.Content)
 	if perr != nil {
 		e.audit(ctx, j.ID, map[string]any{"event": "observation_request_unparsed"})
 		return
 	}
-	if req.ReadFile == nil {
-		return
-	}
-	path := strings.TrimSpace(*req.ReadFile)
-	if path == "" {
+	if !requested {
 		return
 	}
 	res, rerr := e.runner.ReadFile(ctx, j.ID, toolenvelope.ReadFileRequest{
