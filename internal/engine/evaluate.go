@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/tcs76321/athanor/internal/artifact"
+	"github.com/tcs76321/athanor/internal/engine/acceptance"
 	"github.com/tcs76321/athanor/internal/evaluation"
 	"github.com/tcs76321/athanor/internal/job"
 	"github.com/tcs76321/athanor/internal/llm"
@@ -14,21 +15,6 @@ import (
 	"github.com/tcs76321/athanor/internal/project"
 	"github.com/tcs76321/athanor/internal/prompt"
 )
-
-// evalVerdict is the §13.1 Phase 6 JSON the security persona produces.
-// The schema is the LLM's output shape; the engine enforces the
-// §19.3 deterministic guard against it, not the LLM's text.
-type evalVerdict struct {
-	Passed             bool     `json:"passed"`
-	Score              float64  `json:"score"`
-	FailedTests        []string `json:"failed_tests"`
-	MissingCriteria    []string `json:"missing_criteria"`
-	SecurityIssues     []string `json:"security_issues"`
-	StyleIssues        []string `json:"style_issues"`
-	BetterThanPrevious bool     `json:"better_than_previous"`
-	Confidence         float64  `json:"confidence"`
-	Summary            string   `json:"summary"`
-}
 
 // phaseEvaluate (§13.1 Phase 3, M3-T1): for every candidate artifact
 // produced by the diverging phase, run the §19 acceptance-criteria
@@ -224,7 +210,7 @@ func (e *Engine) evaluateCandidate(ctx context.Context, j job.Job, p project.Pro
 	// `security_issues` / `style_issues` arrays map 1:1 to
 	// rubric items. Empty for data/media (deferred) and for
 	// unknown archetypes.
-	rubric := rubricFor(project.CapabilityFor(p, t))
+	rubric := acceptance.Rubric(project.CapabilityFor(p, t))
 	var rubricBlock string
 	if rubric != "" {
 		rubricBlock = "## RUBRIC (apply every item; echo unmet items into missing_criteria or security_issues or style_issues)\n" + rubric + "\n\n"
@@ -327,9 +313,9 @@ func (e *Engine) evaluateCandidate(ctx context.Context, j job.Job, p project.Pro
 // A non-JSON response is a hard error — the §13.1 contract is
 // "structured JSON output," and a wandering verdict is not a verdict
 // at all. The brace-scan logic and the tolerant type-drift coercion
-// live in `parseVerdictJSONCoerced` (ADR-0012 follow-up, M3-T7.5);
+// live in `acceptance.ParseVerdictCoerced` (ADR-0012 follow-up, M3-T7.5);
 // this function pins the destination type and returns the coercion
 // report so the caller can audit it.
-func parseEvalVerdict(content string) (evalVerdict, []string, error) {
-	return parseVerdictJSONCoerced[evalVerdict](content)
+func parseEvalVerdict(content string) (acceptance.EvaluationVerdict, []string, error) {
+	return acceptance.ParseVerdictCoerced[acceptance.EvaluationVerdict](content)
 }

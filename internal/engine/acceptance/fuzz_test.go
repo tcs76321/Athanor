@@ -1,4 +1,4 @@
-package engine
+package acceptance
 
 import "testing"
 
@@ -18,6 +18,6 @@ func FuzzParseVerdictJSON(f *testing.F) {
 	f.Add("")
 	f.Add(string([]byte{0xff, 0xfe, '{', 0x00}))
 	f.Fuzz(func(t *testing.T, s string) {
-		_, _ = parseVerdictJSON[evalVerdict](s)
+		_, _ = ParseVerdict[EvaluationVerdict](s)
 	})
 }

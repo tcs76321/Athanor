@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/tcs76321/athanor/internal/engine/acceptance"
 	"github.com/tcs76321/athanor/internal/job"
 	"github.com/tcs76321/athanor/internal/llm"
 	"github.com/tcs76321/athanor/internal/notebook"
@@ -41,7 +42,7 @@ func (e *Engine) observeForRepair(ctx context.Context, j job.Job, p project.Proj
 		e.audit(ctx, j.ID, map[string]any{"event": "observation_request_failed", "error": err.Error()})
 		return
 	}
-	req, perr := parseVerdictJSON[observationRequest](resp.Content)
+	req, perr := acceptance.ParseVerdict[observationRequest](resp.Content)
 	if perr != nil {
 		e.audit(ctx, j.ID, map[string]any{"event": "observation_request_unparsed"})
 		return

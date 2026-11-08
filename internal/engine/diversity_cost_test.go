@@ -7,6 +7,7 @@ import (
 
 	"github.com/tcs76321/athanor/internal/artifact"
 	"github.com/tcs76321/athanor/internal/config"
+	"github.com/tcs76321/athanor/internal/engine/acceptance"
 	"github.com/tcs76321/athanor/internal/evaluation"
 	"github.com/tcs76321/athanor/internal/store"
 	"github.com/tcs76321/athanor/internal/verify"
@@ -109,16 +110,16 @@ func TestDiversityReroll_DiscardsBelowFloor(t *testing.T) {
 // TestCostTieWins pins the F4-T6 rule: a near-tie on score at strictly lower
 // token cost wins; unknown or higher cost does not.
 func TestCostTieWins(t *testing.T) {
-	if !costTieWins(0.90, 0.91, 0.02, 100, 200) {
+	if !acceptance.CostTieWins(0.90, 0.91, 0.02, 100, 200) {
 		t.Error("near tie at lower cost should win")
 	}
-	if costTieWins(0.80, 0.91, 0.02, 100, 200) {
+	if acceptance.CostTieWins(0.80, 0.91, 0.02, 100, 200) {
 		t.Error("a real quality gap must not be won on cost")
 	}
-	if costTieWins(0.90, 0.91, 0.02, 200, 100) {
+	if acceptance.CostTieWins(0.90, 0.91, 0.02, 200, 100) {
 		t.Error("higher cost must not win a tie")
 	}
-	if costTieWins(0.90, 0.91, 0.02, 0, 100) {
+	if acceptance.CostTieWins(0.90, 0.91, 0.02, 0, 100) {
 		t.Error("unknown new cost must not win")
 	}
 }
@@ -159,7 +160,7 @@ func TestCostAwareEligibleRefusesHardVerifierFailure(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := costAwareEligible(tc.ver, tc.final, tc.prevScore); got != tc.want {
+			if got := acceptance.CostAwareEligible(tc.ver, tc.final, tc.prevScore); got != tc.want {
 				t.Errorf("costAwareEligible = %v, want %v", got, tc.want)
 			}
 		})

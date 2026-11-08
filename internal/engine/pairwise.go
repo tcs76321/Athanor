@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 
+	"github.com/tcs76321/athanor/internal/engine/acceptance"
 	"github.com/tcs76321/athanor/internal/job"
 	"github.com/tcs76321/athanor/internal/llm"
 	"github.com/tcs76321/athanor/internal/project"
@@ -11,7 +12,7 @@ import (
 )
 
 // pairwiseVerdict is the judge's response to an A/B comparison. It is a
-// separate shape from the pointwise comparisonVerdict because the judge is
+// separate shape from the pointwise acceptance.Verdict because the judge is
 // naming a position, not an artifact role.
 type pairwiseVerdict struct {
 	Winner     string   `json:"winner"` // "A" | "B" | "tie"
@@ -32,7 +33,7 @@ Use "tie" only when the artifacts are materially equivalent for this task.`
 // orders disagree or a call fails, so the caller can fall back to the pointwise
 // judge rather than trusting a biased result.
 func (e *Engine) runPairwiseJudge(ctx context.Context, j job.Job, p project.Project, t project.Task,
-	judgeRole, current, previous string) (comparisonVerdict, bool, error) {
+	judgeRole, current, previous string) (acceptance.Verdict, bool, error) {
 
 	current = truncateForLimit(current, comparisonContentLimit)
 	previous = truncateForLimit(previous, comparisonContentLimit)
@@ -40,29 +41,29 @@ func (e *Engine) runPairwiseJudge(ctx context.Context, j job.Job, p project.Proj
 	// Order 1: A=current, B=previous. Order 2: A=previous, B=current.
 	first, firstOK, err := e.pairwiseCall(ctx, j, p, t, judgeRole, current, previous, 0)
 	if err != nil {
-		return comparisonVerdict{}, false, err
+		return acceptance.Verdict{}, false, err
 	}
 	second, secondOK, err := e.pairwiseCall(ctx, j, p, t, judgeRole, previous, current, 1)
 	if err != nil {
-		return comparisonVerdict{}, false, err
+		return acceptance.Verdict{}, false, err
 	}
 	if !firstOK || !secondOK {
 		e.audit(ctx, j.ID, map[string]any{
 			"event": "pairwise_judge_fallback", "reason": "unparseable order",
 			"first_ok": firstOK, "second_ok": secondOK,
 		})
-		return comparisonVerdict{}, false, nil
+		return acceptance.Verdict{}, false, nil
 	}
 
 	// Map each position verdict to the artifact it names.
-	firstChoice := pairwiseChoice(first.Winner, "new", "previous")
-	secondChoice := pairwiseChoice(second.Winner, "previous", "new")
+	firstChoice := acceptance.PairwiseChoice(first.Winner, "new", "previous")
+	secondChoice := acceptance.PairwiseChoice(second.Winner, "previous", "new")
 	if firstChoice == "" || secondChoice == "" {
 		e.audit(ctx, j.ID, map[string]any{
 			"event": "pairwise_judge_fallback", "reason": "unknown position",
 			"first": first.Winner, "second": second.Winner,
 		})
-		return comparisonVerdict{}, false, nil
+		return acceptance.Verdict{}, false, nil
 	}
 	e.audit(ctx, j.ID, map[string]any{
 		"event": "pairwise_judge", "first_order": first.Winner, "second_order": second.Winner,
@@ -73,7 +74,7 @@ func (e *Engine) runPairwiseJudge(ctx context.Context, j job.Job, p project.Proj
 			"event": "judge_position_bias", "first_choice": firstChoice,
 			"second_choice": secondChoice, "resolution": "fallback to pointwise",
 		})
-		return comparisonVerdict{}, false, nil
+		return acceptance.Verdict{}, false, nil
 	}
 	winner := firstChoice
 	if winner == "tie" {
@@ -82,7 +83,7 @@ func (e *Engine) runPairwiseJudge(ctx context.Context, j job.Job, p project.Proj
 	}
 	reasons := append([]string{}, first.Reasons...)
 	reasons = append(reasons, second.Reasons...)
-	return comparisonVerdict{
+	return acceptance.Verdict{
 		Winner: winner, Confidence: 1,
 		Reasons: append([]string{"pairwise judge agreed in both orders"}, reasons...),
 	}, true, nil
@@ -100,7 +101,7 @@ func (e *Engine) pairwiseCall(ctx context.Context, j job.Job, p project.Project,
 	if err != nil {
 		return pairwiseVerdict{}, false, err
 	}
-	v, coercions, err := parseVerdictJSONCoerced[pairwiseVerdict](resp.Content)
+	v, coercions, err := acceptance.ParseVerdictCoerced[pairwiseVerdict](resp.Content)
 	if err != nil {
 		e.audit(ctx, j.ID, map[string]any{
 			"event": "pairwise_verdict_unparsed", "vote": voteIndex, "error": err.Error(),
@@ -118,20 +119,5 @@ func (e *Engine) pairwiseCall(ctx context.Context, j job.Job, p project.Project,
 		return v, true, nil
 	default:
 		return pairwiseVerdict{}, false, nil
-	}
-}
-
-// pairwiseChoice maps a position verdict to an artifact role. first and second
-// are the roles named by A and B respectively.
-func pairwiseChoice(winner, first, second string) string {
-	switch winner {
-	case "A":
-		return first
-	case "B":
-		return second
-	case "TIE":
-		return "tie"
-	default:
-		return ""
 	}
 }

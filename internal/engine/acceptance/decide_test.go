@@ -12,7 +12,7 @@
 //   - LLM says "new", a record meets threshold → "new" (regardless of previous)
 //   - LLM says "previous" or "none" → never upgraded by the guard
 //   - boundary: confidence == threshold (not strictly greater) → does NOT meet
-package engine
+package acceptance
 
 import (
 	"strings"
@@ -21,10 +21,10 @@ import (
 	"github.com/tcs76321/athanor/internal/evaluation"
 )
 
-// verdictFor builds a comparisonVerdict with a fixed winner
+// verdictFor builds a Verdict with a fixed winner
 // and a single starter reason. Keeps the test table compact.
-func verdictFor(winner string, reasons ...string) comparisonVerdict {
-	return comparisonVerdict{Winner: winner, Reasons: reasons, Confidence: 0.9}
+func verdictFor(winner string, reasons ...string) Verdict {
+	return Verdict{Winner: winner, Reasons: reasons, Confidence: 0.9}
 }
 
 // recordFor builds an evaluation.Record with the given
@@ -38,7 +38,7 @@ func recordFor(better bool, confidence float64) evaluation.Record {
 func TestDecideWinner(t *testing.T) {
 	cases := []struct {
 		name        string
-		verdict     comparisonVerdict
+		verdict     Verdict
 		records     []evaluation.Record
 		threshold   float64
 		hasPrevious bool
@@ -314,7 +314,7 @@ func TestDecideWinner(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got := DecideWinner(tc.verdict, tc.records, tc.threshold, tc.hasPrevious)
+			got := Decide(tc.verdict, tc.records, tc.threshold, tc.hasPrevious)
 			if got.Winner != tc.wantWinner {
 				t.Errorf("Winner = %q, want %q (reasons = %v)",
 					got.Winner, tc.wantWinner, got.Reasons)
@@ -366,7 +366,7 @@ func TestDecideWinner(t *testing.T) {
 func TestDecideWinner_ReasonsAlwaysNonEmpty(t *testing.T) {
 	cases := []struct {
 		name        string
-		verdict     comparisonVerdict
+		verdict     Verdict
 		records     []evaluation.Record
 		threshold   float64
 		hasPrevious bool
@@ -409,7 +409,7 @@ func TestDecideWinner_ReasonsAlwaysNonEmpty(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got := DecideWinner(tc.verdict, tc.records, tc.threshold, tc.hasPrevious)
+			got := Decide(tc.verdict, tc.records, tc.threshold, tc.hasPrevious)
 			if got.Reasons == nil {
 				t.Errorf("Reasons is nil; want non-nil with at least one entry")
 			}

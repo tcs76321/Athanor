@@ -13,6 +13,7 @@ import (
 	"github.com/tcs76321/athanor/internal/analysis"
 	"github.com/tcs76321/athanor/internal/artifact"
 	"github.com/tcs76321/athanor/internal/config"
+	"github.com/tcs76321/athanor/internal/engine/acceptance"
 	"github.com/tcs76321/athanor/internal/job"
 	"github.com/tcs76321/athanor/internal/llm"
 	"github.com/tcs76321/athanor/internal/mce"
@@ -20,7 +21,6 @@ import (
 	"github.com/tcs76321/athanor/internal/policy"
 	"github.com/tcs76321/athanor/internal/project"
 	"github.com/tcs76321/athanor/internal/prompt"
-	"github.com/tcs76321/athanor/internal/verify"
 )
 
 // tierNames renders tiers for audit rows, ascending, nil-safe.
@@ -450,7 +450,7 @@ func (e *Engine) call(ctx context.Context, j job.Job, p project.Project, t proje
 	formatName := ""
 	if e.cfg.Inference.JSONFormatEnabled() && phaseProducesJSON(phase) {
 		if e.cfg.Inference.JSONSchema {
-			resolvedFormat = verdictSchemaFor(phase)
+			resolvedFormat = acceptance.VerdictSchema(phase)
 			formatName = "json-schema"
 		} else {
 			resolvedFormat = "json"
@@ -703,23 +703,6 @@ func (e *Engine) bestPassingCandidate(ctx context.Context, j job.Job) (artifact.
 	return candidates[len(candidates)-1], false, nil
 }
 
-// shouldFallbackToCandidate implements the ADR-0117 monotonicity rule: a
-// synthesis rewrite must never be worse than its source candidate. A passing
-// candidate is always kept on a final hard failure; a non-passing candidate is
-// kept only when it also passed or scored higher than the rewrite.
-func shouldFallbackToCandidate(wasPassing bool, final, candidate verify.Result) bool {
-	if wasPassing {
-		return true
-	}
-	if !final.HardDecisive() || final.HardPassed {
-		return false
-	}
-	if candidate.HardDecisive() && candidate.HardPassed {
-		return true
-	}
-	return candidate.Score > final.Score
-}
-
 // phaseSynthesize (§13.1 Phase 5): main persona refines the persisted
 // proposal into the final draft artifact. Re-runs after a crash version
 // the existing artifact instead of piling up drafts.
@@ -780,7 +763,7 @@ func (e *Engine) phaseSynthesize(ctx context.Context, j job.Job) error {
 			reason := "source candidate passed the verifier"
 			if !fallback {
 				if candVer, _, cerr := e.verifyCandidate(ctx, j, p, t, string(candidateContent), 0); cerr == nil {
-					fallback = shouldFallbackToCandidate(false, ver, candVer)
+					fallback = acceptance.ShouldFallbackToCandidate(false, ver, candVer)
 					reason = "source candidate scored better than the synthesis"
 				}
 			}

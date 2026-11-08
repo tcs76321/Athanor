@@ -1,16 +1,15 @@
-// M3-T7.5b (ADR-0012 §D6 upgrade): JSON schemas for the two structured
-// judgment phases. ADR-0012 originally set `format: "json"`, which
-// guarantees parseable JSON but not field types; the M3-T7 smoke run saw
-// the 9B judge emit `"confidence": "0.95"` and `"style_issues": "..."`,
-// hard-failing the job. Passing a schema instead asks Ollama to
-// grammar-constrain the response to these types. The tolerant parser
-// (M3-T7.5a) is the fallback for models or Ollama versions that ignore
-// the schema.
-package engine
+// JSON schemas for the two structured judgment phases (ADR-0012 §D6).
+//
+// `format: "json"` guarantees parseable JSON but not field types; the M3-T7
+// smoke run saw a judge emit `"confidence": "0.95"` and `"style_issues": "..."`,
+// hard-failing the job. Passing a schema asks Ollama to grammar-constrain the
+// response to these types. The tolerant parser is the fallback for models or
+// Ollama versions that ignore the schema.
+package acceptance
 
 import "github.com/tcs76321/athanor/internal/llm"
 
-// evalVerdictSchema mirrors evalVerdict's §13.1 shape.
+// evalVerdictSchema mirrors EvaluationVerdict's §13.1 shape.
 var evalVerdictSchema = map[string]any{
 	"type": "object",
 	"properties": map[string]any{
@@ -30,7 +29,7 @@ var evalVerdictSchema = map[string]any{
 	},
 }
 
-// comparisonVerdictSchema mirrors comparisonVerdict's §13.1 shape.
+// comparisonVerdictSchema mirrors Verdict's §13.1 shape.
 var comparisonVerdictSchema = map[string]any{
 	"type": "object",
 	"properties": map[string]any{
@@ -42,12 +41,9 @@ var comparisonVerdictSchema = map[string]any{
 	"required": []string{"winner", "confidence", "reasons", "missing_requirements"},
 }
 
-// verdictSchemaFor returns the JSON schema to send as Ollama's `format`
-// for a phase, or nil for phases that produce prose.
-func verdictSchemaFor(phase string) map[string]any {
-	if !phaseProducesJSON(phase) {
-		return nil
-	}
+// VerdictSchema returns the JSON schema to send as Ollama's `format` for a
+// phase, or nil for phases that produce prose.
+func VerdictSchema(phase string) map[string]any {
 	switch phase {
 	case llm.PhaseEvaluating:
 		return evalVerdictSchema

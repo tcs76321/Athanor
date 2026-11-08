@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/tcs76321/athanor/internal/corrections"
+	"github.com/tcs76321/athanor/internal/engine/acceptance"
 	"github.com/tcs76321/athanor/internal/evaluation"
 	"github.com/tcs76321/athanor/internal/regulator"
 	"github.com/tcs76321/athanor/internal/verify"
@@ -84,7 +85,7 @@ func (e *Engine) captureRegulatorCorrection(ctx context.Context, projectID, jobI
 // It complements the per-candidate captures: the synthesized final is its own
 // evaluated artifact and may fail even when a proposal passed.
 func (e *Engine) captureComparisonCorrection(ctx context.Context, projectID, jobID, artifactID string,
-	verdict comparisonVerdict) {
+	verdict acceptance.Verdict) {
 	if e.corrections == nil || verdict.Winner == "new" {
 		return
 	}

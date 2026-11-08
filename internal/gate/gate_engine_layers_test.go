@@ -21,6 +21,7 @@ import (
 
 const (
 	engineRootImport = "github.com/tcs76321/athanor/internal/engine"
+	jobstateImport   = "github.com/tcs76321/athanor/internal/engine/jobstate"
 	storeImport      = "github.com/tcs76321/athanor/internal/store"
 )
 
@@ -35,6 +36,7 @@ type engineLayerRule struct {
 // as the packages appear.
 var engineLayerRules = []engineLayerRule{
 	{pkg: "jobstate", forbidImports: []string{engineRootImport}},
+	{pkg: "acceptance", forbidImports: []string{engineRootImport, jobstateImport}},
 }
 
 // TestGateEngineLayerDirections fails when an extracted engine package imports

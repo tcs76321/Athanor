@@ -1,4 +1,4 @@
-package engine
+package acceptance
 
 import (
 	"testing"
@@ -11,20 +11,20 @@ import (
 // the evaluator depends on.
 func TestVerdictSchemaFor(t *testing.T) {
 	for _, phase := range []string{llm.PhaseEvaluating, llm.PhaseComparing} {
-		if verdictSchemaFor(phase) == nil {
-			t.Errorf("verdictSchemaFor(%q) = nil, want a schema", phase)
+		if VerdictSchema(phase) == nil {
+			t.Errorf("VerdictSchema(%q) = nil, want a schema", phase)
 		}
 	}
 	for _, phase := range []string{
 		llm.PhasePlanning, llm.PhaseDiverging, llm.PhaseReflecting,
 		llm.PhaseSynthesizing, "context_building",
 	} {
-		if s := verdictSchemaFor(phase); s != nil {
-			t.Errorf("verdictSchemaFor(%q) = %v, want nil", phase, s)
+		if s := VerdictSchema(phase); s != nil {
+			t.Errorf("VerdictSchema(%q) = %v, want nil", phase, s)
 		}
 	}
 
-	eval := verdictSchemaFor(llm.PhaseEvaluating)
+	eval := VerdictSchema(llm.PhaseEvaluating)
 	props, ok := eval["properties"].(map[string]any)
 	if !ok {
 		t.Fatalf("eval schema has no properties map: %v", eval)
@@ -39,7 +39,7 @@ func TestVerdictSchemaFor(t *testing.T) {
 	}
 
 	// The comparison schema must constrain the winner to the closed set.
-	cmp := verdictSchemaFor(llm.PhaseComparing)
+	cmp := VerdictSchema(llm.PhaseComparing)
 	cprops, _ := cmp["properties"].(map[string]any)
 	winner, _ := cprops["winner"].(map[string]any)
 	enum, _ := winner["enum"].([]string)

@@ -9,7 +9,7 @@
 // tests assert the *rubric*, not the *persona*. M3-T7's
 // quality probe is the right place to measure how well the
 // persona actually applies the rubric.
-package engine
+package acceptance
 
 import (
 	"strings"
@@ -23,7 +23,7 @@ import (
 // contains the four mandatory items (structure, tone,
 // acceptance coverage, no placeholders).
 func TestRubricFor_Text(t *testing.T) {
-	r := rubricFor(project.ArchetypeText)
+	r := Rubric(project.ArchetypeText)
 	if r == "" {
 		t.Fatal("text rubric is empty")
 	}
@@ -43,7 +43,7 @@ func TestRubricFor_Text(t *testing.T) {
 // TestRubricFor_Document covers the document archetype: the
 // rubric is the same as text (both are prose).
 func TestRubricFor_Document(t *testing.T) {
-	r := rubricFor(project.ArchetypeDocument)
+	r := Rubric(project.ArchetypeDocument)
 	if r == "" {
 		t.Fatal("document rubric is empty")
 	}
@@ -55,7 +55,7 @@ func TestRubricFor_Document(t *testing.T) {
 // TestRubricFor_Code covers the code archetype: dependencies resolve, tests
 // pass, documentation, no placeholders, linter clean, acceptance coverage.
 func TestRubricFor_Code(t *testing.T) {
-	r := rubricFor(project.ArchetypeCode)
+	r := Rubric(project.ArchetypeCode)
 	if r == "" {
 		t.Fatal("code rubric is empty")
 	}
@@ -85,7 +85,7 @@ func TestRubricFor_DataAndMedia(t *testing.T) {
 		{project.ArchetypeData, []string{"SCHEMA", "PROVENANCE", "COMPLETENESS", "NO FABRICATION", "DETERMINISM", "ACCEPTANCE COVERAGE"}},
 		{project.ArchetypeMedia, []string{"FORMAT", "CLARITY", "SPEC ADHERENCE", "ACCESSIBILITY", "NO PLACEHOLDERS", "ACCEPTANCE COVERAGE"}},
 	} {
-		r := rubricFor(tc.capability)
+		r := Rubric(tc.capability)
 		if r == "" {
 			t.Fatalf("%s rubric is empty", tc.capability)
 		}
@@ -102,7 +102,7 @@ func TestRubricFor_DataAndMedia(t *testing.T) {
 // positives. The §19.3 guard still has the acceptance
 // criteria to act on.
 func TestRubricFor_UnknownArchetype(t *testing.T) {
-	if r := rubricFor("not_a_real_archetype"); r != "" {
+	if r := Rubric("not_a_real_archetype"); r != "" {
 		t.Errorf("unknown archetype should return empty rubric, got:\n%s", r)
 	}
 }

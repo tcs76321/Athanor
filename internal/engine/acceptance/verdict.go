@@ -1,5 +1,5 @@
 // ADR-0012 follow-up: a single generic helper
-// `parseVerdictJSON[T]` consolidates the two
+// `ParseVerdict[T]` consolidates the two
 // near-clone brace scanners in `evaluate.go` and
 // `compare.go` (M3-T1 added them separately, when
 // the two parsers' structure was still evolving).
@@ -24,33 +24,34 @@
 // reports every coercion so the caller can audit it
 // without hiding it. The strict fast path runs first, so
 // a conforming model never pays the reflection cost.
-package engine
+package acceptance
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"reflect"
 	"strconv"
 	"strings"
 )
 
-// parseVerdictJSON extracts the first JSON object in
+// ParseVerdict extracts the first JSON object in
 // `content` and unmarshals it into a value of type T,
 // discarding the coercion report. Retained for the
 // fuzz/test surface; the engine calls
-// parseVerdictJSONCoerced so it can audit drift.
-func parseVerdictJSON[T any](content string) (T, error) {
-	v, _, err := parseVerdictJSONCoerced[T](content)
+// ParseVerdictCoerced so it can audit drift.
+func ParseVerdict[T any](content string) (T, error) {
+	v, _, err := ParseVerdictCoerced[T](content)
 	return v, err
 }
 
-// parseVerdictJSONCoerced is parseVerdictJSON plus a
+// ParseVerdictCoerced is ParseVerdict plus a
 // tolerant second pass. It returns the decoded verdict
 // and the list of coercions applied — empty when the
 // model conformed. Errors are returned as a wrapped
 // *VerdictParseError so the caller can branch with
 // errors.As.
-func parseVerdictJSONCoerced[T any](content string) (T, []string, error) {
+func ParseVerdictCoerced[T any](content string) (T, []string, error) {
 	var v T
 	obj, salvaged, err := extractVerdictObject(content)
 	if err != nil {
@@ -93,7 +94,7 @@ func parseVerdictJSONCoerced[T any](content string) (T, []string, error) {
 func extractVerdictObject(content string) ([]byte, bool, error) {
 	start := strings.IndexByte(content, '{')
 	if start < 0 {
-		return nil, false, &VerdictParseError{Msg: fmt.Sprintf("no JSON object in verdict: %q", truncateForEvent(content, 512))}
+		return nil, false, &VerdictParseError{Msg: fmt.Sprintf("no JSON object in verdict: %q", truncate(content, 512))}
 	}
 	depth, end := 0, -1
 	inStr, escape := false, false
@@ -133,7 +134,7 @@ func extractVerdictObject(content string) ([]byte, bool, error) {
 	if obj, ok := repairTruncatedObject(content[start:]); ok {
 		return obj, true, nil
 	}
-	return nil, false, &VerdictParseError{Msg: fmt.Sprintf("unterminated JSON object in verdict: %q", truncateForEvent(content, 512))}
+	return nil, false, &VerdictParseError{Msg: fmt.Sprintf("unterminated JSON object in verdict: %q", truncate(content, 512))}
 }
 
 // repairTruncatedObject closes a JSON object cut off at EOF: it terminates an
@@ -376,7 +377,7 @@ func coerceValue(v any, t reflect.Type) (any, string) {
 }
 
 // VerdictParseError is the typed error
-// parseVerdictJSON returns. Callers can use
+// ParseVerdict returns. Callers can use
 // errors.As to branch on the specific failure
 // mode (e.g. compare.go's "unknown winner" path
 // uses the same package-level error type, but
@@ -386,3 +387,21 @@ type VerdictParseError struct {
 }
 
 func (e *VerdictParseError) Error() string { return e.Msg }
+
+// ErrUnknownWinner is the sentinel returned when the security persona's
+// comparison verdict has a winner outside the closed set {"new","previous",
+// "none"}. The caller audits the downgrade and proceeds with "none", the safe
+// default.
+var ErrUnknownWinner = errors.New("compare: unknown winner value")
+
+// IsUnknownWinner reports whether err is (or wraps) ErrUnknownWinner.
+func IsUnknownWinner(err error) bool { return errors.Is(err, ErrUnknownWinner) }
+
+// truncate bounds a string for an error message. The parser faces untrusted
+// model output, so error strings must not embed a multi-KB response.
+func truncate(s string, max int) string {
+	if len(s) <= max {
+		return s
+	}
+	return s[:max] + "…"
+}

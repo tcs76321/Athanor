@@ -1,5 +1,5 @@
 // M3-T2/ADR-0012 follow-up tests for the
-// `parseVerdictJSON[T]` generic helper that
+// `ParseVerdict[T]` generic helper that
 // consolidates the two near-clone brace scanners
 // in `evaluate.go` and `compare.go`.
 //
@@ -8,7 +8,7 @@
 // (already in `compare_test.go` and the evaluate
 // test file). These tests pin the helper's
 // behavior independently of either call site.
-package engine
+package acceptance
 
 import (
 	"errors"
@@ -18,13 +18,13 @@ import (
 
 // minimalVerdict is a one-field struct used to
 // exercise the generic helper without coupling to
-// the evalVerdict or comparisonVerdict types.
+// the EvaluationVerdict or Verdict types.
 type minimalVerdict struct {
 	Winner string `json:"winner"`
 }
 
 func TestParseVerdictJSON_HappyPath(t *testing.T) {
-	v, err := parseVerdictJSON[minimalVerdict](`{"winner":"new"}`)
+	v, err := ParseVerdict[minimalVerdict](`{"winner":"new"}`)
 	if err != nil {
 		t.Fatalf("parseVerdictJSON: %v", err)
 	}
@@ -43,7 +43,7 @@ func TestParseVerdictJSON_LenientWrapping(t *testing.T) {
 		"Some prose before\n{\"winner\":\"new\"}\nsome prose after",
 	}
 	for _, c := range cases {
-		v, err := parseVerdictJSON[minimalVerdict](c)
+		v, err := ParseVerdict[minimalVerdict](c)
 		if err != nil {
 			t.Errorf("parseVerdictJSON(%q): %v", c, err)
 			continue
@@ -58,7 +58,7 @@ func TestParseVerdictJSON_LenientWrapping(t *testing.T) {
 // §D3 row 2: a response with no JSON object at
 // all is a hard error.
 func TestParseVerdictJSON_NoJSON(t *testing.T) {
-	_, err := parseVerdictJSON[minimalVerdict]("no JSON here, just prose")
+	_, err := ParseVerdict[minimalVerdict]("no JSON here, just prose")
 	if err == nil {
 		t.Fatal("parseVerdictJSON: no error for no-JSON input")
 	}
@@ -72,7 +72,7 @@ func TestParseVerdictJSON_NoJSON(t *testing.T) {
 // response cut off at max_output_tokens (a degenerate repetition loop) is
 // repaired into a usable verdict instead of failing the job.
 func TestParseVerdictJSON_TruncatedSalvaged(t *testing.T) {
-	v, err := parseVerdictJSON[minimalVerdict](`{"winner":"new"`)
+	v, err := ParseVerdict[minimalVerdict](`{"winner":"new"`)
 	if err != nil {
 		t.Fatalf("parseVerdictJSON (truncated): %v", err)
 	}
@@ -82,7 +82,7 @@ func TestParseVerdictJSON_TruncatedSalvaged(t *testing.T) {
 
 	// The real shape: truncation inside a long, nested value string.
 	truncated := `{"passed": false, "score": 0.0, "failed_tests": [{"test_command": "python -c 'import solution; assert solution.evaluate(\"2+3*4\")==14`
-	ev, notes, err := parseVerdictJSONCoerced[evalVerdict](truncated)
+	ev, notes, err := ParseVerdictCoerced[EvaluationVerdict](truncated)
 	if err != nil {
 		t.Fatalf("parseVerdictJSONCoerced (truncated verdict): %v", err)
 	}
@@ -94,7 +94,7 @@ func TestParseVerdictJSON_TruncatedSalvaged(t *testing.T) {
 	}
 
 	// A dangling member separator is also repaired.
-	if v, err := parseVerdictJSON[minimalVerdict](`{"winner":"previous",`); err != nil || v.Winner != "previous" {
+	if v, err := ParseVerdict[minimalVerdict](`{"winner":"previous",`); err != nil || v.Winner != "previous" {
 		t.Errorf("dangling comma salvage = %+v, %v; want previous", v, err)
 	}
 }
@@ -103,7 +103,7 @@ func TestParseVerdictJSON_TruncatedSalvaged(t *testing.T) {
 // complete member (a dangling key) is still a hard error, so salvage never
 // invents a verdict.
 func TestParseVerdictJSON_UnterminatedUnrecoverable(t *testing.T) {
-	_, err := parseVerdictJSON[minimalVerdict](`{"winner":`)
+	_, err := ParseVerdict[minimalVerdict](`{"winner":`)
 	if err == nil {
 		t.Fatal("parseVerdictJSON: expected an error for an unrecoverable truncation")
 	}
@@ -117,7 +117,7 @@ func TestParseVerdictJSON_UnterminatedUnrecoverable(t *testing.T) {
 // covers the §D3 row 4 corpus: an embedded '}'
 // inside a string must not fool the depth counter.
 func TestParseVerdictJSON_EmbeddedBraceInString(t *testing.T) {
-	v, err := parseVerdictJSON[minimalVerdict](`{"winner":"contains}brace"}`)
+	v, err := ParseVerdict[minimalVerdict](`{"winner":"contains}brace"}`)
 	if err != nil {
 		t.Fatalf("parseVerdictJSON: %v", err)
 	}
@@ -127,27 +127,27 @@ func TestParseVerdictJSON_EmbeddedBraceInString(t *testing.T) {
 }
 
 // TestParseVerdictJSON_Generics: the helper
-// works for both evalVerdict and comparisonVerdict
+// works for both EvaluationVerdict and Verdict
 // (the two real call sites). This test pins the
 // generic contract; if a future contributor
 // changes the helper to be type-specific, this
 // test fails.
 func TestParseVerdictJSON_Generics(t *testing.T) {
-	// evalVerdict: includes a numeric field.
-	ev, err := parseVerdictJSON[evalVerdict](`{"passed":true,"score":0.85,"summary":"ok"}`)
+	// EvaluationVerdict: includes a numeric field.
+	ev, err := ParseVerdict[EvaluationVerdict](`{"passed":true,"score":0.85,"summary":"ok"}`)
 	if err != nil {
-		t.Fatalf("parseVerdictJSON[evalVerdict]: %v", err)
+		t.Fatalf("ParseVerdict[EvaluationVerdict]: %v", err)
 	}
 	if !ev.Passed || ev.Score != 0.85 || ev.Summary != "ok" {
-		t.Errorf("evalVerdict = %+v, want passed=true score=0.85 summary=ok", ev)
+		t.Errorf("EvaluationVerdict = %+v, want passed=true score=0.85 summary=ok", ev)
 	}
-	// comparisonVerdict: includes a string field.
-	cv, err := parseVerdictJSON[comparisonVerdict](`{"winner":"new","confidence":0.9,"reasons":["ok"],"missing_requirements":[]}`)
+	// Verdict: includes a string field.
+	cv, err := ParseVerdict[Verdict](`{"winner":"new","confidence":0.9,"reasons":["ok"],"missing_requirements":[]}`)
 	if err != nil {
-		t.Fatalf("parseVerdictJSON[comparisonVerdict]: %v", err)
+		t.Fatalf("ParseVerdict[Verdict]: %v", err)
 	}
 	if cv.Winner != "new" || cv.Confidence != 0.9 {
-		t.Errorf("comparisonVerdict = %+v, want winner=new confidence=0.9", cv)
+		t.Errorf("Verdict = %+v, want winner=new confidence=0.9", cv)
 	}
 }
 
@@ -155,7 +155,7 @@ func TestParseVerdictJSON_Generics(t *testing.T) {
 // smoke failure: the judge emitted a string where the struct wants a
 // float64. The coercion must recover the value and report the field.
 func TestParseVerdictJSONCoerced_ConfidenceAsString(t *testing.T) {
-	v, notes, err := parseVerdictJSONCoerced[evalVerdict](
+	v, notes, err := ParseVerdictCoerced[EvaluationVerdict](
 		`{"passed":true,"score":0.9,"confidence":"0.85","summary":"ok"}`)
 	if err != nil {
 		t.Fatalf("parseVerdictJSONCoerced: %v", err)
@@ -171,7 +171,7 @@ func TestParseVerdictJSONCoerced_ConfidenceAsString(t *testing.T) {
 // TestParseVerdictJSONCoerced_StyleIssuesAsString reproduces the second
 // smoke failure: a string where the struct wants a []string.
 func TestParseVerdictJSONCoerced_StyleIssuesAsString(t *testing.T) {
-	v, notes, err := parseVerdictJSONCoerced[evalVerdict](
+	v, notes, err := ParseVerdictCoerced[EvaluationVerdict](
 		`{"style_issues":"avoid passive voice","missing_criteria":[]}`)
 	if err != nil {
 		t.Fatalf("parseVerdictJSONCoerced: %v", err)
@@ -187,7 +187,7 @@ func TestParseVerdictJSONCoerced_StyleIssuesAsString(t *testing.T) {
 // TestParseVerdictJSONCoerced_ConformingHasNoNotes: a schema-conforming
 // verdict yields zero coercions, so the audit row is not emitted.
 func TestParseVerdictJSONCoerced_ConformingHasNoNotes(t *testing.T) {
-	_, notes, err := parseVerdictJSONCoerced[evalVerdict](
+	_, notes, err := ParseVerdictCoerced[EvaluationVerdict](
 		`{"passed":true,"score":0.9,"failed_tests":[],"missing_criteria":[],"security_issues":[],"style_issues":[],"better_than_previous":false,"confidence":0.9,"summary":"ok"}`)
 	if err != nil {
 		t.Fatalf("parseVerdictJSONCoerced: %v", err)
@@ -201,7 +201,7 @@ func TestParseVerdictJSONCoerced_ConformingHasNoNotes(t *testing.T) {
 // be coerced (an object where a string is wanted) is still a hard error,
 // so coercion does not silently swallow garbage.
 func TestParseVerdictJSONCoerced_UnrecoverableStillErrors(t *testing.T) {
-	_, _, err := parseVerdictJSONCoerced[minimalVerdict](`{"winner":{"nested":true}}`)
+	_, _, err := ParseVerdictCoerced[minimalVerdict](`{"winner":{"nested":true}}`)
 	if err == nil {
 		t.Fatal("expected an error for an uncoercible field")
 	}

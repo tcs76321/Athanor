@@ -423,7 +423,7 @@ probe-bundle:
 # touching the corresponding parser.
 fuzz:
 	go test $(GO_TAGS) -run=^$$ -fuzz=FuzzResolve -fuzztime=10s ./internal/airlock/paths/
-	go test $(GO_TAGS) -run=^$$ -fuzz=FuzzParseVerdictJSON -fuzztime=10s ./internal/engine/
+	go test $(GO_TAGS) -run=^$$ -fuzz=FuzzParseVerdictJSON -fuzztime=10s ./internal/engine/acceptance/
 
 # Coverage report (F3-T7). Deliberately no hard floor yet: the value is
 # the report while the security-critical packages stabilize. Inspect with

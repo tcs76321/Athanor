@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/tcs76321/athanor/internal/artifact"
+	"github.com/tcs76321/athanor/internal/engine/acceptance"
 	"github.com/tcs76321/athanor/internal/evaluation"
 	"github.com/tcs76321/athanor/internal/job"
 	"github.com/tcs76321/athanor/internal/llm"
@@ -18,21 +19,15 @@ import (
 	"github.com/tcs76321/athanor/internal/verify"
 )
 
-// comparisonVerdict is the §13.1 Phase 6 JSON the security persona
-// produces. The schema mirrors the §13.1 example verbatim; the
-// engine enforces the §19.3 rule against it.
-type comparisonVerdict struct {
-	Winner              string   `json:"winner"` // "new" | "previous" | "none"
-	Confidence          float64  `json:"confidence"`
-	Reasons             []string `json:"reasons"`
-	MissingRequirements []string `json:"missing_requirements"`
-}
+// The §13.1 Phase 6 comparison logic. The verdict shape and every acceptance
+// guard live in internal/engine/acceptance; this file gathers evidence, calls
+// the judge, and applies the artifact status transitions.
 
 // phaseCompare (§13.1 Phase 6, M3-T1; F4-T3): pick the winner of the
 // comparison. Two paths share one §19.3 guard:
 //
 //   - JudgeMode "llm" (default, pre-F4): the security persona produces a
-//     structured JSON verdict and DecideWinner enforces the §19.3 rule.
+//     structured JSON verdict and acceptance.Decide enforces the §19.3 rule.
 //   - JudgeMode "verifier" (F4-T3): deterministic per-archetype verifiers
 //     run first. A decisive result decides acceptance and the LLM is
 //     skipped; a clean pass with no previous artifact accepts; otherwise
@@ -165,10 +160,10 @@ func (e *Engine) phaseCompare(ctx context.Context, j job.Job) error {
 	// known-issues D1: the final artifact's record describes the bytes actually
 	// being compared. Build it before the decision so the verifier path can
 	// use its deterministic better-than-previous signal.
-	finalRecord := buildFinalEvaluation(j, final, previousID, previousAvgScore, ver)
+	finalRecord := acceptance.FinalRecord(j, final, previousID, previousAvgScore, ver)
 
 	var (
-		verdict     comparisonVerdict
+		verdict     acceptance.Verdict
 		judgeCalled bool
 		decided     bool
 	)
@@ -176,19 +171,19 @@ func (e *Engine) phaseCompare(ctx context.Context, j job.Job) error {
 		switch {
 		case !ver.HardPassed:
 			// A failed objective verifier cannot be overridden.
-			verdict = comparisonVerdict{Winner: loserWinner(previousID != ""), Confidence: 1,
+			verdict = acceptance.Verdict{Winner: acceptance.LoserWinner(previousID != ""), Confidence: 1,
 				Reasons: append([]string{"deterministic verifier reject"}, ver.Reasons...)}
 			decided = true
 		case previousID == "":
 			// Clean pass with nothing to compare against: accept.
-			verdict = comparisonVerdict{Winner: "new", Confidence: 1,
+			verdict = acceptance.Verdict{Winner: "new", Confidence: 1,
 				Reasons: []string{"deterministic verifier pass (no previous artifact)"}}
 			decided = true
 		case finalRecord.BetterThanPrevious:
 			// A clean pass at or above the previous accepted artifact's score
 			// is decisive. The §19.3 guard still runs below and can only
 			// confirm this record-backed verdict.
-			verdict = comparisonVerdict{Winner: "new", Confidence: 1,
+			verdict = acceptance.Verdict{Winner: "new", Confidence: 1,
 				Reasons: []string{"deterministic verifier pass at or above the previous accepted score"}}
 			decided = true
 		}
@@ -206,7 +201,7 @@ func (e *Engine) phaseCompare(ctx context.Context, j job.Job) error {
 			"judge_family": judgeFamily, "judge_role": judgeRole, "generator_role": genRole,
 			"resolution": "deterministic verifier pass; cross-family judge unavailable",
 		})
-		verdict = comparisonVerdict{Winner: "new", Confidence: 1,
+		verdict = acceptance.Verdict{Winner: "new", Confidence: 1,
 			Reasons: []string{"deterministic verifier pass; no cross-family judge available"}}
 		decided = true
 	}
@@ -219,7 +214,7 @@ func (e *Engine) phaseCompare(ctx context.Context, j job.Job) error {
 			"event": "judge_family_mismatch", "generator_family": genFamily,
 			"judge_family": judgeFamily, "judge_role": judgeRole, "generator_role": genRole,
 		})
-		verdict = comparisonVerdict{Winner: loserWinner(previousID != ""), Confidence: 0,
+		verdict = acceptance.Verdict{Winner: acceptance.LoserWinner(previousID != ""), Confidence: 0,
 			Reasons: []string{"no cross-family judge available; deterministic evidence not decisive"}}
 		decided = true
 	}
@@ -265,12 +260,12 @@ func (e *Engine) phaseCompare(ctx context.Context, j job.Job) error {
 	threshold := e.cfg.Execution.MinJudge()
 	guardRecords := append(append([]evaluation.Record(nil), records...), finalRecord)
 	preGuardWinner := verdict.Winner
-	verdict = DecideWinner(verdict, guardRecords, threshold, previousID != "")
+	verdict = acceptance.Decide(verdict, guardRecords, threshold, previousID != "")
 
 	// F4-T4 reward-hacking guard: a decisive verifier failure overrides an
 	// LLM "new". A judge that accepts a candidate the parser rejected is
 	// either mistaken or gaming the rubric; the verifier wins.
-	if resolved, overridden := resolveRewardHack(verdict, ver, previousID != ""); overridden {
+	if resolved, overridden := acceptance.ResolveRewardHack(verdict, ver, previousID != ""); overridden {
 		verdict = resolved
 		e.audit(ctx, j.ID, map[string]any{
 			"event": "judge_verifier_contradiction", "resolved_to": verdict.Winner,
@@ -285,7 +280,7 @@ func (e *Engine) phaseCompare(ctx context.Context, j job.Job) error {
 	// verifier is authoritative (the reward-hacking guard) and must never be
 	// undone by a cost tie.
 	if e.cfg.Execution.CostAwareEnabled() && previousID != "" && verdict.Winner == "previous" &&
-		costAwareEligible(ver, finalRecord, previousAvgScore) {
+		acceptance.CostAwareEligible(ver, finalRecord, previousAvgScore) {
 		newScore := finalRecord.Score
 		if !ver.Decisive() {
 			// No deterministic verifier applied (e.g. media): fall back to
@@ -295,7 +290,7 @@ func (e *Engine) phaseCompare(ctx context.Context, j job.Job) error {
 		}
 		newTokens, _ := e.eventStats(ctx, j.ID)
 		prevTokens := e.jobTokenCost(ctx, previousJobID)
-		if costTieWins(newScore, previousAvgScore, e.cfg.Execution.QualityTieMarginValue(), newTokens, prevTokens) {
+		if acceptance.CostTieWins(newScore, previousAvgScore, e.cfg.Execution.QualityTieMarginValue(), newTokens, prevTokens) {
 			verdict.Winner = "new"
 			verdict.Confidence = 1
 			verdict.Reasons = append(verdict.Reasons, fmt.Sprintf(
@@ -401,55 +396,6 @@ func (e *Engine) phaseCompare(ctx context.Context, j job.Job) error {
 	}
 }
 
-// loserWinner is the winner to record when the new artifact cannot be
-// accepted: the previous artifact if one exists, otherwise none.
-func loserWinner(hasPrevious bool) string {
-	if hasPrevious {
-		return "previous"
-	}
-	return "none"
-}
-
-// buildFinalEvaluation constructs the EvaluationRecord for the synthesized
-// final artifact from the deterministic verifier result (known-issues D1).
-//
-// BetterThanPrevious is set only when the comparison is deterministic: a hard
-// verifier (code tests/lint, JSON Schema, declared checks) passed AND its
-// score is at least the previous accepted artifact's average score. That is
-// §19.3's "tests_pass_better_or_equal" applied without asking the LLM to
-// self-report an unreliable flag (ADR-0043). When the previous has no
-// evaluation history, or no hard verifier applied, the flag stays false and
-// the guard keeps its conservative downgrade.
-//
-// This closes a first-use dead end: once a project had an accepted artifact
-// with a known score, every later passing `new` candidate was downgraded
-// because this record left BetterThanPrevious false and the evaluation LLM
-// rarely sets its own flag. The comparison judge must still say "new"; the
-// reward-hacking guard still overrides a hard verifier failure.
-func buildFinalEvaluation(j job.Job, final artifact.Artifact, previousID string,
-	previousAvgScore float64, ver verify.Result) evaluation.Record {
-
-	rec := evaluation.NewRecord(j.ID, final.ID)
-	rec.ComparedAgainst = previousID
-	rec.Score = ver.Score
-	if rec.Score > 1 {
-		rec.Score = 1
-	}
-	rec.PassedTests = ver.Passed
-	if !ver.Passed {
-		rec.MissingCriteria = ver.Reasons
-	}
-	if previousID != "" && previousAvgScore > 0 && ver.HardDecisive() &&
-		ver.HardPassed && rec.Score >= previousAvgScore {
-		rec.BetterThanPrevious = true
-	}
-	if ver.HardDecisive() {
-		rec.Confidence = 1
-	}
-	rec.Summary = "deterministic verifier on the synthesized final artifact"
-	return rec
-}
-
 // persistEvaluationRecord writes one EvaluationRecord (nil-safe on the repo
 // seam). Each record is paired with an audit event in the same transaction
 // (evaluation.Repo.Create).
@@ -461,48 +407,6 @@ func (e *Engine) persistEvaluationRecord(ctx context.Context, rec evaluation.Rec
 		return fmt.Errorf("persisting final evaluation record: %w", err)
 	}
 	return nil
-}
-
-// resolveRewardHack applies the F4-T4 reward-hacking guard: when an
-// objective verifier decisively failed but the verdict would accept the new
-// artifact, the verifier wins. It returns the (possibly rewritten) verdict
-// and whether an override occurred.
-func resolveRewardHack(verdict comparisonVerdict, ver verify.Result, hasPrevious bool) (comparisonVerdict, bool) {
-	if !ver.HardDecisive() || ver.HardPassed || verdict.Winner != "new" {
-		return verdict, false
-	}
-	verdict.Winner = loserWinner(hasPrevious)
-	verdict.Confidence = 1
-	verdict.Reasons = append(verdict.Reasons,
-		"reward-hacking guard: deterministic verifier failed; LLM 'new' overridden")
-	return verdict, true
-}
-
-// costAwareEligible reports whether the F4-T6 cost tie-break may run for this
-// comparison. A decisive hard-verifier failure is authoritative: no cost tie
-// may overturn it. The previous side must also have a known score; comparing
-// against an unknown/zero baseline would let any low-scoring artifact win on
-// cost.
-func costAwareEligible(ver verify.Result, finalRecord evaluation.Record, previousAvgScore float64) bool {
-	if ver.HardDecisive() && !ver.HardPassed {
-		return false
-	}
-	if previousAvgScore <= 0 {
-		return false
-	}
-	if finalRecord.Score <= 0 {
-		return false
-	}
-	return true
-}
-
-// costTieWins reports whether the new artifact wins a near-tie on quality by
-// spending fewer tokens (F4-T6). A zero cost is unknown and never wins.
-func costTieWins(newScore, prevScore, margin float64, newTokens, prevTokens int) bool {
-	if newTokens <= 0 || prevTokens <= 0 {
-		return false
-	}
-	return newScore >= prevScore-margin && newTokens < prevTokens
 }
 
 // jobTokenCost reads a job's recorded strategy token cost (0 when absent or
@@ -525,13 +429,13 @@ func (e *Engine) jobTokenCost(ctx context.Context, jobID string) int {
 // returns an error (fail loud — a judge that cannot answer is not a
 // verdict).
 func (e *Engine) runComparisonJudge(ctx context.Context, j job.Job, p project.Project, t project.Task,
-	judgeRole, instructions, content string, count int) (comparisonVerdict, error) {
+	judgeRole, instructions, content string, count int) (acceptance.Verdict, error) {
 
 	if count <= 1 {
 		return e.comparisonCall(ctx, j, p, t, judgeRole, instructions, content, 0)
 	}
 	var (
-		best    comparisonVerdict
+		best    acceptance.Verdict
 		gotBest bool
 		votes   []string
 	)
@@ -546,9 +450,9 @@ func (e *Engine) runComparisonJudge(ctx context.Context, j job.Job, p project.Pr
 		}
 	}
 	if !gotBest {
-		return comparisonVerdict{}, fmt.Errorf("judge quorum: all %d comparison calls failed", count)
+		return acceptance.Verdict{}, fmt.Errorf("judge quorum: all %d comparison calls failed", count)
 	}
-	majority := majorityWinner(votes)
+	majority := acceptance.MajorityWinner(votes)
 	e.audit(ctx, j.ID, map[string]any{
 		"event": "judge_quorum", "count": count, "votes": votes, "majority": majority,
 	})
@@ -562,26 +466,26 @@ func (e *Engine) runComparisonJudge(ctx context.Context, j job.Job, p project.Pr
 // coercion audit. voteIndex salts the derived judgment seed so a quorum's
 // votes are decorrelated (known-issues M7); it is 0 for a single call.
 func (e *Engine) comparisonCall(ctx context.Context, j job.Job, p project.Project, t project.Task,
-	judgeRole, instructions, content string, voteIndex int) (comparisonVerdict, error) {
+	judgeRole, instructions, content string, voteIndex int) (acceptance.Verdict, error) {
 
 	resp, err := e.call(ctx, j, p, t, llm.PhaseComparing, judgeRole, instructions,
 		[]prompt.CandidateArtifact{{Kind: "candidate", Content: content}},
 		withSeedSalt(voteIndex))
 	if err != nil {
-		return comparisonVerdict{}, err
+		return acceptance.Verdict{}, err
 	}
-	v, coercions, err := parseComparisonVerdict(resp.Content)
+	v, coercions, err := acceptance.ParseComparisonVerdict(resp.Content)
 	if err != nil {
 		// M3-T3 commit 3.3: the unknown-winner case is a typed error. Audit
 		// the downgrade and proceed with Winner "none" (the safe default).
-		if isUnknownWinnerErr(err) {
+		if acceptance.IsUnknownWinner(err) {
 			e.audit(ctx, j.ID, map[string]any{
 				"event": "comparison_unknown_winner_downgraded", "raw_winner": v.Winner,
 				"downgraded_to": "none",
 			})
 			v.Winner = "none"
 		} else {
-			return comparisonVerdict{}, fmt.Errorf("parsing comparison verdict: %w", err)
+			return acceptance.Verdict{}, fmt.Errorf("parsing comparison verdict: %w", err)
 		}
 	}
 	if len(coercions) > 0 {
@@ -590,24 +494,6 @@ func (e *Engine) comparisonCall(ctx context.Context, j job.Job, p project.Projec
 		})
 	}
 	return v, nil
-}
-
-// majorityWinner returns the winner with a strict majority of votes, or ""
-// when there is no majority.
-func majorityWinner(votes []string) string {
-	if len(votes) == 0 {
-		return ""
-	}
-	counts := map[string]int{}
-	for _, v := range votes {
-		counts[v]++
-	}
-	for _, w := range []string{"new", "previous", "none"} {
-		if counts[w]*2 > len(votes) {
-			return w
-		}
-	}
-	return ""
 }
 
 // buildComparisonInstructions is the prompt for the security persona.
@@ -670,67 +556,4 @@ func truncateForLimit(s string, limit int) string {
 		return s
 	}
 	return s[:limit]
-}
-
-// errUnknownWinner is the sentinel parseComparisonVerdict
-// returns when the security persona's verdict has a `winner`
-// field whose value is outside the closed set
-// `{"new","previous","none"}`. M3-T3 commit 3.3 changed this
-// from a silent downgrade (v.Winner = "none") to a typed
-// error so the engine can audit the downgrade explicitly
-// via the `comparison_unknown_winner_downgraded` event.
-//
-// The parseComparisonVerdict function still trims
-// whitespace (the M3-T1 carry-over polish item from
-// `docs/m3-t1-plan.md:128–136`); a value that becomes a
-// known string after trimming is honored.
-var errUnknownWinner = errors.New("compare: unknown winner value")
-
-// isUnknownWinnerErr is the errors.Is-compatible check.
-// Errors are wrapped via fmt.Errorf("...%w", errUnknownWinner)
-// so the caller can branch on the type without a type
-// assertion.
-func isUnknownWinnerErr(err error) bool {
-	return errors.Is(err, errUnknownWinner)
-}
-
-// parseComparisonVerdict is the comparison-phase twin of
-// parseEvalVerdict. Same lenient-wrapping tolerance.
-//
-// M3-T3 commit 3.3 added two refinements on top of the
-// M3-T1 version: (a) the parsed Winner field is TrimSpace'd
-// before the closed-set check, so a model that emits
-// `  "new"\n` (whitespace around the string) is honored; (b)
-// an unknown winner is reported via errUnknownWinner
-// rather than silently downgraded to "none", so the engine
-// can audit the downgrade.
-//
-// The brace-scan logic lives in `parseVerdictJSON`
-// (ADR-0012 follow-up); this function is a thin wrapper
-// that pins the destination type, applies the §3.3
-// refinements, and returns the typed errUnknownWinner.
-func parseComparisonVerdict(content string) (comparisonVerdict, []string, error) {
-	v, coercions, err := parseVerdictJSONCoerced[comparisonVerdict](content)
-	if err != nil {
-		return v, coercions, err
-	}
-	// M3-T3 commit 3.3: trim whitespace before the
-	// closed-set check. The M3-T1 carry-over polish item
-	// in `docs/m3-t1-plan.md:128–136` was that `  "new"\n`
-	// or `"new\n"` would normalize to "none" — this trim
-	// fixes that.
-	v.Winner = strings.TrimSpace(v.Winner)
-	switch v.Winner {
-	case "new", "previous", "none":
-		// known; honor as-is
-	default:
-		// Unknown: return the typed error so the caller
-		// can audit the downgrade. The engine's phaseCompare
-		// catches this, emits a
-		// `comparison_unknown_winner_downgraded` audit
-		// event, and proceeds with the verdict's Winner
-		// set to "none" (the safe default).
-		return v, coercions, fmt.Errorf("winner %q: %w", v.Winner, errUnknownWinner)
-	}
-	return v, coercions, nil
 }

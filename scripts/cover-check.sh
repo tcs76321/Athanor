@@ -37,6 +37,8 @@ internal/internalapi/runner:55
 internal/jobpod:80
 internal/mce/division:78
 internal/engine:75
+internal/engine/acceptance:75
+internal/engine/jobstate:70
 internal/store:75
 internal/config:75
 internal/mce:75

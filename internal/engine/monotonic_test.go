@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/tcs76321/athanor/internal/artifact"
+	"github.com/tcs76321/athanor/internal/engine/acceptance"
 	"github.com/tcs76321/athanor/internal/evaluation"
 	"github.com/tcs76321/athanor/internal/verify"
 )
@@ -28,7 +29,7 @@ func TestShouldFallbackToCandidate(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := shouldFallbackToCandidate(tc.wasPassing, tc.final, tc.candidate); got != tc.want {
+			if got := acceptance.ShouldFallbackToCandidate(tc.wasPassing, tc.final, tc.candidate); got != tc.want {
 				t.Fatalf("got %v, want %v", got, tc.want)
 			}
 		})

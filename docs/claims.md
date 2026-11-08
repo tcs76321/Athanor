@@ -13,7 +13,7 @@ demo. A claim without a proof is either removed or marked as a target.
 | Path containment rejects traversal/absolute/NULL and opens with `O_NOFOLLOW` (final component) | README, ARCHITECTURE §21.3 | `internal/airlock/paths` tests + fuzz | proven |
 | Event log is append-only | ARCHITECTURE §28 | `events_no_update`/`events_no_delete` triggers; `internal/store` | proven |
 | State is persisted at every job transition; crash recovery resumes | ARCHITECTURE §8.2, §23.6 | `internal/engine` transition/recovery tests; demo-m1 | proven |
-| Evaluation is deterministic-first; the LLM judge is advisory | ARCHITECTURE §19.3 | `internal/verify`, `internal/engine/decide.go`, F4 closeout | proven for code; text/document depend on declared checks |
+| Evaluation is deterministic-first; the LLM judge is advisory | ARCHITECTURE §19.3 | `internal/verify`, `internal/engine/acceptance/decide.go`, F4 closeout | proven for code; text/document depend on declared checks |
 | Compaction is Temperature 0.0 and content-addressed | ARCHITECTURE §10.3 | `internal/mce/compact.go` + determinism tests | proven |
 | Context floors are never silently reduced | ARCHITECTURE §12.3 | `internal/llm/feasibility.go`, KV pressure tests | proven |
 | The model cannot invoke tools; the engine executes them | ARCHITECTURE §25, ADR-0080 | `internal/prompt/render_test.go`; no tool-call parser | proven |
@@ -66,7 +66,7 @@ demo. A claim without a proof is either removed or marked as a target.
 | Job Pods are sized from the task capability within an adaptive ceiling | ADR-0098 | `jobpod.AdaptiveLimits`; `TestAdaptiveLimitsScaleByCapability`, `TestPodLifecycleAdaptsLimitsToTaskCapability` | **proven** |
 | Onboarding distinguishes container-runtime memory from host memory | ADR-0098 | `TestRecommendedResourcesIsAdaptive`, `TestBudgetForSeparatesHostInferenceAndRuntimeSandbox` | **proven** |
 | A configured model is accepted only when its measured resident size fits the host budget | ADR-0099 | `athanor models -audit`; `model-fit.json`; `TestRunModelAuditMeasuresLoadedSize`, `TestCheckModelAuditFailsOnMeasuredNonFit`, `TestCheckModelAuditRejectsStaleConfig` | **proven with a fake Ollama; the live audit is the host check** |
-| A cost tie cannot overturn a failed hard verifier | ADR-0100 | `internal/engine/compare.go` (`costAwareEligible`); `TestCostAwareEligibleRefusesHardVerifierFailure` | **proven** |
+| A cost tie cannot overturn a failed hard verifier | ADR-0100 | `internal/engine/acceptance/reward.go` (`CostAwareEligible`); `TestCostAwareEligibleRefusesHardVerifierFailure` | **proven** |
 | A single-family install can accept a follow-up verifier-passed code artifact | ADR-0100 | `internal/engine/compare.go` (verifier pass at/above previous; no-cross-family fallback); `TestVerifierFirst_SameFamilyPreviousArtifactAccepted` | **proven** |
 | Candidate tests never see another candidate's work tree | ADR-0100 | `cmd/athanor/pod_executor.go` (`resetWorkDir`); `TestPodExecutor_RunCode_ResetsWorkDirPerCandidate` | **proven structurally** |
 | A skipped `execute_code` never falls through to tests on a pristine tree | ADR-0100 | `internal/engine/verify.go` (staged flag); `TestCodeJob_NoTestRunWhenExecuteCodeDisallowed` | **proven** |

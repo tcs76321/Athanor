@@ -1,18 +1,14 @@
-// M3-T2 (commit 2.2) per-archetype evaluation rubric (§19.1).
+// Per-capability evaluation rubric (§19.1).
 //
-// The rubric is the structured checklist the security persona is
-// told to apply when scoring a candidate. Each item is a
-// phrase the persona may echo into one of the verdict's
-// `missing_criteria` / `security_issues` / `style_issues`
-// arrays, so the §19.3 deterministic guard can read the
-// verdict and act on the same data the persona was told to
-// look for.
+// The rubric is the structured checklist the security persona is told to apply
+// when scoring a candidate. Each item is a phrase the persona may echo into one
+// of the verdict's missing_criteria / security_issues / style_issues arrays, so
+// the §19.3 deterministic guard can read the verdict and act on the same data
+// the persona was told to look for.
 //
-// The rubric is per archetype because the §19.1 checks
-// differ: a `text` artifact doesn't need pytest; a `code`
-// artifact doesn't need paragraph structure. The closed set
-// is the five §6.2 archetypes; each has a rubric.
-package engine
+// The rubric is per capability because the §19.1 checks differ: a text artifact
+// doesn't need tests; a code artifact doesn't need paragraph structure.
+package acceptance
 
 import (
 	"sort"
@@ -21,32 +17,29 @@ import (
 	"github.com/tcs76321/athanor/internal/project"
 )
 
-// rubricFor returns the per-archetype rubric text. The
-// returned string is appended to the security-persona prompt
-// as a `## RUBRIC` block. Empty return means "no rubric for
-// this archetype" — the prompt assembler drops the section.
-func rubricFor(archetype string) string {
-	switch archetype {
-	case project.ArchetypeText, project.ArchetypeDocument:
+// Rubric returns the per-capability rubric text. The returned string is
+// appended to the security-persona prompt as a `## RUBRIC` block. Empty means
+// "no rubric for this capability" — the prompt assembler drops the section.
+func Rubric(capability string) string {
+	switch capability {
+	case project.CapabilityText, project.CapabilityDocument:
 		return textDocumentRubric()
-	case project.ArchetypeCode:
+	case project.CapabilityCode:
 		return codeRubric()
-	case project.ArchetypeData:
+	case project.CapabilityData:
 		return dataRubric()
-	case project.ArchetypeMedia:
+	case project.CapabilityMedia:
 		return mediaRubric()
 	default:
-		// Unknown archetype: no rubric, but the persona
-		// still sees the acceptance-criteria block, so the
-		// §19.3 guard is not weaker than M3-T1.
+		// Unknown capability: no rubric, but the persona still sees the
+		// acceptance-criteria block, so the §19.3 guard is not weaker.
 		return ""
 	}
 }
 
-// textDocumentRubric is the §19.1 check list for `text` and
-// `document` archetypes. Both are prose; the checks apply to
-// the artifact's structure and tone, not to executable
-// semantics.
+// textDocumentRubric is the §19.1 check list for text and document
+// capabilities. Both are prose; the checks apply to structure and tone, not
+// executable semantics.
 func textDocumentRubric() string {
 	return strings.Join([]string{
 		"STRUCTURE: does the artifact have a clear opening, body, and close?",
@@ -57,14 +50,9 @@ func textDocumentRubric() string {
 	}, "\n")
 }
 
-// codeRubric is the §19.1 check list for `code` archetypes.
-// The `linter clean` item is a hint to the persona, not a
-// hard rule: M3-T2 commit 2.3 adds the actual `lint` route;
-// until then the persona is told that the item is advisory
-// (it may skip it if no linter is wired). The same caveat
-// applies to `tests_run` — if `tests_pass` is unknown because
-// the runner was not wired (M1 dev mode), the persona echoes
-// a `runner_not_wired` reason in the verdict's summary.
+// codeRubric is the §19.1 check list for code capabilities. The linter and
+// tests items are hints to the persona, not hard rules: the deterministic
+// verifier is authoritative where it applies.
 func codeRubric() string {
 	return strings.Join([]string{
 		"DEPENDENCIES RESOLVE: do all imports and references resolve to a known module or package? (Audit by reading; the Job Pod's execute_code is the runtime check.)",
@@ -76,7 +64,7 @@ func codeRubric() string {
 	}, "\n")
 }
 
-// dataRubric applies to `data` capabilities. It asks about schema, provenance,
+// dataRubric applies to data capabilities. It asks about schema, provenance,
 // completeness, and determinism rather than prose or code shape.
 func dataRubric() string {
 	return strings.Join([]string{
@@ -89,8 +77,8 @@ func dataRubric() string {
 	}, "\n")
 }
 
-// mediaRubric applies to `media` capabilities. It checks the requested format
-// and legibility without assuming a particular medium or toolchain.
+// mediaRubric applies to media capabilities. It checks the requested format and
+// legibility without assuming a particular medium or toolchain.
 func mediaRubric() string {
 	return strings.Join([]string{
 		"FORMAT: does the artifact match the requested dimensions, duration, encoding, or file type?",
@@ -102,13 +90,10 @@ func mediaRubric() string {
 	}, "\n")
 }
 
-// rubricItems returns the rubric's individual items as a
-// sorted slice. Used by tests to assert rubric membership
-// without re-parsing the multi-line string. Sorted so the
-// output is stable for assertions; the prompt's rendering
-// uses the original order.
-func rubricItems(archetype string) []string {
-	text := rubricFor(archetype)
+// rubricItems returns the rubric's individual items as a sorted slice. Used by
+// tests to assert membership without re-parsing the multi-line string.
+func rubricItems(capability string) []string {
+	text := Rubric(capability)
 	if text == "" {
 		return nil
 	}

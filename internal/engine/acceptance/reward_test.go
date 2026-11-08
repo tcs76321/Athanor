@@ -1,4 +1,4 @@
-package engine
+package acceptance
 
 import (
 	"testing"
@@ -13,21 +13,21 @@ func TestResolveRewardHack(t *testing.T) {
 	passed := verify.Result{Applied: 1, HardApplied: 1, HardPassed: true, Verifiers: []string{"tests"}}
 	none := verify.Result{Applied: 0}
 
-	got, overridden := resolveRewardHack(comparisonVerdict{Winner: "new"}, failed, true)
+	got, overridden := ResolveRewardHack(Verdict{Winner: "new"}, failed, true)
 	if !overridden || got.Winner != "previous" {
 		t.Errorf("failed verifier + previous: got %+v overridden=%v, want previous/true", got, overridden)
 	}
-	got, overridden = resolveRewardHack(comparisonVerdict{Winner: "new"}, failed, false)
+	got, overridden = ResolveRewardHack(Verdict{Winner: "new"}, failed, false)
 	if !overridden || got.Winner != "none" {
 		t.Errorf("failed verifier + no previous: got %+v overridden=%v, want none/true", got, overridden)
 	}
-	if _, overridden := resolveRewardHack(comparisonVerdict{Winner: "new"}, passed, false); overridden {
+	if _, overridden := ResolveRewardHack(Verdict{Winner: "new"}, passed, false); overridden {
 		t.Error("passing verifier must not override")
 	}
-	if _, overridden := resolveRewardHack(comparisonVerdict{Winner: "new"}, none, false); overridden {
+	if _, overridden := ResolveRewardHack(Verdict{Winner: "new"}, none, false); overridden {
 		t.Error("non-decisive verifier must not override")
 	}
-	if _, overridden := resolveRewardHack(comparisonVerdict{Winner: "previous"}, failed, true); overridden {
+	if _, overridden := ResolveRewardHack(Verdict{Winner: "previous"}, failed, true); overridden {
 		t.Error("a non-new verdict must not be overridden")
 	}
 }
@@ -45,8 +45,8 @@ func TestMajorityWinner(t *testing.T) {
 		{nil, ""},
 	}
 	for _, c := range cases {
-		if got := majorityWinner(c.votes); got != c.want {
-			t.Errorf("majorityWinner(%v) = %q, want %q", c.votes, got, c.want)
+		if got := MajorityWinner(c.votes); got != c.want {
+			t.Errorf("MajorityWinner(%v) = %q, want %q", c.votes, got, c.want)
 		}
 	}
 }
