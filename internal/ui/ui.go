@@ -205,9 +205,13 @@ type UI struct {
 	qualRunning bool
 	qualCancel  context.CancelFunc
 	// qualTier is the live target depth. The worker re-reads it between
-	// cases, so choosing medium or full mid-run takes effect without waiting
-	// for the short screen to finish.
+	// cases, so choosing Balanced or Complete mid-run takes effect without
+	// waiting for the Minimal pass to finish.
 	qualTier string
+	// qualLastSave throttles per-case state writes. The state includes the
+	// full case evidence, so writing it on every case would make a long screen
+	// spend much of its time serializing JSON.
+	qualLastSave time.Time
 	// themeMu guards the process-wide UI theme. The Core is a single-user
 	// loopback service, so one theme is the right scope; it is persisted in
 	// system_state and applied server-side so first paint is correct without

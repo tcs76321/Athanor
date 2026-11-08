@@ -4,13 +4,10 @@ package onboard
 // every model must see the same cases, and the run should take as much of the
 // remaining budget as it can without letting a slow model starve the others.
 //
-// The plan has two layers:
-//
-//  1. a small core, one case per Athanor capability, always run for every
-//     model; and
-//  2. extra blocks, run for every model only when the wall budget can fit the
-//     whole block. Scoring uses the intersection of cases completed by all
-//     models, so an interrupted block never flatters the models that ran first.
+// The pool screen has three nested depths: Minimal (two cases per capability,
+// QualificationMinimal), Balanced (the whole standard ladder), and Complete
+// (the whole deep ladder). The legacy one-per-capability core and extra blocks
+// remain for the two-role setup page.
 type CaseRef struct {
 	Kind       string // generator | judge
 	ID         string
@@ -82,6 +79,73 @@ func hasCapability(refs []CaseRef, want string) bool {
 		}
 	}
 	return false
+}
+
+// QualificationMinimal picks two cases per capability, preferring generators,
+// plus one judge pair so judgment is measured too. It is the smallest screen
+// that covers every capability with more than a single example.
+func QualificationMinimal(l Ladder) []CaseRef {
+	return qualificationDepth(l, 2)
+}
+
+// qualificationDepth selects up to perCapability cases per capability in the
+// stable capability order, keeping the ladder's case order within a capability
+// (generators before judges). It always includes at least one judge pair.
+func qualificationDepth(l Ladder, perCapability int) []CaseRef {
+	if perCapability < 1 {
+		perCapability = 1
+	}
+	refs := AllCaseRefs(l)
+	byCap := map[string][]CaseRef{}
+	var order []string
+	for _, ref := range refs {
+		if _, ok := byCap[ref.Capability]; !ok {
+			order = append(order, ref.Capability)
+		}
+		byCap[ref.Capability] = append(byCap[ref.Capability], ref)
+	}
+	ordered := make([]string, 0, len(order))
+	seen := map[string]bool{}
+	for _, capability := range qualificationCapabilityOrder {
+		if _, ok := byCap[capability]; ok {
+			ordered = append(ordered, capability)
+			seen[capability] = true
+		}
+	}
+	for _, capability := range order {
+		if !seen[capability] {
+			ordered = append(ordered, capability)
+		}
+	}
+	out := make([]CaseRef, 0, perCapability*len(ordered))
+	in := map[string]bool{}
+	for _, capability := range ordered {
+		list := byCap[capability]
+		n := perCapability
+		if n > len(list) {
+			n = len(list)
+		}
+		for _, ref := range list[:n] {
+			out = append(out, ref)
+			in[ref.Kind+"|"+ref.ID] = true
+		}
+	}
+	hasJudge := false
+	for _, ref := range out {
+		if ref.Kind == "judge" {
+			hasJudge = true
+			break
+		}
+	}
+	if !hasJudge {
+		for _, ref := range refs {
+			if ref.Kind == "judge" && !in[ref.Kind+"|"+ref.ID] {
+				out = append(out, ref)
+				break
+			}
+		}
+	}
+	return out
 }
 
 // QualificationExtra returns the cases not in the core, in stable order.

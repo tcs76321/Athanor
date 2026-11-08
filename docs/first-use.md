@@ -39,7 +39,7 @@ the main 1.0.0 focus** ([1.0.0-direction.md](1.0.0-direction.md)).
     - qualification: entering the step starts the minimum screen automatically
       (or resumes one interrupted by a Core restart). Minimal, Balanced, and
       Complete can be chosen up front or switched while it runs; each shows a
-      time estimate, and the first model’s pass calibrates it.
+      time estimate calibrated by the completed cases.
 5. **First project** (still tutorial-mode: tooltips, stateful, dismissible):
    - **Project → goals → tasks.**
    - **Project initialisation** (🔨): a resumable brief and, for exploratory

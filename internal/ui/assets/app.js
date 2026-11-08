@@ -204,6 +204,13 @@
             const s = (d.querySelector("summary") || {}).textContent || "";
             if (open.has(s)) d.open = true;
           });
+          // Refresh other live text (for example, the depth estimates) without
+          // replacing the buttons the operator may be about to click.
+          $$("[data-live-text]").forEach((node) => {
+            const key = node.getAttribute("data-live-text");
+            const fresh = doc.querySelector('[data-live-text="' + key + '"]');
+            if (fresh) node.textContent = fresh.textContent;
+          });
         } catch (_) {}
         schedule();
       }

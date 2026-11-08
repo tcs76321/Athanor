@@ -57,24 +57,25 @@ after measuring it, so the last model is not left resident.
 
 ### 2. Open-ended, balanced, and resumable
 
-The run has two layers:
+The run has three depths:
 
-- **Core**: one case per capability (general, code, data, document, text,
-  media, summarize, security, agentry, instruction, grounding, repair, longctx,
-  operation, planning, calibration, judgment) for every model. This is the
-  bare minimum and always runs. It has no time cutoff: on a slow machine with a
-  large pool it can take a long time, and that is correct.
-- **Depth chosen up front**: Minimal is the minimum screen (one grounded case
-  per capability on every model). Balanced runs every case in the standard
-  80-case ladder. Complete runs every case in the 119-case deep ladder. Each
-  depth shows its own time estimate, and changing the depth while the screen
-  runs is applied between cases, so selecting Balanced or Complete does not
-  wait for the minimum to finish.
+- **Minimal**: two cases per capability for every model (32 cases per model on
+  the current ladder), always including a judge pair. This is the smallest
+  screen that still covers every capability more than once.
+- **Balanced**: every case in the standard 80-case ladder, about two and a half
+  times the minimum. This is the recommended screen to start with: broad
+  capability coverage without the long deep cases.
+- **Complete**: every case in the 119-case deep ladder, including the deep
+  long-context, repair, and adversarial additions.
+
+Each depth shows its own time estimate, and changing the depth while the
+screen runs is applied between cases, so selecting Balanced or Complete does
+not wait for the minimum to finish.
+
 - **Starts on its own**: opening the qualification step starts the saved depth
   (Minimal on first use) immediately; there is no duration selector to
-  interpret first. While the core runs, the page shows cases done, elapsed
-  time, the model being measured, and an estimate of the time left from the
-  first model's completed core pass.
+  interpret first. While it runs, the page shows case runs done, elapsed time,
+  the model being measured, and an estimate of the time left.
 
 The state is resumable at case granularity. A Core restart clears the stale
 running flag, and opening the qualification step resumes from the completed

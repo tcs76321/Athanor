@@ -321,7 +321,7 @@ func TestWelcomeQualificationOffersSimpleChoices(t *testing.T) {
 	defer func() { _ = resp.Body.Close() }()
 	raw, _ := io.ReadAll(resp.Body)
 	body := string(raw)
-	for _, want := range []string{"Minimum screen complete", "Minimal", "Balanced", "Complete", "Continue"} {
+	for _, want := range []string{"Minimal screen complete", "Minimal", "Balanced", "Complete", "Continue"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("completed qualification step missing %q", want)
 		}
@@ -481,6 +481,30 @@ func TestInterruptedFullQualificationResumesFull(t *testing.T) {
 			return
 		}
 		time.Sleep(5 * time.Millisecond)
+	}
+}
+
+func TestTierSwitchRecomputesProgress(t *testing.T) {
+	models := []string{"m"}
+	minimal := onboard.QualificationMinimal(onboard.DefaultLadder())
+	state := newQualState()
+	state.Running = true
+	state.StartedAt = time.Now().Add(-10 * time.Second)
+	for i := 0; i < 8 && i < len(minimal); i++ {
+		ref := minimal[i]
+		state.Results[ref.Kind+"|m|"+ref.ID] = true
+	}
+	minimalView := qualificationViewForPool(state, models, qualTierMinimal, false)
+	balancedView := qualificationViewForPool(state, models, qualTierBalanced, false)
+	if minimalView.Total >= balancedView.Total {
+		t.Fatalf("minimal total = %d, balanced total = %d; want balanced larger", minimalView.Total, balancedView.Total)
+	}
+	if minimalView.Percent <= balancedView.Percent {
+		t.Fatalf("minimal percent = %d, balanced percent = %d; switching up must not raise the percentage",
+			minimalView.Percent, balancedView.Percent)
+	}
+	if balancedView.Done != minimalView.Done {
+		t.Fatalf("done changed on a depth switch: minimal=%d balanced=%d", minimalView.Done, balancedView.Done)
 	}
 }
 

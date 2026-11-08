@@ -43,12 +43,12 @@ New entries are appended at the top. Do not rewrite history.
   without one, the aggregate cap remains.
 - **Qualification categories and balanced chunks** (ADR-0129): `repair`,
   `longctx`, `operation`, `planning`, and `calibration` join the pool ranking
-  as separate capabilities. The screen is 80 default / 119 deep cases, runs a
-  per-capability core for every model first, then 30-case blocks for every
-  model, and scores only cases every model completed. The core starts
-  automatically on the qualification step; Minimal, Balanced, and Complete
-  depths can be chosen up front or switched while it runs. The run is
-  resumable.
+  as separate capabilities. The screen offers three depths: Minimal (32
+  cases per model, two per capability), Balanced (the 80-case standard
+  ladder), and Complete (the 119-case deep ladder). Runs proceed in 30-case
+  blocks for every model and score only cases every model completed. The
+  saved depth starts automatically on the qualification step and can be
+  switched while it runs. The run is resumable.
   Benchmark provenance is `eval/qualification/categories.yaml`;
   `make bench-anchor-core` runs the real 12-task v2 anchor subset.
 - **Retention** (ADR-0127): events older than `retention.events_days` (default

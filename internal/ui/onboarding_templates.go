@@ -304,21 +304,22 @@ const welcomeBody = `
     <h1>Rank the pool.</h1>
     <p class="lede">Athanor measures every pool model on a small, grounded screen: deterministic generator cases and fixed-label judgment pairs. It is a prior for selection, not the frozen capability benchmark, and it never leaves this machine. Real job outcomes update the ranking over time.</p>
     <div class="tier-picker">
-      <div class="tier-picker-head"><b>How deep should the screen go?</b><span class="muted small">Choose now — a running screen switches without waiting for the minimum to finish.</span></div>
+      <div class="tier-picker-head"><b>How deep should the screen go?</b><span class="muted small">Choose now — a running screen switches without waiting for the current pass to finish.</span></div>
       <form method="post" action="/ui/welcome" class="tier-options">
         <input type="hidden" name="step" value="qualify">
         <input type="hidden" name="action" value="set_qual_tier">
         <button type="submit" name="tier" value="minimal" class="tier-option {{if eq .Qualification.Tier "minimal"}}selected{{end}}">
           <span class="tier-name">Minimal</span>
-          <span class="tier-desc">One grounded case per capability on every model.{{if .Qualification.MinimalEstimate}} · {{.Qualification.MinimalEstimate}}{{end}}</span>
+          <span class="tier-desc">Two grounded cases per capability on every model. · <span data-live-text="qual-minimal-estimate">{{.Qualification.MinimalEstimate}}</span></span>
         </button>
         <button type="submit" name="tier" value="balanced" class="tier-option {{if eq .Qualification.Tier "balanced"}}selected{{end}}">
+          <span class="tier-badge">Recommended</span>
           <span class="tier-name">Balanced</span>
-          <span class="tier-desc">Every case in the standard ladder: a balanced sample across every capability.{{if .Qualification.BalancedEstimate}} · {{.Qualification.BalancedEstimate}}{{end}}</span>
+          <span class="tier-desc">Every case in the standard ladder: a balanced sample across every capability. · <span data-live-text="qual-balanced-estimate">{{.Qualification.BalancedEstimate}}</span></span>
         </button>
         <button type="submit" name="tier" value="complete" class="tier-option {{if eq .Qualification.Tier "complete"}}selected{{end}}">
           <span class="tier-name">Complete</span>
-          <span class="tier-desc">Every case in the deep ladder, including the long-context and adversarial cases.{{if .Qualification.CompleteEstimate}} · {{.Qualification.CompleteEstimate}}{{end}}</span>
+          <span class="tier-desc">Every case in the deep ladder, including the long-context and adversarial cases. · <span data-live-text="qual-complete-estimate">{{.Qualification.CompleteEstimate}}</span></span>
         </button>
       </form>
     </div>
@@ -326,9 +327,9 @@ const welcomeBody = `
     <div class="card" data-live-card="welcome-qualification" data-live-interval="2000">
       <div class="row row-middle"><h3>{{if not .Qualification.CoreComplete}}Measuring the pool{{else}}Filling out the screen{{end}}</h3><span class="pill run">{{.Qualification.Percent}}%</span></div>
       <progress class="progress" value="{{.Qualification.Percent}}" max="100">{{.Qualification.Percent}}%</progress>
-      <p><b>{{.Qualification.Done}} / {{.Qualification.Total}}</b> cases complete{{if .Qualification.CurrentModel}} · measuring <b class="mono">{{.Qualification.CurrentModel}}</b>{{end}}{{if .Qualification.Elapsed}} · {{.Qualification.Elapsed}} elapsed{{end}}{{if .Qualification.Remaining}} · about {{.Qualification.Remaining}} left{{else if .Qualification.CoreRemaining}} · about {{.Qualification.CoreRemaining}} left{{else if .Qualification.Estimate}} · about {{.Qualification.Estimate}} total{{else}} · estimating time left…{{end}}</p>
-      <p class="muted">{{if not .Qualification.CoreComplete}}The minimum screen runs one grounded case per capability on every model. It keeps running if you leave this page and resumes after a restart.{{else}}Every model runs the same extra cases, so the ranking stays comparable.{{end}}</p>
-      <p class="muted small">Depth: {{if eq .Qualification.Tier "minimal"}}Minimal — the run stops after the minimum screen.{{else if eq .Qualification.Tier "balanced"}}Balanced — the minimum screen, then the whole balanced ladder.{{else}}Complete — the minimum screen, then every deep case.{{end}} Changing it above applies between cases.</p>
+      <p><b>{{.Qualification.Done}} / {{.Qualification.Total}}</b> case runs complete{{if .Qualification.CurrentModel}} · measuring <b class="mono">{{.Qualification.CurrentModel}}</b>{{end}}{{if .Qualification.Elapsed}} · {{.Qualification.Elapsed}} elapsed{{end}}{{if .Qualification.Remaining}} · about {{.Qualification.Remaining}} left{{else}} · estimating time left…{{end}}</p>
+      <p class="muted">{{if eq .Qualification.Tier "minimal"}}The Minimal screen covers each capability twice on every model.{{else if eq .Qualification.Tier "balanced"}}The Balanced screen runs the whole standard ladder.{{else}}The Complete screen runs every deep case.{{end}} It keeps running if you leave this page and resumes after a restart.</p>
+      <p class="muted small">Depth: {{if eq .Qualification.Tier "minimal"}}Minimal — the run stops after the Minimal screen.{{else if eq .Qualification.Tier "balanced"}}Balanced — the Minimal screen, then the whole balanced ladder.{{else}}Complete — the Minimal screen, then every deep case.{{end}} Changing it above applies between cases. A case run is one case on one model.</p>
       <form method="post" action="/ui/setup/qualify/cancel">
         <input type="hidden" name="next" value="/ui/welcome?step=qualify">
         <button class="danger small" data-confirm="Stop this qualification run? Completed cases are kept and the run can resume later.">Stop measuring</button>
@@ -338,14 +339,14 @@ const welcomeBody = `
     <div class="card">
       <div class="grid cols-4">
         <div class="card stat"><div class="n">{{.PoolCount}}</div><div class="l">models in the pool</div></div>
-        <div class="card stat"><div class="n">{{.Qualification.Done}}</div><div class="l">cases recorded</div></div>
-        <div class="card stat"><div class="n">{{.Qualification.Total}}</div><div class="l">cases planned</div></div>
-        <div class="card stat"><div class="n">{{if .Qualification.Estimate}}{{.Qualification.Estimate}}{{else}}—{{end}}</div><div class="l">core run time</div></div>
+        <div class="card stat"><div class="n">{{.Qualification.Recorded}}</div><div class="l">case runs recorded</div></div>
+        <div class="card stat"><div class="n">{{.Qualification.Total}}</div><div class="l">case runs in this depth</div></div>
+        <div class="card stat"><div class="n">{{if .Qualification.Elapsed}}{{.Qualification.Elapsed}}{{else}}—{{end}}</div><div class="l">run time</div></div>
       </div>
-      <p class="ok"><b>{{if eq .Qualification.Tier "minimal"}}Minimum screen complete.{{else if eq .Qualification.Tier "complete"}}{{if .Qualification.AllCases}}All cases complete.{{else}}Complete screen paused — choose Complete above to continue.{{end}}{{else}}{{if .Qualification.AllCases}}All cases complete.{{else if .Qualification.Complete}}Balanced pass complete.{{else}}Balanced pass paused — choose Balanced above to continue.{{end}}{{end}}</b> The ranking below is usable now.</p>
+      <p class="ok"><b>{{if eq .Qualification.Tier "minimal"}}Minimal screen complete.{{else if eq .Qualification.Tier "balanced"}}{{if .Qualification.AllCases}}Balanced screen complete.{{else}}Balanced screen paused — choose Balanced above to continue.{{end}}{{else}}{{if .Qualification.AllCases}}Complete screen complete.{{else}}Complete screen paused — choose Complete above to continue.{{end}}{{end}}</b> The ranking below is usable now.</p>
       {{if .Qualification.Error}}<p class="del">{{.Qualification.Error}}</p>{{end}}
       <p class="muted">Choose a deeper level above to keep going; completed cases are kept. Continue below to use the current ranking.</p>
-      {{if .Qualification.CompleteCases}}<p class="muted small">{{.Qualification.CompleteCases}} cases remain for the complete screen.</p>{{end}}
+      {{if .Qualification.CompleteCases}}<p class="muted small">{{.Qualification.CompleteCases}} case runs remain for the complete screen.</p>{{end}}
     </div>
     {{else}}
     <div class="card">

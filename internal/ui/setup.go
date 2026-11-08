@@ -42,11 +42,11 @@ type qualState struct {
 	// core-only. The core may exceed it. Phase is "core" or "extra".
 	MinimumMinutes int    `json:"minimum_minutes,omitempty"`
 	Phase          string `json:"phase,omitempty"`
-	// Tier is the operator's chosen depth: short (minimum), medium (minimum
-	// plus about ten minutes), or full (every deep case). It is saved so a
-	// Core restart resumes the same depth.
+	// Tier is the operator's chosen depth: minimal (two cases per capability),
+	// balanced (the standard ladder), or complete (every deep case). It is
+	// saved so a Core restart resumes the same depth.
 	Tier         string  `json:"tier,omitempty"`
-	CoreComplete bool    `json:"core_complete,omitempty"`
+	CoreComplete bool    `json:"core_complete,omitempty"` // the Minimal plan is complete
 	CoreSeconds  float64 `json:"core_seconds,omitempty"`
 	// FirstModel is the first screened model and its core time; the extra
 	// budget is estimated from this pass rather than waiting for every model.
@@ -90,6 +90,7 @@ type qualificationView struct {
 	Running          bool
 	Done             int
 	Total            int
+	Recorded         int
 	Percent          int
 	Elapsed          string
 	Remaining        string
@@ -124,7 +125,7 @@ type qualificationView struct {
 // 100% even if the worker has not persisted Running=false yet.
 func qualificationViewFor(s qualState, hasMeasurements bool) qualificationView {
 	v := qualificationView{
-		Running: s.Running, Done: s.Done, Total: s.Total,
+		Running: s.Running, Done: s.Done, Total: s.Total, Recorded: len(s.Results),
 		Error: s.Error, Stale: s.stale(), HasMeasurements: hasMeasurements,
 		CoreComplete: s.CoreComplete, MinimumMinutes: s.MinimumMinutes, Phase: s.Phase,
 		CurrentModel: s.CurrentModel, Tier: normalizeQualTier(s.Tier),
@@ -188,30 +189,76 @@ func qualificationViewFor(s qualState, hasMeasurements bool) qualificationView {
 	return v
 }
 
-// qualTierEstimates returns the time left for each depth from the same cost
-// probe the worker uses. "done" means no case remains for that depth;
-// "estimating…" means the first case has not completed yet.
-func qualTierEstimates(s qualState, models []string) (minimal, balanced, complete string, completeCases int) {
+// qualificationViewForPool projects progress and estimates onto the selected
+// depth's plan. It computes the denominator from the plan, not from the last
+// persisted state.Total, so switching depth changes the percentage
+// immediately and never reports more than 100%.
+func qualificationViewForPool(s qualState, models []string, tier string, hasMeasurements bool) qualificationView {
+	v := qualificationViewFor(s, hasMeasurements)
+	v.Tier = normalizeQualTier(tier)
+	v.Remaining = ""
 	if len(models) == 0 {
-		return "", "", "", 0
+		return v
 	}
 	defaultLadder := onboard.DefaultLadder()
-	deepLadder := onboard.DeepLadder()
-	perCase := livePerCase(&s, len(models), len(onboard.QualificationCore(defaultLadder)))
-	minimal = tierETA(perCase, pendingCount(onboard.QualificationCore(defaultLadder), s.Results, models))
-	balanced = tierETA(perCase, pendingCount(onboard.AllCaseRefs(defaultLadder), s.Results, models))
-	completeCases = pendingCount(onboard.AllCaseRefs(deepLadder), s.Results, models)
-	complete = tierETA(perCase, completeCases)
-	return
+	minimalPlan := onboard.QualificationMinimal(defaultLadder)
+	balancedPlan := onboard.AllCaseRefs(defaultLadder)
+	completePlan := onboard.AllCaseRefs(onboard.DeepLadder())
+	plan := minimalPlan
+	switch v.Tier {
+	case qualTierBalanced:
+		plan = balancedPlan
+	case qualTierComplete:
+		plan = completePlan
+	}
+	v.Total = len(models) * len(plan)
+	v.Done = donePairs(plan, s.Results, models)
+	v.Recorded = len(s.Results)
+	v.CoreComplete = coreCoverage(minimalPlan, models, s.Results)
+	v.AllCases = v.Total > 0 && v.Done >= v.Total
+	v.Complete = !s.Running && v.Total > 0 && v.Done >= v.Total
+	v.Percent = 0
+	if v.Total > 0 {
+		v.Percent = v.Done * 100 / v.Total
+		if v.Percent > 100 {
+			v.Percent = 100
+		}
+	}
+	perCase := observedPerCase(&s)
+	if perCase <= 0 {
+		v.MinimalEstimate, v.BalancedEstimate, v.CompleteEstimate = "estimating…", "estimating…", "estimating…"
+		v.CompleteCases = missingPairs(completePlan, s.Results, models)
+		return v
+	}
+	missing := missingPairs(plan, s.Results, models)
+	if s.Running && missing > 0 {
+		v.Remaining = humanETA(perCase * time.Duration(missing))
+	}
+	v.MinimalEstimate = tierETA(perCase, missingPairs(minimalPlan, s.Results, models))
+	v.BalancedEstimate = tierETA(perCase, missingPairs(balancedPlan, s.Results, models))
+	v.CompleteEstimate = tierETA(perCase, missingPairs(completePlan, s.Results, models))
+	v.CompleteCases = missingPairs(completePlan, s.Results, models)
+	return v
 }
 
-// livePerCase prefers the larger of the cost probe and the observed average
-// while running, so a fast first model does not make every tier look cheaper
-// than the machine is actually delivering.
-func livePerCase(s *qualState, models, coreCases int) time.Duration {
-	per := estimateCaseSeconds(s, models, coreCases)
-	if s.Running && !s.StartedAt.IsZero() && s.Done >= 10 {
-		observed := time.Since(s.StartedAt) / time.Duration(s.Done)
+// observedPerCase averages completed case durations and prefers the running
+// clock once there are enough samples, so a fast first case does not make the
+// whole screen look cheap.
+func observedPerCase(s *qualState) time.Duration {
+	var total time.Duration
+	n := 0
+	for _, rec := range s.Details {
+		if rec.DurationMS > 0 {
+			total += time.Duration(rec.DurationMS) * time.Millisecond
+			n++
+		}
+	}
+	var per time.Duration
+	if n > 0 {
+		per = total / time.Duration(n)
+	}
+	if s.Running && !s.StartedAt.IsZero() && len(s.Results) >= 5 {
+		observed := time.Since(s.StartedAt) / time.Duration(len(s.Results))
 		if observed > per {
 			per = observed
 		}
@@ -227,19 +274,6 @@ func tierETA(perCase time.Duration, pending int) string {
 		return "estimating…"
 	}
 	return "about " + humanETA(perCase*time.Duration(pending))
-}
-
-func pendingCount(refs []onboard.CaseRef, results map[string]bool, models []string) int {
-	n := 0
-	for _, ref := range refs {
-		for _, model := range models {
-			if _, ok := results[ref.Kind+"|"+model+"|"+ref.ID]; !ok {
-				n++
-				break
-			}
-		}
-	}
-	return n
 }
 
 func humanETA(d time.Duration) string {

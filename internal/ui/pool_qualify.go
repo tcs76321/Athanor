@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"sort"
 	"strings"
@@ -33,9 +32,10 @@ func normalizeQualTier(t string) string {
 }
 
 // startPoolQualification runs the chosen depth over every model in the user's
-// pool. Minimal runs the core, Balanced runs the standard ladder, and Complete
-// runs every case in the deep ladder. The first model's core pass sizes the
-// estimates. The legacy two-role ladder remains available on /ui/setup.
+// pool. Minimal runs two cases per capability, Balanced runs the standard
+// ladder, and Complete runs every case in the deep ladder. Completed cases
+// calibrate the estimates. The legacy two-role ladder remains available on
+// /ui/setup.
 func (u *UI) startPoolQualification(ctx context.Context, fresh bool, tier string) (qualState, bool, error) {
 	p := u.pool()
 	if p == nil {
@@ -84,7 +84,7 @@ func (u *UI) startPoolQualification(ctx context.Context, fresh bool, tier string
 		state = newQualState()
 	}
 	if !sameStrings(state.Models, models) {
-		// A changed pool invalidates the core comparison: the new model has
+		// A changed pool invalidates the comparison baseline: the new model has
 		// not run the same cases as the old set.
 		state.CoreComplete = false
 		state.FirstModel = ""
@@ -100,14 +100,11 @@ func (u *UI) startPoolQualification(ctx context.Context, fresh bool, tier string
 	}
 	u.qualRunning = true
 	u.qualTier = tier
+	u.qualLastSave = time.Time{}
 	runCtx, cancel := context.WithCancel(context.Background())
 	u.qualCancel = cancel
 	u.qualMu.Unlock()
 
-	ladder := onboard.DefaultLadder()
-	if deep {
-		ladder = onboard.DeepLadder()
-	}
 	state.Running = true
 	state.StartedAt = time.Now()
 	state.FinishedAt = time.Time{}
@@ -119,12 +116,11 @@ func (u *UI) startPoolQualification(ctx context.Context, fresh bool, tier string
 	if state.Results == nil {
 		state.Results = map[string]bool{}
 	}
-	state.Done = len(state.Results)
-	if tier == qualTierMinimal {
-		state.Total = poolCorePlan(models, ladder)
-	} else {
-		state.Total = poolQualificationPlan(models, ladder)
-	}
+	_, plan := tierPlan(tier)
+	state.Total = len(models) * len(plan)
+	state.Done = donePairs(plan, state.Results, models)
+	minimalPlan := onboard.QualificationMinimal(onboard.DefaultLadder())
+	state.CoreComplete = coreCoverage(minimalPlan, models, state.Results)
 	if len(models) > 0 {
 		state.CurrentModel = models[0]
 	}
@@ -144,7 +140,7 @@ func (u *UI) startPoolQualification(ctx context.Context, fresh bool, tier string
 			u.qualMu.Unlock()
 			cancel()
 		}()
-		u.runPoolQualification(runCtx, models, ladder, &runState)
+		u.runPoolQualification(runCtx, models, &runState)
 	}(runState)
 	return state, true, nil
 }
@@ -173,6 +169,20 @@ func (u *UI) qualificationRunning() bool {
 	return u.qualRunning
 }
 
+// saveQualStateThrottled persists the run at most once per second. Case
+// evidence is large, and a long screen would otherwise spend much of its time
+// rewriting the same growing JSON document.
+func (u *UI) saveQualStateThrottled(ctx context.Context, s qualState) {
+	u.qualMu.Lock()
+	if !u.qualLastSave.IsZero() && time.Since(u.qualLastSave) < time.Second {
+		u.qualMu.Unlock()
+		return
+	}
+	u.qualLastSave = time.Now()
+	u.qualMu.Unlock()
+	u.saveQualState(ctx, s)
+}
+
 // setQualificationTier applies the operator's depth choice. If a run is
 // active, the worker picks it up between cases. Otherwise it starts (or
 // continues) at that depth, keeping completed cases.
@@ -198,10 +208,10 @@ func (u *UI) setQualificationTier(ctx context.Context, tier string) error {
 	}
 }
 
-// ensureQualificationStarted starts the minimum screen the first time the
+// ensureQualificationStarted starts the saved depth the first time the
 // qualification step is opened. It resumes an interrupted run (the Core
 // restarted while it was working), but never restarts a run the operator
-// deliberately stopped or one that already has its core.
+// deliberately stopped or a completed Minimal screen.
 func (u *UI) ensureQualificationStarted(ctx context.Context) {
 	if u.deps.Config == nil {
 		return
@@ -258,11 +268,22 @@ func poolQualificationPlan(models []string, ladder onboard.Ladder) int {
 	return len(models) * (len(ladder.Generators) + len(ladder.Judges))
 }
 
-func poolCorePlan(models []string, ladder onboard.Ladder) int {
-	return len(models) * len(onboard.QualificationCore(ladder))
+// tierPlan returns the ladder and case set for a depth. Balanced is the whole
+// standard ladder; Complete is the whole deep ladder.
+func tierPlan(tier string) (onboard.Ladder, []onboard.CaseRef) {
+	defaultLadder := onboard.DefaultLadder()
+	switch normalizeQualTier(tier) {
+	case qualTierComplete:
+		deep := onboard.DeepLadder()
+		return deep, onboard.AllCaseRefs(deep)
+	case qualTierBalanced:
+		return defaultLadder, onboard.AllCaseRefs(defaultLadder)
+	default:
+		return defaultLadder, onboard.QualificationMinimal(defaultLadder)
+	}
 }
 
-func (u *UI) runPoolQualification(ctx context.Context, models []string, ladder onboard.Ladder, state *qualState) {
+func (u *UI) runPoolQualification(ctx context.Context, models []string, state *qualState) {
 	state.Running = true
 	state.Error = ""
 	if state.Results == nil {
@@ -271,107 +292,54 @@ func (u *UI) runPoolQualification(ctx context.Context, models []string, ladder o
 	if state.Details == nil {
 		state.Details = map[string]qualCaseRecord{}
 	}
-	core := onboard.QualificationCore(ladder)
-	if len(core) == 0 {
-		state.Running = false
-		state.Error = "qualification ladder has no core cases"
-		u.saveQualState(context.Background(), *state)
-		return
+	defaultLadder := onboard.DefaultLadder()
+	deepLadder := onboard.DeepLadder()
+	minimalPlan := onboard.QualificationMinimal(defaultLadder)
+	balancedPlan := onboard.AllCaseRefs(defaultLadder)
+	completePlan := onboard.AllCaseRefs(deepLadder)
+	planFor := func(tier string) (onboard.Ladder, []onboard.CaseRef) {
+		switch normalizeQualTier(tier) {
+		case qualTierComplete:
+			return deepLadder, completePlan
+		case qualTierBalanced:
+			return defaultLadder, balancedPlan
+		default:
+			return defaultLadder, minimalPlan
+		}
 	}
-	runCases := func(model string, refs []onboard.CaseRef, measure bool, expectedTier string, l onboard.Ladder) bool {
-		defer ollamaUnload(context.Background(), u.deps.Config.Inference.OllamaURL, model)
+	runCases := func(model string, refs []onboard.CaseRef, expectedTier string, l onboard.Ladder) bool {
 		for _, ref := range refs {
 			if ctx.Err() != nil {
 				return false
 			}
-			// A live tier change stops the current pass between cases, so a
-			// switch to Medium or Full does not wait for a long block.
+			// A live depth change stops the current pass between cases, so a
+			// switch to Balanced or Complete does not wait for the current pass.
 			if expectedTier != "" && u.currentQualTier() != expectedTier {
 				return false
 			}
 			u.runQualCase(ctx, model, ref, l, state)
 		}
-		if measure {
-			if resident, ok := ollamaResident(ctx, u.deps.Config.Inference.OllamaURL, model); ok {
-				u.pool().SetMeasuredResident(model, resident, 8192)
-			}
-		}
 		return true
 	}
 
-	// The core always runs for every model, regardless of the selected tier.
-	// On a slow machine with a large pool this can take a while; that is
-	// correct, because the screen is not comparable until every model has the
-	// same core.
-	if !state.CoreComplete {
-		coreStart := time.Now()
-		first := state.FirstModelSeconds == 0
-		for _, model := range models {
-			if ctx.Err() != nil {
-				break
-			}
-			modelStart := time.Now()
-			state.CurrentModel = model
-			u.saveQualState(context.Background(), *state)
-			if !runCases(model, core, true, "", ladder) {
-				break
-			}
-			if first && modelCoreComplete(state, model, core) {
-				// The first successfully screened model's core pass is the
-				// cost probe. Estimate the full core and use the same per-case
-				// cost to size extra blocks instead of waiting for every model.
-				state.FirstModel = model
-				state.FirstModelSeconds = time.Since(modelStart).Seconds()
-				state.EstimatedCoreSeconds = state.FirstModelSeconds * float64(len(models))
-				first = false
-				u.saveQualState(context.Background(), *state)
-			}
-		}
-		if coreComplete(state, models, core) {
-			state.CoreComplete = true
-			state.CoreSeconds = time.Since(coreStart).Seconds()
-		}
-		state.Done = len(state.Results)
-		u.saveQualState(context.Background(), *state)
-	}
-	if !state.CoreComplete || ctx.Err() != nil {
-		u.finishPoolQualification(ctx, models, ladder, state)
-		return
-	}
-
-	// After the core, re-read the live depth on every pass. Choosing Balanced
-	// or Complete while Minimal is still running takes effect here, without
-	// cancelling the run or waiting for the minimum to finish.
-	balancedLadder := onboard.DefaultLadder()
-	completeLadder := onboard.DeepLadder()
+	// The selected plan is the unit of work. Every depth is a superset of the
+	// one below it, so a live switch only adds (or drops) missing cases and
+	// never discards completed work.
 	for ctx.Err() == nil {
 		tier := u.currentQualTier()
-		if state.Tier != tier {
-			state.Tier = tier
-			u.saveQualState(context.Background(), *state)
-		}
-		if tier == qualTierMinimal {
-			u.finishPoolQualification(ctx, models, balancedLadder, state)
+		ladder, plan := planFor(tier)
+		state.Tier = tier
+		state.Deep = tier == qualTierComplete
+		state.Total = len(models) * len(plan)
+		state.CoreComplete = coreCoverage(minimalPlan, models, state.Results)
+		u.saveQualState(context.Background(), *state)
+
+		pending := pendingRefs(plan, state.Results, models)
+		if len(pending) == 0 {
+			u.finishPoolQualification(ctx, models, ladder, state)
 			return
 		}
-		use := balancedLadder
-		isDeep := false
-		if tier == qualTierComplete {
-			use = completeLadder
-			isDeep = true
-		}
-		wantTotal := poolQualificationPlan(models, use)
-		if state.Total != wantTotal || state.Deep != isDeep {
-			state.Total = wantTotal
-			state.Deep = isDeep
-			u.saveQualState(context.Background(), *state)
-		}
-		extra := pendingExtra(use, state.Results, models)
-		if len(extra) == 0 {
-			u.finishPoolQualification(ctx, models, use, state)
-			return
-		}
-		block := extra
+		block := pending
 		if len(block) > 30 {
 			block = block[:30]
 		}
@@ -381,25 +349,23 @@ func (u *UI) runPoolQualification(ctx context.Context, models []string, ladder o
 			}
 			state.CurrentModel = model
 			u.saveQualState(context.Background(), *state)
-			if !runCases(model, block, false, tier, use) {
+			if !runCases(model, block, tier, ladder) {
 				break
 			}
 		}
-		state.Done = len(state.Results)
+		state.Done = donePairs(plan, state.Results, models)
 		state.Tier = u.currentQualTier()
+		state.CoreComplete = coreCoverage(minimalPlan, models, state.Results)
 		u.saveQualState(context.Background(), *state)
 	}
-	finishLadder := balancedLadder
-	if state.Deep {
-		finishLadder = completeLadder
-	}
-	u.finishPoolQualification(ctx, models, finishLadder, state)
+	ladder, _ := planFor(u.currentQualTier())
+	u.finishPoolQualification(ctx, models, ladder, state)
 }
 
-func pendingExtra(ladder onboard.Ladder, results map[string]bool, models []string) []onboard.CaseRef {
-	extra := onboard.QualificationExtra(ladder)
-	out := make([]onboard.CaseRef, 0, len(extra))
-	for _, ref := range extra {
+// pendingRefs returns the plan cases that at least one model has not done.
+func pendingRefs(plan []onboard.CaseRef, results map[string]bool, models []string) []onboard.CaseRef {
+	out := make([]onboard.CaseRef, 0, len(plan))
+	for _, ref := range plan {
 		doneForAll := true
 		for _, model := range models {
 			if _, ok := results[ref.Kind+"|"+model+"|"+ref.ID]; !ok {
@@ -414,13 +380,34 @@ func pendingExtra(ladder onboard.Ladder, results map[string]bool, models []strin
 	return out
 }
 
-func modelCoreComplete(state *qualState, model string, core []onboard.CaseRef) bool {
-	for _, ref := range core {
-		if _, ok := state.Results[ref.Kind+"|"+model+"|"+ref.ID]; !ok {
-			return false
+// missingPairs counts the (case, model) runs still required for a plan.
+func missingPairs(plan []onboard.CaseRef, results map[string]bool, models []string) int {
+	n := 0
+	for _, ref := range plan {
+		for _, model := range models {
+			if _, ok := results[ref.Kind+"|"+model+"|"+ref.ID]; !ok {
+				n++
+			}
 		}
 	}
-	return true
+	return n
+}
+
+func donePairs(plan []onboard.CaseRef, results map[string]bool, models []string) int {
+	total := len(plan) * len(models)
+	done := total - missingPairs(plan, results, models)
+	if done < 0 {
+		return 0
+	}
+	return done
+}
+
+// coreCoverage reports whether the Minimal plan is complete for every model.
+func coreCoverage(minimal []onboard.CaseRef, models []string, results map[string]bool) bool {
+	if len(models) == 0 || len(minimal) == 0 {
+		return false
+	}
+	return missingPairs(minimal, results, models) == 0
 }
 
 func sameStrings(a, b []string) bool {
@@ -442,42 +429,11 @@ func sameStrings(a, b []string) bool {
 	return true
 }
 
-func coreComplete(state *qualState, models []string, core []onboard.CaseRef) bool {
-	for _, model := range models {
-		for _, ref := range core {
-			if _, ok := state.Results[ref.Kind+"|"+model+"|"+ref.ID]; !ok {
-				return false
-			}
-		}
-	}
-	return true
-}
-
-func estimateCaseSeconds(state *qualState, models, coreCases int) time.Duration {
-	if state.FirstModelSeconds >= 1 && coreCases > 0 {
-		return time.Duration(state.FirstModelSeconds*float64(time.Second)) / time.Duration(coreCases)
-	}
-	if state.CoreSeconds > 0 && models > 0 && coreCases > 0 {
-		return time.Duration(state.CoreSeconds*float64(time.Second)) / time.Duration(models*coreCases)
-	}
-	var total time.Duration
-	n := 0
-	for _, rec := range state.Details {
-		if rec.DurationMS > 0 && (rec.Kind == "generator" || rec.Kind == "judge") {
-			total += time.Duration(rec.DurationMS) * time.Millisecond
-			n++
-		}
-	}
-	if n == 0 {
-		return 0
-	}
-	return total / time.Duration(n)
-}
-
 func (u *UI) finishPoolQualification(ctx context.Context, models []string, ladder onboard.Ladder, state *qualState) {
 	state.Running = false
 	state.CurrentModel = ""
 	state.FinishedAt = time.Now()
+	state.CoreComplete = coreCoverage(onboard.QualificationMinimal(onboard.DefaultLadder()), models, state.Results)
 	if ctx.Err() == context.Canceled {
 		state.Error = "qualification cancelled; start again to resume"
 	}
@@ -519,7 +475,7 @@ func (u *UI) runQualCase(ctx context.Context, model string, ref onboard.CaseRef,
 			state.Details[key] = rec
 			state.Done = len(state.Results)
 			state.Tier = u.currentQualTier()
-			u.saveQualState(context.Background(), *state)
+			u.saveQualStateThrottled(context.Background(), *state)
 			return
 		}
 	case "judge":
@@ -545,7 +501,7 @@ func (u *UI) runQualCase(ctx context.Context, model string, ref onboard.CaseRef,
 			state.Details[key] = rec
 			state.Done = len(state.Results)
 			state.Tier = u.currentQualTier()
-			u.saveQualState(context.Background(), *state)
+			u.saveQualStateThrottled(context.Background(), *state)
 			return
 		}
 	}
@@ -686,47 +642,6 @@ func (u *UI) recordPoolQualification(ctx context.Context, models []string, ladde
 		}
 	}
 	_ = p.Save(ctx)
-}
-
-// ollamaResident returns the loaded size reported by /api/ps for one model.
-// The qualification screen just used the model, so a successful read is a
-// measured weights+KV number at num_ctx=8192.
-func ollamaResident(ctx context.Context, baseURL, model string) (int64, bool) {
-	cctx, cancel := context.WithTimeout(ctx, 3*time.Second)
-	defer cancel()
-	req, err := http.NewRequestWithContext(cctx, http.MethodGet,
-		strings.TrimRight(baseURL, "/")+"/api/ps", nil)
-	if err != nil {
-		return 0, false
-	}
-	resp, err := (&http.Client{Timeout: 3 * time.Second}).Do(req)
-	if err != nil {
-		return 0, false
-	}
-	defer func() { _ = resp.Body.Close() }()
-	if resp.StatusCode != http.StatusOK {
-		return 0, false
-	}
-	var body struct {
-		Models []struct {
-			Name  string `json:"name"`
-			Model string `json:"model"`
-			Size  int64  `json:"size"`
-		} `json:"models"`
-	}
-	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&body); err != nil {
-		return 0, false
-	}
-	for _, m := range body.Models {
-		name := m.Name
-		if name == "" {
-			name = m.Model
-		}
-		if name == model && m.Size > 0 {
-			return m.Size, true
-		}
-	}
-	return 0, false
 }
 
 // ollamaUnload asks Ollama to evict a model immediately. It is best-effort: a

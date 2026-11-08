@@ -591,6 +591,7 @@ main {
   padding: var(--space-4); text-align: left; cursor: pointer;
   background: var(--panel); color: var(--text);
   border: var(--line); border-radius: var(--radius);
+  position: relative;
 }
 .tier-option:hover { border-color: var(--accent); }
 .tier-option.selected {
@@ -601,6 +602,11 @@ main {
 .tier-name {
   font-family: var(--font-display); font-size: var(--step-1);
   font-weight: 650; letter-spacing: -.01em;
+}
+.tier-badge {
+  align-self: flex-end;
+  font-size: 0.66rem; font-weight: 700; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--accent);
 }
 .tier-desc { color: var(--text-soft); font-size: 0.86rem; line-height: 1.45; }
 @media (max-width: 800px) { .tier-options { grid-template-columns: 1fr; } }

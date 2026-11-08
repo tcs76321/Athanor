@@ -423,7 +423,7 @@ func (u *UI) welcomeData(ctx context.Context, st onboardingState) map[string]any
 	budget := budgetFor(roles, models, hw, resources)
 	u.syncPool(ctx, models, budget, hw)
 	if st.Step == "qualify" {
-		// The pool is synced now; reaching step 4 starts the minimum screen
+		// The pool is synced now; reaching step 4 starts the saved depth
 		// without asking the operator to choose a duration first.
 		u.ensureQualificationStarted(ctx)
 		qual = u.loadQualState(ctx)
@@ -450,11 +450,11 @@ func (u *UI) welcomeData(ctx context.Context, st onboardingState) map[string]any
 			poolModels = names
 		}
 	}
-	qualView := qualificationViewFor(qual, len(measurements) > 0 || pool.QualifiedCount > 0)
+	tier := normalizeQualTier(qual.Tier)
 	if qual.Running {
-		qualView.Tier = u.currentQualTier()
+		tier = u.currentQualTier()
 	}
-	qualView.MinimalEstimate, qualView.BalancedEstimate, qualView.CompleteEstimate, qualView.CompleteCases = qualTierEstimates(qual, poolModels)
+	qualView := qualificationViewForPool(qual, poolModels, tier, len(measurements) > 0 || pool.QualifiedCount > 0)
 	return map[string]any{
 		"State": st, "Step": st.Step, "Steps": onboardingSteps,
 		"StepIndex": onboardingIndex(st.Step), "StepNumber": onboardingIndex(st.Step) + 1,
