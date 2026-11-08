@@ -16,6 +16,7 @@ import (
 
 	"github.com/tcs76321/athanor/internal/config"
 	"github.com/tcs76321/athanor/internal/discovery"
+	"github.com/tcs76321/athanor/internal/firstuse"
 	"github.com/tcs76321/athanor/internal/hitl"
 	"github.com/tcs76321/athanor/internal/planning"
 	"github.com/tcs76321/athanor/internal/project"
@@ -976,10 +977,8 @@ func (u *UI) approveProjectPlan(ctx context.Context, p project.Project, b projec
 	if len(tasks) == 0 || u.deps.Engine == nil {
 		return nil
 	}
-	j, err := u.deps.Jobs.Create(ctx, tasks[0].ID, p.ID)
-	if err != nil {
+	if _, err := firstuse.StartTaskJob(ctx, u.deps.Store, u.deps.Projects, u.deps.Jobs, u.deps.Engine, tasks[0].ID, p.ID); err != nil {
 		return err
 	}
-	u.deps.Engine.Enqueue(j.ID)
 	return nil
 }

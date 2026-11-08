@@ -21,9 +21,17 @@ import (
 // It survives a Core restart; a stale "running" flag is ignored after qualTTL.
 const qualKey = "ui:qualification"
 
-// qualTTL bounds how long a persisted "running" flag is trusted. A Core
-// restart cannot resume the goroutine, so a stale run is restartable.
+// qualTTL bounds how long a persisted "running" flag is displayed as live
+// when no worker can own it. It is a display hint only: it never discards
+// completed cases. Reconcile clears the flag at boot and the qualification
+// step resumes the interrupted run.
 const qualTTL = 2 * time.Hour
+
+// qualCaseTimeout bounds one case. The first case for a model includes a cold
+// load; a 30B model on a slow disk routinely exceeds the old 45s ceiling. A
+// timeout is an infrastructure error, not a wrong answer, so the run stops
+// and leaves the case pending instead of recording a failure.
+const qualCaseTimeout = 5 * time.Minute
 
 // qualState is the resumable qualification state.
 type qualState struct {
@@ -58,6 +66,13 @@ type qualState struct {
 	// it before the first case so the UI can show activity while a large model
 	// loads, instead of a silent zero.
 	CurrentModel string `json:"current_model,omitempty"`
+	// Waiting is set while a running job holds inference; the screen yields
+	// rather than evicting the job's model.
+	Waiting bool `json:"waiting,omitempty"`
+	// StartDone is len(Results) when the current attempt began. The running
+	// clock estimate divides by cases measured in this attempt, not by the
+	// whole resumable history.
+	StartDone int `json:"start_done,omitempty"`
 }
 
 // qualCaseRecord is one completed case: what was asked, what was expected,
@@ -103,6 +118,7 @@ type qualificationView struct {
 	Remaining        string
 	Error            string
 	Stale            bool
+	Interrupted      bool
 	Complete         bool
 	CoreComplete     bool
 	CanExtend        bool
@@ -125,6 +141,7 @@ type qualificationView struct {
 	CoreRemaining string
 	CurrentModel  string
 	Tier          string
+	Waiting       bool
 }
 
 // qualificationViewFor builds the progress view. A run with no plan yet
@@ -134,8 +151,9 @@ func qualificationViewFor(s qualState, hasMeasurements bool) qualificationView {
 	v := qualificationView{
 		Running: s.Running, Done: s.Done, Total: s.Total, Recorded: len(s.Results),
 		Error: s.Error, Stale: s.stale(), HasMeasurements: hasMeasurements,
+		Interrupted:  !s.Running && !s.StartedAt.IsZero() && s.FinishedAt.IsZero(),
 		CoreComplete: s.CoreComplete, MinimumMinutes: s.MinimumMinutes, Phase: s.Phase,
-		CurrentModel: s.CurrentModel, Tier: normalizeQualTier(s.Tier),
+		CurrentModel: s.CurrentModel, Tier: normalizeQualTier(s.Tier), Waiting: s.Waiting,
 	}
 	if s.CoreSeconds > 0 {
 		v.Estimate = time.Duration(s.CoreSeconds * float64(time.Second)).Round(time.Second).String()
@@ -264,10 +282,16 @@ func observedPerCase(s *qualState) time.Duration {
 	if n > 0 {
 		per = total / time.Duration(n)
 	}
-	if s.Running && !s.StartedAt.IsZero() && len(s.Results) >= 5 {
-		observed := time.Since(s.StartedAt) / time.Duration(len(s.Results))
-		if observed > per {
-			per = observed
+	if s.Running && !s.StartedAt.IsZero() {
+		// Count only cases measured in this attempt. Dividing the current
+		// session's clock by the whole resumable history made a resumed run
+		// look almost instantaneous.
+		newCases := len(s.Results) - s.StartDone
+		if newCases >= 5 {
+			observed := time.Since(s.StartedAt) / time.Duration(newCases)
+			if observed > per {
+				per = observed
+			}
 		}
 	}
 	return per
@@ -405,7 +429,6 @@ func (u *UI) handleSetup(w http.ResponseWriter, r *http.Request) {
 		"Version":    u.deps.Version,
 	}
 	var roles []setupRole
-	var families = map[string]string{}
 	var models []setupModel
 	if cfg != nil {
 		var err error
@@ -423,44 +446,31 @@ func (u *UI) handleSetup(w http.ResponseWriter, r *http.Request) {
 				ContextTarget: pc.ContextTarget,
 				Installed:     modelInstalled(pc.Model, models),
 			})
-			if pc.Family != "" {
-				families[pc.Model] = pc.Family
-			}
-		}
-		for _, m := range models {
-			if m.Family != "" {
-				if _, ok := families[m.Name]; !ok {
-					families[m.Name] = m.Family
-				}
-			}
 		}
 		data["OllamaURL"] = cfg.Inference.OllamaURL
 	}
 	state := u.loadQualState(r.Context())
-	stale := state.stale()
-	if stale {
-		state.Running = false
-	}
 	data["Models"] = models
 	data["Roles"] = roles
-	data["State"] = state
 	data["Applied"] = r.URL.Query().Get("applied")
-	data["Stale"] = stale
-	hasMeasurements := false
-	if cfg != nil {
-		ms := qualMeasurementsFromState(state)
-		hasMeasurements = len(ms) > 0
-		data["Measurements"] = ms
-		if p := u.pool(); p != nil {
-			data["QualDetails"] = qualDetailsFromState(state, p.EligibleNames())
-		}
-		if len(ms) > 0 {
-			recs := onboard.Route(setupOnboardRoles(roles), families, ms, setupRoutingOptions())
-			data["Recommendations"] = recs
-			data["Apply"] = applyYAML(recs)
-		}
+	data["Stale"] = state.stale()
+	hasMeasurements := len(state.Results) > 0
+	data["HasMeasurements"] = hasMeasurements
+	tier := normalizeQualTier(state.Tier)
+	if u.qualificationRunning() {
+		tier = u.currentQualTier()
 	}
-	data["Qualification"] = qualificationViewFor(state, hasMeasurements)
+	poolModels := []string{}
+	if p := u.pool(); p != nil {
+		poolModels = p.EligibleNames()
+		data["QualDetails"] = qualDetailsFromState(state, poolModels)
+		pool := u.welcomePool(models)
+		data["PoolRanked"] = pool.Ranked
+		data["PoolCount"] = pool.Count
+		data["QualifiedCount"] = pool.QualifiedCount
+	}
+	data["Tier"] = tier
+	data["Qualification"] = qualificationViewForPool(state, poolModels, tier, hasMeasurements)
 	if u.deps.ModelAudit != "" {
 		var audit onboard.Audit
 		if err := json.Unmarshal([]byte(u.deps.ModelAudit), &audit); err == nil {
@@ -469,40 +479,6 @@ func (u *UI) handleSetup(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	u.render(w, "Setup", setupBody, data)
-}
-
-// setupOnboardRoles converts the view rows back to the onboarding roles.
-func setupOnboardRoles(rows []setupRole) []onboard.Role {
-	out := make([]onboard.Role, 0, len(rows))
-	for _, r := range rows {
-		out = append(out, onboard.Role{Role: r.Role, Model: r.Model, ContextTarget: r.ContextTarget})
-	}
-	return out
-}
-
-func setupRoutingOptions() onboard.RoutingOptions {
-	return onboard.RoutingOptions{
-		JudgeRole:      "security",
-		GeneratorRoles: []string{"main", "tall", "alternative", "wide"},
-		MinImprovement: 0.05,
-		MinSamples:     2,
-	}
-}
-
-// applyYAML renders the model lines an operator would paste into config.yaml.
-func applyYAML(recs []onboard.Recommendation) string {
-	var b strings.Builder
-	b.WriteString("personas:\n")
-	for _, r := range recs {
-		if !r.Replace {
-			continue
-		}
-		fmt.Fprintf(&b, "  %s:\n    model: %s\n", r.Role, r.Recommended)
-	}
-	if b.String() == "personas:\n" {
-		return ""
-	}
-	return b.String()
 }
 
 func (u *UI) handleQualifyCancel(w http.ResponseWriter, r *http.Request) {
@@ -515,223 +491,21 @@ func (u *UI) handleQualifyCancel(w http.ResponseWriter, r *http.Request) {
 }
 
 func (u *UI) handleQualifyStart(w http.ResponseWriter, r *http.Request) {
-	cfg := u.deps.Config
-	if cfg == nil {
+	if u.deps.Config == nil {
 		u.fail(w, fmt.Errorf("configuration is not available to the UI"))
 		return
 	}
 	_ = r.ParseForm()
-	if _, _, err := u.startQualification(r.Context(), cfg, r.FormValue("fresh") != ""); err != nil {
+	tier := normalizeQualTier(r.FormValue("tier"))
+	if strings.TrimSpace(r.FormValue("tier")) == "" {
+		tier = u.loadQualState(r.Context()).Tier
+	}
+	u.setQualTier(tier)
+	if _, _, err := u.startPoolQualification(r.Context(), r.FormValue("fresh") != "", tier); err != nil {
 		u.fail(w, err)
 		return
 	}
 	http.Redirect(w, r, "/ui/setup", http.StatusSeeOther)
-}
-
-// startQualification initializes a bounded run, persists the visible state
-// before returning, then starts the worker. Persisting first removes the race
-// where the redirect renders the "Start" button again before the goroutine has
-// written Running=true.
-func (u *UI) startQualification(ctx context.Context, cfg *config.Config, fresh bool) (qualState, bool, error) {
-	if cfg == nil {
-		return qualState{}, false, fmt.Errorf("configuration is not available to the UI")
-	}
-	state := u.loadQualState(ctx)
-	if state.Running && !state.stale() {
-		return state, false, nil
-	}
-	if state.stale() || fresh {
-		state = newQualState()
-	}
-	u.qualMu.Lock()
-	if u.qualRunning {
-		u.qualMu.Unlock()
-		return state, false, nil
-	}
-	u.qualRunning = true
-	u.qualMu.Unlock()
-
-	roles, models := setupRolesAndModels(cfg)
-	state.Running = true
-	state.StartedAt = time.Now()
-	state.Error = ""
-	if state.Results == nil {
-		state.Results = map[string]bool{}
-	}
-	state.Done = len(state.Results)
-	state.Total = qualificationPlan(roles, models)
-	u.saveQualState(ctx, state)
-	runState := state
-	if state.Results != nil {
-		runState.Results = make(map[string]bool, len(state.Results))
-		for k, v := range state.Results {
-			runState.Results[k] = v
-		}
-	}
-	go func(runState qualState) {
-		defer func() {
-			u.qualMu.Lock()
-			u.qualRunning = false
-			u.qualMu.Unlock()
-		}()
-		u.runQualification(context.Background(), cfg, roles, models, &runState)
-	}(state)
-	return state, true, nil
-}
-
-// setupRolesAndModels picks the two roles and two models per role the UI
-// screens: the judge and the main generator, each against the configured model
-// plus the largest installed alternative.
-func setupRolesAndModels(cfg *config.Config) ([]onboard.Role, []onboard.Model) {
-	var roles []onboard.Role
-	for _, name := range []string{"security", "main"} {
-		if pc, ok := cfg.Personas.Role(name); ok {
-			roles = append(roles, onboard.Role{Role: name, Model: pc.Model, ContextTarget: pc.ContextTarget})
-		}
-	}
-	models, err := fetchModels(context.Background(), cfg.Inference.OllamaURL)
-	if err != nil {
-		return roles, nil
-	}
-	out := make([]onboard.Model, 0, len(models))
-	for _, m := range models {
-		out = append(out, onboard.Model{Name: m.Name, SizeBytes: m.SizeBytes, Family: m.Family})
-	}
-	return roles, out
-}
-
-// runQualification is the legacy two-role worker. It skips completed cases,
-// saves after each one, and runs until the work is done or the operator
-// cancels it.
-func (u *UI) runQualification(ctx context.Context, cfg *config.Config, roles []onboard.Role, models []onboard.Model, state *qualState) {
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	if state.Results == nil {
-		state.Results = map[string]bool{}
-	}
-	state.Running = true
-	state.StartedAt = time.Now()
-	state.Error = ""
-	state.Total = qualificationPlan(roles, models)
-	state.Done = len(state.Results)
-	u.saveQualState(ctx, *state)
-	if state.Total == 0 {
-		state.Running = false
-		state.Error = "no installed models to qualify; pull a model first"
-		u.saveQualState(context.Background(), *state)
-		return
-	}
-
-	ladder := onboard.DefaultLadder()
-	judges := ladder.Judges
-	if len(judges) > 4 {
-		judges = judges[:4]
-	}
-	gens := ladder.Generators
-	if len(gens) > 3 {
-		gens = gens[:3]
-	}
-	for _, role := range roles {
-		if ctx.Err() != nil {
-			break
-		}
-		for _, model := range setupCandidates(role, models) {
-			if ctx.Err() != nil {
-				break
-			}
-			if role.Role == "security" {
-				for i, c := range judges {
-					if ctx.Err() != nil {
-						break
-					}
-					key := qualCaseKey(role.Role, model, c.ID)
-					if _, done := state.Results[key]; done {
-						continue
-					}
-					prompt, want := onboard.JudgePrompt(c, i%2 == 0)
-					answer, err := ollamaChat(ctx, cfg.Inference.OllamaURL, model, prompt)
-					correct := err == nil && onboard.ScoreJudge(answer, want)
-					state.Results[key] = correct
-					state.Done = len(state.Results)
-					u.saveQualState(ctx, *state)
-					if ctx.Err() != nil {
-						break
-					}
-				}
-			} else {
-				for _, c := range gens {
-					if ctx.Err() != nil {
-						break
-					}
-					key := qualCaseKey(role.Role, model, c.ID)
-					if _, done := state.Results[key]; done {
-						continue
-					}
-					answer, err := ollamaChat(ctx, cfg.Inference.OllamaURL, model, onboard.GenPrompt(c))
-					correct := err == nil && onboard.ScoreGen(c, answer)
-					state.Results[key] = correct
-					state.Done = len(state.Results)
-					u.saveQualState(ctx, *state)
-					if ctx.Err() != nil {
-						break
-					}
-				}
-			}
-		}
-	}
-	state.Running = false
-	state.FinishedAt = time.Now()
-	if ctx.Err() != nil {
-		state.Error = "qualification cancelled; start again to resume"
-	}
-	// This legacy two-role path does not measure/unload per model; release
-	// every candidate so the last one is not left resident.
-	for _, m := range models {
-		ollamaUnload(context.Background(), cfg.Inference.OllamaURL, m.Name)
-	}
-	u.saveQualState(context.Background(), *state)
-}
-
-// qualificationPlan counts the cases the current roles/models imply.
-func qualificationPlan(roles []onboard.Role, models []onboard.Model) int {
-	total := 0
-	for _, role := range roles {
-		n := 3
-		if role.Role == "security" {
-			n = 4
-		}
-		total += n * len(setupCandidates(role, models))
-	}
-	return total
-}
-
-// setupCandidates returns the configured model plus the largest installed
-// alternative, skipping names that are not installed.
-func setupCandidates(role onboard.Role, models []onboard.Model) []string {
-	installed := append([]onboard.Model(nil), models...)
-	sort.SliceStable(installed, func(i, j int) bool {
-		if installed[i].SizeBytes != installed[j].SizeBytes {
-			return installed[i].SizeBytes > installed[j].SizeBytes
-		}
-		return installed[i].Name < installed[j].Name
-	})
-	var out []string
-	seen := map[string]bool{}
-	add := func(n string) {
-		if n == "" || seen[n] || !onboardModelInstalled(n, models) {
-			return
-		}
-		seen[n] = true
-		out = append(out, n)
-	}
-	add(role.Model)
-	for _, m := range installed {
-		if len(out) == 2 {
-			break
-		}
-		add(m.Name)
-	}
-	return out
 }
 
 func (u *UI) loadQualState(ctx context.Context) qualState {
@@ -971,15 +745,6 @@ func modelInstalled(name string, models []setupModel) bool {
 	return false
 }
 
-func onboardModelInstalled(name string, models []onboard.Model) bool {
-	for _, m := range models {
-		if m.Name == name || baseModelName(m.Name) == baseModelName(name) {
-			return true
-		}
-	}
-	return false
-}
-
 func baseModelName(s string) string {
 	if i := strings.IndexByte(s, ':'); i >= 0 {
 		return s[:i]
@@ -996,11 +761,6 @@ type chatResult struct {
 }
 
 // ollamaChat is one bounded, non-thinking, temperature-0 call for the screen.
-func ollamaChat(ctx context.Context, baseURL, model, prompt string) (string, error) {
-	res, err := ollamaChatResult(ctx, baseURL, model, prompt)
-	return res.Content, err
-}
-
 func ollamaChatResult(ctx context.Context, baseURL, model, prompt string) (chatResult, error) {
 	body, err := json.Marshal(map[string]any{
 		"model": model, "stream": false, "think": false,
@@ -1010,7 +770,7 @@ func ollamaChatResult(ctx context.Context, baseURL, model, prompt string) (chatR
 	if err != nil {
 		return chatResult{}, err
 	}
-	ctx, cancel := context.WithTimeout(ctx, 45*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, qualCaseTimeout)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
 		strings.TrimRight(baseURL, "/")+"/api/chat", bytes.NewReader(body))
@@ -1018,7 +778,7 @@ func ollamaChatResult(ctx context.Context, baseURL, model, prompt string) (chatR
 		return chatResult{}, err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := (&http.Client{Timeout: 45 * time.Second}).Do(req)
+	resp, err := (&http.Client{Timeout: qualCaseTimeout}).Do(req)
 	if err != nil {
 		return chatResult{}, err
 	}

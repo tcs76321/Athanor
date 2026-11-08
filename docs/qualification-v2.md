@@ -74,17 +74,21 @@ screen runs is applied between cases, so selecting Balanced or Complete does
 not wait for the minimum to finish.
 
 - **Starts when chosen**: step 4 shows the three depths and their estimates;
-  nothing runs until the operator picks one. A background poll or a stale tab
-  never starts a run. While it runs, the page shows case runs done, elapsed
-  time, the model being measured, and an estimate of the time left.
+  nothing new runs until the operator picks one. A background poll or a stale
+  tab never starts a new run. While it runs, the page shows case runs done,
+  elapsed time, the model being measured, and an estimate of the time left.
 
 The state is resumable at case granularity. A Core restart clears the stale
-running flag, and opening the qualification step resumes from the completed
-cases. The progress panel names the model being measured, so a long load is
-visible rather than silent. Scores are computed only on the
+running flag, and opening the qualification step resumes the depth the operator
+already chose from the completed cases. The progress panel names the model
+being measured, so a long load is visible rather than silent. While any job can
+call Ollama, the screen waits instead of evicting the job's model. Scores are
+computed only on the
 **intersection** of cases completed by every model, so an interrupted block
-never advantages the models that happened to run first. A model that is
-unavailable is marked failed for its cases, not silently skipped.
+never advantages the models that happened to run first. A model that cannot be
+reached is an infrastructure error: the screen stops with the error and leaves
+its remaining cases pending, rather than recording a wrong answer that would
+permanently poison the score. The operator can fix the backend and resume.
 
 The screen is deliberately a **subset and a prior**. The frozen benchmark is the
 controlled study and is not edited here.

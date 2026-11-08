@@ -308,30 +308,54 @@ func (s *Scheduler) Reconcile(ctx context.Context, goalID string) error {
 		return err
 	}
 	for _, t := range tasks {
-		if t.Status != project.TaskRunning {
-			continue
-		}
 		jobs, err := s.jobs.ByTask(ctx, t.ID)
 		if err != nil {
 			return err
 		}
 		if len(jobs) == 0 {
-			slog.Warn("scheduler: running task has no job; leaving for operator", "task", t.ID)
+			if t.Status == project.TaskRunning {
+				slog.Warn("scheduler: running task has no job; leaving for operator", "task", t.ID)
+			}
 			continue
 		}
-		switch last := jobs[len(jobs)-1].State; last {
-		case job.StateCompleted:
-			if err := s.projects.SetTaskStatus(ctx, t.ID, project.TaskCompleted); err != nil {
-				return err
+		last := jobs[len(jobs)-1].State
+		switch t.Status {
+		case project.TaskRunning:
+			switch last {
+			case job.StateCompleted:
+				if err := s.projects.SetTaskStatus(ctx, t.ID, project.TaskCompleted); err != nil {
+					return err
+				}
+			case job.StateCancelled:
+				if err := s.projects.SetTaskStatus(ctx, t.ID, project.TaskFailed); err != nil {
+					return err
+				}
+			case job.StateFailed:
+				// A pre-crash failure goes through the same §7.2 policy as a
+				// live one, so recovery cannot skip a retry (ADR-0034).
+				s.handleFailure(ctx, t)
 			}
-		case job.StateCancelled:
-			if err := s.projects.SetTaskStatus(ctx, t.ID, project.TaskFailed); err != nil {
-				return err
+		case project.TaskPending, project.TaskReady:
+			// The M1 single-task paths used to create a job without moving the
+			// task to running. Settle the terminal outcome instead of letting
+			// advance start the same task again; adopt a non-terminal job so
+			// the engine can resume it without a duplicate.
+			switch last {
+			case job.StateCompleted:
+				if err := s.settleTask(ctx, t, project.TaskCompleted); err != nil {
+					return err
+				}
+			case job.StateCancelled:
+				if err := s.settleTask(ctx, t, project.TaskFailed); err != nil {
+					return err
+				}
+			case job.StateFailed:
+				s.handleFailure(ctx, t)
+			default:
+				if err := s.projects.SetTaskStatus(ctx, t.ID, project.TaskRunning); err != nil {
+					return err
+				}
 			}
-		case job.StateFailed:
-			// A pre-crash failure goes through the same §7.2 policy as a
-			// live one, so recovery cannot skip a retry (ADR-0034).
-			s.handleFailure(ctx, t)
 		}
 	}
 	tasks, err = s.projects.TasksByGoal(ctx, goalID)
@@ -342,6 +366,18 @@ func (s *Scheduler) Reconcile(ctx context.Context, goalID string) error {
 		return err
 	}
 	return s.projects.RecomputeGoalStatus(ctx, goalID)
+}
+
+// settleTask applies a terminal task outcome recovered from a job. A task
+// left pending/ready by an older job-start path is moved through running
+// first, because the §7.3 table does not allow pending → completed/failed.
+func (s *Scheduler) settleTask(ctx context.Context, t project.Task, target string) error {
+	if t.Status != project.TaskRunning {
+		if err := s.projects.SetTaskStatus(ctx, t.ID, project.TaskRunning); err != nil {
+			return err
+		}
+	}
+	return s.projects.SetTaskStatus(ctx, t.ID, target)
 }
 
 // advance applies the §7.2 blocked closure and starts every ready leaf. The

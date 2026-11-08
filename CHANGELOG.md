@@ -10,6 +10,39 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Qualification reliability (2026-11-08)
+
+- **Resume after a Core restart**: opening the qualification step resumes the
+  depth the operator already chose, from the completed cases. The persisted
+  running flag is still cleared at boot, but the step no longer silently stops.
+- **No stale-run reset**: a long Complete screen is no longer treated as stale
+  after two hours and wiped. Only an explicit "run again from scratch" discards
+  evidence; a changed pool prunes only models that left the pool.
+- **Infrastructure errors are not wrong answers**: a timeout, refused
+  connection, or missing model stops the run with a visible error and leaves
+  the case pending. The case timeout rose from 45 s to 5 min for cold loads.
+- **Single qualifier**: `/ui/setup` now drives the same pool qualifier as the
+  welcome step and shows the measured ranking, instead of running a second
+  two-role worker that shared and corrupted the same state. The obsolete
+  routing-proposal table is gone; persona editing remains.
+- **Stop/start handoff**: Stop followed immediately by a depth choice waits for
+  the cancelled worker instead of being refused as "already running"; the
+  worker is panic-contained and releases its model on stop.
+- **Inference ownership**: the screen waits while any job can call Ollama
+  instead of evicting the job's resident model, and the progress panel says so.
+- **Live progress truth**: progress is computed from the selected plan and the
+  current pool, not from a raw result count that could exceed the total.
+- **Applying personas restarts the Core** in the welcome flow, so the running
+  process and the written config cannot disagree. A qualification interrupted
+  by that restart resumes on the qualify step.
+- **Task lifecycle on restart**: every non-scheduler job start now marks a
+  pending/ready task running in the same transaction as the job insert
+  (`firstuse.StartTaskJob`), so a completed job can no longer leave its task
+  pending for the boot reconciler to run again. `Scheduler.Reconcile` settles
+  legacy pending tasks from their latest job and adopts an unfinished job
+  instead of starting a duplicate. This removes the phantom "planning" job that
+  appeared after a Core restart and competed with qualification for the model.
+
 ### Engine layering (2026-11-07)
 
 - **Engine split** (ADR-0131): `internal/engine` now keeps lifecycle, wiring,

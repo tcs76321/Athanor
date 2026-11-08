@@ -87,14 +87,41 @@ func StartProject(ctx context.Context, deps Deps, projectID string) (string, err
 	if len(existing) > 0 {
 		return existing[0].ID, nil
 	}
-	j, err := deps.Jobs.Create(ctx, t.ID, t.ProjectID)
+	j, err := StartTaskJob(ctx, deps.Events, deps.Projects, deps.Jobs, deps.Engine, t.ID, t.ProjectID)
 	if err != nil {
-		return "", fmt.Errorf("creating first job: %w", err)
+		return "", fmt.Errorf("starting first task: %w", err)
 	}
-	if deps.Engine != nil {
-		deps.Engine.Enqueue(j.ID)
+	return j, nil
+}
+
+// StartTaskJob creates a queued job and marks a pending/ready task running in
+// one transaction, then enqueues it. Every non-scheduler job start uses this
+// handoff so a completed job can never leave its task pending for the boot
+// reconciler to run again. A retry of a terminal task keeps the task's status;
+// the new job is a new attempt, not a new lifecycle.
+func StartTaskJob(ctx context.Context, st *store.Store, projects *project.Repo, jobs *job.Repository, engine Enqueuer, taskID, projectID string) (string, error) {
+	if st == nil || projects == nil || jobs == nil {
+		return "", errors.New("firstuse: start job requires the store, project repo, and job repo")
 	}
-	return j.ID, nil
+	tx, err := st.DB().BeginTx(ctx, nil)
+	if err != nil {
+		return "", fmt.Errorf("beginning job start: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	jobID, err := jobs.CreateTx(ctx, tx, taskID, projectID)
+	if err != nil {
+		return "", err
+	}
+	if _, err := projects.MarkTaskRunningTx(ctx, tx, taskID); err != nil {
+		return "", err
+	}
+	if err := tx.Commit(); err != nil {
+		return "", fmt.Errorf("committing job start: %w", err)
+	}
+	if engine != nil {
+		engine.Enqueue(jobID)
+	}
+	return jobID, nil
 }
 
 // Result is the created project/task plus the optional pre-index outcome.
@@ -187,14 +214,11 @@ func Create(ctx context.Context, deps Deps, in Input) (Result, error) {
 	}
 
 	if start {
-		j, err := deps.Jobs.Create(ctx, task.ID, task.ProjectID)
+		jobID, err := StartTaskJob(ctx, deps.Events, deps.Projects, deps.Jobs, deps.Engine, task.ID, task.ProjectID)
 		if err != nil {
 			return Result{}, fmt.Errorf("creating first job: %w", err)
 		}
-		res.JobID = j.ID
-		if deps.Engine != nil {
-			deps.Engine.Enqueue(j.ID)
-		}
+		res.JobID = jobID
 	}
 	if deps.Events != nil && (res.Index != nil || res.IndexWarning != "") {
 		data := map[string]any{"event": "repo_preindex", "repo": p.RepositoryPath}

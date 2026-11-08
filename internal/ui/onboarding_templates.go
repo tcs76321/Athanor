@@ -327,8 +327,8 @@ const welcomeBody = `
     <div class="card" data-live-card="welcome-qualification" data-live-interval="2000">
       <div class="row row-middle"><h3>{{if not .Qualification.CoreComplete}}Measuring the pool{{else}}Filling out the screen{{end}}</h3><span class="pill run">{{.Qualification.Percent}}%</span></div>
       <progress class="progress" value="{{.Qualification.Percent}}" max="100">{{.Qualification.Percent}}%</progress>
-      <p><b>{{.Qualification.Done}} / {{.Qualification.Total}}</b> case runs complete{{if .Qualification.CurrentModel}} · measuring <b class="mono">{{.Qualification.CurrentModel}}</b>{{end}}{{if .Qualification.Elapsed}} · {{.Qualification.Elapsed}} elapsed{{end}}{{if .Qualification.Remaining}} · about {{.Qualification.Remaining}} left{{else}} · estimating time left…{{end}}</p>
-      <p class="muted">{{if eq .Qualification.Tier "minimal"}}The Minimal screen covers each capability twice on every model.{{else if eq .Qualification.Tier "balanced"}}The Balanced screen runs the whole standard ladder.{{else}}The Complete screen runs every deep case.{{end}} It keeps running if you leave this page and resumes after a restart.</p>
+      <p><b>{{.Qualification.Done}} / {{.Qualification.Total}}</b> case runs complete{{if .Qualification.Waiting}} · <b>waiting for the current job to finish</b>{{else if .Qualification.CurrentModel}} · measuring <b class="mono">{{.Qualification.CurrentModel}}</b>{{end}}{{if .Qualification.Elapsed}} · {{.Qualification.Elapsed}} elapsed{{end}}{{if .Qualification.Remaining}} · about {{.Qualification.Remaining}} left{{else}} · estimating time left…{{end}}</p>
+      <p class="muted">{{if eq .Qualification.Tier "minimal"}}The Minimal screen covers each capability twice on every model.{{else if eq .Qualification.Tier "balanced"}}The Balanced screen runs the whole standard ladder.{{else}}The Complete screen runs every deep case.{{end}} It keeps running if you leave this page and resumes when you return after a Core restart.</p>
       <p class="muted small">Depth: {{if eq .Qualification.Tier "minimal"}}Minimal — the run stops after the Minimal screen.{{else if eq .Qualification.Tier "balanced"}}Balanced — the Minimal screen, then the whole balanced ladder.{{else}}Complete — the Minimal screen, then every deep case.{{end}} Changing it above applies between cases. A case run is one case on one model.</p>
       <form method="post" action="/ui/setup/qualify/cancel">
         <input type="hidden" name="next" value="/ui/welcome?step=qualify">
@@ -351,7 +351,7 @@ const welcomeBody = `
     {{else}}
     <div class="card">
       {{if .Qualification.Error}}<p class="del">{{.Qualification.Error}}</p>{{end}}
-      {{if .Qualification.Stale}}<p class="muted">A previous run looks stale; starting again picks up from the completed cases.</p>{{end}}
+      {{if .Qualification.Interrupted}}<p class="muted">A previous run was interrupted; it resumes when this step is opened.</p>{{else if .Qualification.Stale}}<p class="muted">A previous run has not reported progress for a long time; choosing a depth starts it again from the completed cases.</p>{{end}}
       <p class="muted">Nothing runs until you choose a depth above. Completed cases are kept if the run is paused.</p>
     </div>
     {{end}}

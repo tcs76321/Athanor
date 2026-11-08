@@ -184,6 +184,13 @@ demo. A claim without a proof is either removed or marked as a target.
 | Adaptive context planning chooses a per-phase window and audits it | ADR-0124 | `cmd/athanor/context_planner.go`; `internal/engine/contextasm/plan.go`; `TestContextPlannerSetsWindowAndAudits`, `TestContextPlannerFailurePausesJob`, `TestContextPlannerJudgeIgnoresRepoFloor` | **proven; opt-in via context_policy: adaptive** |
 | The adaptive floor reaches model selection before the target is planned | ADR-0124 | `Engine.minContextFor`; `TestFloorPlannerDrivesModelSelection` | **proven** |
 | Lane admission bounds solo/pod/light concurrency from a measured plan | ADR-0125 | `internal/capacity/admission.go`; `TestAdmissionLaneCap`, `TestAdmissionMixedUsesSmallerPlan`; `TestLaneAdmissionUsedByEnqueue` | **proven structurally; enabled when an audit is present** |
+| A qualification interrupted by a Core restart resumes on the qualification step | `docs/qualification-v2.md` §2 | `internal/ui/pool_qualify.go` (`maybeResumeQualification`); `TestWelcomeResumesInterruptedQualification`, `TestWelcomeDoesNotStartFreshQualification` | **proven** |
+| A long qualification is not reset by a stale clock | `docs/qualification-v2.md` §2 | `internal/ui/pool_qualify.go` (`fresh` is the only reset); `TestLongQualificationIsNotReset` | **proven** |
+| A qualification transport error leaves the case pending instead of scoring it wrong | `docs/qualification-v2.md` §2 | `internal/ui/pool_qualify.go` (`qualCaseError`); `TestQualificationTransportErrorLeavesCasePending` | **proven** |
+| Stop then choose a depth waits for the cancelled worker instead of doing nothing | 2026-11-08 qualification fix | `internal/ui/pool_qualify.go` (`waitForQualificationStop`); `TestStopThenStartWaitsForTheWorker` | **proven** |
+| The Setup page and the welcome step share one pool qualifier and one ranking | 2026-11-08 qualification fix | `internal/ui/pool_qualify.go`; `internal/ui/setup.go` | **proven structurally** |
+| A started non-scheduler job marks its task running atomically | 2026-11-08 lifecycle fix | `internal/firstuse.StartTaskJob`; `TestCreateRunsPreindexThenStartsTheJob` | **proven** |
+| A restart cannot re-run a task whose job already completed | 2026-11-08 lifecycle fix | `internal/scheduler.Reconcile`; `TestReconcileSettlesPendingTaskWithCompletedJob`, `TestReconcileAdoptsPendingTaskWithUnfinishedJob` | **proven** |
 
 ## Rule
 

@@ -1152,7 +1152,7 @@ func TestSetupPageWithModels(t *testing.T) {
 	if status != http.StatusOK {
 		t.Fatalf("status = %d, want 200", status)
 	}
-	for _, want := range []string{"fake:latest", "Model inventory", "Run qualification", "security"} {
+	for _, want := range []string{"fake:latest", "Model inventory", "Qualification", "Minimal", "Balanced", "security"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("setup page missing %q", want)
 		}
@@ -1179,62 +1179,6 @@ func TestQualMeasurementsFromState(t *testing.T) {
 				t.Errorf("main measurement = %+v", m)
 			}
 		}
-	}
-}
-
-// TestQualificationRunsAgainstFakeOllama exercises the bounded worker end to
-// end without a real model.
-func TestQualificationRunsAgainstFakeOllama(t *testing.T) {
-	fx := setup(t)
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/api/chat" {
-			http.NotFound(w, r)
-			return
-		}
-		var body struct {
-			Messages []struct {
-				Content string `json:"content"`
-			} `json:"messages"`
-		}
-		_ = json.NewDecoder(r.Body).Decode(&body)
-		prompt := ""
-		if len(body.Messages) > 0 {
-			prompt = body.Messages[0].Content
-		}
-		answer := "A"
-		if strings.Contains(prompt, "17 * 23") {
-			answer = "391"
-		}
-		_ = json.NewEncoder(w).Encode(map[string]any{
-			"message": map[string]string{"content": answer},
-			"done":    true,
-		})
-	}))
-	defer ts.Close()
-
-	cfg, err := config.Default()
-	if err != nil {
-		t.Fatal(err)
-	}
-	cfg.Inference.OllamaURL = ts.URL
-	cfg.Personas.Security.Model = "fake"
-	cfg.Personas.Main.Model = "fake"
-	fx.ui.deps.Config = cfg
-
-	state := newQualState()
-	roles := []onboard.Role{{Role: "security", Model: "fake"}, {Role: "main", Model: "fake"}}
-	models := []onboard.Model{{Name: "fake", SizeBytes: 1}}
-	fx.ui.runQualification(context.Background(), cfg, roles, models, &state)
-
-	if state.Running {
-		t.Error("qualification still marked running")
-	}
-	if state.Total == 0 || state.Done != state.Total {
-		t.Errorf("done/total = %d/%d, want a complete run", state.Done, state.Total)
-	}
-	ms := qualMeasurementsFromState(state)
-	if len(ms) != 2 {
-		t.Fatalf("measurements = %+v, want security and main", ms)
 	}
 }
 

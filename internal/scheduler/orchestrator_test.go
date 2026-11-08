@@ -172,6 +172,86 @@ func TestReconcilePicksUpTerminalJob(t *testing.T) {
 	assertStatus(t, st, "D", project.TaskBlocked)
 }
 
+func TestReconcileSettlesPendingTaskWithCompletedJob(t *testing.T) {
+	sched, projects, jobs, _, goalID := harness(t)
+	ctx := context.Background()
+	started, err := sched.Start(ctx, goalID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	completeJob(t, ctx, jobs, started[0])
+
+	// Reproduce the M1-era leak: the job finished but the task was left
+	// pending, so a boot reconcile used to start the same task again.
+	tasks, err := projects.TasksByGoal(ctx, goalID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := tasks[0]
+	if err := projects.SetTaskStatus(ctx, a.ID, project.TaskPending); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := sched.Reconcile(ctx, goalID); err != nil {
+		t.Fatalf("Reconcile: %v", err)
+	}
+	st := statuses(t, projects, goalID)
+	assertStatus(t, st, "A", project.TaskCompleted)
+	if got := len(jobsForTask(t, ctx, jobs, a.ID)); got != 1 {
+		t.Fatalf("task A has %d jobs, want 1 (the completed one)", got)
+	}
+}
+
+func TestReconcileAdoptsPendingTaskWithUnfinishedJob(t *testing.T) {
+	sched, projects, jobs, eng, goalID := harness(t)
+	ctx := context.Background()
+	if _, err := sched.Start(ctx, goalID); err != nil {
+		t.Fatal(err)
+	}
+	tasks, err := projects.TasksByGoal(ctx, goalID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := tasks[0]
+	if err := projects.SetTaskStatus(ctx, a.ID, project.TaskPending); err != nil {
+		t.Fatal(err)
+	}
+	before := len(eng.jobs)
+
+	if err := sched.Reconcile(ctx, goalID); err != nil {
+		t.Fatalf("Reconcile: %v", err)
+	}
+	st := statuses(t, projects, goalID)
+	assertStatus(t, st, "A", project.TaskRunning)
+	if got := len(jobsForTask(t, ctx, jobs, a.ID)); got != 1 {
+		t.Fatalf("task A has %d jobs, want the single unfinished job", got)
+	}
+	if len(eng.jobs) != before {
+		t.Fatalf("reconcile started %d extra job(s), want none", len(eng.jobs)-before)
+	}
+}
+
+func completeJob(t *testing.T, ctx context.Context, jobs *job.Repository, id string) {
+	t.Helper()
+	for _, state := range []job.State{
+		job.StateContextBuilding, job.StatePlanning, job.StateDiverging,
+		job.StateEvaluating, job.StateSynthesizing, job.StateComparing, job.StateCompleted,
+	} {
+		if _, err := jobs.Transition(ctx, id, state); err != nil {
+			t.Fatalf("transition to %s: %v", state, err)
+		}
+	}
+}
+
+func jobsForTask(t *testing.T, ctx context.Context, jobs *job.Repository, taskID string) []job.Job {
+	t.Helper()
+	out, err := jobs.ByTask(ctx, taskID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return out
+}
+
 type fakeReDecomposer struct {
 	n     int
 	err   error

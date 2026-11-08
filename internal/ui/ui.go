@@ -203,7 +203,14 @@ type UI struct {
 	// qualMu/qualRunning guard the one in-process qualification worker.
 	qualMu      sync.Mutex
 	qualRunning bool
-	qualCancel  context.CancelFunc
+	// qualStopping is true after Stop until the worker has actually exited.
+	// A depth choice during that window waits for the old worker instead of
+	// silently doing nothing.
+	qualStopping bool
+	qualCancel   context.CancelFunc
+	// qualDone closes when the current worker returns. It is the handoff that
+	// lets a start wait out a cancelled worker.
+	qualDone chan struct{}
 	// qualTier is the live target depth. The worker re-reads it between
 	// cases, so choosing Balanced or Complete mid-run takes effect without
 	// waiting for the Minimal pass to finish.
@@ -781,13 +788,12 @@ func (u *UI) handleGoalCreate(w http.ResponseWriter, r *http.Request) {
 		u.fail(w, err)
 		return
 	}
-	j, err := u.deps.Jobs.Create(r.Context(), task.ID, projectID)
+	jobID, err := firstuse.StartTaskJob(r.Context(), u.deps.Store, u.deps.Projects, u.deps.Jobs, u.deps.Engine, task.ID, projectID)
 	if err != nil {
 		u.fail(w, err)
 		return
 	}
-	u.deps.Engine.Enqueue(j.ID)
-	http.Redirect(w, r, "/ui/jobs/"+j.ID, http.StatusSeeOther)
+	http.Redirect(w, r, "/ui/jobs/"+jobID, http.StatusSeeOther)
 }
 
 func (u *UI) handleCorrections(w http.ResponseWriter, r *http.Request) {
@@ -1224,15 +1230,12 @@ func (u *UI) handleControl(w http.ResponseWriter, r *http.Request) {
 			u.fail(w, fmt.Errorf("job %s is not terminal", id))
 			return
 		}
-		next, err := u.deps.Jobs.Create(ctx, j.TaskID, j.ProjectID)
+		next, err := firstuse.StartTaskJob(ctx, u.deps.Store, u.deps.Projects, u.deps.Jobs, u.deps.Engine, j.TaskID, j.ProjectID)
 		if err != nil {
 			u.fail(w, err)
 			return
 		}
-		if u.deps.Engine != nil {
-			u.deps.Engine.Enqueue(next.ID)
-		}
-		http.Redirect(w, r, "/ui/jobs/"+next.ID, http.StatusSeeOther)
+		http.Redirect(w, r, "/ui/jobs/"+next, http.StatusSeeOther)
 		return
 	default:
 		u.fail(w, fmt.Errorf("unknown control action"))

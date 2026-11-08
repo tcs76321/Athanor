@@ -12,6 +12,7 @@ import (
 	"github.com/tcs76321/athanor/internal/artifact"
 	"github.com/tcs76321/athanor/internal/corrections"
 	"github.com/tcs76321/athanor/internal/decompose"
+	"github.com/tcs76321/athanor/internal/firstuse"
 	"github.com/tcs76321/athanor/internal/hitl"
 	"github.com/tcs76321/athanor/internal/job"
 	"github.com/tcs76321/athanor/internal/project"
@@ -63,13 +64,12 @@ func (a *API) handleGoalSubmit(w http.ResponseWriter, r *http.Request) {
 		writeError(w, status, err.Error())
 		return
 	}
-	j, err := a.jobs.Create(r.Context(), task.ID, task.ProjectID)
+	jobID, err := firstuse.StartTaskJob(r.Context(), a.db, a.projects, a.jobs, a.engine, task.ID, task.ProjectID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	a.engine.Enqueue(j.ID)
-	writeJSON(w, http.StatusCreated, goalResponse{TaskID: task.ID, JobID: j.ID})
+	writeJSON(w, http.StatusCreated, goalResponse{TaskID: task.ID, JobID: jobID})
 }
 
 // submitDecomposedGoal is the M6-T2 gated submit path: decompose, then

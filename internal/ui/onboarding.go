@@ -357,6 +357,12 @@ func (u *UI) handleWelcome(w http.ResponseWriter, r *http.Request) {
 	if validOnboardingStep(step) {
 		st.Step = step
 	}
+	// The UI promises that a qualification run interrupted by a Core restart
+	// picks up where it left off. Resuming only on the qualification step keeps
+	// a fresh install from starting a run before the operator chooses a depth.
+	if st.Step == "qualify" {
+		u.maybeResumeQualification(ctx)
+	}
 	data := u.welcomeData(ctx, st)
 	data["Bare"] = true
 	data["Applied"] = r.URL.Query().Get("applied")
@@ -459,7 +465,7 @@ func (u *UI) welcomeData(ctx context.Context, st onboardingState) map[string]any
 		"PersonaGuides": personaGuides, "Assignments": assignments,
 		"Suggestions": suggestions, "Resources": resources, "Hardware": hw,
 		"Budget": budget, "ConfigPath": u.deps.ConfigPath,
-		"HasMeasurements":    len(measurements) > 0 || pool.QualifiedCount > 0,
+		"HasMeasurements":    len(qual.Results) > 0 || pool.QualifiedCount > 0,
 		"Qualification":      qualView,
 		"Pool":               pool,
 		"PoolRows":           pool.Rows,
@@ -1010,7 +1016,7 @@ func (u *UI) writeRestartPage(w http.ResponseWriter, next string) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(http.StatusOK)
-	_, _ = fmt.Fprintf(w, `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="refresh" content="4;url=%s"><title>Restarting Athanor</title></head><body><h1>Restarting Athanor</h1><p>The new Job Pod limits were saved. The Core is restarting itself; this page will reload when it is back.</p><p>If it does not return, check the Core logs.</p></body></html>`, next)
+	_, _ = fmt.Fprintf(w, `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="refresh" content="4;url=%s"><title>Restarting Athanor</title></head><body><h1>Restarting Athanor</h1><p>The configuration was saved. The Core is restarting itself; this page will reload when it is back.</p><p>If it does not return, check the Core logs.</p></body></html>`, next)
 }
 
 func (u *UI) handleWelcomePost(w http.ResponseWriter, r *http.Request) {
@@ -1136,7 +1142,21 @@ func (u *UI) handleWelcomePost(w http.ResponseWriter, r *http.Request) {
 			u.fail(w, err)
 			return
 		}
-		http.Redirect(w, r, "/ui/welcome?step=models&applied=personas", http.StatusSeeOther)
+		back := "/ui/welcome?step=models&applied=personas"
+		if u.deps.Restart != nil {
+			// The running Core holds the old persona table. Applying the
+			// assignment must take effect now, not after the operator finishes
+			// the wizard and later notices a restart banner. A qualification
+			// run interrupted by this restart resumes on the qualify step.
+			u.writeRestartPage(w, back)
+			go func() {
+				time.Sleep(1500 * time.Millisecond)
+				u.deps.Restart()
+			}()
+			return
+		}
+		u.markRestartRequired(ctx, "persona assignment changed")
+		http.Redirect(w, r, back, http.StatusSeeOther)
 		return
 	case "apply_resources":
 		hw := Hardware{}

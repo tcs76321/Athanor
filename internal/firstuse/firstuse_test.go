@@ -68,6 +68,13 @@ func TestCreateRunsPreindexThenStartsTheJob(t *testing.T) {
 	if len(eng.ids) != 1 || eng.ids[0] != res.JobID {
 		t.Errorf("enqueued = %v, want %s", eng.ids, res.JobID)
 	}
+	task, err := deps.Projects.Task(context.Background(), res.Task.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if task.Status != project.TaskRunning {
+		t.Errorf("task status = %q, want %q: a started job must not leave the task pending", task.Status, project.TaskRunning)
+	}
 }
 
 // TestCreateInfersCapabilities proves the no-archetype product path: the

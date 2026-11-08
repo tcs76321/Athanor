@@ -6,8 +6,9 @@ import (
 	"fmt"
 )
 
-// Task lifecycle statuses (§7.3; migration 0017). Only the scheduler writes
-// these; the M1-era in_progress/done/cancelled values are gone.
+// Task lifecycle statuses (§7.3; migration 0017). The scheduler and the
+// shared start-job transaction write these; the M1-era in_progress/done/
+// cancelled values are gone.
 const (
 	TaskPending   = "pending"
 	TaskReady     = "ready"
@@ -126,6 +127,24 @@ func (r *Repo) SetTaskStatusTx(ctx context.Context, tx *sql.Tx, id, from, to str
 		return &ErrConcurrentTaskTransition{ID: id, From: from}
 	}
 	return nil
+}
+
+// MarkTaskRunningTx moves a pending or ready task to running in the caller's
+// transaction, and reports whether it changed. It is the shared start-job
+// handoff: every non-scheduler job start uses it so a completed job can never
+// leave its task pending for the boot reconciler to run again. A task already
+// running, or terminal, is left alone because a retry is a new job attempt,
+// not a new task lifecycle.
+func (r *Repo) MarkTaskRunningTx(ctx context.Context, tx *sql.Tx, id string) (bool, error) {
+	res, err := tx.ExecContext(ctx,
+		`UPDATE tasks SET status = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
+		  WHERE id = ? AND status IN (?, ?)`,
+		TaskRunning, id, TaskPending, TaskReady)
+	if err != nil {
+		return false, fmt.Errorf("marking task %s running: %w", id, err)
+	}
+	n, err := res.RowsAffected()
+	return n > 0, err
 }
 
 // ResetTask is the operator recovery write behind the scheduler's Reset seam

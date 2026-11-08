@@ -58,7 +58,7 @@ const modelsBody = `
 <div class="card" data-live-card="models-qualification" data-live-interval="2500">
   <div class="row row-middle"><h3>{{if not .Qualification.CoreComplete}}Measuring the pool{{else}}Filling out the screen{{end}}</h3><span class="pill run">{{.Qualification.Percent}}%</span></div>
   <progress class="progress" value="{{.Qualification.Percent}}" max="100">{{.Qualification.Percent}}%</progress>
-  <p><b>{{.Qualification.Done}} / {{.Qualification.Total}}</b> case runs{{if .Qualification.CurrentModel}} · measuring <b class="mono">{{.Qualification.CurrentModel}}</b>{{end}}{{if .Qualification.Elapsed}} · {{.Qualification.Elapsed}} elapsed{{end}}{{if .Qualification.Remaining}} · about {{.Qualification.Remaining}} left{{else}} · estimating time left…{{end}}</p>
+  <p><b>{{.Qualification.Done}} / {{.Qualification.Total}}</b> case runs{{if .Qualification.Waiting}} · <b>waiting for the current job to finish</b>{{else if .Qualification.CurrentModel}} · measuring <b class="mono">{{.Qualification.CurrentModel}}</b>{{end}}{{if .Qualification.Elapsed}} · {{.Qualification.Elapsed}} elapsed{{end}}{{if .Qualification.Remaining}} · about {{.Qualification.Remaining}} left{{else}} · estimating time left…{{end}}</p>
   <p class="muted">The run is resumable and uses the same grounded screen as first use.</p>
   <p class="muted small">Depth: {{if eq .Qualification.Tier "minimal"}}Minimal — stops after the Minimal screen.{{else if eq .Qualification.Tier "balanced"}}Balanced — the Minimal screen, then the whole balanced ladder.{{else}}Complete — the Minimal screen, then every deep case.{{end}} Changing it above applies between cases. A case run is one case on one model.</p>
   <form method="post" action="/ui/setup/qualify/cancel">
@@ -70,12 +70,14 @@ const modelsBody = `
 <div class="card">
   <p class="ok"><b>{{if eq .Qualification.Tier "minimal"}}Minimal screen complete.{{else if eq .Qualification.Tier "balanced"}}{{if .Qualification.AllCases}}Balanced screen complete.{{else}}Balanced screen paused — choose Balanced above to continue.{{end}}{{else}}{{if .Qualification.AllCases}}Complete screen complete.{{else}}Complete screen paused — choose Complete above to continue.{{end}}{{end}}</b> {{.Qualification.Recorded}} case runs recorded{{if .Qualification.Elapsed}} · {{.Qualification.Elapsed}} run{{end}}. The ranking below is the current prior.</p>
   {{if .Qualification.Error}}<p class="del">{{.Qualification.Error}}</p>{{end}}
+  {{if .Qualification.Interrupted}}<p class="muted">A previous run was interrupted; choosing a depth resumes it.</p>{{end}}
   <p class="muted">Choose a deeper level above to keep going; completed cases are kept.</p>
   {{if .Qualification.CompleteCases}}<p class="muted small">{{.Qualification.CompleteCases}} case runs remain for the complete screen.</p>{{end}}
 </div>
 {{else}}
 <div class="card">
   {{if .Qualification.Error}}<p class="del">{{.Qualification.Error}}</p>{{end}}
+  {{if .Qualification.Interrupted}}<p class="muted">A previous run was interrupted; choosing a depth resumes it from the completed cases.</p>{{end}}
   <p class="muted">Nothing runs until you choose a depth above. Time estimates appear after the first completed cases.</p>
 </div>
 {{end}}
