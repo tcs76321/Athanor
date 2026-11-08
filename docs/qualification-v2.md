@@ -73,7 +73,10 @@ The run has two layers:
   blocks for every model or not at all. Adding time and running the full screen
   continue from the completed cases; nothing is discarded.
 
-The state is resumable at case granularity. Scores are computed only on the
+The state is resumable at case granularity. A Core restart clears the stale
+running flag, and opening the qualification step resumes from the completed
+cases. The progress panel names the model being measured, so a long load is
+visible rather than silent. Scores are computed only on the
 **intersection** of cases completed by every model, so an interrupted block
 never advantages the models that happened to run first. A model that is
 unavailable is marked failed for its cases, not silently skipped.

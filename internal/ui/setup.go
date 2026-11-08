@@ -50,6 +50,10 @@ type qualState struct {
 	FirstModelSeconds    float64  `json:"first_model_seconds,omitempty"`
 	EstimatedCoreSeconds float64  `json:"estimated_core_seconds,omitempty"`
 	Models               []string `json:"models,omitempty"`
+	// CurrentModel is the model being measured right now. The worker persists
+	// it before the first case so the UI can show activity while a large model
+	// loads, instead of a silent zero.
+	CurrentModel string `json:"current_model,omitempty"`
 }
 
 // qualCaseRecord is one completed case: what was asked, what was expected,
@@ -106,6 +110,7 @@ type qualificationView struct {
 	// CoreRemaining is the first-model estimate projected against the clock,
 	// shown while the core is still running.
 	CoreRemaining string
+	CurrentModel  string
 }
 
 // qualificationViewFor builds the progress view. A run with no plan yet
@@ -116,6 +121,7 @@ func qualificationViewFor(s qualState, hasMeasurements bool) qualificationView {
 		Running: s.Running, Done: s.Done, Total: s.Total,
 		Error: s.Error, Stale: s.stale(), HasMeasurements: hasMeasurements,
 		CoreComplete: s.CoreComplete, MinimumMinutes: s.MinimumMinutes, Phase: s.Phase,
+		CurrentModel: s.CurrentModel,
 	}
 	if s.CoreSeconds > 0 {
 		v.Estimate = time.Duration(s.CoreSeconds * float64(time.Second)).Round(time.Second).String()
@@ -159,7 +165,9 @@ func qualificationViewFor(s qualState, hasMeasurements bool) qualificationView {
 		if s.Running && v.Done > 0 && v.Total > v.Done {
 			perCase := elapsed / time.Duration(v.Done)
 			remaining := perCase * time.Duration(v.Total-v.Done)
-			if remaining > 0 {
+			// A resumed run starts with completed cases and zero elapsed
+			// time; a sub-second projection is noise, not an estimate.
+			if remaining >= time.Second {
 				v.Remaining = remaining.Round(time.Second).String()
 			}
 		}

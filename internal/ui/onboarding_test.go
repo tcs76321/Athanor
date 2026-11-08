@@ -333,6 +333,80 @@ func TestWelcomeQualificationOffersSimpleChoices(t *testing.T) {
 	}
 }
 
+func TestRestartReconcilesInterruptedQualification(t *testing.T) {
+	u := newEmptyUI(t)
+	state := newQualState()
+	state.Running = true
+	state.StartedAt = time.Now().Add(-time.Minute)
+	state.Total = 20
+	state.Done = 4
+	state.Models = []string{"fake:latest"}
+	state.Results["generator|fake:latest|gen-arith"] = true
+	u.saveQualState(context.Background(), state)
+
+	restarted := New(Deps{Store: u.deps.Store, Pool: composition.New(u.deps.Store), Runtime: "Core Pod", Version: "test"})
+	after := restarted.loadQualState(context.Background())
+	if after.Running {
+		t.Fatal("restart left the qualification marked running")
+	}
+	if !after.FinishedAt.IsZero() {
+		t.Fatal("restart marked the interrupted run as an operator stop")
+	}
+	if _, ok := after.Results["generator|fake:latest|gen-arith"]; !ok {
+		t.Fatal("restart discarded completed cases")
+	}
+}
+
+func TestInterruptedQualificationResumesOnStepFour(t *testing.T) {
+	u := newEmptyUI(t)
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/chat" {
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"message": map[string]string{"content": "A"},
+				"done":    true,
+			})
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer ts.Close()
+	cfg, err := config.Default()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.Inference.OllamaURL = ts.URL
+	u.deps.Config = cfg
+	u.deps.Pool.Upsert(composition.ModelInfo{
+		Name: "fake:latest", Family: "fake", SizeBytes: 1,
+		MaxContext: 8192, ContextTarget: 8192,
+	})
+
+	state := newQualState()
+	state.StartedAt = time.Now().Add(-time.Minute)
+	state.Total = 20
+	state.Done = 1
+	state.Models = []string{"fake:latest"}
+	state.Results["generator|fake:latest|gen-arith"] = true
+	u.saveQualState(context.Background(), state)
+
+	u.ensureQualificationStarted(context.Background())
+	after := u.loadQualState(context.Background())
+	if !after.Running || after.Total == 0 {
+		t.Fatalf("state = %+v, want a resumed run", after)
+	}
+	u.cancelQualification()
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		u.qualMu.Lock()
+		running := u.qualRunning
+		u.qualMu.Unlock()
+		if !running {
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
 func TestApplyMeasuredSizesUsesLoadedBytes(t *testing.T) {
 	models := applyMeasuredSizes([]setupModel{{Name: "gemma", SizeBytes: 1}}, `{"roles":[{"role":"main","model":"gemma","loaded_bytes":123456}]}`)
 	if len(models) != 1 || models[0].SizeBytes != 123456 {

@@ -129,6 +129,9 @@ func (u *UI) startPoolQualification(ctx context.Context, fresh, deep bool, mode 
 	} else {
 		state.Total = poolQualificationPlan(models, ladder)
 	}
+	if len(models) > 0 {
+		state.CurrentModel = models[0]
+	}
 	u.saveQualState(ctx, state)
 	runState := state
 	if state.Results != nil {
@@ -151,8 +154,9 @@ func (u *UI) startPoolQualification(ctx context.Context, fresh, deep bool, mode 
 }
 
 // ensureQualificationStarted starts the minimum screen the first time the
-// qualification step is opened. It never restarts a run the operator stopped
-// or finished, and it does nothing before the pool has a model.
+// qualification step is opened. It resumes an interrupted run (the Core
+// restarted while it was working), but never restarts a run the operator
+// deliberately stopped or one that already has its core.
 func (u *UI) ensureQualificationStarted(ctx context.Context) {
 	if u.deps.Config == nil {
 		return
@@ -161,13 +165,31 @@ func (u *UI) ensureQualificationStarted(ctx context.Context) {
 	if st.Running && !st.stale() {
 		return
 	}
-	if !st.StartedAt.IsZero() || len(st.Results) > 0 || st.CoreComplete {
+	if st.CoreComplete || !st.FinishedAt.IsZero() {
 		return
 	}
 	if p := u.pool(); p == nil || len(p.EligibleNames()) == 0 {
 		return
 	}
 	_, _, _ = u.startPoolQualification(ctx, false, false, "core", 0)
+}
+
+// reconcileInterruptedQualification clears a persisted running flag that no
+// goroutine can own after a Core restart. Completed cases are kept, and the
+// qualification step resumes from them when it is opened. FinishedAt stays
+// zero so this is distinguishable from an operator stop.
+func (u *UI) reconcileInterruptedQualification() {
+	if u.deps.Store == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	st := u.loadQualState(ctx)
+	if !st.Running {
+		return
+	}
+	st.Running = false
+	u.saveQualState(ctx, st)
 }
 
 // cancelQualification stops the in-flight screen. The run is resumable: the
@@ -232,6 +254,8 @@ func (u *UI) runPoolQualification(ctx context.Context, models []string, ladder o
 				break
 			}
 			modelStart := time.Now()
+			state.CurrentModel = model
+			u.saveQualState(context.Background(), *state)
 			runCases(model, core, true)
 			if first && modelCoreComplete(state, model, core) {
 				// The first successfully screened model's core pass is the
@@ -270,6 +294,8 @@ func (u *UI) runPoolQualification(ctx context.Context, models []string, ladder o
 				if ctx.Err() != nil {
 					break
 				}
+				state.CurrentModel = model
+				u.saveQualState(context.Background(), *state)
 				runCases(model, block, false)
 			}
 			extra = extra[len(block):]
@@ -312,6 +338,8 @@ func (u *UI) runPoolQualification(ctx context.Context, models []string, ladder o
 			if ctx.Err() != nil {
 				break
 			}
+			state.CurrentModel = model
+			u.saveQualState(context.Background(), *state)
 			runCases(model, block, false)
 		}
 		extra = extra[blockCases:]
@@ -383,6 +411,7 @@ func estimateCaseSeconds(state *qualState, models, coreCases int) time.Duration 
 
 func (u *UI) finishPoolQualification(ctx context.Context, models []string, ladder onboard.Ladder, state *qualState) {
 	state.Running = false
+	state.CurrentModel = ""
 	state.FinishedAt = time.Now()
 	if ctx.Err() == context.Canceled {
 		state.Error = "qualification cancelled; start again to resume"

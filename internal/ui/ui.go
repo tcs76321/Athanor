@@ -274,6 +274,7 @@ func New(deps Deps) *UI {
 	if saved, ok := u.loadSystemState(context.Background(), "ui:density"); ok && validDensity(saved) {
 		u.density = saved
 	}
+	u.reconcileInterruptedQualification()
 	return u
 }
 
