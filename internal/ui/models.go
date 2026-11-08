@@ -36,7 +36,7 @@ const modelsBody = `
 </div>
 
 <div class="tier-picker">
-  <div class="tier-picker-head"><b>Qualification depth</b><span class="muted small">A running screen switches without waiting for the current pass to finish.</span></div>
+  <div class="tier-picker-head"><b>Qualification depth</b><span class="muted small">Pick one to start; a running screen switches without waiting for the current pass.</span></div>
   <form method="post" action="/ui/models/qualify" class="tier-options">
     <button type="submit" name="mode" value="minimal" class="tier-option {{if eq .Qualification.Tier "minimal"}}selected{{end}}">
       <span class="tier-name">Minimal</span>
@@ -76,7 +76,7 @@ const modelsBody = `
 {{else}}
 <div class="card">
   {{if .Qualification.Error}}<p class="del">{{.Qualification.Error}}</p>{{end}}
-  <p class="muted">Choose a depth above to start. Time estimates appear after the first completed cases.</p>
+  <p class="muted">Nothing runs until you choose a depth above. Time estimates appear after the first completed cases.</p>
 </div>
 {{end}}
 

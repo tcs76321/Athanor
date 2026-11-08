@@ -72,10 +72,10 @@ Each depth shows its own time estimate, and changing the depth while the
 screen runs is applied between cases, so selecting Balanced or Complete does
 not wait for the minimum to finish.
 
-- **Starts on its own**: opening the qualification step starts the saved depth
-  (Balanced on first use) immediately; there is no duration selector to
-  interpret first. While it runs, the page shows case runs done, elapsed time,
-  the model being measured, and an estimate of the time left.
+- **Starts when chosen**: step 4 shows the three depths and their estimates;
+  nothing runs until the operator picks one. A background poll or a stale tab
+  never starts a run. While it runs, the page shows case runs done, elapsed
+  time, the model being measured, and an estimate of the time left.
 
 The state is resumable at case granularity. A Core restart clears the stale
 running flag, and opening the qualification step resumes from the completed

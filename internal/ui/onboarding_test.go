@@ -241,7 +241,7 @@ func TestWelcomeQualificationStartsInline(t *testing.T) {
 	}
 }
 
-func TestWelcomeQualificationAutoStartsOnStepFour(t *testing.T) {
+func TestWelcomeQualificationStartsOnChoice(t *testing.T) {
 	u := newEmptyUI(t)
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
@@ -283,13 +283,16 @@ func TestWelcomeQualificationAutoStartsOnStepFour(t *testing.T) {
 	defer func() { _ = resp.Body.Close() }()
 	raw, _ := io.ReadAll(resp.Body)
 	body := string(raw)
-	for _, want := range []string{`id="qualification-auto-start"`, `name="tier" value="balanced"`, "Minimal", "Balanced", "Complete"} {
+	for _, want := range []string{`name="tier" value="minimal"`, `name="tier" value="balanced"`, `name="tier" value="complete"`, "Minimal", "Balanced", "Complete"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("qualification step missing %q", want)
 		}
 	}
 	if strings.Contains(body, "Measuring the pool") {
-		t.Error("server started the run before the browser submitted the form")
+		t.Error("server started the run before a depth was chosen")
+	}
+	if strings.Contains(body, "qualification-auto-start") {
+		t.Error("step still contains a hidden auto-start form")
 	}
 	for _, unwanted := range []string{"Minimum run time", `name="minutes"`, `name="deep"`, "Run minimal core", "Run deep core"} {
 		if strings.Contains(body, unwanted) {
@@ -298,17 +301,17 @@ func TestWelcomeQualificationAutoStartsOnStepFour(t *testing.T) {
 	}
 	state := u.loadQualState(context.Background())
 	if state.Running || !state.StartedAt.IsZero() {
-		t.Fatalf("state = %+v, want no run before the auto-start form is submitted", state)
+		t.Fatalf("state = %+v, want no run before a depth is chosen", state)
 	}
 	start := postForm(t, uiTS.URL+"/ui/welcome", url.Values{
 		"step": {"qualify"}, "action": {"set_qual_tier"}, "tier": {qualTierBalanced},
 	})
 	if start.StatusCode != http.StatusSeeOther {
-		t.Fatalf("auto-start status = %d, want 303", start.StatusCode)
+		t.Fatalf("start status = %d, want 303", start.StatusCode)
 	}
 	state = u.loadQualState(context.Background())
 	if state.Total == 0 || !state.Running {
-		t.Fatalf("state = %+v, want an auto-started qualification plan", state)
+		t.Fatalf("state = %+v, want a started qualification plan", state)
 	}
 	u.cancelQualification()
 }

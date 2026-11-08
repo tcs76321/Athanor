@@ -304,7 +304,7 @@ const welcomeBody = `
     <h1>Rank the pool.</h1>
     <p class="lede">Athanor measures every pool model on a small, grounded screen: deterministic generator cases and fixed-label judgment pairs. It is a prior for selection, not the frozen capability benchmark, and it never leaves this machine. Real job outcomes update the ranking over time.</p>
     <div class="tier-picker">
-      <div class="tier-picker-head"><b>How deep should the screen go?</b><span class="muted small">Choose now — a running screen switches without waiting for the current pass to finish.</span></div>
+      <div class="tier-picker-head"><b>Choose a qualification depth</b><span class="muted small">Pick one to start; a running screen switches without waiting for the current pass.</span></div>
       <form method="post" action="/ui/welcome" class="tier-options">
         <input type="hidden" name="step" value="qualify">
         <input type="hidden" name="action" value="set_qual_tier">
@@ -323,13 +323,6 @@ const welcomeBody = `
         </button>
       </form>
     </div>
-    {{if and .Qualification.CanAutoStart .PoolCount}}
-    <form id="qualification-auto-start" method="post" action="/ui/welcome">
-      <input type="hidden" name="step" value="qualify">
-      <input type="hidden" name="action" value="set_qual_tier">
-      <input type="hidden" name="tier" value="{{.Qualification.Tier}}">
-    </form>
-    {{end}}
     {{if .Qualification.Running}}
     <div class="card" data-live-card="welcome-qualification" data-live-interval="2000">
       <div class="row row-middle"><h3>{{if not .Qualification.CoreComplete}}Measuring the pool{{else}}Filling out the screen{{end}}</h3><span class="pill run">{{.Qualification.Percent}}%</span></div>
@@ -359,7 +352,7 @@ const welcomeBody = `
     <div class="card">
       {{if .Qualification.Error}}<p class="del">{{.Qualification.Error}}</p>{{end}}
       {{if .Qualification.Stale}}<p class="muted">A previous run looks stale; starting again picks up from the completed cases.</p>{{end}}
-      <p class="muted">Choose a depth above to start. Completed cases are kept if the run is paused.</p>
+      <p class="muted">Nothing runs until you choose a depth above. Completed cases are kept if the run is paused.</p>
     </div>
     {{end}}
     <p class="muted small">The screen covers code, data, documents, text, media, summarization, security, agentic decisions, instruction following, grounding, repair, long-context recall, engine-operation choice, planning, calibration, and judgment. Each family is scored separately.</p>
