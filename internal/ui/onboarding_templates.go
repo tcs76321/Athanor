@@ -323,6 +323,13 @@ const welcomeBody = `
         </button>
       </form>
     </div>
+    {{if and .Qualification.CanAutoStart .PoolCount}}
+    <form id="qualification-auto-start" method="post" action="/ui/welcome">
+      <input type="hidden" name="step" value="qualify">
+      <input type="hidden" name="action" value="set_qual_tier">
+      <input type="hidden" name="tier" value="{{.Qualification.Tier}}">
+    </form>
+    {{end}}
     {{if .Qualification.Running}}
     <div class="card" data-live-card="welcome-qualification" data-live-interval="2000">
       <div class="row row-middle"><h3>{{if not .Qualification.CoreComplete}}Measuring the pool{{else}}Filling out the screen{{end}}</h3><span class="pill run">{{.Qualification.Percent}}%</span></div>

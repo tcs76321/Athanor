@@ -422,12 +422,6 @@ func (u *UI) welcomeData(ctx context.Context, st onboardingState) map[string]any
 	resources := currentResources(hw, u.deps.Config)
 	budget := budgetFor(roles, models, hw, resources)
 	u.syncPool(ctx, models, budget, hw)
-	if st.Step == "qualify" {
-		// The pool is synced now; reaching step 4 starts the saved depth
-		// without asking the operator to choose a duration first.
-		u.ensureQualificationStarted(ctx)
-		qual = u.loadQualState(ctx)
-	}
 	pool := u.welcomePool(models)
 	suggestions := u.poolSuggestions(models, hw)
 	if pool.QualifiedCount > 0 {

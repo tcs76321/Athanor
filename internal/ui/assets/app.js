@@ -672,6 +672,20 @@
     wirePalette();
     wireRefiners();
     wireLiveCards();
+    // The qualification step starts when the operator navigates to it, not
+    // when a stale tab reloads after a Core restart. The step's live polling
+    // fetches the same URL without running scripts.
+    const autoStart = $("#qualification-auto-start");
+    if (autoStart) {
+      let navType = "";
+      try {
+        const entries = performance.getEntriesByType("navigation");
+        if (entries.length) navType = entries[0].type;
+      } catch (_) {
+        navType = "";
+      }
+      if (navType === "navigate") autoStart.submit();
+    }
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
   else boot();

@@ -118,6 +118,11 @@ type qualificationView struct {
 	CoreRemaining string
 	CurrentModel  string
 	Tier          string
+	// CanAutoStart is true when the step should start or resume the selected
+	// depth once the page is actually rendered. The browser submits a hidden
+	// form; a background poll of the same URL does not execute scripts, so a
+	// stale tab cannot start a run.
+	CanAutoStart bool
 }
 
 // qualificationViewFor builds the progress view. A run with no plan yet
@@ -215,6 +220,7 @@ func qualificationViewForPool(s qualState, models []string, tier string, hasMeas
 	v.Done = donePairs(plan, s.Results, models)
 	v.Recorded = len(s.Results)
 	v.CoreComplete = coreCoverage(minimalPlan, models, s.Results)
+	v.CanAutoStart = !s.Running && s.FinishedAt.IsZero() && (v.Tier != qualTierMinimal || !v.CoreComplete)
 	v.AllCases = v.Total > 0 && v.Done >= v.Total
 	v.Complete = !s.Running && v.Total > 0 && v.Done >= v.Total
 	v.Percent = 0

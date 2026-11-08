@@ -283,8 +283,13 @@ func TestWelcomeQualificationAutoStartsOnStepFour(t *testing.T) {
 	defer func() { _ = resp.Body.Close() }()
 	raw, _ := io.ReadAll(resp.Body)
 	body := string(raw)
-	if !strings.Contains(body, "Measuring the pool") {
-		t.Errorf("qualification step did not show an auto-started run")
+	for _, want := range []string{`id="qualification-auto-start"`, `name="tier" value="minimal"`, "Minimal", "Balanced", "Complete"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("qualification step missing %q", want)
+		}
+	}
+	if strings.Contains(body, "Measuring the pool") {
+		t.Error("server started the run before the browser submitted the form")
 	}
 	for _, unwanted := range []string{"Minimum run time", `name="minutes"`, `name="deep"`, "Run minimal core", "Run deep core"} {
 		if strings.Contains(body, unwanted) {
@@ -292,6 +297,16 @@ func TestWelcomeQualificationAutoStartsOnStepFour(t *testing.T) {
 		}
 	}
 	state := u.loadQualState(context.Background())
+	if state.Running || !state.StartedAt.IsZero() {
+		t.Fatalf("state = %+v, want no run before the auto-start form is submitted", state)
+	}
+	start := postForm(t, uiTS.URL+"/ui/welcome", url.Values{
+		"step": {"qualify"}, "action": {"set_qual_tier"}, "tier": {qualTierMinimal},
+	})
+	if start.StatusCode != http.StatusSeeOther {
+		t.Fatalf("auto-start status = %d, want 303", start.StatusCode)
+	}
+	state = u.loadQualState(context.Background())
 	if state.Total == 0 || !state.Running {
 		t.Fatalf("state = %+v, want an auto-started qualification plan", state)
 	}
@@ -389,7 +404,9 @@ func TestInterruptedQualificationResumesOnStepFour(t *testing.T) {
 	state.Results["generator|fake:latest|gen-arith"] = true
 	u.saveQualState(context.Background(), state)
 
-	u.ensureQualificationStarted(context.Background())
+	if err := u.setQualificationTier(context.Background(), qualTierMinimal); err != nil {
+		t.Fatal(err)
+	}
 	after := u.loadQualState(context.Background())
 	if !after.Running || after.Total == 0 {
 		t.Fatalf("state = %+v, want a resumed run", after)
@@ -462,7 +479,9 @@ func TestInterruptedFullQualificationResumesFull(t *testing.T) {
 	state.Deep = true
 	u.saveQualState(context.Background(), state)
 
-	u.ensureQualificationStarted(context.Background())
+	if err := u.setQualificationTier(context.Background(), qualTierComplete); err != nil {
+		t.Fatal(err)
+	}
 	after := u.loadQualState(context.Background())
 	if !after.Running || !after.Deep {
 		t.Fatalf("state = %+v, want a resumed full run", after)

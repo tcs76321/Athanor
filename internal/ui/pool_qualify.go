@@ -208,33 +208,6 @@ func (u *UI) setQualificationTier(ctx context.Context, tier string) error {
 	}
 }
 
-// ensureQualificationStarted starts the saved depth the first time the
-// qualification step is opened. It resumes an interrupted run (the Core
-// restarted while it was working), but never restarts a run the operator
-// deliberately stopped or a completed Minimal screen.
-func (u *UI) ensureQualificationStarted(ctx context.Context) {
-	if u.deps.Config == nil {
-		return
-	}
-	st := u.loadQualState(ctx)
-	if st.Running && !st.stale() {
-		return
-	}
-	if !st.FinishedAt.IsZero() {
-		// A nonzero finish time is either a completed run or an operator
-		// stop. Neither should restart on a page load.
-		return
-	}
-	tier := normalizeQualTier(st.Tier)
-	if st.CoreComplete && tier == qualTierMinimal {
-		return
-	}
-	if p := u.pool(); p == nil || len(p.EligibleNames()) == 0 {
-		return
-	}
-	_, _, _ = u.startPoolQualification(ctx, false, tier)
-}
-
 // reconcileInterruptedQualification clears a persisted running flag that no
 // goroutine can own after a Core restart. Completed cases are kept, and the
 // qualification step resumes from them when it is opened. FinishedAt stays
