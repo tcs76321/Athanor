@@ -73,7 +73,7 @@ screen runs is applied between cases, so selecting Balanced or Complete does
 not wait for the minimum to finish.
 
 - **Starts on its own**: opening the qualification step starts the saved depth
-  (Minimal on first use) immediately; there is no duration selector to
+  (Balanced on first use) immediately; there is no duration selector to
   interpret first. While it runs, the page shows case runs done, elapsed time,
   the model being measured, and an estimate of the time left.
 

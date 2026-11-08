@@ -22,12 +22,13 @@ const (
 
 func normalizeQualTier(t string) string {
 	switch strings.ToLower(strings.TrimSpace(t)) {
-	case "balanced", "medium", "extra":
-		return qualTierBalanced
+	case "minimal", "short", "core":
+		return qualTierMinimal
 	case "complete", "full":
 		return qualTierComplete
 	default:
-		return qualTierMinimal
+		// Balanced is the recommended depth and the default for a fresh Core.
+		return qualTierBalanced
 	}
 }
 
@@ -158,7 +159,7 @@ func (u *UI) currentQualTier() string {
 	u.qualMu.Lock()
 	defer u.qualMu.Unlock()
 	if u.qualTier == "" {
-		return qualTierMinimal
+		return qualTierBalanced
 	}
 	return u.qualTier
 }

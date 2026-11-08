@@ -283,7 +283,7 @@ func TestWelcomeQualificationAutoStartsOnStepFour(t *testing.T) {
 	defer func() { _ = resp.Body.Close() }()
 	raw, _ := io.ReadAll(resp.Body)
 	body := string(raw)
-	for _, want := range []string{`id="qualification-auto-start"`, `name="tier" value="minimal"`, "Minimal", "Balanced", "Complete"} {
+	for _, want := range []string{`id="qualification-auto-start"`, `name="tier" value="balanced"`, "Minimal", "Balanced", "Complete"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("qualification step missing %q", want)
 		}
@@ -301,7 +301,7 @@ func TestWelcomeQualificationAutoStartsOnStepFour(t *testing.T) {
 		t.Fatalf("state = %+v, want no run before the auto-start form is submitted", state)
 	}
 	start := postForm(t, uiTS.URL+"/ui/welcome", url.Values{
-		"step": {"qualify"}, "action": {"set_qual_tier"}, "tier": {qualTierMinimal},
+		"step": {"qualify"}, "action": {"set_qual_tier"}, "tier": {qualTierBalanced},
 	})
 	if start.StatusCode != http.StatusSeeOther {
 		t.Fatalf("auto-start status = %d, want 303", start.StatusCode)
@@ -317,6 +317,7 @@ func TestWelcomeQualificationOffersSimpleChoices(t *testing.T) {
 	u := newEmptyUI(t)
 	state := newQualState()
 	state.CoreComplete = true
+	state.Tier = qualTierMinimal
 	state.Phase = "core"
 	state.StartedAt = time.Now().Add(-2 * time.Minute)
 	state.FinishedAt = time.Now()
