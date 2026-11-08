@@ -374,16 +374,37 @@ type Engine struct {
 // §2). A nil seam is valid: the engine never starts a pod — the pre-T4b
 // behavior unit tests rely on. Production wires the cmd/athanor adapter
 // over jobpod.Manager.
-func New(cfg *config.Config, db *store.Store, jobs *job.Repository, projects *project.Repo,
-	artifacts *artifact.Store, eval *evaluation.Repo, client *llm.Client, registry *llm.Registry,
-	freezer Freezer, cap ConcurrencyCap, runner ToolRunner, evictor Evictor,
-	ctxProvider ContextProvider, podLifecycle PodLifecycle) *Engine {
+// Deps is the construction-time wiring for an engine. Optional seams are
+// nil-safe; the setters remain for seams that production wires after New
+// (corrections, memory, insights, notebook, clarifier, model selector, budget
+// ledger).
+type Deps struct {
+	Config          *config.Config
+	Store           *store.Store
+	Jobs            *job.Repository
+	Projects        *project.Repo
+	Artifacts       *artifact.Store
+	Evaluation      *evaluation.Repo
+	LLM             *llm.Client
+	Registry        *llm.Registry
+	Freezer         Freezer
+	Cap             ConcurrencyCap
+	Runner          ToolRunner
+	Evictor         Evictor
+	ContextProvider ContextProvider
+	Pods            PodLifecycle
+}
+
+func New(d Deps) *Engine {
+	cfg := d.Config
+	cap := d.Cap
 	if cap == nil {
 		// No power source: fall back to a static cap derived from
 		// cfg.Limits so the engine remains usable in tests and
 		// minimal configs.
 		cap = staticCap{max: cfg.Limits.MaxConcurrentJobs}
 	}
+	freezer := d.Freezer
 	if freezer == nil {
 		// No kill switch wired: never frozen. Production always wires
 		// control.KillSwitch; the fallback keeps this seam uniformly
@@ -391,12 +412,13 @@ func New(cfg *config.Config, db *store.Store, jobs *job.Repository, projects *pr
 		freezer = openFreezer{}
 	}
 	e := &Engine{
-		cfg: cfg, db: db, state: jobstate.New(db), jobs: jobs, projects: projects, artifacts: artifacts,
-		eval: eval, client: client, registry: registry, freezer: freezer, cap: cap,
-		runner:       runner,
-		evictor:      evictor,
-		ctxProvider:  ctxProvider,
-		podLifecycle: podLifecycle,
+		cfg: cfg, db: d.Store, state: jobstate.New(d.Store),
+		jobs: d.Jobs, projects: d.Projects, artifacts: d.Artifacts,
+		eval: d.Evaluation, client: d.LLM, registry: d.Registry, freezer: freezer, cap: cap,
+		runner:       d.Runner,
+		evictor:      d.Evictor,
+		ctxProvider:  d.ContextProvider,
+		podLifecycle: d.Pods,
 		running:      map[string]bool{},
 		cancels:      map[string]context.CancelFunc{},
 		cancelled:    map[string]bool{},
@@ -406,7 +428,7 @@ func New(cfg *config.Config, db *store.Store, jobs *job.Repository, projects *pr
 	e.asm = contextasm.New(ctxHost{e}, cfg, e.state)
 	e.phaseDeps = &phases.Deps{
 		Cfg: cfg, Runtime: phaseHost{e}, State: e.state,
-		Jobs: jobs, Projects: projects, Artifacts: artifacts, Eval: eval,
+		Jobs: d.Jobs, Projects: d.Projects, Artifacts: d.Artifacts, Eval: d.Evaluation,
 	}
 	return e
 }

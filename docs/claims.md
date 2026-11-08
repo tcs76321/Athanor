@@ -7,6 +7,7 @@ demo. A claim without a proof is either removed or marked as a target.
 | Claim | Where stated | Proof | Status |
 |---|---|---|---|
 | No tool execution in `internal/`; no raw `syscall` outside the path library | README, ARCHITECTURE §25 | `internal/gate/gate_test.go` (Gate G1) | proven |
+| Engine subpackages cannot import the root, bypass `jobstate`, or wire phases outside the engine | ADR-0131 | `internal/gate/gate_engine_layers_test.go` | proven |
 | Every internal route is auth-wrapped; every tool handler consults the envelope | ARCHITECTURE §3.2, §25 | `internal/gate/gate_g2_test.go` | proven |
 | Job Pods are rootless, read-only-rootfs, `--network=none`, with no bearer-token mount by default | ARCHITECTURE §21.2 | `internal/jobpod/args_common.go`, `args_linux.go`, argv gate, behavioral probes | proven (pod hardening); the read-only token mount is opt-in (`Spec.MountToken`) |
 | Gateway is default-deny, allowlist-only, pinned-IP, redirect-bounded | ARCHITECTURE §21.5 | `internal/gateway` corpus + integration probes | proven |

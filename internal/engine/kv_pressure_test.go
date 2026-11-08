@@ -97,9 +97,16 @@ func (e *testEnv) withEvictor(t *testing.T, ev Evictor) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	e.eng = New(e.cfg, e.db, e.jobs, e.projects, e.artifacts, evaluation.NewRepo(e.db),
-		llm.NewClient(e.cfg.Inference.OllamaURL, nil), registry, e.freezer,
-		power.NewPowerManager(nil), e.runner, ev, nil, nil)
+	e.eng = New(Deps{
+		Config: e.cfg, Store: e.db, Jobs: e.jobs, Projects: e.projects, Artifacts: e.artifacts,
+		Evaluation: evaluation.NewRepo(e.db),
+		LLM:        llm.NewClient(e.cfg.Inference.OllamaURL, nil),
+		Registry:   registry,
+		Freezer:    e.freezer,
+		Cap:        power.NewPowerManager(nil),
+		Runner:     e.runner,
+		Evictor:    ev,
+	})
 }
 
 // pressureRow is the decoded `kv_cache_pressure` audit row.

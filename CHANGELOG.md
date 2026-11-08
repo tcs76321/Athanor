@@ -10,6 +10,27 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Engine layering (2026-11-07)
+
+- **Engine split** (ADR-0131): `internal/engine` now keeps lifecycle, wiring,
+  model selection, and the LLM `call` gateway; the seven §13.1 phases live in
+  `internal/engine/phases`, acceptance decisions in
+  `internal/engine/acceptance`, context assembly in
+  `internal/engine/contextasm`, repair policy in `internal/engine/repair`, and
+  per-job scratch in `internal/engine/jobstate`.
+- **Enforced direction**: `internal/gate/gate_engine_layers_test.go` forbids a
+  subpackage from importing the root, keeps the database in `jobstate`, and
+  keeps `phases` wired only by the engine root.
+- **Behavior-preserving**: public `engine.*` context types are aliases; the
+  only signature change is `engine.New(Deps)`; no schema, config, event-name,
+  or acceptance-rule change. `call` stays in the root, so audit ordering and
+  lifecycle transitions are unchanged.
+- **Adjacent corrections**: `project.CapabilityFor`/`ContextDemand` replace the
+  duplicated resolver; `toolenvelope.CandidateFiles` is shared by the verifier
+  and git-as-undo; `prompt.CodeInstruction` is shared with repair;
+  `DEVELOPMENT.md` now lists all sixteen direct deps and the required
+  integration job.
+
 ### Capacity, runtime evidence, and language breadth — 2026-11-07
 
 - **Capacity planner** (ADR-0124): `internal/capacity` is the pure source of

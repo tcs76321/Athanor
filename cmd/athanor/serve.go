@@ -278,41 +278,32 @@ func run(configPath, addr, stateDir string, container bool) error {
 		"summarizer", mceRT.Summarizer != nil,
 		"compaction_store", mceRT.CompactStore != nil,
 		"compactor", mceRT.Compactor != nil)
-	eng := engine.New(cfg, st,
-		job.NewRepository(st),
-		projectRepo,
-		artifactStore,
-		// M3-T1: EvaluationRecord repository (§19). The engine
-		// persists one record per candidate artifact during
-		// the evaluating phase; the comparison phase reads
-		// them back.
-		evaluation.NewRepo(st),
-		llmClient,
-		registry,
-		killSwitch,
-		operator.Ceiling{Controller: opCtrl, Base: power.Ceiling{Manager: powerMgr, Jobs: cfg.Limits.MaxConcurrentJobs, AllowInteractive: cfg.Limits.AllowInteractiveConcurrency}},
-		// M2-T4: the engine's window onto the internal API.
-		// It authenticates each call with the per-job bearer
-		// token retrieved from the Job Pod manager, so the
-		// engine is just another client of the loopback
-		// internal API (ADR-0009 D5).
-		runner.New("http://"+internalAddr, podMgr),
-		// M5-T5.6: the §10.4 eviction seam is now the real §10.5
-		// ladder (ADR-0023 §6) — one step down the tier order per
-		// critical-pressure call, recorded in the job's suppression
-		// row. It stays stateless; the engine persists the result.
-		engine.NewLadderEvictor(),
-		// M5-T5.6 / F5: the MCE working set (§10.1 active chunk +
-		// Dormant Index, now including ranked project repository
-		// rows) behind the same lossless-swapping gate as ingestion
-		// and the context_swap route (ADR-0059).
-		newContextProvider(mceRT.Store, mceRT.LosslessSwapping, cfg.ContextEngine),
-		// M2-T4b.5: the ADR-0024 §2 Job Pod lifecycle seam. It starts a
-		// long-lived idle pod before the code-archetype sub-steps and
-		// stops it at terminal state, so the runner's per-job token
-		// (TokenFor) exists when the internal API execs into it.
-		podLife,
-	)
+	eng := engine.New(engine.Deps{
+		Config:     cfg,
+		Store:      st,
+		Jobs:       job.NewRepository(st),
+		Projects:   projectRepo,
+		Artifacts:  artifactStore,
+		Evaluation: evaluation.NewRepo(st),
+		LLM:        llmClient,
+		Registry:   registry,
+		Freezer:    killSwitch,
+		Cap: operator.Ceiling{Controller: opCtrl,
+			Base: power.Ceiling{Manager: powerMgr, Jobs: cfg.Limits.MaxConcurrentJobs, AllowInteractive: cfg.Limits.AllowInteractiveConcurrency}},
+		// M2-T4: the engine's window onto the internal API. It
+		// authenticates each call with the per-job bearer token retrieved
+		// from the Job Pod manager, so the engine is just another client
+		// of the loopback internal API (ADR-0009 D5).
+		Runner: runner.New("http://"+internalAddr, podMgr),
+		// M5-T5.6: the §10.4 eviction seam is the real §10.5 ladder
+		// (ADR-0023 §6): one step down the tier order per pressure call.
+		Evictor: engine.NewLadderEvictor(),
+		// M5-T5.6 / F5: the MCE working set behind the same
+		// lossless-swapping gate as ingestion and context_swap (ADR-0059).
+		ContextProvider: newContextProvider(mceRT.Store, mceRT.LosslessSwapping, cfg.ContextEngine),
+		// M2-T4b.5: the ADR-0024 §2 Job Pod lifecycle seam.
+		Pods: podLife,
+	})
 	if planner := newContextPlanner(cfg); planner != nil {
 		eng.SetContextPlanner(planner)
 		if fp, ok := planner.(engine.FloorPlanner); ok {

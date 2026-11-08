@@ -62,7 +62,15 @@ func TestRecoverResumesMidFlightJob(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Run up to synthesizing, then "crash" (drop the engine, keep state).
-	eng1 := New(cfg, db, jobs, projects, artifacts, evaluation.NewRepo(db), llm.NewClient(cfg.Inference.OllamaURL, nil), registry, freezer, power.NewPowerManager(nil), newFakeRunner(), nil, nil, nil)
+	eng1 := New(Deps{
+		Config: cfg, Store: db, Jobs: jobs, Projects: projects, Artifacts: artifacts,
+		Evaluation: evaluation.NewRepo(db),
+		LLM:        llm.NewClient(cfg.Inference.OllamaURL, nil),
+		Registry:   registry,
+		Freezer:    freezer,
+		Cap:        power.NewPowerManager(nil),
+		Runner:     newFakeRunner(),
+	})
 	for {
 		cur, err := jobs.Get(context.Background(), j.ID)
 		if err != nil {
@@ -90,9 +98,15 @@ func TestRecoverResumesMidFlightJob(t *testing.T) {
 	t.Cleanup(func() { _ = db2.Close() })
 	jobs2 := job.NewRepository(db2)
 	artifacts2 := artifact.NewStore(db2, filepath.Join(dir, "artifacts"))
-	eng2 := New(cfg, db2, jobs2, project.NewRepo(db2), artifacts2,
-		evaluation.NewRepo(db2),
-		llm.NewClient(cfg.Inference.OllamaURL, nil), registry, freezer, power.NewPowerManager(nil), newFakeRunner(), nil, nil, nil)
+	eng2 := New(Deps{
+		Config: cfg, Store: db2, Jobs: jobs2, Projects: project.NewRepo(db2), Artifacts: artifacts2,
+		Evaluation: evaluation.NewRepo(db2),
+		LLM:        llm.NewClient(cfg.Inference.OllamaURL, nil),
+		Registry:   registry,
+		Freezer:    freezer,
+		Cap:        power.NewPowerManager(nil),
+		Runner:     newFakeRunner(),
+	})
 	eng2.Recover(context.Background())
 
 	deadline := time.Now().Add(15 * time.Second)
@@ -165,9 +179,15 @@ func TestRecoverResumesJob_MidDiverging(t *testing.T) {
 	artifacts2 := artifact.NewStore(db2, filepath.Join(filepath.Dir(env.db.Path()), "artifacts"))
 	freezer2, _ := control.NewKillSwitch(db2)
 	registry, _ := llm.NewRegistry(env.cfg.Personas)
-	eng2 := New(env.cfg, db2, jobs2, project.NewRepo(db2), artifacts2,
-		evaluation.NewRepo(db2),
-		llm.NewClient(env.cfg.Inference.OllamaURL, nil), registry, freezer2, power.NewPowerManager(nil), newFakeRunner(), nil, nil, nil)
+	eng2 := New(Deps{
+		Config: env.cfg, Store: db2, Jobs: jobs2, Projects: project.NewRepo(db2), Artifacts: artifacts2,
+		Evaluation: evaluation.NewRepo(db2),
+		LLM:        llm.NewClient(env.cfg.Inference.OllamaURL, nil),
+		Registry:   registry,
+		Freezer:    freezer2,
+		Cap:        power.NewPowerManager(nil),
+		Runner:     newFakeRunner(),
+	})
 	eng2.Recover(context.Background())
 
 	deadline := time.Now().Add(15 * time.Second)
@@ -244,8 +264,15 @@ func TestRecoverResumesJob_MidEvaluating(t *testing.T) {
 	eval2 := evaluation.NewRepo(db2)
 	freezer2, _ := control.NewKillSwitch(db2)
 	registry, _ := llm.NewRegistry(env.cfg.Personas)
-	eng2 := New(env.cfg, db2, jobs2, project.NewRepo(db2), artifacts2, eval2,
-		llm.NewClient(env.cfg.Inference.OllamaURL, nil), registry, freezer2, power.NewPowerManager(nil), newFakeRunner(), nil, nil, nil)
+	eng2 := New(Deps{
+		Config: env.cfg, Store: db2, Jobs: jobs2, Projects: project.NewRepo(db2), Artifacts: artifacts2,
+		Evaluation: eval2,
+		LLM:        llm.NewClient(env.cfg.Inference.OllamaURL, nil),
+		Registry:   registry,
+		Freezer:    freezer2,
+		Cap:        power.NewPowerManager(nil),
+		Runner:     newFakeRunner(),
+	})
 	eng2.Recover(context.Background())
 
 	deadline := time.Now().Add(15 * time.Second)
@@ -320,9 +347,15 @@ func TestRecoverResumesJob_ArtifactWrittenBeforeTransition(t *testing.T) {
 	artifacts2 := artifact.NewStore(db2, filepath.Join(filepath.Dir(env.db.Path()), "artifacts"))
 	freezer2, _ := control.NewKillSwitch(db2)
 	registry, _ := llm.NewRegistry(env.cfg.Personas)
-	eng2 := New(env.cfg, db2, jobs2, project.NewRepo(db2), artifacts2,
-		evaluation.NewRepo(db2),
-		llm.NewClient(env.cfg.Inference.OllamaURL, nil), registry, freezer2, power.NewPowerManager(nil), newFakeRunner(), nil, nil, nil)
+	eng2 := New(Deps{
+		Config: env.cfg, Store: db2, Jobs: jobs2, Projects: project.NewRepo(db2), Artifacts: artifacts2,
+		Evaluation: evaluation.NewRepo(db2),
+		LLM:        llm.NewClient(env.cfg.Inference.OllamaURL, nil),
+		Registry:   registry,
+		Freezer:    freezer2,
+		Cap:        power.NewPowerManager(nil),
+		Runner:     newFakeRunner(),
+	})
 	eng2.Recover(context.Background())
 
 	// Wait for completion. Recovery must version the existing final

@@ -80,6 +80,7 @@ var supersededPhrases = []struct {
 	{"Planned: `read_file`", "ADR-0113: read_file is live as a bounded code-repair observation"},
 	{"Archetype constraints", "ADR-0093: projects have inferred capabilities, not archetypes"},
 	{"ten today, spanning state", "the ratified dependency set is sixteen"},
+	{"ten direct deps", "the ratified dependency set is sixteen"},
 }
 
 // TestSupersededPhrases scans current docs (not ADR history, probes, or the

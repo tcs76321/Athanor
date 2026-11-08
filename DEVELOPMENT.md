@@ -24,7 +24,7 @@ The project stays deliberately lean. Every direct dependency is pinned
 by an executable allowlist in `internal/deps/deps_test.go`
 (`allowedDirectDeps`), so a dependency cannot be added or removed
 without a deliberate, reviewable edit to that list. Today there are
-ten direct deps:
+sixteen direct deps:
 
 | Package | Why |
 |---|---|
@@ -38,6 +38,12 @@ ten direct deps:
 | `github.com/tree-sitter/tree-sitter-go` | Go grammar for the divider |
 | `github.com/tree-sitter/tree-sitter-python` | Python grammar for the divider |
 | `github.com/tree-sitter/tree-sitter-javascript` | JavaScript grammar for the divider |
+| `github.com/tree-sitter/tree-sitter-typescript` | TypeScript/TSX grammar for the divider (ADR-0128) |
+| `github.com/tree-sitter/tree-sitter-rust` | Rust grammar for the divider (ADR-0128) |
+| `github.com/tree-sitter/tree-sitter-java` | Java grammar for the divider (ADR-0128) |
+| `github.com/tree-sitter/tree-sitter-ruby` | Ruby grammar for the divider (ADR-0128) |
+| `github.com/tree-sitter/tree-sitter-php` | PHP grammar for the divider (ADR-0128) |
+| `github.com/tree-sitter/tree-sitter-bash` | Bash grammar for the divider (ADR-0128) |
 
 Adding a dependency is a project decision (AGENTS.md), not an agent
 decision — surface it in the plan. Ratification is adding the module
@@ -49,7 +55,7 @@ The behavioral probes are opt-in: they are gated by the
 `ATHANOR_RUN_INTEGRATION=1` env var, bring up **real** rootless Podman
 pods, and (for the gateway probes) reach the **real** internet. They are
 deliberately outside `make check` (which must stay fast and hermetic) and
-run instead in a dedicated, **non-blocking** CI job — `integration` in
+run instead in a dedicated, **required** CI job — `integration` in
 `.github/workflows/ci.yml`.
 
 | Probe | File | Needs |
@@ -207,12 +213,24 @@ keep the machine awake on AC (no in-tree power guard until M7).
 |---|---|
 | `cmd/athanor/` | daemon entry point + CLI client commands |
 | `internal/` | real implementation packages (config, logging, store, power, llm, prompt, job, artifact, project, engine, control, api, server, gate, …) |
+| `internal/engine/` | engine facade: lifecycle, `Run`/recovery, strategy capture, model selection, the LLM `call` gateway, and wiring |
+| `internal/engine/phases/` | the seven §13.1 phase orchestrators and phase-local operations (verify, pod wiring, research, language, fixtures, repair loop) |
+| `internal/engine/acceptance/` | pure §19 decisions: guard, reward/cost guards, rubric, verdict parsing/schema |
+| `internal/engine/contextasm/` | prompt/context assembly: tiers, suppression, eviction ladder, pressure policy, window planner |
+| `internal/engine/repair/` | pure repair policy: budget, candidate choice, targeted prompt, observation parsing |
+| `internal/engine/jobstate/` | typed per-job `system_state` scratch and the canonical terminal clear |
 | `migrations/` | embedded forward-only SQL migrations (`NNNN_description.sql`) |
 | `spikes/` | **throwaway** validation code. Prove or kill an idea here, record findings under `docs/`, then implement properly in `internal/`. Spike code never gets imported by `internal/`. |
 | `tools/bench/` | first-class benchmark/soak probe (`athanor-probe`): corpus loading, external scoring, report/leaderboard, memory scripts. A measurement tool, not a product surface. |
 | `docs/adr/` | Architecture Decision Records |
 | `docs/demo-m1.md` | Gate G1 demo script (executable walkthrough) |
 | `docs/probes/` | quality-probe protocols and findings |
+
+The engine layering is enforced by `internal/gate/gate_engine_layers_test.go`:
+a subpackage may not import the engine root, `phases` is wired only by the
+root, `acceptance`/`repair`/`contextasm`/`phases` may not touch the database
+(`jobstate` is the only owner), and `phases` does not import `contextasm`.
+See [ADR-0131](docs/adr/0131-engine-package-layering.md).
 
 ## Workflow conventions
 

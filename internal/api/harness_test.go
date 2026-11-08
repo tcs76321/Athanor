@@ -64,24 +64,18 @@ func newHarness(t *testing.T) *harness {
 	if err != nil {
 		t.Fatal(err)
 	}
-	eng := engine.New(cfg, st, jobs, projects, artifacts,
-		evaluation.NewRepo(st),
-		llm.NewClient(cfg.Inference.OllamaURL, nil), registry, freezer,
-		power.NewPowerManager(nil),
-		// M2-T4: the api harness exercises the M1 walking
-		// skeleton only. A nil runner makes the code-archetype
-		// sub-steps short-circuit to "skipped" with no HTTP
-		// call; text/document/data/media archetypes skip
-		// them entirely.
-		nil,
-		// M5-T4: nil eviction seam, and M5-T5: nil context
-		// provider. The harness prompts are far below every
-		// persona's window and carry no MCE working set, so
-		// neither the §10.4 triggers nor tiers 3/6 are
-		// exercised here (they have their own suites).
-		nil,
-		nil,
-		nil)
+	eng := engine.New(engine.Deps{
+		Config: cfg, Store: st, Jobs: jobs, Projects: projects, Artifacts: artifacts,
+		Evaluation: evaluation.NewRepo(st),
+		LLM:        llm.NewClient(cfg.Inference.OllamaURL, nil),
+		Registry:   registry,
+		Freezer:    freezer,
+		Cap:        power.NewPowerManager(nil),
+		// M2-T4: the harness exercises the M1 walking skeleton only. A nil
+		// runner makes the code sub-steps short-circuit to "skipped" with no
+		// HTTP call. Nil eviction/provider keep tiers 3/6 empty; their own
+		// suites exercise the seams.
+	})
 
 	srv := server.New("test")
 	srv.SetControl(freezer)
