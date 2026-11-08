@@ -3,6 +3,7 @@ package discovery
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -13,12 +14,12 @@ import (
 
 func sampleOptions() []Option {
 	return []Option{
-		{Title: "Daily global news brief", OneLiner: "A short, source-triaged world brief", Domain: "Media", Focus: "World news", Audience: "Readers who want one coherent update", Need: "Coverage is fragmented across outlets", Approach: "Group stories by region, then by consequence", Format: "Daily brief", Availability: "Public", FirstDeliverable: "One-page brief with source links", FirstCheck: "Five readers mark what is unclear", TimeToFirstDeliverableDays: 14, SetupCostUSD: 0, Confidence: 0.7},
-		{Title: "CSV reconciliation CLI", OneLiner: "A local tool that explains row differences", Domain: "Software", Focus: "Data operations", Audience: "Analysts comparing exports", Need: "Manual reconciliation is slow and error-prone", Approach: "Field-level diff with a readable report", Format: "Command-line tool", Availability: "Internal", FirstDeliverable: "Working prototype on two sample files", FirstCheck: "Run it against a known mismatch", TimeToFirstDeliverableDays: 30, SetupCostUSD: 0, Confidence: 0.6},
-		{Title: "AI procurement policy memo", OneLiner: "A decision memo for internal tool purchases", Domain: "Public policy", Focus: "Procurement", Audience: "Procurement staff", Need: "Current rules are unclear and inconsistent", Approach: "Compare existing policies and propose a checklist", Format: "Memo", Availability: "Internal", FirstDeliverable: "Two-page memo with a draft checklist", FirstCheck: "Review with two policy owners", TimeToFirstDeliverableDays: 10, SetupCostUSD: 0, Confidence: 0.65},
-		{Title: "Local air-quality dataset", OneLiner: "Normalized readings with provenance notes", Domain: "Environment", Focus: "Air quality", Audience: "Local researchers", Need: "Readings are scattered across formats", Approach: "Normalize, deduplicate, and document gaps", Format: "Dataset plus notes", Availability: "Public", FirstDeliverable: "One month of cleaned readings", FirstCheck: "Re-run the normalization on a second month", TimeToFirstDeliverableDays: 21, SetupCostUSD: 0, Confidence: 0.5},
-		{Title: "Water-cycle visual explainer", OneLiner: "Annotated diagrams for a school lesson", Domain: "Education", Focus: "Science communication", Audience: "Secondary-school students", Need: "The process is abstract without visuals", Approach: "Step-by-step annotated diagrams", Format: "Image set", Availability: "Public", FirstDeliverable: "Three labeled diagrams", FirstCheck: "Ask a teacher to teach from them", TimeToFirstDeliverableDays: 7, SetupCostUSD: 0, Confidence: 0.75},
-		{Title: "Battery-recycling research digest", OneLiner: "A weekly annotated paper digest", Domain: "Research", Focus: "Materials", Audience: "A small lab team", Need: "Relevant papers are easy to miss", Approach: "Annotate claims, methods, and limits", Format: "Weekly digest", Availability: "Internal", FirstDeliverable: "First digest with five papers", FirstCheck: "The lab team rates its usefulness", TimeToFirstDeliverableDays: 28, SetupCostUSD: 0, Confidence: 0.55},
+		{Title: "Daily global news brief", OneLiner: "A short, source-triaged world brief", Domain: "Media", Focus: "World news", Audience: "Readers who want one coherent update", Need: "Coverage is fragmented across outlets", Approach: "Group stories by region, then by consequence", Format: "Daily brief", Availability: "Public", FirstDeliverable: "One-page brief with source links", FirstCheck: "Five readers mark what is unclear"},
+		{Title: "CSV reconciliation CLI", OneLiner: "A local tool that explains row differences", Domain: "Software", Focus: "Data operations", Audience: "Analysts comparing exports", Need: "Manual reconciliation is slow and error-prone", Approach: "Field-level diff with a readable report", Format: "Command-line tool", Availability: "Internal", FirstDeliverable: "Working prototype on two sample files", FirstCheck: "Run it against a known mismatch"},
+		{Title: "AI procurement policy memo", OneLiner: "A decision memo for internal tool purchases", Domain: "Public policy", Focus: "Procurement", Audience: "Procurement staff", Need: "Current rules are unclear and inconsistent", Approach: "Compare existing policies and propose a checklist", Format: "Memo", Availability: "Internal", FirstDeliverable: "Two-page memo with a draft checklist", FirstCheck: "Review with two policy owners"},
+		{Title: "Local air-quality dataset", OneLiner: "Normalized readings with provenance notes", Domain: "Environment", Focus: "Air quality", Audience: "Local researchers", Need: "Readings are scattered across formats", Approach: "Normalize, deduplicate, and document gaps", Format: "Dataset plus notes", Availability: "Public", FirstDeliverable: "One month of cleaned readings", FirstCheck: "Re-run the normalization on a second month"},
+		{Title: "Water-cycle visual explainer", OneLiner: "Annotated diagrams for a school lesson", Domain: "Education", Focus: "Science communication", Audience: "Secondary-school students", Need: "The process is abstract without visuals", Approach: "Step-by-step annotated diagrams", Format: "Image set", Availability: "Public", FirstDeliverable: "Three labeled diagrams", FirstCheck: "Ask a teacher to teach from them"},
+		{Title: "Battery-recycling research digest", OneLiner: "A weekly annotated paper digest", Domain: "Research", Focus: "Materials", Audience: "A small lab team", Need: "Relevant papers are easy to miss", Approach: "Annotate claims, methods, and limits", Format: "Weekly digest", Availability: "Internal", FirstDeliverable: "First digest with five papers", FirstCheck: "The lab team rates its usefulness"},
 	}
 }
 
@@ -69,25 +70,49 @@ func TestDedupeAndValidate(t *testing.T) {
 	if len(opts) != 6 {
 		t.Fatalf("dedupe len = %d, want 6", len(opts))
 	}
-	if err := Validate(opts); err != nil {
+	validated, err := Validate(opts)
+	if err != nil {
 		t.Fatal(err)
 	}
+	if len(validated) != 6 {
+		t.Fatalf("validated len = %d, want 6", len(validated))
+	}
 	bad := opts[:3]
-	if err := Validate(bad); err == nil {
+	if _, err := Validate(bad); err == nil {
 		t.Fatal("Validate accepted fewer than 6 options")
 	}
 }
 
-func TestScoreIsDeterministicAndOrdered(t *testing.T) {
+func TestValidateRequiresCoreFields(t *testing.T) {
 	opts := sampleOptions()
-	Score(opts)
-	for _, o := range opts {
-		if o.Scores["total"] <= 0 {
-			t.Fatalf("option %q has no score", o.Title)
-		}
+	opts[0].FirstCheck = ""
+	if _, err := Validate(opts); err == nil || !strings.Contains(err.Error(), "first_check") {
+		t.Fatalf("missing first_check error = %v", err)
 	}
-	if opts[0].Scores["total"] < opts[len(opts)-1].Scores["total"] {
-		t.Fatal("Score did not sort by total descending")
+	opts = sampleOptions()
+	opts[0].Need = ""
+	if _, err := Validate(opts); err == nil || !strings.Contains(err.Error(), "need") {
+		t.Fatalf("missing need error = %v", err)
+	}
+}
+
+func TestValidateTruncatesAndPreservesOrder(t *testing.T) {
+	opts := sampleOptions()
+	for len(opts) < 20 {
+		o := opts[0]
+		o.Title = fmt.Sprintf("%s %d", o.Title, len(opts))
+		o.Approach = fmt.Sprintf("%s %d", o.Approach, len(opts))
+		opts = append(opts, o)
+	}
+	validated, err := Validate(opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(validated) != 16 {
+		t.Fatalf("validated len = %d, want the 16-option bound", len(validated))
+	}
+	if validated[0].Title != opts[0].Title {
+		t.Fatal("Validate reordered the portfolio")
 	}
 }
 
@@ -108,7 +133,6 @@ func TestStoreRoundTripAndSelect(t *testing.T) {
 	}
 	ds := NewStore(s)
 	opts := sampleOptions()
-	Score(opts)
 	sess, err := ds.Save(ctx, "p1", "brief", opts)
 	if err != nil {
 		t.Fatal(err)
@@ -126,8 +150,8 @@ func TestStoreRoundTripAndSelect(t *testing.T) {
 	if got.SelectedID != sess.Options[0].ID {
 		t.Fatalf("selected = %q, want %q", got.SelectedID, sess.Options[0].ID)
 	}
-	if got.Options[0].Scores["total"] == 0 {
-		t.Fatal("scores did not survive the round trip")
+	if got.Options[0].FirstCheck == "" || got.Options[0].Need == "" {
+		t.Fatal("content fields did not survive the round trip")
 	}
 	if !strings.Contains(got.Options[0].Title, " ") {
 		t.Fatal("title did not survive the round trip")
@@ -150,7 +174,6 @@ func TestResetRemovesSessionsAndOptionsForProject(t *testing.T) {
 	}
 	ds := NewStore(s)
 	opts := sampleOptions()
-	Score(opts)
 	if _, err := ds.Save(ctx, "p1", "old brief", opts); err != nil {
 		t.Fatal(err)
 	}
@@ -220,8 +243,9 @@ func TestBuildPromptDoesNotForceBusinessFraming(t *testing.T) {
 		"audience: who the work is for",
 		"format: the delivery format or operating model",
 		"first_deliverable",
-		"time_to_first_deliverable_days",
+		"first_check",
 		"Do not add a commercial or fundraising framing",
+		"Do not estimate time, cost, human effort, or required skills",
 	} {
 		if !strings.Contains(p, want) {
 			t.Errorf("prompt missing %q", want)
@@ -230,9 +254,11 @@ func TestBuildPromptDoesNotForceBusinessFraming(t *testing.T) {
 	for _, unwanted := range []string{
 		"first paid offer", "time to first revenue", "time_to_first_revenue",
 		"business_model", "customer", "pricing",
+		"time_to_first_deliverable_days", "setup_cost_usd", "skills_required",
+		"confidence", "alternatives",
 	} {
 		if strings.Contains(strings.ToLower(p), unwanted) {
-			t.Errorf("prompt still contains business-only instruction %q", unwanted)
+			t.Errorf("prompt still contains human-cost or ungrounded instruction %q", unwanted)
 		}
 	}
 }
@@ -259,7 +285,6 @@ func TestGenerateReportsDurableProgress(t *testing.T) {
 		t.Fatal(err)
 	}
 	opts := sampleOptions()
-	Score(opts)
 	raw, err := json.Marshal(opts)
 	if err != nil {
 		t.Fatal(err)
@@ -273,7 +298,7 @@ func TestGenerateReportsDurableProgress(t *testing.T) {
 		t.Fatal(err)
 	}
 	joined := strings.Join(stages, ",")
-	for _, want := range []string{"session", "model", "parse", "validate", "score", "save"} {
+	for _, want := range []string{"session", "model", "parse", "validate", "save"} {
 		if !strings.Contains(joined, want) {
 			t.Errorf("progress stages = %q, missing %q", joined, want)
 		}

@@ -43,8 +43,8 @@ the main 1.0.0 focus** ([1.0.0-direction.md](1.0.0-direction.md)).
 5. **First project** (still tutorial-mode: tooltips, stateful, dismissible):
    - **Project → goals → tasks.**
    - **Project initialisation** (🔨): a resumable brief and, for exploratory
-     goals, a scored portfolio of directions. After a direction is chosen, the
-     operator can ask for three AI-authored 30-day plans and approve one
+     goals, a portfolio of directions. After a direction is chosen, the
+     operator can ask for three reviewable plans and approve one
      ([ADR-0097](adr/0097-ai-plan-candidates.md)), or use the deterministic
      plan. It is the first human eval.
 6. **Work begins** under the approved plan (single-slot by default; the

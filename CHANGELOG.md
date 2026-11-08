@@ -10,6 +10,31 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Project initialization cleanup (2026-11-08)
+
+- **Human cost and time removed.** A discovery direction no longer carries
+  `setup_cost_usd` or `time_to_first_deliverable_days`, and the prompts no
+  longer ask for either. Athanor runs locally under its own budget; those
+  numbers had no meaning.
+- **Ungrounded signals removed.** Discovery options no longer carry
+  `confidence`, `skills_required`, `alternatives`, or a synthetic `scores`
+  map; AI plans no longer carry `confidence` or a deterministic `score`.
+  Migration 0041 drops the columns. The old portfolio score rewarded fewer
+  disclosed risks and more invented evidence; the plan score rewarded task
+  count, criteria count, risks, assumptions, description length, and
+  self-confidence. The operator now chooses from the content.
+- **Validation tightened.** A direction now requires a need, format, first
+  deliverable, and first check; the 16-option bound is actually applied
+  (previously it was truncated locally and ignored); the model's order is
+  preserved instead of being re-ranked.
+- **Deterministic plan criteria.** Every fallback task now carries an
+  acceptance criterion, and a missing brief-success field falls back to the
+  direction's first check, so approval cannot create a leaf task with no
+  criteria.
+- Docs and ADR-0094/ADR-0097 carry dated amendments; the README, first-use,
+  0.0.0 plan, and UI/UX docs no longer describe "scored directions" or
+  "30-day plans".
+
 ### Qualification reliability (2026-11-08)
 
 - **Resume after a Core restart**: opening the qualification step resumes the

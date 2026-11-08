@@ -151,7 +151,7 @@ Then watch it work in real time from the Watch View, or queue it and check the M
 | Workflow | You provide | Athanor delivers |
 |---|---|---|
 | **Code** | A goal + repository | DAG of tasks → test-driven implementation candidates run in Job Pods → evaluated, compared, committed on an agent-created branch |
-| **Explore** | An exploratory goal | A guided brief → a portfolio of scored directions across industries/niches → the direction you choose → three AI-drafted 30-day plans (deterministic plan as fallback) → the plan you approve |
+| **Explore** | An exploratory goal | A guided brief → a portfolio of directions within the goal → the direction you choose → three reviewable plans (deterministic plan as fallback) → the plan you approve |
 | **Research** | A question + allowlisted domains | Reader Mode extraction (no JS), cited summaries, contradiction analysis, report artifact |
 
 ## Status
@@ -170,10 +170,10 @@ Then watch it work in real time from the Watch View, or queue it and check the M
   their first project. The supported runtime remains the Core Pod.
 - **Project onboarding, discovery, and research limits.** Creating a project
   now continues into a guided brief: clarify the outcome, the limits, the
-  success criteria, and the sources Athanor may read. Exploratory goals get a
-  **portfolio** of scored directions (domain, focus, audience, need, approach,
-  first deliverable) instead of one generated document; the operator chooses a
-  direction, can ask for **three AI-authored plans**, and approves one
+  success criteria, and the sources Athanor may read. Goals get a **portfolio**
+  of directions (domain, focus, audience, need, approach, format, first
+  deliverable, first check) instead of one generated document; the operator
+  chooses a direction, can ask for **three reviewable plans**, and approves one
   that creates dependency-ordered tasks. The deterministic plan remains the
   zero-cost fallback. The legacy interview remains available. Discovery and
   planning use the measured model pool, are bounded, and never invent facts or

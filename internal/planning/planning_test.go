@@ -20,12 +20,12 @@ func candidate(title string) Candidate {
 			{Title: "Check it", Description: strings.Repeat("Review the deliverable against the brief and the success criteria. ", 2), Capability: "document", Criteria: []string{"gaps recorded"}},
 			{Title: "Decide", Description: strings.Repeat("Record what worked, what did not, and the next step. ", 2), Capability: "document", Criteria: []string{"decision recorded"}},
 		},
-		Risks: []string{"incomplete sources"}, Assumptions: []string{"approved sources are reachable"}, Confidence: 0.6,
+		Risks: []string{"incomplete sources"}, Assumptions: []string{"approved sources are reachable"},
 	}
 }
 
-func TestParseValidateAndScore(t *testing.T) {
-	raw, err := json.Marshal([]Candidate{candidate("Fastest first draft"), candidate("Deepest coverage"), candidate("Leanest path")})
+func TestParseValidatePreservesOrder(t *testing.T) {
+	raw, err := json.Marshal([]Candidate{candidate("Smallest verifiable slice"), candidate("Deepest coverage"), candidate("Lowest-risk sequence")})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -36,14 +36,12 @@ func TestParseValidateAndScore(t *testing.T) {
 	if len(cands) != 3 {
 		t.Fatalf("parsed %d candidates", len(cands))
 	}
-	if _, err := Validate(cands); err != nil {
+	validated, err := Validate(cands)
+	if err != nil {
 		t.Fatal(err)
 	}
-	Score(cands)
-	for _, c := range cands {
-		if c.Score <= 0 {
-			t.Errorf("candidate %q has no score", c.Title)
-		}
+	if validated[0].Title != "Smallest verifiable slice" || validated[2].Title != "Lowest-risk sequence" {
+		t.Fatalf("Validate reordered the plans: %+v", validated)
 	}
 }
 
@@ -84,8 +82,7 @@ func TestStoreBeginCompleteSelect(t *testing.T) {
 	if sess.Status != "generating" {
 		t.Fatalf("status = %q", sess.Status)
 	}
-	cands := []Candidate{candidate("Fastest"), candidate("Deepest"), candidate("Cheapest")}
-	Score(cands)
+	cands := []Candidate{candidate("Smallest slice"), candidate("Deepest"), candidate("Lowest risk")}
 	if err := ps.Complete(ctx, sess.ID, cands); err != nil {
 		t.Fatal(err)
 	}
@@ -151,16 +148,16 @@ func openPlanStore(t *testing.T) (*store.Store, *Store) {
 	return s, NewStore(s)
 }
 
-func TestScoreClampsConfidenceAndStaysBounded(t *testing.T) {
-	cands := []Candidate{candidate("A"), candidate("B"), candidate("C")}
-	cands[0].Confidence = 2.5
-	Score(cands)
-	for _, c := range cands {
-		if c.Confidence < 0 || c.Confidence > 1 {
-			t.Errorf("candidate %q confidence = %v, want 0..1", c.Title, c.Confidence)
+func TestBuildPromptOmitsHumanCostAndUngroundedSignals(t *testing.T) {
+	p := BuildPrompt(Request{Goal: "a daily news brief", OptionTitle: "Daily brief", OneLiner: "A source-triaged update"})
+	for _, unwanted := range []string{"confidence", "score", "time to first", "setup cost", "fastest", "leanest"} {
+		if strings.Contains(strings.ToLower(p), unwanted) {
+			t.Errorf("plan prompt still contains %q", unwanted)
 		}
-		if c.Score < 0 || c.Score > 100 {
-			t.Errorf("candidate %q score = %d, want 0..100", c.Title, c.Score)
+	}
+	for _, want := range []string{"smallest verifiable slice", "deepest coverage", "lowest-risk sequence", "acceptance criterion", "Do not estimate time, cost, human effort"} {
+		if !strings.Contains(p, want) {
+			t.Errorf("plan prompt missing %q", want)
 		}
 	}
 }

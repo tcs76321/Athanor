@@ -34,7 +34,7 @@ const projectOnboardingBody = `
 
         <label for="constraints">Constraints / limits (one per line)</label>
         <textarea id="constraints" name="constraints" rows="4" data-refine-field="brief.constraints">{{join .Brief.Constraints}}</textarea>
-        <div class="field-help">Time, money, skills, location, legal or ethical boundaries, things that are out of scope.</div>
+        <div class="field-help">Hard limits: approved sources, required formats, location, legal or ethical boundaries, and things that are out of scope. Do not estimate effort or cost; Athanor runs locally under its own budget.</div>
 
         <label for="limitations">Anything Athanor must not do</label>
         <textarea id="limitations" name="limitations" rows="3" data-refine-field="brief.limitations" placeholder="No external publishing without review, no outbound messages, no new external services, no data outside the approved sources.">{{.Brief.Limitations}}</textarea>
@@ -110,7 +110,7 @@ const projectOnboardingBody = `
   {{else if eq .Stage "choose"}}
     <div class="card">
       <h2>{{len .Session.Options}} directions</h2>
-      <p class="muted">Each option is a different audience, need, and approach. Scores are deterministic from the option's clarity, evidence, speed, cost fit, and risk — they are a reading aid, not a verdict. Choose the one you want to develop.</p>
+      <p class="muted">Each option is a different audience, need, and approach. Read them and choose the one you want to develop; no synthetic score decides for you.</p>
     </div>
     {{if .Run}}{{if eq .Run.Status "failed"}}<div class="notice bad">{{.Run.Error}}<div class="actions"><a class="btn secondary" href="/ui/projects/{{$.Project.ID}}/onboarding">Try again</a></div></div>{{end}}{{end}}
     <div class="grid cols-2">
@@ -121,29 +121,20 @@ const projectOnboardingBody = `
             <div class="eyebrow">{{.Domain}} · {{.Focus}}</div>
             <div class="title">{{.Title}}</div>
           </div>
-          <span class="pill accent">{{index .Scores "total"}}/100</span>
         </div>
         <div class="one-liner">{{.OneLiner}}</div>
         <div class="meta">
-          <span class="pill">~${{.SetupCostUSD}} setup cost</span>
-          <span class="pill">{{.TimeToFirstDeliverableDays}} days to first deliverable</span>
-          <span class="pill">{{len .Evidence}} source{{if ne (len .Evidence) 1}}s{{end}}</span>
-          <span class="pill">confidence {{printf "%.2f" .Confidence}}</span>
+          <span class="pill">{{len .Evidence}} evidence note{{if ne (len .Evidence) 1}}s{{end}}</span>
         </div>
         <div class="stack">
           <div><b>Audience</b> <span class="muted">{{.Audience}}</span></div>
           <div><b>Need</b> <span class="muted">{{.Need}}</span></div>
           <div><b>Approach</b> <span class="muted">{{.Approach}}</span></div>
+          <div><b>Format</b> <span class="muted">{{.Format}}</span></div>
           <div><b>First deliverable</b> <span class="muted">{{.FirstDeliverable}}</span></div>
           <div><b>How to test it</b> <span class="muted">{{.FirstCheck}}</span></div>
         </div>
-        <div class="score">
-          <div class="score-row"><span>Clarity</span><progress class="progress" value="{{index .Scores "clarity"}}" max="20"></progress><span>{{index .Scores "clarity"}}/20</span></div>
-          <div class="score-row"><span>Evidence</span><progress class="progress" value="{{index .Scores "evidence"}}" max="20"></progress><span>{{index .Scores "evidence"}}/20</span></div>
-          <div class="score-row"><span>Speed</span><progress class="progress" value="{{index .Scores "speed"}}" max="20"></progress><span>{{index .Scores "speed"}}/20</span></div>
-          <div class="score-row"><span>Cost fit</span><progress class="progress" value="{{index .Scores "cost"}}" max="20"></progress><span>{{index .Scores "cost"}}/20</span></div>
-          <div class="score-row"><span>Risk</span><progress class="progress" value="{{index .Scores "risk"}}" max="20"></progress><span>{{index .Scores "risk"}}/20</span></div>
-        </div>
+        {{if .Evidence}}<details><summary>Evidence</summary>{{range .Evidence}}<div class="ev">{{.Claim}}{{if .Source}} — <span class="mono wrap">{{.Source}}</span>{{else}} <span class="muted">(unverified)</span>{{end}}</div>{{end}}</details>{{end}}
         {{if .Risks}}<details><summary>Risks and assumptions</summary>{{range .Risks}}<div class="ev">{{.}}</div>{{end}}{{range .Assumptions}}<div class="ev">Assumption: {{.}}</div>{{end}}</details>{{end}}
         <form method="post" action="/ui/projects/{{$.Project.ID}}/onboarding" class="actions">
           <input type="hidden" name="option" value="{{.ID}}">
@@ -173,8 +164,6 @@ const projectOnboardingBody = `
       <p class="muted">{{.Selected.OneLiner}}</p>
       <div class="meta">
         <span class="pill">{{.Selected.Domain}} · {{.Selected.Focus}}</span>
-        <span class="pill">~${{.Selected.SetupCostUSD}} setup cost</span>
-        <span class="pill">{{.Selected.TimeToFirstDeliverableDays}} days to first deliverable</span>
       </div>
       <div class="actions">
         <form method="post" action="/ui/projects/{{.Project.ID}}/onboarding">
@@ -190,8 +179,7 @@ const projectOnboardingBody = `
       <h2>{{.SelectedPlan.Title}}</h2>
       <p class="muted">{{.SelectedPlan.Summary}}</p>
       <div class="meta">
-        <span class="pill accent">score {{.SelectedPlan.Score}}/100</span>
-        <span class="pill">confidence {{printf "%.2f" .SelectedPlan.Confidence}}</span>
+        <span class="pill">{{len .SelectedPlan.Tasks}} tasks</span>
       </div>
       <div class="table-wrap">
         <table><thead><tr><th>Task</th><th>Capability</th><th>Criteria</th></tr></thead><tbody>
@@ -214,16 +202,15 @@ const projectOnboardingBody = `
     </div>
     {{else if .PlanCandidates}}
     <h2>Three plans</h2>
-    <p class="muted">Choose the plan you want to execute. The score is deterministic from task coverage, criteria, risks, and specificity; it is a reading aid, not a verdict.</p>
+    <p class="muted">Choose the plan you want to execute. They differ by stance — a smallest verifiable slice, the deepest coverage, or the lowest-risk sequence — not by a score.</p>
     <div class="grid cols-3">
       {{range $i, $c := .PlanCandidates}}
       <div class="option">
         <div class="top">
           <div><div class="eyebrow">Option {{add $i 1}}</div><div class="title">{{$c.Title}}</div></div>
-          <span class="pill accent">{{$c.Score}}</span>
         </div>
         <p class="muted">{{$c.Summary}}</p>
-        <div class="meta"><span class="pill">{{len $c.Tasks}} tasks</span><span class="pill">confidence {{printf "%.2f" $c.Confidence}}</span></div>
+        <div class="meta"><span class="pill">{{len $c.Tasks}} tasks</span></div>
         <div class="stack">
           {{range $c.Tasks}}<div class="ev"><b>{{.Title}}</b> <span class="muted">· {{.Capability}}</span></div>{{end}}
         </div>

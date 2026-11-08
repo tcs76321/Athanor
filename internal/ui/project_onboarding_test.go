@@ -16,6 +16,23 @@ import (
 	"github.com/tcs76321/athanor/internal/project"
 )
 
+func TestLoadBriefSeedsSuccessFromCreateCriteria(t *testing.T) {
+	fx := setup(t)
+	ctx := context.Background()
+	p, _, err := fx.ui.deps.Projects.Create(ctx, "criteria-project", project.ArchetypeText,
+		"Write a useful brief for a local reader.", "", []string{"Names two concrete benefits", "Stays under 200 words"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	brief, err := fx.ui.loadBrief(ctx, p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if brief.Success != "Names two concrete benefits\nStays under 200 words" {
+		t.Fatalf("brief success = %q; create criteria were not carried into the brief", brief.Success)
+	}
+}
+
 type fakeDiscovery struct {
 	mu   sync.Mutex
 	sess discovery.Session
@@ -24,15 +41,12 @@ type fakeDiscovery struct {
 
 func (f *fakeDiscovery) Generate(_ context.Context, projectID string, _ discovery.Request) (discovery.Session, error) {
 	opts := []discovery.Option{
-		{ID: "o1", Title: "Daily news brief", OneLiner: "A short source-triaged update", Domain: "Media", Focus: "World news", Audience: "Readers", Need: "Fragmented coverage", Approach: "Group by consequence", Format: "Daily brief", Availability: "Public", FirstDeliverable: "One-page brief", FirstCheck: "Five readers review it", TimeToFirstDeliverableDays: 14, SetupCostUSD: 0, Confidence: 0.7},
-		{ID: "o2", Title: "CSV reconciliation CLI", OneLiner: "Explain row differences locally", Domain: "Software", Focus: "Data operations", Audience: "Analysts", Need: "Manual reconciliation", Approach: "Field-level diff", Format: "Command-line tool", Availability: "Internal", FirstDeliverable: "Working prototype", FirstCheck: "Run on a known mismatch", TimeToFirstDeliverableDays: 30, SetupCostUSD: 0, Confidence: 0.6},
-		{ID: "o3", Title: "Procurement policy memo", OneLiner: "A clear internal decision memo", Domain: "Public policy", Focus: "Procurement", Audience: "Procurement staff", Need: "Inconsistent rules", Approach: "Compare and propose a checklist", Format: "Memo", Availability: "Internal", FirstDeliverable: "Two-page memo", FirstCheck: "Two policy owners review it", TimeToFirstDeliverableDays: 10, SetupCostUSD: 0, Confidence: 0.6},
-		{ID: "o4", Title: "Air-quality dataset", OneLiner: "Normalized readings with provenance", Domain: "Environment", Focus: "Air quality", Audience: "Local researchers", Need: "Scattered formats", Approach: "Normalize and document gaps", Format: "Dataset", Availability: "Public", FirstDeliverable: "One cleaned month", FirstCheck: "Re-run on a second month", TimeToFirstDeliverableDays: 21, SetupCostUSD: 0, Confidence: 0.5},
-		{ID: "o5", Title: "Water-cycle diagrams", OneLiner: "Annotated visuals for a lesson", Domain: "Education", Focus: "Science communication", Audience: "Students", Need: "Abstract process", Approach: "Step-by-step annotation", Format: "Image set", Availability: "Public", FirstDeliverable: "Three diagrams", FirstCheck: "A teacher uses them", TimeToFirstDeliverableDays: 7, SetupCostUSD: 0, Confidence: 0.7},
-		{ID: "o6", Title: "Battery-recycling digest", OneLiner: "A weekly annotated paper digest", Domain: "Research", Focus: "Materials", Audience: "A lab team", Need: "Papers are easy to miss", Approach: "Annotate claims and limits", Format: "Weekly digest", Availability: "Internal", FirstDeliverable: "Five annotated papers", FirstCheck: "The team rates it", TimeToFirstDeliverableDays: 28, SetupCostUSD: 0, Confidence: 0.5},
-	}
-	for i := range opts {
-		opts[i].Scores = map[string]int{"total": 80 - i, "clarity": 20, "evidence": 10, "speed": 15, "cost": 15, "risk": 15}
+		{ID: "o1", Title: "Daily news brief", OneLiner: "A short source-triaged update", Domain: "Media", Focus: "World news", Audience: "Readers", Need: "Fragmented coverage", Approach: "Group by consequence", Format: "Daily brief", Availability: "Public", FirstDeliverable: "One-page brief", FirstCheck: "Five readers review it"},
+		{ID: "o2", Title: "CSV reconciliation CLI", OneLiner: "Explain row differences locally", Domain: "Software", Focus: "Data operations", Audience: "Analysts", Need: "Manual reconciliation", Approach: "Field-level diff", Format: "Command-line tool", Availability: "Internal", FirstDeliverable: "Working prototype", FirstCheck: "Run on a known mismatch"},
+		{ID: "o3", Title: "Procurement policy memo", OneLiner: "A clear internal decision memo", Domain: "Public policy", Focus: "Procurement", Audience: "Procurement staff", Need: "Inconsistent rules", Approach: "Compare and propose a checklist", Format: "Memo", Availability: "Internal", FirstDeliverable: "Two-page memo", FirstCheck: "Two policy owners review it"},
+		{ID: "o4", Title: "Air-quality dataset", OneLiner: "Normalized readings with provenance", Domain: "Environment", Focus: "Air quality", Audience: "Local researchers", Need: "Scattered formats", Approach: "Normalize and document gaps", Format: "Dataset", Availability: "Public", FirstDeliverable: "One cleaned month", FirstCheck: "Re-run on a second month"},
+		{ID: "o5", Title: "Water-cycle diagrams", OneLiner: "Annotated visuals for a lesson", Domain: "Education", Focus: "Science communication", Audience: "Students", Need: "Abstract process", Approach: "Step-by-step annotation", Format: "Image set", Availability: "Public", FirstDeliverable: "Three diagrams", FirstCheck: "A teacher uses them"},
+		{ID: "o6", Title: "Battery-recycling digest", OneLiner: "A weekly annotated paper digest", Domain: "Research", Focus: "Materials", Audience: "A lab team", Need: "Papers are easy to miss", Approach: "Annotate claims and limits", Format: "Weekly digest", Availability: "Internal", FirstDeliverable: "Five annotated papers", FirstCheck: "The team rates it"},
 	}
 	f.mu.Lock()
 	f.sess = discovery.Session{ID: "s1", ProjectID: projectID, Status: "ready", Options: opts}
@@ -71,7 +85,6 @@ func planCandidate(title string) planning.Candidate {
 			{Title: title + " task", Description: "A concrete first step.", Capability: "document", Criteria: []string{"done"}},
 			{Title: title + " verify", Description: "Verify the first step.", Capability: "document", Criteria: []string{"verified"}},
 		},
-		Confidence: 0.6,
 	}
 }
 

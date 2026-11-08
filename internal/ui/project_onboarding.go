@@ -147,6 +147,14 @@ func (u *UI) loadBrief(ctx context.Context, p project.Project) (projectBrief, er
 		  FROM project_briefs WHERE project_id = ?`, p.ID).
 		Scan(&b.Status, &b.Goal, &constraints, &b.Limitations, &sources, &b.Success)
 	if err == sql.ErrNoRows {
+		// Seed the brief from the create form's criteria. The guided flow
+		// discards the placeholder task on approval, so those criteria must be
+		// carried into the brief or they are silently lost.
+		if u.deps.Projects != nil {
+			if tasks, terr := u.deps.Projects.TasksByProject(ctx, p.ID); terr == nil && len(tasks) > 0 && len(tasks[0].Criteria) > 0 {
+				b.Success = strings.Join(tasks[0].Criteria, "\n")
+			}
+		}
 		return b, nil
 	}
 	if err != nil {
@@ -768,11 +776,7 @@ func buildProjectPlan(p project.Project, b projectBrief, o discovery.Option) (st
 		fmt.Fprintf(&out, "- **Availability:** %s\n", o.Availability)
 	}
 	fmt.Fprintf(&out, "- **First deliverable:** %s\n", o.FirstDeliverable)
-	fmt.Fprintf(&out, "- **Time to first deliverable:** %d days\n", o.TimeToFirstDeliverableDays)
-	fmt.Fprintf(&out, "- **Setup cost:** $%d\n", o.SetupCostUSD)
-	if o.Alternatives != "" {
-		fmt.Fprintf(&out, "- **Alternatives:** %s\n", o.Alternatives)
-	}
+	fmt.Fprintf(&out, "- **First check:** %s\n", o.FirstCheck)
 	out.WriteString("\n## Assumptions to test\n\n")
 	if len(o.Assumptions) == 0 {
 		out.WriteString("- (none recorded)\n")
@@ -820,6 +824,11 @@ func buildProjectPlan(p project.Project, b projectBrief, o discovery.Option) (st
 			}
 		}
 	}
+	if len(criteria) == 0 && strings.TrimSpace(o.FirstCheck) != "" {
+		// The first check is the operator's own definition of useful work;
+		// use it rather than approving a task graph with no criteria.
+		criteria = append(criteria, "The first check passes: "+strings.TrimSpace(o.FirstCheck))
+	}
 	sourceLine := ""
 	if len(b.Sources) > 0 {
 		sourceLine = " Allowed sources (fetch only these): " + strings.Join(b.Sources, " ")
@@ -841,10 +850,18 @@ func buildProjectPlan(p project.Project, b projectBrief, o discovery.Option) (st
 		gatherTitle = "Inspect the code and constraints"
 		gatherDescription = fmt.Sprintf("Read the relevant files, run the existing checks, and record constraints, gaps, and anything that must not break for %q.%s", o.Title, sourceLine)
 	}
+	gatherCriteria := "A source inventory names each allowed source, what it contributes, and any conflicting claims."
+	switch primary {
+	case project.CapabilityCode:
+		gatherCriteria = "An inspection note names the relevant files, the existing checks, and the constraints that must not break."
+	case project.CapabilityData:
+		gatherCriteria = "A source inventory names each input, its format, and the fields that must be normalized."
+	}
 	specs := []project.TaskSpec{
 		{
 			Key: "gather", Title: gatherTitle, Capability: gather,
 			Description: gatherDescription,
+			Criteria:    []string{gatherCriteria},
 		},
 		{
 			Key: "deliverable", Title: "Produce the first deliverable", Capability: deliverable,
@@ -862,6 +879,7 @@ func buildProjectPlan(p project.Project, b projectBrief, o discovery.Option) (st
 			Key: "next", Title: "Decide the next iteration", Capability: project.CapabilityDocument,
 			Description: "Write a short decision note: what was produced, what evidence supports it, what remains unverified, and one concrete next step. Keep it under one page.",
 			DependsOn:   []string{"check"},
+			Criteria:    []string{"A one-page decision note names what was produced, the evidence, what remains unverified, and one concrete next step."},
 		},
 	}
 	return out.String(), specs

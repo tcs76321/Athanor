@@ -99,3 +99,15 @@ work, accept artifacts, or bypass verification.
 - **Store the plan as an artifact before approval.** Artifact status, diffs,
   reviews, and egress rules are the wrong machinery for a proposal that may be
   discarded; task creation on approval is the durable outcome.
+
+## Amendment — 2026-11-08: stance, not a score
+
+Plans differ by **stance** — a smallest verifiable slice, the deepest coverage,
+or the lowest-risk sequence — and the operator selects one by reading it. The
+uncalibrated `confidence` field and the deterministic `score` were removed from
+the prompt, model, store, and UI (migration 0041). The old score rewarded more
+tasks, more criteria, more risks, more assumptions, longer descriptions, and
+self-reported confidence, so it ranked plan bloat rather than plan quality.
+Plans remain ordered as the model proposed them, and each task still requires
+an acceptance criterion.
+

@@ -9,7 +9,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"sort"
 	"strings"
 	"time"
 
@@ -26,15 +25,15 @@ type Task struct {
 	Criteria    []string `json:"criteria"`
 }
 
-// Candidate is one complete plan proposal.
+// Candidate is one complete plan proposal. The three candidates differ by
+// stance (smallest verifiable slice, deepest coverage, lowest-risk sequence),
+// not by a synthetic score or the model's self-reported confidence.
 type Candidate struct {
 	Title       string   `json:"title"`
 	Summary     string   `json:"summary"`
 	Tasks       []Task   `json:"tasks"`
 	Risks       []string `json:"risks"`
 	Assumptions []string `json:"assumptions"`
-	Confidence  float64  `json:"confidence"`
-	Score       int      `json:"-"`
 }
 
 // Session is one durable planning run for a project.
@@ -106,12 +105,13 @@ func BuildPrompt(req Request) string {
 			fmt.Fprintf(&b, "- %s\n", s)
 		}
 	}
-	b.WriteString("\nReturn ONLY a JSON array of exactly 3 objects. Each object: {title, summary, tasks:[{title, description, capability, criteria:[...]}], risks:[...], assumptions:[...], confidence:0..1}.\n")
+	b.WriteString("\nReturn ONLY a JSON array of exactly 3 objects. Each object: {title, summary, tasks:[{title, description, capability, criteria:[...]}], risks:[...], assumptions:[...]}.\n")
 	b.WriteString("RULES:\n")
-	b.WriteString("- The plans must be genuinely different: one fastest usable version, one deepest coverage, one leanest/least risky.\n")
+	b.WriteString("- The plans must be genuinely different: one smallest verifiable slice, one deepest coverage, one lowest-risk sequence. Name the stance in the title or summary.\n")
 	b.WriteString("- Tasks must be concrete and ordered; include 4–8 tasks per plan.\n")
 	b.WriteString("- capability must be one of: code, data, document, text, media.\n")
-	b.WriteString("- Every task must be small enough to finish in one iteration and have at least one acceptance criterion.\n")
+	b.WriteString("- Every task must be small enough to finish in one job and have at least one acceptance criterion.\n")
+	b.WriteString("- Do not estimate time, cost, human effort, or required skills; Athanor runs locally under its own budget.\n")
 	b.WriteString("- Cite only the allowed sources; do not invent data or citations.\n")
 	b.WriteString("- Output only the JSON array, no markdown or commentary.\n")
 	return b.String()
@@ -204,48 +204,6 @@ func Validate(candidates []Candidate) ([]Candidate, error) {
 	return out, nil
 }
 
-// Score fills a deterministic score for each candidate.
-func Score(candidates []Candidate) {
-	for i := range candidates {
-		c := &candidates[i]
-		// Clamp before scoring: an unclamped confidence would push the
-		// bounded 0–100 score above 100 even though the UI labels it /100.
-		if c.Confidence < 0 {
-			c.Confidence = 0
-		}
-		if c.Confidence > 1 {
-			c.Confidence = 1
-		}
-		tasks := len(c.Tasks)
-		criteria := 0
-		for _, t := range c.Tasks {
-			criteria += len(t.Criteria)
-		}
-		specificity := 0
-		for _, t := range c.Tasks {
-			if len(t.Description) >= 40 {
-				specificity++
-			}
-		}
-		score := 0
-		score += minInt(20, tasks*3)
-		score += minInt(20, criteria*4)
-		score += minInt(15, len(c.Risks)*5)
-		score += minInt(15, len(c.Assumptions)*5)
-		score += minInt(20, specificity*4)
-		score += int(c.Confidence * 10)
-		c.Score = score
-	}
-	sort.SliceStable(candidates, func(i, j int) bool { return candidates[i].Score > candidates[j].Score })
-}
-
-func minInt(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
 // Store persists planning sessions.
 type Store struct{ db *store.Store }
 
@@ -282,9 +240,9 @@ func (s *Store) Complete(ctx context.Context, sessionID string, candidates []Can
 		risks, _ := json.Marshal(c.Risks)
 		assumptions, _ := json.Marshal(c.Assumptions)
 		if _, err := tx.ExecContext(ctx, `
-			INSERT INTO plan_candidates (id, session_id, sort_order, title, summary, tasks_json, risks_json, assumptions_json, confidence, score)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-			ids.New(), sessionID, i, c.Title, c.Summary, string(tasks), string(risks), string(assumptions), c.Confidence, c.Score); err != nil {
+			INSERT INTO plan_candidates (id, session_id, sort_order, title, summary, tasks_json, risks_json, assumptions_json)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+			ids.New(), sessionID, i, c.Title, c.Summary, string(tasks), string(risks), string(assumptions)); err != nil {
 			return fmt.Errorf("saving plan candidate: %w", err)
 		}
 	}
@@ -333,7 +291,7 @@ func (s *Store) getByID(ctx context.Context, sessionID string) (Session, bool, e
 	sess.CreatedAt, _ = time.Parse(time.RFC3339, created)
 	sess.UpdatedAt, _ = time.Parse(time.RFC3339, updated)
 	rows, err := s.db.DB().QueryContext(ctx, `
-		SELECT title, summary, tasks_json, risks_json, assumptions_json, confidence, score
+		SELECT title, summary, tasks_json, risks_json, assumptions_json
 		FROM plan_candidates WHERE session_id = ? ORDER BY sort_order`, sess.ID)
 	if err != nil {
 		return Session{}, false, err
@@ -342,7 +300,7 @@ func (s *Store) getByID(ctx context.Context, sessionID string) (Session, bool, e
 	for rows.Next() {
 		var c Candidate
 		var tasks, risks, assumptions string
-		if err := rows.Scan(&c.Title, &c.Summary, &tasks, &risks, &assumptions, &c.Confidence, &c.Score); err != nil {
+		if err := rows.Scan(&c.Title, &c.Summary, &tasks, &risks, &assumptions); err != nil {
 			return Session{}, false, err
 		}
 		if err := json.Unmarshal([]byte(tasks), &c.Tasks); err != nil {
@@ -412,7 +370,6 @@ func (s *Service) Generate(ctx context.Context, projectID, optionID string, req 
 	if err != nil {
 		return fail(err)
 	}
-	Score(candidates)
 	if err := s.store.Complete(ctx, sess.ID, candidates); err != nil {
 		return fail(err)
 	}

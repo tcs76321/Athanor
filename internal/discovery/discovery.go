@@ -23,35 +23,33 @@ import (
 )
 
 // Evidence is one supporting claim. Source may be empty when the model has no
-// external evidence; the UI marks confidence accordingly.
+// external evidence; the UI marks a claim without a source as unverified.
 type Evidence struct {
 	Claim  string `json:"claim"`
 	Source string `json:"source,omitempty"`
 }
 
-// Option is one direction in a discovery portfolio.
+// Option is one direction in a discovery portfolio. It describes a way of
+// doing the work — outcome, audience, method, and a first verifiable
+// deliverable. It deliberately carries no human cost, calendar, confidence, or
+// synthetic score: Athanor runs locally under its own budget, and the operator
+// chooses the direction.
 type Option struct {
-	ID                         string         `json:"id,omitempty"`
-	Title                      string         `json:"title"`
-	OneLiner                   string         `json:"one_liner"`
-	Domain                     string         `json:"domain"`
-	Focus                      string         `json:"focus"`
-	Audience                   string         `json:"audience"`
-	Need                       string         `json:"need"`
-	Approach                   string         `json:"approach"`
-	Format                     string         `json:"format"`
-	Availability               string         `json:"availability"`
-	FirstDeliverable           string         `json:"first_deliverable"`
-	FirstCheck                 string         `json:"first_check"`
-	TimeToFirstDeliverableDays int            `json:"time_to_first_deliverable_days"`
-	SetupCostUSD               int            `json:"setup_cost_usd"`
-	Skills                     []string       `json:"skills_required"`
-	Alternatives               string         `json:"alternatives"`
-	Evidence                   []Evidence     `json:"evidence"`
-	Risks                      []string       `json:"risks"`
-	Assumptions                []string       `json:"assumptions"`
-	Confidence                 float64        `json:"confidence"`
-	Scores                     map[string]int `json:"scores,omitempty"`
+	ID               string     `json:"id,omitempty"`
+	Title            string     `json:"title"`
+	OneLiner         string     `json:"one_liner"`
+	Domain           string     `json:"domain"`
+	Focus            string     `json:"focus"`
+	Audience         string     `json:"audience"`
+	Need             string     `json:"need"`
+	Approach         string     `json:"approach"`
+	Format           string     `json:"format"`
+	Availability     string     `json:"availability"`
+	FirstDeliverable string     `json:"first_deliverable"`
+	FirstCheck       string     `json:"first_check"`
+	Evidence         []Evidence `json:"evidence"`
+	Risks            []string   `json:"risks"`
+	Assumptions      []string   `json:"assumptions"`
 }
 
 // Session is one durable discovery run for a project.
@@ -131,23 +129,22 @@ func BuildPrompt(req Request) string {
 		}
 	}
 	fmt.Fprintf(&b, "\nReturn EXACTLY a JSON array of %d objects. Stay inside the goal's subject; vary the approach, audience, scope, format, or first deliverable rather than jumping to unrelated fields. Cover at least 6 distinct angles and do not repeat a delivery format unless the audience or approach differ substantially.\n", count)
-	b.WriteString("Each object must have these keys (strings unless noted): title, one_liner, domain, focus, audience, need, approach, format, availability, first_deliverable, first_check, time_to_first_deliverable_days (integer), setup_cost_usd (integer), skills_required (array of strings), alternatives, evidence (array of {claim, source}), risks (array of strings), assumptions (array of strings), confidence (number 0..1).\n")
+	b.WriteString("Each object must have these keys (strings unless noted): title, one_liner, domain, focus, audience, need, approach, format, availability, first_deliverable, first_check, evidence (array of {claim, source}), risks (array of strings), assumptions (array of strings).\n")
 	b.WriteString("FIELD MEANINGS:\n")
-	b.WriteString("- domain / focus: the field and the specific scope, beat, or angle.\n")
+	b.WriteString("- domain / focus: the subject and the specific scope or angle within it.\n")
 	b.WriteString("- audience: who the work is for, or who benefits from it.\n")
 	b.WriteString("- need: the need, constraint, or job the work serves.\n")
 	b.WriteString("- approach: the distinctive method or angle.\n")
 	b.WriteString("- format: the delivery format or operating model (daily brief, weekly digest, dataset, tool, etc.).\n")
 	b.WriteString("- availability: how the work is shared (public, internal, private, scheduled) — write \"not applicable\" when it is not a question.\n")
 	b.WriteString("- first_deliverable: the first concrete output, not necessarily finished.\n")
-	b.WriteString("- first_check: the first way to test whether the deliverable is useful.\n")
-	b.WriteString("- time_to_first_deliverable_days: days to the first usable deliverable.\n")
-	b.WriteString("- setup_cost_usd: estimated setup cost, including 0.\n")
+	b.WriteString("- first_check: the first concrete way to test whether the deliverable is useful.\n")
 	b.WriteString("RULES:\n")
-	b.WriteString("- Be specific about the audience, the need, the approach, and the first deliverable.\n")
-	b.WriteString("- Prefer directions that can produce a useful first version without a long setup.\n")
+	b.WriteString("- Be specific about the audience, the need, the approach, the first deliverable, and the first check.\n")
+	b.WriteString("- Prefer directions whose first deliverable can be checked by a concrete first check, not a vague impression.\n")
 	b.WriteString("- Do not add a commercial or fundraising framing unless the goal explicitly asks for one.\n")
-	b.WriteString("- Separate facts from assumptions. If you have no source, say so in the claim and leave source empty.\n")
+	b.WriteString("- Do not estimate time, cost, human effort, or required skills; Athanor runs locally under its own budget.\n")
+	b.WriteString("- Separate facts from assumptions. If you have no source, leave source empty and mark the claim as an assumption.\n")
 	b.WriteString("- Do NOT invent market sizes, financial figures, or citations.\n")
 	b.WriteString("- Output only the JSON array, with no markdown fence or commentary.\n")
 	return b.String()
@@ -240,10 +237,11 @@ func Dedupe(in []Option) []Option {
 }
 
 // Validate enforces the portfolio's non-negotiables. It is intentionally
-// about structure and spread, not taste: the human chooses.
-func Validate(opts []Option) error {
+// about structure and spread, not taste: the human chooses. It returns the
+// bounded slice the caller must persist (a model may return more than 16).
+func Validate(opts []Option) ([]Option, error) {
 	if len(opts) < 6 {
-		return fmt.Errorf("discovery: need at least 6 distinct options, got %d", len(opts))
+		return nil, fmt.Errorf("discovery: need at least 6 distinct options, got %d", len(opts))
 	}
 	if len(opts) > 16 {
 		opts = opts[:16]
@@ -251,107 +249,31 @@ func Validate(opts []Option) error {
 	approaches := map[string]bool{}
 	for i, o := range opts {
 		missing := []string{}
-		if strings.TrimSpace(o.Title) == "" {
-			missing = append(missing, "title")
-		}
-		if strings.TrimSpace(o.OneLiner) == "" {
-			missing = append(missing, "one_liner")
-		}
-		if strings.TrimSpace(o.Domain) == "" {
-			missing = append(missing, "domain")
-		}
-		if strings.TrimSpace(o.Audience) == "" {
-			missing = append(missing, "audience")
-		}
-		if strings.TrimSpace(o.Approach) == "" {
-			missing = append(missing, "approach")
+		for name, value := range map[string]string{
+			"title":             o.Title,
+			"one_liner":         o.OneLiner,
+			"domain":            o.Domain,
+			"audience":          o.Audience,
+			"need":              o.Need,
+			"approach":          o.Approach,
+			"format":            o.Format,
+			"first_deliverable": o.FirstDeliverable,
+			"first_check":       o.FirstCheck,
+		} {
+			if strings.TrimSpace(value) == "" {
+				missing = append(missing, name)
+			}
 		}
 		if len(missing) > 0 {
-			return fmt.Errorf("discovery: option %d is missing %s", i+1, strings.Join(missing, ", "))
+			sort.Strings(missing)
+			return nil, fmt.Errorf("discovery: option %d is missing %s", i+1, strings.Join(missing, ", "))
 		}
 		approaches[strings.ToLower(strings.TrimSpace(o.Approach))] = true
 	}
 	if len(approaches) < 3 {
-		return fmt.Errorf("discovery: portfolio covers only %d approaches; need at least 3", len(approaches))
+		return nil, fmt.Errorf("discovery: portfolio covers only %d approaches; need at least 3", len(approaches))
 	}
-	return nil
-}
-
-// Score fills each option's deterministic score breakdown. The model's
-// confidence is advisory; these dimensions are reproducible from the option
-// text so the UI can explain a ranking.
-func Score(opts []Option) {
-	for i := range opts {
-		o := &opts[i]
-		clarity := 0
-		if strings.TrimSpace(o.OneLiner) != "" {
-			clarity += 5
-		}
-		if strings.TrimSpace(o.Audience) != "" {
-			clarity += 5
-		}
-		if strings.TrimSpace(o.Need) != "" {
-			clarity += 5
-		}
-		if strings.TrimSpace(o.Approach) != "" {
-			clarity += 5
-		}
-		evidence := len(o.Evidence) * 5
-		if evidence > 20 {
-			evidence = 20
-		}
-		speed := 20 - o.TimeToFirstDeliverableDays/10
-		if speed < 0 {
-			speed = 0
-		}
-		if speed > 20 {
-			speed = 20
-		}
-		costFit := 0
-		switch {
-		case o.SetupCostUSD <= 100:
-			costFit = 20
-		case o.SetupCostUSD <= 500:
-			costFit = 16
-		case o.SetupCostUSD <= 2000:
-			costFit = 10
-		case o.SetupCostUSD <= 10000:
-			costFit = 4
-		}
-		risk := 20 - len(o.Risks)*3
-		if risk < 0 {
-			risk = 0
-		}
-		if risk > 20 {
-			risk = 20
-		}
-		o.Scores = map[string]int{
-			"clarity":  clarity,
-			"evidence": evidence,
-			"speed":    speed,
-			"cost":     costFit,
-			"risk":     risk,
-			"total":    clarity + evidence + speed + costFit + risk,
-		}
-		if o.Confidence < 0 {
-			o.Confidence = 0
-		}
-		if o.Confidence > 1 {
-			o.Confidence = 1
-		}
-		if len(o.Skills) == 0 {
-			o.Skills = []string{}
-		}
-		if o.Risks == nil {
-			o.Risks = []string{}
-		}
-		if o.Assumptions == nil {
-			o.Assumptions = []string{}
-		}
-	}
-	sort.SliceStable(opts, func(i, j int) bool {
-		return opts[i].Scores["total"] > opts[j].Scores["total"]
-	})
+	return opts, nil
 }
 
 // Store persists discovery sessions and options.
@@ -389,24 +311,18 @@ func (s *Store) Complete(ctx context.Context, sessionID string, opts []Option) e
 	defer func() { _ = tx.Rollback() }()
 	for i, o := range opts {
 		id := ids.New()
-		skills, _ := json.Marshal(o.Skills)
 		evidence, _ := json.Marshal(o.Evidence)
 		risks, _ := json.Marshal(o.Risks)
 		assumptions, _ := json.Marshal(o.Assumptions)
-		scores, _ := json.Marshal(o.Scores)
 		if _, err := tx.ExecContext(ctx, `
 			INSERT INTO discovery_options (
 				id, session_id, sort_order, title, one_liner, domain, focus,
 				audience, need, approach, format, availability, first_deliverable,
-				first_check, time_to_first_deliverable_days, setup_cost_usd,
-				skills_json, alternatives, evidence_json, risks_json, assumptions_json,
-				confidence, scores_json)
-			VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+				first_check, evidence_json, risks_json, assumptions_json)
+			VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 			id, sessionID, i, o.Title, o.OneLiner, o.Domain, o.Focus,
 			o.Audience, o.Need, o.Approach, o.Format, o.Availability, o.FirstDeliverable,
-			o.FirstCheck, o.TimeToFirstDeliverableDays, o.SetupCostUSD,
-			string(skills), o.Alternatives, string(evidence), string(risks), string(assumptions),
-			o.Confidence, string(scores)); err != nil {
+			o.FirstCheck, string(evidence), string(risks), string(assumptions)); err != nil {
 			return fmt.Errorf("saving discovery option: %w", err)
 		}
 	}
@@ -463,9 +379,7 @@ func (s *Store) Get(ctx context.Context, projectID string) (Session, bool, error
 	rows, err := s.db.DB().QueryContext(ctx, `
 		SELECT id, title, one_liner, domain, focus, audience, need, approach,
 		       format, availability, first_deliverable, first_check,
-		       time_to_first_deliverable_days, setup_cost_usd, skills_json,
-		       alternatives, evidence_json, risks_json, assumptions_json,
-		       confidence, scores_json
+		       evidence_json, risks_json, assumptions_json
 		  FROM discovery_options WHERE session_id = ? ORDER BY sort_order`, sess.ID)
 	if err != nil {
 		return Session{}, false, err
@@ -473,19 +387,16 @@ func (s *Store) Get(ctx context.Context, projectID string) (Session, bool, error
 	defer func() { _ = rows.Close() }()
 	for rows.Next() {
 		var o Option
-		var skills, evidence, risks, assumptions, scores string
+		var evidence, risks, assumptions string
 		if err := rows.Scan(&o.ID, &o.Title, &o.OneLiner, &o.Domain, &o.Focus,
 			&o.Audience, &o.Need, &o.Approach, &o.Format, &o.Availability,
-			&o.FirstDeliverable, &o.FirstCheck, &o.TimeToFirstDeliverableDays,
-			&o.SetupCostUSD, &skills, &o.Alternatives, &evidence, &risks,
-			&assumptions, &o.Confidence, &scores); err != nil {
+			&o.FirstDeliverable, &o.FirstCheck,
+			&evidence, &risks, &assumptions); err != nil {
 			return Session{}, false, err
 		}
-		_ = json.Unmarshal([]byte(skills), &o.Skills)
 		_ = json.Unmarshal([]byte(evidence), &o.Evidence)
 		_ = json.Unmarshal([]byte(risks), &o.Risks)
 		_ = json.Unmarshal([]byte(assumptions), &o.Assumptions)
-		_ = json.Unmarshal([]byte(scores), &o.Scores)
 		sess.Options = append(sess.Options, o)
 	}
 	return sess, true, rows.Err()
@@ -579,12 +490,11 @@ func (s *Service) Generate(ctx context.Context, projectID string, req Request) (
 	req.Report(ProgressEvent{Stage: "parse", Detail: "JSON parsed", Options: len(opts)})
 	opts = Dedupe(opts)
 	req.Report(ProgressEvent{Stage: "dedupe", Detail: "duplicate directions removed", Options: len(opts)})
-	if err := Validate(opts); err != nil {
+	opts, err = Validate(opts)
+	if err != nil {
 		return fail(err)
 	}
 	req.Report(ProgressEvent{Stage: "validate", Detail: "portfolio meets the spread rules", Options: len(opts)})
-	Score(opts)
-	req.Report(ProgressEvent{Stage: "score", Detail: "deterministic scores computed", Options: len(opts)})
 	if err := s.store.Complete(ctx, sess.ID, opts); err != nil {
 		return fail(err)
 	}

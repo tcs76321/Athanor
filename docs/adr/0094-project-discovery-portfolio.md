@@ -89,3 +89,17 @@ business sprints.
   and the human-approval boundary.
 - **Create a new project archetype.** Capabilities plus an onboarding brief
   describe the intent without reintroducing the taxonomy ADR-0093 removed.
+
+## Amendment — 2026-11-08: a direction, not a human business plan
+
+The portfolio describes **work directions inside the goal's subject**, not
+business opportunities. The original business-shaped fields were removed in
+migration 0041 and from the prompt/model: setup cost, time to first
+deliverable/revenue, required human skills, alternatives, uncalibrated model
+confidence, and the synthetic score. Athanor runs locally under its own
+budget; those values were meaningless and the score's risk term rewarded
+under-reporting risks and its evidence term rewarded invented claims. The
+operator chooses from the content — audience, need, approach, format, first
+deliverable, first check, evidence, risks, assumptions — and no score ranks
+the options. Core fields are now required by validation.
+
