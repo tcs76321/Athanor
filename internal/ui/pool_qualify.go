@@ -16,39 +16,27 @@ import (
 )
 
 const (
-	qualTierShort  = "short"
-	qualTierMedium = "medium"
-	qualTierFull   = "full"
+	qualTierMinimal  = "minimal"
+	qualTierBalanced = "balanced"
+	qualTierComplete = "complete"
 )
 
 func normalizeQualTier(t string) string {
 	switch strings.ToLower(strings.TrimSpace(t)) {
-	case qualTierMedium:
-		return qualTierMedium
-	case qualTierFull:
-		return qualTierFull
+	case "balanced", "medium", "extra":
+		return qualTierBalanced
+	case "complete", "full":
+		return qualTierComplete
 	default:
-		return qualTierShort
+		return qualTierMinimal
 	}
 }
 
-func tierForMode(mode string) string {
-	switch strings.ToLower(strings.TrimSpace(mode)) {
-	case "extra":
-		return qualTierMedium
-	case "full":
-		return qualTierFull
-	default:
-		return qualTierShort
-	}
-}
-
-// startPoolQualification runs the balanced screen over every model in the
-// user's pool. Mode "core" runs the minimum screen, "extra" adds ten minutes of
-// blocks, and "full" runs every case in the deep ladder. The first model's core
-// pass sizes the timed blocks. The legacy two-role ladder remains available on
-// /ui/setup.
-func (u *UI) startPoolQualification(ctx context.Context, fresh, deep bool, mode string, minutes int) (qualState, bool, error) {
+// startPoolQualification runs the chosen depth over every model in the user's
+// pool. Minimal runs the core, Balanced runs the standard ladder, and Complete
+// runs every case in the deep ladder. The first model's core pass sizes the
+// estimates. The legacy two-role ladder remains available on /ui/setup.
+func (u *UI) startPoolQualification(ctx context.Context, fresh bool, tier string) (qualState, bool, error) {
 	p := u.pool()
 	if p == nil {
 		return qualState{}, false, fmt.Errorf("model pool is not available")
@@ -86,37 +74,13 @@ func (u *UI) startPoolQualification(ctx context.Context, fresh, deep bool, mode 
 	if len(models) == 0 {
 		return qualState{}, false, fmt.Errorf("add at least one model to the pool before qualifying")
 	}
-	mode = strings.ToLower(strings.TrimSpace(mode))
-	switch mode {
-	case "extra", "full":
-	default:
-		mode = "core"
-	}
-	if mode == "full" {
-		// Full qualification runs every case in the deep ladder.
-		deep = true
-	}
-	if mode == "extra" {
-		if minutes <= 0 {
-			minutes = 10
-		}
-		if minutes > 120 {
-			minutes = 120
-		}
-	} else {
-		minutes = 0
-	}
-	tier := tierForMode(mode)
+	tier = normalizeQualTier(tier)
+	deep := tier == qualTierComplete
 	state := u.loadQualState(ctx)
 	if state.Running && !state.stale() {
 		return state, false, nil
 	}
 	if state.stale() || fresh {
-		state = newQualState()
-	}
-	// "Run minimal core again" is a deliberate refresh; core-only starts from
-	// a clean comparison rather than silently reusing the old core.
-	if mode == "core" && state.CoreComplete && !fresh {
 		state = newQualState()
 	}
 	if !sameStrings(state.Models, models) {
@@ -149,14 +113,14 @@ func (u *UI) startPoolQualification(ctx context.Context, fresh, deep bool, mode 
 	state.FinishedAt = time.Time{}
 	state.Error = ""
 	state.Deep = deep
-	state.Phase = mode
+	state.Phase = tier
 	state.Tier = tier
-	state.MinimumMinutes = minutes
+	state.MinimumMinutes = 0
 	if state.Results == nil {
 		state.Results = map[string]bool{}
 	}
 	state.Done = len(state.Results)
-	if mode == "core" {
+	if tier == qualTierMinimal {
 		state.Total = poolCorePlan(models, ladder)
 	} else {
 		state.Total = poolQualificationPlan(models, ladder)
@@ -198,7 +162,7 @@ func (u *UI) currentQualTier() string {
 	u.qualMu.Lock()
 	defer u.qualMu.Unlock()
 	if u.qualTier == "" {
-		return qualTierShort
+		return qualTierMinimal
 	}
 	return u.qualTier
 }
@@ -222,17 +186,14 @@ func (u *UI) setQualificationTier(ctx context.Context, tier string) error {
 	state.Tier = tier
 	u.saveQualState(ctx, state)
 	switch tier {
-	case qualTierFull:
-		_, _, err := u.startPoolQualification(ctx, false, true, "full", 0)
-		return err
-	case qualTierMedium:
-		_, _, err := u.startPoolQualification(ctx, false, state.Deep, "extra", 10)
-		return err
-	default:
+	case qualTierMinimal:
 		if state.CoreComplete {
 			return nil
 		}
-		_, _, err := u.startPoolQualification(ctx, false, false, "core", 0)
+		_, _, err := u.startPoolQualification(ctx, false, qualTierMinimal)
+		return err
+	default:
+		_, _, err := u.startPoolQualification(ctx, false, tier)
 		return err
 	}
 }
@@ -255,20 +216,13 @@ func (u *UI) ensureQualificationStarted(ctx context.Context) {
 		return
 	}
 	tier := normalizeQualTier(st.Tier)
-	if st.CoreComplete && tier == qualTierShort {
+	if st.CoreComplete && tier == qualTierMinimal {
 		return
 	}
 	if p := u.pool(); p == nil || len(p.EligibleNames()) == 0 {
 		return
 	}
-	switch tier {
-	case qualTierFull:
-		_, _, _ = u.startPoolQualification(ctx, false, true, "full", 0)
-	case qualTierMedium:
-		_, _, _ = u.startPoolQualification(ctx, false, st.Deep, "extra", 10)
-	default:
-		_, _, _ = u.startPoolQualification(ctx, false, false, "core", 0)
-	}
+	_, _, _ = u.startPoolQualification(ctx, false, tier)
 }
 
 // reconcileInterruptedQualification clears a persisted running flag that no
@@ -385,97 +339,59 @@ func (u *UI) runPoolQualification(ctx context.Context, models []string, ladder o
 		return
 	}
 
-	// After the core, re-read the live tier choice on every pass. Choosing
-	// Medium or Full while Short is still running takes effect here, without
+	// After the core, re-read the live depth on every pass. Choosing Balanced
+	// or Complete while Minimal is still running takes effect here, without
 	// cancelling the run or waiting for the minimum to finish.
-	mediumLadder := ladder
-	fullLadder := onboard.DeepLadder()
-	var mediumDeadline time.Time
+	balancedLadder := onboard.DefaultLadder()
+	completeLadder := onboard.DeepLadder()
 	for ctx.Err() == nil {
 		tier := u.currentQualTier()
 		if state.Tier != tier {
 			state.Tier = tier
 			u.saveQualState(context.Background(), *state)
 		}
-		switch tier {
-		case qualTierShort:
-			u.finishPoolQualification(ctx, models, mediumLadder, state)
+		if tier == qualTierMinimal {
+			u.finishPoolQualification(ctx, models, balancedLadder, state)
 			return
-		case qualTierFull:
-			if !state.Deep {
-				state.Deep = true
-				state.Total = poolQualificationPlan(models, fullLadder)
-				u.saveQualState(context.Background(), *state)
-			}
-			extra := pendingExtra(fullLadder, state.Results, models)
-			if len(extra) == 0 {
-				u.finishPoolQualification(ctx, models, fullLadder, state)
-				return
-			}
-			block := extra
-			if len(block) > 30 {
-				block = block[:30]
-			}
-			for _, model := range models {
-				if ctx.Err() != nil {
-					break
-				}
-				state.CurrentModel = model
-				u.saveQualState(context.Background(), *state)
-				if !runCases(model, block, false, qualTierFull, fullLadder) {
-					break
-				}
-			}
-			state.Done = len(state.Results)
-			state.Tier = u.currentQualTier()
-			u.saveQualState(context.Background(), *state)
-		case qualTierMedium:
-			if mediumDeadline.IsZero() {
-				// The extra window starts after the core, so a slow core does
-				// not consume the ten minutes the operator selected.
-				mediumDeadline = time.Now().Add(10 * time.Minute)
-			}
-			extra := pendingExtra(mediumLadder, state.Results, models)
-			if time.Now().After(mediumDeadline) || len(extra) == 0 {
-				u.finishPoolQualification(ctx, models, mediumLadder, state)
-				return
-			}
-			remaining := time.Until(mediumDeadline)
-			perCase := estimateCaseSeconds(state, len(models), len(core))
-			if perCase <= 0 {
-				perCase = 5 * time.Second
-			}
-			blockCases := int(remaining / (perCase * time.Duration(len(models))))
-			if blockCases < 1 {
-				// Use the remaining time on one last small sweep; this is the
-				// intentional wrap-up, not a hard stop.
-				blockCases = 1
-			}
-			if blockCases > 30 {
-				blockCases = 30
-			}
-			if blockCases > len(extra) {
-				blockCases = len(extra)
-			}
-			block := extra[:blockCases]
-			for _, model := range models {
-				if ctx.Err() != nil {
-					break
-				}
-				state.CurrentModel = model
-				u.saveQualState(context.Background(), *state)
-				if !runCases(model, block, false, qualTierMedium, mediumLadder) {
-					break
-				}
-			}
-			state.Done = len(state.Results)
-			state.Tier = u.currentQualTier()
+		}
+		use := balancedLadder
+		isDeep := false
+		if tier == qualTierComplete {
+			use = completeLadder
+			isDeep = true
+		}
+		wantTotal := poolQualificationPlan(models, use)
+		if state.Total != wantTotal || state.Deep != isDeep {
+			state.Total = wantTotal
+			state.Deep = isDeep
 			u.saveQualState(context.Background(), *state)
 		}
+		extra := pendingExtra(use, state.Results, models)
+		if len(extra) == 0 {
+			u.finishPoolQualification(ctx, models, use, state)
+			return
+		}
+		block := extra
+		if len(block) > 30 {
+			block = block[:30]
+		}
+		for _, model := range models {
+			if ctx.Err() != nil {
+				break
+			}
+			state.CurrentModel = model
+			u.saveQualState(context.Background(), *state)
+			if !runCases(model, block, false, tier, use) {
+				break
+			}
+		}
+		state.Done = len(state.Results)
+		state.Tier = u.currentQualTier()
+		u.saveQualState(context.Background(), *state)
 	}
-	finishLadder := mediumLadder
+	finishLadder := balancedLadder
 	if state.Deep {
-		finishLadder = fullLadder
+		finishLadder = completeLadder
 	}
 	u.finishPoolQualification(ctx, models, finishLadder, state)
 }

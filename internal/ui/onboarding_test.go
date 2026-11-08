@@ -321,7 +321,7 @@ func TestWelcomeQualificationOffersSimpleChoices(t *testing.T) {
 	defer func() { _ = resp.Body.Close() }()
 	raw, _ := io.ReadAll(resp.Body)
 	body := string(raw)
-	for _, want := range []string{"Minimum screen complete", "Short", "Medium", "Full", "Continue"} {
+	for _, want := range []string{"Minimum screen complete", "Minimal", "Balanced", "Complete", "Continue"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("completed qualification step missing %q", want)
 		}
@@ -411,7 +411,7 @@ func TestTierChangeWhileRunningIsAppliedLive(t *testing.T) {
 	u := newEmptyUI(t)
 	u.qualMu.Lock()
 	u.qualRunning = true
-	u.qualTier = qualTierShort
+	u.qualTier = qualTierMinimal
 	u.qualMu.Unlock()
 	t.Cleanup(func() {
 		u.qualMu.Lock()
@@ -419,11 +419,11 @@ func TestTierChangeWhileRunningIsAppliedLive(t *testing.T) {
 		u.qualTier = ""
 		u.qualMu.Unlock()
 	})
-	if err := u.setQualificationTier(context.Background(), qualTierFull); err != nil {
+	if err := u.setQualificationTier(context.Background(), qualTierComplete); err != nil {
 		t.Fatal(err)
 	}
-	if got := u.currentQualTier(); got != qualTierFull {
-		t.Fatalf("live tier = %q, want full", got)
+	if got := u.currentQualTier(); got != qualTierComplete {
+		t.Fatalf("live tier = %q, want complete", got)
 	}
 }
 
@@ -458,7 +458,7 @@ func TestInterruptedFullQualificationResumesFull(t *testing.T) {
 	state.Models = []string{"fake:latest"}
 	state.Results["generator|fake:latest|gen-arith"] = true
 	state.CoreComplete = true
-	state.Tier = qualTierFull
+	state.Tier = qualTierComplete
 	state.Deep = true
 	u.saveQualState(context.Background(), state)
 

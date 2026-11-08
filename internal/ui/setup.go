@@ -105,12 +105,13 @@ type qualificationView struct {
 	MinimumRemaining string
 	AllCases         bool
 	HasMeasurements  bool
-	// FullEstimate is the estimated time to run every remaining case on every
-	// model; FullCases is how many remain. Both are shown beside the "Full
-	// qualification" choice so the operator can decide without a duration
-	// selector.
-	FullEstimate string
-	FullCases    int
+	// Per-tier estimates shown beside the depth choices. "done" means no case
+	// remains for that depth; "estimating…" means the first model has not
+	// completed its core pass yet.
+	MinimalEstimate  string
+	BalancedEstimate string
+	CompleteEstimate string
+	CompleteCases    int
 	// CoreRemaining is the first-model estimate projected against the clock,
 	// shown while the core is still running.
 	CoreRemaining string
@@ -187,24 +188,58 @@ func qualificationViewFor(s qualState, hasMeasurements bool) qualificationView {
 	return v
 }
 
-// qualFullEstimate estimates the remaining time and case count for a full
-// screen (every deep case on every model), using the same cost probe as the
-// worker. An empty string means there is not enough evidence yet.
-func qualFullEstimate(s qualState, models []string) (string, int) {
+// qualTierEstimates returns the time left for each depth from the same cost
+// probe the worker uses. "done" means no case remains for that depth;
+// "estimating…" means the first case has not completed yet.
+func qualTierEstimates(s qualState, models []string) (minimal, balanced, complete string, completeCases int) {
 	if len(models) == 0 {
-		return "", 0
+		return "", "", "", 0
 	}
-	ladder := onboard.DeepLadder()
-	remaining := poolQualificationPlan(models, ladder) - len(s.Results)
-	if remaining <= 0 {
-		return "", 0
+	defaultLadder := onboard.DefaultLadder()
+	deepLadder := onboard.DeepLadder()
+	perCase := livePerCase(&s, len(models), len(onboard.QualificationCore(defaultLadder)))
+	minimal = tierETA(perCase, pendingCount(onboard.QualificationCore(defaultLadder), s.Results, models))
+	balanced = tierETA(perCase, pendingCount(onboard.AllCaseRefs(defaultLadder), s.Results, models))
+	completeCases = pendingCount(onboard.AllCaseRefs(deepLadder), s.Results, models)
+	complete = tierETA(perCase, completeCases)
+	return
+}
+
+// livePerCase prefers the larger of the cost probe and the observed average
+// while running, so a fast first model does not make every tier look cheaper
+// than the machine is actually delivering.
+func livePerCase(s *qualState, models, coreCases int) time.Duration {
+	per := estimateCaseSeconds(s, models, coreCases)
+	if s.Running && !s.StartedAt.IsZero() && s.Done >= 10 {
+		observed := time.Since(s.StartedAt) / time.Duration(s.Done)
+		if observed > per {
+			per = observed
+		}
 	}
-	core := onboard.QualificationCore(ladder)
-	perCase := estimateCaseSeconds(&s, len(models), len(core))
+	return per
+}
+
+func tierETA(perCase time.Duration, pending int) string {
+	if pending == 0 {
+		return "done"
+	}
 	if perCase <= 0 {
-		return "", remaining
+		return "estimating…"
 	}
-	return humanETA(perCase * time.Duration(remaining)), remaining
+	return "about " + humanETA(perCase*time.Duration(pending))
+}
+
+func pendingCount(refs []onboard.CaseRef, results map[string]bool, models []string) int {
+	n := 0
+	for _, ref := range refs {
+		for _, model := range models {
+			if _, ok := results[ref.Kind+"|"+model+"|"+ref.ID]; !ok {
+				n++
+				break
+			}
+		}
+	}
+	return n
 }
 
 func humanETA(d time.Duration) string {

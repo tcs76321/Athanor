@@ -38,28 +38,28 @@ const modelsBody = `
 <div class="tier-picker">
   <div class="tier-picker-head"><b>Qualification depth</b><span class="muted small">A running screen switches without waiting for the minimum to finish.</span></div>
   <form method="post" action="/ui/models/qualify" class="tier-options">
-    <button type="submit" name="mode" value="short" class="tier-option {{if eq .Qualification.Tier "short"}}selected{{end}}">
-      <span class="tier-name">Short</span>
-      <span class="tier-desc">Minimum screen: one grounded case per capability on every model.</span>
+    <button type="submit" name="mode" value="minimal" class="tier-option {{if eq .Qualification.Tier "minimal"}}selected{{end}}">
+      <span class="tier-name">Minimal</span>
+      <span class="tier-desc">One grounded case per capability on every model.{{if .Qualification.MinimalEstimate}} · {{.Qualification.MinimalEstimate}}{{end}}</span>
     </button>
-    <button type="submit" name="mode" value="medium" class="tier-option {{if eq .Qualification.Tier "medium"}}selected{{end}}">
-      <span class="tier-name">Medium</span>
-      <span class="tier-desc">Minimum screen, then about ten minutes of extra cases.</span>
+    <button type="submit" name="mode" value="balanced" class="tier-option {{if eq .Qualification.Tier "balanced"}}selected{{end}}">
+      <span class="tier-name">Balanced</span>
+      <span class="tier-desc">Every case in the standard ladder: a balanced sample across every capability.{{if .Qualification.BalancedEstimate}} · {{.Qualification.BalancedEstimate}}{{end}}</span>
     </button>
-    <button type="submit" name="mode" value="full" class="tier-option {{if eq .Qualification.Tier "full"}}selected{{end}}">
-      <span class="tier-name">Full</span>
-      <span class="tier-desc">Every case in the deep ladder{{if .Qualification.FullEstimate}} · about {{.Qualification.FullEstimate}} remaining{{end}}.</span>
+    <button type="submit" name="mode" value="complete" class="tier-option {{if eq .Qualification.Tier "complete"}}selected{{end}}">
+      <span class="tier-name">Complete</span>
+      <span class="tier-desc">Every case in the deep ladder, including the long-context and adversarial cases.{{if .Qualification.CompleteEstimate}} · {{.Qualification.CompleteEstimate}}{{end}}</span>
     </button>
   </form>
 </div>
 
 {{if .Qualification.Running}}
 <div class="card" data-live-card="models-qualification" data-live-interval="2500">
-  <div class="row row-middle"><h3>{{if eq .Qualification.Phase "core"}}Measuring the pool{{else}}Filling out the screen{{end}}</h3><span class="pill run">{{.Qualification.Percent}}%</span></div>
+  <div class="row row-middle"><h3>{{if not .Qualification.CoreComplete}}Measuring the pool{{else}}Filling out the screen{{end}}</h3><span class="pill run">{{.Qualification.Percent}}%</span></div>
   <progress class="progress" value="{{.Qualification.Percent}}" max="100">{{.Qualification.Percent}}%</progress>
   <p><b>{{.Qualification.Done}} / {{.Qualification.Total}}</b> cases{{if .Qualification.CurrentModel}} · measuring <b class="mono">{{.Qualification.CurrentModel}}</b>{{end}}{{if .Qualification.Elapsed}} · {{.Qualification.Elapsed}} elapsed{{end}}{{if .Qualification.Remaining}} · about {{.Qualification.Remaining}} left{{else if .Qualification.CoreRemaining}} · about {{.Qualification.CoreRemaining}} left{{else if .Qualification.Estimate}} · about {{.Qualification.Estimate}} total{{else}} · estimating time left…{{end}}</p>
   <p class="muted">The run is resumable and uses the same grounded screen as first use.</p>
-  <p class="muted small">Depth: {{if eq .Qualification.Tier "short"}}Short — stops after the minimum screen.{{else if eq .Qualification.Tier "medium"}}Medium — minimum screen, then about ten minutes of extra cases.{{else}}Full — minimum screen, then every remaining case.{{end}} Changing it above applies between cases.</p>
+  <p class="muted small">Depth: {{if eq .Qualification.Tier "minimal"}}Minimal — stops after the minimum screen.{{else if eq .Qualification.Tier "balanced"}}Balanced — minimum screen, then the whole balanced ladder.{{else}}Complete — minimum screen, then every deep case.{{end}} Changing it above applies between cases.</p>
   <form method="post" action="/ui/setup/qualify/cancel">
     <input type="hidden" name="next" value="/ui/models">
     <button class="danger small" data-confirm="Stop this qualification run? Completed cases are kept and the run can resume later.">Stop measuring</button>
@@ -67,10 +67,10 @@ const modelsBody = `
 </div>
 {{else if .Qualification.CoreComplete}}
 <div class="card">
-  <p class="ok"><b>{{if eq .Qualification.Tier "short"}}Minimum screen complete.{{else if eq .Qualification.Tier "full"}}{{if .Qualification.AllCases}}All cases complete.{{else}}Full screen paused — choose Full above to continue.{{end}}{{else}}{{if .Qualification.AllCases}}All cases complete.{{else if .Qualification.Complete}}Medium pass complete.{{else}}Medium pass paused — choose Medium above to continue.{{end}}{{end}}</b> {{.Qualification.Done}} cases recorded{{if .Qualification.Estimate}} · core run {{.Qualification.Estimate}}{{end}}. The ranking below is the current prior.</p>
+  <p class="ok"><b>{{if eq .Qualification.Tier "minimal"}}Minimum screen complete.{{else if eq .Qualification.Tier "complete"}}{{if .Qualification.AllCases}}All cases complete.{{else}}Complete screen paused — choose Complete above to continue.{{end}}{{else}}{{if .Qualification.AllCases}}All cases complete.{{else if .Qualification.Complete}}Balanced pass complete.{{else}}Balanced pass paused — choose Balanced above to continue.{{end}}{{end}}</b> {{.Qualification.Done}} cases recorded{{if .Qualification.Estimate}} · core run {{.Qualification.Estimate}}{{end}}. The ranking below is the current prior.</p>
   {{if .Qualification.Error}}<p class="del">{{.Qualification.Error}}</p>{{end}}
   <p class="muted">Choose a deeper level above to keep going; completed cases are kept.</p>
-  {{if .Qualification.FullCases}}<p class="muted small">{{.Qualification.FullCases}} cases remain for the full screen.</p>{{end}}
+  {{if .Qualification.CompleteCases}}<p class="muted small">{{.Qualification.CompleteCases}} cases remain for the complete screen.</p>{{end}}
 </div>
 {{else}}
 <div class="card">
@@ -223,16 +223,15 @@ func (u *UI) handleModelsQualify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	mode := r.FormValue("mode")
-	tier := mode
 	switch mode {
-	case "more", "extra":
-		tier = qualTierMedium
-	case "core", "short":
-		tier = qualTierShort
-	case "full":
-		tier = qualTierFull
+	case "minimal", "core", "short":
+		mode = qualTierMinimal
+	case "balanced", "medium", "more", "extra":
+		mode = qualTierBalanced
+	case "complete", "full":
+		mode = qualTierComplete
 	}
-	if err := u.setQualificationTier(r.Context(), tier); err != nil {
+	if err := u.setQualificationTier(r.Context(), mode); err != nil {
 		u.fail(w, err)
 		return
 	}
@@ -240,7 +239,7 @@ func (u *UI) handleModelsQualify(w http.ResponseWriter, r *http.Request) {
 }
 
 func (u *UI) handleModelsQualifyDeep(w http.ResponseWriter, r *http.Request) {
-	if _, _, err := u.startPoolQualification(r.Context(), false, true, "core", 0); err != nil {
+	if err := u.setQualificationTier(r.Context(), qualTierComplete); err != nil {
 		u.fail(w, err)
 		return
 	}

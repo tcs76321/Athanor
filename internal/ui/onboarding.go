@@ -454,7 +454,7 @@ func (u *UI) welcomeData(ctx context.Context, st onboardingState) map[string]any
 	if qual.Running {
 		qualView.Tier = u.currentQualTier()
 	}
-	qualView.FullEstimate, qualView.FullCases = qualFullEstimate(qual, poolModels)
+	qualView.MinimalEstimate, qualView.BalancedEstimate, qualView.CompleteEstimate, qualView.CompleteCases = qualTierEstimates(qual, poolModels)
 	return map[string]any{
 		"State": st, "Step": st.Step, "Steps": onboardingSteps,
 		"StepIndex": onboardingIndex(st.Step), "StepNumber": onboardingIndex(st.Step) + 1,
@@ -1105,7 +1105,7 @@ func (u *UI) handleWelcomePost(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		st.Step = "qualify"
-		if err := u.setQualificationTier(ctx, qualTierShort); err != nil {
+		if err := u.setQualificationTier(ctx, qualTierMinimal); err != nil {
 			u.fail(w, err)
 			return
 		}
@@ -1115,7 +1115,7 @@ func (u *UI) handleWelcomePost(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		st.Step = "qualify"
-		if err := u.setQualificationTier(ctx, qualTierMedium); err != nil {
+		if err := u.setQualificationTier(ctx, qualTierBalanced); err != nil {
 			u.fail(w, err)
 			return
 		}
@@ -1125,7 +1125,7 @@ func (u *UI) handleWelcomePost(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		st.Step = "qualify"
-		if err := u.setQualificationTier(ctx, qualTierFull); err != nil {
+		if err := u.setQualificationTier(ctx, qualTierComplete); err != nil {
 			u.fail(w, err)
 			return
 		}
