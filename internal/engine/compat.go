@@ -1,6 +1,16 @@
 package engine
 
-import "github.com/tcs76321/athanor/internal/engine/contextasm"
+import (
+	"github.com/tcs76321/athanor/internal/engine/contextasm"
+	"github.com/tcs76321/athanor/internal/engine/phases"
+)
+
+// ErrPaused and ErrRepositorySnapshot are defined once in the phase package;
+// the root aliases keep errors.Is(engine.ErrPaused, ...) working.
+var (
+	ErrPaused             = phases.ErrPaused
+	ErrRepositorySnapshot = phases.ErrRepositorySnapshot
+)
 
 // Compatibility aliases for the moved context types. External adapters
 // (cmd/athanor, tests) keep using engine.ContextQuery and friends; the

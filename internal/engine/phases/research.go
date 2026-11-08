@@ -1,4 +1,4 @@
-package engine
+package phases
 
 import (
 	"context"
@@ -93,17 +93,17 @@ func extractSourceURLs(text string, max int) []string {
 // `research_fetch` audit row. A crash mid-divergence re-runs the
 // whole phase (the M3-T6 recovery shape), so the fetches re-run too
 // — they are idempotent downloads, gateway-audited and rate-limited.
-func (e *Engine) researchContext(ctx context.Context, j job.Job, p project.Project, t project.Task) (string, error) {
+func (d *Deps) researchContext(ctx context.Context, j job.Job, p project.Project, t project.Task) (string, error) {
 	urls := extractSourceURLs(t.Description+"\n"+p.Goal, maxResearchSources)
 	if len(urls) == 0 {
 		return "", nil
 	}
-	e.audit(ctx, j.ID, map[string]any{
+	d.audit(ctx, j.ID, map[string]any{
 		"event":   "research_start",
 		"sources": len(urls),
 	})
-	if e.runner == nil {
-		e.audit(ctx, j.ID, map[string]any{
+	if d.runner() == nil {
+		d.audit(ctx, j.ID, map[string]any{
 			"event":   "research_fetch",
 			"skipped": true,
 			"reason":  "no ToolRunner wired (dev mode)",
@@ -116,21 +116,21 @@ func (e *Engine) researchContext(ctx context.Context, j job.Job, p project.Proje
 	// toolContext; the fetches were the one unbounded surface — a slow or
 	// hanging source stalled the entire divergence phase (and job)
 	// indefinitely.
-	fctx, cancel := e.researchBudget(ctx)
+	fctx, cancel := d.researchBudget(ctx)
 	defer cancel()
 
 	var b strings.Builder
 	for _, u := range urls {
 		if fctx.Err() != nil {
-			e.audit(ctx, j.ID, map[string]any{
+			d.audit(ctx, j.ID, map[string]any{
 				"event": "research_fetch", "url": u, "outcome": "deadline_exceeded",
 			})
 			break
 		}
-		res, err := e.runner.FetchURL(fctx, j.ID, toolenvelope.FetchURLRequest{URL: u})
+		res, err := d.runner().FetchURL(fctx, j.ID, toolenvelope.FetchURLRequest{URL: u})
 		switch {
 		case errors.Is(err, toolenvelope.ErrToolDisallowed):
-			e.audit(ctx, j.ID, map[string]any{
+			d.audit(ctx, j.ID, map[string]any{
 				"event": "research_fetch", "url": u, "outcome": "disallowed",
 			})
 			continue
@@ -138,18 +138,18 @@ func (e *Engine) researchContext(ctx context.Context, j job.Job, p project.Proje
 			// The tool was in the envelope but the gateway policy
 			// refused the host (known-issues O1). Audited distinctly
 			// so a denial is not misread as an envelope miss.
-			e.audit(ctx, j.ID, map[string]any{
+			d.audit(ctx, j.ID, map[string]any{
 				"event": "research_fetch", "url": u, "outcome": "denied",
 			})
 			continue
 		case err != nil:
-			e.audit(ctx, j.ID, map[string]any{
+			d.audit(ctx, j.ID, map[string]any{
 				"event": "research_fetch", "url": u, "outcome": "error",
 				"detail": err.Error(),
 			})
 			continue
 		case res.Markdown == "":
-			e.audit(ctx, j.ID, map[string]any{
+			d.audit(ctx, j.ID, map[string]any{
 				"event": "research_fetch", "url": u, "outcome": "empty",
 				"mode": res.Mode, "status": res.StatusCode,
 			})
@@ -159,7 +159,7 @@ func (e *Engine) researchContext(ctx context.Context, j job.Job, p project.Proje
 		if len(md) > maxSourceBlockChars {
 			md = md[:maxSourceBlockChars] + "\n…[source truncated at the prompt-side budget]"
 		}
-		e.audit(ctx, j.ID, map[string]any{
+		d.audit(ctx, j.ID, map[string]any{
 			"event": "research_fetch", "url": u, "outcome": "fetched",
 			"mode": res.Mode, "bytes": len(md), "truncated": res.Truncated,
 		})
@@ -174,10 +174,10 @@ func (e *Engine) researchContext(ctx context.Context, j job.Job, p project.Proje
 // researchBudget bounds the sequential research fetch loop by the diverging
 // phase's wall-time budget (5-minute cap, mirroring toolContext). The
 // returned cancel must be deferred by the caller.
-func (e *Engine) researchBudget(parent context.Context) (context.Context, context.CancelFunc) {
+func (d *Deps) researchBudget(parent context.Context) (context.Context, context.CancelFunc) {
 	budget := 5 * time.Minute
-	if e.cfg != nil {
-		if b, ok := e.cfg.Execution.PhaseBudget(string(llm.PhaseDiverging)); ok && b > 0 && b < budget {
+	if d.Cfg != nil {
+		if b, ok := d.Cfg.Execution.PhaseBudget(string(llm.PhaseDiverging)); ok && b > 0 && b < budget {
 			budget = b
 		}
 	}

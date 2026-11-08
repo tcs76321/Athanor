@@ -1,4 +1,4 @@
-package engine
+package phases
 
 import (
 	"context"
@@ -25,7 +25,7 @@ import (
 // execute_code route. Steps:
 //  1. The caller supplies the candidate content (F4-T3: verification must
 //     test *this* candidate, not whichever proposal happens to be latest).
-//  2. Call e.runner.RunCode with the candidate. A nil runner short-circuits to
+//  2. Call d.runner().RunCode with the candidate. A nil runner short-circuits to
 //     a recorded-but-skipped sub-step.
 //  3. Persist the result as a new code artifact (the audit log of "what the
 //     pod did" — exit code, stdout, stderr, duration).
@@ -34,10 +34,10 @@ import (
 // It reports whether the candidate was actually materialized in the pod. A
 // tool-envelope refusal is a soft skip, not a test run: the caller must not run
 // the test command against a work tree that does not contain this candidate.
-func (e *Engine) runCodeInPod(ctx context.Context, j job.Job, p project.Project, t project.Task, code string) (bool, error) {
+func (d *Deps) runCodeInPod(ctx context.Context, j job.Job, p project.Project, t project.Task, code string) (bool, error) {
 	capability := project.CapabilityFor(p, t)
-	if e.runner == nil {
-		e.audit(ctx, j.ID, map[string]any{
+	if d.runner() == nil {
+		d.audit(ctx, j.ID, map[string]any{
 			"event":     "code_executed",
 			"skipped":   true,
 			"reason":    "no ToolRunner wired (M1 dev mode)",
@@ -50,7 +50,7 @@ func (e *Engine) runCodeInPod(ctx context.Context, j job.Job, p project.Project,
 	// solution.py keeps the historical write-and-run shorthand; anything else
 	// is staged as a tree for the test command to exercise. The language comes
 	// from the planner/repository, not an assumed Python.
-	language := e.languageFor(ctx, j, p, t)
+	language := d.languageFor(ctx, j, p, t)
 	files, ferr := candidateFiles(code)
 	if ferr != nil {
 		return false, fmt.Errorf("parsing code candidate tree: %w", ferr)
@@ -62,7 +62,7 @@ func (e *Engine) runCodeInPod(ctx context.Context, j job.Job, p project.Project,
 	implementation, harnessFiles := toolenvelope.SplitHarnessFiles(files)
 	if len(harnessFiles) > 0 {
 		for _, f := range harnessFiles {
-			e.audit(ctx, j.ID, map[string]any{
+			d.audit(ctx, j.ID, map[string]any{
 				"event": "harness_path_ignored", "path": f.Path,
 				"reason": "candidate tried to modify the verification harness",
 			})
@@ -70,14 +70,14 @@ func (e *Engine) runCodeInPod(ctx context.Context, j job.Job, p project.Project,
 		files = implementation
 	}
 	if len(files) == 0 {
-		e.audit(ctx, j.ID, map[string]any{
+		d.audit(ctx, j.ID, map[string]any{
 			"event":  "candidate_harness_only",
 			"reason": "candidate contained no implementation files",
 		})
 		return false, nil
 	}
 	// A single-file Python candidate is staged under the module name its test
-	// command imports (e.g. `from exprlang import …` → exprlang.py). The
+	// command imports (d.g. `from exprlang import …` → exprlang.py). The
 	// historical solution.py shorthand is only correct when the test itself
 	// imports solution. This is a harness-naming fix, not a corpus edit: the
 	// task still has to produce a correct module. Non-Python languages use
@@ -112,10 +112,10 @@ func (e *Engine) runCodeInPod(ctx context.Context, j job.Job, p project.Project,
 		req = toolenvelope.ExecuteRequest{Language: language, Files: files}
 	}
 	start := time.Now()
-	res, err := e.runner.RunCode(ctx, j.ID, req)
+	res, err := d.runner().RunCode(ctx, j.ID, req)
 	if err != nil {
 		if errors.Is(err, toolenvelope.ErrToolDisallowed) {
-			e.audit(ctx, j.ID, map[string]any{
+			d.audit(ctx, j.ID, map[string]any{
 				"event":     "code_executed",
 				"skipped":   true,
 				"reason":    "execute_code not in job envelope",
@@ -123,7 +123,7 @@ func (e *Engine) runCodeInPod(ctx context.Context, j job.Job, p project.Project,
 			})
 			return false, nil
 		}
-		e.audit(ctx, j.ID, map[string]any{
+		d.audit(ctx, j.ID, map[string]any{
 			"event":  "code_executed",
 			"error":  err.Error(),
 			"detail": "runner returned non-disallowed error",
@@ -132,10 +132,10 @@ func (e *Engine) runCodeInPod(ctx context.Context, j job.Job, p project.Project,
 	}
 	_ = start
 
-	if _, err := e.artifacts.CreateDraftFor(ctx, p.ID, t.ID, j.ID, artifact.KindCode, jsonMarshalExecuteResult(res)); err != nil {
+	if _, err := d.Artifacts.CreateDraftFor(ctx, p.ID, t.ID, j.ID, artifact.KindCode, jsonMarshalExecuteResult(res)); err != nil {
 		return false, fmt.Errorf("persisting code execution artifact: %w", err)
 	}
-	e.audit(ctx, j.ID, map[string]any{
+	d.audit(ctx, j.ID, map[string]any{
 		"event":       "code_executed",
 		"exit_code":   res.ExitCode,
 		"duration_ms": res.DurationMS,
@@ -158,15 +158,7 @@ func (e *Engine) runCodeInPod(ctx context.Context, j job.Job, p project.Project,
 // (ADR-0065): `=== FILE: path ===` blocks become multiple files; a stored
 // JSON manifest is decoded; anything else is a single solution.py. Pure.
 func candidateFiles(content string) ([]toolenvelope.File, error) {
-	if files, err := toolenvelope.ParseFileMarkers(content); err != nil {
-		return nil, err
-	} else if len(files) > 0 {
-		return files, nil
-	}
-	if toolenvelope.IsTreeManifest([]byte(content)) {
-		return toolenvelope.DecodeFiles([]byte(content))
-	}
-	return []toolenvelope.File{{Path: "solution.py", Content: content}}, nil
+	return toolenvelope.CandidateFiles(content)
 }
 
 // candidateModuleName infers the file name a single-file code candidate should

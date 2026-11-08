@@ -135,3 +135,22 @@ func TestIsTreeManifest(t *testing.T) {
 		t.Error("IsTreeManifest(JSON without files) = true, want false")
 	}
 }
+
+// TestCandidateFilesSharedInterpreter pins the shared phase/git interpretation:
+// markers win, a manifest is a tree, and raw source is the solution.py
+// shorthand.
+func TestCandidateFilesSharedInterpreter(t *testing.T) {
+	files, err := CandidateFiles("=== FILE: a.py ===\nprint(1)\n")
+	if err != nil || len(files) != 1 || files[0].Path != "a.py" {
+		t.Errorf("markers = (%v, %v), want a.py", files, err)
+	}
+	manifest, _ := EncodeFiles([]File{{Path: "b.py", Content: "x"}})
+	files, err = CandidateFiles(string(manifest))
+	if err != nil || len(files) != 1 || files[0].Path != "b.py" {
+		t.Errorf("manifest = (%v, %v), want b.py", files, err)
+	}
+	files, err = CandidateFiles("print(1)\n")
+	if err != nil || len(files) != 1 || files[0].Path != "solution.py" {
+		t.Errorf("shorthand = (%v, %v), want solution.py", files, err)
+	}
+}

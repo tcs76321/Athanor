@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/tcs76321/athanor/internal/config"
+	"github.com/tcs76321/athanor/internal/engine/phases"
 	"github.com/tcs76321/athanor/internal/job"
 	"github.com/tcs76321/athanor/internal/store"
 )
@@ -62,8 +63,8 @@ func TestPhaseCompareVerifiesFullContentNotTruncated(t *testing.T) {
 			lastCode = c.Code
 		}
 	}
-	if len(lastCode) <= comparisonContentLimit {
-		t.Fatalf("final verification content length = %d, want > %d (full artifact, not the truncated judge head)", len(lastCode), comparisonContentLimit)
+	if len(lastCode) <= phases.ComparisonContentLimit {
+		t.Fatalf("final verification content length = %d, want > %d (full artifact, not the truncated judge head)", len(lastCode), phases.ComparisonContentLimit)
 	}
 }
 

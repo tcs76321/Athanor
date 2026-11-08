@@ -1,4 +1,4 @@
-package engine
+package phases
 
 import (
 	"context"
@@ -26,30 +26,30 @@ Do not request absolute paths, directories, or more than one file.`
 // records it in the notebook so the repair prompt sees it. It is best-effort:
 // a malformed request, a disallowed path, or a read failure is audited and
 // ignored, never a job failure.
-func (e *Engine) observeForRepair(ctx context.Context, j job.Job, p project.Project,
+func (d *Deps) observeForRepair(ctx context.Context, j job.Job, p project.Project,
 	t project.Task, role string) {
 
-	if e.runner == nil {
+	if d.runner() == nil {
 		return
 	}
-	resp, err := e.call(ctx, j, p, t, llm.PhaseRefining, role, observationInstructions, nil)
+	resp, err := d.call(ctx, j, p, t, llm.PhaseRefining, role, observationInstructions, nil)
 	if err != nil {
-		e.audit(ctx, j.ID, map[string]any{"event": "observation_request_failed", "error": err.Error()})
+		d.audit(ctx, j.ID, map[string]any{"event": "observation_request_failed", "error": err.Error()})
 		return
 	}
 	path, requested, perr := repair.ParseObservation(resp.Content)
 	if perr != nil {
-		e.audit(ctx, j.ID, map[string]any{"event": "observation_request_unparsed"})
+		d.audit(ctx, j.ID, map[string]any{"event": "observation_request_unparsed"})
 		return
 	}
 	if !requested {
 		return
 	}
-	res, rerr := e.runner.ReadFile(ctx, j.ID, toolenvelope.ReadFileRequest{
+	res, rerr := d.runner().ReadFile(ctx, j.ID, toolenvelope.ReadFileRequest{
 		Tool: toolenvelope.ToolReadFile, Path: path, MaxBytes: 8 << 10,
 	})
 	if rerr != nil {
-		e.audit(ctx, j.ID, map[string]any{
+		d.audit(ctx, j.ID, map[string]any{
 			"event": "observation_read_failed", "path": path, "error": rerr.Error(),
 		})
 		return
@@ -58,9 +58,9 @@ func (e *Engine) observeForRepair(ctx context.Context, j job.Job, p project.Proj
 	if len(content) > 4000 {
 		content = content[:4000] + "…"
 	}
-	e.note(ctx, j.ID, p.ID, notebook.KindObservation, "observing",
+	d.note(ctx, j.ID, p.ID, notebook.KindObservation, "observing",
 		fmt.Sprintf("read %s (%d bytes):\n%s", res.Path, res.Bytes, content))
-	e.audit(ctx, j.ID, map[string]any{
+	d.audit(ctx, j.ID, map[string]any{
 		"event": "observation_read", "path": res.Path, "bytes": res.Bytes, "truncated": res.Truncated,
 	})
 	slog.Debug("engine: observation read", "job", j.ID, "path", res.Path)

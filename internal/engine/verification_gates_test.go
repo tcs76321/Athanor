@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/tcs76321/athanor/internal/config"
+	"github.com/tcs76321/athanor/internal/engine/phases"
 	"github.com/tcs76321/athanor/internal/job"
 	"github.com/tcs76321/athanor/internal/project"
 	"github.com/tcs76321/athanor/internal/toolenvelope"
@@ -26,6 +27,15 @@ func gateConfig(t *testing.T, tests, docs bool) *config.Config {
 	return cfg
 }
 
+// gateEngine builds a bare engine with the phase dependencies wired for the
+// verifyCandidate gate tests. The verification path needs only cfg and a
+// runtime; no repositories are touched when no test command runs.
+func gateEngine(cfg *config.Config) *Engine {
+	e := &Engine{cfg: cfg}
+	e.phaseDeps = &phases.Deps{Cfg: cfg}
+	return e
+}
+
 // TestVerifyCandidate_RequireTestsWiring proves the engine resolves
 // execution.require_tests_for_code into the verifier input: with no runner,
 // a code candidate is a hard failure when the gate is on and non-decisive
@@ -34,8 +44,8 @@ func TestVerifyCandidate_RequireTestsWiring(t *testing.T) {
 	ctx := context.Background()
 	p := project.Project{Archetype: project.ArchetypeCode}
 
-	on := &Engine{cfg: gateConfig(t, true, false)}
-	res, _, err := on.verifyCandidate(ctx, job.Job{}, p, project.Task{}, "print(1)", 0)
+	on := gateEngine(gateConfig(t, true, false))
+	res, _, err := on.phaseDeps.VerifyCandidate(ctx, job.Job{}, p, project.Task{}, "print(1)", 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -43,8 +53,8 @@ func TestVerifyCandidate_RequireTestsWiring(t *testing.T) {
 		t.Errorf("tests required, none ran: got %+v, want hard failure", res)
 	}
 
-	off := &Engine{cfg: gateConfig(t, false, false)}
-	res, _, err = off.verifyCandidate(ctx, job.Job{}, p, project.Task{}, "print(1)", 0)
+	off := gateEngine(gateConfig(t, false, false))
+	res, _, err = off.phaseDeps.VerifyCandidate(ctx, job.Job{}, p, project.Task{}, "print(1)", 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -59,8 +69,8 @@ func TestVerifyCandidate_RequireDocsWiring(t *testing.T) {
 	ctx := context.Background()
 	p := project.Project{Archetype: project.ArchetypeCode}
 
-	on := &Engine{cfg: gateConfig(t, false, true)}
-	res, _, err := on.verifyCandidate(ctx, job.Job{}, p, project.Task{}, "print(1)", 0)
+	on := gateEngine(gateConfig(t, false, true))
+	res, _, err := on.phaseDeps.VerifyCandidate(ctx, job.Job{}, p, project.Task{}, "print(1)", 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -69,7 +79,7 @@ func TestVerifyCandidate_RequireDocsWiring(t *testing.T) {
 	}
 
 	documented := "def add(a, b):\n    \"\"\"Return the sum of a and b.\"\"\"\n    return a + b\n"
-	res, _, err = on.verifyCandidate(ctx, job.Job{}, p, project.Task{}, documented, 0)
+	res, _, err = on.phaseDeps.VerifyCandidate(ctx, job.Job{}, p, project.Task{}, documented, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -77,8 +87,8 @@ func TestVerifyCandidate_RequireDocsWiring(t *testing.T) {
 		t.Errorf("docs required, present: got %+v, want pass", res)
 	}
 
-	off := &Engine{cfg: gateConfig(t, false, false)}
-	res, _, err = off.verifyCandidate(ctx, job.Job{}, p, project.Task{}, "print(1)", 0)
+	off := gateEngine(gateConfig(t, false, false))
+	res, _, err = off.phaseDeps.VerifyCandidate(ctx, job.Job{}, p, project.Task{}, "print(1)", 0)
 	if err != nil {
 		t.Fatal(err)
 	}

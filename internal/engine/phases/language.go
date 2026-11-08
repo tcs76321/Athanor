@@ -1,4 +1,4 @@
-package engine
+package phases
 
 import (
 	"context"
@@ -35,8 +35,8 @@ func parseLanguageHint(content string) string {
 // languageFor resolves the generation language: the planner's validated hint
 // first, then repository/manifest detection, then the project test command.
 // Unknown is a valid answer; the prompt then stays generic instead of guessing.
-func (e *Engine) languageFor(ctx context.Context, j job.Job, p project.Project, t project.Task) string {
-	if l := e.state.Language(ctx, j.ID); project.ValidLanguage(l) {
+func (d *Deps) languageFor(ctx context.Context, j job.Job, p project.Project, t project.Task) string {
+	if l := d.State.Language(ctx, j.ID); project.ValidLanguage(l) {
 		return l
 	}
 	if l := project.DetectLanguage(p.RepositoryPath, p.TestCommand()); l != project.LanguageUnknown {

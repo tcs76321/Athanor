@@ -1,4 +1,4 @@
-package engine
+package phases
 
 import (
 	"context"
@@ -32,23 +32,23 @@ Use "tie" only when the artifacts are materially equivalent for this task.`
 // two contradictory answers and cannot decide. Returns decided=false when the
 // orders disagree or a call fails, so the caller can fall back to the pointwise
 // judge rather than trusting a biased result.
-func (e *Engine) runPairwiseJudge(ctx context.Context, j job.Job, p project.Project, t project.Task,
+func (d *Deps) runPairwiseJudge(ctx context.Context, j job.Job, p project.Project, t project.Task,
 	judgeRole, current, previous string) (acceptance.Verdict, bool, error) {
 
 	current = truncateForLimit(current, comparisonContentLimit)
 	previous = truncateForLimit(previous, comparisonContentLimit)
 
 	// Order 1: A=current, B=previous. Order 2: A=previous, B=current.
-	first, firstOK, err := e.pairwiseCall(ctx, j, p, t, judgeRole, current, previous, 0)
+	first, firstOK, err := d.pairwiseCall(ctx, j, p, t, judgeRole, current, previous, 0)
 	if err != nil {
 		return acceptance.Verdict{}, false, err
 	}
-	second, secondOK, err := e.pairwiseCall(ctx, j, p, t, judgeRole, previous, current, 1)
+	second, secondOK, err := d.pairwiseCall(ctx, j, p, t, judgeRole, previous, current, 1)
 	if err != nil {
 		return acceptance.Verdict{}, false, err
 	}
 	if !firstOK || !secondOK {
-		e.audit(ctx, j.ID, map[string]any{
+		d.audit(ctx, j.ID, map[string]any{
 			"event": "pairwise_judge_fallback", "reason": "unparseable order",
 			"first_ok": firstOK, "second_ok": secondOK,
 		})
@@ -59,18 +59,18 @@ func (e *Engine) runPairwiseJudge(ctx context.Context, j job.Job, p project.Proj
 	firstChoice := acceptance.PairwiseChoice(first.Winner, "new", "previous")
 	secondChoice := acceptance.PairwiseChoice(second.Winner, "previous", "new")
 	if firstChoice == "" || secondChoice == "" {
-		e.audit(ctx, j.ID, map[string]any{
+		d.audit(ctx, j.ID, map[string]any{
 			"event": "pairwise_judge_fallback", "reason": "unknown position",
 			"first": first.Winner, "second": second.Winner,
 		})
 		return acceptance.Verdict{}, false, nil
 	}
-	e.audit(ctx, j.ID, map[string]any{
+	d.audit(ctx, j.ID, map[string]any{
 		"event": "pairwise_judge", "first_order": first.Winner, "second_order": second.Winner,
 		"first_choice": firstChoice, "second_choice": secondChoice,
 	})
 	if firstChoice != secondChoice {
-		e.audit(ctx, j.ID, map[string]any{
+		d.audit(ctx, j.ID, map[string]any{
 			"event": "judge_position_bias", "first_choice": firstChoice,
 			"second_choice": secondChoice, "resolution": "fallback to pointwise",
 		})
@@ -90,10 +90,10 @@ func (e *Engine) runPairwiseJudge(ctx context.Context, j job.Job, p project.Proj
 }
 
 // pairwiseCall runs one ordering. A=trueContent, B=falseContent.
-func (e *Engine) pairwiseCall(ctx context.Context, j job.Job, p project.Project, t project.Task,
+func (d *Deps) pairwiseCall(ctx context.Context, j job.Job, p project.Project, t project.Task,
 	judgeRole, aContent, bContent string, voteIndex int) (pairwiseVerdict, bool, error) {
 
-	resp, err := e.call(ctx, j, p, t, llm.PhaseComparing, judgeRole, pairwiseInstructions,
+	resp, err := d.call(ctx, j, p, t, llm.PhaseComparing, judgeRole, pairwiseInstructions,
 		[]prompt.CandidateArtifact{
 			{Kind: "a", Content: aContent},
 			{Kind: "b", Content: bContent},
@@ -103,13 +103,13 @@ func (e *Engine) pairwiseCall(ctx context.Context, j job.Job, p project.Project,
 	}
 	v, coercions, err := acceptance.ParseVerdictCoerced[pairwiseVerdict](resp.Content)
 	if err != nil {
-		e.audit(ctx, j.ID, map[string]any{
+		d.audit(ctx, j.ID, map[string]any{
 			"event": "pairwise_verdict_unparsed", "vote": voteIndex, "error": err.Error(),
 		})
 		return pairwiseVerdict{}, false, nil
 	}
 	if len(coercions) > 0 {
-		e.audit(ctx, j.ID, map[string]any{
+		d.audit(ctx, j.ID, map[string]any{
 			"event": "verdict_coerced", "phase": string(llm.PhaseComparing), "fields": coercions,
 		})
 	}

@@ -22,7 +22,7 @@ func TestPairwiseJudgeAgreesNew(t *testing.T) {
 	j, _ := e.jobs.Get(context.Background(), jobID)
 	p, _ := e.projects.Get(context.Background(), projectID)
 	task, _ := e.projects.Task(context.Background(), taskID)
-	got, ok, err := e.eng.runPairwiseJudge(context.Background(), j, p, task, "security", "new", "old")
+	got, ok, err := e.eng.phaseDeps.RunPairwiseJudge(context.Background(), j, p, task, "security", "new", "old")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -40,7 +40,7 @@ func TestPairwiseJudgeAgreesPrevious(t *testing.T) {
 	j, _ := e.jobs.Get(context.Background(), jobID)
 	p, _ := e.projects.Get(context.Background(), projectID)
 	task, _ := e.projects.Task(context.Background(), taskID)
-	got, ok, err := e.eng.runPairwiseJudge(context.Background(), j, p, task, "security", "new", "old")
+	got, ok, err := e.eng.phaseDeps.RunPairwiseJudge(context.Background(), j, p, task, "security", "new", "old")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -59,7 +59,7 @@ func TestPairwiseJudgeDetectsPositionBias(t *testing.T) {
 	j, _ := e.jobs.Get(context.Background(), jobID)
 	p, _ := e.projects.Get(context.Background(), projectID)
 	task, _ := e.projects.Task(context.Background(), taskID)
-	got, ok, err := e.eng.runPairwiseJudge(context.Background(), j, p, task, "security", "new", "old")
+	got, ok, err := e.eng.phaseDeps.RunPairwiseJudge(context.Background(), j, p, task, "security", "new", "old")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -77,7 +77,7 @@ func TestPairwiseJudgeRejectsUnknownPosition(t *testing.T) {
 	j, _ := e.jobs.Get(context.Background(), jobID)
 	p, _ := e.projects.Get(context.Background(), projectID)
 	task, _ := e.projects.Task(context.Background(), taskID)
-	_, ok, err := e.eng.runPairwiseJudge(context.Background(), j, p, task, "security", "new", "old")
+	_, ok, err := e.eng.phaseDeps.RunPairwiseJudge(context.Background(), j, p, task, "security", "new", "old")
 	if err != nil {
 		t.Fatal(err)
 	}

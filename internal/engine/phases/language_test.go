@@ -1,4 +1,4 @@
-package engine
+package phases
 
 import (
 	"context"
@@ -54,8 +54,8 @@ func TestLanguageForUsesRepositoryEvidence(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module x\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	e := &Engine{}
-	got := e.languageFor(context.Background(), job.Job{ID: "j1"},
+	d := &Deps{}
+	got := d.languageFor(context.Background(), job.Job{ID: "j1"},
 		project.Project{RepositoryPath: dir}, project.Task{})
 	if got != project.LanguageGo {
 		t.Errorf("languageFor(repo go.mod) = %q, want go", got)

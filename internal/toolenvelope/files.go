@@ -181,3 +181,19 @@ func IsTreeManifest(blob []byte) bool {
 	}
 	return json.Unmarshal(blob, &m) == nil && m.Files != nil
 }
+
+// CandidateFiles interprets a candidate's content as a file tree: explicit
+// `=== FILE: path ===` markers first, then a JSON tree manifest, then the
+// historical single-file shorthand (solution.py). The phase verifier and the
+// root git-as-undo commit share this so both see the same tree.
+func CandidateFiles(content string) ([]File, error) {
+	if files, err := ParseFileMarkers(content); err != nil {
+		return nil, err
+	} else if len(files) > 0 {
+		return files, nil
+	}
+	if IsTreeManifest([]byte(content)) {
+		return DecodeFiles([]byte(content))
+	}
+	return []File{{Path: "solution.py", Content: content}}, nil
+}

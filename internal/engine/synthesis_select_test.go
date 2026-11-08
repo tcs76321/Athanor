@@ -43,7 +43,7 @@ func TestBestPassingCandidatePrefersPassing(t *testing.T) {
 	rec(passing, true, 0.9)
 	rec(latestFailing, false, 0.5)
 
-	got, ok, err := env.eng.bestPassingCandidate(ctx, j)
+	got, ok, err := env.eng.phaseDeps.BestPassingCandidate(ctx, j)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -80,7 +80,7 @@ func TestBestPassingCandidateFallsBackToLatest(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	got, ok, err := env.eng.bestPassingCandidate(ctx, j)
+	got, ok, err := env.eng.phaseDeps.BestPassingCandidate(ctx, j)
 	if err != nil {
 		t.Fatal(err)
 	}

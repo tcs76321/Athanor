@@ -132,7 +132,7 @@ func TestSuppressionPersistsAcrossCallsAndHonorsRestart(t *testing.T) {
 	// assembly evicts them and records the suppression.
 	seed := strings.Repeat("think hard about the goal. ", 200)
 	if _, err := e.eng.call(context.Background(), job, p, task,
-		llm.PhaseDiverging, llm.RoleMain, seed, nil); err != nil {
+		llm.PhaseDiverging, llm.RoleMain, seed, nil, 0); err != nil {
 		t.Fatalf("first call: %v", err)
 	}
 	raw := suppressedRow(t, e, jobID)
@@ -151,7 +151,7 @@ func TestSuppressionPersistsAcrossCallsAndHonorsRestart(t *testing.T) {
 	// gone, the pinned content is not.
 	seed2 := strings.Repeat("keep thinking about the goal. ", 200)
 	if _, err := e.eng.call(context.Background(), job, p, task,
-		llm.PhaseDiverging, llm.RoleMain, seed2, nil); err != nil {
+		llm.PhaseDiverging, llm.RoleMain, seed2, nil, 0); err != nil {
 		t.Fatalf("second call: %v", err)
 	}
 	served := e.ollama.lastPromptText()

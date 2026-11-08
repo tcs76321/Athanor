@@ -1,4 +1,4 @@
-package engine
+package phases
 
 import (
 	"context"
@@ -24,11 +24,11 @@ import (
 //
 // §8.2 branch: `reflecting → diverging` (retry) or
 // `reflecting → failed` (budget).
-func (e *Engine) phaseReflect(ctx context.Context, j job.Job) error {
-	if e.eval == nil {
+func (d *Deps) phaseReflect(ctx context.Context, j job.Job) error {
+	if d.Eval == nil {
 		return errors.New("engine: evaluation repo is nil (M3-T1; tests must pass it)")
 	}
-	p, t, err := e.contexts(ctx, j)
+	p, t, err := d.contexts(ctx, j)
 	if err != nil {
 		return err
 	}
@@ -38,54 +38,54 @@ func (e *Engine) phaseReflect(ctx context.Context, j job.Job) error {
 	// co-opted from `jobs.recovery_flag`. M3-T4 commit 4.2:
 	// the budget is read from config with a 2 default; F4-T1c
 	// resolves it through the compute policy.
-	plan := e.planFor(ctx, j, p, t)
+	plan := d.planFor(ctx, j, p, t)
 	max := plan.MaxReflectionLoops
-	iter := e.state.ReflectCount(ctx, j.ID)
+	iter := d.State.ReflectCount(ctx, j.ID)
 
 	// Aggregate the failure context for the LLM and the regulator: the most
 	// recent EvaluationRecord set tells the reflector what failed.
-	records, err := e.eval.ListByJob(ctx, j.ID)
+	records, err := d.Eval.ListByJob(ctx, j.ID)
 	if err != nil {
 		return fmt.Errorf("listing evaluation records: %w", err)
 	}
 	reasons, failureText := failureSignals(records)
 	sig := regulator.Signature(reasons)
-	analysisState, _ := e.state.Analysis(ctx, j.ID)
+	analysisState, _ := d.State.Analysis(ctx, j.ID)
 	implicated := regulator.Attribute(analysisState.Units, failureText)
-	refined := e.state.RefinedCounts(ctx, j.ID)
+	refined := d.State.RefinedCounts(ctx, j.ID)
 	budgetExhausted := false
-	if rem, ok, rerr := e.horizon.Remaining(ctx, j.ID); rerr == nil && ok && rem <= 0 {
+	if rem, ok, rerr := d.Runtime.RemainingHorizon(ctx, j.ID); rerr == nil && ok && rem <= 0 {
 		budgetExhausted = true
 	}
 	decision := regulator.Decide(regulator.Input{
 		Units:             analysisState.Units,
 		Implicated:        implicated,
 		Signature:         sig,
-		PreviousSignature: e.state.RegulatorSignature(ctx, j.ID),
+		PreviousSignature: d.State.RegulatorSignature(ctx, j.ID),
 		Refined:           refined,
 		Iterations:        iter,
 		MaxIterations:     max,
 		BudgetExhausted:   budgetExhausted,
 	})
-	e.audit(ctx, j.ID, map[string]any{
+	d.audit(ctx, j.ID, map[string]any{
 		"event": "regulator_decision", "decision": string(decision.Decision),
 		"unit": decision.UnitID, "reason": decision.Reason,
 		"signature": sig, "implicated": implicated, "iter": iter,
 	})
-	e.captureRegulatorCorrection(ctx, p.ID, j.ID, decision)
-	e.note(ctx, j.ID, p.ID, notebook.KindDecision, "reflecting",
+	d.captureRegulatorCorrection(ctx, p.ID, j.ID, decision)
+	d.note(ctx, j.ID, p.ID, notebook.KindDecision, "reflecting",
 		fmt.Sprintf("regulator: %s — %s", decision.Decision, decision.Reason))
 
 	switch decision.Decision {
 	case regulator.Defer:
 		// Running out of night is not a failed job: keep the state and let a
 		// resume (or the next window) continue it.
-		if _, terr := e.jobs.Transition(ctx, j.ID, job.StatePaused); terr != nil {
+		if _, terr := d.Jobs.Transition(ctx, j.ID, job.StatePaused); terr != nil {
 			return terr
 		}
 		return nil
 	case regulator.Abandon:
-		_, terr := e.jobs.Transition(ctx, j.ID, job.StateFailed)
+		_, terr := d.Jobs.Transition(ctx, j.ID, job.StateFailed)
 		return terr
 	}
 
@@ -94,24 +94,24 @@ func (e *Engine) phaseReflect(ctx context.Context, j job.Job) error {
 		instructions = d + "\n\n" + instructions
 	}
 
-	role := e.roleFor(plan, llm.PhaseReflecting, llm.RoleMain)
-	resp, err := e.call(ctx, j, p, t, llm.PhaseReflecting, role, instructions, nil)
+	role := d.roleFor(plan, llm.PhaseReflecting, llm.RoleMain)
+	resp, err := d.call(ctx, j, p, t, llm.PhaseReflecting, role, instructions, nil)
 	if err != nil {
 		return err
 	}
-	e.audit(ctx, j.ID, map[string]any{
+	d.audit(ctx, j.ID, map[string]any{
 		"event":      "reflection",
 		"iter":       iter + 1,
 		"candidates": len(records),
 		"proposal":   truncateForEvent(resp.Content, 1024),
 	})
-	e.note(ctx, j.ID, p.ID, notebook.KindObservation, "reflecting", resp.Content)
+	d.note(ctx, j.ID, p.ID, notebook.KindObservation, "reflecting", resp.Content)
 	if decision.Decision == regulator.Reframe {
 		// ADR-0115: a reframe is a plan revision, not just an observation.
 		// Record it as the latest plan so the next divergence reads it as
 		// the current approach (later plan entries supersede earlier ones).
-		e.note(ctx, j.ID, p.ID, notebook.KindPlan, "replanning", resp.Content)
-		e.audit(ctx, j.ID, map[string]any{"event": "replanned", "reason": decision.Reason})
+		d.note(ctx, j.ID, p.ID, notebook.KindPlan, "replanning", resp.Content)
+		d.audit(ctx, j.ID, map[string]any{"event": "replanned", "reason": decision.Reason})
 	}
 
 	// H1: persist the proposal so phaseDivergeN can inject it into the next
@@ -122,17 +122,17 @@ func (e *Engine) phaseReflect(ctx context.Context, j job.Job) error {
 	if d := regulatorDirective(decision, analysisState.Units); d != "" {
 		proposal = d + "\n\n" + proposal
 	}
-	if serr := e.state.SetReflectionProposal(ctx, j.ID, proposal); serr != nil {
+	if serr := d.State.SetReflectionProposal(ctx, j.ID, proposal); serr != nil {
 		slog.Warn("engine: persisting reflection proposal", "err", serr)
 	}
 
 	if decision.Decision == regulator.Refine && decision.UnitID != "" {
 		refined[decision.UnitID]++
-		if err := e.state.SetRefinedCounts(ctx, j.ID, refined); err != nil {
+		if err := d.State.SetRefinedCounts(ctx, j.ID, refined); err != nil {
 			slog.Warn("engine: persisting refine counts", "err", err)
 		}
 	}
-	if err := e.state.SetRegulatorSignature(ctx, j.ID, sig); err != nil {
+	if err := d.State.SetRegulatorSignature(ctx, j.ID, sig); err != nil {
 		slog.Warn("engine: persisting failure signature", "err", err)
 	}
 
@@ -143,11 +143,11 @@ func (e *Engine) phaseReflect(ctx context.Context, j job.Job) error {
 	// reflection was computed and then discarded without ever driving a
 	// retry.
 	nextIter := iter + 1
-	if serr := e.state.SetReflectCount(ctx, j.ID, nextIter); serr != nil {
+	if serr := d.State.SetReflectCount(ctx, j.ID, nextIter); serr != nil {
 		slog.Warn("engine: bumping reflection counter", "err", serr)
 	}
 
-	_, err = e.jobs.Transition(ctx, j.ID, job.StateDiverging)
+	_, err = d.Jobs.Transition(ctx, j.ID, job.StateDiverging)
 	return err
 }
 

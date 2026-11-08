@@ -43,7 +43,7 @@ func TestOneShotFirstOnlyOnFirstCycle(t *testing.T) {
 	projectID, taskID, jobID := e.createProjectTask(t, "text",
 		"Write a short brief for the one-shot election.")
 	ctx := context.Background()
-	if !e.eng.oneShotFirst(ctx, jobID) {
+	if !e.eng.phaseDeps.OneShotFirst(ctx, jobID) {
 		t.Fatal("first cycle was not eligible for one-shot-first")
 	}
 	a, err := e.artifacts.CreateDraftFor(ctx, projectID, taskID, jobID,
@@ -56,7 +56,7 @@ func TestOneShotFirstOnlyOnFirstCycle(t *testing.T) {
 	if _, err := e.eng.eval.Create(ctx, rec); err != nil {
 		t.Fatal(err)
 	}
-	if e.eng.oneShotFirst(ctx, jobID) {
+	if e.eng.phaseDeps.OneShotFirst(ctx, jobID) {
 		t.Fatal("a job with an evaluation record was still eligible")
 	}
 }
@@ -85,7 +85,7 @@ func TestBestPassingCandidateFallsBackToBestScore(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got, passed, err := e.eng.bestPassingCandidate(ctx, j)
+	got, passed, err := e.eng.phaseDeps.BestPassingCandidate(ctx, j)
 	if err != nil {
 		t.Fatal(err)
 	}

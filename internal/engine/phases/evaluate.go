@@ -1,4 +1,4 @@
-package engine
+package phases
 
 import (
 	"context"
@@ -32,16 +32,16 @@ import (
 // Branch (§8.2):
 //   - ≥1 candidate passed (passed == true) → `evaluating → synthesizing`
 //   - 0 candidates passed                  → `evaluating → reflecting`
-func (e *Engine) phaseEvaluate(ctx context.Context, j job.Job) error {
-	if e.eval == nil {
+func (d *Deps) phaseEvaluate(ctx context.Context, j job.Job) error {
+	if d.Eval == nil {
 		return errors.New("engine: evaluation repo is nil (M3-T1; tests must pass it)")
 	}
-	p, t, err := e.contexts(ctx, j)
+	p, t, err := d.contexts(ctx, j)
 	if err != nil {
 		return err
 	}
 
-	allCandidates, err := e.listCandidateArtifacts(ctx, j)
+	allCandidates, err := d.listCandidateArtifacts(ctx, j)
 	if err != nil {
 		return fmt.Errorf("listing candidates: %w", err)
 	}
@@ -58,7 +58,7 @@ func (e *Engine) phaseEvaluate(ctx context.Context, j job.Job) error {
 	// below, so a re-entry where divergence produced no new
 	// proposals still hits the reflection path instead of silently
 	// re-completing).
-	existing, err := e.eval.ListByJob(ctx, j.ID)
+	existing, err := d.Eval.ListByJob(ctx, j.ID)
 	if err != nil {
 		return fmt.Errorf("listing existing evaluation records: %w", err)
 	}
@@ -84,17 +84,17 @@ func (e *Engine) phaseEvaluate(ctx context.Context, j job.Job) error {
 	if len(candidates) == 0 && len(allCandidates) == 0 {
 		// No candidates landed: divergence produced nothing. This is
 		// a hard failure (the engine cannot evaluate a void).
-		e.audit(ctx, j.ID, map[string]any{
+		d.audit(ctx, j.ID, map[string]any{
 			"event": "evaluating_no_candidates",
 		})
-		_, err = e.jobs.Transition(ctx, j.ID, job.StateFailed)
+		_, err = d.Jobs.Transition(ctx, j.ID, job.StateFailed)
 		return err
 	}
 
 	// The previous accepted artifact (§19.2 `compared_against`) is
 	// the same for every candidate in this job.
 	previousID := ""
-	if prev, err := e.artifacts.LatestAcceptedByProject(ctx, p.ID); err == nil {
+	if prev, err := d.Artifacts.LatestAcceptedByProject(ctx, p.ID); err == nil {
 		previousID = prev.ID
 	} else if !errors.Is(err, artifact.ErrNotFound) {
 		return fmt.Errorf("loading previous accepted artifact: %w", err)
@@ -103,7 +103,7 @@ func (e *Engine) phaseEvaluate(ctx context.Context, j job.Job) error {
 	passCount := 0
 	securityFailures := 0
 	for i, cand := range candidates {
-		rec, err := e.evaluateCandidate(ctx, j, p, t, cand, previousID, i+1, len(candidates))
+		rec, err := d.evaluateCandidate(ctx, j, p, t, cand, previousID, i+1, len(candidates))
 		if err != nil {
 			return fmt.Errorf("evaluating candidate %d: %w", i+1, err)
 		}
@@ -115,7 +115,7 @@ func (e *Engine) phaseEvaluate(ctx context.Context, j job.Job) error {
 		}
 	}
 
-	e.audit(ctx, j.ID, map[string]any{
+	d.audit(ctx, j.ID, map[string]any{
 		"event":      "evaluating_done",
 		"candidates": len(candidates),
 		"passed":     passCount,
@@ -125,10 +125,10 @@ func (e *Engine) phaseEvaluate(ctx context.Context, j job.Job) error {
 	// security finding is not a content problem reflection can fix. Fail
 	// fast instead of burning another divergence/reflection cycle.
 	if passCount == 0 && len(candidates) > 0 && securityFailures == len(candidates) {
-		e.audit(ctx, j.ID, map[string]any{
+		d.audit(ctx, j.ID, map[string]any{
 			"event": "reflection_skipped_security", "candidates": len(candidates),
 		})
-		_, err = e.jobs.Transition(ctx, j.ID, job.StateFailed)
+		_, err = d.Jobs.Transition(ctx, j.ID, job.StateFailed)
 		return err
 	}
 
@@ -137,7 +137,7 @@ func (e *Engine) phaseEvaluate(ctx context.Context, j job.Job) error {
 	// the job forward without a re-divergence; a failing one falls through to
 	// reflection as before. On by default (execution.self_refine, M9-T1).
 	if passCount == 0 {
-		refined, rerr := e.selfRefine(ctx, j, p, t, previousID)
+		refined, rerr := d.selfRefine(ctx, j, p, t, previousID)
 		if rerr != nil {
 			return rerr
 		}
@@ -147,9 +147,9 @@ func (e *Engine) phaseEvaluate(ctx context.Context, j job.Job) error {
 	}
 
 	if passCount > 0 {
-		_, err = e.jobs.Transition(ctx, j.ID, job.StateSynthesizing)
+		_, err = d.Jobs.Transition(ctx, j.ID, job.StateSynthesizing)
 	} else {
-		_, err = e.jobs.Transition(ctx, j.ID, job.StateReflecting)
+		_, err = d.Jobs.Transition(ctx, j.ID, job.StateReflecting)
 	}
 	return err
 }
@@ -157,8 +157,8 @@ func (e *Engine) phaseEvaluate(ctx context.Context, j job.Job) error {
 // listCandidateArtifacts returns the divergence proposals in version
 // order (oldest first) so the evaluator's indices match the
 // divergence indices and the audit trail is monotonic.
-func (e *Engine) listCandidateArtifacts(ctx context.Context, j job.Job) ([]artifact.Artifact, error) {
-	rows, err := e.artifacts.ListByProject(ctx, j.ProjectID)
+func (d *Deps) listCandidateArtifacts(ctx context.Context, j job.Job) ([]artifact.Artifact, error) {
+	rows, err := d.Artifacts.ListByProject(ctx, j.ProjectID)
 	if err != nil {
 		return nil, err
 	}
@@ -181,10 +181,10 @@ func (e *Engine) listCandidateArtifacts(ctx context.Context, j job.Job) ([]artif
 // existing test command is run in the Job Pod first and its exit
 // code is folded into the verdict (the LLM doesn't grade tests; the
 // pod does).
-func (e *Engine) evaluateCandidate(ctx context.Context, j job.Job, p project.Project, t project.Task,
+func (d *Deps) evaluateCandidate(ctx context.Context, j job.Job, p project.Project, t project.Task,
 	cand artifact.Artifact, previousID string, idx, total int) (evaluation.Record, error) {
 
-	content, err := e.artifacts.ReadContent(ctx, cand.ID)
+	content, err := d.Artifacts.ReadContent(ctx, cand.ID)
 	if err != nil {
 		return evaluation.Record{}, fmt.Errorf("reading candidate content: %w", err)
 	}
@@ -193,17 +193,17 @@ func (e *Engine) evaluateCandidate(ctx context.Context, j job.Job, p project.Pro
 	// test command on *this* candidate; for text/document it applies the
 	// structural checks parsed from the criteria. A non-decisive result
 	// falls through to the LLM judge below.
-	ver, vin, err := e.verifyCandidate(ctx, j, p, t, string(content), idx)
+	ver, vin, err := d.verifyCandidate(ctx, j, p, t, string(content), idx)
 	if err != nil {
 		return evaluation.Record{}, err
 	}
 	if vin.TestRan {
-		e.audit(ctx, j.ID, map[string]any{
+		d.audit(ctx, j.ID, map[string]any{
 			"event": "tests_ran", "candidate": idx,
 			"passed": vin.TestsPassed, "command": vin.TestCommand,
 		})
 	}
-	e.auditVerification(ctx, j.ID, "candidate", ver)
+	d.auditVerification(ctx, j.ID, "candidate", ver)
 
 	// M3-T2 (commit 2.2): the per-archetype rubric goes to the
 	// persona first so the verdict's `missing_criteria` /
@@ -238,9 +238,9 @@ func (e *Engine) evaluateCandidate(ctx context.Context, j job.Job, p project.Pro
 	// M5-T5: the candidate bytes are §11.2 §12 (tier 3, never evicted)
 	// rather than a concatenation inside the §13 instructions.
 	ctxCandidates := []prompt.CandidateArtifact{{Kind: "candidate", Content: string(content)}}
-	plan := e.planFor(ctx, j, p, t)
-	judgeRole := e.roleFor(plan, llm.PhaseEvaluating, llm.RoleSecurity)
-	resp, err := e.call(ctx, j, p, t, llm.PhaseEvaluating, judgeRole, instructions, ctxCandidates)
+	plan := d.planFor(ctx, j, p, t)
+	judgeRole := d.roleFor(plan, llm.PhaseEvaluating, llm.RoleSecurity)
+	resp, err := d.call(ctx, j, p, t, llm.PhaseEvaluating, judgeRole, instructions, ctxCandidates)
 	if err != nil {
 		return evaluation.Record{}, err
 	}
@@ -253,7 +253,7 @@ func (e *Engine) evaluateCandidate(ctx context.Context, j job.Job, p project.Pro
 		// M3-T7.5: the model emitted valid JSON with drifted types. The
 		// verdict was recovered by coercion; record it so the raw
 		// conformance rate is measurable rather than hidden.
-		e.audit(ctx, j.ID, map[string]any{
+		d.audit(ctx, j.ID, map[string]any{
 			"event": "verdict_coerced", "phase": string(llm.PhaseEvaluating),
 			"artifact_id": cand.ID, "fields": coercions,
 		})
@@ -302,11 +302,11 @@ func (e *Engine) evaluateCandidate(ctx context.Context, j job.Job, p project.Pro
 	rec.BetterThanPrevious = verdict.BetterThanPrevious
 	rec.Confidence = verdict.Confidence
 	rec.Summary = verdict.Summary
-	e.captureEvaluationCorrection(ctx, p.ID, j.ID, cand.ID, rec, vin)
-	e.note(ctx, j.ID, p.ID, notebook.KindResult, "evaluating",
+	d.captureEvaluationCorrection(ctx, p.ID, j.ID, cand.ID, rec, vin)
+	d.note(ctx, j.ID, p.ID, notebook.KindResult, "evaluating",
 		fmt.Sprintf("candidate %s: passed=%v score=%.2f missing=%v security=%v",
 			cand.ID, rec.PassedTests, rec.Score, rec.MissingCriteria, rec.SecurityIssues))
-	return e.eval.Create(ctx, rec)
+	return d.Eval.Create(ctx, rec)
 }
 
 // parseEvalVerdict extracts the JSON the security persona produced.

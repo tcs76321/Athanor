@@ -39,7 +39,7 @@ func TestPhaseCompareRecoversAfterAcceptance(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := e.eng.phaseCompare(ctx, j); err != nil {
+	if err := e.eng.phaseDeps.PhaseCompare(ctx, j); err != nil {
 		t.Fatalf("phaseCompare on an accepted final: %v", err)
 	}
 	got, err := e.jobs.Get(ctx, jobID)

@@ -1,4 +1,4 @@
-package engine
+package phases
 
 import (
 	"context"
@@ -28,14 +28,14 @@ func capCandidatesForCapability(capability string, n int) int {
 // oneShotFirst reports whether this job's first divergence cycle should try a
 // single candidate and escalate only after failure (ADR-0118). A job with any
 // evaluation record has already tried; it is no longer the first shot.
-func (e *Engine) oneShotFirst(ctx context.Context, jobID string) bool {
-	if e.cfg == nil || !e.cfg.Execution.OneShotFirstEnabled() {
+func (d *Deps) oneShotFirst(ctx context.Context, jobID string) bool {
+	if d.Cfg == nil || !d.Cfg.Execution.OneShotFirstEnabled() {
 		return false
 	}
-	if e.eval == nil {
+	if d.Eval == nil {
 		return true
 	}
-	records, err := e.eval.ListByJob(ctx, jobID)
+	records, err := d.Eval.ListByJob(ctx, jobID)
 	if err != nil {
 		slog.Warn("engine: one-shot-first election", "job", jobID, "err", err)
 		return false
@@ -62,71 +62,54 @@ func (e *Engine) oneShotFirst(ctx context.Context, jobID string) bool {
 // sorted newest-first; the highest version is the one the
 // divergence run actually completed last, but every candidate
 // between the resume point and the truncation is still evaluable).
-func (e *Engine) phaseDivergeN(ctx context.Context, j job.Job) error {
-	p, t, err := e.contexts(ctx, j)
+func (d *Deps) phaseDivergeN(ctx context.Context, j job.Job) error {
+	p, t, err := d.contexts(ctx, j)
 	if err != nil {
 		return err
 	}
-	if e.cfg == nil {
+	if d.Cfg == nil {
 		return errors.New("engine: cfg is nil (diverge phase requires config)")
 	}
 	capability := project.CapabilityFor(p, t)
-	language := e.languageFor(ctx, j, p, t)
+	language := d.languageFor(ctx, j, p, t)
 	// F4-T1c/T2/T5: resolve the plan once here (after planning, so the
 	// difficulty hint is visible), audit it, then use its candidate count,
 	// routed personas, and diversity policy. A nil policy/config reproduces
 	// pre-F4 behavior.
-	plan := e.planFor(ctx, j, p, t)
-	e.auditComputePlan(ctx, j.ID, "divergence", plan)
-	e.updateProfileFeatures(ctx, j, t)
+	plan := d.planFor(ctx, j, p, t)
+	d.auditComputePlan(ctx, j.ID, "divergence", plan)
+	d.Runtime.UpdateProfileFeatures(ctx, j, t)
 	n := plan.Candidates
-	if max := e.cfg.Execution.MaxHardTaskVariations; max > 0 && n > max {
+	if max := d.Cfg.Execution.MaxHardTaskVariations; max > 0 && n > max {
 		n = max
 	}
 	n = capCandidatesForCapability(capability, n)
-	if e.oneShotFirst(ctx, j.ID) && n > 1 {
-		e.audit(ctx, j.ID, map[string]any{
+	if d.oneShotFirst(ctx, j.ID) && n > 1 {
+		d.audit(ctx, j.ID, map[string]any{
 			"event": "one_shot_first", "candidates": 1, "escalate_to": n,
 		})
 		n = 1
 	}
 	// ADR-0104: the measured evidence can upgrade a single-candidate plan to a
 	// panel for low-risk work. It needs a few outcomes before it switches.
-	if e.selector != nil && n == 1 &&
-		(capability == project.ArchetypeText || capability == project.ArchetypeDocument) &&
-		e.selector.PreferPanel() {
+	if n == 1 &&
+		(capability == project.CapabilityText || capability == project.CapabilityDocument) &&
+		d.Runtime.PreferPanel() {
 		n = 2
-		e.audit(ctx, j.ID, map[string]any{"event": "template_panel", "reason": "measured panel advantage"})
+		d.audit(ctx, j.ID, map[string]any{"event": "template_panel", "reason": "measured panel advantage"})
 	}
 	roles := plan.DivergenceRoles
 	if len(roles) == 0 {
-		roles = []string{e.roleFor(plan, llm.PhaseDiverging, llm.RoleMain)}
+		roles = []string{d.roleFor(plan, llm.PhaseDiverging, llm.RoleMain)}
 	}
 	// ADR-0104: when a measured pool exists, draw the candidates from it and
-	// prefer different families. The legacy role list remains the fallback.
-	if e.selector != nil {
-		minContext := e.minContextFor(llm.PhaseDiverging, capability, project.ContextDemand(p, t))
-		req := ModelRequest{
-			Phase: llm.PhaseDiverging, Capability: capability, Stance: "generate",
-			MinContext: minContext, ProjectID: p.ID, JobID: j.ID,
-			Scope: "project:" + p.ID,
-		}
-		// Cap distinct resident models. On a single-GPU local host every extra
-		// model is a load/evict cycle; stance diversity still varies the call.
-		modelCount := n
-		if modelCount > 3 {
-			modelCount = 3
-		}
-		if choices := e.selector.ChooseMany(ctx, req, modelCount); len(choices) > 0 {
-			roles = roles[:0]
-			for _, c := range choices {
-				roles = append(roles, PoolModelPrefix+c.Model)
-			}
-			e.rememberGeneratorFamily(j.ID, choices[0].Family)
-		}
+	// prefer different families. The root owns the selector and the per-job
+	// generator-family memory; the phase receives the role list.
+	if selected := d.Runtime.SelectDivergenceRoles(ctx, j, p, t, n); len(selected) > 0 {
+		roles = selected
 	}
 
-	e.audit(ctx, j.ID, map[string]any{
+	d.audit(ctx, j.ID, map[string]any{
 		"event":      "divergence_start",
 		"candidates": n,
 		"archetype":  capability,
@@ -138,7 +121,7 @@ func (e *Engine) phaseDivergeN(ctx context.Context, j job.Job) error {
 	// extracted markdown into every candidate's prompt. Soft-fails
 	// per source; an empty string means no sources (the sub-step is
 	// a silent no-op for tasks without URLs).
-	research, err := e.researchContext(ctx, j, p, t)
+	research, err := d.researchContext(ctx, j, p, t)
 	if err != nil {
 		return fmt.Errorf("research sub-step: %w", err)
 	}
@@ -146,14 +129,14 @@ func (e *Engine) phaseDivergeN(ctx context.Context, j job.Job) error {
 	// H1: a prior reflection's proposal guides the retry so it is a real
 	// second attempt, not a re-roll of the identical prompt. Empty on the
 	// first pass (no prior reflection has run).
-	proposal := e.state.ReflectionProposal(ctx, j.ID)
+	proposal := d.State.ReflectionProposal(ctx, j.ID)
 
 	// F4-T5: enforce a Jaccard floor with a bounded re-roll. A below-floor
 	// batch is discarded (draft → candidate → rejected) so it is never
 	// evaluated, and the next attempt runs with a fresh seed. Diversity is
 	// undefined for a single candidate, so n < 2 never re-rolls.
-	floor := e.cfg.Execution.JaccardFloorValue()
-	maxRerolls := e.cfg.Execution.MaxDiversityRerollsValue()
+	floor := d.Cfg.Execution.JaccardFloorValue()
+	maxRerolls := d.Cfg.Execution.MaxDiversityRerollsValue()
 	for attempt := 0; ; attempt++ {
 		candidateTexts := make([]string, 0, n)
 		batch := make([]artifact.Artifact, 0, n)
@@ -175,14 +158,14 @@ func (e *Engine) phaseDivergeN(ctx context.Context, j job.Job) error {
 			if fx := p.Execution.FixturePath; fx != "" {
 				root := fixtureRootFor(p)
 				if root == "" {
-					e.audit(ctx, j.ID, map[string]any{
+					d.audit(ctx, j.ID, map[string]any{
 						"event": "fixture_skipped", "path": fx,
 						"reason": "no approved fixture_root or repository_path",
 					})
 				} else if fixture, ferr := readFixtureTree(fx, root); ferr == nil && len(fixture) > 0 {
 					seed += "\n\n" + renderFixture(capability, fixture)
 				} else if ferr != nil {
-					e.audit(ctx, j.ID, map[string]any{
+					d.audit(ctx, j.ID, map[string]any{
 						"event": "fixture_skipped", "path": fx, "error": ferr.Error(),
 					})
 				}
@@ -193,7 +176,7 @@ func (e *Engine) phaseDivergeN(ctx context.Context, j job.Job) error {
 			if proposal != "" {
 				seed += "\n\nApply this prior reflection when generating your solution:\n" + proposal
 			}
-			resp, err := e.call(ctx, j, p, t, llm.PhaseDiverging, candRole, seed, nil)
+			resp, err := d.call(ctx, j, p, t, llm.PhaseDiverging, candRole, seed, nil)
 			if err != nil {
 				return fmt.Errorf("divergence candidate %d/%d: %w", i+1, n, err)
 			}
@@ -204,20 +187,20 @@ func (e *Engine) phaseDivergeN(ctx context.Context, j job.Job) error {
 			if capability == project.ArchetypeCode {
 				content = normalizeCode(content)
 			}
-			art, err := e.artifacts.CreateDraftFor(ctx, p.ID, t.ID, j.ID,
+			art, err := d.Artifacts.CreateDraftFor(ctx, p.ID, t.ID, j.ID,
 				artifact.KindProposal, []byte(content))
 			if err != nil {
 				return fmt.Errorf("persisting divergence candidate %d: %w", i+1, err)
 			}
 			batch = append(batch, art)
 			candidateTexts = append(candidateTexts, content)
-			e.audit(ctx, j.ID, map[string]any{
+			d.audit(ctx, j.ID, map[string]any{
 				"event": "divergence_candidate", "index": i + 1, "of": n,
 				"chars": len(resp.Content), "persona": candRole,
 			})
 		}
 		avgJaccard := averagePairwiseJaccard(candidateTexts)
-		e.audit(ctx, j.ID, map[string]any{
+		d.audit(ctx, j.ID, map[string]any{
 			"event":       "divergence_jaccard",
 			"candidates":  n,
 			"avg_jaccard": avgJaccard,
@@ -226,7 +209,7 @@ func (e *Engine) phaseDivergeN(ctx context.Context, j job.Job) error {
 			"archetype":   capability,
 			"roles":       roles,
 		})
-		e.note(ctx, j.ID, p.ID, notebook.KindHypothesis, "diverging",
+		d.note(ctx, j.ID, p.ID, notebook.KindHypothesis, "diverging",
 			fmt.Sprintf("attempt %d: %d candidate(s), mean diversity %.2f, roles %v",
 				attempt+1, n, avgJaccard, roles))
 		if n < 2 || avgJaccard >= floor || attempt >= maxRerolls {
@@ -237,25 +220,25 @@ func (e *Engine) phaseDivergeN(ctx context.Context, j job.Job) error {
 			// swallowing it. The old code ignored both SetStatus errors, so a
 			// below-floor candidate could stay `draft` and be re-evaluated on
 			// the next pass with no audit trail.
-			if err := e.artifacts.SetStatus(ctx, art.ID, artifact.StatusCandidate); err != nil {
-				e.audit(ctx, j.ID, map[string]any{
+			if err := d.Artifacts.SetStatus(ctx, art.ID, artifact.StatusCandidate); err != nil {
+				d.audit(ctx, j.ID, map[string]any{
 					"event": "reroll_discard_failed", "artifact": art.ID, "to": "candidate", "err": err.Error(),
 				})
 				continue
 			}
-			if err := e.artifacts.SetStatus(ctx, art.ID, artifact.StatusRejected); err != nil {
-				e.audit(ctx, j.ID, map[string]any{
+			if err := d.Artifacts.SetStatus(ctx, art.ID, artifact.StatusRejected); err != nil {
+				d.audit(ctx, j.ID, map[string]any{
 					"event": "reroll_discard_failed", "artifact": art.ID, "to": "rejected", "err": err.Error(),
 				})
 			}
 		}
-		e.audit(ctx, j.ID, map[string]any{
+		d.audit(ctx, j.ID, map[string]any{
 			"event": "divergence_reroll", "attempt": attempt,
 			"avg_jaccard": avgJaccard, "floor": floor,
 		})
 	}
 
-	_, err = e.jobs.Transition(ctx, j.ID, job.StateEvaluating)
+	_, err = d.Jobs.Transition(ctx, j.ID, job.StateEvaluating)
 	return err
 }
 

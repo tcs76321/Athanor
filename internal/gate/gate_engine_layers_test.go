@@ -22,6 +22,7 @@ import (
 const (
 	engineRootImport = "github.com/tcs76321/athanor/internal/engine"
 	jobstateImport   = "github.com/tcs76321/athanor/internal/engine/jobstate"
+	contextasmImport = "github.com/tcs76321/athanor/internal/engine/contextasm"
 	storeImport      = "github.com/tcs76321/athanor/internal/store"
 )
 
@@ -39,6 +40,7 @@ var engineLayerRules = []engineLayerRule{
 	{pkg: "acceptance", forbidImports: []string{engineRootImport, jobstateImport}},
 	{pkg: "contextasm", forbidImports: []string{engineRootImport}},
 	{pkg: "repair", forbidImports: []string{engineRootImport}},
+	{pkg: "phases", forbidImports: []string{engineRootImport, contextasmImport}},
 }
 
 // TestGateEngineLayerDirections fails when an extracted engine package imports
@@ -57,6 +59,41 @@ func TestGateEngineLayerDirections(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// TestGateOnlyEngineImportsPhases keeps the phase package behind the facade.
+// A caller that imports phases directly can bypass the root's lifecycle and
+// audit wiring; the root is the only sanctioned entry point.
+func TestGateOnlyEngineImportsPhases(t *testing.T) {
+	const phasesImport = engineRootImport + "/phases"
+	root := "../../internal"
+	err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		// The root engine package itself is the sanctioned importer.
+		if strings.HasSuffix(filepath.Dir(path), "/internal/engine") {
+			return nil
+		}
+		file, perr := parser.ParseFile(token.NewFileSet(), path, nil, parser.ImportsOnly)
+		if perr != nil {
+			t.Errorf("parsing %s: %v", path, perr)
+			return nil
+		}
+		for _, imp := range file.Imports {
+			quoted, uerr := strconv.Unquote(imp.Path.Value)
+			if uerr == nil && quoted == phasesImport {
+				t.Errorf("%s imports %s — only the engine root may wire phases (ADR-0131)", relPath(path), quoted)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
 	}
 }
 

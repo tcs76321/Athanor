@@ -49,6 +49,7 @@ import (
 	"github.com/tcs76321/athanor/internal/corrections"
 	"github.com/tcs76321/athanor/internal/engine/contextasm"
 	"github.com/tcs76321/athanor/internal/engine/jobstate"
+	"github.com/tcs76321/athanor/internal/engine/phases"
 	"github.com/tcs76321/athanor/internal/evaluation"
 	"github.com/tcs76321/athanor/internal/interruptions"
 	"github.com/tcs76321/athanor/internal/job"
@@ -218,10 +219,7 @@ type InterruptionStore interface {
 	MarkInjected(ctx context.Context, ids []string) error
 }
 
-// ErrPaused reports that the job was paused instead of failed — the
-// context floor was violated (recommend-or-escalate, §12.3) or the kill
-// switch froze the daemon mid-run.
-var ErrPaused = errors.New("job paused")
+// ErrPaused is re-exported from phases in compat.go.
 
 // Engine executes jobs.
 type Engine struct {
@@ -229,6 +227,7 @@ type Engine struct {
 	db        *store.Store
 	state     *jobstate.Store
 	asm       *contextasm.Assembler
+	phaseDeps *phases.Deps
 	jobs      *job.Repository
 	projects  *project.Repo
 	artifacts *artifact.Store
@@ -405,6 +404,10 @@ func New(cfg *config.Config, db *store.Store, jobs *job.Repository, projects *pr
 		jobFamily:    map[string]string{},
 	}
 	e.asm = contextasm.New(ctxHost{e}, cfg, e.state)
+	e.phaseDeps = &phases.Deps{
+		Cfg: cfg, Runtime: phaseHost{e}, State: e.state,
+		Jobs: jobs, Projects: projects, Artifacts: artifacts, Eval: eval,
+	}
 	return e
 }
 

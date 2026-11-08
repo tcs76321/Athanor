@@ -2,7 +2,6 @@ package engine
 
 import (
 	"context"
-	"errors"
 	"log/slog"
 
 	"github.com/tcs76321/athanor/internal/job"
@@ -27,12 +26,6 @@ type PodLifecycle interface {
 	// no-op.
 	Stop(ctx context.Context, jobID string) error
 }
-
-// ErrRepositorySnapshot reports that a repository-backed code job could not
-// stage the repository it must test against. Unlike a generic pod-start
-// warning, this is not safe to soft-fail: running the test command against a
-// tree without the repository would verify the wrong thing.
-var ErrRepositorySnapshot = errors.New("repository snapshot unavailable")
 
 // ensurePod brings up the job's Job Pod before a pod sub-step (ADR-0024
 // §2). A nil seam is a no-op, so unit tests with a fake runner are

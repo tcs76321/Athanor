@@ -5,7 +5,7 @@
 //
 // The test is pure (no DB): the previous-records slice is passed directly to
 // the prompt builder, mirroring the call site in phaseCompare.
-package engine
+package phases
 
 import (
 	"strings"

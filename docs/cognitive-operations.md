@@ -41,7 +41,7 @@ class (I = internal-reversible, X = external/irreversible); `State` = today
 | **Fast-path** | small model / cache / deterministic check for easy cases | deterministic | first hit | I | S | ✅ `security` persona, verifiers |
 | **Plan** | decompose the task; choose approach | criteria parse + human | plan emitted | I | M | ✅ `tall`, `internal/dag` |
 | **Draft** | generate one candidate | verifier on output | one artifact | I | M | ✅ |
-| **Diverge (best-of-N)** | generate N candidates @ temp>0 | verifier/rank over set | N or floor met | I | M·N | ✅ `internal/engine/diverge.go` |
+| **Diverge (best-of-N)** | generate N candidates @ temp>0 | verifier/rank over set | N or floor met | I | M·N | ✅ `internal/engine/phases/diverge.go` |
 | **Critique** | judge a candidate against criteria | deterministic first, judge advisory | verdict | I | S–M | ✅ `internal/verify` + judge |
 | **Self-refine** | write → review → rewrite → perfect | verifier must accept the rewrite | ≤ k rewrites | I | M·k | ✅ M8-T11 / M9-T1 (default on `self_refine`); repairs the best candidate in place under the `refining` phase, fed the failing test output |
 | **Tree search / rollouts** | explore branches, back up the best | verifier per leaf | node/step budget | I | L | ⏸ deferred (M8-T12) |

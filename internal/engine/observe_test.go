@@ -20,7 +20,7 @@ func TestObserveForRepairReadsOneFileIntoNotebook(t *testing.T) {
 	p, _ := e.projects.Get(context.Background(), projectID)
 	task, _ := e.projects.Task(context.Background(), taskID)
 
-	e.eng.observeForRepair(context.Background(), j, p, task, "main")
+	e.eng.phaseDeps.ObserveForRepair(context.Background(), j, p, task, "main")
 
 	calls := e.runner.Calls()
 	found := false
@@ -58,7 +58,7 @@ func TestObserveForRepairNoFile(t *testing.T) {
 	p, _ := e.projects.Get(context.Background(), projectID)
 	task, _ := e.projects.Task(context.Background(), taskID)
 
-	e.eng.observeForRepair(context.Background(), j, p, task, "main")
+	e.eng.phaseDeps.ObserveForRepair(context.Background(), j, p, task, "main")
 	for _, call := range e.runner.Calls() {
 		if call.Tool == "ReadFile" {
 			t.Fatalf("read_file ran for a null request: %+v", call)

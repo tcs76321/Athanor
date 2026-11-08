@@ -54,7 +54,7 @@ func (e *Engine) recordGitCommit(ctx context.Context, p project.Project, art art
 	// contain file markers must stay in the managed blob namespace rather than
 	// writing repository paths.
 	if art.Kind == artifact.KindCode {
-		if files, ferr := candidateFiles(string(content)); ferr == nil {
+		if files, ferr := toolenvelope.CandidateFiles(string(content)); ferr == nil {
 			implementation, harnessFiles := toolenvelope.SplitHarnessFiles(files)
 			if len(harnessFiles) > 0 {
 				for _, f := range harnessFiles {

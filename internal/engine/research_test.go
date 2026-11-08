@@ -13,49 +13,6 @@ import (
 	"github.com/tcs76321/athanor/internal/toolenvelope"
 )
 
-// TestExtractSourceURLs is the extraction corpus (ADR-0019 §7, as
-// amended): absolute http(s) URLs are pulled from prose, trailing
-// punctuation is stripped, duplicates dedupe, non-http schemes and
-// scheme-less text are ignored, and the cap holds.
-func TestExtractSourceURLs(t *testing.T) {
-	cases := []struct {
-		name string
-		text string
-		max  int
-		want []string
-	}{
-		{"none", "a task with no urls at all", 8, nil},
-		{"simple", "see https://docs.test/guide for details", 8,
-			[]string{"https://docs.test/guide"}},
-		{"trailing punctuation", "read https://docs.test/guide, then act.", 8,
-			[]string{"https://docs.test/guide"}},
-		{"trailing paren", "(see https://docs.test/guide)", 8,
-			[]string{"https://docs.test/guide"}},
-		{"dedupe", "https://a.test/x and https://a.test/x again", 8,
-			[]string{"https://a.test/x"}},
-		{"ftp ignored", "ftp://nope.test/f and https://yes.test/", 8,
-			[]string{"https://yes.test/"}},
-		{"cap", "https://1.test/ https://2.test/ https://3.test/", 2,
-			[]string{"https://1.test/", "https://2.test/"}},
-		{"max zero", "https://1.test/", 0, nil},
-		{"in angle brackets", "link <https://docs.test/x> here", 8,
-			[]string{"https://docs.test/x"}},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			got := extractSourceURLs(tc.text, tc.max)
-			if len(got) != len(tc.want) {
-				t.Fatalf("got %v, want %v", got, tc.want)
-			}
-			for i := range got {
-				if got[i] != tc.want[i] {
-					t.Errorf("got[%d] = %q, want %q", i, got[i], tc.want[i])
-				}
-			}
-		})
-	}
-}
-
 // researchFixture creates a text-archetype project whose goal carries
 // the given text (the research sub-step reads p.Goal) and returns a
 // diverging-state job with its loaded project and task (via the
@@ -103,7 +60,7 @@ func TestResearchContext_NoURLsIsSilentNoOp(t *testing.T) {
 	env := newEnv(t)
 	ctx, j, p, task := researchFixture(t, env, "a goal with no urls at all")
 
-	block, err := env.eng.researchContext(ctx, j, p, task)
+	block, err := env.eng.phaseDeps.ResearchContext(ctx, j, p, task)
 	if err != nil {
 		t.Fatalf("researchContext: %v", err)
 	}
@@ -124,7 +81,7 @@ func TestResearchContext_FetchesAndFormats(t *testing.T) {
 		"Ground this in https://docs.test/a and https://docs.test/b.")
 	env.runner.WithFetch("https://docs.test/a", "alpha markdown")
 
-	block, err := env.eng.researchContext(ctx, j, p, task)
+	block, err := env.eng.phaseDeps.ResearchContext(ctx, j, p, task)
 	if err != nil {
 		t.Fatalf("researchContext: %v", err)
 	}
@@ -160,7 +117,7 @@ func TestResearchContext_SoftFailMatrix(t *testing.T) {
 		errFor:     map[string]error{"https://err.test/e": errors.New("dial: refused")},
 	}
 
-	block, err := env.eng.researchContext(ctx, j, p, task)
+	block, err := env.eng.phaseDeps.ResearchContext(ctx, j, p, task)
 	if err != nil {
 		t.Fatalf("researchContext: %v (soft-fail expected)", err)
 	}
@@ -184,7 +141,7 @@ func TestResearchContext_DisallowedWhenEnvelopeLacksTool(t *testing.T) {
 	env.runner.disallow["FetchURL"] = true
 	env.runner.mu.Unlock()
 
-	block, err := env.eng.researchContext(ctx, j, p, task)
+	block, err := env.eng.phaseDeps.ResearchContext(ctx, j, p, task)
 	if err != nil {
 		t.Fatalf("researchContext: %v", err)
 	}
@@ -209,7 +166,7 @@ func TestResearchContext_PolicyDeniedAuditsDenied(t *testing.T) {
 		errFor:     map[string]error{"https://denied.test/guide": toolenvelope.ErrPolicyDenied},
 	}
 
-	block, err := env.eng.researchContext(ctx, j, p, task)
+	block, err := env.eng.phaseDeps.ResearchContext(ctx, j, p, task)
 	if err != nil {
 		t.Fatalf("researchContext: %v", err)
 	}

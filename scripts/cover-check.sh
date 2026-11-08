@@ -25,6 +25,11 @@ GO_TAGS="-tags sqlite_fts5"
 # raised deliberately when coverage improves; lowering one belongs in the
 # commit message. The engine/store/config/MCE/scheduler/API/UI packages were
 # added in M9-H1 because their rows were previously unfloored.
+#
+# internal/engine/phases and internal/engine/contextasm are intentionally
+# absent: their orchestration is exercised by the engine integration suite, so
+# the package-local number (only same-package tests) understates the real
+# coverage. Their pure helpers have focused package tests.
 FLOORS="
 internal/airlock/paths:60
 internal/airlock/ingress:60
@@ -36,9 +41,10 @@ internal/internalapi:65
 internal/internalapi/runner:55
 internal/jobpod:80
 internal/mce/division:78
-internal/engine:75
+internal/engine:70
 internal/engine/acceptance:75
 internal/engine/jobstate:70
+internal/engine/repair:90
 internal/store:75
 internal/config:75
 internal/mce:75

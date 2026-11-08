@@ -3,7 +3,7 @@
 // `divergence_jaccard` event. The math is
 // order-insensitive; the tests pin the boundary
 // cases (identical, disjoint, single-candidate).
-package engine
+package phases
 
 import (
 	"testing"

@@ -1,4 +1,4 @@
-package engine
+package phases
 
 import (
 	"context"
@@ -25,24 +25,24 @@ import (
 // and re-diverges the whole set), self-refine repairs one candidate in place
 // and re-evaluates only the repair. Returns (passed, err): passed is true when
 // the repair passed its verifier.
-func (e *Engine) selfRefine(ctx context.Context, j job.Job, p project.Project, t project.Task, previousID string) (bool, error) {
-	if e.cfg == nil || !e.cfg.Execution.SelfRefineEnabled() {
+func (d *Deps) selfRefine(ctx context.Context, j job.Job, p project.Project, t project.Task, previousID string) (bool, error) {
+	if d.Cfg == nil || !d.Cfg.Execution.SelfRefineEnabled() {
 		return false, nil
 	}
-	max := e.cfg.Execution.MaxSelfRefineLoopsValue()
-	iter := e.state.RefineCount(ctx, j.ID)
+	max := d.Cfg.Execution.MaxSelfRefineLoopsValue()
+	iter := d.State.RefineCount(ctx, j.ID)
 	if !(repair.Budget{Enabled: true, Max: max, Used: iter}).Allows() {
-		e.audit(ctx, j.ID, map[string]any{
+		d.audit(ctx, j.ID, map[string]any{
 			"event": "self_refine_budget_exhausted", "iter": iter, "max": max,
 		})
 		return false, nil
 	}
 
-	recs, rerr := e.eval.ListByJob(ctx, j.ID)
+	recs, rerr := d.Eval.ListByJob(ctx, j.ID)
 	if rerr != nil {
 		return false, nil
 	}
-	cands, cerr := e.listCandidateArtifacts(ctx, j)
+	cands, cerr := d.listCandidateArtifacts(ctx, j)
 	if cerr != nil {
 		return false, nil
 	}
@@ -50,20 +50,20 @@ func (e *Engine) selfRefine(ctx context.Context, j job.Job, p project.Project, t
 	if !ok {
 		return false, nil
 	}
-	content, err := e.artifacts.ReadContent(ctx, cand.ID)
+	content, err := d.Artifacts.ReadContent(ctx, cand.ID)
 	if err != nil {
 		return false, fmt.Errorf("reading candidate for self-refine: %w", err)
 	}
 
 	capability := project.CapabilityFor(p, t)
-	plan := e.planFor(ctx, j, p, t)
-	role := e.roleFor(plan, llm.PhaseRefining, llm.RoleMain)
-	if e.cfg.Execution.ObservationToolsEnabled() && capability == project.CapabilityCode {
-		e.observeForRepair(ctx, j, p, t, role)
+	plan := d.planFor(ctx, j, p, t)
+	role := d.roleFor(plan, llm.PhaseRefining, llm.RoleMain)
+	if d.Cfg.Execution.ObservationToolsEnabled() && capability == project.CapabilityCode {
+		d.observeForRepair(ctx, j, p, t, role)
 	}
-	instructions := repair.Instructions(rec, capability, e.languageFor(ctx, j, p, t))
+	instructions := repair.Instructions(rec, capability, d.languageFor(ctx, j, p, t))
 	ctxCandidates := []prompt.CandidateArtifact{{Kind: "candidate", Content: string(content)}}
-	resp, err := e.call(ctx, j, p, t, llm.PhaseRefining, role, instructions, ctxCandidates)
+	resp, err := d.call(ctx, j, p, t, llm.PhaseRefining, role, instructions, ctxCandidates)
 	if err != nil {
 		return false, err
 	}
@@ -71,22 +71,22 @@ func (e *Engine) selfRefine(ctx context.Context, j job.Job, p project.Project, t
 	if capability == project.CapabilityCode {
 		newContent = normalizeCode(newContent)
 	}
-	art, err := e.artifacts.CreateDraftFor(ctx, p.ID, t.ID, j.ID,
+	art, err := d.Artifacts.CreateDraftFor(ctx, p.ID, t.ID, j.ID,
 		artifact.KindProposal, []byte(newContent))
 	if err != nil {
 		return false, fmt.Errorf("persisting self-refine artifact: %w", err)
 	}
-	if serr := e.state.SetRefineCount(ctx, j.ID, iter+1); serr != nil {
+	if serr := d.State.SetRefineCount(ctx, j.ID, iter+1); serr != nil {
 		slog.Warn("engine: bumping refine counter", "err", serr)
 	}
 
 	// The verification edge: re-run the deterministic verifiers on the repair.
-	newRec, err := e.evaluateCandidate(ctx, j, p, t, art, previousID, 0, 0)
+	newRec, err := d.evaluateCandidate(ctx, j, p, t, art, previousID, 0, 0)
 	if err != nil {
 		return false, fmt.Errorf("evaluating self-refine artifact: %w", err)
 	}
 	passed := repair.Passed(newRec)
-	e.audit(ctx, j.ID, map[string]any{
+	d.audit(ctx, j.ID, map[string]any{
 		"event": "self_refine", "iter": iter + 1, "source_artifact": cand.ID,
 		"artifact_id": art.ID, "passed": passed, "score": newRec.Score,
 	})

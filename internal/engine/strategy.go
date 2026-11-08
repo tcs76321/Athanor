@@ -355,6 +355,20 @@ func (e *Engine) reflectionLoops(ctx context.Context, jobID string) int {
 	return e.state.ReflectCount(ctx, jobID)
 }
 
+// jobTokenCost reads a job's recorded strategy token cost (0 when absent or the
+// outcome has not been captured).
+func (e *Engine) jobTokenCost(ctx context.Context, jobID string) int {
+	if e.db == nil || jobID == "" {
+		return 0
+	}
+	var cost int
+	if err := e.db.DB().QueryRowContext(ctx,
+		`SELECT token_cost FROM strategy_outcomes WHERE job_id = ?`, jobID).Scan(&cost); err != nil {
+		return 0
+	}
+	return cost
+}
+
 // taskRetries is the number of earlier jobs for the task, i.e. the attempt
 // index minus one. The scheduler's retry window is per task, so this is the
 // retry evidence the strategy analysis needs.

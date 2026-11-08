@@ -1,4 +1,4 @@
-package engine
+package phases
 
 import (
 	"context"
@@ -23,7 +23,7 @@ import (
 //
 // The returned Result is non-decisive when no verifier could evaluate the
 // input; the caller then falls through to the LLM judge.
-func (e *Engine) verifyCandidate(ctx context.Context, j job.Job, p project.Project, t project.Task,
+func (d *Deps) verifyCandidate(ctx context.Context, j job.Job, p project.Project, t project.Task,
 	content string, idx int) (verify.Result, verify.Input, error) {
 
 	capability := project.CapabilityFor(p, t)
@@ -37,22 +37,22 @@ func (e *Engine) verifyCandidate(ctx context.Context, j job.Job, p project.Proje
 	}
 	// F5 (ADR-0058): the code acceptance gates. An explicit false restores
 	// the pre-F5 behavior; the config resolver applies the true default.
-	if e.cfg != nil {
-		in.RequireTests = e.cfg.Execution.RequireTestsForCodeValue()
-		in.RequireDocs = e.cfg.Execution.RequireDocumentationForCodeValue()
+	if d.Cfg != nil {
+		in.RequireTests = d.Cfg.Execution.RequireTestsForCodeValue()
+		in.RequireDocs = d.Cfg.Execution.RequireDocumentationForCodeValue()
 	}
-	if capability != project.CapabilityCode || e.runner == nil {
-		return e.verifierRegistry().Run(in), in, nil
+	if capability != project.CapabilityCode || d.runner() == nil {
+		return d.verifierRegistry().Run(in), in, nil
 	}
 	testCommand := p.TestCommand()
 	if testCommand == "" {
 		// ADR-0093: no repository runner is a visible degradation, not a
 		// guessed pytest command and not a hard code gate.
 		in.RequireTests = false
-		e.audit(ctx, j.ID, map[string]any{
+		d.audit(ctx, j.ID, map[string]any{
 			"event": "tests_skipped", "candidate": idx, "reason": "no test command detected or configured",
 		})
-		return e.verifierRegistry().Run(in), in, nil
+		return d.verifierRegistry().Run(in), in, nil
 	}
 
 	// Bug fix (probe soak): bound every pod tool call by the evaluating
@@ -61,20 +61,20 @@ func (e *Engine) verifyCandidate(ctx context.Context, j job.Job, p project.Proje
 	// blocked on stdin — stalled the job forever. A tool deadline soft-fails
 	// the candidate (TestsPassed=false) rather than failing the job, so the
 	// loop keeps moving.
-	tctx, cancel := e.toolContext(ctx)
+	tctx, cancel := d.toolContext(ctx)
 	defer cancel()
 
 	// M2-T4b.5 (ADR-0024 §2): make the job's Job Pod exist before the pod
 	// sub-steps, so the per-job token the runner presents is available.
-	if err := e.ensurePod(tctx, j); err != nil && errors.Is(err, ErrRepositorySnapshot) {
+	if err := d.ensurePod(tctx, j); err != nil && errors.Is(err, ErrRepositorySnapshot) {
 		return verify.Result{}, in, fmt.Errorf("ensuring job pod: %w", err)
 	}
-	staged, err := e.runCodeInPod(tctx, j, p, t, content)
+	staged, err := d.runCodeInPod(tctx, j, p, t, content)
 	if err != nil {
 		if !errors.Is(err, context.DeadlineExceeded) {
 			return verify.Result{}, in, err
 		}
-		e.audit(ctx, j.ID, map[string]any{
+		d.audit(ctx, j.ID, map[string]any{
 			"event": "tool_deadline_exceeded", "tool": "execute_code", "candidate": idx,
 		})
 	}
@@ -83,17 +83,17 @@ func (e *Engine) verifyCandidate(ctx context.Context, j job.Job, p project.Proje
 		// would test the pristine repository (or the previous candidate's
 		// leftovers), which is worse than no signal. Leave TestRan false so
 		// require_tests_for_code rejects it deterministically when enabled.
-		return e.verifierRegistry().Run(in), in, nil
+		return d.verifierRegistry().Run(in), in, nil
 	}
 
 	in.TestRan = true
 	in.TestCommand = testCommand
 	// §8.1 "tracked sub-state": running_tests is an event, not a column.
-	e.audit(ctx, j.ID, map[string]any{
+	d.audit(ctx, j.ID, map[string]any{
 		"event": "substate_entered", "phase": string(llm.PhaseEvaluating),
 		"substate": "running_tests", "candidate": idx,
 	})
-	res, runErr := e.runner.RunTests(tctx, j.ID, toolenvelope.ExecuteRequest{Command: testCommand})
+	res, runErr := d.runner().RunTests(tctx, j.ID, toolenvelope.ExecuteRequest{Command: testCommand})
 	exitCode := 0
 	switch {
 	case runErr == nil:
@@ -104,15 +104,15 @@ func (e *Engine) verifyCandidate(ctx context.Context, j job.Job, p project.Proje
 		in.TestOutput = boundedTestOutput(res.Stdout, res.Stderr)
 	case errors.Is(runErr, context.DeadlineExceeded):
 		// The test command hung; reject this candidate, keep the job alive.
-		e.audit(ctx, j.ID, map[string]any{
+		d.audit(ctx, j.ID, map[string]any{
 			"event": "tool_deadline_exceeded", "tool": "run_tests", "candidate": idx,
 		})
 	case !errors.Is(runErr, toolenvelope.ErrToolDisallowed):
-		e.audit(ctx, j.ID, map[string]any{
+		d.audit(ctx, j.ID, map[string]any{
 			"event": "tests_run_failed", "candidate": idx, "error": runErr.Error(),
 		})
 	}
-	e.audit(ctx, j.ID, map[string]any{
+	d.audit(ctx, j.ID, map[string]any{
 		"event": "substate_exited", "phase": string(llm.PhaseEvaluating),
 		"substate": "running_tests", "candidate": idx, "exit_code": exitCode,
 	})
@@ -122,22 +122,22 @@ func (e *Engine) verifyCandidate(ctx context.Context, j job.Job, p project.Proje
 	// disallowed `lint` tool (not in the envelope) leaves the verifier
 	// unapplied.
 	if len(p.Execution.Linters) > 0 {
-		lres, lerr := e.runner.RunLint(tctx, j.ID, toolenvelope.ExecuteRequest{})
+		lres, lerr := d.runner().RunLint(tctx, j.ID, toolenvelope.ExecuteRequest{})
 		switch {
 		case lerr == nil:
 			in.LintRan = true
 			in.LintPassed = lres.ExitCode == 0
 		case errors.Is(lerr, context.DeadlineExceeded):
-			e.audit(ctx, j.ID, map[string]any{
+			d.audit(ctx, j.ID, map[string]any{
 				"event": "tool_deadline_exceeded", "tool": "lint", "candidate": idx,
 			})
 		case !errors.Is(lerr, toolenvelope.ErrToolDisallowed):
-			e.audit(ctx, j.ID, map[string]any{
+			d.audit(ctx, j.ID, map[string]any{
 				"event": "lint_run_failed", "candidate": idx, "error": lerr.Error(),
 			})
 		}
 	}
-	return e.verifierRegistry().Run(in), in, nil
+	return d.verifierRegistry().Run(in), in, nil
 }
 
 // toolContext bounds a pod tool call (execute_code / run_tests / lint). The
@@ -146,29 +146,14 @@ func (e *Engine) verifyCandidate(ctx context.Context, j job.Job, p project.Proje
 // cut quickly rather than eating the whole phase budget. The per-phase budget
 // was previously applied only to LLM calls, so a hanging command could stall a
 // job indefinitely. The returned cancel must be deferred by the caller.
-func (e *Engine) toolContext(parent context.Context) (context.Context, context.CancelFunc) {
+func (d *Deps) toolContext(parent context.Context) (context.Context, context.CancelFunc) {
 	budget := 5 * time.Minute
-	if e.cfg != nil {
-		if b, ok := e.cfg.Execution.PhaseBudget(string(llm.PhaseEvaluating)); ok && b > 0 && b < budget {
+	if d.Cfg != nil {
+		if b, ok := d.Cfg.Execution.PhaseBudget(string(llm.PhaseEvaluating)); ok && b > 0 && b < budget {
 			budget = b
 		}
 	}
 	return context.WithTimeout(parent, budget)
-}
-
-// auditVerification records one deterministic verification result. `where`
-// names the call site ("candidate", "final") so a post-mortem can tell a
-// per-candidate check from the acceptance check.
-func (e *Engine) auditVerification(ctx context.Context, jobID, where string, r verify.Result) {
-	e.audit(ctx, jobID, map[string]any{
-		"event":     "verification",
-		"where":     where,
-		"applied":   r.Applied,
-		"passed":    r.Passed,
-		"score":     r.Score,
-		"verifiers": r.Verifiers,
-		"reasons":   r.Reasons,
-	})
 }
 
 // maxTestOutputChars bounds the test output kept for the repair loop. The tail
