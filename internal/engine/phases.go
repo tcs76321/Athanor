@@ -14,9 +14,9 @@ import (
 	"github.com/tcs76321/athanor/internal/artifact"
 	"github.com/tcs76321/athanor/internal/config"
 	"github.com/tcs76321/athanor/internal/engine/acceptance"
+	"github.com/tcs76321/athanor/internal/engine/contextasm"
 	"github.com/tcs76321/athanor/internal/job"
 	"github.com/tcs76321/athanor/internal/llm"
-	"github.com/tcs76321/athanor/internal/mce"
 	"github.com/tcs76321/athanor/internal/notebook"
 	"github.com/tcs76321/athanor/internal/policy"
 	"github.com/tcs76321/athanor/internal/project"
@@ -24,47 +24,22 @@ import (
 )
 
 // tierNames renders tiers for audit rows, ascending, nil-safe.
-func tierNames(tiers []prompt.Tier) []string {
-	out := make([]string, 0, len(tiers))
-	for _, t := range tiers {
-		out = append(out, t.String())
-	}
-	return out
-}
-
-// tierWeights renders the per-tier price table for audit rows, keyed by
-// tier name so a post-mortem reads without decoding integers.
-func tierWeights(weights map[prompt.Tier]int) map[string]int {
-	out := make(map[string]int, len(weights))
-	for t, w := range weights {
-		out[t.String()] = w
-	}
-	return out
-}
-
-// pauseForPressure pauses a job whose assembled prompt cannot fit (or
-// cannot be relieved within) the persona's context window — §10.4's
-// floor-breach arm (M5-T4, ADR-0022 §6). The request is never sent:
-// Ollama silently truncates an oversized prompt at num_ctx, so sending
-// would violate "Athanor never silently truncates context".
-//
-// The event reuses the `context_floor_violation` name (category
-// `context`) so a post-mortem queries one event name for both the
-// §12.6 pre-assembly gate and this per-call gate; the `trigger` field
-// tells them apart.
-func (e *Engine) pauseForPressure(ctx context.Context, j job.Job, phase, role string,
-	activeTokens, maxContext int, a mce.Assessment) error {
-
+// pauseForContext applies a context-assembly pause request: transition to
+// paused, audit the context event, optionally stop the pod (the pressure path
+// did; the pre-assembly gates did not), and report ErrPaused so Run stops the
+// phase without failing the job.
+func (e *Engine) pauseForContext(ctx context.Context, j job.Job, np *contextasm.NeedsPause) error {
 	if _, err := e.jobs.Transition(ctx, j.ID, job.StatePaused); err != nil {
 		return err
 	}
-	e.auditCat(ctx, j.ID, "context", map[string]any{
-		"event": "context_floor_violation", "trigger": "kv_cache_monitor",
-		"phase": phase, "persona": role,
-		"active_tokens": activeTokens, "max_context": maxContext, "pressure": a.Pressure,
-		"action": string(a.Action), "recommendation": a.Recommendation,
-	})
-	e.stopPod(ctx, j.ID)
+	data := map[string]any{"event": np.Event}
+	for k, v := range np.Fields {
+		data[k] = v
+	}
+	e.auditCat(ctx, j.ID, "context", data)
+	if np.StopPod {
+		e.stopPod(ctx, j.ID)
+	}
 	return ErrPaused
 }
 
@@ -253,190 +228,26 @@ func (e *Engine) call(ctx context.Context, j job.Job, p project.Project, t proje
 	// delta, retry directive) apply to every call the job makes. They come from
 	// the same pure plan the phase used, so they are consistent across phases.
 	plan := e.planFor(ctx, j, p, t)
-	capability := project.CapabilityFor(p, t)
 
-	// ADR-0124: an adaptive planner chooses this job's window. A nil planner
-	// (or a planner that declines) preserves the legacy fixed-floor path.
-	planned := false
-	if e.contextPlanner != nil {
-		demand := project.ContextDemand(p, t)
-		pinned := prompt.EstimateTokens(t.Title+"\n"+t.Description+"\n"+strings.Join(t.Criteria, "\n")) + 512
-		working := 0
-		if capability == project.ArchetypeCode && e.cfg.ContextEngine.WorkingSetMaxBytes > 0 {
-			working = e.cfg.ContextEngine.WorkingSetMaxBytes / 4
-		}
-		dec, derr := e.contextPlanner.PlanContext(ContextRequest{
-			Phase: phase, Capability: capability, Demand: demand,
-			Model: persona.Model, ModelMax: persona.ContextTarget,
-			Pinned: pinned, Working: working, Output: e.cfg.Inference.MaxOutputTokens,
-		})
-		if derr != nil {
-			slog.Warn("engine: context plan failed", "job", j.ID, "phase", phase, "err", derr)
-			if _, err := e.jobs.Transition(ctx, j.ID, job.StatePaused); err != nil {
-				return llm.Response{}, err
-			}
-			e.auditCat(ctx, j.ID, "context", map[string]any{
-				"event": "context_plan_failed", "phase": phase, "persona": role,
-				"error": derr.Error(),
-			})
-			return llm.Response{}, ErrPaused
-		}
-		if dec.Target > 0 && dec.Target <= persona.ContextTarget {
-			persona.ContextTarget = dec.Target
-			planned = true
-		}
-		e.auditCat(ctx, j.ID, "context", map[string]any{
-			"event": "context_plan", "phase": phase, "persona": role,
-			"demand": dec.Demand, "floor": dec.Floor, "target": dec.Target,
-			"bucket": dec.Bucket, "planned": planned, "binding": dec.Binding,
-			"pinned": pinned, "working": working,
-		})
-	}
-
-	// M1-T2: feasibility before every call — never silently reduce.
-	// M5-T4: this is the §12.6 pre-assembly gate (what the *window*
-	// must be); the per-call §10.4 pressure gate below is its
-	// complement (what goes *in* the window). The planner is responsible
-	// for its own floor when it chose the window.
-	if !planned {
-		verdict := llm.Check(persona, phase, capability, persona.ContextTarget, e.cfg.ContextEngine)
-		if !verdict.Feasible {
-			slog.Warn("engine: context floor violation",
-				"job", j.ID, "phase", phase, "capability", capability,
-				"persona", role, "required", verdict.Required,
-				"available", verdict.Available, "target", persona.ContextTarget)
-			if _, err := e.jobs.Transition(ctx, j.ID, job.StatePaused); err != nil {
-				return llm.Response{}, err
-			}
-			e.auditCat(ctx, j.ID, "context", map[string]any{
-				"event": "context_floor_violation", "phase": phase, "persona": role,
-				"required": verdict.Required, "available": verdict.Available,
-				"recommendation": verdict.Recommendation,
-			})
-			return llm.Response{}, ErrPaused
-		}
-	}
-
-	// M5-T5 (§10.5, ADR-0023): gather the tier payloads, the §25 tool
-	// envelope, the persisted suppression set, and the assembly ceiling
-	// before assembling. A nil ContextProvider leaves tiers 3 and 6
-	// empty, which is the pre-T5 assembler exactly.
-	tiers := e.promptTiersFor(ctx, j, p, t, phase, candidates)
-	suppressed := e.loadSuppressedTiers(ctx, j.ID)
-	ceiling := ceilingFor(e.cfg.ContextEngine, persona.ContextTarget)
-	// M6-T8c (§20.4): a queued interruption note is injected at this safe
-	// point (context assembly) and marked injected after the call.
-	notes, noteIDs := e.pendingInterruptions(ctx, j.ID)
-
-	// M6-T11 (§13.4): only *active* insight statements reach the prompt; a
-	// proposed insight is provably inert.
-	var strategyNotes []string
-	if e.insights != nil && e.cfg != nil && config.Val(e.cfg.StrategyAnalysis.StrategyNotesInPrompts, true) {
-		stmts, err := e.insights.ActiveStatements(ctx)
-		if err != nil {
-			slog.Warn("engine: reading strategy insights", "job", j.ID, "err", err)
-		} else {
-			strategyNotes = stmts
-		}
-	}
-
-	res, err := prompt.Assemble(prompt.Input{
-		Phase:                  phase,
-		Project:                prompt.Project{Name: p.Name, Archetype: capability, Goal: p.Goal},
-		Task:                   prompt.Task{Title: t.Title, Description: t.Description, TestCommand: p.TestCommand()},
-		Criteria:               t.Criteria,
-		Checks:                 p.Execution.Checks.Describe(),
-		DataSchema:             p.Execution.DataSchema,
-		AllowQuestions:         e.cfg != nil && e.cfg.Execution.ClarificationsEnabled(),
-		Notebook:               e.notebookLines(ctx, j.ID),
-		EvaluationInstructions: planInstructions(extraInstructions, plan, isJudgmentPhase(phase)),
-		Tools:                  tiers.Tools,
-		ActiveChunk:            tiers.ActiveChunk,
-		WorkingSet:             tiers.WorkingSet,
-		Corrections:            tiers.Corrections,
-		Episodic:               tiers.Episodic,
-		Candidates:             tiers.Candidates,
-		DormantIndex:           tiers.DormantIndex,
-		InterruptionNotes:      notes,
-		StrategyNotes:          strategyNotes,
-		Ceiling:                ceiling,
-		Suppressed:             suppressed,
+	// Context policy (window planning, tiers, suppression, pressure) lives in
+	// the contextasm package. It returns the adjusted persona and the
+	// assembled messages, or a pause request the root translates into the
+	// lifecycle transition.
+	prep, err := e.asm.Prepare(ctx, contextasm.PrepareRequest{
+		Job: j, Project: p, Task: t,
+		Phase: phase, Role: role, Persona: persona,
+		Instructions:   planInstructions(extraInstructions, plan, isJudgmentPhase(phase)),
+		Candidates:     candidates,
+		AllowQuestions: e.cfg.Execution.ClarificationsEnabled(),
 	})
 	if err != nil {
+		var np *contextasm.NeedsPause
+		if errors.As(err, &np) {
+			return llm.Response{}, e.pauseForContext(ctx, j, np)
+		}
 		return llm.Response{}, err
 	}
-
-	// M5-T5: the assembly's own overflow evictions are state, not a
-	// one-off — persist the union so the next call starts from the
-	// reduced set (ADR-0023 §5, §23.6: a restart must not resurrect
-	// evicted tiers).
-	if len(res.Eviction.Evicted) > 0 {
-		e.saveSuppressedTiers(ctx, j.ID, append(append([]prompt.Tier{}, suppressed...), res.Eviction.Evicted...))
-	}
-	e.auditCat(ctx, j.ID, "inference", map[string]any{
-		"event": "kv_cache_assembled", "phase": phase, "persona": role,
-		"ceiling": ceiling, "assembled_tokens": res.TotalToken,
-		"fits": res.Eviction.Fits, "dropped_tokens": res.Eviction.DroppedTokens,
-		"evicted_tiers":    tierNames(res.Eviction.Evicted),
-		"suppressed_tiers": tierNames(res.Eviction.Suppressed),
-		"tier_weights":     tierWeights(res.TierWeights),
-	})
-
-	// M5-T4 (§10.4, ADR-0022): per-call KV-cache pressure gate. The
-	// assembled prompt's estimated size is checked against the
-	// persona's window before the request is built, because Ollama
-	// silently truncates an oversized prompt at num_ctx — and Athanor
-	// never silently truncates context. Every call produces a
-	// `kv_cache_pressure` row (`inference`, §28.1) so pressure is
-	// observable even when no trigger fires; the row pairs with the
-	// `llm_call` row that follows for estimate-vs-actual calibration
-	// (ADR-0022 §3).
-	assessment := mce.Assess(res.TotalToken, persona.ContextTarget, e.cfg.ContextEngine)
-	e.auditCat(ctx, j.ID, "inference", map[string]any{
-		"event": "kv_cache_pressure", "phase": phase, "persona": role,
-		"active_tokens": res.TotalToken, "max_context": persona.ContextTarget,
-		"pressure": assessment.Pressure, "action": string(assessment.Action),
-	})
-	switch assessment.Action {
-	case mce.ActionNone:
-		// Below the warning threshold: nothing to do.
-	case mce.ActionWarn:
-		// §10.4 85% arm. The audit row above is the M5-T4 action; the
-		// context_swap suggestion in the prompt and the move of
-		// oldest non-pinned chunks to Dormant arrive with M5-T5's
-		// tier integration alongside the Dormant Index section.
-	case mce.ActionCritical:
-		// §10.4 95% arm: force-evict the lowest-priority tier through
-		// the seam. The released budget materializes in the next
-		// assembly (ADR-0023 §6); the current prompt still fits the
-		// window (pressure < 100%), so proceeding cannot truncate. A
-		// nil seam — or one with nothing left to evict — cannot
-		// relieve the pressure, so the call falls through to the
-		// floor-breach pause rather than sending a prompt that is over
-		// the warning line with no remedy applied.
-		eviction := Eviction{}
-		if e.evictor != nil {
-			var err error
-			eviction, err = e.evictor.Evict(ctx, j.ID, res.TierWeights, res.Eviction.Suppressed)
-			if err != nil {
-				return llm.Response{}, fmt.Errorf("kv-cache eviction: %w", err)
-			}
-		}
-		if len(eviction.Tiers) == 0 {
-			return llm.Response{}, e.pauseForPressure(ctx, j, phase, role,
-				res.TotalToken, persona.ContextTarget, assessment)
-		}
-		e.saveSuppressedTiers(ctx, j.ID, append(
-			append([]prompt.Tier{}, res.Eviction.Suppressed...), eviction.Tiers...))
-		e.auditCat(ctx, j.ID, "inference", map[string]any{
-			"event": "kv_cache_evicted", "phase": phase, "persona": role,
-			"tokens_freed": eviction.FreedTokens, "pressure": assessment.Pressure,
-			"evicted_tiers": tierNames(eviction.Tiers),
-		})
-	default: // mce.ActionFloorBreach
-		return llm.Response{}, e.pauseForPressure(ctx, j, phase, role,
-			res.TotalToken, persona.ContextTarget, assessment)
-	}
+	persona = prep.Persona
 
 	temperature := planTemperature(llm.ResolveTemperature(phase, persona.Temperature, nil), plan, isJudgmentPhase(phase))
 
@@ -481,7 +292,7 @@ func (e *Engine) call(ctx context.Context, j job.Job, p project.Project, t proje
 
 	req := llm.Request{
 		Model:         persona.Model,
-		Messages:      res.Messages,
+		Messages:      prep.Messages,
 		Temperature:   temperature,
 		ContextTarget: persona.ContextTarget,
 		Seed:          resolvedSeed,
@@ -525,8 +336,8 @@ func (e *Engine) call(ctx context.Context, j job.Job, p project.Project, t proje
 
 	// §13.1/§28.2: resolved temperature and per-section token counts are
 	// written to the EventLog for every call.
-	sections := make([]map[string]any, 0, len(res.Sections))
-	for _, s := range res.Sections {
+	sections := make([]map[string]any, 0, len(prep.Sections))
+	for _, s := range prep.Sections {
 		sections = append(sections, map[string]any{"name": s.Name, "tokens": s.Tokens})
 	}
 	callAudit := map[string]any{
@@ -535,7 +346,7 @@ func (e *Engine) call(ctx context.Context, j job.Job, p project.Project, t proje
 		"completion_tokens":       resp.CompletionTokens,
 		"reasoning_tokens":        resp.ReasoningTokens,
 		"thinking_chars":          len(resp.Thinking),
-		"estimated_prompt_tokens": res.TotalToken,
+		"estimated_prompt_tokens": prep.TotalToken,
 		"sections":                sections,
 		// M3-T7.1: generation provenance for reproducibility/audit.
 		// `seed` is null when judgment_seed is off (Ollama draws a
@@ -552,7 +363,7 @@ func (e *Engine) call(ctx context.Context, j job.Job, p project.Project, t proje
 	// Opt-in full payload capture (logging.capture_llm_payloads): the trace
 	// inspector can then show the exact tokens, not only counts.
 	if e.cfg.Logging.CaptureLLMPayloads {
-		callAudit["prompt_messages"] = res.Messages
+		callAudit["prompt_messages"] = prep.Messages
 		callAudit["response"] = resp.Content
 		if resp.Thinking != "" {
 			callAudit["thinking"] = resp.Thinking
@@ -563,15 +374,15 @@ func (e *Engine) call(ctx context.Context, j job.Job, p project.Project, t proje
 	// M6-T7 (§18.3, ADR-0038): audit which corrections were injected, at
 	// what token price, and whether the ladder dropped the tier. Only a
 	// correction that actually survived into the prompt counts as applied.
-	if len(tiers.CorrectionIDs) > 0 {
-		suppressed := res.Eviction.Suppresses(prompt.TierCorrections)
+	if len(prep.CorrectionIDs) > 0 {
+		suppressed := prep.Eviction.Suppresses(prompt.TierCorrections)
 		e.auditCat(ctx, j.ID, "feedback", map[string]any{
 			"event": "corrections_injected", "phase": phase,
-			"count": len(tiers.CorrectionIDs), "correction_ids": tiers.CorrectionIDs,
-			"tokens": res.TierWeights[prompt.TierCorrections], "suppressed": suppressed,
+			"count": len(prep.CorrectionIDs), "correction_ids": prep.CorrectionIDs,
+			"tokens": prep.TierWeights[prompt.TierCorrections], "suppressed": suppressed,
 		})
 		if !suppressed && e.correctionSource != nil {
-			for _, id := range tiers.CorrectionIDs {
+			for _, id := range prep.CorrectionIDs {
 				if err := e.correctionSource.MarkApplied(ctx, id); err != nil {
 					slog.Error("engine: marking correction applied", "correction", id, "err", err)
 				}
@@ -580,42 +391,22 @@ func (e *Engine) call(ctx context.Context, j job.Job, p project.Project, t proje
 	}
 
 	// M6-T8c (§20.4): the note rode the prompt; mark it injected and audit.
-	if len(noteIDs) > 0 && e.interruptions != nil {
-		if err := e.interruptions.MarkInjected(ctx, noteIDs); err != nil {
+	if len(prep.NoteIDs) > 0 && e.interruptions != nil {
+		if err := e.interruptions.MarkInjected(ctx, prep.NoteIDs); err != nil {
 			slog.Error("engine: marking interruptions injected", "job", j.ID, "err", err)
 		}
 		e.audit(ctx, j.ID, map[string]any{
-			"event": "interruption_injected", "phase": phase, "count": len(noteIDs), "note_ids": noteIDs,
+			"event": "interruption_injected", "phase": phase, "count": len(prep.NoteIDs), "note_ids": prep.NoteIDs,
 		})
 	}
 
 	// M6-T11 (§13.4): audit the strategy-note injection channel.
-	if len(strategyNotes) > 0 {
+	if prep.StrategyNotes > 0 {
 		e.auditCat(ctx, j.ID, "strategy", map[string]any{
-			"event": "strategy_notes_injected", "phase": phase, "count": len(strategyNotes),
+			"event": "strategy_notes_injected", "phase": phase, "count": prep.StrategyNotes,
 		})
 	}
 	return resp, nil
-}
-
-// pendingInterruptions returns a job's queued notes as (texts, ids). A store
-// error degrades to no notes with a warning rather than failing the call.
-func (e *Engine) pendingInterruptions(ctx context.Context, jobID string) ([]string, []string) {
-	if e.interruptions == nil {
-		return nil, nil
-	}
-	notes, err := e.interruptions.Pending(ctx, jobID)
-	if err != nil {
-		slog.Warn("engine: reading interruption notes", "job", jobID, "err", err)
-		return nil, nil
-	}
-	texts := make([]string, 0, len(notes))
-	ids := make([]string, 0, len(notes))
-	for _, n := range notes {
-		texts = append(texts, n.Text)
-		ids = append(ids, n.ID)
-	}
-	return texts, ids
 }
 
 // finalKindFor maps a task capability to the artifact kind its final output

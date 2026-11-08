@@ -38,7 +38,7 @@ demo. A claim without a proof is either removed or marked as a target.
 | A code job's prompt contains ranked repository file bodies | ADR-0083 | `cmd/athanor/context_provider_test.go` (`WorkingSet`); `TestWorkingSetIsAutoForCodeOnly`; `TestRepositoryWorkingSetIsPinnedAndDeduped` | **proven in tests; full post-P0 X-code 4/6, code 16/18** |
 | The working-set pack is byte-capped, pinned, and never truncated | ADR-0083 | `TestRepositoryWorkingSetIsPinnedAndDeduped`; `TestContextProviderWorkingSet` (cap/foreign scope) | **proven** |
 | Compacted project memory reaches the prompt | ADR-0085 | `internal/engine/engine.go` (`MemorySource`); `TestMemoryReachesEpisodicTier`; `memory_injected` audit | **proven** |
-| The active/dormant swap runs in the normal code loop | ADR-0083 amendment | `internal/engine/context_tiers.go` (`ActiveSeeder`); `TestWorkingSetIsAutoForCodeOnly`; `TestContextProviderWorkingSet` (SeedActive persists) | **proven** |
+| The active/dormant swap runs in the normal code loop | ADR-0083 amendment | `internal/engine/contextasm/assemble.go` (`ActiveSeeder`); `TestWorkingSetIsAutoForCodeOnly`; `TestContextProviderWorkingSet` (SeedActive persists) | **proven** |
 | Cancel stops the phase and commits `cancelled` | ADR-0087 | `internal/engine/engine.go` (`Cancel`, `EnqueueContext`); `TestCancelStopsRunningJob` | **proven** |
 | The Core Pod boots and serves in CI | ADR-0078, P1 plan | `scripts/core-smoke.sh` (`make core-smoke`); `.github/workflows/ci.yml` `core-smoke` job; local run 2026-10-28 | **proven locally; CI job added** |
 | A loopback `/status` reports jobs, freeze, and alarms | P1 plan | `internal/server/server.go`; `TestStatusSnapshot`, `TestStatusUnconfigured` | **proven** |
@@ -180,7 +180,7 @@ demo. A claim without a proof is either removed or marked as a target.
 | Superseded architecture wording and tool/ADR drift fail the build | 2026-11-07 consistency gate | `internal/docs/consistency_test.go` | **proven** |
 | Old audit events are archived before deletion under a guarded trigger | ADR-0127 | `internal/retention`; `TestArchiveEventsMovesOldRows`, `TestGuardStillBlocksNormalDelete`, `TestPruneArchivesByAge` | **proven** |
 | `models -audit` reports solo/swarm capacity and coverage reasons | ADR-0124 | `internal/onboard/capacity.go`; `TestCapacityReportFromAudit`, `TestCapacityReportDegradesWithOneModel` | **proven structurally** |
-| Adaptive context planning chooses a per-phase window and audits it | ADR-0124 | `cmd/athanor/context_planner.go`; `internal/engine/context_plan.go`; `TestContextPlannerSetsWindowAndAudits`, `TestContextPlannerFailurePausesJob`, `TestContextPlannerJudgeIgnoresRepoFloor` | **proven; opt-in via context_policy: adaptive** |
+| Adaptive context planning chooses a per-phase window and audits it | ADR-0124 | `cmd/athanor/context_planner.go`; `internal/engine/contextasm/plan.go`; `TestContextPlannerSetsWindowAndAudits`, `TestContextPlannerFailurePausesJob`, `TestContextPlannerJudgeIgnoresRepoFloor` | **proven; opt-in via context_policy: adaptive** |
 | The adaptive floor reaches model selection before the target is planned | ADR-0124 | `Engine.minContextFor`; `TestFloorPlannerDrivesModelSelection` | **proven** |
 | Lane admission bounds solo/pod/light concurrency from a measured plan | ADR-0125 | `internal/capacity/admission.go`; `TestAdmissionLaneCap`, `TestAdmissionMixedUsesSmallerPlan`; `TestLaneAdmissionUsedByEnqueue` | **proven structurally; enabled when an audit is present** |
 

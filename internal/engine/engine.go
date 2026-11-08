@@ -47,6 +47,7 @@ import (
 	"github.com/tcs76321/athanor/internal/budget"
 	"github.com/tcs76321/athanor/internal/config"
 	"github.com/tcs76321/athanor/internal/corrections"
+	"github.com/tcs76321/athanor/internal/engine/contextasm"
 	"github.com/tcs76321/athanor/internal/engine/jobstate"
 	"github.com/tcs76321/athanor/internal/evaluation"
 	"github.com/tcs76321/athanor/internal/interruptions"
@@ -227,6 +228,7 @@ type Engine struct {
 	cfg       *config.Config
 	db        *store.Store
 	state     *jobstate.Store
+	asm       *contextasm.Assembler
 	jobs      *job.Repository
 	projects  *project.Repo
 	artifacts *artifact.Store
@@ -389,7 +391,7 @@ func New(cfg *config.Config, db *store.Store, jobs *job.Repository, projects *pr
 		// nil-safe like cap above, instead of panicking in Run.
 		freezer = openFreezer{}
 	}
-	return &Engine{
+	e := &Engine{
 		cfg: cfg, db: db, state: jobstate.New(db), jobs: jobs, projects: projects, artifacts: artifacts,
 		eval: eval, client: client, registry: registry, freezer: freezer, cap: cap,
 		runner:       runner,
@@ -402,6 +404,8 @@ func New(cfg *config.Config, db *store.Store, jobs *job.Repository, projects *pr
 		pauseReq:     map[string]bool{},
 		jobFamily:    map[string]string{},
 	}
+	e.asm = contextasm.New(ctxHost{e}, cfg, e.state)
+	return e
 }
 
 // SetGitCommitter wires the §14 Git-as-undo seam (F3-T5). It is a setter
