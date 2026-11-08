@@ -296,9 +296,17 @@ func (u *UI) runPoolQualification(ctx context.Context, models []string, state *q
 		return true
 	}
 
+	// Qualification owns model residency. Evict anything left from an earlier
+	// run before the first load, then keep exactly one model resident by
+	// unloading each model before moving to the next.
+	for _, model := range models {
+		ollamaUnload(context.Background(), u.deps.Config.Inference.OllamaURL, model)
+	}
+
 	// The selected plan is the unit of work. Every depth is a superset of the
 	// one below it, so a live switch only adds (or drops) missing cases and
-	// never discards completed work.
+	// never discards completed work. A sweep is model-major: one model is
+	// loaded, all of its pending cases run, and it is evicted before the next.
 	for ctx.Err() == nil {
 		tier := u.currentQualTier()
 		ladder, plan := planFor(tier)
@@ -308,46 +316,42 @@ func (u *UI) runPoolQualification(ctx context.Context, models []string, state *q
 		state.CoreComplete = coreCoverage(minimalPlan, models, state.Results)
 		u.saveQualState(context.Background(), *state)
 
-		pending := pendingRefs(plan, state.Results, models)
-		if len(pending) == 0 {
-			u.finishPoolQualification(ctx, models, ladder, state)
-			return
-		}
-		block := pending
-		if len(block) > 30 {
-			block = block[:30]
-		}
+		ran := false
 		for _, model := range models {
 			if ctx.Err() != nil {
 				break
 			}
+			pending := pendingForModel(plan, state.Results, model)
+			if len(pending) == 0 {
+				continue
+			}
+			ran = true
 			state.CurrentModel = model
 			u.saveQualState(context.Background(), *state)
-			if !runCases(model, block, tier, ladder) {
+			complete := runCases(model, pending, tier, ladder)
+			ollamaUnload(context.Background(), u.deps.Config.Inference.OllamaURL, model)
+			if !complete {
 				break
 			}
+			state.Done = donePairs(plan, state.Results, models)
+			state.CoreComplete = coreCoverage(minimalPlan, models, state.Results)
+			u.saveQualState(context.Background(), *state)
 		}
-		state.Done = donePairs(plan, state.Results, models)
-		state.Tier = u.currentQualTier()
-		state.CoreComplete = coreCoverage(minimalPlan, models, state.Results)
-		u.saveQualState(context.Background(), *state)
+		if !ran {
+			ladder, _ := planFor(u.currentQualTier())
+			u.finishPoolQualification(ctx, models, ladder, state)
+			return
+		}
 	}
 	ladder, _ := planFor(u.currentQualTier())
 	u.finishPoolQualification(ctx, models, ladder, state)
 }
 
-// pendingRefs returns the plan cases that at least one model has not done.
-func pendingRefs(plan []onboard.CaseRef, results map[string]bool, models []string) []onboard.CaseRef {
+// pendingForModel returns the plan cases one model has not done.
+func pendingForModel(plan []onboard.CaseRef, results map[string]bool, model string) []onboard.CaseRef {
 	out := make([]onboard.CaseRef, 0, len(plan))
 	for _, ref := range plan {
-		doneForAll := true
-		for _, model := range models {
-			if _, ok := results[ref.Kind+"|"+model+"|"+ref.ID]; !ok {
-				doneForAll = false
-				break
-			}
-		}
-		if !doneForAll {
+		if _, ok := results[ref.Kind+"|"+model+"|"+ref.ID]; !ok {
 			out = append(out, ref)
 		}
 	}
