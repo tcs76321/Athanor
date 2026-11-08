@@ -28,6 +28,8 @@ type poolRow struct {
 	MaxContext    int
 	Score         float64
 	Samples       int
+	Speed         float64
+	SpeedSamples  int
 	Qualified     bool
 	TooLarge      bool
 	Code          float64
@@ -87,7 +89,7 @@ func (u *UI) syncPool(ctx context.Context, models []setupModel, budget modelBudg
 		}
 		maxCtx := maxContextForModel(m, p.FitLimitBytes, profiles[m.Name].KVBytesPerToken)
 		infos = append(infos, composition.ModelInfo{
-			Name: m.Name, Family: m.Family, SizeBytes: m.SizeBytes, FileBytes: m.FileBytes,
+			Name: m.Name, Family: onboard.InferFamily(m.Family, m.Name), SizeBytes: m.SizeBytes, FileBytes: m.FileBytes,
 			ResidentBytes: measured[m.Name], NativeContext: m.NativeContext,
 			KVBytesPerToken: m.KVBytesPerToken, MaxContext: maxCtx,
 			ContextTarget: poolContextTarget(u.deps.Config, m.Name, m.SizeBytes, maxCtx),
@@ -240,10 +242,11 @@ func (u *UI) welcomePool(models []setupModel) poolView {
 			row.InPool = true
 			row.ContextTarget = prof.ContextTarget
 			row.MaxContext = prof.MaxContext
-			row.Family = firstNonEmpty(prof.Family, m.Family)
+			row.Family = onboard.InferFamily(firstNonEmpty(prof.Family, m.Family), m.Name)
 			row.ResidentBytes = prof.ResidentBytes
 			row.TooLarge = prof.TooLarge
 			row.Score, row.Samples, row.Qualified = overallScore(prof)
+			row.Speed, row.SpeedSamples = prof.TokensPerSecond, prof.SpeedSamples
 			row.Code = scoreValue(prof, string(composition.CapabilityCode))
 			row.Data = scoreValue(prof, string(composition.CapabilityData))
 			row.Document = scoreValue(prof, string(composition.CapabilityDocument))
@@ -268,8 +271,9 @@ func (u *UI) welcomePool(models []setupModel) poolView {
 		if seen[name] {
 			continue
 		}
-		row := poolRow{Name: name, Family: prof.Family, InPool: true, ContextTarget: prof.ContextTarget, MaxContext: prof.MaxContext, TooLarge: prof.TooLarge, ResidentBytes: prof.ResidentBytes}
+		row := poolRow{Name: name, Family: onboard.InferFamily(prof.Family, prof.Name), InPool: true, ContextTarget: prof.ContextTarget, MaxContext: prof.MaxContext, TooLarge: prof.TooLarge, ResidentBytes: prof.ResidentBytes}
 		row.Score, row.Samples, row.Qualified = overallScore(prof)
+		row.Speed, row.SpeedSamples = prof.TokensPerSecond, prof.SpeedSamples
 		row.Code = scoreValue(prof, string(composition.CapabilityCode))
 		row.Data = scoreValue(prof, string(composition.CapabilityData))
 		row.Document = scoreValue(prof, string(composition.CapabilityDocument))

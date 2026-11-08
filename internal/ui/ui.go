@@ -1799,6 +1799,22 @@ var funcs = template.FuncMap{
 		}
 		return strings.ToUpper(s[:1]) + s[1:]
 	},
+	"roleFunction": func(s string) string {
+		switch s {
+		case "main":
+			return "Worker"
+		case "tall":
+			return "Architect"
+		case "wide":
+			return "Scout"
+		case "security":
+			return "Screener"
+		case "alternative":
+			return "Second opinion"
+		default:
+			return s
+		}
+	},
 	"priorityLabel": func(v any) string {
 		p := project.NormalizePriority(fmt.Sprint(v))
 		if p == project.PriorityCritical {

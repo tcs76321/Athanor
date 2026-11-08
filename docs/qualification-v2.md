@@ -46,9 +46,10 @@ unsupported claims), `repair` (minimal fixes and observation), `longctx`
 (exact retrieval across distractors), `operation` (engine-executed operation
 choice), `planning` (dependencies, parallel steps, infeasibility, replanning),
 and `calibration` (unknown/unsupported/conflict instead of fabrication). The
-Models page shows these as their own columns, and the role scores use them
-(wide: longctx/summarize/grounding; main: repair/operation; tall:
-planning/calibration/security).
+Models page shows these as their own columns, and the starting roster uses them
+per function: the worker weighs overall quality, speed, context, and cost; the
+architect weighs hard reasoning and depth; the scout weighs speed, cost, and
+summarization; the screener weighs security, judgment, and instruction.
 
 Every case is deterministic: exact/JSON/contains+word-bound checks for
 generators, fixed good/bad labels for judges. No judge model is consulted during
@@ -95,28 +96,47 @@ answer, pass/fail, duration, and any error. The Qualification and Models pages
 render a per-model `<details>` table, so the operator can inspect the question
 and the answer behind every score.
 
-### 4. Role baseline: smallest top-tier main, genuinely smaller wide
+### 4. Functional roster and capability trust
 
-The baseline cast follows the ranking rather than arbitrary size thirds:
+The starting cast is not a size ladder. It is the five functions Athanor
+actually uses: **Worker** (main), **Architect** (tall), **Scout** (wide),
+**Screener** (security), and **Second opinion** (alternative). The same builder
+feeds the roster UI and the persona assignments.
 
-- **Tall** is the strongest tall model. It is allowed to be several times
-  larger; tall is where a small-context, high-power model earns its resident
-  cost.
-- **Main** is the smallest model in the highest tier *below tall*. A one-point
-  score gain does not justify a much larger resident model, and the tall model
-  is not a main candidate. Ties break by smaller size, then score, then name.
-- **Wide** must be actually smaller than main (preferring at most 85% of main's
-  size), with the best wide score and a different family preferred. If nothing
-  is smaller, wide shares main and the UI says to add a smaller model.
-- **Security** is the best measured judge from a family outside the generator
-  roles; **alternative** is a different family from main/tall/judge when one is
-  available.
+Selection uses one evidence vector per model: measured quality, a
+sample-weighted Wilson lower bound shown as the trust floor, working context,
+decode speed, resident cost, and family independence.
+Role rules:
 
-The ranking shows overall, code, data, judgment, summarization, security, and
-agentry, plus family and size. The recommended pool is five or more models
-across at least two families and three size bands; the functional floor remains
-four. The baseline cast is a **first signal**: the composition selector and real
-job outcomes continue to adapt selection.
+- **Architect** — best trusted quality and hard-reasoning coverage; size is
+  allowed. A one-displayed-point quality band keeps a specialist with missing
+  capabilities from outranking the overall leader.
+- **Worker** — quality, speed, context, resident cost, and confidence. The
+  worker must be at least 35% of the architect's size, and stays within one
+  displayed percentage point of the best remaining model (rounded, so 81% can
+  compete with 82% when it is meaningfully cheaper, but 80% cannot).
+- **Scout** — speed and cost dominate. It must be at most 65% of the worker's
+  size, relaxed to 85% only when nothing smaller exists.
+- **Screener** — security, judgment, instruction, and confidence, from a family
+  outside the generator roles.
+- **Second opinion** — a different family, high uncertainty, and complementary
+  strengths.
+
+The UI also shows **capability leaders**: the best and runner-up model for every
+capability, with sample counts and gap. Below that, **next experiments** lists
+models with the most useful unexplored evidence. The engine keeps its automatic
+exploration budget (10% on familiar work, more on novel work); security, HITL,
+and irreversible work never explore.
+
+Qualification records Ollama's decode counters and stores tokens/sec. Models
+measured before this change show speed as unmeasured until the next screen.
+Blank or architecture-only catalog families are replaced by the model-name
+base for lineage checks (`qwen3.8:27b-mlx` → `qwen3.8`), with the reported
+family as a fallback.
+
+The measured ranking still shows every model's overall and capability scores.
+The roster and leaders are derived from that same evidence and adapt as real job
+outcomes arrive.
 
 ### 5. The machine score is not a model score
 

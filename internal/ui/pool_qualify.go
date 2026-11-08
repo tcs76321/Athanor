@@ -436,15 +436,20 @@ func (u *UI) runQualCase(ctx context.Context, model string, ref onboard.CaseRef,
 			if c.ID != ref.ID {
 				continue
 			}
-			answer, err := ollamaChat(ctx, u.deps.Config.Inference.OllamaURL, model, onboard.GenPrompt(c))
+			res, err := ollamaChatResult(ctx, u.deps.Config.Inference.OllamaURL, model, onboard.GenPrompt(c))
 			if err != nil && ctx.Err() != nil {
 				return
 			}
+			answer := res.Content
 			correct := err == nil && onboard.ScoreGen(c, answer)
 			rec := qualCaseRecord{
-				Kind: "generator", CaseID: c.ID, Capability: c.Capability,
+				Kind: "generator", CaseID: c.ID, Model: model, Capability: c.Capability,
 				Prompt: c.Prompt, Want: c.Want, Answer: answer,
 				Correct: correct, DurationMS: time.Since(start).Milliseconds(),
+				OutputTokens: res.EvalCount, EvalDurationMS: res.EvalDurationNS / int64(time.Millisecond),
+			}
+			if res.EvalCount > 0 && res.EvalDurationNS > 0 {
+				rec.TokensPerSecond = float64(res.EvalCount) / (float64(res.EvalDurationNS) / float64(time.Second))
 			}
 			if err != nil {
 				rec.Error = err.Error()
@@ -462,15 +467,20 @@ func (u *UI) runQualCase(ctx context.Context, model string, ref onboard.CaseRef,
 				continue
 			}
 			prompt, want := onboard.JudgePrompt(c, i%2 == 0)
-			answer, err := ollamaChat(ctx, u.deps.Config.Inference.OllamaURL, model, prompt)
+			res, err := ollamaChatResult(ctx, u.deps.Config.Inference.OllamaURL, model, prompt)
 			if err != nil && ctx.Err() != nil {
 				return
 			}
+			answer := res.Content
 			correct := err == nil && onboard.ScoreJudge(answer, want)
 			rec := qualCaseRecord{
-				Kind: "judge", CaseID: c.ID, Capability: c.Capability,
+				Kind: "judge", CaseID: c.ID, Model: model, Capability: c.Capability,
 				Prompt: prompt, Want: want, Answer: answer,
 				Correct: correct, DurationMS: time.Since(start).Milliseconds(),
+				OutputTokens: res.EvalCount, EvalDurationMS: res.EvalDurationNS / int64(time.Millisecond),
+			}
+			if res.EvalCount > 0 && res.EvalDurationNS > 0 {
+				rec.TokensPerSecond = float64(res.EvalCount) / (float64(res.EvalDurationNS) / float64(time.Second))
 			}
 			if err != nil {
 				rec.Error = err.Error()
@@ -611,6 +621,17 @@ func (u *UI) recordPoolQualification(ctx context.Context, models []string, ladde
 		}
 		for capability, t := range byCapability {
 			p.SetMeasured(model, capability, t.successes, t.trials)
+		}
+		speedSum := 0.0
+		speedN := 0
+		for _, rec := range state.Details {
+			if rec.Model == model && rec.TokensPerSecond > 0 {
+				speedSum += rec.TokensPerSecond
+				speedN++
+			}
+		}
+		if speedN > 0 {
+			p.SetSpeed(model, speedSum/float64(speedN), speedN)
 		}
 		if gen.trials > 0 {
 			p.SetMeasured(model, "stance:generate", gen.successes, gen.trials)

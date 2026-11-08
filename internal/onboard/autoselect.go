@@ -3,7 +3,25 @@ package onboard
 import (
 	"fmt"
 	"sort"
+	"strings"
 )
+
+// InferFamily derives a lineage proxy from the model name. The catalog's
+// details.family is often the architecture (qwen35, granite), which collapses
+// different model lines into one family; the name base keeps qwen3.8, gemma4,
+// muse-glimmer, and bonsai-2 distinct for independence checks. The reported
+// family is the fallback when the name has no base.
+func InferFamily(reported, name string) string {
+	base := strings.TrimSpace(name)
+	if i := strings.IndexByte(base, ':'); i >= 0 {
+		base = base[:i]
+	}
+	base = strings.TrimSpace(base)
+	if base != "" {
+		return base
+	}
+	return strings.TrimSpace(reported)
+}
 
 // Assignment is Athanor's automatic persona selection for one role.
 type Assignment struct {

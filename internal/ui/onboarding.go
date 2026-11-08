@@ -418,10 +418,11 @@ func (u *UI) welcomeData(ctx context.Context, st onboardingState) map[string]any
 			}
 		}
 	}
-	assignments := u.autoAssignments(roles, fitModels, hw, measurements)
 	resources := currentResources(hw, u.deps.Config)
 	budget := budgetFor(roles, models, hw, resources)
 	u.syncPool(ctx, models, budget, hw)
+	assignments := u.autoAssignments(roles, fitModels, hw)
+	roster := u.rosterView(int64(budget.FitLimitGiB * (1 << 30)))
 	pool := u.welcomePool(models)
 	suggestions := u.poolSuggestions(models, hw)
 	if pool.QualifiedCount > 0 {
@@ -464,7 +465,7 @@ func (u *UI) welcomeData(ctx context.Context, st onboardingState) map[string]any
 		"PoolRows":           pool.Rows,
 		"PoolRanked":         pool.Ranked,
 		"QualDetails":        qualDetailsFromState(qual, rankedNames),
-		"RolePicks":          u.rolePicks(),
+		"Roster":             roster,
 		"PoolCount":          pool.Count,
 		"PoolReady":          pool.Ready,
 		"PoolWarning":        pool.Warning,
@@ -528,57 +529,51 @@ func measuredModelNames(raw string) map[string]bool {
 	return out
 }
 
-// autoAssignments converts the UI's catalog to the deterministic selector.
-func (u *UI) autoAssignments(roles []setupRole, models []setupModel, hw Hardware, measurements []onboard.Measurement) []onboard.Assignment {
+// autoAssignments converts the measured pool into the functional roster and
+// maps it onto the configured persona roles. The same policy and evidence feed
+// the roster UI, so the displayed cast and the applied cast cannot drift.
+func (u *UI) autoAssignments(roles []setupRole, models []setupModel, hw Hardware) []onboard.Assignment {
 	if len(models) == 0 {
 		return nil
 	}
-	scores := map[string]float64{}
-	for _, m := range measurements {
-		key := m.Role + "|" + m.Model
-		if m.Score > scores[key] {
-			scores[key] = m.Score
-		}
+	fitBytes := inferenceFitBytes(hw, hostReserveBytes(u.deps.Config, hw))
+	roster := u.rosterView(fitBytes)
+	picks := map[string]onboard.RosterPick{}
+	for _, pick := range roster.Picks {
+		picks[pick.Role] = pick
 	}
-	// The pool stores per-capability measurements. Derive role-specific scores
-	// so the small/medium/big baseline is based on what each model actually
-	// measured for that role, not on raw size alone.
-	if p := u.pool(); p != nil {
-		for _, prof := range p.Profiles() {
-			if len(prof.Scores) == 0 {
-				continue
-			}
-			overall, _, _ := overallScore(prof)
-			for _, role := range []string{"wide", "main", "tall", "security", "alternative"} {
-				s := roleScore(prof, role)
-				if role == "main" {
-					s = overall
-				}
-				if s > 0 {
-					scores[role+"|"+prof.Name] = s
-				}
-			}
-		}
-	}
-	oroles := make([]onboard.Role, 0, len(roles))
-	for _, r := range roles {
-		oroles = append(oroles, onboard.Role{Role: r.Role, Model: r.Model, ContextTarget: r.ContextTarget})
-	}
-	if len(oroles) == 0 {
+	if len(roles) == 0 {
 		for _, name := range []string{"wide", "tall", "main", "security", "alternative"} {
-			oroles = append(oroles, onboard.Role{Role: name})
+			roles = append(roles, setupRole{Role: name})
 		}
 	}
-	omodels := make([]onboard.Model, 0, len(models))
-	for _, m := range models {
-		omodels = append(omodels, onboard.Model{Name: m.Name, SizeBytes: m.SizeBytes, Family: m.Family})
+	if len(picks) == 0 {
+		// No measurements yet: fall back to the conservative size policy so
+		// first use still has a working cast.
+		oroles := make([]onboard.Role, 0, len(roles))
+		for _, r := range roles {
+			oroles = append(oroles, onboard.Role{Role: r.Role, Model: r.Model, ContextTarget: r.ContextTarget})
+		}
+		omodels := make([]onboard.Model, 0, len(models))
+		for _, m := range models {
+			omodels = append(omodels, onboard.Model{
+				Name: m.Name, SizeBytes: m.SizeBytes, Family: onboard.InferFamily(m.Family, m.Name),
+			})
+		}
+		return onboard.AutoAssign(oroles, omodels, fitBytes, 0)
 	}
-	reserveBytes := hostReserveBytes(u.deps.Config, hw)
-	// Models run on the host. The fit budget is the host budget, clamped to
-	// the discrete GPU's VRAM when one is present; unified accelerators use
-	// the host budget. The same helper feeds the pool fit limit.
-	fitBytes := inferenceFitBytes(hw, reserveBytes)
-	return onboard.AutoAssignWithScores(oroles, omodels, scores, fitBytes, 0)
+	out := make([]onboard.Assignment, 0, len(roles))
+	for _, r := range roles {
+		pick, ok := picks[r.Role]
+		if !ok {
+			continue
+		}
+		out = append(out, onboard.Assignment{
+			Role: r.Role, Model: pick.Model, Family: pick.Family,
+			ContextTarget: r.ContextTarget, Reason: pick.Reason,
+		})
+	}
+	return out
 }
 
 // pullSuggestions lists configured persona models that are not installed,
@@ -949,11 +944,10 @@ func (u *UI) applyPersonas(ctx context.Context) error {
 	if u.deps.Hardware != nil {
 		hw = u.deps.Hardware(ctx)
 	}
-	measurements := []onboard.Measurement{}
-	if u.deps.Store != nil {
-		measurements = qualMeasurementsFromState(u.loadQualState(ctx))
-	}
-	assignments := u.autoAssignments(roles, models, hw, measurements)
+	resources := currentResources(hw, u.deps.Config)
+	budget := budgetFor(roles, models, hw, resources)
+	u.syncPool(ctx, models, budget, hw)
+	assignments := u.autoAssignments(roles, models, hw)
 	if len(assignments) == 0 {
 		return fmt.Errorf("no models are installed to assign")
 	}

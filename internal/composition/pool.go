@@ -111,8 +111,12 @@ type Profile struct {
 	Temperature     float64          `json:"temperature,omitempty"`
 	Scores          map[string]Score `json:"scores,omitempty"`
 	Scoped          map[string]Score `json:"scoped,omitempty"`
-	QualifiedAt     time.Time        `json:"qualified_at,omitempty"`
-	UpdatedAt       time.Time        `json:"updated_at,omitempty"`
+	// TokensPerSecond is the measured decode speed from qualification. It is
+	// zero when the model has not produced a timed response yet.
+	TokensPerSecond float64   `json:"tokens_per_second,omitempty"`
+	SpeedSamples    int       `json:"speed_samples,omitempty"`
+	QualifiedAt     time.Time `json:"qualified_at,omitempty"`
+	UpdatedAt       time.Time `json:"updated_at,omitempty"`
 	// TooLarge marks a model whose measured or on-disk size exceeds this
 	// machine's inference budget. It stays visible in the pool but is never
 	// cast.
@@ -475,6 +479,23 @@ func (p *Pool) recomputeContextLocked(prof *Profile) {
 // SetMeasuredResident records a qualification-time resident size and derives
 // KV bytes/token from the context the screen used. It is a fallback for models
 // whose architecture metadata does not expose KV-head counts (notably MLX).
+// SetSpeed records the measured decode speed for a model. Qualification
+// replaces the value rather than accumulating it, so a re-run is idempotent.
+func (p *Pool) SetSpeed(name string, tokensPerSecond float64, samples int) {
+	if name == "" || tokensPerSecond <= 0 || samples <= 0 {
+		return
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	prof, ok := p.Models[name]
+	if !ok {
+		return
+	}
+	prof.TokensPerSecond = tokensPerSecond
+	prof.SpeedSamples = samples
+	prof.UpdatedAt = time.Now().UTC()
+}
+
 func (p *Pool) SetMeasuredResident(name string, residentBytes, contextUsed int64) {
 	if residentBytes <= 0 || contextUsed <= 0 {
 		return

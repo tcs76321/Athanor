@@ -619,30 +619,43 @@ func TestQualDetailsGroupCases(t *testing.T) {
 	}
 }
 
-func TestRolePicksUseMeasuredPolicy(t *testing.T) {
+func TestRosterViewUsesMeasuredPool(t *testing.T) {
 	p := composition.New(nil)
 	for _, m := range []struct {
-		name string
-		size int64
-	}{{"small", 2 << 30}, {"medium", 6 << 30}, {"big", 14 << 30}} {
-		p.Upsert(composition.ModelInfo{Name: m.name, SizeBytes: m.size, FileBytes: m.size, ContextTarget: 8192})
-		p.SetMeasured(m.name, "general", 8, 10)
-		p.SetMeasured(m.name, "code", 8, 10)
-		p.SetMeasured(m.name, "judgment", 8, 10)
+		name  string
+		size  int64
+		ctx   int
+		score float64
+	}{
+		{"small:3b", 3 << 30, 65536, .78},
+		{"medium:9b", 6 << 30, 32768, .80},
+		{"large:27b", 17 << 30, 12288, .83},
+		{"security:12b", 7 << 30, 32768, .81},
+	} {
+		p.Upsert(composition.ModelInfo{Name: m.name, SizeBytes: m.size, FileBytes: m.size, ContextTarget: m.ctx})
+		for _, cap := range []string{"general", "code", "judgment", "summarize", "security", "agentry"} {
+			p.SetMeasured(m.name, cap, int(m.score*100), 100)
+		}
 	}
 	u := &UI{deps: Deps{Pool: p}}
-	picks := u.rolePicks()
-	if len(picks) != 3 {
-		t.Fatalf("picks = %+v, want three", picks)
+	roster := u.rosterView(0)
+	if len(roster.Picks) != 5 {
+		t.Fatalf("picks = %+v, want all five functions", roster.Picks)
 	}
-	byRole := map[string]string{}
-	for _, pick := range picks {
-		byRole[pick.Role] = pick.Model
+	if len(roster.Leaders) == 0 {
+		t.Fatal("no capability leaders")
 	}
-	// All three models tie on the measured score: main is the smallest of the
-	// top tier, wide has no smaller model and shares main, tall is the largest.
-	if byRole["wide"] != "small" || byRole["main"] != "small" || byRole["tall"] != "big" {
-		t.Fatalf("role picks = %+v, want small/small/big", byRole)
+	roles := map[string]bool{}
+	for _, pick := range roster.Picks {
+		roles[pick.Role] = true
+		if pick.Model == "" || pick.Reason == "" {
+			t.Errorf("incomplete pick: %+v", pick)
+		}
+	}
+	for _, role := range []string{"main", "tall", "wide", "security", "alternative"} {
+		if !roles[role] {
+			t.Errorf("roster missing %s", role)
+		}
 	}
 }
 

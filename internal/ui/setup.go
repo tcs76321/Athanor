@@ -66,13 +66,20 @@ type qualState struct {
 type qualCaseRecord struct {
 	Kind       string `json:"kind"`
 	CaseID     string `json:"case_id"`
+	Model      string `json:"model,omitempty"`
 	Capability string `json:"capability,omitempty"`
 	Prompt     string `json:"prompt,omitempty"`
 	Want       string `json:"want,omitempty"`
 	Answer     string `json:"answer,omitempty"`
 	Correct    bool   `json:"correct"`
 	DurationMS int64  `json:"duration_ms,omitempty"`
-	Error      string `json:"error,omitempty"`
+	// OutputTokens, EvalDurationMS, and TokensPerSecond come from Ollama's
+	// eval counters. They are optional for records written before speed was
+	// measured.
+	OutputTokens    int     `json:"output_tokens,omitempty"`
+	EvalDurationMS  int64   `json:"eval_duration_ms,omitempty"`
+	TokensPerSecond float64 `json:"tokens_per_second,omitempty"`
+	Error           string  `json:"error,omitempty"`
 }
 
 func newQualState() qualState {
@@ -437,7 +444,6 @@ func (u *UI) handleSetup(w http.ResponseWriter, r *http.Request) {
 	data["Models"] = models
 	data["Roles"] = roles
 	data["State"] = state
-	data["RolePicks"] = u.rolePicks()
 	data["Applied"] = r.URL.Query().Get("applied")
 	data["Stale"] = stale
 	hasMeasurements := false
@@ -981,47 +987,68 @@ func baseModelName(s string) string {
 	return s
 }
 
+// chatResult is the content plus Ollama's decode counters.
+type chatResult struct {
+	Content         string
+	EvalCount       int
+	EvalDurationNS  int64
+	PromptEvalCount int
+}
+
 // ollamaChat is one bounded, non-thinking, temperature-0 call for the screen.
 func ollamaChat(ctx context.Context, baseURL, model, prompt string) (string, error) {
+	res, err := ollamaChatResult(ctx, baseURL, model, prompt)
+	return res.Content, err
+}
+
+func ollamaChatResult(ctx context.Context, baseURL, model, prompt string) (chatResult, error) {
 	body, err := json.Marshal(map[string]any{
 		"model": model, "stream": false, "think": false,
 		"messages": []map[string]string{{"role": "user", "content": prompt}},
 		"options":  map[string]any{"temperature": 0, "num_predict": 256, "num_ctx": 8192},
 	})
 	if err != nil {
-		return "", err
+		return chatResult{}, err
 	}
 	ctx, cancel := context.WithTimeout(ctx, 45*time.Second)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
 		strings.TrimRight(baseURL, "/")+"/api/chat", bytes.NewReader(body))
 	if err != nil {
-		return "", err
+		return chatResult{}, err
 	}
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := (&http.Client{Timeout: 45 * time.Second}).Do(req)
 	if err != nil {
-		return "", err
+		return chatResult{}, err
 	}
 	defer func() { _ = resp.Body.Close() }()
 	raw, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if err != nil {
-		return "", err
+		return chatResult{}, err
 	}
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("ollama returned %s", resp.Status)
+		return chatResult{}, fmt.Errorf("ollama returned %s", resp.Status)
 	}
 	var out struct {
 		Message struct {
 			Content string `json:"content"`
 		} `json:"message"`
-		Error string `json:"error"`
+		EvalCount       int    `json:"eval_count"`
+		EvalDuration    int64  `json:"eval_duration"`
+		PromptEvalCount int    `json:"prompt_eval_count"`
+		Error           string `json:"error"`
 	}
 	if err := json.Unmarshal(raw, &out); err != nil {
-		return "", err
+		return chatResult{}, err
 	}
 	if out.Error != "" {
-		return "", fmt.Errorf("%s", out.Error)
+		return chatResult{}, fmt.Errorf("%s", out.Error)
 	}
-	return out.Message.Content, nil
+	return chatResult{
+		Content:         out.Message.Content,
+		EvalCount:       out.EvalCount,
+		EvalDurationNS:  out.EvalDuration,
+		PromptEvalCount: out.PromptEvalCount,
+	}, nil
 }

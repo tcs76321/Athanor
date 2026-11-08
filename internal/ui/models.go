@@ -108,22 +108,54 @@ const modelsBody = `
 </div></div>
 
 {{if .Pool.QualifiedCount}}
-{{if .RolePicks}}
-<h2>Baseline cast</h2>
-<p class="muted">The best small, medium, and big models on this machine for the everyday roles. This is a first signal; job outcomes keep updating selection.</p>
-<div class="grid cols-3">
-  {{range .RolePicks}}
+{{if .Roster.Picks}}
+<h2>Starting roster</h2>
+<p class="muted">The five functions Athanor starts with, and the evidence behind each choice. The roster keeps adapting as real job outcomes arrive.</p>
+<div class="grid cols-2">
+  {{range .Roster.Picks}}
   <div class="card">
-    <div class="eyebrow">{{roleLabel .Role}} · {{.Tier}}</div>
+    <div class="eyebrow">{{roleLabel .Role}} · {{roleFunction .Role}}</div>
     <h3 class="mono">{{.Model}}</h3>
-    <p class="muted">{{printf "%.0f%%" (mul .Score 100)}} role score · {{printf "%.1f" .SizeGiB}} GiB · {{.Context}} ctx</p>
+    <p class="muted">{{printf "%.0f%%" (mul .Quality 100)}} measured · {{printf "%.0f%%" (mul .Confidence 100)}} lower bound · {{.Samples}} samples · {{if .TokensPerSecond}}{{printf "%.0f" .TokensPerSecond}} tok/s{{else}}speed not measured{{end}} · {{.ContextTarget}} ctx · {{gib .SizeBytes}}</p>
+    <p class="muted small">{{.Reason}}</p>
+    {{if .Alternatives}}<p class="muted small">Next: {{range $i, $a := .Alternatives}}{{if $i}} · {{end}}{{$a.Model}} ({{printf "%.0f%%" (mul $a.Quality 100)}}){{end}}</p>{{end}}
+  </div>
+  {{end}}
+</div>
+{{end}}
+{{if .Roster.Leaders}}
+<h2>Capability leaders</h2>
+<p class="muted">Best measured model for each capability, with the runner-up and the evidence behind it.</p>
+<div class="card flush"><div class="table-wrap">
+<table><thead><tr><th>Capability</th><th>Best</th><th>Score</th><th>Samples</th><th>Runner-up</th><th>Gap</th></tr></thead><tbody>
+{{range .Roster.Leaders}}<tr>
+  <td>{{.Capability}}</td>
+  <td class="mono">{{.Model}}</td>
+  <td><span class="pill {{if ge .Score 0.75}}ok{{else if ge .Score 0.5}}warn{{else}}bad{{end}}">{{printf "%.0f%%" (mul .Score 100)}}</span></td>
+  <td>{{.Samples}}</td>
+  <td class="mono">{{if .RunnerUp}}{{.RunnerUp}}{{else}}—{{end}}</td>
+  <td>{{if .RunnerUp}}{{.GapLabel}}{{else}}—{{end}}</td>
+</tr>{{end}}
+</tbody></table>
+</div></div>
+{{end}}
+{{if .Roster.Experiments}}
+<h2>Next experiments</h2>
+<p class="muted">Athanor explores automatically on about 10% of familiar low-risk work and more on novel work. It never explores on security screening, HITL, or irreversible actions. These models have the most to teach it next.</p>
+<div class="grid cols-2">
+  {{range .Roster.Experiments}}
+  <div class="card">
+    <div class="eyebrow">{{if .Family}}{{.Family}}{{else}}family unknown{{end}}</div>
+    <h3 class="mono">{{.Model}}</h3>
+    <p class="muted">{{printf "%.0f%%" (mul .Quality 100)}} measured · {{.Samples}} samples · {{printf "%.0f%%" (mul .Confidence 100)}} lower bound</p>
+    <p class="muted small">{{.Reason}}</p>
   </div>
   {{end}}
 </div>
 {{end}}
 <h2>Measured ranking</h2>
 <div class="card flush"><div class="table-wrap">
-<table><thead><tr><th>Model</th><th>Family</th><th>Size</th><th>Overall</th><th>Code</th><th>Data</th><th>Judgment</th><th>Summ.</th><th>Sec.</th><th>Agent</th><th>Samples</th></tr></thead><tbody>
+<table><thead><tr><th>Model</th><th>Family</th><th>Size</th><th>Overall</th><th>Code</th><th>Data</th><th>Judgment</th><th>Summ.</th><th>Sec.</th><th>Agent</th><th>Speed</th><th>Samples</th></tr></thead><tbody>
 {{range .PoolRanked}}<tr>
   <td class="mono">{{.Name}}</td>
   <td>{{.Family}}</td>
@@ -135,6 +167,7 @@ const modelsBody = `
   <td>{{if .Summarize}}{{printf "%.0f%%" (mul .Summarize 100)}}{{else}}—{{end}}</td>
   <td>{{if .Security}}{{printf "%.0f%%" (mul .Security 100)}}{{else}}—{{end}}</td>
   <td>{{if .Agentry}}{{printf "%.0f%%" (mul .Agentry 100)}}{{else}}—{{end}}</td>
+  <td>{{if .Speed}}{{printf "%.0f" .Speed}}{{else}}—{{end}}</td>
   <td>{{.Samples}}</td>
 </tr>{{end}}
 </tbody></table>

@@ -29,8 +29,10 @@ func TestPoolQualificationDepthsComplete(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/api/chat" {
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"message": map[string]string{"content": "A"},
-				"done":    true,
+				"message":       map[string]string{"content": "A"},
+				"done":          true,
+				"eval_count":    10,
+				"eval_duration": int64(time.Second),
 			})
 			return
 		}
@@ -82,6 +84,12 @@ func TestPoolQualificationDepthsComplete(t *testing.T) {
 		}
 		if tier == qualTierBalanced && state.Deep {
 			t.Fatal("balanced screen used the deep ladder")
+		}
+		if tier == qualTierMinimal {
+			prof, ok := u.pool().Profile("fake:latest")
+			if !ok || prof.TokensPerSecond <= 0 {
+				t.Fatalf("speed was not recorded: %+v", prof)
+			}
 		}
 	}
 }

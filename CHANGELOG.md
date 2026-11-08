@@ -51,6 +51,17 @@ New entries are appended at the top. Do not rewrite history.
   screen can be switched. The run is resumable.
   Benchmark provenance is `eval/qualification/categories.yaml`;
   `make bench-anchor-core` runs the real 12-task v2 anchor subset.
+- **Functional roster and capability trust** (ADR-0130): the first-use
+  “best small/medium/big” cast is replaced by five functions: Worker,
+  Architect, Scout, Screener, and Second opinion. Selection uses measured
+  quality, a sample-weighted Wilson lower bound (the trust floor), context,
+  decode speed, resident cost, and family independence; the Worker and Scout
+  have explicit relative-size rules.
+  The UI also shows the best and runner-up per capability, sample counts, and
+  the models worth trying next. Qualification records tokens/sec from Ollama's
+  eval counters, and architecture-only catalog families are replaced by the
+  model-name base for lineage checks. The engine's automatic exploration
+  budget, security guards, and real-outcome updates are unchanged.
 - **Retention** (ADR-0127): events older than `retention.events_days` (default
   365) are archived to gzip JSONL under `state/archive/events` and deleted
   under a guarded exception to the append-only trigger. Daydream logs, closed
