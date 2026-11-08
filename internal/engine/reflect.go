@@ -2,11 +2,9 @@ package engine
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"log/slog"
-	"strconv"
 	"strings"
 
 	"github.com/tcs76321/athanor/internal/analysis"
@@ -16,152 +14,6 @@ import (
 	"github.com/tcs76321/athanor/internal/notebook"
 	"github.com/tcs76321/athanor/internal/regulator"
 )
-
-// reflectCounterPrefix is the `system_state` key prefix
-// for the typed reflection counter that M3-T4 commit 4.1
-// introduces. The full key is
-// `reflect:counter:<job-id>`; the value is the iteration
-// count as a string (e.g. `"2"`).
-//
-// The typed counter replaces the M3-T1 hack of co-opting
-// `jobs.recovery_flag` with a `"reflect-N"` string. That hack
-// collided with the engine's other use of the recovery flag
-// (the M3-T1 close-out's `reflect-N` clear in `engine.Run`
-// required a `HasPrefix("reflect-")` guard, which is a
-// known brittle pattern).
-const reflectCounterPrefix = "reflect:counter:"
-
-// getReflectCounter reads the typed counter for `jobID` from
-// `system_state`. Returns 0 when the row is absent (the
-// initial state for a fresh job). A parse error is logged
-// and treated as 0 — a corrupt counter must not fail the
-// engine.
-func (e *Engine) getReflectCounter(ctx context.Context, jobID string) int {
-	var value string
-	err := e.db.DB().QueryRowContext(ctx,
-		`SELECT value FROM system_state WHERE key = ?`,
-		reflectCounterPrefix+jobID,
-	).Scan(&value)
-	if err != nil {
-		// sql.ErrNoRows: 0 is the correct initial value.
-		// Other errors: log and treat as 0. The
-		// reflection counter is a best-effort
-		// mechanism; a corrupt DB row must not
-		// block the engine.
-		if !errors.Is(err, sql.ErrNoRows) {
-			slog.Warn("engine: reading reflection counter",
-				"job", jobID, "err", err)
-		}
-		return 0
-	}
-	n, perr := strconv.Atoi(value)
-	if perr != nil || n < 0 {
-		slog.Warn("engine: parsing reflection counter",
-			"job", jobID, "value", value, "err", perr)
-		return 0
-	}
-	return n
-}
-
-// setReflectCounter upserts the typed counter for `jobID`.
-// Uses `INSERT ... ON CONFLICT DO UPDATE` so the first
-// reflection iteration creates the row and subsequent
-// iterations update it in place. The transaction is
-// implicit in a single statement; no audit event is
-// emitted for the counter update itself (a separate
-// `reflection` event is emitted by `phaseReflect` per
-// iteration; adding another would be noise).
-func (e *Engine) setReflectCounter(ctx context.Context, jobID string, n int) error {
-	_, err := e.db.DB().ExecContext(ctx,
-		`INSERT INTO system_state (key, value) VALUES (?, ?)
-		 ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
-		reflectCounterPrefix+jobID, strconv.Itoa(n),
-	)
-	if err != nil {
-		return fmt.Errorf("setting reflection counter for %s: %w", jobID, err)
-	}
-	return nil
-}
-
-// reflectProposalPrefix is the `system_state` key prefix for the last
-// reflection proposal (`reflect:proposal:<job-id>`). The proposal is the
-// reflector's prose recommendation for the next divergence pass; phaseDivergeN
-// reads it back and injects it so a retry is a genuine second attempt rather
-// than a re-roll of the identical prompt.
-const reflectProposalPrefix = "reflect:proposal:"
-
-// getReflectionProposal reads the last reflection proposal for `jobID` ("" when
-// absent — the first divergence pass has no prior reflection). A read error is
-// logged and treated as empty, matching getReflectCounter.
-func (e *Engine) getReflectionProposal(ctx context.Context, jobID string) string {
-	var value string
-	err := e.db.DB().QueryRowContext(ctx,
-		`SELECT value FROM system_state WHERE key = ?`,
-		reflectProposalPrefix+jobID,
-	).Scan(&value)
-	if err != nil {
-		if !errors.Is(err, sql.ErrNoRows) {
-			slog.Warn("engine: reading reflection proposal", "job", jobID, "err", err)
-		}
-		return ""
-	}
-	return value
-}
-
-// setReflectionProposal upserts the last reflection proposal for `jobID`,
-// mirroring setReflectCounter (INSERT ... ON CONFLICT DO UPDATE).
-func (e *Engine) setReflectionProposal(ctx context.Context, jobID, proposal string) error {
-	_, err := e.db.DB().ExecContext(ctx,
-		`INSERT INTO system_state (key, value) VALUES (?, ?)
-		 ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
-		reflectProposalPrefix+jobID, proposal,
-	)
-	if err != nil {
-		return fmt.Errorf("setting reflection proposal for %s: %w", jobID, err)
-	}
-	return nil
-}
-
-// refineCounterPrefix is the `system_state` key prefix for the M8-T11
-// self-refine counter (`refine:counter:<job-id>`). It mirrors the reflection
-// counter: a separate bound so repair attempts and re-divergence retries are
-// budgeted independently.
-const refineCounterPrefix = "refine:counter:"
-
-// getRefineCounter reads the self-refine counter (0 when absent, like
-// getReflectCounter).
-func (e *Engine) getRefineCounter(ctx context.Context, jobID string) int {
-	var value string
-	err := e.db.DB().QueryRowContext(ctx,
-		`SELECT value FROM system_state WHERE key = ?`,
-		refineCounterPrefix+jobID,
-	).Scan(&value)
-	if err != nil {
-		if !errors.Is(err, sql.ErrNoRows) {
-			slog.Warn("engine: reading refine counter", "job", jobID, "err", err)
-		}
-		return 0
-	}
-	n, perr := strconv.Atoi(value)
-	if perr != nil || n < 0 {
-		slog.Warn("engine: parsing refine counter", "job", jobID, "value", value, "err", perr)
-		return 0
-	}
-	return n
-}
-
-// setRefineCounter upserts the self-refine counter.
-func (e *Engine) setRefineCounter(ctx context.Context, jobID string, n int) error {
-	_, err := e.db.DB().ExecContext(ctx,
-		`INSERT INTO system_state (key, value) VALUES (?, ?)
-		 ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
-		refineCounterPrefix+jobID, strconv.Itoa(n),
-	)
-	if err != nil {
-		return fmt.Errorf("setting refine counter for %s: %w", jobID, err)
-	}
-	return nil
-}
 
 // phaseReflect (§13.1 Phase 4, M3-T1): entered only when the
 // evaluating phase found no passing candidates. Asks the LLM
@@ -188,7 +40,7 @@ func (e *Engine) phaseReflect(ctx context.Context, j job.Job) error {
 	// resolves it through the compute policy.
 	plan := e.planFor(ctx, j, p, t)
 	max := plan.MaxReflectionLoops
-	iter := e.getReflectCounter(ctx, j.ID)
+	iter := e.state.ReflectCount(ctx, j.ID)
 
 	// Aggregate the failure context for the LLM and the regulator: the most
 	// recent EvaluationRecord set tells the reflector what failed.
@@ -198,9 +50,9 @@ func (e *Engine) phaseReflect(ctx context.Context, j job.Job) error {
 	}
 	reasons, failureText := failureSignals(records)
 	sig := regulator.Signature(reasons)
-	analysisState, _ := e.getAnalysis(ctx, j.ID)
+	analysisState, _ := e.state.Analysis(ctx, j.ID)
 	implicated := regulator.Attribute(analysisState.Units, failureText)
-	refined := e.getRefinedCounts(ctx, j.ID)
+	refined := e.state.RefinedCounts(ctx, j.ID)
 	budgetExhausted := false
 	if rem, ok, rerr := e.horizon.Remaining(ctx, j.ID); rerr == nil && ok && rem <= 0 {
 		budgetExhausted = true
@@ -209,7 +61,7 @@ func (e *Engine) phaseReflect(ctx context.Context, j job.Job) error {
 		Units:             analysisState.Units,
 		Implicated:        implicated,
 		Signature:         sig,
-		PreviousSignature: e.getRegulatorSignature(ctx, j.ID),
+		PreviousSignature: e.state.RegulatorSignature(ctx, j.ID),
 		Refined:           refined,
 		Iterations:        iter,
 		MaxIterations:     max,
@@ -270,17 +122,17 @@ func (e *Engine) phaseReflect(ctx context.Context, j job.Job) error {
 	if d := regulatorDirective(decision, analysisState.Units); d != "" {
 		proposal = d + "\n\n" + proposal
 	}
-	if serr := e.setReflectionProposal(ctx, j.ID, proposal); serr != nil {
+	if serr := e.state.SetReflectionProposal(ctx, j.ID, proposal); serr != nil {
 		slog.Warn("engine: persisting reflection proposal", "err", serr)
 	}
 
 	if decision.Decision == regulator.Refine && decision.UnitID != "" {
 		refined[decision.UnitID]++
-		if err := e.setRefinedCounts(ctx, j.ID, refined); err != nil {
+		if err := e.state.SetRefinedCounts(ctx, j.ID, refined); err != nil {
 			slog.Warn("engine: persisting refine counts", "err", err)
 		}
 	}
-	if err := e.setRegulatorSignature(ctx, j.ID, sig); err != nil {
+	if err := e.state.SetRegulatorSignature(ctx, j.ID, sig); err != nil {
 		slog.Warn("engine: persisting failure signature", "err", err)
 	}
 
@@ -291,7 +143,7 @@ func (e *Engine) phaseReflect(ctx context.Context, j job.Job) error {
 	// reflection was computed and then discarded without ever driving a
 	// retry.
 	nextIter := iter + 1
-	if serr := e.setReflectCounter(ctx, j.ID, nextIter); serr != nil {
+	if serr := e.state.SetReflectCount(ctx, j.ID, nextIter); serr != nil {
 		slog.Warn("engine: bumping reflection counter", "err", serr)
 	}
 
@@ -301,9 +153,9 @@ func (e *Engine) phaseReflect(ctx context.Context, j job.Job) error {
 
 // currentReflectionIteration was the M3-T1 read side of
 // the `"reflect-N"` recovery-flag hack. M3-T4 commit 4.1
-// replaced it with `getReflectCounter` (typed counter in
-// `system_state`). The function is gone; pre-M3-T4
-// recovery_flag values are no longer consulted. The
+// replaced it with a typed counter in `system_state` (now
+// owned by `internal/engine/jobstate`). The function is gone;
+// pre-M3-T4 recovery_flag values are no longer consulted. The
 // `engine.Run` `HasPrefix("reflect-")` guard from M3-T1's
 // close-out is also gone — `RecoveryFlag` is now solely
 // the "interrupted after a crash" annotation.

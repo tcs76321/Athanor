@@ -27,7 +27,7 @@ func TestFinalizeCapturesReflectionCandidatesAndRetries(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if err := e.eng.setReflectCounter(ctx, second.ID, 2); err != nil {
+	if err := e.eng.state.SetReflectCount(ctx, second.ID, 2); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := e.db.AppendEvent(ctx, store.Event{

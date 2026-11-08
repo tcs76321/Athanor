@@ -31,7 +31,7 @@ func (e *Engine) selfRefine(ctx context.Context, j job.Job, p project.Project, t
 		return false, nil
 	}
 	max := e.cfg.Execution.MaxSelfRefineLoopsValue()
-	iter := e.getRefineCounter(ctx, j.ID)
+	iter := e.state.RefineCount(ctx, j.ID)
 	if max <= 0 || iter >= max {
 		e.audit(ctx, j.ID, map[string]any{
 			"event": "self_refine_budget_exhausted", "iter": iter, "max": max,
@@ -69,7 +69,7 @@ func (e *Engine) selfRefine(ctx context.Context, j job.Job, p project.Project, t
 	if err != nil {
 		return false, fmt.Errorf("persisting self-refine artifact: %w", err)
 	}
-	if serr := e.setRefineCounter(ctx, j.ID, iter+1); serr != nil {
+	if serr := e.state.SetRefineCount(ctx, j.ID, iter+1); serr != nil {
 		slog.Warn("engine: bumping refine counter", "err", serr)
 	}
 

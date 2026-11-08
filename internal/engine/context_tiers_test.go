@@ -172,7 +172,9 @@ func TestSuppressionPersistsAcrossCallsAndHonorsRestart(t *testing.T) {
 	}
 
 	// Terminal state clears it.
-	e.eng.clearSuppressedTiers(context.Background(), jobID)
+	if err := e.eng.state.SetEvictedTiers(context.Background(), jobID, nil); err != nil {
+		t.Fatal(err)
+	}
 	if got := suppressedRow(t, e, jobID); got != "" {
 		t.Errorf("suppression row survived clear: %q", got)
 	}

@@ -146,7 +146,7 @@ func (e *Engine) phaseDivergeN(ctx context.Context, j job.Job) error {
 	// H1: a prior reflection's proposal guides the retry so it is a real
 	// second attempt, not a re-roll of the identical prompt. Empty on the
 	// first pass (no prior reflection has run).
-	proposal := e.getReflectionProposal(ctx, j.ID)
+	proposal := e.state.ReflectionProposal(ctx, j.ID)
 
 	// F4-T5: enforce a Jaccard floor with a bounded re-roll. A below-floor
 	// batch is discarded (draft → candidate → rejected) so it is never

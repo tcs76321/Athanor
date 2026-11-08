@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"log/slog"
 	"sort"
-	"strconv"
 
 	"github.com/tcs76321/athanor/internal/cognitive"
 	"github.com/tcs76321/athanor/internal/job"
@@ -147,7 +146,7 @@ func (e *Engine) updateProfileFeatures(ctx context.Context, j job.Job, t project
 	if !ok {
 		return
 	}
-	f := strategy.TaskFeatures{TaskType: t.TaskType, DifficultyHint: e.difficultyHint(ctx, j.ID)}
+	f := strategy.TaskFeatures{TaskType: t.TaskType, DifficultyHint: e.state.Difficulty(ctx, j.ID)}
 	if err := sink.SetTaskFeatures(ctx, j.ID, f); err != nil {
 		slog.Warn("engine: updating strategy task features", "job", j.ID, "err", err)
 	}
@@ -353,16 +352,7 @@ func (e *Engine) maxEvaluationScore(ctx context.Context, jobID string) float64 {
 
 // reflectionLoops reads the job's typed reflection counter (0 when unset).
 func (e *Engine) reflectionLoops(ctx context.Context, jobID string) int {
-	var raw string
-	if err := e.db.DB().QueryRowContext(ctx,
-		`SELECT value FROM system_state WHERE key = ?`, reflectCounterPrefix+jobID).Scan(&raw); err != nil {
-		return 0
-	}
-	n, err := strconv.Atoi(raw)
-	if err != nil {
-		return 0
-	}
-	return n
+	return e.state.ReflectCount(ctx, jobID)
 }
 
 // taskRetries is the number of earlier jobs for the task, i.e. the attempt

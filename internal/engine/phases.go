@@ -839,15 +839,19 @@ func (e *Engine) phasePlan(ctx context.Context, j job.Job) error {
 	}
 	e.note(ctx, j.ID, p.ID, notebook.KindPlan, "planning", resp.Content)
 	if d := parseDifficultyHint(resp.Content); d != "" {
-		e.setDifficultyHint(ctx, j.ID, d)
+		if err := e.state.SetDifficulty(ctx, j.ID, d); err != nil {
+			slog.Warn("engine: persisting difficulty hint", "job", j.ID, "err", err)
+		}
 		e.audit(ctx, j.ID, map[string]any{"event": "difficulty_hint", "difficulty": d})
 	}
 	if l := parseLanguageHint(resp.Content); l != "" {
-		e.setLanguageHint(ctx, j.ID, l)
+		if err := e.state.SetLanguage(ctx, j.ID, l); err != nil {
+			slog.Warn("engine: persisting language hint", "job", j.ID, "err", err)
+		}
 		e.audit(ctx, j.ID, map[string]any{"event": "language_hint", "language": l})
 	}
 	a := analysis.Parse(resp.Content)
-	if err := e.setAnalysis(ctx, j.ID, a); err != nil {
+	if err := e.state.SetAnalysis(ctx, j.ID, a); err != nil {
 		slog.Error("engine: storing task analysis", "job", j.ID, "err", err)
 	}
 	e.audit(ctx, j.ID, map[string]any{

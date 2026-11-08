@@ -2,9 +2,6 @@ package engine
 
 import (
 	"context"
-	"database/sql"
-	"encoding/json"
-	"errors"
 	"fmt"
 	"log/slog"
 	"sort"
@@ -115,14 +112,6 @@ func (ladderEvictor) Evict(_ context.Context, _ string,
 	return Eviction{Tiers: []prompt.Tier{tier}, FreedTokens: tokens}, nil
 }
 
-// evictionStatePrefix is the `system_state` key prefix for a job's
-// suppressed tiers (ADR-0023 §5) — the `reflect:counter:` pattern from
-// M3-T4, applied to context pressure.
-const evictionStatePrefix = "context:evicted:"
-
-// evictionStateKey names the suppression row for one job.
-func evictionStateKey(jobID string) string { return evictionStatePrefix + jobID }
-
 // loadSuppressedTiers reads the persisted suppression set for a job.
 //
 // A missing row is the normal initial state. A corrupt row (bad JSON) is
@@ -131,53 +120,15 @@ func evictionStateKey(jobID string) string { return evictionStatePrefix + jobID 
 // re-eviction, not a stuck job. Pinned tiers are dropped here as well as
 // in the assembler — defense in depth against a hand-edited row.
 func (e *Engine) loadSuppressedTiers(ctx context.Context, jobID string) []prompt.Tier {
-	var raw string
-	err := e.db.DB().QueryRowContext(ctx,
-		`SELECT value FROM system_state WHERE key = ?`, evictionStateKey(jobID)).Scan(&raw)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil
-	}
-	if err != nil {
-		slog.Error("engine: reading eviction state", "job", jobID, "err", err)
-		return nil
-	}
-	var stored []prompt.Tier
-	if err := json.Unmarshal([]byte(raw), &stored); err != nil {
-		slog.Error("engine: decoding eviction state", "job", jobID, "err", err, "raw", raw)
-		return nil
-	}
-	return normalizeSuppressed(stored)
+	return normalizeSuppressed(e.state.EvictedTiers(ctx, jobID))
 }
 
 // saveSuppressedTiers persists a job's suppression set (evictable tiers
 // only, ascending). An empty set deletes the row so `system_state` stays
 // bounded.
 func (e *Engine) saveSuppressedTiers(ctx context.Context, jobID string, tiers []prompt.Tier) {
-	out := normalizeSuppressed(tiers)
-	if len(out) == 0 {
-		e.clearSuppressedTiers(ctx, jobID)
-		return
-	}
-	raw, err := json.Marshal(out)
-	if err != nil {
-		slog.Error("engine: encoding eviction state", "job", jobID, "err", err)
-		return
-	}
-	if _, err := e.db.DB().ExecContext(ctx,
-		`INSERT INTO system_state (key, value) VALUES (?, ?)
-		 ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
-		evictionStateKey(jobID), string(raw)); err != nil {
+	if err := e.state.SetEvictedTiers(ctx, jobID, normalizeSuppressed(tiers)); err != nil {
 		slog.Error("engine: writing eviction state", "job", jobID, "err", err)
-	}
-}
-
-// clearSuppressedTiers removes a job's suppression row. Called when the
-// job reaches a terminal state: a finished job's evictions are history,
-// not state, and keeping the row would leave one row per evicting job.
-func (e *Engine) clearSuppressedTiers(ctx context.Context, jobID string) {
-	if _, err := e.db.DB().ExecContext(ctx,
-		`DELETE FROM system_state WHERE key = ?`, evictionStateKey(jobID)); err != nil {
-		slog.Error("engine: clearing eviction state", "job", jobID, "err", err)
 	}
 }
 

@@ -47,6 +47,7 @@ import (
 	"github.com/tcs76321/athanor/internal/budget"
 	"github.com/tcs76321/athanor/internal/config"
 	"github.com/tcs76321/athanor/internal/corrections"
+	"github.com/tcs76321/athanor/internal/engine/jobstate"
 	"github.com/tcs76321/athanor/internal/evaluation"
 	"github.com/tcs76321/athanor/internal/interruptions"
 	"github.com/tcs76321/athanor/internal/job"
@@ -225,6 +226,7 @@ var ErrPaused = errors.New("job paused")
 type Engine struct {
 	cfg       *config.Config
 	db        *store.Store
+	state     *jobstate.Store
 	jobs      *job.Repository
 	projects  *project.Repo
 	artifacts *artifact.Store
@@ -388,7 +390,7 @@ func New(cfg *config.Config, db *store.Store, jobs *job.Repository, projects *pr
 		freezer = openFreezer{}
 	}
 	return &Engine{
-		cfg: cfg, db: db, jobs: jobs, projects: projects, artifacts: artifacts,
+		cfg: cfg, db: db, state: jobstate.New(db), jobs: jobs, projects: projects, artifacts: artifacts,
 		eval: eval, client: client, registry: registry, freezer: freezer, cap: cap,
 		runner:       runner,
 		evictor:      evictor,
@@ -653,10 +655,6 @@ func (e *Engine) actualCrossFamily(ctx context.Context, j job.Job, p project.Pro
 	return gen, judge, gen != judge
 }
 
-// difficultyStateKey is the system_state key holding a job's
-// planning-derived difficulty hint ("easy" | "hard").
-func difficultyStateKey(jobID string) string { return "plan:difficulty:" + jobID }
-
 // planFor resolves a job's compute plan through the policy seam. It gathers
 // the task features (archetype, criteria count, the planner's difficulty
 // hint, recent outcome history) and the operator ceilings, then asks the
@@ -675,7 +673,7 @@ func (e *Engine) planInputs(ctx context.Context, j job.Job, p project.Project, t
 		Features: policy.Features{
 			Archetype:     capability,
 			CriteriaCount: len(t.Criteria),
-			Difficulty:    e.difficultyHint(ctx, j.ID),
+			Difficulty:    e.state.Difficulty(ctx, j.ID),
 			JobKey:        j.ID,
 			Attempt:       e.taskAttemptIndex(ctx, t.ID, j.ID),
 		},
@@ -842,65 +840,6 @@ func (e *Engine) roleFor(plan policy.Plan, phase, fallback string) string {
 		return r
 	}
 	return fallback
-}
-
-// difficultyHint reads the planner's easy/hard hint for a job ("" when the
-// job has not planned yet).
-func (e *Engine) difficultyHint(ctx context.Context, jobID string) string {
-	if e.db == nil {
-		return ""
-	}
-	var v string
-	if err := e.db.DB().QueryRowContext(ctx,
-		`SELECT value FROM system_state WHERE key = ?`, difficultyStateKey(jobID)).Scan(&v); err != nil {
-		return ""
-	}
-	return v
-}
-
-// setDifficultyHint persists the planner's hint for a job.
-func (e *Engine) setDifficultyHint(ctx context.Context, jobID, hint string) {
-	if e.db == nil || hint == "" {
-		return
-	}
-	if _, err := e.db.DB().ExecContext(ctx,
-		`INSERT INTO system_state (key, value) VALUES (?, ?)
-		 ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
-		difficultyStateKey(jobID), hint); err != nil {
-		slog.Warn("engine: persisting difficulty hint", "job", jobID, "err", err)
-	}
-}
-
-// jobScratchKeys are the per-job `system_state` keys the engine writes during a
-// run and must clear at terminal state: the planning difficulty hint, the
-// reflection and self-refine counters, and the §10.5 suppression row. They are
-// per-job scratch, not durable state; leaving them behind grows `system_state`
-// without bound (one or more rows per job).
-func jobScratchKeys(jobID string) []string {
-	return []string{
-		difficultyStateKey(jobID),
-		languageStateKey(jobID),
-		reflectCounterPrefix + jobID,
-		reflectProposalPrefix + jobID,
-		refineCounterPrefix + jobID,
-		evictionStateKey(jobID),
-		analysisPrefix + jobID,
-		regulatorSigPrefix + jobID,
-		regulatorRefinedPrefix + jobID,
-	}
-}
-
-// clearJobScratch deletes a terminal job's per-job `system_state` rows so the
-// table does not accumulate one set per finished job.
-func (e *Engine) clearJobScratch(ctx context.Context, jobID string) {
-	if e.db == nil {
-		return
-	}
-	for _, k := range jobScratchKeys(jobID) {
-		if _, err := e.db.DB().ExecContext(ctx, `DELETE FROM system_state WHERE key = ?`, k); err != nil {
-			slog.Error("engine: clearing job state", "job", jobID, "key", k, "err", err)
-		}
-	}
 }
 
 // auditComputePlan records the resolved plan (ADR-0044: the decision is
@@ -1639,12 +1578,12 @@ func (e *Engine) finalizeTerminal(ctx context.Context, jobID string, j job.Job) 
 	// ADR-0119: evaluate the trajectory itself, not only the final artifact.
 	e.evaluateProcess(ctx, j)
 	// M6-T10 (§13.3): capture the immutable outcome before any teardown that
-	// can block and before clearJobScratch removes the reflection counter.
+	// can block and before the scratch clear removes the reflection counter.
 	e.captureOutcome(ctx, jobID)
 	// M5-T5 (ADR-0023 §5): a finished job's evictions are history, not state.
 	// Clearing here (and only here) keeps `system_state` bounded while a
 	// paused job keeps its suppression for the resume.
-	e.clearJobScratch(ctx, jobID)
+	e.state.Clear(ctx, jobID)
 	// ADR-0091: close the horizon grant with actual spend before any teardown
 	// that can block.
 	e.settleHorizon(ctx, jobID)

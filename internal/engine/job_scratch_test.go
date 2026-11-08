@@ -13,10 +13,15 @@ func TestTerminalClearsJobScratch(t *testing.T) {
 	ctx := context.Background()
 	jobID := env.submit(t)
 
-	for _, k := range jobScratchKeys(jobID) {
+	for _, kv := range []struct{ prefix, value string }{
+		{"plan:difficulty:", "x"}, {"plan:language:", "x"}, {"analysis:", "x"},
+		{"reflect:counter:", "x"}, {"reflect:proposal:", "x"}, {"refine:counter:", "x"},
+		{"context:evicted:", "[]"}, {"regulator:sig:", "x"}, {"regulator:refined:", "x"},
+	} {
+		k := kv.prefix + jobID
 		if _, err := env.db.DB().ExecContext(ctx,
-			`INSERT INTO system_state (key, value) VALUES (?, 'x')
-			 ON CONFLICT(key) DO UPDATE SET value = excluded.value`, k); err != nil {
+			`INSERT INTO system_state (key, value) VALUES (?, ?)
+			 ON CONFLICT(key) DO UPDATE SET value = excluded.value`, k, kv.value); err != nil {
 			t.Fatal(err)
 		}
 	}

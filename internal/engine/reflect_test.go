@@ -22,23 +22,23 @@ func TestReflectCounter_RoundTrip(t *testing.T) {
 	jobID := "test-reflect-rt-1"
 
 	// Unset key → 0.
-	if got := e.eng.getReflectCounter(ctx, jobID); got != 0 {
+	if got := e.eng.state.ReflectCount(ctx, jobID); got != 0 {
 		t.Errorf("unset counter = %d, want 0", got)
 	}
 
 	// Set 1, read 1.
-	if err := e.eng.setReflectCounter(ctx, jobID, 1); err != nil {
+	if err := e.eng.state.SetReflectCount(ctx, jobID, 1); err != nil {
 		t.Fatalf("setReflectCounter(1): %v", err)
 	}
-	if got := e.eng.getReflectCounter(ctx, jobID); got != 1 {
+	if got := e.eng.state.ReflectCount(ctx, jobID); got != 1 {
 		t.Errorf("counter after set 1 = %d, want 1", got)
 	}
 
 	// Set 2, read 2 (upsert overwrites).
-	if err := e.eng.setReflectCounter(ctx, jobID, 2); err != nil {
+	if err := e.eng.state.SetReflectCount(ctx, jobID, 2); err != nil {
 		t.Fatalf("setReflectCounter(2): %v", err)
 	}
-	if got := e.eng.getReflectCounter(ctx, jobID); got != 2 {
+	if got := e.eng.state.ReflectCount(ctx, jobID); got != 2 {
 		t.Errorf("counter after set 2 = %d, want 2", got)
 	}
 }
@@ -50,16 +50,16 @@ func TestReflectCounter_KeyIsolatedPerJob(t *testing.T) {
 	e := newEnv(t)
 	ctx := context.Background()
 
-	if err := e.eng.setReflectCounter(ctx, "job-A", 3); err != nil {
+	if err := e.eng.state.SetReflectCount(ctx, "job-A", 3); err != nil {
 		t.Fatal(err)
 	}
-	if err := e.eng.setReflectCounter(ctx, "job-B", 1); err != nil {
+	if err := e.eng.state.SetReflectCount(ctx, "job-B", 1); err != nil {
 		t.Fatal(err)
 	}
-	if got := e.eng.getReflectCounter(ctx, "job-A"); got != 3 {
+	if got := e.eng.state.ReflectCount(ctx, "job-A"); got != 3 {
 		t.Errorf("job-A counter = %d, want 3", got)
 	}
-	if got := e.eng.getReflectCounter(ctx, "job-B"); got != 1 {
+	if got := e.eng.state.ReflectCount(ctx, "job-B"); got != 1 {
 		t.Errorf("job-B counter = %d, want 1", got)
 	}
 }
@@ -76,12 +76,12 @@ func TestReflectCounter_MalformedValueReturnsZero(t *testing.T) {
 	// Inject a malformed value directly into system_state.
 	if _, err := e.db.DB().ExecContext(ctx,
 		`INSERT INTO system_state (key, value) VALUES (?, ?)`,
-		reflectCounterPrefix+jobID, "not-a-number",
+		"reflect:counter:"+jobID, "not-a-number",
 	); err != nil {
 		t.Fatal(err)
 	}
 
-	if got := e.eng.getReflectCounter(ctx, jobID); got != 0 {
+	if got := e.eng.state.ReflectCount(ctx, jobID); got != 0 {
 		t.Errorf("corrupt counter = %d, want 0 (default)", got)
 	}
 }
@@ -94,19 +94,19 @@ func TestReflectionProposal_RoundTrip(t *testing.T) {
 	ctx := context.Background()
 	jobID := "test-proposal-rt-1"
 
-	if got := e.eng.getReflectionProposal(ctx, jobID); got != "" {
+	if got := e.eng.state.ReflectionProposal(ctx, jobID); got != "" {
 		t.Errorf("unset proposal = %q, want empty", got)
 	}
-	if err := e.eng.setReflectionProposal(ctx, jobID, "try a hybrid approach"); err != nil {
+	if err := e.eng.state.SetReflectionProposal(ctx, jobID, "try a hybrid approach"); err != nil {
 		t.Fatalf("setReflectionProposal: %v", err)
 	}
-	if got := e.eng.getReflectionProposal(ctx, jobID); got != "try a hybrid approach" {
+	if got := e.eng.state.ReflectionProposal(ctx, jobID); got != "try a hybrid approach" {
 		t.Errorf("proposal after set = %q, want %q", got, "try a hybrid approach")
 	}
-	if err := e.eng.setReflectionProposal(ctx, jobID, "rethink the data model"); err != nil {
+	if err := e.eng.state.SetReflectionProposal(ctx, jobID, "rethink the data model"); err != nil {
 		t.Fatalf("setReflectionProposal (overwrite): %v", err)
 	}
-	if got := e.eng.getReflectionProposal(ctx, jobID); got != "rethink the data model" {
+	if got := e.eng.state.ReflectionProposal(ctx, jobID); got != "rethink the data model" {
 		t.Errorf("proposal after overwrite = %q, want %q", got, "rethink the data model")
 	}
 }
@@ -123,7 +123,7 @@ func TestReflectionProposalInjectedIntoDivergence(t *testing.T) {
 	// Pre-seed a proposal as if a prior reflection had persisted it.
 	proposal := "UNIQUE_PROPOSAL_MARKER_use_dependency_injection"
 	jobID := e.submit(t)
-	if err := e.eng.setReflectionProposal(ctx, jobID, proposal); err != nil {
+	if err := e.eng.state.SetReflectionProposal(ctx, jobID, proposal); err != nil {
 		t.Fatal(err)
 	}
 

@@ -19,10 +19,10 @@ func TestAnalysisStateRoundTrip(t *testing.T) {
 			{ID: "u2", Goal: "precedence", Mode: analysis.Deliberate, Reason: "hidden constraints"},
 		},
 	}
-	if err := env.eng.setAnalysis(ctx, jobID, want); err != nil {
+	if err := env.eng.state.SetAnalysis(ctx, jobID, want); err != nil {
 		t.Fatal(err)
 	}
-	got, ok := env.eng.getAnalysis(ctx, jobID)
+	got, ok := env.eng.state.Analysis(ctx, jobID)
 	if !ok {
 		t.Fatal("stored analysis was not found")
 	}
@@ -30,7 +30,7 @@ func TestAnalysisStateRoundTrip(t *testing.T) {
 		t.Errorf("analysis = %+v", got)
 	}
 
-	missing, ok := env.eng.getAnalysis(ctx, "no-such-job")
+	missing, ok := env.eng.state.Analysis(ctx, "no-such-job")
 	if ok {
 		t.Error("missing analysis reported as found")
 	}

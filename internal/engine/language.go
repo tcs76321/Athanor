@@ -2,18 +2,11 @@ package engine
 
 import (
 	"context"
-	"log/slog"
 	"strings"
 
 	"github.com/tcs76321/athanor/internal/job"
 	"github.com/tcs76321/athanor/internal/project"
 )
-
-// languageStateKey is the per-job planning hint for the source language. The
-// planner may choose a language (for example, a Python-shaped benchmark task
-// with a Go test command should follow the command); repository detection is
-// the deterministic fallback.
-func languageStateKey(jobID string) string { return "plan:language:" + jobID }
 
 // languageRequest asks the planner to name the source language. It is a
 // constant so the parser and the prompt cannot drift.
@@ -38,40 +31,11 @@ func parseLanguageHint(content string) string {
 	return hint
 }
 
-// setLanguageHint persists the planner's language choice for the job.
-func (e *Engine) setLanguageHint(ctx context.Context, jobID, language string) {
-	if e.db == nil || language == "" || language == project.LanguageUnknown {
-		return
-	}
-	if _, err := e.db.DB().ExecContext(ctx,
-		`INSERT INTO system_state (key, value) VALUES (?, ?)
-		 ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
-		languageStateKey(jobID), language); err != nil {
-		slog.Warn("engine: persisting language hint", "job", jobID, "err", err)
-	}
-}
-
-// languageHint reads the planner's language hint ("" when absent).
-func (e *Engine) languageHint(ctx context.Context, jobID string) string {
-	if e.db == nil {
-		return ""
-	}
-	var v string
-	if err := e.db.DB().QueryRowContext(ctx,
-		`SELECT value FROM system_state WHERE key = ?`, languageStateKey(jobID)).Scan(&v); err != nil {
-		return ""
-	}
-	if !project.ValidLanguage(v) {
-		return ""
-	}
-	return v
-}
-
 // languageFor resolves the generation language: the planner's validated hint
 // first, then repository/manifest detection, then the project test command.
 // Unknown is a valid answer; the prompt then stays generic instead of guessing.
 func (e *Engine) languageFor(ctx context.Context, j job.Job, p project.Project, t project.Task) string {
-	if l := e.languageHint(ctx, j.ID); l != "" {
+	if l := e.state.Language(ctx, j.ID); project.ValidLanguage(l) {
 		return l
 	}
 	if l := project.DetectLanguage(p.RepositoryPath, p.TestCommand()); l != project.LanguageUnknown {
