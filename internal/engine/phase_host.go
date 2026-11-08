@@ -75,24 +75,6 @@ func (h phaseHost) AskForClarification(ctx context.Context, jobID, projectID, ph
 	return h.e.askForClarification(ctx, jobID, projectID, phase, content)
 }
 
-func (h phaseHost) OneShotFirst(ctx context.Context, jobID string) bool {
-	if h.e.cfg == nil || !h.e.cfg.Execution.OneShotFirstEnabled() {
-		return false
-	}
-	if h.e.eval == nil {
-		return true
-	}
-	records, err := h.e.eval.ListByJob(ctx, jobID)
-	if err != nil {
-		return false
-	}
-	return len(records) == 0
-}
-
-func (h phaseHost) MinContextFor(phase, capability, demand string) int {
-	return h.e.minContextFor(phase, capability, demand)
-}
-
 func (h phaseHost) SelectDivergenceRoles(ctx context.Context, j job.Job, p project.Project, t project.Task, n int) []string {
 	if h.e.selector == nil {
 		return nil

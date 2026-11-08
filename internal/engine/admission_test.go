@@ -37,6 +37,11 @@ func TestLaneAdmissionUsedByEnqueue(t *testing.T) {
 			if j.State != job.StateCompleted {
 				t.Fatalf("state = %s, want completed", j.State)
 			}
+			// Run commits the terminal state before its deferred release
+			// unwinds; wait for the release rather than racing it.
+			for i := 0; i < 100 && fa.released.Load() < 1; i++ {
+				time.Sleep(10 * time.Millisecond)
+			}
 			if fa.acquired.Load() != 1 || fa.released.Load() != 1 {
 				t.Errorf("acquire/release = %d/%d, want 1/1", fa.acquired.Load(), fa.released.Load())
 			}

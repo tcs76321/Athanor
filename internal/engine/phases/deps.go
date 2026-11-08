@@ -59,8 +59,6 @@ type Runtime interface {
 	AuditVerification(ctx context.Context, jobID, where string, r verify.Result)
 	Note(ctx context.Context, jobID, projectID string, kind notebook.Kind, phase, content string)
 	AskForClarification(ctx context.Context, jobID, projectID, phase, content string) bool
-	OneShotFirst(ctx context.Context, jobID string) bool
-	MinContextFor(phase, capability, demand string) int
 	SelectDivergenceRoles(ctx context.Context, j job.Job, p project.Project, t project.Task, n int) []string
 	PreferPanel() bool
 	UpdateProfileFeatures(ctx context.Context, j job.Job, t project.Task)
