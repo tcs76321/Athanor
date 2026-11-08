@@ -122,6 +122,21 @@ focused unit tests.
   selection, the `call` gateway) stay together because they are the lifecycle
   and judgment spine; a later ADR may split them if they grow.
 
+## Evidence (2026-11-07)
+
+- `make check` (lint, vet, race) green; `make cover-check` green with floors for
+  `acceptance`, `jobstate`, and `repair`. `phases` and `contextasm` are
+  intentionally unfloored locally: their orchestration is exercised by the
+  engine integration suite, so the package-local number understates coverage.
+- `make fuzz` green for both targets, including `FuzzParseVerdictJSON` at
+  `internal/engine/acceptance/`.
+- `make core-smoke` green: the Core Pod boots and serves `/healthz`.
+- Diagnostic host smoke (one non-code task): `text-constrained-email` completed
+  and passed. A code task (`code-bank-atomic`) failed on the unsupported host
+  path; this is a host diagnostic, not a headline, and the full Core Pod slice
+  remains the real benchmark gate.
+
+
 ## Rejected alternatives
 
 - **Keep one package, split files.** No boundary enforcement; the 34-file
