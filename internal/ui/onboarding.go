@@ -451,6 +451,9 @@ func (u *UI) welcomeData(ctx context.Context, st onboardingState) map[string]any
 		}
 	}
 	qualView := qualificationViewFor(qual, len(measurements) > 0 || pool.QualifiedCount > 0)
+	if qual.Running {
+		qualView.Tier = u.currentQualTier()
+	}
 	qualView.FullEstimate, qualView.FullCases = qualFullEstimate(qual, poolModels)
 	return map[string]any{
 		"State": st, "Step": st.Step, "Steps": onboardingSteps,
@@ -1102,7 +1105,7 @@ func (u *UI) handleWelcomePost(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		st.Step = "qualify"
-		if _, _, err := u.startPoolQualification(ctx, false, false, "core", 0); err != nil {
+		if err := u.setQualificationTier(ctx, qualTierShort); err != nil {
 			u.fail(w, err)
 			return
 		}
@@ -1112,8 +1115,7 @@ func (u *UI) handleWelcomePost(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		st.Step = "qualify"
-		prev := u.loadQualState(ctx)
-		if _, _, err := u.startPoolQualification(ctx, false, prev.Deep, "extra", 10); err != nil {
+		if err := u.setQualificationTier(ctx, qualTierMedium); err != nil {
 			u.fail(w, err)
 			return
 		}
@@ -1123,7 +1125,17 @@ func (u *UI) handleWelcomePost(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		st.Step = "qualify"
-		if _, _, err := u.startPoolQualification(ctx, false, true, "full", 0); err != nil {
+		if err := u.setQualificationTier(ctx, qualTierFull); err != nil {
+			u.fail(w, err)
+			return
+		}
+	case "set_qual_tier":
+		if u.deps.Config == nil {
+			u.fail(w, fmt.Errorf("configuration is not available to the UI"))
+			return
+		}
+		st.Step = "qualify"
+		if err := u.setQualificationTier(ctx, r.FormValue("tier")); err != nil {
 			u.fail(w, err)
 			return
 		}

@@ -321,7 +321,7 @@ func TestWelcomeQualificationOffersSimpleChoices(t *testing.T) {
 	defer func() { _ = resp.Body.Close() }()
 	raw, _ := io.ReadAll(resp.Body)
 	body := string(raw)
-	for _, want := range []string{"Minimum screen complete", "Add 10 minutes", "Full qualification", "Continue"} {
+	for _, want := range []string{"Minimum screen complete", "Short", "Medium", "Full", "Continue"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("completed qualification step missing %q", want)
 		}
@@ -393,6 +393,83 @@ func TestInterruptedQualificationResumesOnStepFour(t *testing.T) {
 	after := u.loadQualState(context.Background())
 	if !after.Running || after.Total == 0 {
 		t.Fatalf("state = %+v, want a resumed run", after)
+	}
+	u.cancelQualification()
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		u.qualMu.Lock()
+		running := u.qualRunning
+		u.qualMu.Unlock()
+		if !running {
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
+func TestTierChangeWhileRunningIsAppliedLive(t *testing.T) {
+	u := newEmptyUI(t)
+	u.qualMu.Lock()
+	u.qualRunning = true
+	u.qualTier = qualTierShort
+	u.qualMu.Unlock()
+	t.Cleanup(func() {
+		u.qualMu.Lock()
+		u.qualRunning = false
+		u.qualTier = ""
+		u.qualMu.Unlock()
+	})
+	if err := u.setQualificationTier(context.Background(), qualTierFull); err != nil {
+		t.Fatal(err)
+	}
+	if got := u.currentQualTier(); got != qualTierFull {
+		t.Fatalf("live tier = %q, want full", got)
+	}
+}
+
+func TestInterruptedFullQualificationResumesFull(t *testing.T) {
+	u := newEmptyUI(t)
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/chat" {
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"message": map[string]string{"content": "A"},
+				"done":    true,
+			})
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer ts.Close()
+	cfg, err := config.Default()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.Inference.OllamaURL = ts.URL
+	u.deps.Config = cfg
+	u.deps.Pool.Upsert(composition.ModelInfo{
+		Name: "fake:latest", Family: "fake", SizeBytes: 1,
+		MaxContext: 8192, ContextTarget: 8192,
+	})
+
+	state := newQualState()
+	state.StartedAt = time.Now().Add(-time.Minute)
+	state.Total = 34
+	state.Done = 17
+	state.Models = []string{"fake:latest"}
+	state.Results["generator|fake:latest|gen-arith"] = true
+	state.CoreComplete = true
+	state.Tier = qualTierFull
+	state.Deep = true
+	u.saveQualState(context.Background(), state)
+
+	u.ensureQualificationStarted(context.Background())
+	after := u.loadQualState(context.Background())
+	if !after.Running || !after.Deep {
+		t.Fatalf("state = %+v, want a resumed full run", after)
+	}
+	want := poolQualificationPlan([]string{"fake:latest"}, onboard.DeepLadder())
+	if after.Total != want {
+		t.Fatalf("total = %d, want the full plan %d", after.Total, want)
 	}
 	u.cancelQualification()
 	deadline := time.Now().Add(time.Second)

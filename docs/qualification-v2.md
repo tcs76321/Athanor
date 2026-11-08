@@ -64,14 +64,17 @@ The run has two layers:
   operation, planning, calibration, judgment) for every model. This is the
   bare minimum and always runs. It has no time cutoff: on a slow machine with a
   large pool it can take a long time, and that is correct.
-- **Starts on its own**: opening the qualification step starts the core screen
-  immediately; there is no duration selector to interpret first. While the core
-  runs, the page shows cases done, elapsed time, and an estimate of the time
-  left from the first model's completed core pass.
-- **Choice after the core**: the operator can stop with the minimum screen, add
-  ten minutes of extra cases, or run the full screen. Each extension runs whole
-  blocks for every model or not at all. Adding time and running the full screen
-  continue from the completed cases; nothing is discarded.
+- **Depth chosen up front**: Short is the minimum screen (one grounded case
+  per capability on every model). Medium adds about ten minutes of extra cases
+  after the minimum. Full runs every case in the deep ladder. The choice sits
+  on the qualification step, and changing it while the screen runs is applied
+  between cases, so selecting Medium or Full does not wait for the minimum to
+  finish.
+- **Starts on its own**: opening the qualification step starts the saved depth
+  (Short on first use) immediately; there is no duration selector to interpret
+  first. While the core runs, the page shows cases done, elapsed time, the
+  model being measured, and an estimate of the time left from the first
+  model's completed core pass.
 
 The state is resumable at case granularity. A Core restart clears the stale
 running flag, and opening the qualification step resumes from the completed

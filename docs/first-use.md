@@ -37,9 +37,9 @@ the main 1.0.0 focus** ([1.0.0-direction.md](1.0.0-direction.md)).
    - model inventory + **qualification ladder** (🔨 shipped as an onboarding
      step; today `athanor models` is inventory + advisory only);
     - qualification: entering the step starts the minimum screen automatically
-      (or resumes one interrupted by a Core restart); the first model’s pass
-      estimates the time left, then the operator can stop there, add ten
-      minutes, or run the full screen.
+      (or resumes one interrupted by a Core restart). Short, Medium, and Full
+      can be chosen up front or switched while it runs; the first model’s pass
+      estimates the time left.
 5. **First project** (still tutorial-mode: tooltips, stateful, dismissible):
    - **Project → goals → tasks.**
    - **Project initialisation** (🔨): a resumable brief and, for exploratory

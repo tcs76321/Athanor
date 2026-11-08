@@ -303,12 +303,32 @@ const welcomeBody = `
     <div class="eyebrow">Step {{.StepNumber}} of {{.StepCount}}</div>
     <h1>Rank the pool.</h1>
     <p class="lede">Athanor measures every pool model on a small, grounded screen: deterministic generator cases and fixed-label judgment pairs. It is a prior for selection, not the frozen capability benchmark, and it never leaves this machine. Real job outcomes update the ranking over time.</p>
+    <div class="tier-picker">
+      <div class="tier-picker-head"><b>How deep should the screen go?</b><span class="muted small">Choose now — a running screen switches without waiting for the minimum to finish.</span></div>
+      <form method="post" action="/ui/welcome" class="tier-options">
+        <input type="hidden" name="step" value="qualify">
+        <input type="hidden" name="action" value="set_qual_tier">
+        <button type="submit" name="tier" value="short" class="tier-option {{if eq .Qualification.Tier "short"}}selected{{end}}">
+          <span class="tier-name">Short</span>
+          <span class="tier-desc">Minimum screen: one grounded case per capability on every model.</span>
+        </button>
+        <button type="submit" name="tier" value="medium" class="tier-option {{if eq .Qualification.Tier "medium"}}selected{{end}}">
+          <span class="tier-name">Medium</span>
+          <span class="tier-desc">Minimum screen, then about ten minutes of extra cases.</span>
+        </button>
+        <button type="submit" name="tier" value="full" class="tier-option {{if eq .Qualification.Tier "full"}}selected{{end}}">
+          <span class="tier-name">Full</span>
+          <span class="tier-desc">Every case in the deep ladder{{if .Qualification.FullEstimate}} · about {{.Qualification.FullEstimate}} remaining{{end}}.</span>
+        </button>
+      </form>
+    </div>
     {{if .Qualification.Running}}
     <div class="card" data-live-card="welcome-qualification" data-live-interval="2000">
       <div class="row row-middle"><h3>{{if eq .Qualification.Phase "core"}}Measuring the pool{{else}}Filling out the screen{{end}}</h3><span class="pill run">{{.Qualification.Percent}}%</span></div>
       <progress class="progress" value="{{.Qualification.Percent}}" max="100">{{.Qualification.Percent}}%</progress>
       <p><b>{{.Qualification.Done}} / {{.Qualification.Total}}</b> cases complete{{if .Qualification.CurrentModel}} · measuring <b class="mono">{{.Qualification.CurrentModel}}</b>{{end}}{{if .Qualification.Elapsed}} · {{.Qualification.Elapsed}} elapsed{{end}}{{if .Qualification.Remaining}} · about {{.Qualification.Remaining}} left{{else if .Qualification.CoreRemaining}} · about {{.Qualification.CoreRemaining}} left{{else if .Qualification.Estimate}} · about {{.Qualification.Estimate}} total{{else}} · estimating time left…{{end}}</p>
       <p class="muted">{{if eq .Qualification.Phase "core"}}The minimum screen runs one grounded case per capability on every model. It keeps running if you leave this page and resumes after a restart.{{else}}Every model runs the same extra cases, so the ranking stays comparable.{{end}}</p>
+      <p class="muted small">Depth: {{if eq .Qualification.Tier "short"}}Short — the run stops after the minimum screen.{{else if eq .Qualification.Tier "medium"}}Medium — the minimum screen, then about ten minutes of extra cases.{{else}}Full — the minimum screen, then every remaining case.{{end}} Changing it above applies between cases.</p>
       <form method="post" action="/ui/setup/qualify/cancel">
         <input type="hidden" name="next" value="/ui/welcome?step=qualify">
         <button class="danger small" data-confirm="Stop this qualification run? Completed cases are kept and the run can resume later.">Stop measuring</button>
@@ -322,30 +342,16 @@ const welcomeBody = `
         <div class="card stat"><div class="n">{{.Qualification.Total}}</div><div class="l">cases planned</div></div>
         <div class="card stat"><div class="n">{{if .Qualification.Estimate}}{{.Qualification.Estimate}}{{else}}—{{end}}</div><div class="l">core run time</div></div>
       </div>
-      <p class="ok"><b>{{if .Qualification.AllCases}}All cases complete.{{else}}Minimum screen complete.{{end}}</b> The ranking below is usable now.</p>
+      <p class="ok"><b>{{if eq .Qualification.Tier "short"}}Minimum screen complete.{{else if eq .Qualification.Tier "full"}}{{if .Qualification.AllCases}}All cases complete.{{else}}Full screen paused — choose Full above to continue.{{end}}{{else}}{{if .Qualification.AllCases}}All cases complete.{{else if .Qualification.Complete}}Medium pass complete.{{else}}Medium pass paused — choose Medium above to continue.{{end}}{{end}}</b> The ranking below is usable now.</p>
       {{if .Qualification.Error}}<p class="del">{{.Qualification.Error}}</p>{{end}}
-      <p class="muted">Stop here, add ten minutes of extra cases, or run the full screen. Every choice keeps every model on the same cases, so the ranking stays comparable.</p>
-      <div class="actions">
-        <form method="post" action="/ui/welcome">
-          <input type="hidden" name="step" value="qualify">
-          <button class="secondary" name="action" value="run_qualify_more">Add 10 minutes</button>
-        </form>
-        <form method="post" action="/ui/welcome">
-          <input type="hidden" name="step" value="qualify">
-          <button class="secondary" name="action" value="run_qualify_full">Full qualification{{if .Qualification.FullEstimate}} · about {{.Qualification.FullEstimate}}{{end}}</button>
-        </form>
-      </div>
-      {{if .Qualification.FullCases}}<p class="muted small">{{.Qualification.FullCases}} cases remain for the full screen. Continue below to use the current ranking.</p>{{end}}
+      <p class="muted">Choose a deeper level above to keep going; completed cases are kept. Continue below to use the current ranking.</p>
+      {{if .Qualification.FullCases}}<p class="muted small">{{.Qualification.FullCases}} cases remain for the full screen.</p>{{end}}
     </div>
     {{else}}
     <div class="card">
       {{if .Qualification.Error}}<p class="del">{{.Qualification.Error}}</p>{{end}}
       {{if .Qualification.Stale}}<p class="muted">A previous run looks stale; starting again picks up from the completed cases.</p>{{end}}
-      <p class="muted">The screen starts automatically when you reach this step. If it did not start, start it here; completed cases are kept.</p>
-      <form method="post" action="/ui/welcome">
-        <input type="hidden" name="step" value="qualify">
-        <button class="primary" name="action" value="run_qualify">Start measuring</button>
-      </form>
+      <p class="muted">Choose a depth above to start. Completed cases are kept if the run is paused.</p>
     </div>
     {{end}}
     <p class="muted small">The screen covers code, data, documents, text, media, summarization, security, agentic decisions, instruction following, grounding, repair, long-context recall, engine-operation choice, planning, calibration, and judgment. Each family is scored separately.</p>

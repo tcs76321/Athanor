@@ -46,8 +46,8 @@ New entries are appended at the top. Do not rewrite history.
   as separate capabilities. The screen is 80 default / 119 deep cases, runs a
   per-capability core for every model first, then 30-case blocks for every
   model, and scores only cases every model completed. The core starts
-  automatically on the qualification step; the operator can then stop, add ten
-  minutes, or run the full screen. The run is resumable.
+  automatically on the qualification step; Short, Medium, and Full depths can
+  be chosen up front or switched while it runs. The run is resumable.
   Benchmark provenance is `eval/qualification/categories.yaml`;
   `make bench-anchor-core` runs the real 12-task v2 anchor subset.
 - **Retention** (ADR-0127): events older than `retention.events_days` (default

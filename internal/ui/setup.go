@@ -40,10 +40,14 @@ type qualState struct {
 	Deep    bool                      `json:"deep,omitempty"`
 	// MinimumMinutes is the operator's minimum total run time; 0 means
 	// core-only. The core may exceed it. Phase is "core" or "extra".
-	MinimumMinutes int     `json:"minimum_minutes,omitempty"`
-	Phase          string  `json:"phase,omitempty"`
-	CoreComplete   bool    `json:"core_complete,omitempty"`
-	CoreSeconds    float64 `json:"core_seconds,omitempty"`
+	MinimumMinutes int    `json:"minimum_minutes,omitempty"`
+	Phase          string `json:"phase,omitempty"`
+	// Tier is the operator's chosen depth: short (minimum), medium (minimum
+	// plus about ten minutes), or full (every deep case). It is saved so a
+	// Core restart resumes the same depth.
+	Tier         string  `json:"tier,omitempty"`
+	CoreComplete bool    `json:"core_complete,omitempty"`
+	CoreSeconds  float64 `json:"core_seconds,omitempty"`
 	// FirstModel is the first screened model and its core time; the extra
 	// budget is estimated from this pass rather than waiting for every model.
 	FirstModel           string   `json:"first_model,omitempty"`
@@ -111,6 +115,7 @@ type qualificationView struct {
 	// shown while the core is still running.
 	CoreRemaining string
 	CurrentModel  string
+	Tier          string
 }
 
 // qualificationViewFor builds the progress view. A run with no plan yet
@@ -121,7 +126,7 @@ func qualificationViewFor(s qualState, hasMeasurements bool) qualificationView {
 		Running: s.Running, Done: s.Done, Total: s.Total,
 		Error: s.Error, Stale: s.stale(), HasMeasurements: hasMeasurements,
 		CoreComplete: s.CoreComplete, MinimumMinutes: s.MinimumMinutes, Phase: s.Phase,
-		CurrentModel: s.CurrentModel,
+		CurrentModel: s.CurrentModel, Tier: normalizeQualTier(s.Tier),
 	}
 	if s.CoreSeconds > 0 {
 		v.Estimate = time.Duration(s.CoreSeconds * float64(time.Second)).Round(time.Second).String()

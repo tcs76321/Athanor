@@ -575,6 +575,35 @@ main {
 }
 .card.flush { padding: 0; overflow: hidden; }
 .card h2:first-child, .card h3:first-child { margin-top: 0; }
+
+/* qualification depth */
+.tier-picker { margin: 0 0 var(--space-5); }
+.tier-picker-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: var(--space-3); flex-wrap: wrap; margin-bottom: var(--space-3);
+}
+.tier-options {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+.tier-option {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 6px;
+  padding: var(--space-4); text-align: left; cursor: pointer;
+  background: var(--panel); color: var(--text);
+  border: var(--line); border-radius: var(--radius);
+}
+.tier-option:hover { border-color: var(--accent); }
+.tier-option.selected {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+  background: var(--accent-soft);
+}
+.tier-name {
+  font-family: var(--font-display); font-size: var(--step-1);
+  font-weight: 650; letter-spacing: -.01em;
+}
+.tier-desc { color: var(--text-soft); font-size: 0.86rem; line-height: 1.45; }
+@media (max-width: 800px) { .tier-options { grid-template-columns: 1fr; } }
 .card-hover { transition: border-color var(--dur) var(--ease), transform var(--dur) var(--ease); }
 .card-hover:hover { border-color: var(--border-strong); transform: translateY(-1px); }
 .card-soft { background: var(--bg-raised); }

@@ -204,6 +204,10 @@ type UI struct {
 	qualMu      sync.Mutex
 	qualRunning bool
 	qualCancel  context.CancelFunc
+	// qualTier is the live target depth. The worker re-reads it between
+	// cases, so choosing medium or full mid-run takes effect without waiting
+	// for the short screen to finish.
+	qualTier string
 	// themeMu guards the process-wide UI theme. The Core is a single-user
 	// loopback service, so one theme is the right scope; it is persisted in
 	// system_state and applied server-side so first paint is correct without
