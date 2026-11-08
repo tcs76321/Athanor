@@ -48,7 +48,7 @@ func (e *Engine) selfRefine(ctx context.Context, j job.Job, p project.Project, t
 		return false, fmt.Errorf("reading candidate for self-refine: %w", err)
 	}
 
-	capability := capabilityFor(p, t)
+	capability := project.CapabilityFor(p, t)
 	plan := e.planFor(ctx, j, p, t)
 	role := e.roleFor(plan, llm.PhaseRefining, llm.RoleMain)
 	if e.cfg.Execution.ObservationToolsEnabled() && capability == project.CapabilityCode {

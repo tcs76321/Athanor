@@ -62,6 +62,36 @@ func PrimaryCapability(caps []string) string {
 	return CapabilityDocument
 }
 
+// CapabilityFor resolves the task's primary output kind. It prefers the
+// task's inferred capability, then the project's primary capability, then
+// document (the fail-safe). The legacy project/archetype fields remain only
+// as fallbacks for rows written before ADR-0093.
+func CapabilityFor(p Project, t Task) string {
+	if ValidCapability(t.Capability) {
+		return t.Capability
+	}
+	if c := p.PrimaryCapability(); ValidCapability(c) {
+		return c
+	}
+	return CapabilityDocument
+}
+
+// ContextDemand is the deterministic pre-planning demand signal for a task.
+// A repository-backed code task needs the repository working set; a long
+// description or criteria list needs the long-context window; everything else
+// is short. The engine's context planner may raise it later from a model hint;
+// this function never guesses beyond repository and length facts.
+func ContextDemand(p Project, t Task) string {
+	if p.RepositoryPath != "" && CapabilityFor(p, t) == CapabilityCode {
+		return "repo"
+	}
+	chars := len([]rune(t.Description)) + len([]rune(strings.Join(t.Criteria, "\n")))
+	if chars > 1200 {
+		return "long"
+	}
+	return "short"
+}
+
 // NormalizeCapabilities deduplicates and orders a set. Invalid entries are
 // ignored; an empty result becomes [document].
 func NormalizeCapabilities(caps []string) []string {

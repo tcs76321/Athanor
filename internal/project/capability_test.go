@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/tcs76321/athanor/internal/store"
@@ -86,6 +87,33 @@ func TestInferTaskCapability(t *testing.T) {
 	}
 	if got := InferTaskCapability("Build a REST API endpoint and make the tests pass.", []string{CapabilityDocument}, ""); got != CapabilityCode {
 		t.Errorf("REST API capability = %q, want code", got)
+	}
+}
+
+func TestCapabilityFor(t *testing.T) {
+	code := Project{Capabilities: []string{CapabilityDocument, CapabilityCode}}
+	if got := CapabilityFor(code, Task{Capability: CapabilityData}); got != CapabilityData {
+		t.Errorf("task override = %q, want data", got)
+	}
+	if got := CapabilityFor(code, Task{}); got != CapabilityCode {
+		t.Errorf("project fallback = %q, want code", got)
+	}
+	if got := CapabilityFor(Project{}, Task{Capability: "bogus"}); got != CapabilityDocument {
+		t.Errorf("fail-safe = %q, want document", got)
+	}
+}
+
+func TestContextDemand(t *testing.T) {
+	repo := Project{RepositoryPath: "/tmp/repo", Capabilities: []string{CapabilityCode}}
+	if got := ContextDemand(repo, Task{}); got != "repo" {
+		t.Errorf("repo demand = %q, want repo", got)
+	}
+	long := Project{}
+	if got := ContextDemand(long, Task{Description: strings.Repeat("x", 1201)}); got != "long" {
+		t.Errorf("long demand = %q, want long", got)
+	}
+	if got := ContextDemand(Project{}, Task{Description: "short"}); got != "short" {
+		t.Errorf("short demand = %q, want short", got)
 	}
 }
 

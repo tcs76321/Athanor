@@ -9,6 +9,7 @@ import (
 	"github.com/tcs76321/athanor/internal/artifact"
 	"github.com/tcs76321/athanor/internal/job"
 	"github.com/tcs76321/athanor/internal/process"
+	"github.com/tcs76321/athanor/internal/project"
 	"github.com/tcs76321/athanor/internal/store"
 )
 
@@ -80,7 +81,7 @@ func (e *Engine) evaluateProcess(ctx context.Context, j job.Job) {
 		}
 	}
 	if p, t, err := e.contexts(ctx, j); err == nil {
-		if final, ferr := e.artifacts.LatestForJob(ctx, j.ID, finalKindFor(capabilityFor(p, t))); ferr == nil {
+		if final, ferr := e.artifacts.LatestForJob(ctx, j.ID, finalKindFor(project.CapabilityFor(p, t))); ferr == nil {
 			in.Completed = j.State == job.StateCompleted
 			in.FinalAccepted = in.Completed && final.Status == artifact.StatusAccepted
 			if in.FinalAccepted && e.eval != nil {

@@ -26,7 +26,7 @@ import (
 func (e *Engine) verifyCandidate(ctx context.Context, j job.Job, p project.Project, t project.Task,
 	content string, idx int) (verify.Result, verify.Input, error) {
 
-	capability := capabilityFor(p, t)
+	capability := project.CapabilityFor(p, t)
 	in := verify.Input{
 		Capability: capability,
 		Archetype:  capability,

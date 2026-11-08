@@ -271,7 +271,7 @@ func renderCorrection(r corrections.Record) string {
 func (e *Engine) promptTiersFor(ctx context.Context, j job.Job, p project.Project, t project.Task,
 	phase string, candidates []prompt.CandidateArtifact) promptTiers {
 
-	capability := capabilityFor(p, t)
+	capability := project.CapabilityFor(p, t)
 	pt := promptTiers{Tools: e.toolManifest(t), Candidates: candidates}
 	// M6-T7 (§18.3, ADR-0038): retrieval is deterministic — severity, then
 	// scope, then recency — so a high-severity project correction outranks

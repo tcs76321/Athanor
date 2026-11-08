@@ -129,7 +129,7 @@ func (e *Engine) captureProfile(ctx context.Context, j job.Job) {
 		return
 	}
 	plan := e.planFor(ctx, j, p, t)
-	capability := capabilityFor(p, t)
+	capability := project.CapabilityFor(p, t)
 	e.auditComputePlan(ctx, j.ID, "profile", plan)
 	if _, err := e.strategy.CreateProfile(ctx, strategy.Profile{
 		JobID: j.ID, ProjectID: p.ID, Archetype: capability,

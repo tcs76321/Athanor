@@ -635,14 +635,14 @@ func (e *Engine) verifierRegistry() *verify.Registry {
 // for the cross-family acceptance gate and its audit.
 func (e *Engine) actualCrossFamily(ctx context.Context, j job.Job, p project.Project, t project.Task,
 	generatorRole, judgeRole string) (gen, judge string, ok bool) {
-	capability := capabilityFor(p, t)
+	capability := project.CapabilityFor(p, t)
 	gen = e.generatorFamily(j.ID)
 	if gen == "" {
-		if gp, gok := e.personaFor(ctx, llm.PhaseDiverging, generatorRole, capability, contextDemandFor(p, t), p.ID, j.ID); gok {
+		if gp, gok := e.personaFor(ctx, llm.PhaseDiverging, generatorRole, capability, project.ContextDemand(p, t), p.ID, j.ID); gok {
 			gen = gp.Family
 		}
 	}
-	jp, jok := e.personaFor(ctx, llm.PhaseComparing, judgeRole, capability, contextDemandFor(p, t), p.ID, j.ID)
+	jp, jok := e.personaFor(ctx, llm.PhaseComparing, judgeRole, capability, project.ContextDemand(p, t), p.ID, j.ID)
 	if !jok {
 		return gen, "", false
 	}
@@ -670,7 +670,7 @@ func (e *Engine) planFor(ctx context.Context, j job.Job, p project.Project, t pr
 
 // planInputs assembles the pure policy input from persisted state.
 func (e *Engine) planInputs(ctx context.Context, j job.Job, p project.Project, t project.Task) policy.Inputs {
-	capability := capabilityFor(p, t)
+	capability := project.CapabilityFor(p, t)
 	in := policy.Inputs{
 		Features: policy.Features{
 			Archetype:     capability,

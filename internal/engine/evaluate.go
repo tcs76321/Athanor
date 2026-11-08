@@ -224,7 +224,7 @@ func (e *Engine) evaluateCandidate(ctx context.Context, j job.Job, p project.Pro
 	// `security_issues` / `style_issues` arrays map 1:1 to
 	// rubric items. Empty for data/media (deferred) and for
 	// unknown archetypes.
-	rubric := rubricFor(capabilityFor(p, t))
+	rubric := rubricFor(project.CapabilityFor(p, t))
 	var rubricBlock string
 	if rubric != "" {
 		rubricBlock = "## RUBRIC (apply every item; echo unmet items into missing_criteria or security_issues or style_issues)\n" + rubric + "\n\n"

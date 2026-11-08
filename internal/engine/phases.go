@@ -245,7 +245,7 @@ func (e *Engine) call(ctx context.Context, j job.Job, p project.Project, t proje
 		return llm.Response{}, errors.New("engine: registry is nil (call requires personas)")
 	}
 
-	persona, ok := e.personaFor(ctx, phase, role, capabilityFor(p, t), contextDemandFor(p, t), p.ID, j.ID)
+	persona, ok := e.personaFor(ctx, phase, role, project.CapabilityFor(p, t), project.ContextDemand(p, t), p.ID, j.ID)
 	if !ok {
 		return llm.Response{}, fmt.Errorf("persona %q missing from registry", role)
 	}
@@ -253,13 +253,13 @@ func (e *Engine) call(ctx context.Context, j job.Job, p project.Project, t proje
 	// delta, retry directive) apply to every call the job makes. They come from
 	// the same pure plan the phase used, so they are consistent across phases.
 	plan := e.planFor(ctx, j, p, t)
-	capability := capabilityFor(p, t)
+	capability := project.CapabilityFor(p, t)
 
 	// ADR-0124: an adaptive planner chooses this job's window. A nil planner
 	// (or a planner that declines) preserves the legacy fixed-floor path.
 	planned := false
 	if e.contextPlanner != nil {
-		demand := contextDemandFor(p, t)
+		demand := project.ContextDemand(p, t)
 		pinned := prompt.EstimateTokens(t.Title+"\n"+t.Description+"\n"+strings.Join(t.Criteria, "\n")) + 512
 		working := 0
 		if capability == project.ArchetypeCode && e.cfg.ContextEngine.WorkingSetMaxBytes > 0 {
@@ -748,7 +748,7 @@ func (e *Engine) phaseSynthesize(ctx context.Context, j job.Job) error {
 	// M5-T5: the proposal bytes ride §11.2 §12 (tier 3, never evicted)
 	// instead of being concatenated into the §13 instructions.
 	plan := e.planFor(ctx, j, p, t)
-	capability := capabilityFor(p, t)
+	capability := project.CapabilityFor(p, t)
 	role := e.roleFor(plan, llm.PhaseSynthesizing, llm.RoleMain)
 	instructions := "Refine the divergence proposal below into the final artifact for this task."
 	if capability == project.CapabilityCode {

@@ -1,10 +1,7 @@
 package engine
 
 import (
-	"strings"
-
 	"github.com/tcs76321/athanor/internal/llm"
-	"github.com/tcs76321/athanor/internal/project"
 )
 
 // ContextRequest is the planner's view of one phase. Pinned/Working/Output are
@@ -64,17 +61,4 @@ func (e *Engine) minContextFor(phase, capability, demand string) int {
 		}
 	}
 	return 0
-}
-
-// contextDemandFor is the deterministic pre-planning demand signal. A planner
-// hint may raise it later; this never guesses beyond repository/length facts.
-func contextDemandFor(p project.Project, t project.Task) string {
-	if p.RepositoryPath != "" && capabilityFor(p, t) == project.ArchetypeCode {
-		return "repo"
-	}
-	chars := len([]rune(t.Description)) + len([]rune(strings.Join(t.Criteria, "\n")))
-	if chars > 1200 {
-		return "long"
-	}
-	return "short"
 }

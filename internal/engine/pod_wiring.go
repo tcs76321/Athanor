@@ -35,7 +35,7 @@ import (
 // tool-envelope refusal is a soft skip, not a test run: the caller must not run
 // the test command against a work tree that does not contain this candidate.
 func (e *Engine) runCodeInPod(ctx context.Context, j job.Job, p project.Project, t project.Task, code string) (bool, error) {
-	capability := capabilityFor(p, t)
+	capability := project.CapabilityFor(p, t)
 	if e.runner == nil {
 		e.audit(ctx, j.ID, map[string]any{
 			"event":     "code_executed",

@@ -32,8 +32,8 @@ func (e *Engine) laneFor(ctx context.Context, jobID string) string {
 	if err != nil {
 		return "light"
 	}
-	if capabilityFor(p, t) == project.ArchetypeCode {
-		if contextDemandFor(p, t) == "repo" {
+	if project.CapabilityFor(p, t) == project.ArchetypeCode {
+		if project.ContextDemand(p, t) == "repo" {
 			return "solo"
 		}
 		return "pods"

@@ -70,7 +70,7 @@ func (e *Engine) phaseDivergeN(ctx context.Context, j job.Job) error {
 	if e.cfg == nil {
 		return errors.New("engine: cfg is nil (diverge phase requires config)")
 	}
-	capability := capabilityFor(p, t)
+	capability := project.CapabilityFor(p, t)
 	language := e.languageFor(ctx, j, p, t)
 	// F4-T1c/T2/T5: resolve the plan once here (after planning, so the
 	// difficulty hint is visible), audit it, then use its candidate count,
@@ -105,7 +105,7 @@ func (e *Engine) phaseDivergeN(ctx context.Context, j job.Job) error {
 	// ADR-0104: when a measured pool exists, draw the candidates from it and
 	// prefer different families. The legacy role list remains the fallback.
 	if e.selector != nil {
-		minContext := e.minContextFor(llm.PhaseDiverging, capability, contextDemandFor(p, t))
+		minContext := e.minContextFor(llm.PhaseDiverging, capability, project.ContextDemand(p, t))
 		req := ModelRequest{
 			Phase: llm.PhaseDiverging, Capability: capability, Stance: "generate",
 			MinContext: minContext, ProjectID: p.ID, JobID: j.ID,
