@@ -101,6 +101,9 @@ type jobMetrics struct {
 	HeldOut       bool   `json:"held_out,omitempty"`
 	ContextDemand string `json:"context_demand,omitempty"`
 	Category      string `json:"category,omitempty"`
+	// v3 claim suite and required mechanisms (ADR-0133).
+	Suite    string   `json:"suite,omitempty"`
+	Requires []string `json:"requires,omitempty"`
 	// Bench is true for rows from eval/bench/tasks.yaml (including the original
 	// 15), false for the locked M3-T7 set; the held-out table uses it to keep
 	// the locked set out of the tuning count.

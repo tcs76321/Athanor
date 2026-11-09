@@ -420,6 +420,7 @@ func (r *runnerConfig) runOne(g sampleGoal, m probeModel, a arm, run int, stateD
 		GoalName: g.Name, GoalNumber: g.Number, Archetype: g.Archetype, Tier: tierOf(g.Source),
 		ModelLabel: m.Label, Model: m.Model, Family: m.Family, Arm: a.Name, Run: run,
 		HeldOut: g.HeldOut, ContextDemand: g.ContextDemand, Category: g.Category,
+		Suite: g.Suite, Requires: g.Requires,
 		Bench: strings.HasPrefix(g.Source, "bench:"), LabelVersion: benchLabelVersion,
 	}
 	name := fmt.Sprintf("%s-%s-%s-r%d-%d", g.Name, m.Label, a.Name, run, time.Now().UnixNano()%1_000_000)
