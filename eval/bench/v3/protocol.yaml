@@ -128,7 +128,7 @@ suites:
     held_out: 3
     machine_budget_hours: 8
   one_shot:
-    tasks: eval/bench/v3/one-shot.yaml
+    tasks: eval/bench/v3/one_shot.yaml
     passes: 1
     arms: [single, cascade]
     held_out: 1

@@ -84,6 +84,7 @@ type pairedReport struct {
 	NonInferiority    []pairedNonInferiority `json:"non_inferiority"`
 	EarlyStop         pairedEarlyStop        `json:"early_stop"`
 	MechanismCoverage float64                `json:"mechanism_coverage"`
+	MechanismRuns     int                    `json:"mechanism_runs"`
 	Mechanisms        []mechanismRow         `json:"mechanisms,omitempty"`
 }
 
@@ -111,12 +112,15 @@ func buildPairedReport(metrics []jobMetrics, opt pairedOptions) pairedReport {
 
 	// Summary per arm.
 	arms := map[string]*pairedArmSummary{}
+	armTasks := map[string]map[string]bool{}
 	for _, m := range rows {
 		a := arms[m.Arm]
 		if a == nil {
 			a = &pairedArmSummary{Arm: m.Arm}
 			arms[m.Arm] = a
+			armTasks[m.Arm] = map[string]bool{}
 		}
+		armTasks[m.Arm][m.GoalName] = true
 		a.Runs++
 		if jobPassed(m) {
 			a.Passes++
@@ -124,7 +128,8 @@ func buildPairedReport(metrics []jobMetrics, opt pairedOptions) pairedReport {
 		a.MeanTokens += float64(m.TokenCost)
 		a.MeanWallMS += float64(m.WallMS)
 	}
-	for _, a := range arms {
+	for name, a := range arms {
+		a.Tasks = len(armTasks[name])
 		if a.Runs > 0 {
 			a.Rate = float64(a.Passes) / float64(a.Runs)
 			a.MeanTokens /= float64(a.Runs)
@@ -172,9 +177,6 @@ func buildPairedReport(metrics []jobMetrics, opt pairedOptions) pairedReport {
 			HasFull:         len(full) > 0,
 		}
 		report.Tasks = append(report.Tasks, row)
-	}
-	for i := range report.Arms {
-		report.Arms[i].Tasks = len(report.Tasks)
 	}
 
 	// Non-inferiority: cascade and full vs single.
@@ -286,7 +288,11 @@ func buildPairedReport(metrics []jobMetrics, opt pairedOptions) pairedReport {
 	sort.Slice(report.Mechanisms, func(i, j int) bool {
 		return report.Mechanisms[i].Task < report.Mechanisms[j].Task
 	})
-	report.MechanismCoverage = ratio(mechCovered, mechRuns)
+	report.MechanismRuns = mechRuns
+	report.MechanismCoverage = 1
+	if mechRuns > 0 {
+		report.MechanismCoverage = ratio(mechCovered, mechRuns)
+	}
 	return report
 }
 
@@ -393,7 +399,12 @@ func renderPairedMarkdown(r pairedReport) string {
 		r.EarlyStop.Runs, r.EarlyStop.EarlyStops, r.EarlyStop.StopRate*100,
 		r.EarlyStop.EarlyStopPassRate*100, r.EarlyStop.Escalations, r.EarlyStop.EscalationRate*100)
 	b.WriteString("\n## Mechanism coverage\n\n")
-	fmt.Fprintf(&b, "Coverage: **%.1f%%** of runs exercised every required mechanism.\n\n", r.MechanismCoverage*100)
+	if r.MechanismRuns == 0 {
+		b.WriteString("No mechanism-bearing runs.\n")
+	} else {
+		fmt.Fprintf(&b, "Coverage: **%.1f%%** of %d mechanism-bearing runs exercised every required mechanism.\n\n",
+			r.MechanismCoverage*100, r.MechanismRuns)
+	}
 	if len(r.Mechanisms) > 0 {
 		b.WriteString("| task | runs | covered | missing |\n")
 		b.WriteString("|---|---:|---:|---|\n")

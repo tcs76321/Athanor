@@ -12,7 +12,7 @@ const (
 	benchV3Core     = benchV3Dir + "/core.yaml"
 	benchV3Agentic  = benchV3Dir + "/agentic.yaml"
 	benchV3Quality  = benchV3Dir + "/quality.yaml"
-	benchV3OneShot  = benchV3Dir + "/one-shot.yaml"
+	benchV3OneShot  = benchV3Dir + "/one_shot.yaml"
 	benchV3Anchor   = benchV3Dir + "/anchor.yaml"
 	benchV3Memory   = benchV3Dir + "/memory-scripts.yaml"
 	benchV3Rubric   = benchV3Dir + "/quality-rubric.yaml"

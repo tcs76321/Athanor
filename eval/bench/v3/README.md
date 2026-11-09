@@ -162,7 +162,7 @@ claim-critical scheduler.
 | `core.yaml` | 28 breadth tasks |
 | `agentic.yaml` | 14 mechanism-required tasks |
 | `quality.yaml` | 14 rubric-scored tasks |
-| `one-shot.yaml` | 8 early-stop tasks |
+| `one_shot.yaml` | 8 early-stop tasks |
 | `anchor.yaml` | 12-task quick screen (tuning-only, core subset) |
 | `memory-scripts.yaml` | memory/correction sequences |
 | `fixtures/` | starter repositories and long sources |

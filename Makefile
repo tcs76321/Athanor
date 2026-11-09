@@ -198,6 +198,7 @@ soak-smoke:
 BENCH_ARM          ?= full
 BENCH_MODEL        ?= ornith9b
 BENCH_JUDGE        ?= granite4.2:3b
+BENCH_OLLAMA       ?= http://host.containers.internal:11434
 BENCH_OUT          ?= tools/bench/results/bench-v2
 BENCH_CONFIG       ?= $(BENCH_OUT)/core-config.yaml
 BENCH_STATE_VOLUME ?= athanor-bench-v2-state
@@ -224,7 +225,7 @@ bench-config:
 	@mkdir -p $(BENCH_OUT)
 	CGO_ENABLED=1 go run $(GO_TAGS) ./tools/bench config \
 		-model $(BENCH_MODEL) -arm $(BENCH_ARM) -judge-model $(BENCH_JUDGE) \
-		-ollama http://host.containers.internal:11434 -addr 127.0.0.1:7420 \
+		-ollama $(BENCH_OLLAMA) -addr 127.0.0.1:7420 \
 		-jobpod-image athanor-jobpod:latest \
 		-token-host-dir $(abspath $(BENCH_OUT))/tokens \
 		-scratch-host-dir $(abspath $(BENCH_OUT))/scratch -soak > $(BENCH_CONFIG)
@@ -240,9 +241,9 @@ bench-full: bench-verify bench-image bench-config
 		echo "=== incomplete full run at $(BENCH_OUT)/out; remove it to restart ===" >&2; exit 1; \
 	fi
 	@BENCH_OUT=$(BENCH_OUT) BENCH_CONFIG=$(BENCH_CONFIG) BENCH_STATE_VOLUME=$(BENCH_STATE_VOLUME) \
-		PROBE_IMAGE=$(PROBE_IMAGE) ./scripts/bench-core.sh start
-	@BENCH_OUT=$(BENCH_OUT) ./scripts/bench-core.sh preflight
-	@BENCH_OUT=$(BENCH_OUT) BENCH_PROBE_OUT=/bench/out \
+		PROBE_IMAGE=$(PROBE_IMAGE) BENCH_OLLAMA=$(BENCH_OLLAMA) ./scripts/bench-core.sh start
+	@BENCH_OUT=$(BENCH_OUT) BENCH_OLLAMA=$(BENCH_OLLAMA) ./scripts/bench-core.sh preflight
+	@BENCH_OUT=$(BENCH_OUT) BENCH_PROBE_OUT=/bench/out BENCH_OLLAMA=$(BENCH_OLLAMA) \
 		./scripts/bench-core.sh probe -corpus $(BENCH_DIR)/tasks.yaml \
 		-model $(BENCH_MODEL) -arm $(BENCH_ARM) -judge-model $(BENCH_JUDGE) \
 		-passes 1 -hours $(BENCH_HOURS) -timeout $(BENCH_TIMEOUT)
@@ -321,8 +322,8 @@ bench-anchor-core: bench-verify bench-image
 		BENCH_STATE_VOLUME=$(BENCH_ANCHOR_STATE_VOLUME)
 	@BENCH_OUT=$(BENCH_ANCHOR_OUT) BENCH_CONFIG=$(BENCH_ANCHOR_OUT)/core-config.yaml \
 		BENCH_STATE_VOLUME=$(BENCH_ANCHOR_STATE_VOLUME) PROBE_IMAGE=$(PROBE_IMAGE) \
-		./scripts/bench-core.sh start
-	@BENCH_OUT=$(BENCH_ANCHOR_OUT) ./scripts/bench-core.sh probe \
+		BENCH_OLLAMA=$(BENCH_OLLAMA) ./scripts/bench-core.sh start
+	@BENCH_OUT=$(BENCH_ANCHOR_OUT) BENCH_OLLAMA=$(BENCH_OLLAMA) ./scripts/bench-core.sh probe \
 		-corpus $(BENCH_DIR)/tasks.yaml -anchor-tasks $(BENCH_DIR)/anchor.yaml \
 		-model $(BENCH_ANCHOR_MODEL) -arm single -judge-model $(BENCH_JUDGE) \
 		-passes 1 -hours $(BENCH_ANCHOR_HOURS) -timeout $(BENCH_TIMEOUT)
@@ -358,9 +359,9 @@ bench-v3-run: bench-v3-verify bench-image
 		BENCH_STATE_VOLUME=$(BENCH_V3_STATE_VOLUME)-$(BENCH_V3_TAG)
 	@BENCH_OUT=$(BENCH_V3_RUN_OUT) BENCH_CONFIG=$(BENCH_V3_RUN_OUT)/core-config.yaml \
 		BENCH_STATE_VOLUME=$(BENCH_V3_STATE_VOLUME)-$(BENCH_V3_TAG) PROBE_IMAGE=$(PROBE_IMAGE) \
-		./scripts/bench-core.sh start
-	@BENCH_OUT=$(BENCH_V3_RUN_OUT) ./scripts/bench-core.sh preflight
-	@BENCH_OUT=$(BENCH_V3_RUN_OUT) BENCH_PROBE_OUT=/bench/out ./scripts/bench-core.sh probe \
+		BENCH_OLLAMA=$(BENCH_OLLAMA) ./scripts/bench-core.sh start
+	@BENCH_OUT=$(BENCH_V3_RUN_OUT) BENCH_OLLAMA=$(BENCH_OLLAMA) ./scripts/bench-core.sh preflight
+	@BENCH_OUT=$(BENCH_V3_RUN_OUT) BENCH_PROBE_OUT=/bench/out BENCH_OLLAMA=$(BENCH_OLLAMA) ./scripts/bench-core.sh probe \
 		-corpus $(BENCH_V3_DIR)/$(BENCH_V3_SUITE).yaml \
 		-model $(BENCH_V3_GENERATOR) -arm $(BENCH_V3_ARM) -judge-model $(BENCH_V3_JUDGE) \
 		-passes 1 -hours $(BENCH_V3_HOURS) -timeout $(BENCH_V3_TIMEOUT)

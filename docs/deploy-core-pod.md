@@ -153,6 +153,29 @@ The probe (`athanor-probe`) reads `/var/lib/athanor/state`, calls the daemon at
 `127.0.0.1:7420`, and writes the results tree to the host-mounted `/bench`
 (`BENCH_OUT/out`).
 
+### Benchmark on macOS: reaching host Ollama
+
+Ollama binds `127.0.0.1:11434` by default. The Core Pod reaches the host as
+`host.containers.internal`, but the Podman VM cannot reach the host's loopback
+address. `preflight` will fail closed with the exact remediation. Two options:
+
+1. **Preferred:** bind Ollama to an address the Podman VM can reach (for
+   example `OLLAMA_HOST=0.0.0.0:11434`) and allow it only on a trusted host or
+   firewall profile. Then run with the default `BENCH_OLLAMA`.
+2. **Development-only forwarder:** keep Ollama loopback-only and forward a
+   non-loopback port on the host:
+
+   ```bash
+   python3 scripts/dev-ollama-forward.py --listen 0.0.0.0:11435
+   BENCH_OLLAMA=http://host.containers.internal:11435 make bench-v3-run ...
+   ```
+
+   The forwarder binds a non-loopback address; use it only on a trusted
+   development host and stop it when the run is over.
+
+`BENCH_OLLAMA` is threaded through the generated config, the Core preflight, and
+the probe's residency check.
+
 ## Security boundary
 
 The socket is the **Core's**. It must never be mounted into a Job Pod — the
