@@ -160,6 +160,50 @@ func TestProposeAlignsSelectionGraphToDiscovery(t *testing.T) {
 	}
 }
 
+func TestProposeDropsQuestionsWhenTheUserDelegates(t *testing.T) {
+	raw := `{"questions":["What platform?","What genre?"],
+	  "frame":{"name":"Game","goal":"Make a small game","first_cycle":"discovery","capabilities":["code"]},
+	  "graph":{"blocks":[{"id":"research","kind":"research"},{"id":"options","kind":"generate_options"}],
+	            "edges":[{"from":"research","to":"options"}]}}`
+	s := New(fakeLLM{response: raw})
+	p, err := s.Propose(context.Background(), []Message{
+		{Role: "user", Content: "I want to make a small game."},
+		{Role: "user", Content: "You decide the rest, any genre is fine."},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(p.Questions) != 0 {
+		t.Errorf("questions = %v, want none after delegation", p.Questions)
+	}
+	if !p.Ready() {
+		t.Error("delegated proposal should be approvable")
+	}
+	found := false
+	for _, f := range p.Frame.Inferred {
+		if f == "delegated_choices" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("inferred = %v, want delegated_choices", p.Frame.Inferred)
+	}
+}
+
+func TestProposeKeepsQuestionsWithoutDelegation(t *testing.T) {
+	raw := `{"questions":["What platform?"],
+	  "frame":{"name":"Game","goal":"Make a small game","first_cycle":"discovery","capabilities":["code"]},
+	  "graph":{"blocks":[{"id":"options","kind":"generate_options"}],"edges":[]}}`
+	s := New(fakeLLM{response: raw})
+	p, err := s.Propose(context.Background(), []Message{{Role: "user", Content: "I want to make a small game."}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(p.Questions) != 1 || p.Ready() {
+		t.Errorf("proposal = %+v, want a gating question", p)
+	}
+}
+
 func TestProposeRejectsEmptyConversation(t *testing.T) {
 	s := New(nil)
 	if _, err := s.Propose(context.Background(), nil); err == nil {

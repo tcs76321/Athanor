@@ -153,10 +153,27 @@ func parseProposal(raw, lastUser string) (Proposal, error) {
 	p.Graph = normalizeGraph(p.Graph)
 	fillFrame(&p.Frame, lastUser, p.Questions)
 	alignCycle(&p.Frame, p.Graph)
+	// The user delegated the open choices. Asking again deadlocks onboarding;
+	// decide cheaply and record that the choices were delegated, so the frame
+	// stays honest about what the user actually specified.
+	if delegated(lastUser) {
+		p.Questions = nil
+		p.Frame.Inferred = appendUnique(p.Frame.Inferred, "delegated_choices")
+	}
 	if err := validateFrame(p.Frame); err != nil {
 		return Proposal{}, err
 	}
 	return p, nil
+}
+
+// delegated reports whether the latest user message hands the open choices to
+// Athanor. It is deliberately phrase-based: a bare "decide" mid-sentence is
+// not considered delegation.
+func delegated(s string) bool {
+	low := strings.ToLower(s)
+	return containsAny(low,
+		"you decide", "you choose", "your call", "up to you", "whatever you",
+		"any genre", "any platform", "your choice", "pick for me")
 }
 
 // alignCycle keeps the frame's first cycle consistent with the graph's shape.
