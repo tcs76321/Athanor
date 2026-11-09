@@ -173,6 +173,23 @@ func (r *Repo) SetGraphRef(ctx context.Context, id, templateID string, version i
 	return nil
 }
 
+// SetFrame stores the reviewed project frame and its review policy on the
+// cycle. The frame is the conversation's contract: the graph and tasks are
+// derived from it, and later cycles can read the decisions it records.
+func (r *Repo) SetFrame(ctx context.Context, id, frameJSON, reviewPolicy string) error {
+	if frameJSON == "" {
+		return fmt.Errorf("cycle: frame json is required")
+	}
+	_, err := r.store.DB().ExecContext(ctx,
+		`UPDATE project_cycles SET frame_json = ?, review_policy = ?,
+		 updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?`,
+		frameJSON, reviewPolicy, id)
+	if err != nil {
+		return fmt.Errorf("cycle: set frame: %w", err)
+	}
+	return nil
+}
+
 func scan(row interface{ Scan(...any) error }) (Cycle, error) {
 	var c Cycle
 	err := row.Scan(&c.ID, &c.ProjectID, &c.Ordinal, &c.Kind, &c.Goal, &c.State,
