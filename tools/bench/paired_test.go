@@ -91,6 +91,23 @@ func TestBuildPairedReportRegressionFailsClaim(t *testing.T) {
 	}
 }
 
+func TestPairedReportMechanismCoverage(t *testing.T) {
+	covered := mkPairedRow("a", "cascade", 1, true, 1)
+	covered.Suite = "agentic"
+	covered.Requires = []string{"run_tests"}
+	missing := mkPairedRow("a", "cascade", 2, true, 1)
+	missing.Suite = "agentic"
+	missing.Requires = []string{"run_tests"}
+	missing.MissingMechanisms = []string{"run_tests"}
+	r := buildPairedReport([]jobMetrics{covered, missing}, pairedOptions{MarginPoints: 5, MaxTaskLossRuns: 2, Iterations: 100, Seed: 1})
+	if r.MechanismCoverage != 0.5 {
+		t.Errorf("coverage = %v, want 0.5", r.MechanismCoverage)
+	}
+	if len(r.Mechanisms) != 1 || r.Mechanisms[0].Covered != 1 || len(r.Mechanisms[0].Missing) != 1 {
+		t.Errorf("mechanisms = %+v", r.Mechanisms)
+	}
+}
+
 func TestBootstrapMeanCI(t *testing.T) {
 	mean, lo, hi := bootstrapMeanCI([]float64{0.1, 0.2, 0.3}, 5000, 1)
 	if mean < 0.19 || mean > 0.21 {

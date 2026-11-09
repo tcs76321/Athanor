@@ -104,6 +104,11 @@ type jobMetrics struct {
 	// v3 claim suite and required mechanisms (ADR-0133).
 	Suite    string   `json:"suite,omitempty"`
 	Requires []string `json:"requires,omitempty"`
+	// Mechanisms is the per-requirement outcome read from the event trace;
+	// MissingMechanisms lists the requirements that did not run. A pass with a
+	// missing mechanism is a capability failure, not an agentic win.
+	Mechanisms        map[string]bool `json:"mechanisms,omitempty"`
+	MissingMechanisms []string        `json:"missing_mechanisms,omitempty"`
 	// Bench is true for rows from eval/bench/tasks.yaml (including the original
 	// 15), false for the locked M3-T7 set; the held-out table uses it to keep
 	// the locked set out of the tuning count.

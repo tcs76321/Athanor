@@ -69,13 +69,22 @@ type pairedEarlyStop struct {
 	EscalationRate    float64 `json:"escalation_rate"`
 }
 
+type mechanismRow struct {
+	Task    string   `json:"task"`
+	Runs    int      `json:"runs"`
+	Covered int      `json:"covered"`
+	Missing []string `json:"missing,omitempty"`
+}
+
 type pairedReport struct {
-	Generator      string                 `json:"generator,omitempty"`
-	Suite          string                 `json:"suite,omitempty"`
-	Arms           []pairedArmSummary     `json:"arms"`
-	Tasks          []pairedTaskRow        `json:"tasks"`
-	NonInferiority []pairedNonInferiority `json:"non_inferiority"`
-	EarlyStop      pairedEarlyStop        `json:"early_stop"`
+	Generator         string                 `json:"generator,omitempty"`
+	Suite             string                 `json:"suite,omitempty"`
+	Arms              []pairedArmSummary     `json:"arms"`
+	Tasks             []pairedTaskRow        `json:"tasks"`
+	NonInferiority    []pairedNonInferiority `json:"non_inferiority"`
+	EarlyStop         pairedEarlyStop        `json:"early_stop"`
+	MechanismCoverage float64                `json:"mechanism_coverage"`
+	Mechanisms        []mechanismRow         `json:"mechanisms,omitempty"`
 }
 
 // buildPairedReport joins rows by task and arm. Pairing is by task and run
@@ -237,6 +246,47 @@ func buildPairedReport(metrics []jobMetrics, opt pairedOptions) pairedReport {
 		report.EarlyStop.StopRate = float64(early) / float64(total)
 		report.EarlyStop.EscalationRate = float64(escalated) / float64(total)
 	}
+
+	// Mechanism coverage: every run whose task declares requirements must
+	// exercise all of them. A pass without a mechanism is a capability gap.
+	type mechAgg struct {
+		runs, covered int
+		missing       map[string]bool
+	}
+	agg := map[string]*mechAgg{}
+	mechRuns, mechCovered := 0, 0
+	for _, m := range rows {
+		if len(m.Requires) == 0 {
+			continue
+		}
+		a := agg[m.GoalName]
+		if a == nil {
+			a = &mechAgg{missing: map[string]bool{}}
+			agg[m.GoalName] = a
+		}
+		a.runs++
+		mechRuns++
+		if len(m.MissingMechanisms) == 0 {
+			a.covered++
+			mechCovered++
+			continue
+		}
+		for _, req := range m.MissingMechanisms {
+			a.missing[req] = true
+		}
+	}
+	for task, a := range agg {
+		row := mechanismRow{Task: task, Runs: a.runs, Covered: a.covered}
+		for req := range a.missing {
+			row.Missing = append(row.Missing, req)
+		}
+		sort.Strings(row.Missing)
+		report.Mechanisms = append(report.Mechanisms, row)
+	}
+	sort.Slice(report.Mechanisms, func(i, j int) bool {
+		return report.Mechanisms[i].Task < report.Mechanisms[j].Task
+	})
+	report.MechanismCoverage = ratio(mechCovered, mechRuns)
 	return report
 }
 
@@ -342,6 +392,15 @@ func renderPairedMarkdown(r pairedReport) string {
 	fmt.Fprintf(&b, "- runs: %d\n- early stops: %d (%.1f%%)\n- early-stop pass rate: %.1f%%\n- escalations: %d (%.1f%%)\n",
 		r.EarlyStop.Runs, r.EarlyStop.EarlyStops, r.EarlyStop.StopRate*100,
 		r.EarlyStop.EarlyStopPassRate*100, r.EarlyStop.Escalations, r.EarlyStop.EscalationRate*100)
+	b.WriteString("\n## Mechanism coverage\n\n")
+	fmt.Fprintf(&b, "Coverage: **%.1f%%** of runs exercised every required mechanism.\n\n", r.MechanismCoverage*100)
+	if len(r.Mechanisms) > 0 {
+		b.WriteString("| task | runs | covered | missing |\n")
+		b.WriteString("|---|---:|---:|---|\n")
+		for _, m := range r.Mechanisms {
+			fmt.Fprintf(&b, "| %s | %d | %d | %s |\n", m.Task, m.Runs, m.Covered, strings.Join(m.Missing, ", "))
+		}
+	}
 	b.WriteString("\n## Tasks\n\n")
 	b.WriteString("| task | runs | single | cascade | full | cascade losses | full losses |\n")
 	b.WriteString("|---|---:|---:|---:|---:|---:|---:|\n")
