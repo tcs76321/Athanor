@@ -288,45 +288,38 @@ func Validate(g Graph, limits Limits) error {
 	return nil
 }
 
-func namedPort(ports []Port, name, direction string) (Port, error) {
-	for _, p := range ports {
-		if p.Name == name {
-			return p, nil
-		}
-	}
-	return Port{}, fmt.Errorf("unknown %s port %q", direction, name)
-}
-
-// resolveEdgePorts picks the typed output/input pair an edge carries. An
-// explicit name must exist. An omitted side, or an explicitly named pair whose
-// types disagree, is resolved by the compatible pairs between the two blocks:
-// exactly one is used, zero is a type error, and more is ambiguous. Ports are
-// wiring, not a user contract, so a model's plausible-but-wrong port name is
-// repaired instead of discarding an otherwise sound graph. This is what keeps
-// a natural composition like research.notes -> generate_options.brief working.
+// resolveEdgePorts picks the typed output/input pair an edge carries. Ports
+// are wiring derived from the closed repertoire, not a user contract, so a
+// model's plausible-but-wrong port name is repaired from the compatible pairs
+// between the two blocks rather than discarding an otherwise sound graph:
+// exactly one pair is used, zero is reported, and more than one is ambiguous.
+// This keeps natural compositions like research.notes -> generate_options.brief
+// and critique.comparisons -> select.options working.
 func resolveEdgePorts(outputs, inputs []Port, fromName, toName, fromID, toID string) (Port, Port, error) {
 	var fp, tp Port
+	fromKnown, toKnown := fromName == "", toName == ""
 	if fromName != "" {
-		var err error
-		if fp, err = namedPort(outputs, fromName, "output"); err != nil {
-			return Port{}, Port{}, err
+		if p, ok := findPort(outputs, fromName); ok {
+			fp, fromKnown = p, true
 		}
 	}
 	if toName != "" {
-		var err error
-		if tp, err = namedPort(inputs, toName, "input"); err != nil {
-			return Port{}, Port{}, err
+		if p, ok := findPort(inputs, toName); ok {
+			tp, toKnown = p, true
 		}
 	}
-	if fromName != "" && toName != "" && fp.Type == tp.Type {
+	if (fromName != "" || toName != "") && fromKnown && toKnown && fp.Type == tp.Type {
 		return fp, tp, nil
 	}
-	// A named pair that does not type-check is searched across all ports; an
-	// omitted side restricts the search to the named side.
-	filterFrom, filterTo := fromName, toName
-	requestedMismatch := fromName != "" && toName != "" && fp.Type != tp.Type
-	if requestedMismatch {
-		filterFrom, filterTo = "", ""
+	requestedMismatch := fromKnown && toKnown && fp.Type != tp.Type
+	// An omitted, unknown, or type-incompatible side does not restrict the
+	// search; a known and compatible side does.
+	filterFrom, filterTo := "", ""
+	if fromKnown && !requestedMismatch {
+		filterFrom = fromName
+	}
+	if toKnown && !requestedMismatch {
+		filterTo = toName
 	}
 	type pair struct{ out, in Port }
 	var candidates []pair
@@ -345,6 +338,12 @@ func resolveEdgePorts(outputs, inputs []Port, fromName, toName, fromID, toID str
 	}
 	switch len(candidates) {
 	case 0:
+		if !fromKnown {
+			return Port{}, Port{}, fmt.Errorf("unknown output port %q on %s", fromName, fromID)
+		}
+		if !toKnown {
+			return Port{}, Port{}, fmt.Errorf("unknown input port %q on %s", toName, toID)
+		}
 		if requestedMismatch {
 			return Port{}, Port{}, fmt.Errorf("type mismatch: %s.%s is %s, %s.%s is %s, and no compatible pair exists",
 				fromID, fp.Name, fp.Type, toID, tp.Name, tp.Type)
@@ -361,6 +360,15 @@ func resolveEdgePorts(outputs, inputs []Port, fromName, toName, fromID, toID str
 		return Port{}, Port{}, fmt.Errorf("ambiguous edge from %s to %s: %d compatible port pairs; specify from_port/to_port",
 			fromID, toID, len(candidates))
 	}
+}
+
+func findPort(ports []Port, name string) (Port, bool) {
+	for _, p := range ports {
+		if p.Name == name {
+			return p, true
+		}
+	}
+	return Port{}, false
 }
 
 func describePorts(outputs, inputs []Port) string {

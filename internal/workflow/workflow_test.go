@@ -117,21 +117,34 @@ func TestValidateRejectsAmbiguousPorts(t *testing.T) {
 }
 
 func TestValidateRepairsExplicitIncompatiblePorts(t *testing.T) {
-	// The model may name a plausible but wrong pair. With exactly one
-	// compatible pair between the blocks, the edge is repaired rather than
-	// the whole graph rejected.
-	g := Graph{
-		Blocks: []Block{
-			{ID: "research", Kind: KindResearch},
-			{ID: "options", Kind: KindGenerateOptions},
+	cases := []Graph{
+		// A named pair with the wrong types: urls -> text.
+		{
+			Blocks: []Block{
+				{ID: "research", Kind: KindResearch},
+				{ID: "options", Kind: KindGenerateOptions},
+			},
+			Edges: []Edge{{
+				From: "research", To: "options",
+				FromPort: "sources", ToPort: "brief",
+			}},
 		},
-		Edges: []Edge{{
-			From: "research", To: "options",
-			FromPort: "sources", ToPort: "brief", // urls -> text, wrong
-		}},
+		// A hallucinated port name: select has "options", not "inputs".
+		{
+			Blocks: []Block{
+				{ID: "critique", Kind: KindCritique},
+				{ID: "select", Kind: KindSelect},
+			},
+			Edges: []Edge{{
+				From: "critique", To: "select",
+				ToPort: "inputs",
+			}},
+		},
 	}
-	if err := Validate(g, DefaultLimits()); err != nil {
-		t.Fatalf("repairable edge rejected: %v", err)
+	for i, g := range cases {
+		if err := Validate(g, DefaultLimits()); err != nil {
+			t.Errorf("case %d: repairable edge rejected: %v", i, err)
+		}
 	}
 }
 
@@ -177,6 +190,8 @@ func TestValidateRejectsBadGraphs(t *testing.T) {
 			}
 		}, "graph has a cycle"},
 		{"bad port", func(g Graph) Graph {
+			g.Edges[0].To = "extract"
+			g.Edges[0].ToPort = "documents"
 			g.Edges[0].FromPort = "nope"
 			return g
 		}, "unknown output port"},
