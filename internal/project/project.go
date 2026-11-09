@@ -349,7 +349,10 @@ type Task struct {
 	// document, text, or media. It selects the final artifact kind and the
 	// deterministic verifier set. Empty means "infer/legacy".
 	Capability string
-	Status     string
+	// CycleID links the task to its project cycle (ADR-0134). Empty means a
+	// legacy task; the migration backfills a cycle-0 ID for existing rows.
+	CycleID string
+	Status  string
 	// TaskType is the §7.3 task kind (one_time | recurring | triggered).
 	// Recurring/triggered execution is backlog; every decomposed task is
 	// one_time today (migration 0017).
@@ -396,6 +399,9 @@ type TaskSpec struct {
 	// Capability is the task's primary output kind. Empty means infer it
 	// from the description and the project's capability set (ADR-0093).
 	Capability string
+	// CycleID links the task to a project cycle (ADR-0134). Empty for a
+	// legacy one-shot plan.
+	CycleID string
 }
 
 // Repo persists projects, goals, and tasks.

@@ -1,0 +1,568 @@
+// Package workflow is the typed block graph behind a project cycle
+// (ADR-0134). A cycle is a DAG of closed-repertoire blocks; this package
+// validates the graph and compiles it to the project.TaskSpec values the
+// existing scheduler already executes.
+//
+// It deliberately does not execute anything: blocks are typed data, the
+// graph is the contract, and execution stays in internal/engine +
+// internal/scheduler. Adding a second executor here would fork the state
+// machine.
+package workflow
+
+import (
+	"encoding/json"
+	"fmt"
+	"sort"
+	"strings"
+
+	"github.com/tcs76321/athanor/internal/dag"
+	"github.com/tcs76321/athanor/internal/project"
+)
+
+// Kind is one block in the closed repertoire. The model composes these; it
+// does not define new ones (ADR-0079's no-plugin posture).
+type Kind string
+
+const (
+	KindResearch        Kind = "research"
+	KindFetch           Kind = "fetch"
+	KindExtract         Kind = "extract"
+	KindCondense        Kind = "condense"
+	KindGenerateOptions Kind = "generate_options"
+	KindCritique        Kind = "critique"
+	KindSelect          Kind = "select"
+	KindSynthesize      Kind = "synthesize"
+	KindImplement       Kind = "implement"
+	KindTest            Kind = "test"
+	KindVerify          Kind = "verify"
+	KindRetain          Kind = "retain"
+	KindReview          Kind = "review"
+	KindPublish         Kind = "publish"
+)
+
+// PortType is the closed data type carried on an edge.
+type PortType string
+
+const (
+	PortText      PortType = "text"
+	PortURLs      PortType = "urls"
+	PortDocuments PortType = "documents"
+	PortItems     PortType = "items"
+	PortItem      PortType = "item"
+	PortArtifact  PortType = "artifact"
+	PortCode      PortType = "code"
+	PortVerdict   PortType = "verdict"
+	PortJSON      PortType = "json"
+)
+
+// Port is one typed input or output of a block kind.
+type Port struct {
+	Name     string   `json:"name"`
+	Type     PortType `json:"type"`
+	Required bool     `json:"required,omitempty"`
+}
+
+// BlockSpec is the registry entry for one kind. Ports are fixed per kind so
+// the canvas and the compiler share one definition.
+type BlockSpec struct {
+	Kind         Kind
+	Title        string
+	Capability   string
+	Inputs       []Port
+	Outputs      []Port
+	DefaultTools []string
+	HumanGate    bool
+}
+
+// specs is the closed repertoire. Keep it small and orthogonal; a new kind is
+// a product decision, not a model output.
+var specs = map[Kind]BlockSpec{
+	KindResearch: {
+		Kind: KindResearch, Title: "Research", Capability: project.CapabilityDocument,
+		Inputs:       []Port{{Name: "topic", Type: PortText, Required: true}},
+		Outputs:      []Port{{Name: "sources", Type: PortURLs}},
+		DefaultTools: []string{"fetch_url", "search_web"},
+	},
+	KindFetch: {
+		Kind: KindFetch, Title: "Fetch", Capability: project.CapabilityDocument,
+		Inputs:       []Port{{Name: "urls", Type: PortURLs, Required: true}},
+		Outputs:      []Port{{Name: "documents", Type: PortDocuments}},
+		DefaultTools: []string{"fetch_url"},
+	},
+	KindExtract: {
+		Kind: KindExtract, Title: "Extract", Capability: project.CapabilityData,
+		Inputs:  []Port{{Name: "documents", Type: PortDocuments, Required: true}},
+		Outputs: []Port{{Name: "items", Type: PortItems}},
+	},
+	KindCondense: {
+		Kind: KindCondense, Title: "Condense", Capability: project.CapabilityDocument,
+		Inputs:  []Port{{Name: "items", Type: PortItems, Required: true}},
+		Outputs: []Port{{Name: "summaries", Type: PortItems}},
+	},
+	KindGenerateOptions: {
+		Kind: KindGenerateOptions, Title: "Generate options", Capability: project.CapabilityText,
+		Inputs:  []Port{{Name: "brief", Type: PortText, Required: true}},
+		Outputs: []Port{{Name: "options", Type: PortItems}},
+	},
+	KindCritique: {
+		Kind: KindCritique, Title: "Critique", Capability: project.CapabilityDocument,
+		Inputs:  []Port{{Name: "options", Type: PortItems, Required: true}},
+		Outputs: []Port{{Name: "comparisons", Type: PortItems}},
+	},
+	KindSelect: {
+		Kind: KindSelect, Title: "Select", Capability: project.CapabilityText,
+		Inputs:    []Port{{Name: "options", Type: PortItems, Required: true}},
+		Outputs:   []Port{{Name: "chosen", Type: PortItem}},
+		HumanGate: true,
+	},
+	KindSynthesize: {
+		Kind: KindSynthesize, Title: "Synthesize", Capability: project.CapabilityDocument,
+		Inputs:  []Port{{Name: "items", Type: PortItems, Required: true}},
+		Outputs: []Port{{Name: "artifact", Type: PortArtifact}},
+	},
+	KindImplement: {
+		Kind: KindImplement, Title: "Implement", Capability: project.CapabilityCode,
+		Inputs:       []Port{{Name: "spec", Type: PortText, Required: true}},
+		Outputs:      []Port{{Name: "code", Type: PortCode}},
+		DefaultTools: []string{"execute_code", "run_tests", "lint"},
+	},
+	KindTest: {
+		Kind: KindTest, Title: "Test", Capability: project.CapabilityCode,
+		Inputs:       []Port{{Name: "code", Type: PortCode, Required: true}},
+		Outputs:      []Port{{Name: "verdict", Type: PortVerdict}},
+		DefaultTools: []string{"run_tests"},
+	},
+	KindVerify: {
+		Kind: KindVerify, Title: "Verify", Capability: project.CapabilityDocument,
+		Inputs:  []Port{{Name: "artifact", Type: PortArtifact, Required: true}},
+		Outputs: []Port{{Name: "verdict", Type: PortVerdict}},
+	},
+	KindRetain: {
+		Kind: KindRetain, Title: "Retain", Capability: project.CapabilityDocument,
+		Inputs:  []Port{{Name: "item", Type: PortItem, Required: true}},
+		Outputs: []Port{{Name: "memory", Type: PortJSON}},
+	},
+	KindReview: {
+		Kind: KindReview, Title: "Review", Capability: project.CapabilityDocument,
+		Inputs:    []Port{{Name: "artifact", Type: PortArtifact, Required: true}},
+		Outputs:   []Port{{Name: "decision", Type: PortVerdict}},
+		HumanGate: true,
+	},
+	KindPublish: {
+		Kind: KindPublish, Title: "Publish", Capability: project.CapabilityDocument,
+		Inputs:  []Port{{Name: "artifact", Type: PortArtifact, Required: true}},
+		Outputs: []Port{{Name: "published", Type: PortJSON}},
+	},
+}
+
+// Registry returns the closed repertoire in deterministic kind order.
+func Registry() []BlockSpec {
+	out := make([]BlockSpec, 0, len(specs))
+	for _, s := range specs {
+		out = append(out, s)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Kind < out[j].Kind })
+	return out
+}
+
+// Spec resolves one kind.
+func Spec(kind Kind) (BlockSpec, bool) {
+	s, ok := specs[kind]
+	return s, ok
+}
+
+// Block is one node in a cycle graph. Config carries block-specific settings
+// (sources, limits, instructions, acceptance) and is validated at execution
+// time, not here.
+type Block struct {
+	ID     string         `json:"id"`
+	Kind   Kind           `json:"kind"`
+	Title  string         `json:"title,omitempty"`
+	Config map[string]any `json:"config,omitempty"`
+}
+
+// Edge is a typed dependency. An empty FromPort/ToPort is allowed only when
+// the source/target kind has exactly one output/input.
+type Edge struct {
+	From     string `json:"from"`
+	To       string `json:"to"`
+	FromPort string `json:"from_port,omitempty"`
+	ToPort   string `json:"to_port,omitempty"`
+}
+
+// Graph is the cycle graph the user and Athanor refine.
+type Graph struct {
+	Blocks []Block `json:"blocks"`
+	Edges  []Edge  `json:"edges"`
+}
+
+// Limits bounds a graph so a model cannot propose an unbounded workflow.
+type Limits struct {
+	MaxBlocks int
+	MaxDepth  int
+}
+
+// DefaultLimits is the 0.x bound.
+func DefaultLimits() Limits { return Limits{MaxBlocks: 32, MaxDepth: 12} }
+
+// ValidationError names the graph location that failed.
+type ValidationError struct {
+	Path string
+	Msg  string
+}
+
+func (e *ValidationError) Error() string {
+	if e.Path == "" {
+		return "workflow: " + e.Msg
+	}
+	return "workflow: " + e.Path + ": " + e.Msg
+}
+
+// Validate checks the closed repertoire, unique IDs, typed edges, acyclicity,
+// and the graph bounds. It is pure.
+func Validate(g Graph, limits Limits) error {
+	if limits.MaxBlocks <= 0 {
+		limits.MaxBlocks = DefaultLimits().MaxBlocks
+	}
+	if limits.MaxDepth <= 0 {
+		limits.MaxDepth = DefaultLimits().MaxDepth
+	}
+	if len(g.Blocks) == 0 {
+		return &ValidationError{Msg: "graph has no blocks"}
+	}
+	if len(g.Blocks) > limits.MaxBlocks {
+		return &ValidationError{Msg: fmt.Sprintf("graph has %d blocks, max %d", len(g.Blocks), limits.MaxBlocks)}
+	}
+	byID := make(map[string]Block, len(g.Blocks))
+	for _, b := range g.Blocks {
+		if strings.TrimSpace(b.ID) == "" {
+			return &ValidationError{Msg: "block has an empty id"}
+		}
+		if _, dup := byID[b.ID]; dup {
+			return &ValidationError{Path: b.ID, Msg: "duplicate block id"}
+		}
+		spec, ok := Spec(b.Kind)
+		if !ok {
+			return &ValidationError{Path: b.ID, Msg: fmt.Sprintf("unknown block kind %q", b.Kind)}
+		}
+		if base := strings.ToLower(b.ID); base != b.ID || strings.ContainsAny(b.ID, " \t\n") {
+			return &ValidationError{Path: b.ID, Msg: "block id must be lowercase and contain no whitespace"}
+		}
+		_ = spec
+		byID[b.ID] = b
+	}
+	seenEdge := map[string]bool{}
+	for i, e := range g.Edges {
+		from, ok := byID[e.From]
+		if !ok {
+			return &ValidationError{Path: fmt.Sprintf("edges[%d]", i), Msg: fmt.Sprintf("unknown from block %q", e.From)}
+		}
+		to, ok := byID[e.To]
+		if !ok {
+			return &ValidationError{Path: fmt.Sprintf("edges[%d]", i), Msg: fmt.Sprintf("unknown to block %q", e.To)}
+		}
+		if e.From == e.To {
+			return &ValidationError{Path: fmt.Sprintf("edges[%d]", i), Msg: "self edge"}
+		}
+		fromSpec, _ := Spec(from.Kind)
+		toSpec, _ := Spec(to.Kind)
+		fp, err := resolvePort(fromSpec.Outputs, e.FromPort, "output")
+		if err != nil {
+			return &ValidationError{Path: fmt.Sprintf("edges[%d]", i), Msg: err.Error()}
+		}
+		tp, err := resolvePort(toSpec.Inputs, e.ToPort, "input")
+		if err != nil {
+			return &ValidationError{Path: fmt.Sprintf("edges[%d]", i), Msg: err.Error()}
+		}
+		if fp.Type != tp.Type {
+			return &ValidationError{Path: fmt.Sprintf("edges[%d]", i),
+				Msg: fmt.Sprintf("type mismatch: %s.%s is %s, %s.%s is %s",
+					e.From, fp.Name, fp.Type, e.To, tp.Name, tp.Type)}
+		}
+		key := e.From + "\x00" + e.To + "\x00" + fp.Name + "\x00" + tp.Name
+		if seenEdge[key] {
+			return &ValidationError{Path: fmt.Sprintf("edges[%d]", i), Msg: "duplicate edge"}
+		}
+		seenEdge[key] = true
+	}
+	if err := validateAcyclic(g, byID); err != nil {
+		return err
+	}
+	if depth := longestPath(g, byID); depth > limits.MaxDepth {
+		return &ValidationError{Msg: fmt.Sprintf("graph depth %d exceeds %d", depth, limits.MaxDepth)}
+	}
+	return nil
+}
+
+func resolvePort(ports []Port, name, direction string) (Port, error) {
+	if name != "" {
+		for _, p := range ports {
+			if p.Name == name {
+				return p, nil
+			}
+		}
+		return Port{}, fmt.Errorf("unknown %s port %q", direction, name)
+	}
+	if len(ports) == 1 {
+		return ports[0], nil
+	}
+	return Port{}, fmt.Errorf("ambiguous %s port; specify a name", direction)
+}
+
+func validateAcyclic(g Graph, byID map[string]Block) error {
+	indegree := make(map[string]int, len(g.Blocks))
+	adj := make(map[string][]string, len(g.Blocks))
+	for id := range byID {
+		indegree[id] = 0
+	}
+	for _, e := range g.Edges {
+		adj[e.From] = append(adj[e.From], e.To)
+		indegree[e.To]++
+	}
+	queue := make([]string, 0, len(g.Blocks))
+	for id, n := range indegree {
+		if n == 0 {
+			queue = append(queue, id)
+		}
+	}
+	sort.Strings(queue)
+	seen := 0
+	for len(queue) > 0 {
+		id := queue[0]
+		queue = queue[1:]
+		seen++
+		for _, next := range adj[id] {
+			indegree[next]--
+			if indegree[next] == 0 {
+				queue = append(queue, next)
+			}
+		}
+	}
+	if seen != len(g.Blocks) {
+		return &ValidationError{Msg: "graph has a cycle"}
+	}
+	return nil
+}
+
+func longestPath(g Graph, byID map[string]Block) int {
+	indegree := make(map[string]int, len(g.Blocks))
+	adj := make(map[string][]string, len(g.Blocks))
+	for id := range byID {
+		indegree[id] = 0
+	}
+	for _, e := range g.Edges {
+		adj[e.From] = append(adj[e.From], e.To)
+		indegree[e.To]++
+	}
+	dist := make(map[string]int, len(g.Blocks))
+	queue := make([]string, 0, len(g.Blocks))
+	for id, n := range indegree {
+		if n == 0 {
+			dist[id] = 1
+			queue = append(queue, id)
+		}
+	}
+	max := 0
+	for len(queue) > 0 {
+		id := queue[0]
+		queue = queue[1:]
+		if dist[id] > max {
+			max = dist[id]
+		}
+		for _, next := range adj[id] {
+			if dist[id]+1 > dist[next] {
+				dist[next] = dist[id] + 1
+			}
+			indegree[next]--
+			if indegree[next] == 0 {
+				queue = append(queue, next)
+			}
+		}
+	}
+	return max
+}
+
+// CompileOptions carries the cycle identity and any defaults the caller owns.
+type CompileOptions struct {
+	CycleID string
+}
+
+// Compile validates the graph and returns TaskSpecs in topological order. The
+// block ID becomes the task key; an edge from A to B becomes B's dependency on
+// A. The existing scheduler is the executor.
+func Compile(g Graph, opts CompileOptions) ([]project.TaskSpec, error) {
+	if err := Validate(g, DefaultLimits()); err != nil {
+		return nil, err
+	}
+	byID := make(map[string]Block, len(g.Blocks))
+	for _, b := range g.Blocks {
+		byID[b.ID] = b
+	}
+	order := topoOrder(g)
+	deps := make(map[string][]string, len(g.Blocks))
+	for _, e := range g.Edges {
+		deps[e.To] = append(deps[e.To], e.From)
+	}
+	out := make([]project.TaskSpec, 0, len(order))
+	for _, id := range order {
+		b := byID[id]
+		spec, _ := Spec(b.Kind)
+		title := strings.TrimSpace(b.Title)
+		if title == "" {
+			title = spec.Title
+		}
+		out = append(out, project.TaskSpec{
+			Key:          b.ID,
+			Title:        title,
+			Description:  description(b, spec),
+			DependsOn:    append([]string(nil), deps[id]...),
+			Criteria:     criteria(b.Config),
+			Budget:       dag.Budget{},
+			Capability:   spec.Capability,
+			AllowedTools: append([]string(nil), spec.DefaultTools...),
+			CycleID:      opts.CycleID,
+		})
+	}
+	return out, nil
+}
+
+func description(b Block, spec BlockSpec) string {
+	if s, ok := b.Config["instructions"].(string); ok && strings.TrimSpace(s) != "" {
+		return s
+	}
+	return fmt.Sprintf("%s block (%s).", spec.Title, b.Kind)
+}
+
+func criteria(config map[string]any) []string {
+	if config == nil {
+		return nil
+	}
+	raw, ok := config["acceptance"]
+	if !ok {
+		return nil
+	}
+	switch v := raw.(type) {
+	case []string:
+		return append([]string(nil), v...)
+	case []any:
+		out := make([]string, 0, len(v))
+		for _, x := range v {
+			if s, ok := x.(string); ok {
+				out = append(out, s)
+			}
+		}
+		return out
+	default:
+		return nil
+	}
+}
+
+func topoOrder(g Graph) []string {
+	indegree := make(map[string]int, len(g.Blocks))
+	adj := make(map[string][]string, len(g.Blocks))
+	for _, b := range g.Blocks {
+		indegree[b.ID] = 0
+	}
+	for _, e := range g.Edges {
+		adj[e.From] = append(adj[e.From], e.To)
+		indegree[e.To]++
+	}
+	queue := make([]string, 0, len(g.Blocks))
+	for _, b := range g.Blocks {
+		if indegree[b.ID] == 0 {
+			queue = append(queue, b.ID)
+		}
+	}
+	sort.Strings(queue)
+	out := make([]string, 0, len(g.Blocks))
+	for len(queue) > 0 {
+		id := queue[0]
+		queue = queue[1:]
+		out = append(out, id)
+		next := append([]string(nil), adj[id]...)
+		sort.Strings(next)
+		for _, n := range next {
+			indegree[n]--
+			if indegree[n] == 0 {
+				queue = append(queue, n)
+			}
+		}
+	}
+	return out
+}
+
+// TriggerKind is how a cycle starts.
+type TriggerKind string
+
+const (
+	TriggerManual   TriggerKind = "manual"
+	TriggerSchedule TriggerKind = "schedule"
+	TriggerEvent    TriggerKind = "event"
+)
+
+// Trigger starts a cycle. Spec is kind-specific (a cron expression, an event
+// name, or empty for manual).
+type Trigger struct {
+	ID      string      `json:"id"`
+	Kind    TriggerKind `json:"kind"`
+	Spec    string      `json:"spec,omitempty"`
+	Enabled bool        `json:"enabled"`
+}
+
+// Template is a versioned cycle graph plus its triggers.
+type Template struct {
+	ID       string    `json:"id"`
+	Name     string    `json:"name"`
+	Version  int       `json:"version"`
+	Graph    Graph     `json:"graph"`
+	Triggers []Trigger `json:"triggers,omitempty"`
+}
+
+// ValidateTemplate validates the graph and the trigger kinds.
+func ValidateTemplate(t Template) error {
+	if strings.TrimSpace(t.ID) == "" || strings.TrimSpace(t.Name) == "" {
+		return &ValidationError{Msg: "template id and name are required"}
+	}
+	if t.Version < 1 {
+		return &ValidationError{Msg: "template version must be >= 1"}
+	}
+	if err := Validate(t.Graph, DefaultLimits()); err != nil {
+		return err
+	}
+	seen := map[string]bool{}
+	for i, tr := range t.Triggers {
+		if tr.ID == "" {
+			return &ValidationError{Path: fmt.Sprintf("triggers[%d]", i), Msg: "trigger id is required"}
+		}
+		if seen[tr.ID] {
+			return &ValidationError{Path: fmt.Sprintf("triggers[%d]", i), Msg: "duplicate trigger id"}
+		}
+		seen[tr.ID] = true
+		switch tr.Kind {
+		case TriggerManual, TriggerSchedule, TriggerEvent:
+		default:
+			return &ValidationError{Path: fmt.Sprintf("triggers[%d]", i), Msg: fmt.Sprintf("unknown trigger kind %q", tr.Kind)}
+		}
+	}
+	return nil
+}
+
+// EncodeTemplate serializes a template as canonical JSON.
+func EncodeTemplate(t Template) ([]byte, error) {
+	if err := ValidateTemplate(t); err != nil {
+		return nil, err
+	}
+	return json.Marshal(t)
+}
+
+// DecodeTemplate parses and validates a template.
+func DecodeTemplate(raw []byte) (Template, error) {
+	var t Template
+	if err := json.Unmarshal(raw, &t); err != nil {
+		return Template{}, fmt.Errorf("workflow: decoding template: %w", err)
+	}
+	if err := ValidateTemplate(t); err != nil {
+		return Template{}, err
+	}
+	return t, nil
+}

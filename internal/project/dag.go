@@ -123,10 +123,10 @@ func (r *Repo) createDAG(ctx context.Context, projectID, goalText, approvedPlanI
 		}
 		if _, err := tx.ExecContext(ctx,
 			`INSERT INTO tasks (id, project_id, goal_id, parent_task_id, title, description,
-			        depends_on_json, acceptance_criteria_json, budget_json, allowed_tools_json, priority, capability)
-			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			        depends_on_json, acceptance_criteria_json, budget_json, allowed_tools_json, priority, capability, cycle_id)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			idsByKey[s.Key], projectID, goalID, parentID, s.Title, s.Description,
-			string(depsJSON), criteriaJSON, string(budgetJSON), toolsJSON, s.Priority, capability,
+			string(depsJSON), criteriaJSON, string(budgetJSON), toolsJSON, s.Priority, capability, nullIfEmpty(s.CycleID),
 		); err != nil {
 			return "", nil, fmt.Errorf("inserting task %q: %w", s.Key, err)
 		}

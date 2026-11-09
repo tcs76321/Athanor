@@ -9,6 +9,32 @@ import (
 	"github.com/tcs76321/athanor/internal/dag"
 )
 
+func TestCreateDAGPersistsCycleID(t *testing.T) {
+	r, _ := openRepo(t)
+	ctx := context.Background()
+	p, _, err := r.Create(ctx, "cycles", ArchetypeCode, validGoal, "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, tasks, err := r.CreateDAG(ctx, p.ID, "Build a small cycle with one task.", []TaskSpec{
+		{Key: "a", Title: "A", CycleID: "cycle-1"},
+		{Key: "b", Title: "B", DependsOn: []string{"a"}},
+	})
+	if err != nil {
+		t.Fatalf("CreateDAG: %v", err)
+	}
+	if len(tasks) != 2 || tasks[0].CycleID != "cycle-1" || tasks[1].CycleID != "" {
+		t.Fatalf("cycle ids = %q/%q, want cycle-1/empty", tasks[0].CycleID, tasks[1].CycleID)
+	}
+	loaded, err := r.Task(ctx, tasks[0].ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if loaded.CycleID != "cycle-1" {
+		t.Errorf("loaded cycle = %q, want cycle-1", loaded.CycleID)
+	}
+}
+
 func TestCreateDAGPersistsGraph(t *testing.T) {
 	r, s := openRepo(t)
 	ctx := context.Background()
