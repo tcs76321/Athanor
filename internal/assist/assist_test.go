@@ -256,9 +256,14 @@ func TestRefineContextReachesPrompt(t *testing.T) {
 	if res.Text == "" {
 		t.Fatal("empty result")
 	}
-	for _, want := range []string{"ATHANOR CONTEXT", "project name: importer", "form field criteria: pytest passes", "runtime: Core Pod"} {
+	for _, want := range []string{"ATHANOR CONTEXT", "project name: importer", "form field criteria: pytest passes"} {
 		if !strings.Contains(gen.user, want) {
 			t.Errorf("prompt missing %q: %q", want, gen.user)
+		}
+	}
+	for _, unwanted := range []string{"runtime: Core Pod", "version: 0.0.0-dev"} {
+		if strings.Contains(gen.user, unwanted) {
+			t.Errorf("layered prompt leaked internal context %q: %q", unwanted, gen.user)
 		}
 	}
 }

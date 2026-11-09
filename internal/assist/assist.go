@@ -663,6 +663,11 @@ func (s *Service) forceForPass(ctx context.Context, spec Spec, text, mode string
 // call: the model may only add the pass's one layer.
 func (s *Service) layeredPass(ctx context.Context, spec Spec, text, mode string, ac Context) (Result, bool) {
 	slog.Debug("assist: layered pass", "field", spec.ID, "pass", ac.Pass, "origin_words", len(strings.Fields(ac.Origin)))
+	// Runtime and version are internal process facts; they do not belong in a
+	// goal. A model given them will sometimes turn them into a delivery channel
+	// ("via the Core Pod runtime interface"), so layered passes omit them.
+	ac.Runtime = ""
+	ac.Version = ""
 	user := "FIELD: " + spec.Label + "\nPURPOSE: " + spec.Purpose + "\n"
 	user += fmt.Sprintf("PASS: %d of %d. MINIMUM PASSES BEFORE IDEALIZED: %d.\n", ac.Pass, maxRefinePasses(spec), minRefinePasses(spec, ac.Origin))
 	if len(spec.Sufficiency) > 0 {
