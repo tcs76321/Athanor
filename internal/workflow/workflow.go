@@ -288,6 +288,35 @@ func Validate(g Graph, limits Limits) error {
 	return nil
 }
 
+// Normalize validates a graph and rewrites every edge to its concrete,
+// compatible port pair. Callers persist the normalized graph, so the stored
+// graph and the canvas show the real wiring instead of a model's guess. A
+// graph that cannot be resolved is returned as an error and is never stored.
+func Normalize(g Graph) (Graph, error) {
+	if err := Validate(g, DefaultLimits()); err != nil {
+		return Graph{}, err
+	}
+	edges := make([]Edge, len(g.Edges))
+	copy(edges, g.Edges)
+	g.Edges = edges
+	byID := make(map[string]Block, len(g.Blocks))
+	for _, b := range g.Blocks {
+		byID[b.ID] = b
+	}
+	for i := range g.Edges {
+		fromSpec, _ := Spec(byID[g.Edges[i].From].Kind)
+		toSpec, _ := Spec(byID[g.Edges[i].To].Kind)
+		fp, tp, err := resolveEdgePorts(fromSpec.Outputs, toSpec.Inputs,
+			g.Edges[i].FromPort, g.Edges[i].ToPort, g.Edges[i].From, g.Edges[i].To)
+		if err != nil {
+			return Graph{}, &ValidationError{Path: fmt.Sprintf("edges[%d]", i), Msg: err.Error()}
+		}
+		g.Edges[i].FromPort = fp.Name
+		g.Edges[i].ToPort = tp.Name
+	}
+	return g, nil
+}
+
 // resolveEdgePorts picks the typed output/input pair an edge carries. Ports
 // are wiring derived from the closed repertoire, not a user contract, so a
 // model's plausible-but-wrong port name is repaired from the compatible pairs

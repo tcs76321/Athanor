@@ -116,6 +116,30 @@ func TestValidateRejectsAmbiguousPorts(t *testing.T) {
 	}
 }
 
+func TestNormalizeRewritesEdgePorts(t *testing.T) {
+	g := Graph{
+		Blocks: []Block{
+			{ID: "research", Kind: KindResearch},
+			{ID: "options", Kind: KindGenerateOptions},
+		},
+		Edges: []Edge{{From: "research", To: "options", FromPort: "sources", ToPort: "brief"}},
+	}
+	got, err := Normalize(g)
+	if err != nil {
+		t.Fatalf("Normalize: %v", err)
+	}
+	if got.Edges[0].FromPort != "notes" || got.Edges[0].ToPort != "brief" {
+		t.Errorf("edge = %+v, want notes -> brief", got.Edges[0])
+	}
+	if g.Edges[0].FromPort != "sources" {
+		t.Error("Normalize mutated the caller's graph")
+	}
+	bad := Graph{Blocks: []Block{{ID: "a", Kind: "teleport"}}}
+	if _, err := Normalize(bad); err == nil {
+		t.Error("invalid graph normalized")
+	}
+}
+
 func TestValidateRepairsExplicitIncompatiblePorts(t *testing.T) {
 	cases := []Graph{
 		// A named pair with the wrong types: urls -> text.

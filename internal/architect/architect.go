@@ -98,11 +98,13 @@ func (s *Service) Propose(ctx context.Context, messages []Message) (Proposal, er
 		fallback.Notes = "The model response could not be used (" + err.Error() + "); this is the deterministic starting proposal."
 		return fallback, nil
 	}
-	if err := workflow.Validate(p.Graph, workflow.DefaultLimits()); err != nil {
+	normalized, err := workflow.Normalize(p.Graph)
+	if err != nil {
 		fallback.Degraded = true
 		fallback.Notes = "The proposed graph was invalid (" + err.Error() + "); this is the deterministic starting proposal."
 		return fallback, nil
 	}
+	p.Graph = normalized
 	if len(p.Questions) > 5 {
 		p.Questions = p.Questions[:5]
 	}

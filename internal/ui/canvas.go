@@ -155,10 +155,12 @@ func (u *UI) handleCycleGraphSave(w http.ResponseWriter, r *http.Request) {
 		u.writeJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "invalid graph JSON: " + err.Error()})
 		return
 	}
-	if err := workflow.Validate(graph, workflow.DefaultLimits()); err != nil {
+	normalized, err := workflow.Normalize(graph)
+	if err != nil {
 		u.writeJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": err.Error()})
 		return
 	}
+	graph = normalized
 	raw, err := json.Marshal(graph)
 	if err != nil {
 		u.writeJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": err.Error()})

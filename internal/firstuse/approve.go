@@ -49,7 +49,8 @@ func CreateDraft(ctx context.Context, deps Deps, cycles *cycle.Repo, in ApproveI
 	if deps.Freezer != nil && deps.Freezer.Frozen() {
 		return ApproveResult{}, ErrFrozen
 	}
-	if err := workflow.Validate(in.Graph, workflow.DefaultLimits()); err != nil {
+	graph, err := workflow.Normalize(in.Graph)
+	if err != nil {
 		return ApproveResult{}, err
 	}
 	kind, err := cycleKind(in.Frame.FirstCycle)
@@ -105,7 +106,7 @@ func CreateDraft(ctx context.Context, deps Deps, cycles *cycle.Repo, in ApproveI
 	if err := cycles.SetFrame(ctx, c.ID, string(frameJSON), in.Frame.ReviewPolicy); err != nil {
 		return ApproveResult{}, err
 	}
-	graphJSON, err := json.Marshal(in.Graph)
+	graphJSON, err := json.Marshal(graph)
 	if err != nil {
 		return ApproveResult{}, fmt.Errorf("firstuse: encoding graph: %w", err)
 	}
@@ -118,7 +119,7 @@ func CreateDraft(ctx context.Context, deps Deps, cycles *cycle.Repo, in ApproveI
 			Category: "projects", ProjectID: p.ID,
 			Data: map[string]any{
 				"event": "cycle_drafted", "cycle": c.ID, "kind": string(kind),
-				"blocks": len(in.Graph.Blocks),
+				"blocks": len(graph.Blocks),
 			},
 		})
 	}
