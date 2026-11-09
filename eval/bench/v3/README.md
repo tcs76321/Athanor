@@ -142,6 +142,9 @@ BENCH_V3_SUITE=agentic BENCH_V3_GENERATOR=bonsai27b make bench-v3-suite
 # memory and project state.
 BENCH_V3_SUITE=quality BENCH_V3_GENERATOR=bonsai27b BENCH_V3_RUN_ID=2 make bench-v3-run
 
+# Focus one task while developing the corpus.
+BENCH_V3_SUITE=quality BENCH_V3_ONLY=quality-rfc-ratelimit BENCH_V3_RUN_ID=3 make bench-v3-run
+
 # Join every arm under BENCH_V3_OUT and write paired.json / paired.md.
 make bench-v3-paired-report
 

@@ -187,9 +187,10 @@ tasks:
     goal: |
       Write a threat model for a local-first file-sync feature that stores
       encrypted blobs on a user's machine and syncs through an untrusted relay.
-      Cover assets, trust boundaries, at least three concrete threats, at least
-      three risks with mitigations, and what you would ship first. Be specific
-      about what the relay can and cannot see.
+      Use Markdown headings (`# Assets`, `# Trust boundaries`, `# Threats`,
+      `# Risks`, `# Mitigations`). Cover assets, trust boundaries, at least
+      three concrete threats, at least three risks with mitigations, and what
+      you would ship first. Be specific about what the relay can and cannot see.
     criteria:
       - required sections are present and in order
       - at least three threats with a mitigation each
@@ -581,9 +582,10 @@ tasks:
     held_out: false
     goal: |
       Write an architecture decision record for a local-first agent runtime that
-      chose SQLite over a client-server database. Cover Context, Decision,
-      Alternatives, Consequences, and Risks. Name at least two rejected
-      alternatives and two concrete risks with mitigations.
+      chose SQLite over a client-server database. Use Markdown headings
+      (`# Context`, `# Decision`, `# Alternatives`, `# Consequences`,
+      `# Risks`). Name at least two rejected alternatives and two concrete
+      risks with mitigations.
     criteria:
       - required sections in order
       - at least two alternatives with rejection reasons
@@ -614,9 +616,9 @@ tasks:
     held_out: true
     goal: |
       Write a migration guide for moving a SQLite database from a single
-      connection to a WAL read pool. Cover Preconditions, Steps, Rollback, and
-      Verification. Include a concrete rollback command and a verification
-      query.
+      connection to a WAL read pool. Use Markdown headings
+      (`# Preconditions`, `# Steps`, `# Rollback`, `# Verification`). Include a
+      concrete rollback command and a verification query.
     criteria:
       - required sections in order
       - concrete rollback and verification
@@ -644,8 +646,9 @@ tasks:
     held_out: false
     goal: |
       Write a blameless postmortem for a duplicate-job incident: a retry after a
-      terminal read ran the same job twice. Cover Summary, Timeline, Root cause,
-      and Corrective actions. Name one detection gap and one prevention.
+      terminal read ran the same job twice. Use Markdown headings
+      (`# Summary`, `# Timeline`, `# Root cause`, `# Corrective actions`). Name
+      one detection gap and one prevention.
     criteria:
       - required sections in order
       - timeline has at least three moments

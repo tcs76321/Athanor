@@ -15,13 +15,11 @@ tasks:
     held_out: false
     rubric: quality-v1
     goal: |
-      Write an RFC for a multi-tenant HTTP rate limiter used by a local-first
-      agent runtime. It must work offline, survive a restart, and let one
-      tenant's burst not starve another. Use these exact headings in this order:
-      Context, Decision, Alternatives, Consequences, Risks. Cover the decision,
-      at least two alternatives you rejected, the consequences, and the top
-      risks. Name the data structure and where state lives. Be concrete enough
-      that an engineer could implement it this week.
+      Write an RFC for a multi-tenant HTTP rate limiter for a local-first
+      runtime. Use Markdown headings `# Context`, `# Decision`,
+      `# Alternatives`, `# Consequences`, `# Risks`. Cover offline operation,
+      restart survival, tenant isolation, two rejected alternatives, and two
+      risks with mitigations. Name the data structure and state location.
     criteria:
       - context, decision, alternatives, consequences, and risks are present in order
       - at least two real alternatives with a rejection reason each
@@ -115,10 +113,11 @@ tasks:
     rubric: quality-v1
     goal: |
       Design an HTTP API for cancelling a running job in a local-first agent
-      runtime. Use these exact headings in this order: Endpoints, Request,
-      Responses, Errors, Idempotency. Show the path and method, the success and
-      conflict responses, and what happens when the job is already terminal. Be
-      concrete enough to implement this week.
+      runtime. Use these exact Markdown headings in this order:
+      `# Endpoints`, `# Request`, `# Responses`, `# Errors`, `# Idempotency`.
+      Show the path and method, the success and conflict responses, and what
+      happens when the job is already terminal. Be concrete enough to implement
+      this week.
     criteria:
       - required sections in order
       - one endpoint with method and path

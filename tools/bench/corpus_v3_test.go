@@ -55,6 +55,9 @@ func TestBenchV3Corpus(t *testing.T) {
 			if !benchV3IDPattern.MatchString(g.Name) {
 				t.Errorf("%q is not a lowercase kebab id", g.Name)
 			}
+			if len(g.Goal) > 500 {
+				t.Errorf("%s: goal is %d chars, over the project API limit 500", g.Name, len(g.Goal))
+			}
 			if g.HeldOut {
 				held[name]++
 			}

@@ -344,6 +344,7 @@ BENCH_V3_HOURS        ?= 6
 BENCH_V3_TIMEOUT      ?= 45m
 BENCH_V3_STATE_VOLUME ?= athanor-bench-v3-state
 BENCH_V3_RUN_ID       ?=
+BENCH_V3_ONLY         ?=
 BENCH_V3_TAG           = $(BENCH_V3_SUITE)-$(BENCH_V3_GENERATOR)-$(BENCH_V3_ARM)$(if $(BENCH_V3_RUN_ID),-$(BENCH_V3_RUN_ID))
 BENCH_V3_RUN_OUT       = $(BENCH_V3_OUT)/$(BENCH_V3_TAG)
 
@@ -365,7 +366,8 @@ bench-v3-run: bench-v3-verify bench-image
 	@BENCH_OUT=$(BENCH_V3_RUN_OUT) BENCH_PROBE_OUT=/bench/out BENCH_OLLAMA=$(BENCH_OLLAMA) ./scripts/bench-core.sh probe \
 		-corpus $(BENCH_V3_DIR)/$(BENCH_V3_SUITE).yaml \
 		-model $(BENCH_V3_GENERATOR) -arm $(BENCH_V3_ARM) -judge-model $(BENCH_V3_JUDGE) \
-		-passes 1 -hours $(BENCH_V3_HOURS) -timeout $(BENCH_V3_TIMEOUT)
+		-passes 1 -hours $(BENCH_V3_HOURS) -timeout $(BENCH_V3_TIMEOUT) \
+		$(if $(BENCH_V3_ONLY),-only $(BENCH_V3_ONLY))
 	@BENCH_OUT=$(BENCH_V3_RUN_OUT) ./scripts/bench-core.sh stop
 
 bench-v3-suite:
