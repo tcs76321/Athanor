@@ -257,6 +257,55 @@ func TestGenerateSeedsAndExpandsThreePlans(t *testing.T) {
 	}
 }
 
+type partialSeedGenerator struct {
+	pipelineGenerator
+	seedOneCalls int
+}
+
+func (g *partialSeedGenerator) Generate(ctx context.Context, req Request) (string, error) {
+	switch req.Phase {
+	case "seed":
+		g.calls++
+		// A local model ignores "exactly three" and returns one object.
+		return string(mustJSON(Seed{
+			Stance: StanceSmallest, Title: "Smallest slice", Summary: "The smallest useful slice.",
+			TaskTitles: []string{"Baseline", "Deliverable", "Check"},
+		})), nil
+	case "seed_one":
+		g.calls++
+		g.seedOneCalls++
+		return string(mustJSON(Seed{
+			Stance: req.SeedStance, Title: req.SeedStance + " plan", Summary: "A distinct " + req.SeedStance + " seed.",
+			TaskTitles: []string{"Probe", "Build", "Verify"},
+		})), nil
+	default:
+		return g.pipelineGenerator.Generate(ctx, req)
+	}
+}
+
+func TestGenerateRepairsMissingSeedStances(t *testing.T) {
+	_, ps := openPlanStore(t)
+	gen := &partialSeedGenerator{}
+	svc := NewService(gen, ps)
+	sess, err := svc.Generate(context.Background(), "p1", "o1", Request{Goal: "a daily news brief"})
+	if err != nil {
+		t.Fatalf("generate: %v", err)
+	}
+	if gen.seedOneCalls != 2 {
+		t.Fatalf("single-stance seed calls = %d, want 2 for the missing stances", gen.seedOneCalls)
+	}
+	if sess.Status != "ready" || len(sess.Candidates) != 3 {
+		t.Fatalf("session = %+v, want three ready plans", sess)
+	}
+	seen := map[string]bool{}
+	for _, c := range sess.Candidates {
+		seen[c.Stance] = true
+	}
+	if !seen[StanceSmallest] || !seen[StanceDeepest] || !seen[StanceLowestRisk] {
+		t.Fatalf("stances = %v, want all three", seen)
+	}
+}
+
 func TestGenerateRepairsOneExpansion(t *testing.T) {
 	_, ps := openPlanStore(t)
 	gen := &pipelineGenerator{failFirst: true}

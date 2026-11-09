@@ -122,6 +122,8 @@ type Request struct {
 	// Seed and OtherSeeds are set for an expansion call.
 	Seed       *Seed
 	OtherSeeds []Seed
+	// SeedStance is set for a single-stance seed repair call.
+	SeedStance string
 	// Model and ContextTarget pin every call in a run to the model that served
 	// the seed call, so the three plans are comparable.
 	Model         string
@@ -144,6 +146,8 @@ func BuildPrompt(req Request) string {
 		return buildSinglePrompt(req)
 	case "seed":
 		return buildSeedPrompt(req)
+	case "seed_one":
+		return buildSeedOnePrompt(req)
 	case "expand":
 		return buildExpandPrompt(req)
 	}
@@ -223,6 +227,36 @@ func buildSeedPrompt(req Request) string {
 	b.WriteString("- The seeds must be genuinely different; do not vary only the wording.\n")
 	writePlanningRules(&b, req)
 	return b.String()
+}
+
+// buildSeedOnePrompt asks for exactly one seed for a specific stance. It is
+// the bounded repair path when the model returns fewer than three seeds in the
+// combined seed call.
+func buildSeedOnePrompt(req Request) string {
+	var b strings.Builder
+	b.WriteString("You are Athanor's planning scout. Produce exactly ONE plan seed for the stance below.\n\n")
+	writePlanningContext(&b, req)
+	fmt.Fprintf(&b, "\nSTANCE: %s\n", req.SeedStance)
+	fmt.Fprintf(&b, "STANCE MEANING: %s\n", stanceMeaning(req.SeedStance))
+	b.WriteString("\nReturn ONLY one JSON object: {stance, title, summary, task_titles:[...], risks:[...], assumptions:[...]}.\n")
+	b.WriteString("RULES:\n")
+	fmt.Fprintf(&b, "- stance must be exactly %q.\n", req.SeedStance)
+	b.WriteString("- Give the seed 3–6 concrete task titles. Do not write task descriptions or criteria here.\n")
+	writePlanningRules(&b, req)
+	return b.String()
+}
+
+func stanceMeaning(stance string) string {
+	switch stance {
+	case StanceSmallest:
+		return "the smallest verifiable slice; the shortest path to a checkable result"
+	case StanceDeepest:
+		return "the deepest useful coverage; the plan that retires the most important unknowns"
+	case StanceLowestRisk:
+		return "the lowest-risk sequence; retire uncertainty before committing to a larger build"
+	default:
+		return "a distinct, useful plan shape"
+	}
 }
 
 // buildExpandPrompt is one expansion call: turn exactly one seed into one
@@ -524,6 +558,27 @@ func parseSeedValue(raw string) []Seed {
 
 // ValidateSeeds enforces the three-stance scaffold: exactly three distinct
 // stances, each with a title, summary, and 3–6 task titles.
+var allStances = []string{StanceSmallest, StanceDeepest, StanceLowestRisk}
+
+// ValidateSeed normalizes and validates one seed scaffold.
+func ValidateSeed(s Seed) (Seed, error) {
+	s.Stance = strings.ToLower(strings.TrimSpace(s.Stance))
+	switch s.Stance {
+	case StanceSmallest, StanceDeepest, StanceLowestRisk:
+	default:
+		return Seed{}, fmt.Errorf("planning: unknown stance %q", s.Stance)
+	}
+	if strings.TrimSpace(s.Title) == "" || strings.TrimSpace(s.Summary) == "" {
+		return Seed{}, fmt.Errorf("planning: seed %q needs a title and summary", s.Stance)
+	}
+	if len(s.TaskTitles) < 3 || len(s.TaskTitles) > 6 {
+		return Seed{}, fmt.Errorf("planning: seed %q has %d task titles (want 3–6)", s.Stance, len(s.TaskTitles))
+	}
+	return s, nil
+}
+
+// ValidateSeeds enforces the three-stance scaffold: exactly three distinct
+// stances, each with a title, summary, and 3–6 task titles.
 func ValidateSeeds(seeds []Seed) ([]Seed, error) {
 	if len(seeds) != 3 {
 		return nil, fmt.Errorf("planning: need exactly 3 seeds, got %d", len(seeds))
@@ -531,25 +586,53 @@ func ValidateSeeds(seeds []Seed) ([]Seed, error) {
 	seen := map[string]bool{}
 	out := make([]Seed, 0, 3)
 	for _, s := range seeds {
-		s.Stance = strings.ToLower(strings.TrimSpace(s.Stance))
-		switch s.Stance {
-		case StanceSmallest, StanceDeepest, StanceLowestRisk:
-		default:
-			return nil, fmt.Errorf("planning: unknown stance %q", s.Stance)
+		s, err := ValidateSeed(s)
+		if err != nil {
+			return nil, err
 		}
 		if seen[s.Stance] {
 			return nil, fmt.Errorf("planning: duplicate stance %q", s.Stance)
 		}
 		seen[s.Stance] = true
-		if strings.TrimSpace(s.Title) == "" || strings.TrimSpace(s.Summary) == "" {
-			return nil, fmt.Errorf("planning: seed %q needs a title and summary", s.Stance)
-		}
-		if len(s.TaskTitles) < 3 || len(s.TaskTitles) > 6 {
-			return nil, fmt.Errorf("planning: seed %q has %d task titles (want 3–6)", s.Stance, len(s.TaskTitles))
-		}
 		out = append(out, s)
 	}
 	return out, nil
+}
+
+// seedSet keeps the first valid seed per stance. Invalid or duplicate entries
+// are ignored so one malformed object cannot discard the usable seeds.
+func seedSet(seeds []Seed) map[string]Seed {
+	out := map[string]Seed{}
+	for _, s := range seeds {
+		v, err := ValidateSeed(s)
+		if err != nil {
+			continue
+		}
+		if _, ok := out[v.Stance]; !ok {
+			out[v.Stance] = v
+		}
+	}
+	return out
+}
+
+func orderedSeeds(set map[string]Seed) []Seed {
+	out := make([]Seed, 0, len(allStances))
+	for _, stance := range allStances {
+		if s, ok := set[stance]; ok {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+func missingStances(set map[string]Seed) []string {
+	var out []string
+	for _, stance := range allStances {
+		if _, ok := set[stance]; !ok {
+			out = append(out, stance)
+		}
+	}
+	return out
 }
 
 // ValidateExpanded validates one expanded plan and its task graph. It also
@@ -1168,32 +1251,10 @@ func (s *Service) Generate(ctx context.Context, projectID, optionID string, req 
 		}
 	}
 
-	// Call 1: three seeds, one per stance.
-	seedReq := req
-	seedReq.Phase = "seed"
-	seedReq.Progress = report
-	var seeds []Seed
-	var seedErr error
-	for attempt := 0; attempt < 2; attempt++ {
-		if attempt > 0 {
-			seedReq.Repair = seedErr.Error()
-			report(ProgressEvent{Phase: "seed", Stage: "repair", Detail: "repairing the plan seeds"})
-		}
-		callCtx, cancel := context.WithTimeout(ctx, seedCallTimeout)
-		raw, genErr := s.gen.Generate(callCtx, seedReq)
-		cancel()
-		if genErr != nil {
-			return fail(genErr)
-		}
-		seeds, seedErr = ParseSeeds(raw)
-		if seedErr == nil {
-			seeds, seedErr = ValidateSeeds(seeds)
-		}
-		if seedErr == nil {
-			break
-		}
-		report(ProgressEvent{Phase: "seed", Stage: "rejected", Detail: seedErr.Error()})
-	}
+	// Call 1: three seeds, one per stance. A model that returns only one or
+	// two seeds gets bounded single-stance repair calls rather than failing
+	// the whole run.
+	seeds, seedErr := s.collectSeeds(ctx, req, report)
 	if seedErr != nil {
 		return fail(seedErr)
 	}
@@ -1340,6 +1401,102 @@ func (s *Service) GenerateSingle(ctx context.Context, projectID, optionID string
 		return Session{}, fmt.Errorf("planning: session disappeared after completion")
 	}
 	return got, nil
+}
+
+// collectSeeds gets one seed per stance. The combined call is tried twice;
+// if the model still returns fewer than three valid seeds, each missing stance
+// gets a bounded single-stance call. A malformed object never discards the
+// usable seeds from the same response.
+func (s *Service) collectSeeds(ctx context.Context, req Request, report func(ProgressEvent)) ([]Seed, error) {
+	seedReq := req
+	seedReq.Phase = "seed"
+	seedReq.Progress = report
+	set := map[string]Seed{}
+	var lastErr error
+	for attempt := 0; attempt < 2; attempt++ {
+		if attempt > 0 {
+			seedReq.Repair = lastErr.Error()
+			report(ProgressEvent{Phase: "seed", Stage: "repair", Detail: "repairing the plan seeds"})
+		}
+		raw, err := s.generateSeed(ctx, seedReq)
+		if err != nil {
+			return nil, err
+		}
+		parsed, parseErr := ParseSeeds(raw)
+		if parseErr != nil {
+			lastErr = parseErr
+			report(ProgressEvent{Phase: "seed", Stage: "rejected", Detail: parseErr.Error()})
+			continue
+		}
+		for stance, seed := range seedSet(parsed) {
+			if _, ok := set[stance]; !ok {
+				set[stance] = seed
+			}
+		}
+		if len(set) == len(allStances) {
+			return orderedSeeds(set), nil
+		}
+		lastErr = fmt.Errorf("planning: the response is missing the %s stance(s)",
+			strings.Join(missingStances(set), ", "))
+		report(ProgressEvent{Phase: "seed", Stage: "rejected", Detail: lastErr.Error()})
+	}
+	for _, stance := range missingStances(set) {
+		report(ProgressEvent{Phase: "seed", Stage: "seed_one", Detail: "requesting the " + stance + " seed"})
+		if err := s.collectOneSeed(ctx, req, stance, report, set); err != nil {
+			return nil, err
+		}
+	}
+	if len(set) != len(allStances) {
+		return nil, fmt.Errorf("planning: could not collect all three stances (missing %s)",
+			strings.Join(missingStances(set), ", "))
+	}
+	return orderedSeeds(set), nil
+}
+
+func (s *Service) collectOneSeed(ctx context.Context, req Request, stance string, report func(ProgressEvent), set map[string]Seed) error {
+	oneReq := req
+	oneReq.Phase = "seed_one"
+	oneReq.SeedStance = stance
+	oneReq.Progress = report
+	var lastErr error
+	for attempt := 0; attempt < 2; attempt++ {
+		if attempt > 0 {
+			oneReq.Repair = lastErr.Error()
+			report(ProgressEvent{Phase: "seed", Stage: "repair", Detail: "repairing the " + stance + " seed"})
+		}
+		raw, err := s.generateSeed(ctx, oneReq)
+		if err != nil {
+			return err
+		}
+		parsed, parseErr := ParseSeeds(raw)
+		if parseErr != nil {
+			lastErr = parseErr
+			report(ProgressEvent{Phase: "seed", Stage: "rejected", Detail: parseErr.Error()})
+			continue
+		}
+		for _, seed := range parsed {
+			if strings.TrimSpace(seed.Stance) == "" {
+				seed.Stance = stance
+			}
+			if v, verr := ValidateSeed(seed); verr == nil {
+				if _, ok := set[v.Stance]; !ok {
+					set[v.Stance] = v
+				}
+			}
+		}
+		if _, ok := set[stance]; ok {
+			return nil
+		}
+		lastErr = fmt.Errorf("planning: the response did not contain a %q seed", stance)
+		report(ProgressEvent{Phase: "seed", Stage: "rejected", Detail: lastErr.Error()})
+	}
+	return fmt.Errorf("planning: the model did not produce the %q seed after repair: %w", stance, lastErr)
+}
+
+func (s *Service) generateSeed(ctx context.Context, req Request) (string, error) {
+	callCtx, cancel := context.WithTimeout(ctx, seedCallTimeout)
+	defer cancel()
+	return s.gen.Generate(callCtx, req)
 }
 
 func stageLabel(ev ProgressEvent) string {

@@ -30,6 +30,10 @@ New entries are appended at the top. Do not rewrite history.
 - **Shared pre-index.** Approval waits for one single-flight repository pass
   through the UI's index coordinator, so a UI-started background index and an
   API-driven approval cannot duplicate work or start the first job blind.
+- **Resilient seed collection.** A model that returns one or two seeds instead
+  of three no longer fails the plan run; missing stances get a bounded
+  single-stance seed call, and malformed objects are dropped without
+  discarding the usable seeds. Test: `TestGenerateRepairsMissingSeedStances`.
 - **Evidence.** `project_created`, `intent_updated`, `onramp_overridden`,
   `direction_selected`, and `plan_approved` join the audit stream.
 - ADR-0132; tests: `TestStageDerivesEveryTransition`, `TestInferOnRamp`,
