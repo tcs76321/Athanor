@@ -30,6 +30,7 @@ import (
 	"github.com/tcs76321/athanor/internal/composition"
 	"github.com/tcs76321/athanor/internal/config"
 	"github.com/tcs76321/athanor/internal/corrections"
+	"github.com/tcs76321/athanor/internal/cycle"
 	"github.com/tcs76321/athanor/internal/digest"
 	"github.com/tcs76321/athanor/internal/doctor"
 	"github.com/tcs76321/athanor/internal/evaluation"
@@ -161,6 +162,10 @@ type Deps struct {
 	// Intake is the guided project-intake service (ADR-0132). It is the
 	// canonical state machine behind the onboarding pages.
 	Intake *intake.Service
+	// Cycles is the project timeline repository (ADR-0134). The canvas reads
+	// and edits a cycle's draft graph; Starter compiles and starts it.
+	Cycles  *cycle.Repo
+	Starter firstuse.Starter
 	// ModelAudit is the measured model-fit JSON passed by `athanor start`.
 	// Empty means no audit was available.
 	ModelAudit string

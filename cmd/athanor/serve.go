@@ -27,6 +27,7 @@ import (
 	"github.com/tcs76321/athanor/internal/config"
 	"github.com/tcs76321/athanor/internal/control"
 	"github.com/tcs76321/athanor/internal/corrections"
+	"github.com/tcs76321/athanor/internal/cycle"
 	"github.com/tcs76321/athanor/internal/dag"
 	"github.com/tcs76321/athanor/internal/daydream"
 	"github.com/tcs76321/athanor/internal/discovery"
@@ -519,6 +520,8 @@ func run(configPath, addr, stateDir string, container bool) error {
 		Freezer: killSwitch, Control: killSwitch, Operator: opCtrl, Pool: modelPool, Engine: eng, Indexer: indexer,
 		Assist:       assistSvc,
 		Intake:       intakeSvc,
+		Cycles:       cycle.NewRepo(st),
+		Starter:      sched,
 		ModelAudit:   os.Getenv("ATHANOR_MODEL_AUDIT"),
 		TaskResetter: sched,
 		Alarms:       alarmSvc,

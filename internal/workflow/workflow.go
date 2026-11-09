@@ -65,13 +65,13 @@ type Port struct {
 // BlockSpec is the registry entry for one kind. Ports are fixed per kind so
 // the canvas and the compiler share one definition.
 type BlockSpec struct {
-	Kind         Kind
-	Title        string
-	Capability   string
-	Inputs       []Port
-	Outputs      []Port
-	DefaultTools []string
-	HumanGate    bool
+	Kind         Kind     `json:"kind"`
+	Title        string   `json:"title"`
+	Capability   string   `json:"capability"`
+	Inputs       []Port   `json:"inputs"`
+	Outputs      []Port   `json:"outputs"`
+	DefaultTools []string `json:"default_tools,omitempty"`
+	HumanGate    bool     `json:"human_gate,omitempty"`
 }
 
 // specs is the closed repertoire. Keep it small and orthogonal; a new kind is

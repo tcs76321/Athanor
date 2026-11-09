@@ -17,6 +17,8 @@ func document(body string) string {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{{.Title}} — Athanor</title>
 <link rel="stylesheet" href="/ui/assets/app.css">
+{{if .Canvas}}<link rel="stylesheet" href="/ui/assets/canvas.css">
+<script src="/ui/assets/canvas.js" defer></script>{{end}}
 <script src="/ui/assets/htmx.min.js" defer></script>
 <script src="/ui/assets/app.js" defer></script>
 </head>
@@ -456,6 +458,7 @@ const projectBody = `
 <h1>{{.Project.Name}} <span class="pill">{{join .Project.Capabilities}}</span></h1>
 <p class="sub">{{.Project.Goal}}</p>
 <div class="actions">
+  <a class="btn primary" href="/ui/projects/{{.Project.ID}}/canvas">Canvas</a>
   <a class="btn" href="/ui/projects/{{.Project.ID}}/onboarding">Onboarding / explore</a>
   <a class="btn secondary" href="#submit-goal">Submit a goal</a>
   {{if and .Project.RepositoryPath .CanPush}}
