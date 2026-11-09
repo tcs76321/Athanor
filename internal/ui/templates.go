@@ -76,7 +76,7 @@ func document(body string) string {
       </form>
       <div class="top-actions">
         <button type="button" class="btn secondary small" data-palette-open>⌘K</button>
-        <a class="btn primary small" href="/ui/projects/new">+ New project</a>
+        <a class="btn primary small" href="/ui/new">+ New project</a>
       </div>
     </div>
     {{if .DevRuntime}}<div class="banner">Development runtime: this is the unsupported host process. The supported runtime is the Core Pod — run <code>sh scripts/install.sh</code> for the real setup, or continue here for development.</div>{{end}}
@@ -233,7 +233,7 @@ const dashboardBody = `
     <p class="lede">{{if .Active}}Watch the current work, or start the next project. Nothing external happens without your approval.{{else}}A project is a goal, its limits, and the work that follows. Athanor can explore directions first, then plan and execute with your approval.{{end}}</p>
   </div>
   <div class="actions">
-    <a class="btn primary" href="/ui/projects/new">+ New project</a>
+    <a class="btn primary" href="/ui/new">+ New project</a>
     <a class="btn secondary" href="/ui/artifacts">Library</a>
   </div>
 </div>
@@ -407,7 +407,7 @@ const dashboardBody = `
 const projectsBody = `
 <h1>Projects</h1>
 <p class="sub">Each project is one goal, its criteria, and the work history behind it.</p>
-<div class="actions"><a class="btn" href="/ui/projects/new">+ New project</a></div>
+<div class="actions"><a class="btn" href="/ui/new">+ New project</a></div>
 {{if .Projects}}
 <table><thead><tr><th>Name</th><th>Capabilities</th><th>Status</th><th>Priority</th><th>Goal</th><th>Created</th></tr></thead><tbody>
 {{range .Projects}}<tr>

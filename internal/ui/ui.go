@@ -25,6 +25,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/tcs76321/athanor/internal/architect"
 	"github.com/tcs76321/athanor/internal/artifact"
 	"github.com/tcs76321/athanor/internal/assist"
 	"github.com/tcs76321/athanor/internal/composition"
@@ -164,8 +165,9 @@ type Deps struct {
 	Intake *intake.Service
 	// Cycles is the project timeline repository (ADR-0134). The canvas reads
 	// and edits a cycle's draft graph; Starter compiles and starts it.
-	Cycles  *cycle.Repo
-	Starter firstuse.Starter
+	Cycles    *cycle.Repo
+	Starter   firstuse.Starter
+	Architect *architect.Service
 	// ModelAudit is the measured model-fit JSON passed by `athanor start`.
 	// Empty means no audit was available.
 	ModelAudit string

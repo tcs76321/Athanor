@@ -19,6 +19,7 @@ import (
 
 	"github.com/tcs76321/athanor/internal/alarms"
 	"github.com/tcs76321/athanor/internal/api"
+	"github.com/tcs76321/athanor/internal/architect"
 	"github.com/tcs76321/athanor/internal/artifact"
 	"github.com/tcs76321/athanor/internal/assist"
 	"github.com/tcs76321/athanor/internal/backup"
@@ -328,6 +329,11 @@ func run(configPath, addr, stateDir string, container bool) error {
 		assistFallback, _ = registry.Persona(llm.RoleMain)
 	}
 	assistSvc := assist.New(&assistGenerator{client: llmClient, selector: modelSelector, fallback: assistFallback})
+	architectFallback, _ := registry.Persona(llm.RoleMain)
+	if architectFallback.Model == "" {
+		architectFallback, _ = registry.Persona(llm.RoleTall)
+	}
+	architectSvc := architect.New(&architectGenerator{client: llmClient, selector: modelSelector, fallback: architectFallback})
 	// Household mode gate: Stopped preempts phases and refuses new work.
 	eng.SetOperatorGate(opCtrl)
 	opCtrl.SetHooks(operator.Hooks{
@@ -522,6 +528,7 @@ func run(configPath, addr, stateDir string, container bool) error {
 		Intake:       intakeSvc,
 		Cycles:       cycle.NewRepo(st),
 		Starter:      sched,
+		Architect:    architectSvc,
 		ModelAudit:   os.Getenv("ATHANOR_MODEL_AUDIT"),
 		TaskResetter: sched,
 		Alarms:       alarmSvc,
