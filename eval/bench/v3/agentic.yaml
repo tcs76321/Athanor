@@ -18,7 +18,8 @@ tasks:
     goal: |
       The provided `calc` package has two bugs: `add` returns the wrong value,
       and `run` subtracts one after calling it. Fix both without changing the
-      tests or the public API. Run the test suite to see the failures.
+      tests or the public API. Run the test suite to see the failures. Emit the
+      full changed files as === FILE: path === blocks.
     criteria:
       - all tests pass
       - the tests are unchanged
@@ -48,7 +49,7 @@ tasks:
     goal: |
       The provided `observe` package has a failing test. Run the tests, read the
       failure, and fix the implementation without changing the test or the
-      public API.
+      public API. Emit the full changed files as === FILE: path === blocks.
     criteria:
       - all tests pass
       - the test is unchanged
@@ -79,7 +80,7 @@ tasks:
       The provided `shop` package needs a per-item `discount` in [0, 1]. Add it
       to `Item` with a default of 0, apply it in `total`, and clamp a discount
       above 1 to a full-price item. Do not change the tests. Run the tests to
-      see the failures.
+      see the failures. Emit the full changed files as === FILE: path === blocks.
     criteria:
       - all tests pass
       - Item accepts an optional discount

@@ -17,10 +17,11 @@ tasks:
     goal: |
       Write an RFC for a multi-tenant HTTP rate limiter used by a local-first
       agent runtime. It must work offline, survive a restart, and let one
-      tenant's burst not starve another. Cover the decision, at least two
-      alternatives you rejected, the consequences, and the top risks. Name the
-      data structure and where state lives. Be concrete enough that an engineer
-      could implement it this week.
+      tenant's burst not starve another. Use these exact headings in this order:
+      Context, Decision, Alternatives, Consequences, Risks. Cover the decision,
+      at least two alternatives you rejected, the consequences, and the top
+      risks. Name the data structure and where state lives. Be concrete enough
+      that an engineer could implement it this week.
     criteria:
       - context, decision, alternatives, consequences, and risks are present in order
       - at least two real alternatives with a rejection reason each
@@ -53,7 +54,8 @@ tasks:
       Refactor the provided `pipeline` package for clarity and testability
       without changing its public behavior. Keep the tests passing. Improve the
       structure so a reader can see each mode's rule independently; do not add
-      features, dependencies, or tests that assert new behavior.
+      features, dependencies, or tests that assert new behavior. Emit the full
+      changed files as === FILE: path === blocks.
     criteria:
       - all existing tests pass
       - public API unchanged
@@ -113,10 +115,10 @@ tasks:
     rubric: quality-v1
     goal: |
       Design an HTTP API for cancelling a running job in a local-first agent
-      runtime. Cover Endpoints, Request, Responses, Errors, and Idempotency.
-      Show the path and method, the success and conflict responses, and what
-      happens when the job is already terminal. Be concrete enough to implement
-      this week.
+      runtime. Use these exact headings in this order: Endpoints, Request,
+      Responses, Errors, Idempotency. Show the path and method, the success and
+      conflict responses, and what happens when the job is already terminal. Be
+      concrete enough to implement this week.
     criteria:
       - required sections in order
       - one endpoint with method and path
@@ -126,7 +128,7 @@ tasks:
       required_sections: [Endpoints, Request, Responses, Errors, Idempotency]
       strict_section_order: [Endpoints, Request, Responses, Errors, Idempotency]
       max_words: 700
-      must_contain: [POST, 202, 409, idempotent]
+      must_contain: [POST, "202", "409", idempotent]
     acceptance_floor: every deterministic check passes
     quality_rubric:
       - '5: one clear endpoint, terminal-state semantics, idempotency, honest errors'

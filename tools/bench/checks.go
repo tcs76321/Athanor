@@ -254,6 +254,15 @@ func checksToExecution(checks map[string]any) map[string]any {
 	out := map[string]any{}
 	for _, k := range []string{
 		"required_sections", "strict_section_order", "must_contain", "must_contain_any", "forbidden_phrases",
+	} {
+		if v, ok := checks[k]; ok {
+			// YAML parses an unquoted numeric token (e.g. `[POST, 202]`) as an
+			// int. The daemon's execution schema is string-only, so coerce here
+			// rather than rejecting the project with a 400.
+			out[k] = toStrings(v)
+		}
+	}
+	for _, k := range []string{
 		"exact_paragraphs", "max_words", "min_words",
 		"array_length", "array_unique_by", "array_sorted_by", "json_field_matches",
 	} {
@@ -432,13 +441,15 @@ func toStrings(v any) []string {
 	case []any:
 		out := make([]string, 0, len(t))
 		for _, e := range t {
-			if s, ok := e.(string); ok {
-				out = append(out, s)
-			}
+			// YAML parses an unquoted numeric token as an int; the execution
+			// schema is string-only, so coerce rather than silently drop it.
+			out = append(out, fmt.Sprint(e))
 		}
 		return out
 	case []string:
 		return t
+	case string:
+		return []string{t}
 	default:
 		return nil
 	}
