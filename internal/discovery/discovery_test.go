@@ -263,6 +263,83 @@ func TestBuildPromptDoesNotForceBusinessFraming(t *testing.T) {
 	}
 }
 
+func TestSanitizeFallsBackOneLiner(t *testing.T) {
+	opts := sampleOptions()
+	opts[0].OneLiner = ""
+	cleaned, dropped := Sanitize(opts)
+	if len(cleaned) != 6 || len(dropped) != 0 {
+		t.Fatalf("cleaned=%d dropped=%v, want 6 and none", len(cleaned), dropped)
+	}
+	if cleaned[0].OneLiner != cleaned[0].Title {
+		t.Fatalf("one_liner = %q, want the title %q", cleaned[0].OneLiner, cleaned[0].Title)
+	}
+}
+
+func TestSanitizeDropsIncompleteDirections(t *testing.T) {
+	opts := sampleOptions()
+	opts[2].Need = ""
+	opts[3].FirstCheck = ""
+	cleaned, dropped := Sanitize(opts)
+	if len(cleaned) != 4 || len(dropped) != 2 {
+		t.Fatalf("cleaned=%d dropped=%d, want 4 and 2 (%v)", len(cleaned), len(dropped), dropped)
+	}
+	if _, err := Validate(cleaned); err != nil {
+		t.Fatalf("four complete directions should be a usable portfolio: %v", err)
+	}
+	if _, err := Validate(cleaned[:3]); err == nil {
+		t.Fatal("three directions passed the minimum portfolio check")
+	}
+}
+
+type repairGenerator struct {
+	raws  []string
+	calls int
+}
+
+func (g *repairGenerator) Generate(_ context.Context, req Request) (string, error) {
+	if g.calls >= len(g.raws) {
+		return g.raws[len(g.raws)-1], nil
+	}
+	raw := g.raws[g.calls]
+	if g.calls > 0 && strings.TrimSpace(req.Repair) == "" {
+		return "", fmt.Errorf("retry %d had no repair hint", g.calls)
+	}
+	g.calls++
+	return raw, nil
+}
+
+func TestGenerateRepairsARejectedPortfolioOnce(t *testing.T) {
+	s, err := store.Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+	if err := store.Migrate(s.DB(), migrations.FS, ""); err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	if _, err := s.DB().ExecContext(ctx,
+		`INSERT INTO projects (id, name, archetype, goal) VALUES ('p3','p3','document','a daily news brief')`); err != nil {
+		t.Fatal(err)
+	}
+	broken := sampleOptions()[:4]
+	broken[0].Need = ""
+	brokenRaw, _ := json.Marshal(broken)
+	goodRaw, _ := json.Marshal(sampleOptions())
+	gen := &repairGenerator{raws: []string{string(brokenRaw), string(goodRaw)}}
+	svc := NewService(gen, NewStore(s))
+	sess, err := svc.Generate(ctx, "p3", Request{Goal: "a daily news brief"})
+	if err != nil {
+		t.Fatalf("repair run: %v", err)
+	}
+	if gen.calls != 2 {
+		t.Fatalf("model calls = %d, want 2 (original + one repair)", gen.calls)
+	}
+	if len(sess.Options) != 6 {
+		t.Fatalf("options = %d, want the repaired portfolio", len(sess.Options))
+	}
+}
+
 type progressGenerator struct{ raw string }
 
 func (g progressGenerator) Generate(_ context.Context, req Request) (string, error) {

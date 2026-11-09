@@ -76,6 +76,9 @@ type Request struct {
 	// used by the pure prompt/parser/scorer; the UI and CLI can attach one to
 	// make the single model call visible while it runs.
 	Progress func(ProgressEvent)
+	// Repair is set on a retry after a parse or validation failure. It carries
+	// the bounded rejection reason so the model can correct the contract.
+	Repair string
 }
 
 // ProgressEvent is one observable step in a discovery run.
@@ -128,8 +131,9 @@ func BuildPrompt(req Request) string {
 			fmt.Fprintf(&b, "- %s\n", strings.TrimSpace(s))
 		}
 	}
-	fmt.Fprintf(&b, "\nReturn EXACTLY a JSON array of %d objects. Stay inside the goal's subject; vary the approach, audience, scope, format, or first deliverable rather than jumping to unrelated fields. Cover at least 6 distinct angles and do not repeat a delivery format unless the audience or approach differ substantially.\n", count)
+	fmt.Fprintf(&b, "\nReturn EXACTLY a JSON array of %d objects. Stay inside the goal's subject; vary the approach, audience, scope, format, or first deliverable rather than jumping to unrelated fields. Cover at least 4 distinct angles and do not repeat a delivery format unless the audience or approach differ substantially. If you cannot produce %d, return at least 4 complete objects; never return a partial object.\n", count, count)
 	b.WriteString("Each object must have these keys (strings unless noted): title, one_liner, domain, focus, audience, need, approach, format, availability, first_deliverable, first_check, evidence (array of {claim, source}), risks (array of strings), assumptions (array of strings).\n")
+	b.WriteString("Every key is mandatory. one_liner, need, format, first_deliverable, and first_check must be non-empty.\n")
 	b.WriteString("FIELD MEANINGS:\n")
 	b.WriteString("- domain / focus: the subject and the specific scope or angle within it.\n")
 	b.WriteString("- audience: who the work is for, or who benefits from it.\n")
@@ -139,6 +143,13 @@ func BuildPrompt(req Request) string {
 	b.WriteString("- availability: how the work is shared (public, internal, private, scheduled) — write \"not applicable\" when it is not a question.\n")
 	b.WriteString("- first_deliverable: the first concrete output, not necessarily finished.\n")
 	b.WriteString("- first_check: the first concrete way to test whether the deliverable is useful.\n")
+	if repair := strings.TrimSpace(req.Repair); repair != "" {
+		if len(repair) > 500 {
+			repair = repair[:500] + "…"
+		}
+		b.WriteString("\nREPAIR REQUIRED: the previous response was rejected: " + repair + "\n")
+		b.WriteString("Return the complete JSON array again. Every object must include every key with a non-empty value, especially one_liner, need, format, first_deliverable, and first_check. Return at least 4 complete directions.\n")
+	}
 	b.WriteString("RULES:\n")
 	b.WriteString("- Be specific about the audience, the need, the approach, the first deliverable, and the first check.\n")
 	b.WriteString("- Prefer directions whose first deliverable can be checked by a concrete first check, not a vague impression.\n")
@@ -236,12 +247,55 @@ func Dedupe(in []Option) []Option {
 	return out
 }
 
+// Sanitize keeps the complete directions and drops incomplete ones, recording
+// a bounded reason for each drop. A missing one_liner is cosmetic and falls
+// back to the title; the content fields (need, format, first deliverable,
+// first check) are substantive and cannot be invented.
+func Sanitize(opts []Option) ([]Option, []string) {
+	out := make([]Option, 0, len(opts))
+	var dropped []string
+	for i := range opts {
+		o := opts[i]
+		o.OneLiner = strings.TrimSpace(o.OneLiner)
+		if o.OneLiner == "" {
+			o.OneLiner = strings.TrimSpace(o.Title)
+		}
+		missing := []string{}
+		for name, value := range map[string]string{
+			"title":             o.Title,
+			"one_liner":         o.OneLiner,
+			"domain":            o.Domain,
+			"audience":          o.Audience,
+			"need":              o.Need,
+			"approach":          o.Approach,
+			"format":            o.Format,
+			"first_deliverable": o.FirstDeliverable,
+			"first_check":       o.FirstCheck,
+		} {
+			if strings.TrimSpace(value) == "" {
+				missing = append(missing, name)
+			}
+		}
+		if len(missing) > 0 {
+			sort.Strings(missing)
+			label := strings.TrimSpace(o.Title)
+			if label == "" {
+				label = fmt.Sprintf("option %d", i+1)
+			}
+			dropped = append(dropped, label+": missing "+strings.Join(missing, ", "))
+			continue
+		}
+		out = append(out, o)
+	}
+	return out, dropped
+}
+
 // Validate enforces the portfolio's non-negotiables. It is intentionally
 // about structure and spread, not taste: the human chooses. It returns the
 // bounded slice the caller must persist (a model may return more than 16).
 func Validate(opts []Option) ([]Option, error) {
-	if len(opts) < 6 {
-		return nil, fmt.Errorf("discovery: need at least 6 distinct options, got %d", len(opts))
+	if len(opts) < 4 {
+		return nil, fmt.Errorf("discovery: need at least 4 usable directions, got %d", len(opts))
 	}
 	if len(opts) > 16 {
 		opts = opts[:16]
@@ -477,36 +531,65 @@ func (s *Service) Generate(ctx context.Context, projectID string, req Request) (
 		s.store.Fail(fctx, sess.ID, err.Error())
 		return Session{}, err
 	}
+	accept := func(raw string) ([]Option, []string, error) {
+		opts, err := Parse(raw)
+		if err != nil {
+			return nil, nil, err
+		}
+		req.Report(ProgressEvent{Stage: "parse", Detail: "JSON parsed", Options: len(opts)})
+		opts = Dedupe(opts)
+		req.Report(ProgressEvent{Stage: "dedupe", Detail: "duplicate directions removed", Options: len(opts)})
+		opts, dropped := Sanitize(opts)
+		if len(dropped) > 0 {
+			req.Report(ProgressEvent{
+				Stage: "salvage", Detail: fmt.Sprintf("%d incomplete direction(s) dropped", len(dropped)),
+				Options: len(opts),
+			})
+		}
+		opts, err = Validate(opts)
+		if err != nil {
+			if len(dropped) > 0 {
+				err = fmt.Errorf("%w (dropped: %s)", err, strings.Join(dropped, "; "))
+			}
+			return nil, dropped, err
+		}
+		req.Report(ProgressEvent{Stage: "validate", Detail: "portfolio meets the spread rules", Options: len(opts)})
+		return opts, dropped, nil
+	}
+
 	req.Report(ProgressEvent{Stage: "model", Detail: "asking the model for a portfolio"})
-	raw, err := s.gen.Generate(ctx, req)
-	if err != nil {
-		return fail(err)
+	var lastErr error
+	for attempt := 0; attempt < 2; attempt++ {
+		if attempt > 0 {
+			// One bounded repair pass: a single missing field or a short
+			// portfolio should not throw away the operator's brief.
+			req.Repair = lastErr.Error()
+			req.Report(ProgressEvent{Stage: "repair", Detail: "asking the model to repair the portfolio"})
+		}
+		raw, genErr := s.gen.Generate(ctx, req)
+		if genErr != nil {
+			return fail(genErr)
+		}
+		req.Report(ProgressEvent{Stage: "response", Detail: "model response received", Bytes: len(raw)})
+		opts, _, acceptErr := accept(raw)
+		if acceptErr == nil {
+			if err := s.store.Complete(ctx, sess.ID, opts); err != nil {
+				return fail(err)
+			}
+			req.Report(ProgressEvent{Stage: "save", Detail: "portfolio persisted", Options: len(opts)})
+			got, ok, err := s.store.Get(ctx, projectID)
+			if err != nil {
+				return Session{}, err
+			}
+			if !ok {
+				return Session{}, fmt.Errorf("discovery: session disappeared after completion")
+			}
+			return got, nil
+		}
+		lastErr = acceptErr
+		req.Report(ProgressEvent{Stage: "rejected", Detail: acceptErr.Error()})
 	}
-	req.Report(ProgressEvent{Stage: "response", Detail: "model response received", Bytes: len(raw)})
-	opts, err := Parse(raw)
-	if err != nil {
-		return fail(err)
-	}
-	req.Report(ProgressEvent{Stage: "parse", Detail: "JSON parsed", Options: len(opts)})
-	opts = Dedupe(opts)
-	req.Report(ProgressEvent{Stage: "dedupe", Detail: "duplicate directions removed", Options: len(opts)})
-	opts, err = Validate(opts)
-	if err != nil {
-		return fail(err)
-	}
-	req.Report(ProgressEvent{Stage: "validate", Detail: "portfolio meets the spread rules", Options: len(opts)})
-	if err := s.store.Complete(ctx, sess.ID, opts); err != nil {
-		return fail(err)
-	}
-	req.Report(ProgressEvent{Stage: "save", Detail: "portfolio persisted", Options: len(opts)})
-	got, ok, err := s.store.Get(ctx, projectID)
-	if err != nil {
-		return Session{}, err
-	}
-	if !ok {
-		return Session{}, fmt.Errorf("discovery: session disappeared after completion")
-	}
-	return got, nil
+	return fail(lastErr)
 }
 
 // Get and Select delegate to the store.

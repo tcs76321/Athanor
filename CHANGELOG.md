@@ -12,6 +12,15 @@ New entries are appended at the top. Do not rewrite history.
 
 ### Project initialization cleanup (2026-11-08)
 
+- **Discovery is resilient to one bad direction.** A missing `one_liner` now
+  falls back to the title; a direction missing a substantive field (`need`,
+  `format`, `first_deliverable`, `first_check`) is dropped by name. A portfolio
+  of four complete directions is accepted, and the service makes one bounded
+  repair pass with the rejection reason when validation still fails. The prompt
+  requires non-empty keys and at least four complete objects. This fixes the
+  “option 4 is missing one_liner” failure that rejected an otherwise usable
+  portfolio.
+
 - **Human cost and time removed.** A discovery direction no longer carries
   `setup_cost_usd` or `time_to_first_deliverable_days`, and the prompts no
   longer ask for either. Athanor runs locally under its own budget; those

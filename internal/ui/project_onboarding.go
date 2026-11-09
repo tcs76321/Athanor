@@ -588,10 +588,12 @@ func discoveryProgress(run *discoveryRun) (int, string) {
 		percent = 82
 	case "dedupe":
 		percent = 84
-	case "validate":
-		percent = 86
-	case "score":
+	case "salvage":
+		percent = 88
+	case "repair":
 		percent = 90
+	case "validate":
+		percent = 92
 	case "save":
 		percent = 95
 	case "done":

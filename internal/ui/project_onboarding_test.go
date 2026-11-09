@@ -249,7 +249,9 @@ func TestDiscoveryProgressMapping(t *testing.T) {
 		{"model", 0, 20},
 		{"streaming", 4000, 35},
 		{"response", 0, 78},
-		{"score", 0, 90},
+		{"salvage", 0, 88},
+		{"repair", 0, 90},
+		{"validate", 0, 92},
 		{"done", 0, 100},
 	}
 	for _, c := range cases {

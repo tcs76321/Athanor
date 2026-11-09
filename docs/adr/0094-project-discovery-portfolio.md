@@ -103,3 +103,11 @@ operator chooses from the content — audience, need, approach, format, first
 deliverable, first check, evidence, risks, assumptions — and no score ranks
 the options. Core fields are now required by validation.
 
+A model that omits a cosmetic field (for example `one_liner`) no longer
+discards the whole portfolio: the missing one-liner falls back to the title,
+and a direction missing a substantive field (`need`, `format`,
+`first_deliverable`, `first_check`) is dropped by name. At least four complete
+directions make a usable portfolio. If validation still fails, the service
+makes one bounded repair attempt with the rejection reason and the mandatory
+field list; only a second failure is surfaced to the operator.
+
