@@ -1,0 +1,9 @@
+case,task,arm,correctness,completeness,depth,originality,structure,robustness,maintainability,appropriate_complexity,overall
+Q01,quality-research-brief,single,5,5,4,4,5,5,4,5,4.63
+Q02,quality-rfc-ratelimit,single,5,4,4,3,5,4,4,4,4.13
+Q03,quality-refactor-clarity,single,5,4,3,2,4,4,4,4,3.75
+Q04,quality-refactor-clarity,full,5,4,3,2,4,4,4,5,3.88
+Q05,quality-api-design,single,5,5,4,3,5,4,4,5,4.38
+Q06,quality-api-design,full,5,5,5,4,5,4,4,4,4.50
+Q07,quality-rfc-ratelimit,full,5,5,5,4,5,5,5,5,4.88
+Q08,quality-research-brief,full,5,4,3,2,5,4,5,5,4.13
