@@ -176,7 +176,7 @@ var diagnosticModels = []probeModel{
 // those labels rather than duplicating a tag with a different family string.
 var v3Models = []probeModel{
 	{Label: "bonsai27b", Model: "bonsai-2:27b", Family: "bonsai-2", ContextTarget: 32768},
-	{Label: "lfm3_2b", Model: "lfm3-omni:2b-mxfp8", Family: "lfm3-omni", ContextTarget: 32768},
+	{Label: "mimo9b", Model: "mimo-v2.6:9b-mxfp8", Family: "mimo-v2.6", ContextTarget: 32768},
 }
 
 // allModels is every selectable model: the frozen v1/v2 roster, the v3
@@ -198,7 +198,7 @@ var judgeModels = []string{
 	"granite4.2:3b", "gemma4:e4b-mlx", "granite4.2:8b", "ornith-1.5:9b",
 	"gemma4:12b-mlx", "qwen3.8:27b-mlx", "granite4.2:30b",
 	"nemotron-3.5-lightning:30b-mlx", "muse-glimmer:30b-mlx", "ornith-1.5:35b",
-	"bonsai-2:27b", "lfm3-omni:2b-mxfp8",
+	"bonsai-2:27b", "mimo-v2.6:9b-mxfp8",
 }
 
 // familyForTag returns the declared family for a model tag known to the

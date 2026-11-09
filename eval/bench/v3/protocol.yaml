@@ -97,13 +97,13 @@ canonical_persona_set:
 # carries the exact Ollama tags and digests. `bench-verify` refuses a moved
 # digest. The same labels are accepted by `tools/bench -model`.
 generators: [bonsai27b, gemma12b]
-judges: [granite8b, lfm3_2b]
+judges: [granite8b, mimo9b]
 
 roster:
   - {label: bonsai27b, model: "bonsai-2:27b", family: bonsai-2, digest: "f3c4f42086593225d8be9bb4270658d0e05f5232fb2b5e8faa49ef74d2cc843a"}
   - {label: gemma12b, model: "gemma4:12b-mlx", family: gemma, digest: "117d0d84cf2ab865feb59afc2cd30ff5d55f0035e05eb8d1b814f9688e3f3671"}
   - {label: granite8b, model: "granite4.2:8b", family: granite, digest: "f586c02fdecdf151b656207c339aa003997345774a41768bac1fd6d2fb85913b"}
-  - {label: lfm3_2b, model: "lfm3-omni:2b-mxfp8", family: lfm3-omni, digest: "6836661470a19e3204b31d9b44b26d7bffc56f40ceb3fb4f32e4e895e6366d81"}
+  - {label: mimo9b, model: "mimo-v2.6:9b-mxfp8", family: mimo-v2.6, digest: "74dc9c06c48633324039d719e90b2e26db9cc4babff46ed0846a67f58239b86c"}
 
 # One suite per claim. `passes` is the number of independent protocol
 # invocations, not a `-passes` multi-pass run. Tier A (agentic + quality) is

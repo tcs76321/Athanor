@@ -384,7 +384,7 @@ bench-v3-paired-report:
 bench-v3-quality:
 	go run $(GO_TAGS) ./tools/bench quality -in $(BENCH_V3_OUT) \
 		-rubric $(BENCH_V3_DIR)/quality-rubric.yaml \
-		-judges "granite4.2:8b,lfm3-omni:2b-mxfp8" \
+		-judges "granite4.2:8b,mimo-v2.6:9b-mxfp8" \
 		-out $(BENCH_V3_OUT)/quality-scores.json
 
 bench-v3-quality-report:

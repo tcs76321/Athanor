@@ -60,7 +60,7 @@ The 0.x instrument pins:
 | Generator | `bonsai-2:27b` | bonsai-2 | Best quality-per-GB at the host's size budget; 32k target context |
 | Generator | `gemma4:12b-mlx` | gemma | Second independent lineage; slightly higher qualification generator score |
 | Judge (in-loop + rubric) | `granite4.2:8b` | granite | 53/56 judge cases (94.6%); cross-family to both generators; fits alongside either |
-| Judge (rubric cross-check) | `lfm3-omni:2b-mxfp8` | lfm3-omni | Small/fast fourth-family check; 50/56 (89.3%), used as a cross-check, not the authority |
+| Judge (rubric cross-check) | `mimo-v2.6:9b-mxfp8` | mimo-v2.6 | 53/56 (94.6%); fourth-family cross-check. The initial 2B LFM3 judge (50/56) was replaced after the quality smoke. Both absolute-rubric judges disagreed on the 4-task smoke (Spearman 0.17–0.33), so the quality claim is gated on the human anchor and a larger sample, not on a judge swap |
 
 Both generators run the claim-critical suites. The engine's in-loop judge is
 `granite4.2:8b` so the generator comparison is not confounded by judge

@@ -26,7 +26,7 @@ The headline is not a bare pass rate. It is, in priority order:
 | Generator | `bonsai27b` | `bonsai-2:27b` | bonsai-2 | `f3c4f420…` |
 | Generator | `gemma12b` | `gemma4:12b-mlx` | gemma | `117d0d84…` |
 | Judge (in-loop + rubric) | `granite8b` | `granite4.2:8b` | granite | `f586c02f…` |
-| Judge (rubric cross-check) | `lfm3_2b` | `lfm3-omni:2b-mxfp8` | lfm3-omni | `68366614…` |
+| Judge (rubric cross-check) | `mimo9b` | `mimo-v2.6:9b-mxfp8` | mimo-v2.6 | `74dc9c06…` |
 
 All four are distinct families. The engine's in-loop judge is `granite4.2:8b`
 for both generators; both judges score quality artifacts offline and blind.

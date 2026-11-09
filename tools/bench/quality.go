@@ -140,12 +140,17 @@ func callQualityJudge(baseURL, model, prompt string, seed int64) (qualityScore, 
 }
 
 func callQualityJudgeOnce(baseURL, model, prompt string, seed int64, useFormat bool) (qualityScore, error) {
+	// Judgment must not spend its output budget in the thinking channel: some
+	// pinned judges (granite4.2:8b) otherwise return an empty content string
+	// under a small num_predict. Temperature 0 plus think=false is the same
+	// posture the engine uses on judgment phases.
+	think := false
 	req := ollamaChatRequest{
 		Model:    model,
 		Messages: []map[string]string{{"role": "user", "content": prompt}},
 		Stream:   false,
-		Think:    judgeThink,
-		Options:  judgeOptions(1024, seed),
+		Think:    &think,
+		Options:  judgeOptions(2048, seed),
 	}
 	if useFormat {
 		req.Format = "json"
@@ -325,7 +330,7 @@ func runQuality(args []string) {
 	fs := flag.NewFlagSet("quality", flag.ExitOnError)
 	inPath := fs.String("in", "", "artifacts.json from the probe")
 	rubricPath := fs.String("rubric", "eval/bench/v3/quality-rubric.yaml", "quality rubric")
-	judgesCSV := fs.String("judges", "granite4.2:8b,lfm3-omni:2b-mxfp8", "comma-separated judge models")
+	judgesCSV := fs.String("judges", "granite4.2:8b,mimo-v2.6:9b-mxfp8", "comma-separated judge models")
 	ollamaURL := fs.String("ollama", "http://localhost:11434", "Ollama base URL")
 	outPath := fs.String("out", "quality-scores.json", "scores output")
 	minAgreement := fs.Float64("min-agreement", 0.6, "fail below this Spearman floor when both judges scored")

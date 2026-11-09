@@ -181,6 +181,7 @@ func runQualityReport(args []string) {
 	minMean := fs.Float64("min-mean", 0.5, "minimum mean rubric delta")
 	minCILower := fs.Float64("min-ci-lower", 0.2, "minimum 95% CI lower bound")
 	minWin := fs.Float64("min-win-rate", 0.6, "minimum fraction of pairs where full > single")
+	minAgreement := fs.Float64("min-agreement", 0.6, "minimum inter-judge Spearman agreement")
 	iterations := fs.Int("iterations", 10000, "bootstrap resamples")
 	seed := fs.Int64("seed", 1, "bootstrap seed")
 	_ = fs.Parse(args)
@@ -210,5 +211,10 @@ func runQualityReport(args []string) {
 		}
 	} else {
 		fmt.Print(md)
+	}
+	if report.Agreement > 0 && report.Agreement < *minAgreement {
+		fmt.Fprintf(os.Stderr, "quality-report: judge agreement %.3f is below the %.2f floor; the quality claim is not supported\n",
+			report.Agreement, *minAgreement)
+		os.Exit(1)
 	}
 }

@@ -27,7 +27,7 @@ func TestBenchProtocolV3(t *testing.T) {
 	}
 	wantJudge := map[string]string{
 		"granite8b": "granite4.2:8b",
-		"lfm3_2b":   "lfm3-omni:2b-mxfp8",
+		"mimo9b":    "mimo-v2.6:9b-mxfp8",
 	}
 	byLabel := map[string]protocolRosterEntry{}
 	for _, e := range p.Roster {
