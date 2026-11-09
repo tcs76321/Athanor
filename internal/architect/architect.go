@@ -152,10 +152,27 @@ func parseProposal(raw, lastUser string) (Proposal, error) {
 	}
 	p.Graph = normalizeGraph(p.Graph)
 	fillFrame(&p.Frame, lastUser, p.Questions)
+	alignCycle(&p.Frame, p.Graph)
 	if err := validateFrame(p.Frame); err != nil {
 		return Proposal{}, err
 	}
 	return p, nil
+}
+
+// alignCycle keeps the frame's first cycle consistent with the graph's shape.
+// A graph that ends in a human selection is a discovery cycle regardless of
+// the label the model chose: the user is choosing a direction, not shipping.
+func alignCycle(f *Frame, g workflow.Graph) {
+	if f.FirstCycle == "discovery" {
+		return
+	}
+	for _, b := range g.Blocks {
+		if b.Kind == workflow.KindSelect {
+			f.FirstCycle = "discovery"
+			f.Inferred = appendUnique(f.Inferred, "first_cycle")
+			return
+		}
+	}
 }
 
 func fillFrame(f *Frame, lastUser string, questions []string) {
@@ -207,7 +224,7 @@ func validateFrame(f Frame) error {
 
 func inferCycle(goal string, hasQuestions bool) string {
 	low := strings.ToLower(goal)
-	if hasQuestions || containsAny(low, "not sure", "don't know", "idea", "explore", "which", "what should") {
+	if hasQuestions || containsAny(low, "not sure", "don't know", "do not know", "no idea", "idea", "explore", "suggest", "which", "what should") {
 		return "discovery"
 	}
 	if containsAny(low, "code", "build", "implement", "fix", "api", "game", "app") {

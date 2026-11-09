@@ -34,6 +34,17 @@ func (g *architectGenerator) Complete(ctx context.Context, prompt string) (strin
 			model, family, contextTarget = c.Model, c.Family, c.ContextTarget
 		}
 	}
+	// A fresh pool may have models but no qualification scores yet. Onboarding
+	// must still be able to propose; use the first eligible measured model
+	// rather than failing before the user can reach the models step.
+	if model == "" && g.selector != nil && g.selector.Pool != nil {
+		for _, name := range g.selector.Pool.EligibleNames() {
+			if prof, ok := g.selector.Pool.Profile(name); ok {
+				model, family, contextTarget = name, prof.Family, prof.ContextTarget
+				break
+			}
+		}
+	}
 	if model == "" {
 		return "", fmt.Errorf("architect: no model is available for project framing")
 	}

@@ -116,6 +116,28 @@ func TestProposeNormalizesIDsAndEdges(t *testing.T) {
 	}
 }
 
+func TestProposeAlignsSelectionGraphToDiscovery(t *testing.T) {
+	// The model may label a choose-a-direction graph "build". A graph that ends
+	// in a human select is a discovery cycle: the user is choosing, not shipping.
+	raw := `{"questions":[],"frame":{"name":"Game","goal":"Make a game","first_cycle":"build","capabilities":["code"]},
+	  "graph":{"blocks":[{"id":"research","kind":"research"},{"id":"options","kind":"generate_options"},{"id":"select","kind":"select"}],
+	            "edges":[{"from":"research","to":"options"},{"from":"options","to":"select"}]}}`
+	s := New(fakeLLM{response: raw})
+	p, err := s.Propose(context.Background(), []Message{{Role: "user", Content: "Research directions for a game."}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.Degraded {
+		t.Fatalf("degraded: %s", p.Notes)
+	}
+	if p.Frame.FirstCycle != "discovery" {
+		t.Errorf("first cycle = %q, want discovery", p.Frame.FirstCycle)
+	}
+	if err := workflow.Validate(p.Graph, workflow.DefaultLimits()); err != nil {
+		t.Errorf("research -> options graph invalid: %v", err)
+	}
+}
+
 func TestProposeRejectsEmptyConversation(t *testing.T) {
 	s := New(nil)
 	if _, err := s.Propose(context.Background(), nil); err == nil {
