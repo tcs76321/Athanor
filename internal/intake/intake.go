@@ -87,6 +87,13 @@ func New(deps Deps) *Service {
 	}
 }
 
+// SetWaitForIndex replaces the optional pre-index hook. The daemon wires it
+// after the UI is built so UI-started and API-driven approvals share one
+// single-flight repository pass.
+func (s *Service) SetWaitForIndex(fn func(context.Context, project.Project) error) {
+	s.deps.WaitForIndex = fn
+}
+
 // ErrAlreadyApproved reports a second approval of an approved project.
 var ErrAlreadyApproved = errors.New("project already has an approved plan")
 

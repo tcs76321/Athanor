@@ -562,6 +562,7 @@ func run(configPath, addr, stateDir string, container bool) error {
 		},
 		DefaultTTL: cfg.HITL.DefaultTTL.D(),
 	})
+	intakeSvc.SetWaitForIndex(webUI.EnsureIndexed)
 	eng.SetTokenSink(webUI.Hub())
 	webUI.Register(srv.Mux())
 	externalAPI.Register(srv.Mux())

@@ -489,6 +489,25 @@ func TestCompareArtifacts(t *testing.T) {
 	}
 }
 
+func TestEnsureIndexedReusesSuccessfulPass(t *testing.T) {
+	fx := setup(t)
+	pre := &fakePreindexer{}
+	fx.ui.deps.Indexer = pre
+	ctx := context.Background()
+	if err := fx.ui.EnsureIndexed(ctx, fx.project); err != nil {
+		t.Fatalf("first ensure: %v", err)
+	}
+	if pre.calls != 1 {
+		t.Fatalf("calls = %d, want 1", pre.calls)
+	}
+	if err := fx.ui.EnsureIndexed(ctx, fx.project); err != nil {
+		t.Fatalf("second ensure: %v", err)
+	}
+	if pre.calls != 1 {
+		t.Fatalf("successful pass was repeated: calls = %d, want 1", pre.calls)
+	}
+}
+
 // TestProjectIndexIsAsync pins the background index path: the request returns
 // immediately and the status becomes visible on the project page.
 func TestProjectIndexIsAsync(t *testing.T) {

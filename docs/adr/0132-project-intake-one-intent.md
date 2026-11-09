@@ -87,6 +87,9 @@ plan, and then starts the scheduler. Events: `project_created`,
 ## Consequences
 
 - A precise project reaches work in **one required field and one approval**.
+- Approval waits for one shared, single-flight repository pre-index when a
+  repository is configured, so a UI-started background pass and an API-driven
+  approval cannot duplicate work or start the first job blind.
 - An ambiguous project reaches work in one required field, one direction
   choice, and one approval. Limits and sources remain available but never
   gate the first model call.

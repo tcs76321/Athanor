@@ -111,6 +111,11 @@ func TestIntakeAPIFullFlow(t *testing.T) {
 		Projects: h.projects, Jobs: h.jobs, Events: h.st,
 		Discovery: disc, Planning: plan,
 	})
+	waits := 0
+	svc.SetWaitForIndex(func(context.Context, project.Project) error {
+		waits++
+		return nil
+	})
 	h.api.SetIntake(svc)
 	p, err := h.projects.CreateGuided(context.Background(), project.Intent{
 		Goal: "Help me figure out what small service to build.", OnRamp: project.OnRampExplore,
@@ -155,6 +160,9 @@ func TestIntakeAPIFullFlow(t *testing.T) {
 	}
 	if got.ApprovedPlanID != "c1" {
 		t.Fatalf("approved plan = %q", got.ApprovedPlanID)
+	}
+	if waits != 1 {
+		t.Fatalf("pre-index wait calls = %d, want 1", waits)
 	}
 }
 

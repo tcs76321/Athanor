@@ -27,6 +27,9 @@ New entries are appended at the top. Do not rewrite history.
   generation runs, selection, and approval. The UI no longer writes intake SQL;
   the HTTP API exposes `GET /projects/{id}/intake`, intent updates, direction
   and plan generation, selection, and approval.
+- **Shared pre-index.** Approval waits for one single-flight repository pass
+  through the UI's index coordinator, so a UI-started background index and an
+  API-driven approval cannot duplicate work or start the first job blind.
 - **Evidence.** `project_created`, `intent_updated`, `onramp_overridden`,
   `direction_selected`, and `plan_approved` join the audit stream.
 - ADR-0132; tests: `TestStageDerivesEveryTransition`, `TestInferOnRamp`,

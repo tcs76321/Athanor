@@ -15,6 +15,7 @@ import (
 // progress/result for the page that started it.
 type indexRun struct {
 	Status    string // running | done | failed
+	Path      string
 	Error     string
 	StartedAt time.Time
 	Done      bool
@@ -45,7 +46,7 @@ func (u *UI) startIndex(p project.Project) {
 		return
 	}
 	pruneRuns(u.indexRuns, maxRunHistory)
-	u.indexRuns[p.ID] = &indexRun{Status: "running", StartedAt: time.Now()}
+	u.indexRuns[p.ID] = &indexRun{Status: "running", Path: p.RepositoryPath, StartedAt: time.Now()}
 	u.indexMu.Unlock()
 
 	go func() {
@@ -64,6 +65,44 @@ func (u *UI) startIndex(p project.Project) {
 		}
 		u.indexMu.Unlock()
 	}()
+}
+
+// EnsureIndexed guarantees one bounded repository pass for p before a plan is
+// approved. It reuses a successful run for the same repository path, waits for
+// an in-flight run, and starts a fresh pass when none exists or the last one
+// failed. The Core is a single-writer process, so this is also the single-flight
+// point for the UI's background pass and an API-driven approval.
+func (u *UI) EnsureIndexed(ctx context.Context, p project.Project) error {
+	if u.deps.Indexer == nil || strings.TrimSpace(p.RepositoryPath) == "" {
+		return nil
+	}
+	run := u.indexView(p.ID)
+	if run == nil || !run.Done || run.Status == "failed" || run.Path != p.RepositoryPath {
+		u.startIndex(p)
+	}
+	deadline := time.NewTimer(5 * time.Minute)
+	defer deadline.Stop()
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		run := u.indexView(p.ID)
+		if run == nil {
+			return nil
+		}
+		if run.Done {
+			if run.Status == "failed" {
+				return fmt.Errorf("repository pre-index failed: %s", run.Error)
+			}
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-deadline.C:
+			return fmt.Errorf("repository pre-index is still running; wait for it on the project page and try again")
+		case <-ticker.C:
+		}
+	}
 }
 
 // handleProjectIndex starts (or restarts) the bounded index pass.
