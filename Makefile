@@ -15,7 +15,7 @@ export CGO_ENABLED
 # tag-less binary can never silently run.
 GO_TAGS = -tags sqlite_fts5
 
-.PHONY: build release test test-race test-integration integration-images vet lint check vuln tidy tidy-check fuzz cover cover-check run clean hooks bench probe-micro probe probe-judge probe-anchor probe-report probe-bundle probe-reconcile probe-measure jobpod-image jobpod-polyglot-image core-image core-smoke bench-core-focused bench-preflight bench-host-smoke bench-anchor-host bench-anchor-core fresh install soak soak-mini soak-ladder diagnostic diagnostic-pair diagnostic-cascade diagnostic-categories
+.PHONY: build release test test-race test-integration integration-images vet lint check vuln tidy tidy-check fuzz cover cover-check run clean hooks bench probe-micro probe probe-judge probe-anchor probe-report probe-bundle probe-reconcile probe-measure jobpod-image jobpod-polyglot-image core-image core-smoke bench-core-focused bench-preflight bench-host-smoke bench-anchor-host bench-anchor-core bench-v3-verify bench-v3-run bench-v3-suite bench-v3-paired-report fresh install soak soak-mini soak-ladder diagnostic diagnostic-pair diagnostic-cascade diagnostic-categories
 
 build:
 	go build $(GO_TAGS) -o bin/athanor ./cmd/athanor
@@ -327,6 +327,55 @@ bench-anchor-core: bench-verify bench-image
 		-model $(BENCH_ANCHOR_MODEL) -arm single -judge-model $(BENCH_JUDGE) \
 		-passes 1 -hours $(BENCH_ANCHOR_HOURS) -timeout $(BENCH_TIMEOUT)
 	@BENCH_OUT=$(BENCH_ANCHOR_OUT) ./scripts/bench-core.sh stop
+
+# --- Benchmark v3 (0.x paired instrument, ADR-0133) -------------------------
+# The corpus is split into suites. Run one (suite, generator, arm) per
+# invocation; `bench-v3-suite` runs single/cascade/full. The paired report
+# joins the results tree. This target does not run the whole matrix; the
+# overnight orchestration is a script/human decision, not a Make default.
+BENCH_V3_DIR          ?= eval/bench/v3
+BENCH_V3_OUT          ?= tools/bench/results/v3
+BENCH_V3_SUITE        ?= core
+BENCH_V3_GENERATOR    ?= bonsai27b
+BENCH_V3_ARM          ?= full
+BENCH_V3_JUDGE        ?= granite4.2:8b
+BENCH_V3_HOURS        ?= 6
+BENCH_V3_TIMEOUT      ?= 45m
+BENCH_V3_STATE_VOLUME ?= athanor-bench-v3-state
+BENCH_V3_TAG           = $(BENCH_V3_SUITE)-$(BENCH_V3_GENERATOR)-$(BENCH_V3_ARM)
+BENCH_V3_RUN_OUT       = $(BENCH_V3_OUT)/$(BENCH_V3_TAG)
+
+bench-v3-verify:
+	go run $(GO_TAGS) ./tools/bench verify-models -protocol $(BENCH_V3_DIR)/protocol.yaml
+
+bench-v3-run: bench-v3-verify bench-image
+	@mkdir -p $(BENCH_V3_RUN_OUT)
+	@if [ -f "$(BENCH_V3_RUN_OUT)/out/complete" ]; then \
+		echo "=== v3 $(BENCH_V3_TAG) already complete ==="; exit 0; fi
+	@$(MAKE) bench-config BENCH_ARM=$(BENCH_V3_ARM) BENCH_MODEL=$(BENCH_V3_GENERATOR) \
+		BENCH_JUDGE=$(BENCH_V3_JUDGE) BENCH_OUT=$(BENCH_V3_RUN_OUT) \
+		BENCH_CONFIG=$(BENCH_V3_RUN_OUT)/core-config.yaml \
+		BENCH_STATE_VOLUME=$(BENCH_V3_STATE_VOLUME)-$(BENCH_V3_TAG)
+	@BENCH_OUT=$(BENCH_V3_RUN_OUT) BENCH_CONFIG=$(BENCH_V3_RUN_OUT)/core-config.yaml \
+		BENCH_STATE_VOLUME=$(BENCH_V3_STATE_VOLUME)-$(BENCH_V3_TAG) PROBE_IMAGE=$(PROBE_IMAGE) \
+		./scripts/bench-core.sh start
+	@BENCH_OUT=$(BENCH_V3_RUN_OUT) ./scripts/bench-core.sh preflight
+	@BENCH_OUT=$(BENCH_V3_RUN_OUT) BENCH_PROBE_OUT=/bench/out ./scripts/bench-core.sh probe \
+		-corpus $(BENCH_V3_DIR)/$(BENCH_V3_SUITE).yaml \
+		-model $(BENCH_V3_GENERATOR) -arm $(BENCH_V3_ARM) -judge-model $(BENCH_V3_JUDGE) \
+		-passes 1 -hours $(BENCH_V3_HOURS) -timeout $(BENCH_V3_TIMEOUT)
+	@BENCH_OUT=$(BENCH_V3_RUN_OUT) ./scripts/bench-core.sh stop
+
+bench-v3-suite:
+	@for arm in single cascade full; do \
+		echo "=== v3 $(BENCH_V3_SUITE)/$(BENCH_V3_GENERATOR)/$$arm ==="; \
+		$(MAKE) bench-v3-run BENCH_V3_ARM=$$arm || exit 1; \
+	done
+
+bench-v3-paired-report:
+	go run $(GO_TAGS) ./tools/bench paired-report -out $(BENCH_V3_OUT) \
+		-generator $(BENCH_V3_GENERATOR) \
+		-json $(BENCH_V3_OUT)/paired.json -md $(BENCH_V3_OUT)/paired.md
 
 run:
 	go run $(GO_TAGS) ./cmd/athanor

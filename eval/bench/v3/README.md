@@ -116,24 +116,24 @@ are task-clustered.
 
 ```bash
 # Verify the pinned models and digests.
-make bench-verify BENCH_DIR=eval/bench/v3
+make bench-v3-verify
 
-# Build the probe image.
-make bench-image
+# Run one suite on one generator and one arm (Core Pod, fresh state volume).
+BENCH_V3_SUITE=agentic BENCH_V3_GENERATOR=bonsai27b BENCH_V3_ARM=cascade make bench-v3-run
 
-# One arm on one generator (repeat per arm/generator; the paired report joins).
-BENCH_DIR=eval/bench/v3 \
-BENCH_MODEL=bonsai27b \
-BENCH_ARM=cascade \
-BENCH_OUT=tools/bench/results/v3-agentic-bonsai-cascade \
-make bench-full
+# Run all three arms for a suite (single, cascade, full), sequentially.
+BENCH_V3_SUITE=agentic BENCH_V3_GENERATOR=bonsai27b make bench-v3-suite
 
-# Aggregate the paired runs.
-make bench-v3-report
+# Join every arm under BENCH_V3_OUT and write paired.json / paired.md.
+make bench-v3-paired-report
+
+# The four suites are core, agentic, quality, and one-shot. Repeat the
+# generator for gemma12b. The quality suite uses single and full only.
 ```
 
-The exact targets are added with the harness. Until then, the protocol is the
-contract and `tools/bench` is run per arm with `-corpus` and `-arm`.
+The overnight orchestration is tiered: agentic + quality on both generators
+first, then core and one-shot. `bench-v3-suite` is a convenience loop, not the
+claim-critical scheduler.
 
 ## Files
 

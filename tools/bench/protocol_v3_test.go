@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -143,5 +144,36 @@ func TestValidateV3RejectsSameFamily(t *testing.T) {
 	}
 	if err := validateV3(p); err == nil {
 		t.Fatal("validateV3 accepted a single-family matrix")
+	}
+}
+
+// TestV3ConfigRendersPinnedMatrix proves the generated config uses each
+// generator for its generation roles, the cross-family granite judge for
+// security, and one_shot_first only on the cascade arm.
+func TestV3ConfigRendersPinnedMatrix(t *testing.T) {
+	for _, label := range []string{"bonsai27b", "gemma12b"} {
+		m, ok := modelByLabel(label)
+		if !ok {
+			t.Fatalf("generator %q missing", label)
+		}
+		for _, armName := range []string{"single", "cascade", "full"} {
+			a, ok := namedArm(armName)
+			if !ok {
+				t.Fatalf("arm %q missing", armName)
+			}
+			raw := probeConfigYAML(m, a, "off", "127.0.0.1:7420", false,
+				probePolicy{JudgeModel: "granite4.2:8b"})
+			if !strings.Contains(raw, `model: "`+m.Model+`"`) {
+				t.Errorf("%s/%s config lacks generator %q", label, armName, m.Model)
+			}
+			if !strings.Contains(raw, `model: "granite4.2:8b"`) ||
+				!strings.Contains(raw, `family: "granite"`) {
+				t.Errorf("%s/%s config lacks the cross-family granite judge", label, armName)
+			}
+			hasOneShot := strings.Contains(raw, "one_shot_first: true")
+			if wants := armName == "cascade"; hasOneShot != wants {
+				t.Errorf("%s/%s one_shot_first = %v, want %v", label, armName, hasOneShot, wants)
+			}
+		}
 	}
 }
