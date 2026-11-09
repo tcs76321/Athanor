@@ -46,6 +46,19 @@ The claim-critical suites (agentic + quality) run three independent protocol
 invocations; breadth runs one. Tiered execution keeps the matrix within a
 two-night window.
 
+### Seed status (pre-freeze)
+
+| Suite | Seeded | Target |
+|---|---:|---:|
+| Core | 22 | 28 |
+| Agentic | 3 | 14 |
+| Quality | 4 | 14 |
+| One-shot | 5 | 8 |
+
+The schema, harness, model matrix, paired report, quality scorer, and
+mechanism audit are implemented. The remaining tasks are authored before the
+`v0.0.0-rc1` freeze; the corpus test enforces the upper bounds and schema.
+
 ## Task schema
 
 Every task is a YAML entry with deterministic checks and, for agentic/quality
