@@ -71,7 +71,10 @@ func prepWorkDir() string {
 // a stale test artifact, or a modified fixture; reusing the work tree made
 // multi-candidate evaluation order-dependent.
 func resetWorkDir() string {
-	return "rm -rf " + podWork + " && " + prepWorkDir()
+	// The readiness flag lives outside /tmp/work; remove it too, or prepWorkDir
+	// skips the repository copy on the next candidate and the test tree has
+	// only the candidate overlay (missing package __init__.py, tests, etc.).
+	return "rm -rf " + podWork + " && rm -f " + repoReadyFlag + " && " + prepWorkDir()
 }
 
 // treeUnpacker is the fixed in-pod program that materializes a Files tree
