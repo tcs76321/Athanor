@@ -187,6 +187,14 @@ func (m *jobMetrics) fillTelemetry(db *sql.DB) {
 		t.RepairLoops == 0 && t.ReflectLoops == 0 && t.Replans == 0 && t.Observations == 0
 }
 
+// knownMechanisms is the closed set of requirements a v3 task may declare.
+// The corpus test rejects a typo so it cannot become an event-name fallback
+// that never fires.
+var knownMechanisms = map[string]bool{
+	"run_tests": true, "observe_failure": true, "edit_multiple_files": true,
+	"repair": true, "use_memory": true, "multi_job": true,
+}
+
 // fillMechanisms audits a v3 task's required mechanisms against the event
 // trace. A mechanism that did not run is a capability gap even if the artifact
 // happened to pass (ADR-0133).

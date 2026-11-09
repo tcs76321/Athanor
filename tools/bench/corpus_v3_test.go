@@ -76,6 +76,11 @@ func TestBenchV3Corpus(t *testing.T) {
 				if len(g.Requires) == 0 {
 					t.Errorf("%s: agentic task has no requires", g.Name)
 				}
+				for _, req := range g.Requires {
+					if !knownMechanisms[req] {
+						t.Errorf("%s: unknown mechanism %q", g.Name, req)
+					}
+				}
 				if g.OneShotExpected != "fail" && g.OneShotExpected != "pass" {
 					t.Errorf("%s: one_shot_expected = %q", g.Name, g.OneShotExpected)
 				}
