@@ -75,7 +75,7 @@ func TestAssistHandlerPassesFormAndSystemContext(t *testing.T) {
 	ts := httptest.NewServer(mux)
 	t.Cleanup(ts.Close)
 
-	body := strings.NewReader(`{"field":"project.goal","text":"build a csv parser","context":{"name":"importer","criteria":"pytest passes"}}`)
+	body := strings.NewReader(`{"field":"project.goal","text":"build a csv parser","context":{"name":"importer","criteria":"pytest passes"},"pass":2,"origin":"csv parser etc","prior_assumptions":["the input is a CSV export"]}`)
 	resp, err := http.Post(ts.URL+"/ui/assist", "application/json", body)
 	if err != nil {
 		t.Fatal(err)
@@ -89,6 +89,12 @@ func TestAssistHandlerPassesFormAndSystemContext(t *testing.T) {
 	}
 	if fa.gotContext.Runtime != "Core Pod" || fa.gotContext.Version != "9.9.9" {
 		t.Fatalf("system context = %+v", fa.gotContext)
+	}
+	if fa.gotContext.Pass != 2 || fa.gotContext.Origin != "csv parser etc" {
+		t.Fatalf("refinement pass = %+v, want pass 2 from the telegraphic origin", fa.gotContext)
+	}
+	if len(fa.gotContext.PriorAssumptions) != 1 || fa.gotContext.PriorAssumptions[0] != "the input is a CSV export" {
+		t.Fatalf("prior assumptions = %+v", fa.gotContext.PriorAssumptions)
 	}
 }
 
@@ -106,5 +112,25 @@ func TestAssistHandlerRejectsBadJSON(t *testing.T) {
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400", resp.StatusCode)
+	}
+}
+
+func TestRefineAssetCarriesPassState(t *testing.T) {
+	data, err := assetsFS.ReadFile("assets/app.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	js := string(data)
+	for _, want := range []string{
+		"pass: nextPass",
+		"origin: origin",
+		"prior_assumptions: assumptions",
+		"Press ✨ again for a deeper pass.",
+		"Idealized — text unchanged.",
+		"Edit the field to refine again.",
+	} {
+		if !strings.Contains(js, want) {
+			t.Errorf("refine asset missing %q", want)
+		}
 	}
 }

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -44,7 +45,7 @@ func (g *assistGenerator) Generate(ctx context.Context, system, user string) (st
 	// safer editor until the pool has evidence.
 	if g.selector != nil && g.selector.Pool != nil && poolHasScores(g.selector.Pool) {
 		if c, ok := g.selector.Pool.Choose(composition.Request{
-			Phase: "assist", Capability: composition.CapabilityGeneral,
+			Phase: "assist", Capability: composition.CapabilityInstruction,
 			Stance: composition.StanceSynthesize, MinContext: 8192, PreferQuality: true,
 		}); ok && c.Model != "" {
 			model = c.Model
@@ -84,5 +85,7 @@ func (g *assistGenerator) Generate(ctx context.Context, system, user string) (st
 	if err != nil {
 		return "", fmt.Errorf("refinement model (%s, %s): %w", model, family, err)
 	}
+	slog.Debug("assist: model response", "model", model, "family", family,
+		"prompt_bytes", len(user), "response_bytes", len(resp.Content))
 	return resp.Content, nil
 }

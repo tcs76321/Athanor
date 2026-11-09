@@ -580,14 +580,35 @@
       wrap.append(bar, status, questions);
 
       let original = null;
+      let origin = null;
+      let pass = 0;
+      let assumptions = [];
+      let idealized = false;
+      let applying = false;
+
+      field.addEventListener("input", () => {
+        if (applying) return;
+        pass = 0;
+        assumptions = [];
+        idealized = false;
+        origin = field.value;
+      });
+
       wand.addEventListener("click", async () => {
+        if (idealized) {
+          status.className = "refine-status ok";
+          status.textContent = "✓ Idealized — text unchanged. Edit the field to refine again.";
+          return;
+        }
         const text = String(field.value || "").trim();
         questions.hidden = true;
         questions.replaceChildren();
         if (original === null) original = field.value;
+        if (origin === null) origin = field.value;
+        const nextPass = pass + 1;
         wand.disabled = true;
         status.className = "refine-status";
-        status.textContent = "Refining…";
+        status.textContent = "Refining… pass " + nextPass;
         try {
           const resp = await fetch("/ui/assist", {
             method: "POST",
@@ -598,6 +619,9 @@
               mode: field.dataset.refineMode || "improve",
               project_id: refineProjectID(),
               context: refineContext(field),
+              pass: nextPass,
+              origin: origin,
+              prior_assumptions: assumptions,
             }),
           });
           const data = await resp.json().catch(() => ({}));
@@ -624,23 +648,35 @@
             return;
           }
           if (!data.text) throw new Error("The model returned an empty suggestion");
+          const resultPass = data.pass || nextPass;
           if (data.unchanged || String(field.value) === String(data.text)) {
+            pass = resultPass;
+            idealized = true;
             const why = (data.notes || []).join(" · ");
-            status.textContent = "✓ Idealized — this field is complete and ideal." + (why ? " " + why : "");
+            status.textContent = why ? "✓ " + why : "✓ Idealized — text unchanged.";
             status.classList.add("ok");
-            toast("Idealized ✓ — this field is already complete.");
+            toast("Idealized — text unchanged.");
             return;
           }
+          applying = true;
           field.value = data.text;
           field.dispatchEvent(new Event("input", { bubbles: true }));
           field.dispatchEvent(new Event("change", { bubbles: true }));
+          applying = false;
+          pass = resultPass;
+          assumptions = assumptions.concat(data.added_assumptions || []);
+          idealized = false;
           revert.disabled = false;
           const notes = []
             .concat(data.notes || [])
             .concat((data.added_assumptions || []).map((x) => "assumption: " + x));
-          status.textContent = notes.length ? notes.join(" · ") : "Refined.";
+          const ofMax = data.max_pass ? " of " + data.max_pass : "";
+          const next = data.max_pass && pass >= data.max_pass
+            ? " Refinement limit reached; edit the field to continue."
+            : " Press ✨ again for a deeper pass.";
+          status.textContent = (notes.length ? notes.join(" · ") : "Refined.") + " (pass " + pass + ofMax + ")" + next;
           status.classList.add("ok");
-          toast("Field refined — review it, or revert.");
+          toast("Field refined — pass " + pass + ". Review it, or revert.");
         } catch (err) {
           status.textContent = err.message || "Refinement failed";
           status.classList.add("bad");
@@ -651,10 +687,16 @@
 
       revert.addEventListener("click", () => {
         if (original === null) return;
+        applying = true;
         field.value = original;
         field.dispatchEvent(new Event("input", { bubbles: true }));
         field.dispatchEvent(new Event("change", { bubbles: true }));
+        applying = false;
         original = null;
+        origin = null;
+        pass = 0;
+        assumptions = [];
+        idealized = false;
         revert.disabled = true;
         questions.hidden = true;
         questions.replaceChildren();

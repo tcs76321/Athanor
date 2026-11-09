@@ -122,6 +122,46 @@ usable non-empty field**:
   slow and weak at strict JSON; the configured tall persona is the safer
   editor until the pool has evidence.
 
+## Amendment (2026-11-08, third): refinement is iterative, and the field decides when it is done
+
+The wand is no longer a one-shot rewrite. Each click is one bounded pass:
+
+- **Layered fields.** `project.goal`, `brief.goal`, and `goal.submit` carry a
+  mandatory sufficiency list. A project/brief goal is sufficient when it states
+  the outcome, the input source, the operational method, and the output
+  form/cadence. A task goal is sufficient when it states the outcome, inputs,
+  method or steps, and definition of done. Scope, audience, and quality remain
+  optional unless the draft clearly implies them.
+- **One layer per pass.** Pass 1 makes the outcome, input source, and output
+  form explicit. Pass 2 makes the operational method explicit. Later passes add
+  at most one optional detail and then only tighten. Prior assumptions are sent
+  back so a later pass cannot restate an earlier one.
+- **Facts vs. intent.** The editor may infer one low-risk, reversible detail per
+  pass about generic method, input-source class, sequencing, output form, or
+  quality check. It still may not invent facts, URLs, names, numbers, dates,
+  audiences, quotes, or hard constraints. Every inference is disclosed in
+  `added_assumptions`.
+- **The limit is the field.** The maximum pass count is derived from the field:
+  one pass per mandatory dimension plus two polish passes (six for a four-item
+  goal, five for a three-item task goal). Non-layered fields get three polish
+  passes. This is a safety ceiling, not the product limit.
+- **Telegraphic drafts get a second pass.** An origin under twelve words or
+  containing `etc` cannot be declared ideal on its first pass; the service
+  forces one improvement before accepting `unchanged`.
+- **“Idealized” is honest.** The service returns `unchanged` only after the
+  mandatory coverage is present and a forced pass finds nothing safe to add.
+  The result names the covered dimensions. The UI caches that state and stops
+  calling the model until the field is edited or reverted. The old wording
+  “this field is complete and ideal” is gone; the status now reads “Idealized —
+  text unchanged.”
+- **Non-layered fields are unchanged in policy.** Criteria and notes tighten
+  wording but never gain permission to invent requirements.
+
+The browser sends `pass`, `origin`, and `prior_assumptions`; the service
+clamps the pass and derives the minimum and maximum from the field contract.
+Tests cover the two-click news-report example, forced improvement, idealization
+after the minimum pass, non-layered fields, and pass clamping.
+
 ## Open questions
 
 - Should accepted rewrites be attributed to the editor model in the strategy

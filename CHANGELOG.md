@@ -10,6 +10,32 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Iterative field refinement (2026-11-08)
+
+- **The wand is pass-based.** A goal field refines one bounded layer per click:
+  outcome/input/output first, then the operational method, then optional detail
+  and tightening. `project.goal`, `brief.goal`, and `goal.submit` carry an
+  explicit sufficiency list; criteria and notes keep the tighten-only policy and
+  never gain permission to invent requirements.
+- **Facts and bounded intent are separated.** The editor may infer one low-risk,
+  reversible detail per pass about generic method, input source, sequencing,
+  output form, or quality check. Specific facts, URLs, names, numbers, dates,
+  audiences, and hard constraints remain forbidden. Every inference is
+  disclosed in `added_assumptions`.
+- **The field decides when it is done.** The pass ceiling is the number of
+  mandatory dimensions plus two polish passes. A telegraphic origin (under
+  twelve words or containing `etc`) cannot become Idealized on the first pass;
+  one forced improvement runs first. “Idealized — text unchanged” is returned
+  only after the coverage is present and a forced pass finds nothing safe to
+  add, and the UI caches it until the field is edited or reverted.
+- **The browser carries the pass state.** `app.js` sends `pass`, `origin`, and
+  `prior_assumptions`, displays the pass number, resets on manual edit or
+  Revert, and stops calling the model once the field is idealized. The old
+  “this field is complete and ideal” copy is gone.
+- ADR-0105 carries the third amendment; tests cover the two-click news-report
+  example, forced improvement, idealization after the minimum pass, the
+  non-layered contract, and pass clamping.
+
 ### Onboarding contract + planning pipeline (2026-11-08)
 
 - **Direction is a work contract.** Six required fields — problem, scope,

@@ -25,17 +25,23 @@ func (u *UI) handleAssist(w http.ResponseWriter, r *http.Request) {
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, 64<<10)
 	var req struct {
-		Field     string            `json:"field"`
-		Text      string            `json:"text"`
-		Mode      string            `json:"mode"`
-		ProjectID string            `json:"project_id"`
-		Context   map[string]string `json:"context"`
+		Field            string            `json:"field"`
+		Text             string            `json:"text"`
+		Mode             string            `json:"mode"`
+		ProjectID        string            `json:"project_id"`
+		Context          map[string]string `json:"context"`
+		Pass             int               `json:"pass"`
+		Origin           string            `json:"origin"`
+		PriorAssumptions []string          `json:"prior_assumptions"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeAssistError(w, http.StatusBadRequest, "invalid refinement request")
 		return
 	}
-	ac := assist.Context{Runtime: u.deps.Runtime, Version: u.deps.Version, Fields: map[string]string{}}
+	ac := assist.Context{
+		Runtime: u.deps.Runtime, Version: u.deps.Version, Fields: map[string]string{},
+		Pass: req.Pass, Origin: req.Origin, PriorAssumptions: req.PriorAssumptions,
+	}
 	for k, v := range req.Context {
 		k = strings.TrimSpace(k)
 		if k == "" || strings.TrimSpace(v) == "" {
