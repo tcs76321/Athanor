@@ -19,6 +19,7 @@ import (
 	"github.com/tcs76321/athanor/internal/decompose"
 	"github.com/tcs76321/athanor/internal/firstuse"
 	"github.com/tcs76321/athanor/internal/hitl"
+	"github.com/tcs76321/athanor/internal/intake"
 	"github.com/tcs76321/athanor/internal/job"
 	"github.com/tcs76321/athanor/internal/project"
 	"github.com/tcs76321/athanor/internal/review"
@@ -184,6 +185,9 @@ type API struct {
 	strategy    Strategy
 	promoter    StrategyPromoter
 	alarms      Alarms
+	// intake is the guided project-intake service. It is optional so the
+	// existing direct API surface keeps working without a UI wiring.
+	intake *intake.Service
 	// dagScheduling mirrors execution.dag_decomposition: when true, goal
 	// submission decomposes and schedules instead of creating one task.
 	dagScheduling bool
@@ -275,10 +279,23 @@ func (a *API) SetStrategyAutoActivate(enabled bool, opts strategy.AutoActivateOp
 // on the alarm routes.
 func (a *API) SetAlarms(s Alarms) { a.alarms = s }
 
+// SetIntake wires the guided project-intake service. A daemon without one
+// keeps the direct create-and-submit surface and answers 503 on intake routes.
+func (a *API) SetIntake(s *intake.Service) { a.intake = s }
+
 // Register attaches all routes to mux.
 func (a *API) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /projects", a.handleProjectCreate)
 	mux.HandleFunc("GET /projects/{id}", a.handleProjectGet)
+	// Guided intake (ADR-0132): one intent, directions, a plan, approval.
+	mux.HandleFunc("GET /projects/{id}/intake", a.handleIntakeState)
+	mux.HandleFunc("PATCH /projects/{id}/intent", a.handleIntakeIntent)
+	mux.HandleFunc("POST /projects/{id}/intake/onramp", a.handleIntakeOnRamp)
+	mux.HandleFunc("POST /projects/{id}/directions", a.handleIntakeDirections)
+	mux.HandleFunc("POST /projects/{id}/directions/{option}/select", a.handleIntakeSelectDirection)
+	mux.HandleFunc("POST /projects/{id}/plans", a.handleIntakePlans)
+	mux.HandleFunc("POST /projects/{id}/plans/{candidate}/select", a.handleIntakeSelectPlan)
+	mux.HandleFunc("POST /projects/{id}/approve", a.handleIntakeApprove)
 	mux.HandleFunc("POST /projects/{id}/goals", a.handleGoalSubmit)
 	mux.HandleFunc("GET /projects/{id}/artifacts", a.handleArtifacts)
 	mux.HandleFunc("GET /jobs/{id}", a.handleJobGet)
@@ -346,14 +363,21 @@ func decodeBody(w http.ResponseWriter, r *http.Request, dst any) bool {
 }
 
 type projectRequest struct {
-	Name      string   `json:"name"`
-	Archetype string   `json:"archetype"`
-	Goal      string   `json:"goal"`
-	Priority  string   `json:"priority,omitempty"`
-	Criteria  []string `json:"acceptance_criteria"`
+	Name      string `json:"name"`
+	Archetype string `json:"archetype"`
+	Goal      string `json:"goal"`
+	Priority  string `json:"priority,omitempty"`
+	// Criteria is used only with start:true. The guided intake has no
+	// project-level criteria; plan tasks carry their own.
+	Criteria []string `json:"acceptance_criteria"`
 	// RepositoryPath is the §6.1 repository root the M5-T8 indexer walks
 	// (ADR-0028). Optional; empty means no repository is configured.
 	RepositoryPath string `json:"repository_path"`
+	// Boundaries and Sources are optional project context.
+	Boundaries string   `json:"boundaries,omitempty"`
+	Sources    []string `json:"sources,omitempty"`
+	// OnRamp is direct or explore. Empty asks the daemon to infer it.
+	OnRamp string `json:"onramp,omitempty"`
 	// Execution is the optional §6.2 execution override (F3-T4,
 	// ADR-0031). Absent means "use the built-in archetype defaults".
 	Execution *projectExecution `json:"execution"`
@@ -387,6 +411,10 @@ type projectResponse struct {
 	Goal           string   `json:"goal"`
 	Priority       string   `json:"priority,omitempty"`
 	RepositoryPath string   `json:"repository_path,omitempty"`
+	Boundaries     string   `json:"boundaries,omitempty"`
+	Sources        []string `json:"sources,omitempty"`
+	OnRamp         string   `json:"onramp,omitempty"`
+	ApprovedPlanID string   `json:"approved_plan_id,omitempty"`
 	TaskID         string   `json:"task_id,omitempty"`
 	JobID          string   `json:"job_id,omitempty"`
 	// Index is the bounded repository pass run before the first job when a
@@ -428,6 +456,7 @@ func (a *API) handleProjectCreate(w http.ResponseWriter, r *http.Request) {
 	res, err := firstuse.Create(r.Context(), deps, firstuse.Input{
 		Name: req.Name, Goal: req.Goal,
 		RepositoryPath: req.RepositoryPath, Criteria: req.Criteria,
+		Boundaries: req.Boundaries, Sources: req.Sources, OnRamp: req.OnRamp,
 		Execution: execution, Priority: req.Priority, Start: start,
 	})
 	if err != nil {
@@ -452,7 +481,9 @@ func (a *API) handleProjectCreate(w http.ResponseWriter, r *http.Request) {
 		Archetype:    res.Project.PrimaryCapability(),
 		Goal:         res.Project.Goal, Priority: res.Project.Priority,
 		RepositoryPath: res.Project.RepositoryPath,
-		TaskID:         res.Task.ID, JobID: res.JobID,
+		Boundaries:     res.Project.Boundaries, Sources: res.Project.Sources,
+		OnRamp: res.Project.OnRamp, ApprovedPlanID: res.Project.ApprovedPlanID,
+		TaskID: res.Task.ID, JobID: res.JobID,
 		Index: index, IndexWarning: res.IndexWarning,
 	})
 }
@@ -524,6 +555,8 @@ func (a *API) handleProjectGet(w http.ResponseWriter, r *http.Request) {
 		ID: p.ID, Name: p.Name, Capabilities: p.Capabilities,
 		Archetype: p.PrimaryCapability(), Goal: p.Goal,
 		Priority: p.Priority, RepositoryPath: p.RepositoryPath,
+		Boundaries: p.Boundaries, Sources: p.Sources,
+		OnRamp: p.OnRamp, ApprovedPlanID: p.ApprovedPlanID,
 	})
 }
 

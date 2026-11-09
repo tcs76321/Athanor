@@ -50,9 +50,5 @@ func pruneRuns[P runMeta](m map[string]P, keep int) {
 
 func (p *pullProgress) runDone() bool    { return p.Done }
 func (p *pullProgress) runAt() time.Time { return p.StartedAt }
-func (d *discoveryRun) runDone() bool    { return d.Status != "running" }
-func (d *discoveryRun) runAt() time.Time { return d.UpdatedAt }
-func (p *planRun) runDone() bool         { return p.Status != "running" }
-func (p *planRun) runAt() time.Time      { return p.UpdatedAt }
 func (r *indexRun) runDone() bool        { return r.Done }
 func (r *indexRun) runAt() time.Time     { return r.StartedAt }

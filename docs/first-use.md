@@ -42,11 +42,11 @@ the main 1.0.0 focus** ([1.0.0-direction.md](1.0.0-direction.md)).
       when the qualification step is opened.
 5. **First project** (still tutorial-mode: tooltips, stateful, dismissible):
    - **Project → goals → tasks.**
-   - **Project initialisation** (🔨): a resumable brief and, for exploratory
-     goals, a portfolio of directions. After a direction is chosen, the
-     operator can ask for three reviewable plans and approve one
-     ([ADR-0097](adr/0097-ai-plan-candidates.md)), or use the deterministic
-     plan. It is the first human eval.
+   - **Project initialisation** (🔨): one required goal, plus optional limits
+     and sources. Athanor infers a **direct** path (one plan) or an **explore**
+     path (a direction portfolio, then one plan). The operator approves a plan
+     before any work starts ([ADR-0132](adr/0132-project-intake-one-intent.md)).
+     It is the first human eval.
 6. **Work begins** under the approved plan (single-slot by default; the
    autonomous profile may use a higher operator ceiling,
    [ADR-0096](adr/0096-capacity-aware-concurrency.md)).
@@ -103,7 +103,7 @@ the main 1.0.0 focus** ([1.0.0-direction.md](1.0.0-direction.md)).
 | Discover/install | `make build`, `scripts/install.sh [--service]` | `curl` installer with checksums/signing; Core Pod pulled; browser open |
 | Prereq checks | `athanor doctor` (⚠️ macOS `podman machine` reports `Rootless=false` → false FAIL) | fix the macOS check; installer uses doctor |
 | Onboarding | `athanor init`, `athanor models` (inventory + advisory routing) | UI wizard; **qualification ladder run**; minimal prefs; optional name |
-| First project | `project create` (starts the first goal), `goal submit` (adds another) | project interview → plan artifact → approve; tutorial mode |
+| First project | `project create` (starts the first goal), `goal submit` (adds another) | one goal → inferred direct/explore intake → approve a plan; tutorial mode |
 | Work/watch | `job watch`, `/ui`, job watch page, SSE | presentation surface; notifications |
 | Human eval | accept/reject, `reject` corrections, `/ui/statistics` | review queue (sampled, blinded) + ratings store |
 | Overnight | daydream (5 fixed actions), backups, alarms, strategy mining | hypothesis-driven shadow experiments; budgets; HITL-free queue; research via allowlist; new-site requests |
@@ -265,9 +265,9 @@ Two tracks; the first makes beta usable, the second makes it learn.
 3. **Onboarding (minimal)** — inferred quiet hours, optional name; a shipped
    **qualification ladder** command that enumerates installed models, runs a
    bounded grounded qualification, and proposes routing (apply = config edit).
-4. **Guided project plan** — a brief, a direction portfolio, and a seed +
-   three-expansion plan the operator approves; the classic interview is
-   retired.
+4. **Guided project plan** — one goal, an inferred direct-or-explore path, and
+   one plan the operator approves; the classic interview and the brief form
+   are retired ([ADR-0132](adr/0132-project-intake-one-intent.md)).
 5. **Presentation surface** — "what was built / how to run / known-broken /
    cost", with the signal to present.
 6. **Notifications** — pending HITL, completion, critical alarm.
@@ -311,8 +311,10 @@ the onboarding/project/presentation work gates first use.
 
 - Display name: keep, optional, or drop?
 - Quiet hours: infer from idle (recommended), ask once, or both?
-- Project interview length: fixed question count vs. "until the plan is
-  confident"; hard cap?
+- ~~Project interview length: fixed question count vs. "until the plan is
+  confident"; hard cap?~~ **Resolved:** there is no interview. Intake asks one
+  required goal; limits and sources are optional, and the plan is the gate
+  ([ADR-0132](adr/0132-project-intake-one-intent.md)).
 - Presentation trigger: explicit button, job completion, or a schedule?
 - Experiment budget: fixed nightly envelope vs. adaptive?
 - Global-policy graduation: how many projects / what held-out evidence?

@@ -204,15 +204,24 @@ secret to untrusted candidate code.
 
 ```yaml
 id: uuid
-name: unique-project-name
-slug: unique-project-slug
-goal: "One sentence describing the objective (20-500 chars)."
+name: derived-from-goal-or-explicit
+goal: "One sentence describing the objective (3-500 chars)."
 capabilities:                 # inferred from the goal + repository, not chosen
   - code
   - document
 repository_path: optional
+boundaries: optional          # one free-text limits/exclusions list
+sources: optional             # allowlisted URLs the project may read
+onramp: direct | explore      # inferred at create; operator may override
 priority: medium               # critical | high | medium | low; one critical max
 ```
+
+A project is created from **one required field, the goal**
+([ADR-0132](docs/adr/0132-project-intake-one-intent.md)). Name, repository,
+boundaries, and sources are optional context on the same record; there is no
+separate brief, project-level criteria field, or stored intake status. The
+intake stage is derived from durable artifacts: directions chosen, plan
+approved, tasks exist.
 
 A project has **no operator-selected archetype** ([ADR-0093](docs/adr/0093-project-capabilities-not-archetypes.md)).
 The capability set is a deterministic, auditable inference: a code repository adds

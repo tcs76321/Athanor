@@ -1314,37 +1314,46 @@ func TestCreateProjectFromUI(t *testing.T) {
 	}
 }
 
-// TestCreateProjectFromUIStartsJob covers the human happy path: pre-index the
-// repo, create the first job, enqueue it, and redirect to the watch view.
-func TestCreateProjectFromUIStartsJob(t *testing.T) {
+// TestCreateProjectFromUIStartsOnboarding covers the guided happy path: the
+// project is created from a goal, the repository is pre-indexed, and the
+// operator lands on intake. No job starts before a plan is approved.
+func TestCreateProjectFromUIStartsOnboarding(t *testing.T) {
 	fx := setup(t)
 	idx := &fakePreindexer{}
 	fx.ui.deps.Indexer = idx
 	repo := t.TempDir()
 	form := url.Values{
-		"name":            {"ui-starts"},
+		"name":            {"ui-guided"},
 		"goal":            {"Build a small add function with tests and a docstring."},
 		"repository_path": {repo},
-		"criteria":        {"pytest passes"},
-		"start":           {"1"},
 	}
 	resp := postForm(t, fx.ts.URL+"/ui/projects", form)
 	if resp.StatusCode != http.StatusSeeOther {
 		t.Fatalf("status = %d, want 303", resp.StatusCode)
 	}
 	loc := resp.Header.Get("Location")
-	if !strings.HasPrefix(loc, "/ui/jobs/") {
-		t.Fatalf("Location = %q, want a job watch page", loc)
+	if !strings.HasSuffix(loc, "/onboarding") {
+		t.Fatalf("Location = %q, want the intake page", loc)
+	}
+	// The pre-index is asynchronous; wait for its run to finish before
+	// inspecting the fake's counters.
+	newID := strings.TrimSuffix(strings.TrimPrefix(loc, "/ui/projects/"), "/onboarding")
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		run := fx.ui.indexView(newID)
+		if run != nil && run.Done {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("pre-index did not finish: %+v", run)
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
 	if idx.calls != 1 || idx.path != repo {
 		t.Fatalf("pre-index calls=%d path=%q, want one call for %q", idx.calls, idx.path, repo)
 	}
-	if len(fx.engine.enqueued) != 1 {
-		t.Fatalf("enqueued = %v, want one job", fx.engine.enqueued)
-	}
-	jobID := strings.TrimPrefix(loc, "/ui/jobs/")
-	if _, err := fx.ui.deps.Jobs.Get(context.Background(), jobID); err != nil {
-		t.Fatalf("job %s not persisted: %v", jobID, err)
+	if len(fx.engine.enqueued) != 0 {
+		t.Fatalf("enqueued = %v, want no job before plan approval", fx.engine.enqueued)
 	}
 }
 

@@ -103,7 +103,6 @@ func TestCreateValidation(t *testing.T) {
 		errSubstr string
 	}{
 		{"bad archetype", "x", "astral", validGoal, "archetype"},
-		{"empty name", "", "text", validGoal, "name"},
 		{"short goal", "x", "text", "ab", "3"},
 		{"empty goal", "x", "text", "", "3"},
 	}
@@ -113,12 +112,17 @@ func TestCreateValidation(t *testing.T) {
 		}
 	}
 
-	// Duplicate names are rejected by the schema (UNIQUE).
-	if _, _, err := r.Create(ctx, "demo", ArchetypeText, validGoal, "", nil); err != nil {
-		t.Fatal(err)
+	// An empty name is derived from the goal.
+	p, _, err := r.Create(ctx, "", ArchetypeText, validGoal, "", nil)
+	if err != nil {
+		t.Fatalf("empty name should derive: %v", err)
 	}
-	if _, _, err := r.Create(ctx, "demo", ArchetypeCode, validGoal, "", nil); err == nil {
-		t.Error("duplicate project name accepted, want UNIQUE rejection")
+	if strings.TrimSpace(p.Name) == "" {
+		t.Fatal("derived project name is empty")
+	}
+	// A duplicate name gets a numeric suffix rather than failing.
+	if _, _, err := r.Create(ctx, p.Name, ArchetypeText, validGoal, "", nil); err != nil {
+		t.Fatalf("duplicate name should be disambiguated: %v", err)
 	}
 }
 

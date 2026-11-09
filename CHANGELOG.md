@@ -10,6 +10,28 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Project intake — one intent, two decisions (2026-11-09)
+
+- **One required field.** A guided project is created from the goal; name,
+  repository, boundaries, and sources are optional context on the project. The
+  brief form, `project_briefs`, `project_briefs.status`, project-level
+  acceptance criteria, and the duplicate brief goal are gone (migrations
+  0045/0046/0047).
+- **Inferred on-ramp.** Repository-backed code goals plan directly in one
+  call; prose and exploratory goals get a direction portfolio. The operator
+  can override the choice, which is stored on the project.
+- **Compact directions.** A direction is outcome, method, and check, plus
+  optional scope, risks, and assumptions. The old problem/approach/deliverable
+  split is merged.
+- **One state machine.** `internal/intake` owns stage derivation, async
+  generation runs, selection, and approval. The UI no longer writes intake SQL;
+  the HTTP API exposes `GET /projects/{id}/intake`, intent updates, direction
+  and plan generation, selection, and approval.
+- **Evidence.** `project_created`, `intent_updated`, `onramp_overridden`,
+  `direction_selected`, and `plan_approved` join the audit stream.
+- ADR-0132; tests: `TestStageDerivesEveryTransition`, `TestInferOnRamp`,
+  `TestApproveSelectedPlanCreatesGraph`, `TestNewProjectRequiresOnlyGoal`.
+
 ### Iterative field refinement (2026-11-08)
 
 - **The wand is pass-based.** A goal field refines one bounded layer per click:

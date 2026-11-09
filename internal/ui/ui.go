@@ -35,6 +35,7 @@ import (
 	"github.com/tcs76321/athanor/internal/evaluation"
 	"github.com/tcs76321/athanor/internal/firstuse"
 	"github.com/tcs76321/athanor/internal/hitl"
+	"github.com/tcs76321/athanor/internal/intake"
 	"github.com/tcs76321/athanor/internal/interruptions"
 	"github.com/tcs76321/athanor/internal/job"
 	"github.com/tcs76321/athanor/internal/operator"
@@ -157,12 +158,9 @@ type Deps struct {
 	// Indexer runs the bounded pre-index on the first-use project create.
 	// nil is valid: the job starts without a populated Dormant Index.
 	Indexer RepoPreindexer
-	// Discovery is the project-onboarding option portfolio. nil disables the
-	// discovery step (the project still supports the deterministic interview).
-	Discovery Discovery
-	// Planning generates AI plan candidates after a direction is chosen. nil
-	// keeps the deterministic fallback plan.
-	Planning Planning
+	// Intake is the guided project-intake service (ADR-0132). It is the
+	// canonical state machine behind the onboarding pages.
+	Intake *intake.Service
 	// ModelAudit is the measured model-fit JSON passed by `athanor start`.
 	// Empty means no audit was available.
 	ModelAudit string
@@ -179,9 +177,6 @@ type Deps struct {
 	// configuration. nil leaves the change marked restart-required (host
 	// development mode has no supervisor).
 	Restart func()
-	// Scheduler starts a decomposed goal's ready tasks. nil falls back to
-	// starting only the first task.
-	Scheduler Scheduler
 	// TaskResetter returns a blocked task and its blocked dependents to
 	// pending. nil hides the reset control.
 	TaskResetter TaskResetter
@@ -229,15 +224,6 @@ type UI struct {
 	onboardMu   sync.Mutex
 	pulls       map[string]*pullProgress
 	pullCancels map[string]context.CancelFunc
-	// discMu/discRuns track an in-flight discovery pass for the project
-	// onboarding page. The durable portfolio is written when the pass ends.
-	discMu      sync.Mutex
-	discRuns    map[string]*discoveryRun
-	discCancels map[string]context.CancelFunc
-	// planMu/planRuns track an in-flight AI plan generation.
-	planMu      sync.Mutex
-	planRuns    map[string]*planRun
-	planCancels map[string]context.CancelFunc
 	// catalogMu caches the installed-model catalog. The onboarding and models
 	// pages render it on every load, and the qualification poll reloads the
 	// page every 2s; without a TTL every render performed one /api/tags call
@@ -277,8 +263,6 @@ func New(deps Deps) *UI {
 	u := &UI{
 		deps: deps, hub: NewHub(), theme: "monokai", density: "comfortable",
 		pulls: map[string]*pullProgress{}, pullCancels: map[string]context.CancelFunc{},
-		discRuns: map[string]*discoveryRun{}, discCancels: map[string]context.CancelFunc{},
-		planRuns: map[string]*planRun{}, planCancels: map[string]context.CancelFunc{},
 		indexRuns: map[string]*indexRun{}, done: make(chan struct{}),
 	}
 	if saved, ok := u.loadSystemState(context.Background(), "ui:theme"); ok && validTheme(saved) {
@@ -444,8 +428,12 @@ func (u *UI) projectCard(ctx context.Context, p project.Project) projectCard {
 		c.LastJobID, c.LastState = jobID, state
 	}
 	var onboarding string
-	if err := u.deps.Store.DB().QueryRowContext(ctx,
-		`SELECT status FROM project_briefs WHERE project_id = ?`, p.ID).Scan(&onboarding); err == nil {
+	if u.deps.Intake != nil {
+		if st, err := u.deps.Intake.State(ctx, p.ID); err == nil {
+			onboarding = string(st.Stage)
+		}
+	}
+	if onboarding != "" {
 		c.Onboarding = onboarding
 	}
 	_ = u.deps.Store.DB().QueryRowContext(ctx,
@@ -545,16 +533,16 @@ func (u *UI) handleProjectCreate(w http.ResponseWriter, r *http.Request) {
 	name := strings.TrimSpace(r.FormValue("name"))
 	goal := strings.TrimSpace(r.FormValue("goal"))
 	repo := strings.TrimSpace(r.FormValue("repository_path"))
-	criteria := splitCriteria(r.FormValue("criteria"))
-	priority := strings.TrimSpace(r.FormValue("priority"))
-	start := r.FormValue("start") != ""
+	boundaries := strings.TrimSpace(r.FormValue("boundaries"))
+	sources := splitCriteria(r.FormValue("sources"))
+	onRamp := strings.TrimSpace(r.FormValue("onramp"))
 
 	values := map[string]any{
 		"Name": name, "Goal": goal, "RepositoryPath": repo,
-		"Criteria": r.FormValue("criteria"), "Priority": priority, "Start": start,
+		"Boundaries": boundaries, "Sources": r.FormValue("sources"), "OnRamp": onRamp,
 	}
-	if name == "" || goal == "" {
-		values["Error"] = "name and goal are required"
+	if goal == "" {
+		values["Error"] = "a goal is required"
 		u.render(w, "New project", newProjectBody, values)
 		return
 	}
@@ -566,26 +554,19 @@ func (u *UI) handleProjectCreate(w http.ResponseWriter, r *http.Request) {
 		deps.Indexer = uiPreindexer{inner: u.deps.Indexer}
 	}
 	res, err := firstuse.Create(r.Context(), deps, firstuse.Input{
-		Name: name, Goal: goal,
-		RepositoryPath: repo, Criteria: criteria, Priority: priority, Start: start,
+		Name: name, Goal: goal, RepositoryPath: repo,
+		Boundaries: boundaries, Sources: sources, OnRamp: onRamp,
+		Start: false,
 	})
 	if err != nil {
 		values["Error"] = err.Error()
 		u.render(w, "New project", newProjectBody, values)
 		return
 	}
-	if repo != "" && !start {
-		// The UI path continues into onboarding rather than starting a job
-		// immediately, so the bounded index runs in the background instead of
-		// blocking the create request. The start=true path already indexed
-		// synchronously inside firstuse.Create.
+	if repo != "" {
 		u.startIndex(res.Project)
 	}
-	if !start {
-		http.Redirect(w, r, "/ui/projects/"+res.Project.ID+"/onboarding", http.StatusSeeOther)
-		return
-	}
-	http.Redirect(w, r, "/ui/jobs/"+res.JobID, http.StatusSeeOther)
+	http.Redirect(w, r, "/ui/projects/"+res.Project.ID+"/onboarding", http.StatusSeeOther)
 }
 
 // splitCriteria turns a textarea (one criterion per line) into the API's

@@ -82,7 +82,7 @@ func TestRefineAcceptsStringNotesAndAssumptions(t *testing.T) {
 
 func TestRefineUnwrapsNestedJSONText(t *testing.T) {
 	gen := &fakeGen{out: `{"text":"{\"text\":\"A clear goal.\",\"notes\":[\"restructured\"]}","notes":[],"added_assumptions":[],"unchanged":false}`}
-	res, err := New(gen).Refine(context.Background(), "project.criteria", "make a clear goal", "")
+	res, err := New(gen).Refine(context.Background(), "project.boundaries", "make a clear goal", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -96,7 +96,7 @@ func TestRefineUnwrapsNestedJSONText(t *testing.T) {
 
 func TestRefineAcceptsPlainTextFallback(t *testing.T) {
 	s := New(&fakeGen{out: "A clearer goal."})
-	res, err := s.Refine(context.Background(), "project.criteria", "make a clear goal", "")
+	res, err := s.Refine(context.Background(), "project.boundaries", "make a clear goal", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -172,7 +172,7 @@ func TestRefineRetriesOverEagerClarification(t *testing.T) {
 		`{"needs_clarification":true,"questions":["What is the outcome?"]}`,
 		`{"text":"Build a small todo app with a tested add-and-remove flow.","notes":["made the outcome explicit"]}`,
 	}}
-	res, err := New(gen).Refine(context.Background(), "project.criteria", "Build a small todo app", "")
+	res, err := New(gen).Refine(context.Background(), "project.boundaries", "Build a small todo app", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -190,7 +190,7 @@ func TestRefineLeavesUsableTextUnchangedWhenRetryStillClarifies(t *testing.T) {
 		`{"needs_clarification":true}`,
 	}}
 	const text = "Build a small todo app"
-	res, err := New(gen).Refine(context.Background(), "project.criteria", text, "")
+	res, err := New(gen).Refine(context.Background(), "project.boundaries", text, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -229,7 +229,7 @@ func TestRefineForcesImprovementWhenFirstPassEchoes(t *testing.T) {
 		`{"text":"Build a small todo app","unchanged":true}`,
 		`{"text":"Build a small local todo app with add, complete, and remove flows, and a passing test for each.","notes":["made the outcome and scope concrete"],"added_assumptions":["the first version is local and single-user"]}`,
 	}}
-	res, err := New(gen).Refine(context.Background(), "project.criteria", text, "")
+	res, err := New(gen).Refine(context.Background(), "project.boundaries", text, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -299,7 +299,7 @@ func TestRefineForcesCosmeticOnlyChange(t *testing.T) {
 
 func TestRefineRecoversMalformedJSONText(t *testing.T) {
 	gen := &fakeGen{out: `{" \t,"text": "Build a todo app.", "notes": ["restructured"]}`}
-	res, err := New(gen).Refine(context.Background(), "project.criteria", "build a todo app", "")
+	res, err := New(gen).Refine(context.Background(), "project.boundaries", "build a todo app", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -430,7 +430,7 @@ func TestRefineSufficientLongOriginCanBeIdealOnFirstPass(t *testing.T) {
 
 func TestRefineNonLayeredFieldHasNoInferenceContract(t *testing.T) {
 	gen := &fakeGen{out: `{"text":"The build must pass cleanly and produce no new warnings.","notes":["made the check observable"]}`}
-	res, err := New(gen).RefineContext(context.Background(), "project.criteria", "the build passes cleanly", "", Context{Pass: 1})
+	res, err := New(gen).RefineContext(context.Background(), "project.boundaries", "the build passes cleanly", "", Context{Pass: 1})
 	if err != nil {
 		t.Fatal(err)
 	}

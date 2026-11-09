@@ -1,6 +1,7 @@
 # ADR 0097 — AI-authored plan candidates, human-selected
 
-**Status:** Accepted — first implementation slice · **Date:** 2026-11-04 ·
+**Status:** Accepted — first implementation slice; direct plans are added by
+[ADR-0132](0132-project-intake-one-intent.md) · **Date:** 2026-11-04 ·
 **Refs:** ARCHITECTURE §13 (dialectical engine), §15 (brainstorming workflow),
 §19 (evaluation); [ADR-0032](0032-dag-decomposition.md) (DAG validation),
 [ADR-0088](0088-project-interview-plan-gate.md) (plan gate),

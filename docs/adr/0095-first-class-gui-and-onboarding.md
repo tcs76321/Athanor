@@ -1,6 +1,7 @@
 # ADR 0095 — First-class GUI, two-level onboarding, and the UI asset boundary
 
-**Status:** Accepted — first implementation slice · **Date:** 2026-11-04 ·
+**Status:** Accepted — first implementation slice; intake replaced by
+[ADR-0132](0132-project-intake-one-intent.md) · **Date:** 2026-11-04 ·
 **Refs:** ARCHITECTURE §20.3, §21.8, §27; [ADR-0039](0039-local-web-ui.md),
 [ADR-0057](0057-cross-site-request-defense.md), [ADR-0078](0078-core-pod-only-runtime.md),
 [ADR-0094](0094-project-discovery-portfolio.md).

@@ -422,32 +422,34 @@ const projectsBody = `
 
 const newProjectBody = `
 <h1>New project</h1>
-<p class="sub">A project holds one goal, its criteria, and the work that follows. You do not choose a type: the system infers what it can produce and how to verify it from the goal and repository.</p>
+<p class="sub">A project starts with one required field: the goal. Athanor infers what it can produce and how to verify it from the goal and any repository you add.</p>
 <div class="actions"><a class="btn secondary" href="/ui/projects">All projects</a></div>
 {{if .Error}}<div class="card"><p class="del">{{.Error}}</p></div>{{end}}
 <div class="card">
 <form method="post" action="/ui/projects">
-  <label>Name <input name="name" value="{{.Name}}" required></label>
-  <label>Goal <textarea name="goal" rows="2" minlength="3" maxlength="500" required data-refine-field="project.goal">{{.Goal}}</textarea></label>
-  <div class="field-help">A sentence is enough. The onboarding brief adds the limits, sources, and definition of success before any work starts.</div>
-  <label>Repository path (optional) <input name="repository_path" value="{{.RepositoryPath}}" placeholder="/absolute/path/to/repo"></label>
-  <div class="field-help">Core Pod: the repository must be visible inside the Core. The installer mounts <code>~/athanor/repos</code> at the same host path; place the repository there and use that absolute path.</div>
-  <label>Acceptance criteria (optional, one per line) <textarea name="criteria" rows="4" data-refine-field="project.criteria">{{.Criteria}}</textarea></label>
-  <label>Priority
-    <select name="priority">
-      <option value="critical" {{if eq .Priority "critical"}}selected{{end}}>Critical (one project at a time)</option>
-      <option value="high" {{if eq .Priority "high"}}selected{{end}}>High</option>
-      <option value="medium" {{if or (eq .Priority "medium") (eq .Priority "")}}selected{{end}}>Medium</option>
-      <option value="low" {{if eq .Priority "low"}}selected{{end}}>Low</option>
+  <label>Goal <textarea name="goal" rows="3" minlength="3" maxlength="500" required data-refine-field="project.goal" autofocus>{{.Goal}}</textarea></label>
+  <div class="field-help">One sentence is enough. Athanor will infer whether to plan directly or explore directions, then ask for limits only if you have them.</div>
+  <details {{if or .Name .RepositoryPath .Boundaries .Sources}}open{{end}}>
+    <summary>Add a name, repository, limits, or sources (optional)</summary>
+    <label>Name <input name="name" value="{{.Name}}" placeholder="derived from the goal"></label>
+    <label>Repository path <input name="repository_path" value="{{.RepositoryPath}}" placeholder="/absolute/path/to/repo"></label>
+    <div class="field-help">Core Pod: the repository must be visible inside the Core. The installer mounts <code>~/athanor/repos</code> at the same host path.</div>
+    <label>Limits (one per line) <textarea name="boundaries" rows="3" data-refine-field="project.boundaries">{{.Boundaries}}</textarea></label>
+    <label>Sources Athanor may read (one URL per line) <textarea name="sources" rows="2">{{.Sources}}</textarea></label>
+  </details>
+  <label>Path
+    <select name="onramp">
+      <option value="" {{if eq .OnRamp ""}}selected{{end}}>Infer from the goal</option>
+      <option value="direct" {{if eq .OnRamp "direct"}}selected{{end}}>Direct plan — I know what to build</option>
+      <option value="explore" {{if eq .OnRamp "explore"}}selected{{end}}>Explore directions — help me choose</option>
     </select>
   </label>
-  <div class="field-help">Priority orders queued work: critical first, then high, medium, low. It does not preempt a running job; a waiting job is promoted after a while so low work is not starved.</div>
   <div class="actions">
-    <button name="start" value="" class="primary">Create and continue to onboarding</button>
+    <button class="primary">Create project</button>
   </div>
 </form>
 </div>
-<p class="muted">Onboarding asks for clarification, limits, web sources, and success criteria, then explores directions for exploratory goals. Work starts only after you approve a plan. A repository-backed project is indexed once before the first job.</p>
+<p class="muted">Work starts only after you approve a plan. A repository-backed project is indexed once before the first job. Priority is edited later in project settings.</p>
 `
 
 const projectBody = `
@@ -592,10 +594,21 @@ const projectBody = `
   <dl class="kv">
     <dt>status</dt><dd><span class="pill">{{.Project.Status}}</span></dd>
     <dt>capabilities</dt><dd>{{join .Project.Capabilities}}</dd>
+    <dt>on-ramp</dt><dd>{{.Project.OnRamp}}</dd>
     <dt>repository</dt><dd class="mono wrap">{{if .Project.RepositoryPath}}{{.Project.RepositoryPath}}{{else}}—{{end}}</dd>
     <dt>verification</dt><dd class="mono wrap">{{if .Project.TestCommand}}{{.Project.TestCommand}}{{else}}No test command detected; the judge decides{{end}}</dd>
     <dt>created</dt><dd>{{.Project.CreatedAt | when}}</dd>
   </dl>
+  <form method="post" action="/ui/projects/{{.Project.ID}}/intent">
+    <div class="grid cols-2">
+      <label>Name <input name="name" value="{{.Project.Name}}"></label>
+      <label>Repository path <input name="repository_path" value="{{.Project.RepositoryPath}}" placeholder="/absolute/path/to/repo"></label>
+    </div>
+    <label>Goal <textarea name="goal" rows="3" data-refine-field="project.goal">{{.Project.Goal}}</textarea></label>
+    <label>Limits (one per line) <textarea name="boundaries" rows="3" data-refine-field="project.boundaries">{{.Project.Boundaries}}</textarea></label>
+    <label>Sources (one URL per line) <textarea name="sources" rows="2">{{join .Project.Sources}}</textarea></label>
+    <div class="actions"><button class="primary">Save project intent</button></div>
+  </form>
   <form method="post" action="/ui/projects/{{.Project.ID}}/priority">
     <label>Priority
       <select name="priority">

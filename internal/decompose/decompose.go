@@ -144,7 +144,7 @@ func (d *Decomposer) Decompose(ctx context.Context, projectID, goalText string, 
 			continue
 		}
 
-		goalID, tasks, err := d.projects.CreateDAG(ctx, projectID, goalText, criteria, toSpecs(graph))
+		goalID, tasks, err := d.projects.CreateDAG(ctx, projectID, goalText, toSpecs(graph))
 		if err != nil {
 			return Result{}, err
 		}

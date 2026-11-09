@@ -66,43 +66,6 @@ func (u *UI) startIndex(p project.Project) {
 	}()
 }
 
-// waitForIndex blocks plan approval until the project's bounded pre-index has
-// finished. The create path starts indexing asynchronously so the project form
-// stays responsive; starting the first job before it completes produces an
-// empty Dormant Index and a worse first result. A failure is reported to the
-// caller; the operator can still retry the index from the project page.
-func (u *UI) waitForIndex(ctx context.Context, p project.Project) error {
-	if u.deps.Indexer == nil || strings.TrimSpace(p.RepositoryPath) == "" {
-		return nil
-	}
-	if u.indexView(p.ID) == nil {
-		u.startIndex(p)
-	}
-	deadline := time.NewTimer(5 * time.Minute)
-	defer deadline.Stop()
-	ticker := time.NewTicker(100 * time.Millisecond)
-	defer ticker.Stop()
-	for {
-		run := u.indexView(p.ID)
-		if run == nil {
-			return nil
-		}
-		if run.Done {
-			if run.Status == "failed" {
-				return fmt.Errorf("repository pre-index failed: %s", run.Error)
-			}
-			return nil
-		}
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-deadline.C:
-			return fmt.Errorf("repository pre-index is still running; wait for it on the project page and try again")
-		case <-ticker.C:
-		}
-	}
-}
-
 // handleProjectIndex starts (or restarts) the bounded index pass.
 func (u *UI) handleProjectIndex(w http.ResponseWriter, r *http.Request) {
 	p, err := u.deps.Projects.Get(r.Context(), r.PathValue("id"))

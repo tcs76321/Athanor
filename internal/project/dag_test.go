@@ -23,7 +23,7 @@ func TestCreateDAGPersistsGraph(t *testing.T) {
 			Budget: dag.Budget{MaxJobs: 1, MaxLLMCalls: 4, MaxTokens: 8000, MaxWallTime: 20 * time.Minute}},
 		{Key: "impl", ParentKey: "phase", Title: "Implement", DependsOn: []string{"schema"}, Criteria: []string{"tests pass"}},
 	}
-	goalID, tasks, err := r.CreateDAG(ctx, p.ID, "Build a small REST endpoint with tests.", []string{"all tests green"}, specs)
+	goalID, tasks, err := r.CreateDAG(ctx, p.ID, "Build a small REST endpoint with tests.", specs)
 	if err != nil {
 		t.Fatalf("CreateDAG: %v", err)
 	}
@@ -58,42 +58,6 @@ func TestCreateDAGPersistsGraph(t *testing.T) {
 	}
 }
 
-func TestDiscardInitialUnstartedTask(t *testing.T) {
-	r, _ := openRepo(t)
-	ctx := context.Background()
-	p, initial, err := r.CreateInferred(ctx, "demo", "Compile a daily news report from allowed sources.", "", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	goalID, planned, err := r.CreateDAG(ctx, p.ID, "Produce the first daily report.", nil,
-		[]TaskSpec{{Key: "gather", Title: "Gather the source material"}, {Key: "write", Title: "Produce the first deliverable", DependsOn: []string{"gather"}}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := r.DiscardInitialUnstartedTask(ctx, p.ID, goalID); err != nil {
-		t.Fatal(err)
-	}
-	tasks, err := r.TasksByProject(ctx, p.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(tasks) != len(planned) {
-		t.Fatalf("tasks after cleanup = %d, want %d", len(tasks), len(planned))
-	}
-	for _, task := range tasks {
-		if task.ID == initial.ID {
-			t.Errorf("placeholder task %s survived cleanup", initial.ID)
-		}
-		if task.GoalID != goalID {
-			t.Errorf("task %s has goal %q, want %q", task.ID, task.GoalID, goalID)
-		}
-	}
-	// Idempotent: a second call has nothing left to retire.
-	if err := r.DiscardInitialUnstartedTask(ctx, p.ID, goalID); err != nil {
-		t.Fatal(err)
-	}
-}
-
 func TestCreateDAGRejectsBadSpecs(t *testing.T) {
 	r, _ := openRepo(t)
 	ctx := context.Background()
@@ -114,7 +78,7 @@ func TestCreateDAGRejectsBadSpecs(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			if _, _, err := r.CreateDAG(ctx, p.ID, validGoal, nil, c.specs); err == nil {
+			if _, _, err := r.CreateDAG(ctx, p.ID, validGoal, c.specs); err == nil {
 				t.Fatalf("expected error")
 			}
 		})
@@ -123,7 +87,7 @@ func TestCreateDAGRejectsBadSpecs(t *testing.T) {
 
 func TestCreateDAGMissingProject(t *testing.T) {
 	r, _ := openRepo(t)
-	_, _, err := r.CreateDAG(context.Background(), "nope", validGoal, nil,
+	_, _, err := r.CreateDAG(context.Background(), "nope", validGoal,
 		[]TaskSpec{{Key: "a", Title: "a"}})
 	if !errors.Is(err, ErrNotFound) {
 		t.Fatalf("err = %v, want ErrNotFound", err)
@@ -152,7 +116,7 @@ func TestRecomputeGoalStatus(t *testing.T) {
 		t.Fatal(err)
 	}
 	newGoal := func() (string, string) {
-		goalID, tasks, err := r.CreateDAG(ctx, p.ID, "Build a small REST endpoint with tests.", nil,
+		goalID, tasks, err := r.CreateDAG(ctx, p.ID, "Build a small REST endpoint with tests.",
 			[]TaskSpec{{Key: "a", Title: "a", Criteria: []string{"x"}}})
 		if err != nil {
 			t.Fatal(err)

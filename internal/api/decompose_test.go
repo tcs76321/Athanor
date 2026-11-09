@@ -122,7 +122,7 @@ func TestProjectTasksRoute(t *testing.T) {
 	h := newHarness(t)
 	p := createTestProject(t, h)
 	_, _, err := h.projects.CreateDAG(context.Background(), p.ID,
-		"Build a small REST endpoint with tests and documentation.", nil,
+		"Build a small REST endpoint with tests and documentation.",
 		[]project.TaskSpec{
 			{Key: "design", Title: "Design", Criteria: []string{"design exists"}},
 			{Key: "impl", Title: "Implement", DependsOn: []string{"design"}, Criteria: []string{"tests pass"}},

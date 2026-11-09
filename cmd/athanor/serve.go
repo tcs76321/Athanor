@@ -27,12 +27,14 @@ import (
 	"github.com/tcs76321/athanor/internal/config"
 	"github.com/tcs76321/athanor/internal/control"
 	"github.com/tcs76321/athanor/internal/corrections"
+	"github.com/tcs76321/athanor/internal/dag"
 	"github.com/tcs76321/athanor/internal/daydream"
 	"github.com/tcs76321/athanor/internal/discovery"
 	"github.com/tcs76321/athanor/internal/doctor"
 	"github.com/tcs76321/athanor/internal/engine"
 	"github.com/tcs76321/athanor/internal/evaluation"
 	"github.com/tcs76321/athanor/internal/hitl"
+	"github.com/tcs76321/athanor/internal/intake"
 	"github.com/tcs76321/athanor/internal/internalapi"
 	"github.com/tcs76321/athanor/internal/internalapi/runner"
 	"github.com/tcs76321/athanor/internal/interruptions"
@@ -484,6 +486,26 @@ func run(configPath, addr, stateDir string, container bool) error {
 	if err := planningStore.InterruptStale(context.Background(), 0); err != nil {
 		slog.Error("planning: marking stale runs interrupted", "err", err)
 	}
+	discoverySvc := discovery.NewService(
+		&discoveryGenerator{client: llmClient, cfg: cfg, pool: modelPool},
+		discovery.NewStore(st),
+	)
+	planningSvc := planning.NewService(
+		&planningGenerator{client: llmClient, cfg: cfg, pool: modelPool},
+		planningStore,
+	)
+	intakeSvc := intake.New(intake.Deps{
+		Projects: projectRepo, Jobs: job.NewRepository(st),
+		Discovery: discoverySvc, Planning: planningSvc,
+		Scheduler: sched, Enqueuer: eng, Events: st,
+		SourceAllowList: append([]string{}, cfg.Network.AllowList...),
+		DAGLimits: dag.Limits{
+			MaxTasks:     cfg.Execution.DAGMaxTasks,
+			MaxDepth:     cfg.Execution.DAGMaxDepth,
+			MaxTotalJobs: cfg.Execution.DAGMaxTotalJobs,
+		},
+	})
+	externalAPI.SetIntake(intakeSvc)
 	webUI := ui.New(ui.Deps{
 		Store: st, Projects: projectRepo, Jobs: job.NewRepository(st),
 		Artifacts: artifactStore, Corrections: correctionsRepo, HITL: hitlSvc,
@@ -495,17 +517,9 @@ func run(configPath, addr, stateDir string, container bool) error {
 		Version:       version,
 		Interruptions: interruptionsRepo, Strategy: strategyRepo,
 		Freezer: killSwitch, Control: killSwitch, Operator: opCtrl, Pool: modelPool, Engine: eng, Indexer: indexer,
-		Assist: assistSvc,
-		Discovery: discovery.NewService(
-			&discoveryGenerator{client: llmClient, cfg: cfg, pool: modelPool},
-			discovery.NewStore(st),
-		),
-		Planning: planning.NewService(
-			&planningGenerator{client: llmClient, cfg: cfg, pool: modelPool},
-			planningStore,
-		),
+		Assist:       assistSvc,
+		Intake:       intakeSvc,
 		ModelAudit:   os.Getenv("ATHANOR_MODEL_AUDIT"),
-		Scheduler:    sched,
 		TaskResetter: sched,
 		Alarms:       alarmSvc,
 		Pusher:       gitPusher{projects: projectRepo, hitl: hitlRepo, artifacts: artifactStore},

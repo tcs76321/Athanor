@@ -1,306 +1,259 @@
 package ui
 
 const projectOnboardingBody = `
-<h1>{{.Project.Name}} <span class="pill">{{.Status}}</span></h1>
+<h1>{{.Project.Name}} <span class="pill">{{.Project.OnRamp}}</span></h1>
 <p class="sub">{{.Project.Goal}}</p>
 <div class="actions">
   <a class="btn secondary" href="/ui/projects/{{.Project.ID}}">Back to project</a>
 </div>
 {{if .Requested}}<div class="notice">Access request queued in the Inbox. The host stays unused until the allowlist is updated in config.yaml.</div>{{end}}
-{{if .DiscoveryError}}<div class="notice bad">Discovery failed: {{.DiscoveryError}}<br>The brief is still saved; start discovery again when ready.{{if .Run}}{{if .Run.Tail}}<details><summary>Raw model output (last 1200 chars)</summary><pre class="wrap">{{.Run.Tail}}</pre></details>{{end}}{{end}}</div>{{end}}
 
-<div class="grid onboard-grid">
-  <div class="card">
-    <div class="eyebrow">Project onboarding</div>
-    <div class="stepper">
-      <a class="step {{if eq .Stage "brief"}}current{{end}} {{if or (eq .Stage "generating") (eq .Stage "choose") (eq .Stage "generating_plan") (eq .Stage "plan") (eq .Stage "approved")}}done{{end}}" href="?view=brief"><span class="num">1</span><span><span class="t">Brief</span><span class="d">Goal, limits, sources</span></span></a>
-      <a class="step {{if eq .Stage "generating"}}current{{end}} {{if or (eq .Stage "choose") (eq .Stage "generating_plan") (eq .Stage "plan") (eq .Stage "approved")}}done{{end}}" href="?view=choose"><span class="num">2</span><span><span class="t">Discover</span><span class="d">A portfolio of directions</span></span></a>
-      <a class="step {{if eq .Stage "choose"}}current{{end}} {{if or (eq .Stage "generating_plan") (eq .Stage "plan") (eq .Stage "approved")}}done{{end}}" href="?view=choose"><span class="num">3</span><span><span class="t">Choose</span><span class="d">Pick one direction</span></span></a>
-      <div class="step {{if or (eq .Stage "plan") (eq .Stage "generating_plan")}}current{{end}} {{if eq .Stage "approved"}}done{{end}}"><span class="num">4</span><span><span class="t">Plan</span><span class="d">Seed + three expansions</span></span></div>
-      <div class="step {{if eq .Stage "approved"}}current{{end}}"><span class="num">5</span><span><span class="t">Start</span><span class="d">Approve and run</span></span></div>
-    </div>
-  </div>
-
-  <div>
-  {{if eq .Stage "brief"}}
+{{if eq .Stage "intent"}}
+  <div class="grid onboard-grid">
     <div class="card">
-      <h2>What are we actually trying to do?</h2>
-      <p class="muted">Short is fine. Athanor will ask for the limits and sources before it explores; the goal can stay one sentence.</p>
+      <div class="eyebrow">Project intake</div>
+      <div class="stepper">
+        <div class="step current"><span class="num">1</span><span><span class="t">Goal</span><span class="d">One sentence, plus optional limits</span></span></div>
+        {{if eq .Project.OnRamp "explore"}}
+        <div class="step"><span class="num">2</span><span><span class="t">Directions</span><span class="d">Choose one approach</span></span></div>
+        {{end}}
+        <div class="step"><span class="num">{{if eq .Project.OnRamp "explore"}}3{{else}}2{{end}}</span><span><span class="t">Plan</span><span class="d">Approve and start</span></span></div>
+      </div>
+      <p class="muted">{{if eq .Project.OnRamp "explore"}}This goal is ambiguous enough to explore. Athanor will propose a small portfolio of directions; you choose one.{{else}}This goal is precise enough to plan directly. Athanor will draft one plan for you to approve.{{end}}</p>
       <form method="post" action="/ui/projects/{{.Project.ID}}/onboarding">
         <label for="goal">Goal</label>
-        <textarea id="goal" name="goal" rows="2" required data-refine-field="brief.goal">{{.Brief.Goal}}</textarea>
-        <div class="field-help">Examples: “compile a daily news brief from approved sources” or “build a small internal tool with tests”.</div>
+        <textarea id="goal" name="goal" rows="3" required data-refine-field="project.goal">{{.Project.Goal}}</textarea>
+        <div class="field-help">One sentence is enough. Refine it if you want a sharper outcome.</div>
 
-        <label for="constraints">Constraints / limits (one per line)</label>
-        <textarea id="constraints" name="constraints" rows="4" data-refine-field="brief.constraints">{{join .Brief.Constraints}}</textarea>
-        <div class="field-help">Hard limits: approved sources, required formats, location, legal or ethical boundaries, and things that are out of scope. Do not estimate effort or cost; Athanor runs locally under its own budget.</div>
-
-        <label for="limitations">Anything Athanor must not do</label>
-        <textarea id="limitations" name="limitations" rows="3" data-refine-field="brief.limitations" placeholder="No external publishing without review, no outbound messages, no new external services, no data outside the approved sources.">{{.Brief.Limitations}}</textarea>
-
-        <label for="sources">Sources or pages Athanor may read (one per line)</label>
-        <textarea id="sources" name="sources" rows="3" data-refine-field="brief.sources" placeholder="https://example.com/feed">{{join .Brief.Sources}}</textarea>
-        <div class="field-help">These URLs are recorded in the approved plan. Research tasks fetch only allowlisted sources through the gateway; a domain outside the allowlist becomes an access request, not a silent fetch.</div>
-        {{if .Sources}}
-        <div class="stack">
-          {{range .Sources}}
-          <div class="row row-middle">
-            <span class="mono wrap">{{.URL}}</span>
-            {{if .Allowed}}<span class="pill ok">allowed</span>{{else}}<span class="pill warn">needs access</span>{{end}}
-            {{if not .Allowed}}
-            <form method="post" action="/ui/projects/{{$.Project.ID}}/onboarding" class="inline-form">
-              <input type="hidden" name="action" value="request_access">
-              <input type="hidden" name="source" value="{{.URL}}">
-              <button class="small secondary">Request access</button>
-            </form>
+        <details {{if or .Project.Boundaries .Project.Sources .Project.RepositoryPath}}open{{end}}>
+          <summary>Add limits, sources, or a repository (optional)</summary>
+          <label for="name">Name <input id="name" name="name" value="{{.Project.Name}}" placeholder="derived from the goal"></label>
+          <label for="repository_path">Repository path (optional) <input id="repository_path" name="repository_path" value="{{.Project.RepositoryPath}}" placeholder="/absolute/path/to/repo"></label>
+          <div class="field-help">Core Pod: the repository must be visible inside the Core. The installer mounts <code>~/athanor/repos</code> at the same host path.</div>
+          <label for="boundaries">Limits (optional, one per line) <textarea id="boundaries" name="boundaries" rows="3" data-refine-field="project.boundaries" placeholder="No external publishing without review, no outbound messages, no new services.">{{.Project.Boundaries}}</textarea></label>
+          <label for="sources">Sources Athanor may read (optional, one URL per line) <textarea id="sources" name="sources" rows="2" placeholder="https://example.com/feed">{{join .Project.Sources}}</textarea></label>
+          {{if .Sources}}
+          <div class="stack">
+            {{range .Sources}}
+            <div class="row row-middle">
+              <span class="mono wrap">{{.URL}}</span>
+              {{if .Allowed}}<span class="pill ok">allowed</span>{{else}}<span class="pill warn">needs access</span>{{end}}
+              {{if not .Allowed}}
+              <form method="post" action="/ui/projects/{{$.Project.ID}}/onboarding" class="inline-form">
+                <input type="hidden" name="action" value="request_access">
+                <input type="hidden" name="source" value="{{.URL}}">
+                <button class="small secondary">Request access</button>
+              </form>
+              {{end}}
+            </div>
             {{end}}
           </div>
           {{end}}
-          <p class="muted">A source marked “needs access” stays unused until its domain is added to <code>network.allow_list</code> in config.yaml. Athanor will not fetch it silently.</p>
-        </div>
-        {{end}}
+        </details>
 
-        <label for="success">What would make this a success?</label>
-        <textarea id="success" name="success" rows="3" data-refine-field="brief.success" placeholder="A daily report a reader can finish in ten minutes, with every claim traceable to a source.">{{.Brief.Success}}</textarea>
+        <label for="onramp">Path</label>
+        <select id="onramp" name="onramp">
+          <option value="" {{if eq .Project.OnRamp ""}}selected{{end}}>Infer from the goal ({{.Project.OnRamp}})</option>
+          <option value="direct" {{if eq .Project.OnRamp "direct"}}selected{{end}}>Direct plan — I know what to build</option>
+          <option value="explore" {{if eq .Project.OnRamp "explore"}}selected{{end}}>Explore directions — help me choose</option>
+        </select>
 
         <div class="actions">
-          <button name="action" value="save" class="secondary">Save brief</button>
-          <button name="action" value="discover" class="primary">Save and explore directions</button>
+          <button name="action" value="save_intent" class="secondary">Save</button>
+          {{if eq .Project.OnRamp "explore"}}
+          <button name="action" value="discover" class="primary">Generate directions</button>
+          {{else}}
+          <button name="action" value="save_and_plan" class="primary">Draft the plan</button>
+          {{end}}
         </div>
       </form>
+      {{if .State.DirectionError}}<div class="notice bad">{{.State.DirectionError}}</div>{{end}}
+      {{if .State.PlanError}}<div class="notice bad">{{.State.PlanError}}</div>{{end}}
     </div>
-  {{else if eq .Stage "generating"}}
-    <div class="card" data-live-card="discovery" data-live-interval="2000">
-      <div class="eyebrow">Discovery in progress</div>
-      <h2>Athanor is exploring directions inside your goal.</h2>
-      <p class="muted">This is one bounded model pass. The status updates in place; open panels stay open, and the result is saved when it finishes.</p>
-      <progress class="progress" value="{{.DiscoveryPercent}}" max="100">{{.DiscoveryPercent}}%</progress>
-      {{if .Run}}
-      <div class="row row-middle"><span class="pill run">{{.DiscoveryPercent}}%</span><span class="muted">{{.DiscoveryElapsed}} elapsed</span></div>
-      <dl class="kv">
-        <dt>stage</dt><dd><code>{{.Run.Stage}}</code> — {{.Run.Detail}}</dd>
-        <dt>model</dt><dd><code>{{.Run.Model}}</code></dd>
-        <dt>prompt</dt><dd>{{.Run.PromptBytes}} chars assembled</dd>
-        <dt>response</dt><dd>{{.Run.ResponseBytes}} chars received{{if .Run.Options}} · {{.Run.Options}} options parsed{{end}}</dd>
-      </dl>
-      <p class="muted">Request: {{.Brief.Goal}}{{if .Brief.Constraints}} · {{len .Brief.Constraints}} constraint(s){{end}}{{if .Brief.Sources}} · {{len .Brief.Sources}} source(s){{end}} · target 10 options.</p>
-      {{if .Run.Steps}}
-      <details open><summary>What Athanor is doing</summary>
-        <ol class="stack">
-        {{range .Run.Steps}}<li><span class="mono">{{ts .At}}</span> <b>{{.Stage}}</b> — {{.Detail}}</li>{{end}}
-        </ol>
-      </details>
-      {{end}}
-      {{if .Run.Tail}}
-      <details><summary>Raw model output (last 1200 chars, display only)</summary>
-        <pre class="wrap">{{.Run.Tail}}</pre>
-      </details>
-      {{end}}
-      {{else}}
-      <p class="muted">This session was started before a Core restart, so live progress is unavailable. Its status is <b>{{.Session.Status}}</b>; start discovery again if it has been running longer than 20 minutes.</p>
-      {{end}}
-      <div class="actions">
-        <a class="btn secondary" href="/ui/projects/{{.Project.ID}}/onboarding">Refresh now</a>
-        <form method="post" action="/ui/projects/{{.Project.ID}}/onboarding">
-          <button class="danger" name="action" value="cancel_discovery" data-confirm="Cancel this discovery pass? The brief stays saved; you can start again.">Cancel discovery</button>
-        </form>
-      </div>
-    </div>
-  {{else if eq .Stage "choose"}}
-    <div class="card">
-      <h2>{{len .Session.Options}} directions</h2>
-      <p class="muted">Each option is a different problem, scope, and approach. Read them and choose the one you want to develop; no synthetic score decides for you.</p>
-    </div>
-    {{if .Run}}{{if eq .Run.Status "failed"}}<div class="notice bad">{{.Run.Error}}<div class="actions"><a class="btn secondary" href="/ui/projects/{{$.Project.ID}}/onboarding">Try again</a></div></div>{{end}}{{end}}
-    <div class="grid cols-2">
-      {{range .Session.Options}}
-      <div class="option">
-        <div class="top">
-          <div>
-            <div class="title">{{.Title}}</div>
-          </div>
-        </div>
-        <div class="stack">
-          <div><b>Problem</b> <span class="muted">{{.Problem}}</span></div>
-          <div><b>Scope</b> <span class="muted">{{.Scope}}</span></div>
-          <div><b>Approach</b> <span class="muted">{{.Approach}}</span></div>
-          <div><b>Deliverable</b> <span class="muted">{{.Deliverable}}</span></div>
-          <div><b>Check</b> <span class="muted">{{.Check}}</span></div>
-        </div>
-        {{if .Risks}}<details><summary>Risks and assumptions</summary>{{range .Risks}}<div class="ev">{{.}}</div>{{end}}{{range .Assumptions}}<div class="ev">Assumption: {{.}}</div>{{end}}</details>{{end}}
-        <form method="post" action="/ui/projects/{{$.Project.ID}}/onboarding" class="actions">
-          <input type="hidden" name="option" value="{{.ID}}">
-          <button class="primary" name="action" value="select">Develop this direction</button>
-        </form>
-      </div>
-      {{end}}
-    </div>
+  </div>
+{{else if eq .Stage "directions"}}
+  <div class="card" data-live-card="intake" data-live-interval="2000">
+    <div class="eyebrow">Directions in progress</div>
+    <h2>Athanor is exploring directions inside your goal.</h2>
+    <p class="muted">One bounded model pass. The result is saved when it finishes.</p>
+    {{with .State.DirectionRun}}
+    <dl class="kv">
+      <dt>stage</dt><dd><code>{{.Stage}}</code> — {{.Detail}}</dd>
+      <dt>model</dt><dd><code>{{.Model}}</code></dd>
+      <dt>response</dt><dd>{{.ResponseBytes}} chars received{{if .Options}} · {{.Options}} options parsed{{end}}</dd>
+    </dl>
+    {{if .Tail}}<details><summary>Raw model output (last 1200 chars, display only)</summary><pre class="wrap">{{.Tail}}</pre></details>{{end}}
+    {{if .Steps}}<details open><summary>What Athanor is doing</summary><ol class="stack">{{range .Steps}}<li><span class="mono">{{ts .At}}</span> <b>{{.Stage}}</b> — {{.Detail}}</li>{{end}}</ol></details>{{end}}
+    {{else}}
+    <p class="muted">This pass was started before a Core restart, so live progress is unavailable. Its durable status is <b>{{.State.Directions.Status}}</b>.</p>
+    {{end}}
     <div class="actions">
+      <a class="btn secondary" href="/ui/projects/{{.Project.ID}}/onboarding">Refresh</a>
       <form method="post" action="/ui/projects/{{.Project.ID}}/onboarding">
-        <button class="secondary" name="action" value="back_to_brief">Back to brief</button>
-      </form>
-      <form method="post" action="/ui/projects/{{.Project.ID}}/onboarding">
-        <button class="secondary" name="action" value="regenerate_directions">Regenerate directions</button>
+        <button class="danger" name="action" value="cancel_discovery">Cancel</button>
       </form>
     </div>
-  {{else if eq .Stage "generating_plan"}}
-    <div class="card" data-live-card="planning" data-live-interval="3000">
-      <div class="eyebrow">Planning in progress</div>
-      <h2>Seed the plans, then expand each one once.</h2>
-      <p class="muted">One call drafts three distinct seeds; three calls expand each into a complete plan. The model stays pinned for the whole run. No work starts until you approve a plan.</p>
-      {{with .PlanRun}}
-      <dl class="kv">
-        <dt>stage</dt><dd><code>{{.Stage}}</code>{{if .Detail}} — {{.Detail}}{{end}}</dd>
-        <dt>model</dt><dd><code>{{if .Model}}{{.Model}}{{else}}selecting…{{end}}</code></dd>
-        <dt>prompt</dt><dd>{{.PromptBytes}} chars assembled</dd>
-        <dt>response</dt><dd>{{.ResponseBytes}} chars received</dd>
-        {{if .PlanIndex}}<dt>plan</dt><dd>{{.PlanIndex}} of 3 · {{.Expanded}} ready</dd>{{end}}
-      </dl>
-      {{if .Tail}}<details><summary>Raw model output (last 1200 chars, display only)</summary><pre class="wrap">{{.Tail}}</pre></details>{{end}}
-      {{if .Steps}}<details open><summary>What Athanor is doing</summary><ol class="stack">{{range .Steps}}<li><span class="mono">{{ts .At}}</span> <b>{{.Stage}}</b> — {{.Detail}}</li>{{end}}</ol></details>{{end}}
-      {{end}}
-      {{if not .PlanRun}}
-      <dl class="kv">
-        <dt>stage</dt><dd><code>{{if .PlanSession.Stage}}{{.PlanSession.Stage}}{{else}}seed{{end}}</code></dd>
-        <dt>model</dt><dd><code>{{if .PlanSession.Model}}{{.PlanSession.Model}}{{else}}—{{end}}</code></dd>
-        <dt>prompt</dt><dd>{{.PlanSession.PromptBytes}} chars assembled</dd>
-        <dt>response</dt><dd>{{.PlanSession.ResponseBytes}} chars received</dd>
-        <dt>expanded</dt><dd>{{.PlanSession.ExpandedCount}} of 3</dd>
-      </dl>
-      {{if .PlanSession.Tail}}<details><summary>Raw model output (last 1200 chars, display only)</summary><pre class="wrap">{{.PlanSession.Tail}}</pre></details>{{end}}
-      {{end}}
-      {{if .PlanSession.Candidates}}
-      <div class="table-wrap">
-      <table><thead><tr><th>Stance</th><th>Seed</th><th>Status</th></tr></thead><tbody>
-      {{range .PlanSession.Candidates}}<tr><td>{{if .Stance}}{{.Stance}}{{else}}—{{end}}</td><td>{{.Title}}</td><td><span class="pill {{if eq .Status "ready"}}ok{{else if eq .Status "failed"}}bad{{else}}run{{end}}">{{.Status}}</span>{{if .Error}}<div class="del small">{{.Error}}</div>{{end}}</td></tr>{{end}}
-      </tbody></table>
-      </div>
-      {{end}}
-      <p class="muted">{{if .PlanElapsed}}{{.PlanElapsed}} elapsed. {{end}}You can leave this page and come back; the persisted stage is shown if the live run is unavailable.</p>
-      <div class="actions">
-        <a class="btn secondary" href="/ui/projects/{{.Project.ID}}/onboarding">Refresh</a>
-        <form method="post" action="/ui/projects/{{.Project.ID}}/onboarding">
-          <button class="secondary" name="action" value="cancel_planning">Cancel and choose another direction</button>
-        </form>
-      </div>
-    </div>
-  {{else if eq .Stage "plan"}}
-    <div class="card">
-      <div class="eyebrow">Selected direction</div>
-      <h2>{{.Selected.Title}}</h2>
+  </div>
+{{else if eq .Stage "choose"}}
+  <div class="card">
+    <h2>{{len .State.Directions.Options}} directions</h2>
+    <p class="muted">Each direction is a different outcome, method, and check. Read the three lines and choose the one you want to develop.</p>
+  </div>
+  {{if .State.DirectionError}}<div class="notice bad">{{.State.DirectionError}}</div>{{end}}
+  <div class="grid cols-2">
+    {{range .State.Directions.Options}}
+    <div class="option">
+      <div class="top"><div><div class="title">{{.Title}}</div></div></div>
       <div class="stack">
-        <div><b>Problem</b> <span class="muted">{{.Selected.Problem}}</span></div>
-        <div><b>Scope</b> <span class="muted">{{.Selected.Scope}}</span></div>
-        <div><b>Approach</b> <span class="muted">{{.Selected.Approach}}</span></div>
-        <div><b>Deliverable</b> <span class="muted">{{.Selected.Deliverable}}</span></div>
-        <div><b>Check</b> <span class="muted">{{.Selected.Check}}</span></div>
+        <div><b>Outcome</b> <span class="muted">{{.Outcome}}</span></div>
+        <div><b>Method</b> <span class="muted">{{.Method}}</span></div>
+        <div><b>Check</b> <span class="muted">{{.Check}}</span></div>
       </div>
-      <div class="actions">
-        <form method="post" action="/ui/projects/{{.Project.ID}}/onboarding">
-          <button class="secondary" name="action" value="back_to_directions">Back to directions</button>
-        </form>
-      </div>
-    </div>
-    {{if .PlanError}}<div class="notice bad">Plan generation failed: {{.PlanError}}<div class="actions"><form method="post" action="/ui/projects/{{.Project.ID}}/onboarding"><button class="primary small" name="action" value="generate_plans">Try again</button></form><form method="post" action="/ui/projects/{{.Project.ID}}/onboarding"><button class="secondary small" name="action" value="back_to_directions">Choose another direction</button></form></div></div>{{end}}
-
-    {{if .SelectedPlan}}
-    <div class="card">
-      <div class="eyebrow">Chosen plan</div>
-      <h2>{{.SelectedPlan.Title}}</h2>
-      <p class="muted">{{.SelectedPlan.Summary}}</p>
-      <div class="meta">
-        <span class="pill">{{len .SelectedPlan.Tasks}} tasks</span>
-      </div>
-      <div class="table-wrap">
-        <table><thead><tr><th>Task</th><th>Capability</th><th>Criteria</th></tr></thead><tbody>
-        {{range .SelectedPlan.Tasks}}<tr>
-          <td><b>{{.Title}}</b><div class="muted small">{{.Description}}</div></td>
-          <td><span class="pill">{{.Capability}}</span></td>
-          <td class="muted">{{join .Criteria}}</td>
-        </tr>{{end}}
-        </tbody></table>
-      </div>
-      {{if .SelectedPlan.Risks}}<div class="actions"><span class="muted">Risks: {{join .SelectedPlan.Risks}}</span></div>{{end}}
-      <div class="actions">
-        <form method="post" action="/ui/projects/{{.Project.ID}}/onboarding">
-          <button class="primary" name="action" value="approve">Approve plan and start</button>
-        </form>
-        <form method="post" action="/ui/projects/{{.Project.ID}}/onboarding">
-          <button class="secondary" name="action" value="generate_plans">Generate three again</button>
-        </form>
-      </div>
-    </div>
-    {{else if .PlanCandidates}}
-    <h2>Three plans</h2>
-    <p class="muted">Choose the plan you want to execute. They differ by stance — a smallest verifiable slice, the deepest coverage, or the lowest-risk sequence — not by a score. A plan is usable only after its expansion finishes.</p>
-    <div class="grid cols-3">
-      {{range $i, $c := .PlanCandidates}}
-      <div class="option">
-        <div class="top">
-          <div><div class="eyebrow">{{if $c.Stance}}{{$c.Stance}}{{else}}Option{{end}} {{add $i 1}}</div><div class="title">{{$c.Title}}</div></div>
-          <span class="pill {{if eq $c.Status "ready"}}ok{{else if eq $c.Status "failed"}}bad{{else}}run{{end}}">{{if $c.Status}}{{$c.Status}}{{else}}seed{{end}}</span>
-        </div>
-        <p class="muted">{{$c.Summary}}</p>
-        <div class="meta"><span class="pill">{{len $c.Tasks}} tasks</span></div>
-        <div class="stack">
-          {{range $c.Tasks}}<div class="ev"><b>{{.Title}}</b>{{if .Capability}} <span class="muted">· {{.Capability}}</span>{{end}}</div>{{end}}
-        </div>
-        {{if $c.Risks}}<details><summary>Risks</summary>{{range $c.Risks}}<div class="ev">{{.}}</div>{{end}}</details>{{end}}
-        {{if $c.Error}}<div class="del small">{{$c.Error}}</div>{{end}}
-        {{if eq $c.Status "ready"}}
-        <form method="post" action="/ui/projects/{{$.Project.ID}}/onboarding" class="actions">
-          <input type="hidden" name="plan" value="{{$i}}">
-          <button class="primary" name="action" value="select_plan">Use this plan</button>
-        </form>
-        {{end}}
-      </div>
+      {{if or .Scope .Risks .Assumptions}}
+      <details><summary>Details</summary>
+        {{if .Scope}}<div class="ev">Scope: {{.Scope}}</div>{{end}}
+        {{range .Risks}}<div class="ev">{{.}}</div>{{end}}
+        {{range .Assumptions}}<div class="ev">Assumption: {{.}}</div>{{end}}
+      </details>
       {{end}}
+      <form method="post" action="/ui/projects/{{$.Project.ID}}/onboarding" class="actions">
+        <input type="hidden" name="option" value="{{.ID}}">
+        <button class="primary" name="action" value="select">Develop this direction</button>
+      </form>
+    </div>
+    {{end}}
+  </div>
+  <div class="actions">
+    <form method="post" action="/ui/projects/{{.Project.ID}}/onboarding">
+      <button class="secondary" name="action" value="discover">Regenerate directions</button>
+    </form>
+    <form method="post" action="/ui/projects/{{.Project.ID}}/onboarding">
+      <button class="secondary" name="action" value="save_intent">Back to the goal</button>
+    </form>
+  </div>
+{{else if eq .Stage "plan"}}
+  {{if .Selected}}
+  <div class="card">
+    <div class="eyebrow">Selected direction</div>
+    <h2>{{.Selected.Title}}</h2>
+    <div class="stack">
+      <div><b>Outcome</b> <span class="muted">{{.Selected.Outcome}}</span></div>
+      <div><b>Method</b> <span class="muted">{{.Selected.Method}}</span></div>
+      <div><b>Check</b> <span class="muted">{{.Selected.Check}}</span></div>
+    </div>
+  </div>
+  {{end}}
+
+  {{if .State.PlanRun}}
+  {{if eq .State.PlanRun.Status "running"}}
+  <div class="card" data-live-card="intake" data-live-interval="3000">
+    <div class="eyebrow">Plan in progress</div>
+    <h2>{{if eq .Project.OnRamp "direct"}}Drafting one plan.{{else}}Drafting plan candidates.{{end}}</h2>
+    <dl class="kv">
+      <dt>stage</dt><dd><code>{{.State.PlanRun.Stage}}</code>{{if .State.PlanRun.Detail}} — {{.State.PlanRun.Detail}}{{end}}</dd>
+      <dt>model</dt><dd><code>{{if .State.PlanRun.Model}}{{.State.PlanRun.Model}}{{else}}selecting…{{end}}</code></dd>
+      <dt>response</dt><dd>{{.State.PlanRun.ResponseBytes}} chars received</dd>
+      {{if .State.PlanRun.PlanIndex}}<dt>plan</dt><dd>{{.State.PlanRun.PlanIndex}} of 3 · {{.State.PlanRun.Expanded}} ready</dd>{{end}}
+    </dl>
+    {{if .State.PlanRun.Steps}}<details open><summary>What Athanor is doing</summary><ol class="stack">{{range .State.PlanRun.Steps}}<li><span class="mono">{{ts .At}}</span> <b>{{.Stage}}</b> — {{.Detail}}</li>{{end}}</ol></details>{{end}}
+    <div class="actions">
+      <a class="btn secondary" href="/ui/projects/{{.Project.ID}}/onboarding">Refresh</a>
+      <form method="post" action="/ui/projects/{{.Project.ID}}/onboarding">
+        <button class="secondary" name="action" value="cancel_planning">Cancel</button>
+      </form>
+    </div>
+  </div>
+  {{else if eq .State.PlanRun.Status "failed"}}
+  <div class="notice bad">Plan generation failed: {{.State.PlanRun.Error}}</div>
+  {{end}}
+  {{end}}
+  {{if .State.PlanError}}
+  <div class="notice bad">Plan generation failed: {{.State.PlanError}}</div>
+  {{end}}
+
+  {{if .SelectedPlan}}
+  <div class="card">
+    <div class="eyebrow">Chosen plan</div>
+    <h2>{{.SelectedPlan.Title}}</h2>
+    <p class="muted">{{.SelectedPlan.Summary}}</p>
+    <div class="meta"><span class="pill">{{len .SelectedPlan.Tasks}} tasks</span></div>
+    <div class="table-wrap">
+      <table><thead><tr><th>Task</th><th>Capability</th><th>Criteria</th></tr></thead><tbody>
+      {{range .SelectedPlan.Tasks}}<tr>
+        <td><b>{{.Title}}</b><div class="muted small">{{.Description}}</div></td>
+        <td><span class="pill">{{.Capability}}</span></td>
+        <td class="muted">{{join .Criteria}}</td>
+      </tr>{{end}}
+      </tbody></table>
     </div>
     <div class="actions">
+      <form method="post" action="/ui/projects/{{.Project.ID}}/onboarding">
+        <input type="hidden" name="candidate" value="{{.SelectedPlan.ID}}">
+        <button class="primary" name="action" value="approve">Approve plan and start</button>
+      </form>
+      {{if ne .Project.OnRamp "direct"}}
       <form method="post" action="/ui/projects/{{.Project.ID}}/onboarding">
         <button class="secondary" name="action" value="generate_plans">Generate three again</button>
       </form>
-      <form method="post" action="/ui/projects/{{.Project.ID}}/onboarding">
-        <button class="secondary" name="action" value="back_to_directions">Back to directions</button>
-      </form>
-    </div>
-    {{else}}
-    <div class="card">
-      <div class="eyebrow">AI plans</div>
-      {{if .PlanningAvailable}}
-      <h2>Draft three plans.</h2>
-      <p class="muted">Athanor drafts three distinct seeds, then expands each once into a complete plan: a smallest verifiable slice, the deepest coverage, and the lowest-risk sequence. You choose before work starts.</p>
-      <form method="post" action="/ui/projects/{{.Project.ID}}/onboarding">
-        <button class="primary" name="action" value="generate_plans">Generate three plans</button>
-      </form>
-      <p class="muted small">One seed call plus three expansion calls. The model stays pinned for the run.</p>
-      <p class="muted small">Or approve the deterministic plan below without an extra model call.</p>
-      {{else}}
-      <h2>Simple plan.</h2>
-      <p class="muted">AI planning is not configured. Review and approve the deterministic plan below.</p>
       {{end}}
-      <div class="actions">
-        <form method="post" action="/ui/projects/{{.Project.ID}}/onboarding">
-          <button class="{{if .PlanningAvailable}}secondary{{else}}primary{{end}}" name="action" value="approve">Approve plan and start</button>
-        </form>
-        <form method="post" action="/ui/projects/{{.Project.ID}}/onboarding">
-          <button class="secondary" name="action" value="back_to_directions">Back to directions</button>
-        </form>
-      </div>
     </div>
-    {{if .Plan}}<details><summary>Simple plan preview</summary><div class="prose">{{markdown .Plan}}</div></details>{{end}}
-    {{end}}
-  {{else}}
-    <div class="card">
-      <div class="eyebrow">Approved</div>
-      <h2>Work has started.</h2>
-      <p class="muted">The plan created a dependency-ordered set of tasks. Watch the first job, or return to the project to see the graph.</p>
-      <div class="actions">
-        <a class="btn primary" href="/ui/projects/{{.Project.ID}}">Open project</a>
-        <a class="btn secondary" href="/ui/projects/{{.Project.ID}}/onboarding">Review onboarding</a>
-      </div>
-    </div>
-  {{end}}
   </div>
-</div>
+  {{else if .State.Plan.Candidates}}
+  <h2>{{if eq .Project.OnRamp "direct"}}The plan{{else}}Plans{{end}}</h2>
+  <p class="muted">Choose the plan you want to execute. A plan is usable only after its expansion finishes.</p>
+  <div class="grid {{if eq .Project.OnRamp "direct"}}cols-2{{else}}cols-3{{end}}">
+    {{range .State.Plan.Candidates}}
+    <div class="option">
+      <div class="top">
+        <div><div class="eyebrow">{{if .Stance}}{{.Stance}}{{else}}Plan{{end}}</div><div class="title">{{.Title}}</div></div>
+        <span class="pill {{if eq .Status "ready"}}ok{{else if eq .Status "failed"}}bad{{else}}run{{end}}">{{if .Status}}{{.Status}}{{else}}seed{{end}}</span>
+      </div>
+      <p class="muted">{{.Summary}}</p>
+      <div class="meta"><span class="pill">{{len .Tasks}} tasks</span></div>
+      <div class="stack">{{range .Tasks}}<div class="ev"><b>{{.Title}}</b>{{if .Capability}} <span class="muted">· {{.Capability}}</span>{{end}}</div>{{end}}</div>
+      {{if .Error}}<div class="del small">{{.Error}}</div>{{end}}
+      {{if eq .Status "ready"}}
+      <form method="post" action="/ui/projects/{{$.Project.ID}}/onboarding" class="actions">
+        <input type="hidden" name="candidate" value="{{.ID}}">
+        <button class="primary" name="action" value="select_plan">Review this plan</button>
+      </form>
+      {{end}}
+    </div>
+    {{end}}
+  </div>
+  <div class="actions">
+    <form method="post" action="/ui/projects/{{.Project.ID}}/onboarding">
+      <button class="secondary" name="action" value="generate_plans">{{if eq .Project.OnRamp "direct"}}Generate again{{else}}Generate three again{{end}}</button>
+    </form>
+  </div>
+  {{else}}
+  <div class="card">
+    <div class="eyebrow">Plan</div>
+    <h2>{{if eq .Project.OnRamp "direct"}}Draft one plan.{{else}}Draft the plans.{{end}}</h2>
+    <p class="muted">{{if eq .Project.OnRamp "direct"}}One concrete plan, one approval. No work starts until you approve it.{{else}}Three plans across the stances; you choose before work starts.{{end}}</p>
+    <div class="actions">
+      <form method="post" action="/ui/projects/{{.Project.ID}}/onboarding">
+        {{if eq .Project.OnRamp "direct"}}<input type="hidden" name="mode" value="single">{{end}}
+        <button class="primary" name="action" value="generate_plans">{{if eq .Project.OnRamp "direct"}}Draft the plan{{else}}Generate three plans{{end}}</button>
+      </form>
+      {{if .PlanPreview}}
+      <form method="post" action="/ui/projects/{{.Project.ID}}/onboarding">
+        <input type="hidden" name="candidate" value="deterministic">
+        <button class="secondary" name="action" value="approve">Approve the simple plan</button>
+      </form>
+      {{end}}
+    </div>
+    {{if .PlanPreview}}<details><summary>Simple plan preview</summary><div class="prose">{{markdown .PlanPreview}}</div></details>{{end}}
+  </div>
+  {{end}}
+{{else}}
+  <div class="card">
+    <div class="eyebrow">Approved</div>
+    <h2>Work has started.</h2>
+    <p class="muted">The plan created a dependency-ordered set of tasks. Watch the first job, or return to the project to see the graph.</p>
+    <div class="actions">
+      <a class="btn primary" href="/ui/projects/{{.Project.ID}}">Open project</a>
+    </div>
+  </div>
+{{end}}
 `

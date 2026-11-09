@@ -138,12 +138,12 @@ var specs = map[string]Spec{
 			"Add at most one optional scope or quality detail if clearly implied; otherwise tighten the wording.",
 		},
 	},
-	"project.criteria": {
-		ID: "project.criteria", Label: "Acceptance criteria",
-		Purpose:      "A one-per-line list of checks that decide whether a project task succeeded.",
-		Requirements: "Each line must be observable and verifiable: a test, a file, a count, a behavior, or an explicit review decision. Prefer 2–6 lines. Remove vague adjectives.",
-		Preserve:     "Preserve every existing criterion's meaning. Do not invent requirements; if a criterion is too vague, propose the narrowest verifiable version.",
-		MaxWords:     140,
+	"project.boundaries": {
+		ID: "project.boundaries", Label: "Limits and exclusions",
+		Purpose:      "The hard limits, exclusions, and things a project must not do.",
+		Requirements: "Each line is a real, concrete constraint: policy, platform, data, or scope. Do not invent legal, financial, or policy constraints.",
+		Preserve:     "Preserve every existing limit and exclusion exactly. Do not add prohibitions the user did not state or clearly imply.",
+		MaxWords:     120,
 	},
 	"goal.submit": {
 		ID: "goal.submit", Label: "Task goal",
@@ -170,53 +170,6 @@ var specs = map[string]Spec{
 		Requirements: "Each line must be observable and verifiable. Prefer 2–6 lines. Make the check specific enough that another person could run it.",
 		Preserve:     "Preserve every existing criterion's meaning. Do not add requirements that the user did not imply.",
 		MaxWords:     140,
-	},
-	"brief.goal": {
-		ID: "brief.goal", Label: "Discovery brief goal",
-		Purpose:      "The outcome the project discovery should explore, consumed by direction generation.",
-		Requirements: "Name the outcome, the input source, the operational method, and the output form. Include an audience only if the user stated one. Keep it short enough to explore in several directions.",
-		Preserve:     "Preserve the user's language, intent, and named entities. Never invent specific facts, people, audiences, or numbers. You may infer one low-risk method, input-source class, or output detail per pass when the current text implies it, and record it in added_assumptions.",
-		MaxWords:     140,
-		Layered:      true,
-		Sufficiency: []string{
-			"outcome or deliverable",
-			"input source",
-			"operational method (how inputs become the output)",
-			"output form",
-		},
-		LayerHints: []string{
-			"Make the outcome, input source, and output form explicit. Add at most one bounded inference. Leave the operational method for the next pass unless the operator already stated it.",
-			"Make the operational method explicit as a short sequence: gather or pull the input, then compile or produce the output. Two short sentences are fine. Do not repeat a prior assumption.",
-			"Add at most one optional scope or quality detail if clearly implied; otherwise tighten the wording.",
-		},
-	},
-	"brief.constraints": {
-		ID: "brief.constraints", Label: "Constraints",
-		Purpose:      "A one-per-line list of hard constraints for discovery and planning.",
-		Requirements: "Each line is a real constraint: time, money, tools, policy, platform, or scope. Make it concrete and testable.",
-		Preserve:     "Preserve every existing constraint exactly. Do not invent legal, financial, or policy constraints.",
-		MaxWords:     120,
-	},
-	"brief.limitations": {
-		ID: "brief.limitations", Label: "Limitations",
-		Purpose:      "A one-per-line list of things the project must not do.",
-		Requirements: "State explicit exclusions and prohibited actions. Keep them concrete.",
-		Preserve:     "Preserve every existing exclusion. Do not invent prohibitions the user did not state or clearly imply.",
-		MaxWords:     120,
-	},
-	"brief.sources": {
-		ID: "brief.sources", Label: "Sources",
-		Purpose:      "A one-per-line list of sources the discovery may use, with what each supports.",
-		Requirements: "Never add, remove, or alter a URL. If the list is empty, ask which sources the user wants. You may clarify what an existing source supports.",
-		Preserve:     "Preserve every URL character-for-character. Do not invent citations, titles, or facts.",
-		MaxWords:     100,
-	},
-	"brief.success": {
-		ID: "brief.success", Label: "Success signals",
-		Purpose:      "How the operator will know the project succeeded.",
-		Requirements: "Use observable signals: a count, a decision, a shipped artifact, a test, or a user action. Prefer 1–5 lines.",
-		Preserve:     "Preserve the user's intent and any existing signals. Do not invent metrics or numbers.",
-		MaxWords:     120,
 	},
 	"correction.reason": {
 		ID: "correction.reason", Label: "Why it was rejected",
@@ -264,9 +217,9 @@ var clarifyQuestions = map[string][]string{
 		"Who is it for, if anyone specific?",
 		"What is explicitly out of scope?",
 	},
-	"project.criteria": {
-		"What observable check proves success?",
-		"What must a reviewer be able to verify?",
+	"project.boundaries": {
+		"What hard constraints or exclusions apply?",
+		"What must this project never do?",
 	},
 	"goal.submit": {
 		"What single outcome should this job produce?",
@@ -276,23 +229,6 @@ var clarifyQuestions = map[string][]string{
 	"goal.criteria": {
 		"What observable check proves this task succeeded?",
 		"What must not regress?",
-	},
-	"brief.goal": {
-		"What outcome should discovery explore?",
-		"What practical boundary should it stay inside?",
-	},
-	"brief.constraints": {
-		"What hard constraints apply (time, money, tools, policy)?",
-	},
-	"brief.limitations": {
-		"What must this project never do?",
-	},
-	"brief.success": {
-		"What observable signal will tell you the project succeeded?",
-	},
-	"brief.sources": {
-		"Which sources should discovery use?",
-		"What does each source support?",
 	},
 	"correction.reason": {
 		"What was wrong, and where?",

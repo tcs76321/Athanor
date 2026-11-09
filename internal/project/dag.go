@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/tcs76321/athanor/internal/ids"
 	"github.com/tcs76321/athanor/internal/toolenvelope"
@@ -19,7 +20,22 @@ import (
 // A spec with a duplicate key or an unknown parent/dependency reference is
 // rejected before any write. The returned tasks are in insertion (graph
 // declaration) order.
-func (r *Repo) CreateDAG(ctx context.Context, projectID, goalText string, criteria []string, specs []TaskSpec) (string, []Task, error) {
+func (r *Repo) CreateDAG(ctx context.Context, projectID, goalText string, specs []TaskSpec) (string, []Task, error) {
+	return r.createDAG(ctx, projectID, goalText, "", specs)
+}
+
+// ApprovePlan persists the task graph the operator approved and records the
+// approved plan on the project in the same transaction. The plan ID is the
+// candidate ID, or "deterministic" for the zero-cost fallback. Approval is
+// idempotent at the caller, not here: a second approval creates a new goal.
+func (r *Repo) ApprovePlan(ctx context.Context, projectID, goalText, planID string, specs []TaskSpec) (string, []Task, error) {
+	if strings.TrimSpace(planID) == "" {
+		return "", nil, fmt.Errorf("approved plan id must not be empty")
+	}
+	return r.createDAG(ctx, projectID, goalText, planID, specs)
+}
+
+func (r *Repo) createDAG(ctx context.Context, projectID, goalText, approvedPlanID string, specs []TaskSpec) (string, []Task, error) {
 	if err := validateGoalText(goalText); err != nil {
 		return "", nil, err
 	}
@@ -115,6 +131,12 @@ func (r *Repo) CreateDAG(ctx context.Context, projectID, goalText string, criter
 			return "", nil, fmt.Errorf("inserting task %q: %w", s.Key, err)
 		}
 	}
+	if approvedPlanID != "" {
+		if _, err := tx.ExecContext(ctx,
+			`UPDATE projects SET approved_plan_id = ? WHERE id = ?`, approvedPlanID, projectID); err != nil {
+			return "", nil, fmt.Errorf("recording approved plan: %w", err)
+		}
+	}
 	if err := tx.Commit(); err != nil {
 		return "", nil, fmt.Errorf("committing DAG: %w", err)
 	}
@@ -155,51 +177,6 @@ func (r *Repo) TasksByProject(ctx context.Context, projectID string) ([]Task, er
 	}
 	defer func() { _ = rows.Close() }()
 	return scanTasks(rows)
-}
-
-// DiscardInitialUnstartedTask retires the placeholder task created at project
-// create time once onboarding has built the approved plan. It only touches the
-// project's oldest goal, and only when none of that goal's tasks has a job or
-// an artifact: started work is never deleted. A missing placeholder is a no-op.
-func (r *Repo) DiscardInitialUnstartedTask(ctx context.Context, projectID, keepGoalID string) error {
-	tx, err := r.store.DB().BeginTx(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("beginning placeholder cleanup: %w", err)
-	}
-	defer func() { _ = tx.Rollback() }()
-
-	var goalID string
-	err = tx.QueryRowContext(ctx,
-		`SELECT id FROM goals WHERE project_id = ? AND id != ? ORDER BY rowid LIMIT 1`,
-		projectID, keepGoalID).Scan(&goalID)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil
-	}
-	if err != nil {
-		return fmt.Errorf("finding the placeholder goal: %w", err)
-	}
-	var used int
-	if err := tx.QueryRowContext(ctx,
-		`SELECT COUNT(*) FROM tasks t
-		  WHERE t.goal_id = ?
-		    AND (EXISTS (SELECT 1 FROM jobs j WHERE j.task_id = t.id)
-		      OR EXISTS (SELECT 1 FROM artifacts a WHERE a.task_id = t.id))`,
-		goalID).Scan(&used); err != nil {
-		return fmt.Errorf("checking placeholder use: %w", err)
-	}
-	if used > 0 {
-		return nil
-	}
-	if _, err := tx.ExecContext(ctx, `DELETE FROM tasks WHERE goal_id = ?`, goalID); err != nil {
-		return fmt.Errorf("deleting placeholder tasks: %w", err)
-	}
-	if _, err := tx.ExecContext(ctx, `DELETE FROM goals WHERE id = ?`, goalID); err != nil {
-		return fmt.Errorf("deleting placeholder goal: %w", err)
-	}
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("committing placeholder cleanup: %w", err)
-	}
-	return nil
 }
 
 // scanTasks drains a tasks result set using the shared column mapping.

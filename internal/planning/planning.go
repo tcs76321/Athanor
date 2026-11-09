@@ -49,6 +49,7 @@ type Seed struct {
 // Candidate is one complete plan proposal. The three candidates differ by
 // stance, not by a synthetic score or the model's self-reported confidence.
 type Candidate struct {
+	ID          string   `json:"id,omitempty"`
 	Stance      string   `json:"stance,omitempty"`
 	Title       string   `json:"title"`
 	Summary     string   `json:"summary"`
@@ -107,17 +108,16 @@ func (r Request) Report(ev ProgressEvent) {
 // Request is the generator input.
 type Request struct {
 	Goal        string
-	Brief       string
-	Constraints []string
+	Boundaries  string
 	Sources     []string
 	OptionTitle string
-	Problem     string
-	Scope       string
-	Approach    string
-	Deliverable string
+	Outcome     string
+	Method      string
 	Check       string
-	// Phase is "seed" for the three-plan scaffold call, "expand" for one
-	// plan's expansion, or empty for the legacy single-call contract.
+	Scope       string
+	// Phase is "single" for one direct plan, "seed" for the three-plan
+	// scaffold call, "expand" for one plan's expansion, or empty for the
+	// legacy single-call contract.
 	Phase string
 	// Seed and OtherSeeds are set for an expansion call.
 	Seed       *Seed
@@ -140,6 +140,8 @@ type Generator interface {
 // BuildPrompt is the closed plan-generation contract.
 func BuildPrompt(req Request) string {
 	switch req.Phase {
+	case "single":
+		return buildSinglePrompt(req)
 	case "seed":
 		return buildSeedPrompt(req)
 	case "expand":
@@ -148,30 +150,21 @@ func BuildPrompt(req Request) string {
 	var b strings.Builder
 	b.WriteString("You are Athanor's planning agent. Produce exactly 3 distinct plans for the chosen direction below. A plan is a short, ordered first iteration, not a fixed-length schedule.\n\n")
 	fmt.Fprintf(&b, "GOAL: %s\n\n", strings.TrimSpace(req.Goal))
-	if req.Brief != "" {
-		fmt.Fprintf(&b, "BRIEF:\n%s\n\n", strings.TrimSpace(req.Brief))
+	if req.Boundaries != "" {
+		fmt.Fprintf(&b, "BOUNDARIES:\n%s\n\n", strings.TrimSpace(req.Boundaries))
 	}
 	fmt.Fprintf(&b, "CHOSEN DIRECTION: %s\n", req.OptionTitle)
-	if req.Problem != "" {
-		fmt.Fprintf(&b, "PROBLEM: %s\n", req.Problem)
+	if req.Outcome != "" {
+		fmt.Fprintf(&b, "OUTCOME: %s\n", req.Outcome)
+	}
+	if req.Method != "" {
+		fmt.Fprintf(&b, "METHOD: %s\n", req.Method)
 	}
 	if req.Scope != "" {
 		fmt.Fprintf(&b, "SCOPE: %s\n", req.Scope)
 	}
-	if req.Approach != "" {
-		fmt.Fprintf(&b, "APPROACH: %s\n", req.Approach)
-	}
-	if req.Deliverable != "" {
-		fmt.Fprintf(&b, "FIRST DELIVERABLE: %s\n", req.Deliverable)
-	}
 	if req.Check != "" {
 		fmt.Fprintf(&b, "CHECK: %s\n", req.Check)
-	}
-	if len(req.Constraints) > 0 {
-		b.WriteString("\nCONSTRAINTS:\n")
-		for _, c := range req.Constraints {
-			fmt.Fprintf(&b, "- %s\n", c)
-		}
 	}
 	if len(req.Sources) > 0 {
 		b.WriteString("\nALLOWED SOURCES:\n")
@@ -195,6 +188,23 @@ func BuildPrompt(req Request) string {
 		b.WriteString("\nREPAIR REQUIRED: the previous response was rejected: " + repair + "\n")
 		b.WriteString("Return ONE JSON array of exactly three complete plan objects. Every object must include title, summary, tasks with title/description/capability/criteria, risks, and assumptions. Do not return two arrays, concatenated objects, or a partial object.\n")
 	}
+	return b.String()
+}
+
+// buildSinglePrompt is the direct on-ramp: one complete, reviewable plan in a
+// single model call. The operator either approves it or asks for alternatives.
+func buildSinglePrompt(req Request) string {
+	var b strings.Builder
+	b.WriteString("You are Athanor's planning agent. Produce exactly one concrete, ordered plan for the goal and direction below.\n\n")
+	writePlanningContext(&b, req)
+	b.WriteString("\nReturn ONLY one JSON object: {title, summary, tasks:[{key, title, description, capability, depends_on:[...], criteria:[...]}], risks:[...], assumptions:[...]}.\n")
+	b.WriteString("RULES:\n")
+	b.WriteString("- Include 3–6 tasks, ordered; each task is small enough to finish in one job.\n")
+	b.WriteString("- capability must be one of: code, data, document, text, media.\n")
+	b.WriteString("- Every task needs at least one observable acceptance criterion.\n")
+	b.WriteString("- Use explicit task keys and depends_on edges. Do not create cycles.\n")
+	b.WriteString("- The goal is precise; do not invent scope, audiences, or requirements that are not stated or clearly implied.\n")
+	writePlanningRules(&b, req)
 	return b.String()
 }
 
@@ -253,30 +263,21 @@ func buildExpandPrompt(req Request) string {
 
 func writePlanningContext(b *strings.Builder, req Request) {
 	fmt.Fprintf(b, "GOAL: %s\n", strings.TrimSpace(req.Goal))
-	if req.Brief != "" {
-		fmt.Fprintf(b, "BRIEF:\n%s\n", strings.TrimSpace(req.Brief))
+	if req.Boundaries != "" {
+		fmt.Fprintf(b, "BOUNDARIES:\n%s\n", strings.TrimSpace(req.Boundaries))
 	}
 	fmt.Fprintf(b, "CHOSEN DIRECTION: %s\n", req.OptionTitle)
-	if req.Problem != "" {
-		fmt.Fprintf(b, "PROBLEM: %s\n", req.Problem)
+	if req.Outcome != "" {
+		fmt.Fprintf(b, "OUTCOME: %s\n", req.Outcome)
+	}
+	if req.Method != "" {
+		fmt.Fprintf(b, "METHOD: %s\n", req.Method)
 	}
 	if req.Scope != "" {
 		fmt.Fprintf(b, "SCOPE: %s\n", req.Scope)
 	}
-	if req.Approach != "" {
-		fmt.Fprintf(b, "APPROACH: %s\n", req.Approach)
-	}
-	if req.Deliverable != "" {
-		fmt.Fprintf(b, "FIRST DELIVERABLE: %s\n", req.Deliverable)
-	}
 	if req.Check != "" {
 		fmt.Fprintf(b, "CHECK: %s\n", req.Check)
-	}
-	if len(req.Constraints) > 0 {
-		b.WriteString("CONSTRAINTS:\n")
-		for _, c := range req.Constraints {
-			fmt.Fprintf(b, "- %s\n", c)
-		}
 	}
 	if len(req.Sources) > 0 {
 		b.WriteString("ALLOWED SOURCES:\n")
@@ -744,13 +745,62 @@ func Validate(candidates []Candidate) ([]Candidate, error) {
 	return out, nil
 }
 
+// ValidateSingle enforces the direct on-ramp contract: one complete plan with
+// 3–6 tasks, each with a capability and at least one criterion.
+func ValidateSingle(c Candidate) (Candidate, error) {
+	if strings.TrimSpace(c.Title) == "" || strings.TrimSpace(c.Summary) == "" {
+		return Candidate{}, fmt.Errorf("planning: direct plan needs a title and summary")
+	}
+	if len(c.Tasks) < 3 || len(c.Tasks) > 6 {
+		return Candidate{}, fmt.Errorf("planning: direct plan has %d tasks (want 3–6)", len(c.Tasks))
+	}
+	if c.Risks == nil {
+		c.Risks = []string{}
+	}
+	if c.Assumptions == nil {
+		c.Assumptions = []string{}
+	}
+	keys := map[string]bool{}
+	for i := range c.Tasks {
+		t := &c.Tasks[i]
+		t.Key = strings.TrimSpace(t.Key)
+		if t.Key == "" {
+			t.Key = fmt.Sprintf("task-%d", i+1)
+		}
+		if keys[t.Key] {
+			return Candidate{}, fmt.Errorf("planning: duplicate task key %q", t.Key)
+		}
+		keys[t.Key] = true
+		if strings.TrimSpace(t.Title) == "" || strings.TrimSpace(t.Description) == "" {
+			return Candidate{}, fmt.Errorf("planning: task %q has an empty title or description", t.Key)
+		}
+		if !project.ValidCapability(t.Capability) {
+			return Candidate{}, fmt.Errorf("planning: task %q has invalid capability %q", t.Key, t.Capability)
+		}
+		if len(t.Criteria) == 0 {
+			return Candidate{}, fmt.Errorf("planning: task %q has no acceptance criterion", t.Key)
+		}
+	}
+	for i := range c.Tasks {
+		for _, dep := range c.Tasks[i].DependsOn {
+			if !keys[dep] {
+				return Candidate{}, fmt.Errorf("planning: task %q depends on unknown key %q", c.Tasks[i].Key, dep)
+			}
+			if dep == c.Tasks[i].Key {
+				return Candidate{}, fmt.Errorf("planning: task %q depends on itself", dep)
+			}
+		}
+	}
+	return c, nil
+}
+
 // Store persists planning sessions.
 type Store struct{ db *store.Store }
 
 func NewStore(s *store.Store) *Store { return &Store{db: s} }
 
 // Begin starts a durable planning session for one project and direction. The
-// brief itself lives in project_briefs; the session records the option so a
+// project intent lives on the project; the session records the option so a
 // stale plan cannot be shown after the operator chooses another direction.
 func (s *Store) Begin(ctx context.Context, projectID, optionID string) (Session, error) {
 	id := ids.New()
@@ -991,7 +1041,7 @@ func (s *Store) getByID(ctx context.Context, sessionID string) (Session, bool, e
 		sess.HeartbeatAt, _ = time.Parse(time.RFC3339, heartbeat.String)
 	}
 	rows, err := s.db.DB().QueryContext(ctx, `
-		SELECT stance, status, error, title, summary, tasks_json, risks_json, assumptions_json
+		SELECT id, stance, status, error, title, summary, tasks_json, risks_json, assumptions_json
 		FROM plan_candidates WHERE session_id = ? ORDER BY sort_order`, sess.ID)
 	if err != nil {
 		return Session{}, false, err
@@ -1000,7 +1050,7 @@ func (s *Store) getByID(ctx context.Context, sessionID string) (Session, bool, e
 	for rows.Next() {
 		var c Candidate
 		var tasks, risks, assumptions string
-		if err := rows.Scan(&c.Stance, &c.Status, &c.Error, &c.Title, &c.Summary,
+		if err := rows.Scan(&c.ID, &c.Stance, &c.Status, &c.Error, &c.Title, &c.Summary,
 			&tasks, &risks, &assumptions); err != nil {
 			return Session{}, false, err
 		}
@@ -1034,6 +1084,38 @@ func (s *Store) Select(ctx context.Context, projectID string, index int) error {
 	}
 	if sess.Candidates[index].Status != "ready" {
 		return fmt.Errorf("planning: plan %d is %s, not ready", index, sess.Candidates[index].Status)
+	}
+	_, err = s.db.DB().ExecContext(ctx,
+		`UPDATE plan_sessions SET selected_index = ? WHERE id = ?`, index, sess.ID)
+	return err
+}
+
+// SelectByID records a candidate selected by stable ID rather than array
+// position. The API uses this shape so a client cannot select a plan from a
+// different session by index.
+func (s *Store) SelectByID(ctx context.Context, projectID, candidateID string) error {
+	sess, ok, err := s.Get(ctx, projectID)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return fmt.Errorf("planning: no session for project")
+	}
+	if sess.Status != "ready" {
+		return fmt.Errorf("planning: session is %s, not ready", sess.Status)
+	}
+	index := -1
+	for i := range sess.Candidates {
+		if sess.Candidates[i].ID == candidateID {
+			index = i
+			break
+		}
+	}
+	if index < 0 {
+		return fmt.Errorf("planning: candidate %s is not in this session", candidateID)
+	}
+	if sess.Candidates[index].Status != "ready" {
+		return fmt.Errorf("planning: candidate %s is %s, not ready", candidateID, sess.Candidates[index].Status)
 	}
 	_, err = s.db.DB().ExecContext(ctx,
 		`UPDATE plan_sessions SET selected_index = ? WHERE id = ?`, index, sess.ID)
@@ -1189,6 +1271,77 @@ func (s *Service) Generate(ctx context.Context, projectID, optionID string, req 
 	return got, nil
 }
 
+// GenerateSingle runs the direct on-ramp: one bounded model call, one plan,
+// one repair retry. The session is durable and the candidate is immediately
+// approvable.
+func (s *Service) GenerateSingle(ctx context.Context, projectID, optionID string, req Request) (Session, error) {
+	if s.gen == nil {
+		return Session{}, fmt.Errorf("planning: no generator configured")
+	}
+	sess, err := s.store.Begin(ctx, projectID, optionID)
+	if err != nil {
+		return Session{}, err
+	}
+	fail := func(err error) (Session, error) {
+		fctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		s.store.Fail(fctx, sess.ID, err.Error())
+		return Session{}, err
+	}
+	req.Phase = "single"
+	report := func(ev ProgressEvent) {
+		pctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		s.store.Progress(pctx, sess.ID, stageLabel(ev), ev.Model, ev.PromptBytes, ev.ResponseBytes, ev.Tail, ev.Tokens)
+		cancel()
+		if req.Progress != nil {
+			req.Progress(ev)
+		}
+	}
+	var candidate Candidate
+	var lastErr error
+	for attempt := 0; attempt < 2; attempt++ {
+		if attempt > 0 {
+			req.Repair = lastErr.Error()
+			report(ProgressEvent{Phase: "single", Stage: "repair", Detail: "repairing the direct plan"})
+		}
+		callCtx, cancel := context.WithTimeout(ctx, expandCallTimeout)
+		raw, genErr := s.gen.Generate(callCtx, req)
+		cancel()
+		if genErr != nil {
+			return fail(genErr)
+		}
+		parsed, parseErr := ParseOne(raw)
+		if parseErr == nil {
+			parsed, parseErr = ValidateSingle(parsed)
+		}
+		if parseErr == nil {
+			candidate = parsed
+			lastErr = nil
+			break
+		}
+		lastErr = parseErr
+		report(ProgressEvent{Phase: "single", Stage: "rejected", Detail: parseErr.Error()})
+	}
+	if lastErr != nil {
+		return fail(lastErr)
+	}
+	if err := s.store.Complete(ctx, sess.ID, []Candidate{candidate}); err != nil {
+		return fail(err)
+	}
+	if err := s.store.Finish(ctx, sess.ID); err != nil {
+		return fail(err)
+	}
+	report(ProgressEvent{Phase: "single", Stage: "done", Detail: "plan ready", Candidates: 1})
+	got, ok, err := s.store.getByID(ctx, sess.ID)
+	if err != nil {
+		return Session{}, err
+	}
+	if !ok {
+		return Session{}, fmt.Errorf("planning: session disappeared after completion")
+	}
+	return got, nil
+}
+
 func stageLabel(ev ProgressEvent) string {
 	if ev.Phase == "" {
 		return ev.Stage
@@ -1211,6 +1364,10 @@ func (s *Service) Get(ctx context.Context, projectID string) (Session, bool, err
 
 func (s *Service) Select(ctx context.Context, projectID string, index int) error {
 	return s.store.Select(ctx, projectID, index)
+}
+
+func (s *Service) SelectByID(ctx context.Context, projectID, candidateID string) error {
+	return s.store.SelectByID(ctx, projectID, candidateID)
 }
 
 // ToTaskSpecs converts a chosen candidate into dependency-ordered project

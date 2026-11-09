@@ -85,30 +85,56 @@ func (r *Repo) CreateInferredWithPriority(ctx context.Context, name, goal, repos
 	return r.create(ctx, name, capability, caps, capability, goal, repositoryPath, criteria, priority)
 }
 
-// CreateBareInferred creates a project and its goal without a placeholder
-// task. The guided onboarding owns the first task graph; approval creates it.
-// The create-form criteria are stored in the project brief's success field so
-// they survive the absence of a task.
-func (r *Repo) CreateBareInferred(ctx context.Context, name, goal, repositoryPath string, criteria []string, priority string) (Project, error) {
-	if err := validateGoalText(goal); err != nil {
+// Intent is one project's operator-authored intent and optional context. It
+// is the only input to guided project creation. Priority is deliberately not
+// part of it: a new project defaults to medium and priority is edited later.
+type Intent struct {
+	Name           string
+	Goal           string
+	RepositoryPath string
+	Boundaries     string
+	Sources        []string
+	// OnRamp is direct or explore. Empty asks the repository to infer it.
+	OnRamp string
+	// Priority is optional; empty means medium.
+	Priority string
+}
+
+// CreateGuided creates a project from intent alone. It writes exactly one
+// projects row: no goals row, no brief, and no placeholder task. The approved
+// plan creates the execution graph later.
+func (r *Repo) CreateGuided(ctx context.Context, in Intent) (Project, error) {
+	if err := validateGoalText(in.Goal); err != nil {
 		return Project{}, err
 	}
-	if name == "" {
-		return Project{}, fmt.Errorf("project name must not be empty")
-	}
-	priority = strings.TrimSpace(priority)
+	priority := strings.TrimSpace(in.Priority)
 	if priority == "" {
 		priority = PriorityMedium
 	}
 	if !ValidPriority(priority) {
 		return Project{}, fmt.Errorf("invalid project priority %q (critical|high|medium|low)", priority)
 	}
-	caps := NormalizeCapabilities(InferCapabilities(goal, repositoryPath))
+	onRamp := strings.TrimSpace(in.OnRamp)
+	if onRamp != "" && !ValidOnRamp(onRamp) {
+		return Project{}, fmt.Errorf("invalid on-ramp %q (direct|explore)", onRamp)
+	}
+	caps := NormalizeCapabilities(InferCapabilities(in.Goal, in.RepositoryPath))
+	if onRamp == "" {
+		onRamp = InferOnRamp(in.Goal, in.RepositoryPath, caps)
+	}
 	capsJSON, err := json.Marshal(caps)
 	if err != nil {
 		return Project{}, fmt.Errorf("marshalling capabilities: %w", err)
 	}
-	projectID, goalID := ids.New(), ids.New()
+	sourcesJSON, err := marshalSources(in.Sources)
+	if err != nil {
+		return Project{}, err
+	}
+	name, err := r.uniqueName(ctx, strings.TrimSpace(in.Name), in.Goal, "")
+	if err != nil {
+		return Project{}, err
+	}
+	projectID := ids.New()
 	tx, err := r.store.DB().BeginTx(ctx, nil)
 	if err != nil {
 		return Project{}, fmt.Errorf("beginning project create: %w", err)
@@ -120,29 +146,129 @@ func (r *Repo) CreateBareInferred(ctx context.Context, name, goal, repositoryPat
 			return Project{}, fmt.Errorf("demoting the previous critical project: %w", err)
 		}
 	}
-	if _, err := tx.ExecContext(ctx,
-		`INSERT INTO projects (id, name, archetype, goal, repository_path, capabilities_json, priority) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		projectID, name, PrimaryCapability(caps), goal, nullIfEmpty(repositoryPath), string(capsJSON), priority,
+	if _, err := tx.ExecContext(ctx, `
+		INSERT INTO projects (id, name, archetype, goal, repository_path, capabilities_json,
+		                      priority, boundaries, sources_json, onramp)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		projectID, name, PrimaryCapability(caps), in.Goal, nullIfEmpty(in.RepositoryPath),
+		string(capsJSON), priority, strings.TrimSpace(in.Boundaries), string(sourcesJSON), onRamp,
 	); err != nil {
 		return Project{}, fmt.Errorf("inserting project: %w", err)
-	}
-	if _, err := tx.ExecContext(ctx,
-		`INSERT INTO goals (id, project_id, text) VALUES (?, ?, ?)`,
-		goalID, projectID, goal,
-	); err != nil {
-		return Project{}, fmt.Errorf("inserting goal: %w", err)
-	}
-	success := strings.Join(criteria, "\n")
-	if _, err := tx.ExecContext(ctx,
-		`INSERT INTO project_briefs (project_id, status, goal, success) VALUES (?, 'pending', ?, ?)`,
-		projectID, goal, success,
-	); err != nil {
-		return Project{}, fmt.Errorf("seeding project brief: %w", err)
 	}
 	if err := tx.Commit(); err != nil {
 		return Project{}, fmt.Errorf("committing project create: %w", err)
 	}
 	return r.Get(ctx, projectID)
+}
+
+// UpdateIntent replaces a project's intent and optional context, recomputing
+// the inferred capability set from the new goal and repository. It returns the
+// updated project. Priority and execution are separate settings.
+func (r *Repo) UpdateIntent(ctx context.Context, id string, in Intent) (Project, error) {
+	current, err := r.Get(ctx, id)
+	if err != nil {
+		return Project{}, err
+	}
+	if err := validateGoalText(in.Goal); err != nil {
+		return Project{}, err
+	}
+	onRamp := strings.TrimSpace(in.OnRamp)
+	if onRamp == "" {
+		onRamp = current.OnRamp
+	}
+	if onRamp == "" || !ValidOnRamp(onRamp) {
+		onRamp = InferOnRamp(in.Goal, in.RepositoryPath,
+			NormalizeCapabilities(InferCapabilities(in.Goal, in.RepositoryPath)))
+	}
+	name, err := r.uniqueName(ctx, strings.TrimSpace(in.Name), in.Goal, id)
+	if err != nil {
+		return Project{}, err
+	}
+	if strings.TrimSpace(in.Name) == "" {
+		name = current.Name
+	}
+	caps := NormalizeCapabilities(InferCapabilities(in.Goal, in.RepositoryPath))
+	capsJSON, err := json.Marshal(caps)
+	if err != nil {
+		return Project{}, fmt.Errorf("marshalling capabilities: %w", err)
+	}
+	sourcesJSON, err := marshalSources(in.Sources)
+	if err != nil {
+		return Project{}, err
+	}
+	res, err := r.store.DB().ExecContext(ctx, `
+		UPDATE projects
+		   SET name = ?, goal = ?, repository_path = ?, capabilities_json = ?,
+		       boundaries = ?, sources_json = ?, onramp = ?
+		 WHERE id = ?`,
+		name, in.Goal, nullIfEmpty(in.RepositoryPath), string(capsJSON),
+		strings.TrimSpace(in.Boundaries), string(sourcesJSON), onRamp, id)
+	if err != nil {
+		return Project{}, fmt.Errorf("updating project intent: %w", err)
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return Project{}, fmt.Errorf("%w: %s", ErrNotFound, id)
+	}
+	return r.Get(ctx, id)
+}
+
+// SetOnRamp records an operator override of the inferred intake path.
+func (r *Repo) SetOnRamp(ctx context.Context, id, onRamp string) error {
+	if !ValidOnRamp(onRamp) || onRamp == "" {
+		return fmt.Errorf("invalid on-ramp %q (direct|explore)", onRamp)
+	}
+	res, err := r.store.DB().ExecContext(ctx,
+		`UPDATE projects SET onramp = ? WHERE id = ?`, onRamp, id)
+	if err != nil {
+		return fmt.Errorf("setting on-ramp: %w", err)
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return fmt.Errorf("%w: %s", ErrNotFound, id)
+	}
+	return nil
+}
+
+// uniqueName resolves a project name. An empty name is derived from the goal;
+// a collision gets a numeric suffix. excludeID is the project being updated
+// (empty on create).
+func (r *Repo) uniqueName(ctx context.Context, name, goal, excludeID string) (string, error) {
+	base := strings.TrimSpace(name)
+	if base == "" {
+		base = DeriveName(goal)
+	}
+	if base == "" {
+		base = "Project"
+	}
+	for i := 0; i < 100; i++ {
+		candidate := base
+		if i > 0 {
+			candidate = fmt.Sprintf("%s %d", base, i+1)
+		}
+		var n int
+		err := r.store.DB().QueryRowContext(ctx,
+			`SELECT COUNT(*) FROM projects WHERE name = ? AND id <> ?`, candidate, excludeID).Scan(&n)
+		if err != nil {
+			return "", fmt.Errorf("checking project name: %w", err)
+		}
+		if n == 0 {
+			return candidate, nil
+		}
+	}
+	return "", fmt.Errorf("could not derive a unique project name from %q", base)
+}
+
+func marshalSources(sources []string) (string, error) {
+	out := make([]string, 0, len(sources))
+	for _, s := range sources {
+		if s = strings.TrimSpace(s); s != "" {
+			out = append(out, s)
+		}
+	}
+	raw, err := json.Marshal(out)
+	if err != nil {
+		return "", fmt.Errorf("marshalling sources: %w", err)
+	}
+	return string(raw), nil
 }
 
 // UpdateGoalAndCapabilities keeps the project's intent and inferred
@@ -187,9 +313,6 @@ func (r *Repo) create(ctx context.Context, name, archetype string, caps []string
 	if err := validateGoalText(goal); err != nil {
 		return Project{}, Task{}, err
 	}
-	if name == "" {
-		return Project{}, Task{}, fmt.Errorf("project name must not be empty")
-	}
 	priority = strings.TrimSpace(priority)
 	if priority == "" {
 		priority = PriorityMedium
@@ -197,6 +320,11 @@ func (r *Repo) create(ctx context.Context, name, archetype string, caps []string
 	if !ValidPriority(priority) {
 		return Project{}, Task{}, fmt.Errorf("invalid project priority %q (critical|high|medium|low)", priority)
 	}
+	derivedName, err := r.uniqueName(ctx, strings.TrimSpace(name), goal, "")
+	if err != nil {
+		return Project{}, Task{}, err
+	}
+	name = derivedName
 	caps = NormalizeCapabilities(caps)
 	if !ValidCapability(primary) {
 		primary = PrimaryCapability(caps)
@@ -315,11 +443,15 @@ func (r *Repo) SubmitGoal(ctx context.Context, projectID, goalText string, crite
 // Get loads one project by ID.
 func (r *Repo) Get(ctx context.Context, id string) (Project, error) {
 	var p Project
-	var execJSON, capsJSON, createdAt string
+	var execJSON, capsJSON, sourcesJSON, createdAt string
 	err := r.store.DB().QueryRowContext(ctx,
-		`SELECT id, name, archetype, goal, status, priority, COALESCE(repository_path, ''), execution_json, COALESCE(capabilities_json, '[]'), created_at
+		`SELECT id, name, archetype, goal, status, priority, COALESCE(repository_path, ''),
+		        execution_json, COALESCE(capabilities_json, '[]'), COALESCE(boundaries, ''),
+		        COALESCE(sources_json, '[]'), COALESCE(onramp, ''), COALESCE(approved_plan_id, ''),
+		        created_at
 		 FROM projects WHERE id = ?`, id,
-	).Scan(&p.ID, &p.Name, &p.Archetype, &p.Goal, &p.Status, &p.Priority, &p.RepositoryPath, &execJSON, &capsJSON, &createdAt)
+	).Scan(&p.ID, &p.Name, &p.Archetype, &p.Goal, &p.Status, &p.Priority, &p.RepositoryPath,
+		&execJSON, &capsJSON, &p.Boundaries, &sourcesJSON, &p.OnRamp, &p.ApprovedPlanID, &createdAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Project{}, fmt.Errorf("%w: %s", ErrNotFound, id)
 	}
@@ -330,6 +462,11 @@ func (r *Repo) Get(ctx context.Context, id string) (Project, error) {
 		return Project{}, err
 	}
 	p.Capabilities = decodeCapabilities(capsJSON, p.Archetype)
+	if strings.TrimSpace(sourcesJSON) != "" {
+		if err := json.Unmarshal([]byte(sourcesJSON), &p.Sources); err != nil {
+			return Project{}, fmt.Errorf("decoding project sources for %s: %w", id, err)
+		}
+	}
 	var perr error
 	if p.CreatedAt, perr = time.Parse(time.RFC3339, createdAt); perr != nil {
 		return Project{}, fmt.Errorf("parsing project timestamp %q: %w", createdAt, perr)

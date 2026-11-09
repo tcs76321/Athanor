@@ -387,7 +387,7 @@ func (r *runnerConfig) stopDaemon(cmd *exec.Cmd) {
 func projectCreateBody(g sampleGoal, name string) map[string]any {
 	return map[string]any{
 		"name": name, "archetype": g.Archetype, "goal": g.Goal,
-		"acceptance_criteria": g.Criteria, "start": false,
+		"start": false,
 	}
 }
 

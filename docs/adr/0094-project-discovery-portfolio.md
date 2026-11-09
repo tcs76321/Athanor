@@ -1,7 +1,7 @@
 # ADR 0094 — Project discovery is a portfolio, not a dialectical winner
 
 **Status:** Accepted — first implementation slice; amended by
-[ADR-0097](0097-ai-plan-candidates.md) · **Date:** 2026-11-04 ·
+[ADR-0097](0097-ai-plan-candidates.md) and [ADR-0132](0132-project-intake-one-intent.md) · **Date:** 2026-11-04 ·
 **Refs:** ARCHITECTURE §15 (brainstorming workflow), §13 (dialectical engine),
 §19 (evaluation), §21.5 (gateway); [ADR-0032](0032-dag-decomposition.md),
 [ADR-0061](0061-harder-benchmark.md), [ADR-0093](0093-project-capabilities-not-archetypes.md).

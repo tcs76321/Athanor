@@ -6,6 +6,17 @@ gaps, not deferred features.
 
 **Review:** 2026-11-06, pre-first-use hardening pass.
 
+## Fixed (2026-11-09 project intake)
+
+| Area | Fix |
+|---|---|
+| Duplicate intent | `project_briefs.goal` and the create-time `goals` row duplicated `projects.goal`; guided create now writes one project row and approval writes the execution goal (ADR-0132). |
+| Dead criteria | `CreateDAG` accepted a `criteria` argument it never read, and the create-form criteria only reached an ignored brief column. Project-level criteria are removed; task criteria come from the approved plan. |
+| Split stage | `project_briefs.status` declared unreachable values while the UI also inferred the stage. Intake derives one stage from durable artifacts. |
+| UI-owned SQL | The onboarding brief was loaded and saved with raw SQL in `internal/ui`. `internal/intake` owns persistence; the UI renders state. |
+| Direction overreach | Six required prose fields per option became outcome/method/check plus optional scope, risks, and assumptions. |
+| Universal exploration | A precise repository-backed goal no longer pays for a direction portfolio; the on-ramp is inferred and overridable. |
+
 ## Fixed (2026-11-06 pre-first-use)
 
 | Area | Fix |

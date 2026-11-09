@@ -49,7 +49,7 @@ func TestSetTaskStatus(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, tasks, err := r.CreateDAG(ctx, p.ID, "Build a small REST endpoint with tests.", nil,
+	_, tasks, err := r.CreateDAG(ctx, p.ID, "Build a small REST endpoint with tests.",
 		[]TaskSpec{{Key: "a", Title: "a", Criteria: []string{"c"}}})
 	if err != nil {
 		t.Fatal(err)
@@ -84,7 +84,7 @@ func TestResetTask(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, tasks, err := r.CreateDAG(ctx, p.ID, "Build a small REST endpoint with tests.", nil,
+	_, tasks, err := r.CreateDAG(ctx, p.ID, "Build a small REST endpoint with tests.",
 		[]TaskSpec{{Key: "a", Title: "a", Criteria: []string{"c"}}})
 	if err != nil {
 		t.Fatal(err)
@@ -134,7 +134,7 @@ func TestSetTaskStatusTx(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, tasks, err := r.CreateDAG(ctx, p.ID, "Build a small REST endpoint with tests.", nil,
+	_, tasks, err := r.CreateDAG(ctx, p.ID, "Build a small REST endpoint with tests.",
 		[]TaskSpec{{Key: "a", Title: "a", Criteria: []string{"c"}}})
 	if err != nil {
 		t.Fatal(err)

@@ -126,12 +126,13 @@ usable non-empty field**:
 
 The wand is no longer a one-shot rewrite. Each click is one bounded pass:
 
-- **Layered fields.** `project.goal`, `brief.goal`, and `goal.submit` carry a
-  mandatory sufficiency list. A project/brief goal is sufficient when it states
-  the outcome, the input source, the operational method, and the output
-  form/cadence. A task goal is sufficient when it states the outcome, inputs,
-  method or steps, and definition of done. Scope, audience, and quality remain
-  optional unless the draft clearly implies them.
+- **Layered fields.** `project.goal` and `goal.submit` carry a mandatory
+  sufficiency list. A project goal is sufficient when it states the outcome,
+  input source, method, and output form; a task goal is sufficient when it
+  states the outcome, inputs, method or steps, and definition of done.
+  `project.boundaries` and the other non-layered fields use the tighten-only
+  policy. Scope, audience, and quality remain optional unless the draft
+  clearly implies them.
 - **One layer per pass.** Pass 1 makes the outcome, input source, and output
   form explicit. Pass 2 makes the operational method explicit. Later passes add
   at most one optional detail and then only tighten. Prior assumptions are sent

@@ -168,6 +168,14 @@ Then watch it work in real time from the Watch View, or queue it and check the M
   apply-to-config option and a restart notice), pulls missing models only with
   explicit consent, runs the optional qualification, and hands the operator to
   their first project. The supported runtime remains the Core Pod.
+- **One intent, two decisions (ADR-0132).** A project is created from one
+  required field, the goal; name, repository, limits, and sources are optional
+  context on the same record. Athanor infers a **direct** path (one plan) or an
+  **explore** path (a compact direction portfolio, then one plan), and the
+  operator approves before work starts. The separate brief form, its stored
+  status, the project-level criteria field, and the duplicate goal are gone.
+  The `internal/intake` service is the single state machine behind the UI and
+  the HTTP API.
 - **Project onboarding, discovery, and research limits.** Creating a project
   now continues into a guided brief: clarify the outcome, the limits, the
   success criteria, and the sources Athanor may read. Goals get a **portfolio**

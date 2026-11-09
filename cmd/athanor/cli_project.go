@@ -20,14 +20,18 @@ type projectCreateResult struct {
 
 func runProject(args []string) error {
 	if len(args) == 0 || args[0] != "create" {
-		return fmt.Errorf("usage: athanor project create -name NAME -goal \"...\" [-repo PATH]")
+		return fmt.Errorf("usage: athanor project create -goal \"...\" [-guided] [-repo PATH]")
 	}
 	fs := flag.NewFlagSet("project create", flag.ContinueOnError)
-	name := fs.String("name", "", "project name (required)")
+	name := fs.String("name", "", "project name (optional; derived from the goal)")
 	archetype := fs.String("archetype", "", "deprecated compatibility override; normally inferred (code|data|document|text|media)")
 	goal := fs.String("goal", "", "project goal, 3-500 characters (required)")
 	priority := fs.String("priority", "", "project priority: critical|high|medium|low (default medium)")
 	repo := fs.String("repo", "", "repository root the indexer walks (optional)")
+	boundaries := fs.String("boundaries", "", "hard limits and exclusions (optional, one per line)")
+	sources := fs.String("sources", "", "sources the project may read (optional, separated by ';')")
+	onRamp := fs.String("onramp", "", "direct or explore (optional; inferred when empty)")
+	guided := fs.Bool("guided", false, "create metadata only and continue in guided intake")
 	testCmd := fs.String("test-command", "", "advanced override; normally detected from the repository")
 	buildCmd := fs.String("build-command", "", "override the build command (optional)")
 	dataSchema := fs.String("data-schema", "", "JSON Schema a data candidate must validate against (optional)")
@@ -35,18 +39,22 @@ func runProject(args []string) error {
 	fixturePath := fs.String("fixture-path", "", "immutable starter tree shown to the model (optional)")
 	fixtureRoot := fs.String("fixture-root", "", "containment root for -fixture-path (defaults to the repository)")
 	var criteria criteriaFlag
-	fs.Var(&criteria, "criteria", "acceptance criteria, separated by ';'")
+	fs.Var(&criteria, "criteria", "acceptance criteria for the first task on the direct path, separated by ';'")
 	addr := fs.String("addr", defaultAddr, "daemon address")
 	if err := fs.Parse(args[1:]); err != nil {
 		return err
 	}
-	if *name == "" || *goal == "" {
-		return fmt.Errorf("-name and -goal are required")
+	if *goal == "" {
+		return fmt.Errorf("-goal is required")
 	}
 	body := map[string]any{
 		"name": *name, "goal": *goal,
-		"acceptance_criteria": criteria, "repository_path": *repo,
-		"start": true,
+		"repository_path": *repo, "boundaries": *boundaries,
+		"sources": splitList(*sources), "onramp": *onRamp,
+		"start": !*guided,
+	}
+	if !*guided {
+		body["acceptance_criteria"] = criteria
 	}
 	if *priority != "" {
 		body["priority"] = *priority
@@ -100,6 +108,10 @@ func runProject(args []string) error {
 	if out.IndexWarning != "" {
 		fmt.Printf("warning: %s\n", out.IndexWarning)
 	}
+	if *guided {
+		fmt.Printf("continue in the browser:\n  %s/ui/projects/%s/onboarding\n", *addr, out.ID)
+		return nil
+	}
 	if out.JobID != "" {
 		fmt.Printf("job %s started — watch it with:\n  athanor job watch -job %s\n", out.JobID, out.JobID)
 		fmt.Printf("add another goal with:\n  athanor goal submit -project %s -goal \"...\"\n", out.ID)
@@ -107,6 +119,16 @@ func runProject(args []string) error {
 	}
 	fmt.Printf("submit a goal with:\n  athanor goal submit -project %s -goal \"...\"\n", out.ID)
 	return nil
+}
+
+func splitList(raw string) []string {
+	var out []string
+	for _, item := range strings.Split(raw, ";") {
+		if item = strings.TrimSpace(item); item != "" {
+			out = append(out, item)
+		}
+	}
+	return out
 }
 
 type goalSubmitResult struct {

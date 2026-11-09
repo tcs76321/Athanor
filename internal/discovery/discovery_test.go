@@ -14,12 +14,12 @@ import (
 
 func sampleOptions() []Option {
 	return []Option{
-		{Title: "Daily global news brief", Problem: "Coverage is fragmented across outlets", Scope: "World news in one coherent daily update; excludes opinion columns", Approach: "Group stories by region, then by consequence", Deliverable: "One-page brief with source links", Check: "Five readers mark what is unclear"},
-		{Title: "CSV reconciliation CLI", Problem: "Manual reconciliation is slow and error-prone", Scope: "Analysts comparing two exports; excludes schema migration", Approach: "Field-level diff with a readable report", Deliverable: "Command-line tool with a sample report", Check: "Run it against a known mismatch"},
-		{Title: "AI procurement policy memo", Problem: "Current rules are unclear and inconsistent", Scope: "A two-page decision memo for the procurement committee", Approach: "Compare existing policies and propose a checklist", Deliverable: "Memo with a draft checklist", Check: "Two policy owners review it"},
-		{Title: "Local air-quality dataset", Problem: "Readings are scattered across formats", Scope: "One month of local readings; excludes historical backfill", Approach: "Normalize, deduplicate, and document gaps", Deliverable: "Dataset plus provenance notes", Check: "Re-run the normalization on a second month"},
-		{Title: "Water-cycle visual explainer", Problem: "The process is abstract without visuals", Scope: "A secondary-school lesson; excludes a full animation", Approach: "Step-by-step annotated diagrams", Deliverable: "Three labeled diagrams", Check: "Ask a teacher to teach from them"},
-		{Title: "Battery-recycling research digest", Problem: "Relevant papers are easy to miss", Scope: "A small lab team; five papers per issue", Approach: "Annotate claims, methods, and limits", Deliverable: "Weekly digest with five annotated papers", Check: "The lab team rates its usefulness"},
+		{Title: "Daily global news brief", Outcome: "One coherent daily world-news update instead of fragmented coverage", Scope: "World news in one coherent daily update; excludes opinion columns", Method: "Group stories by region, then by consequence", Check: "Five readers mark what is unclear"},
+		{Title: "CSV reconciliation CLI", Outcome: "A repeatable reconciliation report for two exports", Scope: "Analysts comparing two exports; excludes schema migration", Method: "Field-level diff with a readable report", Check: "Run it against a known mismatch"},
+		{Title: "AI procurement policy memo", Outcome: "A two-page decision memo with a proposed checklist", Scope: "A two-page decision memo for the procurement committee", Method: "Compare existing policies and propose a checklist", Check: "Two policy owners review it"},
+		{Title: "Local air-quality dataset", Outcome: "One month of normalized local readings plus provenance notes", Scope: "One month of local readings; excludes historical backfill", Method: "Normalize, deduplicate, and document gaps", Check: "Re-run the normalization on a second month"},
+		{Title: "Water-cycle visual explainer", Outcome: "Three labeled diagrams for a secondary-school lesson", Scope: "A secondary-school lesson; excludes a full animation", Method: "Step-by-step annotated diagrams", Check: "Ask a teacher to teach from them"},
+		{Title: "Battery-recycling research digest", Outcome: "A weekly digest of five annotated papers", Scope: "A small lab team; five papers per issue", Method: "Annotate claims, methods, and limits", Check: "The lab team rates its usefulness"},
 	}
 }
 
@@ -90,8 +90,8 @@ func TestValidateRequiresCoreFields(t *testing.T) {
 		t.Fatalf("missing check error = %v", err)
 	}
 	opts = sampleOptions()
-	opts[0].Problem = ""
-	if _, err := Validate(opts); err == nil || !strings.Contains(err.Error(), "problem") {
+	opts[0].Outcome = ""
+	if _, err := Validate(opts); err == nil || !strings.Contains(err.Error(), "outcome") {
 		t.Fatalf("missing problem error = %v", err)
 	}
 }
@@ -101,7 +101,7 @@ func TestValidateTruncatesAndPreservesOrder(t *testing.T) {
 	for len(opts) < 20 {
 		o := opts[0]
 		o.Title = fmt.Sprintf("%s %d", o.Title, len(opts))
-		o.Approach = fmt.Sprintf("%s %d", o.Approach, len(opts))
+		o.Method = fmt.Sprintf("%s %d", o.Method, len(opts))
 		opts = append(opts, o)
 	}
 	validated, err := Validate(opts)
@@ -150,7 +150,7 @@ func TestStoreRoundTripAndSelect(t *testing.T) {
 	if got.SelectedID != sess.Options[0].ID {
 		t.Fatalf("selected = %q, want %q", got.SelectedID, sess.Options[0].ID)
 	}
-	if got.Options[0].Check == "" || got.Options[0].Problem == "" {
+	if got.Options[0].Check == "" || got.Options[0].Outcome == "" {
 		t.Fatal("content fields did not survive the round trip")
 	}
 	if !strings.Contains(got.Options[0].Title, " ") {
@@ -224,12 +224,12 @@ func TestBeginAndFailAreDurable(t *testing.T) {
 	}
 }
 
-func TestBuildPromptMentionsConstraintsAndHonesty(t *testing.T) {
+func TestBuildPromptMentionsBoundariesAndHonesty(t *testing.T) {
 	p := BuildPrompt(Request{
-		Goal: "a daily news brief", Brief: "2 hours a day",
-		Constraints: []string{"no ads"}, Sources: []string{"https://example.com"},
+		Goal: "a daily news brief", Boundaries: "2 hours a day",
+		Sources: []string{"https://example.com"},
 	})
-	for _, want := range []string{"a daily news brief", "2 hours a day", "no ads", "example.com", "Do NOT invent"} {
+	for _, want := range []string{"a daily news brief", "2 hours a day", "example.com", "Do NOT invent"} {
 		if !strings.Contains(p, want) {
 			t.Errorf("prompt missing %q", want)
 		}
@@ -240,10 +240,8 @@ func TestBuildPromptDoesNotForceBusinessFraming(t *testing.T) {
 	p := BuildPrompt(Request{Goal: "produce a daily global news report"})
 	for _, want := range []string{
 		"Stay inside the goal's subject",
-		"problem: the concrete gap",
-		"scope: the part of the goal",
-		"approach: the distinctive method",
-		"deliverable: the first concrete artifact",
+		"outcome: what will exist",
+		"method: the distinctive approach",
 		"check: the concrete test",
 		"Do not add a commercial or fundraising framing",
 		"Do not estimate time, cost, human effort, or required skills",
@@ -266,7 +264,7 @@ func TestBuildPromptDoesNotForceBusinessFraming(t *testing.T) {
 
 func TestSanitizeDropsIncompleteDirections(t *testing.T) {
 	opts := sampleOptions()
-	opts[2].Problem = ""
+	opts[2].Outcome = ""
 	opts[3].Check = ""
 	cleaned, dropped := Sanitize(opts)
 	if len(cleaned) != 4 || len(dropped) != 2 {
@@ -312,7 +310,7 @@ func TestGenerateRepairsARejectedPortfolioOnce(t *testing.T) {
 		t.Fatal(err)
 	}
 	broken := sampleOptions()[:4]
-	broken[0].Problem = ""
+	broken[0].Outcome = ""
 	brokenRaw, _ := json.Marshal(broken)
 	goodRaw, _ := json.Marshal(sampleOptions())
 	gen := &repairGenerator{raws: []string{string(brokenRaw), string(goodRaw)}}

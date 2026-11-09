@@ -53,7 +53,9 @@ type Deps struct {
 	Freezer  Freezer
 }
 
-// Input is one project create. Start false creates metadata only.
+// Input is one project create. Start false creates metadata only: the guided
+// intake owns the first task graph. Criteria are used only by the direct
+// start path; the guided path has no project-level criteria.
 type Input struct {
 	Name string
 	// Archetype is the optional legacy machine override. Product callers
@@ -62,8 +64,14 @@ type Input struct {
 	Archetype      string
 	Goal           string
 	RepositoryPath string
-	Criteria       []string
-	Execution      *project.Execution
+	// Boundaries and Sources are the optional project context.
+	Boundaries string
+	Sources    []string
+	// OnRamp is direct or explore. Empty asks the repository to infer it.
+	OnRamp string
+	// Criteria is the first task's criteria on the direct start path only.
+	Criteria  []string
+	Execution *project.Execution
 	// Priority is the operator's project priority (critical|high|medium|low).
 	// Empty means medium.
 	Priority string
@@ -163,10 +171,21 @@ func Create(ctx context.Context, deps Deps, in Input) (Result, error) {
 	if in.Archetype == "" {
 		if start {
 			p, task, err = deps.Projects.CreateInferredWithPriority(ctx, in.Name, in.Goal, in.RepositoryPath, in.Criteria, in.Priority)
+			if err == nil && (strings.TrimSpace(in.Boundaries) != "" || len(in.Sources) > 0 || strings.TrimSpace(in.OnRamp) != "") {
+				p, err = deps.Projects.UpdateIntent(ctx, p.ID, project.Intent{
+					Name: p.Name, Goal: p.Goal, RepositoryPath: p.RepositoryPath,
+					Boundaries: in.Boundaries, Sources: in.Sources, OnRamp: in.OnRamp,
+				})
+			}
 		} else {
-			// Guided onboarding: the project exists before its first task.
-			// Approval creates the validated DAG; there is no placeholder.
-			p, err = deps.Projects.CreateBareInferred(ctx, in.Name, in.Goal, in.RepositoryPath, in.Criteria, in.Priority)
+			// Guided intake: the project exists before its first task. The
+			// approved plan creates the validated DAG; there is no
+			// placeholder and no brief row.
+			p, err = deps.Projects.CreateGuided(ctx, project.Intent{
+				Name: in.Name, Goal: in.Goal, RepositoryPath: in.RepositoryPath,
+				Boundaries: in.Boundaries, Sources: in.Sources, OnRamp: in.OnRamp,
+				Priority: in.Priority,
+			})
 		}
 	} else {
 		p, task, err = deps.Projects.Create(ctx, in.Name, in.Archetype, in.Goal, in.RepositoryPath, in.Criteria)
@@ -188,6 +207,18 @@ func Create(ctx context.Context, deps Deps, in Input) (Result, error) {
 	}
 
 	res := Result{Project: p, Task: task}
+	if deps.Events != nil {
+		if _, err := deps.Events.AppendEvent(ctx, store.Event{
+			Category: "projects", ProjectID: p.ID,
+			Data: map[string]any{
+				"event": "project_created", "onramp": p.OnRamp,
+				"capabilities": p.Capabilities, "repository": p.RepositoryPath,
+				"started": start,
+			},
+		}); err != nil {
+			slog.Warn("firstuse: auditing project create", "project", p.ID, "err", err)
+		}
+	}
 	if start && p.RepositoryPath != "" && deps.Indexer != nil {
 		ictx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 		sum, ierr := deps.Indexer.IndexOnceSummary(ictx, p.ID, p.RepositoryPath)

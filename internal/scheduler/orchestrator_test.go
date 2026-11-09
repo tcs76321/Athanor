@@ -48,7 +48,7 @@ func harnessWith(t *testing.T, specs []project.TaskSpec) (*Scheduler, *project.R
 	if err != nil {
 		t.Fatal(err)
 	}
-	goalID, _, err := projects.CreateDAG(context.Background(), p.ID, goal, nil, specs)
+	goalID, _, err := projects.CreateDAG(context.Background(), p.ID, goal, specs)
 	if err != nil {
 		t.Fatal(err)
 	}

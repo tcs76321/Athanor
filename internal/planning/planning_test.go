@@ -274,7 +274,7 @@ func TestGenerateRepairsOneExpansion(t *testing.T) {
 }
 
 func TestBuildPromptOmitsHumanCostAndUngroundedSignals(t *testing.T) {
-	p := BuildPrompt(Request{Goal: "a daily news brief", OptionTitle: "Daily brief", Problem: "Coverage is fragmented", Scope: "World news", Deliverable: "A daily brief", Check: "Five readers review it"})
+	p := BuildPrompt(Request{Goal: "a daily news brief", OptionTitle: "Daily brief", Outcome: "A daily brief that closes fragmented coverage", Method: "Group by consequence", Scope: "World news", Check: "Five readers review it"})
 	for _, unwanted := range []string{"confidence", "score", "time to first", "setup cost", "fastest", "leanest"} {
 		if strings.Contains(strings.ToLower(p), unwanted) {
 			t.Errorf("plan prompt still contains %q", unwanted)
@@ -337,14 +337,13 @@ func TestSelectRejectsNonReadySession(t *testing.T) {
 func TestBuildPromptIncludesDirectionConstraintsAndRules(t *testing.T) {
 	got := BuildPrompt(Request{
 		Goal: "a daily news brief", OptionTitle: "Daily news brief",
-		Problem: "A short source-triaged update", Scope: "World news",
-		Deliverable: "A daily brief", Check: "Five readers review it",
-		Constraints: []string{"two hours a day"},
-		Sources:     []string{"https://example.com"},
+		Outcome: "A short source-triaged update", Method: "Group by consequence", Scope: "World news",
+		Boundaries: "two hours a day",
+		Sources:    []string{"https://example.com"},
 	})
 	for _, want := range []string{
 		"GOAL: a daily news brief", "CHOSEN DIRECTION: Daily news brief",
-		"PROBLEM: A short source-triaged update", "SCOPE: World news",
+		"OUTCOME: A short source-triaged update", "SCOPE: World news",
 		"two hours a day", "ALLOWED SOURCES", "exactly 3 objects",
 		"capability must be one of",
 	} {

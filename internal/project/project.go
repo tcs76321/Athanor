@@ -1,7 +1,7 @@
 // Package project persists projects, goals, and their tasks
-// (ARCHITECTURE §5–§7). One goal maps to one task today — the autonomous
-// DAG decomposition is M6 — and each submitted goal becomes a runnable task
-// whose job the engine executes.
+// (ARCHITECTURE §5–§7). A project is created from one intent record, and an
+// approved plan creates a dependency-ordered task graph through CreateDAG or
+// ApprovePlan.
 package project
 
 import (
@@ -101,6 +101,20 @@ type Project struct {
 	// (ADR-0028). Empty means no repository is configured; indexing is then
 	// a no-op until an operator sets one.
 	RepositoryPath string
+	// Boundaries is the single optional free-text limits list: hard
+	// constraints, exclusions, and things the project must not do. It
+	// replaces the old brief's separate constraints and limitations fields.
+	Boundaries string
+	// Sources is the optional list of URLs the project may read. Only
+	// gateway-allowlisted hosts ever reach a prompt.
+	Sources []string
+	// OnRamp is direct or explore. Empty on rows written before migration
+	// 0045; intake infers and persists it on first read.
+	OnRamp string
+	// ApprovedPlanID is the plan candidate (or "deterministic") the operator
+	// approved. Empty means the project has not been approved through guided
+	// intake; a direct-start project has tasks but no approved plan.
+	ApprovedPlanID string
 	// Execution is the per-project §6.2 execution override (F3-T4,
 	// ADR-0031). The zero value means "use the built-in archetype
 	// defaults"; see TestCommand.
