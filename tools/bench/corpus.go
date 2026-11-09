@@ -31,6 +31,11 @@ type corpusTask struct {
 	HeldOut       bool           `yaml:"held_out"`
 	ContextDemand string         `yaml:"context_demand"`
 	Category      string         `yaml:"category"`
+	// v3 fields (ADR-0133). They are ignored by v1/v2 corpora.
+	Suite           string   `yaml:"suite"`
+	Requires        []string `yaml:"requires"`
+	OneShotExpected string   `yaml:"one_shot_expected"`
+	Rubric          string   `yaml:"rubric"`
 	// Steps turns the task into a multi-goal sequence in one project
 	// (ADR-0116): each step is submitted only after the previous one reaches
 	// a terminal state. The top-level Goal is the sequence description; a
@@ -146,20 +151,24 @@ func loadCorpus(path string) ([]sampleGoal, error) {
 		}
 		normalizeCorpusPaths(root, &t)
 		out = append(out, sampleGoal{
-			Number:        i + 1,
-			Name:          t.ID,
-			Source:        "bench:" + t.Tier,
-			Archetype:     t.Archetype,
-			Goal:          t.Goal,
-			Criteria:      t.Criteria,
-			Fixture:       t.Fixture,
-			Repo:          t.Repo,
-			TestCommand:   t.TestCommand,
-			Checks:        t.Checks,
-			HeldOut:       t.HeldOut,
-			ContextDemand: t.ContextDemand,
-			Category:      t.Category,
-			Steps:         convertSteps(t.Steps),
+			Number:          i + 1,
+			Name:            t.ID,
+			Source:          "bench:" + t.Tier,
+			Archetype:       t.Archetype,
+			Goal:            t.Goal,
+			Criteria:        t.Criteria,
+			Fixture:         t.Fixture,
+			Repo:            t.Repo,
+			TestCommand:     t.TestCommand,
+			Checks:          t.Checks,
+			HeldOut:         t.HeldOut,
+			ContextDemand:   t.ContextDemand,
+			Category:        t.Category,
+			Suite:           t.Suite,
+			Requires:        t.Requires,
+			OneShotExpected: t.OneShotExpected,
+			Rubric:          t.Rubric,
+			Steps:           convertSteps(t.Steps),
 		})
 	}
 	return out, nil

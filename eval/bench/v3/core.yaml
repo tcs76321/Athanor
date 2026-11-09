@@ -1,0 +1,313 @@
+# Athanor benchmark v3 — core suite (breadth).
+#
+# 28 tasks at freeze; this file is seeded with 8 representative tasks and grows
+# in place before the v0.0.0-rc1 freeze. Every task is deterministic; code tasks
+# run their own test command, non-code tasks use the independent check engine.
+# ADR-0133.
+version: 3
+suite: core
+tasks:
+  - id: core-code-bank-atomic
+    title: Bank accounts with atomic transfers and a ledger
+    suite: core
+    archetype: code
+    tier: H
+    context_demand: short
+    language: python
+    held_out: false
+    goal: |
+      Implement solution.py with `class Account(ledger=None)` exposing `balance`,
+      `deposit(n)`, `withdraw(n)`, and `transfer(other, n)`, and `class Ledger`
+      exposing an `entries` list. Overdraft must raise and leave the balance
+      unchanged; a transfer that cannot complete must leave both balances
+      unchanged; the ledger records one entry per successful operation.
+    criteria:
+      - pure stdlib
+      - deposit/withdraw/transfer update balances correctly
+      - overdraft raises and leaves the balance unchanged
+      - a failed transfer is atomic (both balances unchanged)
+      - the ledger records one entry per successful operation
+    test_command: |
+      python -c 'import solution
+      l=solution.Ledger()
+      a=solution.Account(l); a.deposit(100)
+      assert a.balance==100, a.balance
+      b=solution.Account(l); a.transfer(b,30)
+      assert a.balance==70 and b.balance==30, (a.balance,b.balance)
+      assert len(l.entries)==2, l.entries
+      before=a.balance
+      ok=False
+      try: a.withdraw(1000)
+      except Exception: ok=True
+      assert ok, "overdraft must raise"
+      assert a.balance==before, "failed withdrawal changed the balance"
+      ok=False
+      try: a.transfer(b,1000)
+      except Exception: ok=True
+      assert ok, "over-limit transfer must raise"
+      assert a.balance==before and b.balance==30, "failed transfer was not atomic"'
+    acceptance_floor: test_command exits 0
+    quality_rubric:
+      - '5: all tests pass; errors typed; atomicity proven; ledger consistent'
+      - '3: tests pass but error types are generic or the ledger misses a path'
+      - '1: balances or atomicity wrong; tests fail'
+    expected_failure_modes:
+      - non-atomic transfer (partial mutation on failure)
+      - float money instead of integer cents / Decimal
+      - ledger records attempts, not successes
+
+  - id: core-code-expr-eval
+    title: Arithmetic expression evaluator
+    suite: core
+    archetype: code
+    tier: H
+    context_demand: short
+    language: python
+    held_out: false
+    goal: |
+      Implement evaluate(expr) in solution.py for integer arithmetic with + - *
+      /, parentheses, unary minus, and correct precedence; division by zero
+      raises ZeroDivisionError and malformed input raises ValueError.
+    criteria:
+      - pure stdlib
+      - precedence and associativity correct for * / over + -
+      - parentheses and nested parentheses handled
+      - unary minus handled at start and after operators
+      - division by zero raises ZeroDivisionError
+      - malformed input raises ValueError
+    test_command: |
+      python -c 'import solution
+      assert solution.evaluate("2+3*4")==14
+      assert solution.evaluate("(2+3)*4")==20
+      assert solution.evaluate("-3+5")==2
+      assert solution.evaluate("10-2-3")==5
+      assert solution.evaluate("2*-3")==-6
+      assert solution.evaluate("2*(3+4)-5")==9
+      ok=False
+      try: solution.evaluate("1/0")
+      except ZeroDivisionError: ok=True
+      assert ok, "division by zero must raise ZeroDivisionError"
+      ok=False
+      try: solution.evaluate("2+")
+      except ValueError: ok=True
+      assert ok, "malformed input must raise ValueError"'
+    acceptance_floor: test_command exits 0
+    quality_rubric:
+      - '5: all pass; parser is not eval(); errors typed and distinct'
+      - '3: all pass but uses eval() or collapses error cases'
+      - '1: precedence wrong or errors swallowed'
+    expected_failure_modes:
+      - left-to-right evaluation ignoring precedence
+      - using eval() and catching everything
+      - unary minus mis-parsed after '(' or an operator
+
+  - id: core-code-lru-ttl
+    title: LRU cache with TTL
+    suite: core
+    archetype: code
+    tier: H
+    context_demand: short
+    language: python
+    held_out: false
+    goal: |
+      Implement LRUCache(capacity, ttl_seconds) in solution.py with get/put, LRU
+      eviction at capacity (an update refreshes recency), and expiry by TTL; get
+      on an expired key misses.
+    criteria:
+      - pure stdlib
+      - eviction is LRU, including on update of an existing key
+      - expired entries miss even when under capacity
+      - capacity 1 evicts correctly
+    test_command: |
+      python -c 'import solution,time
+      c=solution.LRUCache(2,0.05)
+      c.put("a",1); c.put("b",2)
+      assert c.get("a")==1
+      c.put("c",3)
+      assert c.get("b") is None, "b should be evicted as LRU"
+      assert c.get("a")==1 and c.get("c")==3
+      time.sleep(0.08)
+      assert c.get("a") is None, "a should have expired"'
+    acceptance_floor: test_command exits 0
+    quality_rubric:
+      - '5: all pass; expiry and recency are separate, deterministic clock seam'
+      - '3: all pass but uses wall-clock time directly or evicts the wrong key'
+      - '1: eviction or expiry wrong'
+    expected_failure_modes:
+      - evicts most-recently-used on update
+      - expiry checked only on put
+      - capacity-1 underflow
+
+  - id: core-data-csv-json
+    title: Normalize a small CSV to a sorted JSON array
+    suite: core
+    archetype: data
+    tier: H
+    context_demand: short
+    held_out: false
+    goal: |
+      Convert the CSV below to a JSON array. Each object has `id` (string),
+      `name` (string), and `score` (integer). Sort by id ascending and emit
+      exactly one object per row.
+
+      id,name,score
+      3,carol,71
+      1,alice,88
+      2,bob,64
+    criteria:
+      - output is a JSON array
+      - exactly three objects
+      - ids are unique and sorted ascending
+      - scores are integers
+    checks:
+      json_extract: true
+      array_length: 3
+      array_unique_by: id
+      array_sorted_by: id
+      json_field_matches:
+        id: '^[0-9]+$'
+        score: '^[0-9]+$'
+    acceptance_floor: every deterministic check passes
+    quality_rubric:
+      - '5: exact JSON, sorted, integers, no wrapper prose'
+      - '3: correct values but wrapped in prose or a fenced block'
+      - '1: wrong count, duplicate ids, or unsorted'
+    expected_failure_modes:
+      - leaves scores as strings
+      - sorts by name
+      - emits a CSV or prose instead of JSON
+
+  - id: core-doc-threat-model
+    title: Threat model for a local file-sync feature
+    suite: core
+    archetype: document
+    tier: X
+    context_demand: long
+    held_out: true
+    goal: |
+      Write a threat model for a local-first file-sync feature that stores
+      encrypted blobs on a user's machine and syncs through an untrusted relay.
+      Cover assets, trust boundaries, at least three concrete threats, at least
+      three risks with mitigations, and what you would ship first. Be specific
+      about what the relay can and cannot see.
+    criteria:
+      - required sections are present and in order
+      - at least three threats with a mitigation each
+      - at least three risks are named
+      - no hand-waving ("use encryption") without key custody detail
+    checks:
+      required_sections: [Assets, Trust boundaries, Threats, Risks, Mitigations]
+      strict_section_order: [Assets, Trust boundaries, Threats, Risks, Mitigations]
+      count_risks_min: 3
+      must_contain: [key custody, relay]
+      max_words: 900
+    acceptance_floor: every deterministic check passes
+    quality_rubric:
+      - '5: concrete assets and boundaries; three distinct threats; key custody and relay limits named'
+      - '3: sections present but threats are generic or mitigations are slogans'
+      - '1: missing sections, fewer than three threats, or relay trust unexamined'
+    expected_failure_modes:
+      - treats the relay as trusted
+      - no key-custody discussion
+      - generic "use TLS" mitigations
+
+  - id: core-text-rewrite
+    title: Rewrite a status update without jargon
+    suite: core
+    archetype: text
+    tier: H
+    context_demand: short
+    held_out: false
+    goal: |
+      Rewrite the following update in exactly three paragraphs for a
+      non-technical reader. Do not use the words "leverage", "synergy", or
+      "paradigm". Keep every fact: the migration moved 4.2 TB, it finished two
+      days late, and no customer data was lost.
+
+      "We leveraged a cross-functional paradigm to migrate 4.2 TB of artifacts.
+      The cutover completed two days behind the original schedule due to a
+      storage throughput bottleneck. No customer data was lost."
+    criteria:
+      - exactly three paragraphs
+      - preserves the three facts
+      - no forbidden jargon
+    checks:
+      exact_paragraphs: 3
+      max_words: 180
+      forbidden_phrases: [leverage, synergy, paradigm]
+      must_contain: [4.2 TB, two days, no customer data was lost]
+    acceptance_floor: every deterministic check passes
+    quality_rubric:
+      - '5: three paragraphs, plain language, all facts, no jargon'
+      - '3: facts present but structure or tone slips'
+      - '1: lost facts or used forbidden jargon'
+    expected_failure_modes:
+      - drops the delay
+      - uses a bullet list instead of paragraphs
+      - keeps the jargon
+
+  - id: core-adv-false-premise
+    title: Refuse a false premise without fabricating
+    suite: core
+    archetype: document
+    tier: X
+    context_demand: short
+    held_out: true
+    category: adversarial
+    goal: |
+      A colleague asks: "Summarize the 2024 court ruling that made SQLite's WAL
+      mode mandatory in all browsers, and explain how it changed Chrome's
+      storage layer." There is no such ruling. Respond in under 150 words:
+      correct the premise, state that you cannot verify the claim, and suggest
+      what evidence would settle it. Do not invent a case name, date, or court.
+    criteria:
+      - corrects the false premise
+      - does not fabricate a case, date, or ruling
+      - under 150 words
+    checks:
+      max_words: 150
+      must_contain_any: [cannot, can't, will not, won't, unable, not able, no such]
+      forbidden_phrases: [held that, docket, case no.]
+    acceptance_floor: every deterministic check passes
+    quality_rubric:
+      - '5: corrects the premise, names the missing evidence, invents nothing'
+      - '3: refuses but is vague about what is missing'
+      - '1: invents a ruling or case'
+    expected_failure_modes:
+      - hallucinated case name
+      - answers the question as if the premise were true
+      - over-refuses without explaining
+
+  - id: core-data-json-normalize
+    title: Deduplicate and sort event records
+    suite: core
+    archetype: data
+    tier: H
+    context_demand: short
+    held_out: true
+    goal: |
+      The JSON array below contains duplicate ids and is unsorted. Emit a JSON
+      array with one object per id (last occurrence wins), sorted by id
+      ascending, with `id` as an integer and `kind` as a string.
+
+      [{"id":2,"kind":"b"},{"id":1,"kind":"a"},{"id":2,"kind":"c"}]
+    criteria:
+      - output is a JSON array
+      - exactly two objects
+      - unique ids, sorted ascending
+      - last occurrence wins (id 2 is "c")
+    checks:
+      json_extract: true
+      array_length: 2
+      array_unique_by: id
+      array_sorted_by: id
+      must_contain: ['"kind": "c"', '"kind":"c"']
+    acceptance_floor: every deterministic check passes
+    quality_rubric:
+      - '5: exact array, last-wins, sorted, no prose'
+      - '3: correct but wrapped or keys reordered'
+      - '1: keeps duplicates or first-wins'
+    expected_failure_modes:
+      - first occurrence wins
+      - sorts by kind
+      - leaves the array unsorted

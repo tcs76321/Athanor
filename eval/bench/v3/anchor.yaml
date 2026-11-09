@@ -1,0 +1,24 @@
+# Athanor benchmark v3 — quick screen anchor.
+#
+# A 12-task tuning-only core subset at freeze; four representatives are seeded
+# here. It is the onboarding/leaderboard screen, never the headline. No held-out
+# task may appear here.
+version: 3
+benchmark: v3
+tasks:
+  - id: core-code-bank-atomic
+    tier: H
+    archetype: code
+    why: atomic state transitions; a strong correctness floor
+  - id: core-code-expr-eval
+    tier: H
+    archetype: code
+    why: precedence, recursion, typed errors
+  - id: core-data-csv-json
+    tier: H
+    archetype: data
+    why: count, uniqueness, ordering, and field formats
+  - id: core-text-rewrite
+    tier: H
+    archetype: text
+    why: exact structure and forbidden phrases

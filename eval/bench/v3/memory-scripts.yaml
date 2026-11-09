@@ -1,0 +1,63 @@
+# Athanor benchmark v3 — memory scripts.
+#
+# A memory script is a sequence of jobs in one project. The later step's
+# deterministic check is the pass criterion; the injection telemetry proves the
+# correction reached the prompt. Seeded with one script; the suite grows to the
+# 0.x set before the freeze.
+version: 1
+benchmark: v3
+scripts:
+  - id: mem-correction-error-type
+    title: A correction to the error type survives into the next job
+    archetype: code
+    tier: H
+    held_out: true
+    context_demand: memory
+    project: ledger-cli
+    scope: project
+    steps:
+      - kind: task
+        goal: |
+          Implement withdraw(balance, amount) in solution.py: return the new
+          balance, or raise when amount > balance.
+        criteria:
+          - pure stdlib
+          - overdraft raises
+        test_command: |
+          python -c 'import solution
+          assert solution.withdraw(100, 30) == 70
+          ok = False
+          try: solution.withdraw(10, 20)
+          except Exception: ok = True
+          assert ok, "overdraft must raise"'
+      - kind: correction
+        category: style
+        severity: high
+        reason: "Domain errors were untyped, so callers cannot distinguish them."
+        desired: "All domain errors must be a LedgerError (a subclass of ValueError)."
+      - kind: task
+        goal: |
+          Implement transfer(a, b, amount) in solution.py: move amount from a to
+          b, returning (a, b); refuse an insufficient balance.
+        criteria:
+          - pure stdlib
+          - insufficient funds are refused
+        test_command: |
+          python -c 'import solution
+          assert solution.transfer(100, 0, 30) == (70, 30)
+          ok = False
+          try: solution.transfer(10, 0, 20)
+          except solution.LedgerError: ok = True
+          assert ok, "insufficient funds must raise LedgerError"
+          assert issubclass(solution.LedgerError, ValueError)'
+    acceptance_floor: "day-2 test passes AND the correction is present in the day-2 prompt (telemetry)"
+    quality_rubric:
+      - "5: day-2 passes with no repetition of the correction in the goal"
+      - "3: day-2 passes but the model was re-told the rule"
+      - "1: day-2 raises the wrong type"
+    expected_failure_modes:
+      - "raise ValueError instead of LedgerError"
+      - "the correction never reaches the second job"
+    signals:
+      - "correction_injected (telemetry)"
+      - "day2_check_pass"

@@ -38,6 +38,17 @@ type sampleGoal struct {
 	ContextDemand string
 	// Category is the optional cross-cutting tag (adversarial | odd | "").
 	Category string
+	// Suite is the v3 claim suite (core | agentic | quality | one_shot).
+	// Empty for v1/v2 tasks.
+	Suite string
+	// Requires lists the mechanisms an agentic task must exercise. The
+	// benchmark asserts them against the job event trace (ADR-0133).
+	Requires []string
+	// OneShotExpected is the task author's design intent: pass | fail.
+	// It is never a scoring input; saturation is reported, not deleted.
+	OneShotExpected string
+	// Rubric names the quality rubric for a quality task (quality-v1).
+	Rubric string
 	// Steps turns the task into a multi-goal sequence in one project
 	// (ADR-0116). Empty keeps the one-goal behavior.
 	Steps []sampleStep
@@ -159,6 +170,25 @@ var diagnosticModels = []probeModel{
 	{Label: "bonsai9b", Model: "bonsai-2:9b", Family: "qwen35", ContextTarget: 32768},
 }
 
+// v3Models are the benchmark v3 additions (ADR-0133). They are kept out of
+// probeModels so the frozen v1/v2 roster assertions stay exact. gemma12b and
+// granite8b already exist in probeModels with the same tag/context; v3 reuses
+// those labels rather than duplicating a tag with a different family string.
+var v3Models = []probeModel{
+	{Label: "bonsai27b", Model: "bonsai-2:27b", Family: "bonsai-2", ContextTarget: 32768},
+	{Label: "lfm3_2b", Model: "lfm3-omni:2b-mxfp8", Family: "lfm3-omni", ContextTarget: 32768},
+}
+
+// allModels is every selectable model: the frozen v1/v2 roster, the v3
+// additions, and diagnostics-only labels.
+func allModels() []probeModel {
+	out := make([]probeModel, 0, len(probeModels)+len(v3Models)+len(diagnosticModels))
+	out = append(out, probeModels...)
+	out = append(out, v3Models...)
+	out = append(out, diagnosticModels...)
+	return out
+}
+
 // judgeModels are the offline judges that score every artifact. In this
 // design they are the full model roster (each model is judged by all
 // others); "independence" is enforced where it matters — the in-engine
@@ -168,12 +198,13 @@ var judgeModels = []string{
 	"granite4.2:3b", "gemma4:e4b-mlx", "granite4.2:8b", "ornith-1.5:9b",
 	"gemma4:12b-mlx", "qwen3.8:27b-mlx", "granite4.2:30b",
 	"nemotron-3.5-lightning:30b-mlx", "muse-glimmer:30b-mlx", "ornith-1.5:35b",
+	"bonsai-2:27b", "lfm3-omni:2b-mxfp8",
 }
 
 // familyForTag returns the declared family for a model tag known to the
 // matrix, or "" when unknown.
 func familyForTag(tag string) string {
-	for _, m := range append(probeModels, diagnosticModels...) {
+	for _, m := range allModels() {
 		if m.Model == tag {
 			return m.Family
 		}
@@ -181,9 +212,9 @@ func familyForTag(tag string) string {
 	return ""
 }
 
-// modelByLabel resolves a matrix or diagnostics-only model by its label.
+// modelByLabel resolves a matrix, v3, or diagnostics-only model by its label.
 func modelByLabel(label string) (probeModel, bool) {
-	for _, m := range append(probeModels, diagnosticModels...) {
+	for _, m := range allModels() {
 		if m.Label == label {
 			return m, true
 		}

@@ -1,0 +1,71 @@
+# Athanor benchmark v3 — quality rubric v1.
+#
+# Used blind by both judges and the human sample. Deterministic checks are the
+# correctness gate; the rubric scores what checks cannot see. Complexity is
+# rewarded only when it serves the brief (ADR-0133).
+id: quality-v1
+scale: 1-5
+dimensions:
+  correctness:
+    weight: 1
+    description: The artifact satisfies the brief and every deterministic anchor.
+    anchors:
+      1: Wrong or fails an anchor.
+      3: Passes the anchors but has a material gap.
+      5: Passes every anchor and handles the obvious edge cases.
+  completeness:
+    weight: 1
+    description: Every requested part is present; nothing important is omitted.
+    anchors:
+      1: Major required part missing.
+      3: All parts present but thin.
+      5: Every part is present and earns its space.
+  depth:
+    weight: 1
+    description: The artifact shows real reasoning about the problem, not a template.
+    anchors:
+      1: Generic filler; could answer any prompt.
+      3: Adequate but shallow; one layer of reasoning.
+      5: Names the non-obvious constraint, trade-off, or failure mode.
+  originality:
+    weight: 1
+    description: The approach is distinct and appropriate, not the first obvious answer.
+    anchors:
+      1: Copied boilerplate or a non-answer.
+      3: Conventional but competent.
+      5: A non-obvious approach that a reviewer would remember and could defend.
+  structure:
+    weight: 1
+    description: The reader can follow the artifact; sections and code are organized.
+    anchors:
+      1: Disorganized or unreadable.
+      3: Understandable with effort.
+      5: Clear on first read; structure mirrors the problem.
+  robustness:
+    weight: 1
+    description: Edge cases, failure modes, and recovery are addressed.
+    anchors:
+      1: Happy path only; ignores failure.
+      3: Names a failure but does not handle it.
+      5: Handles the failure and says what happens next.
+  maintainability:
+    weight: 1
+    description: Code or prose is easy to change; no cleverness for its own sake.
+    anchors:
+      1: Would be rewritten, not maintained.
+      3: Works but couples unrelated concerns.
+      5: Small surface, clear seams, no duplication.
+  appropriate_complexity:
+    weight: 1
+    description: The artifact is as complex as the brief requires and no more.
+    anchors:
+      1: Trivializes the brief or adds gratuitous scope.
+      3: Roughly right; some bloat or some missing depth.
+      5: Every file, section, and feature is justified by the brief.
+bloat_penalty:
+  trigger: "Gratuitous files, LOC, features, sections, or verbosity beyond the brief."
+  effect: "Reduce appropriate_complexity by at least one point; never increase correctness."
+aggregation:
+  correctness_gate: true
+  score: "mean of the eight dimensions after the correctness gate"
+  report: "per-judge, adjudicated mean, and human-sample direction agreement"

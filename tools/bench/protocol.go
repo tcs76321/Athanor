@@ -90,15 +90,64 @@ type protocolRosterEntry struct {
 	Digest string `yaml:"digest"`
 }
 
+// protocolSuite is one claim suite in v3: a task file, independent protocol
+// invocations, the arms that run it, and the held-out count. It is not a
+// runner instruction by itself; `tools/bench` still runs one arm at a time.
+type protocolSuite struct {
+	Tasks              string   `yaml:"tasks"`
+	Passes             int      `yaml:"passes"`
+	Arms               []string `yaml:"arms"`
+	HeldOut            int      `yaml:"held_out"`
+	MachineBudgetHours float64  `yaml:"machine_budget_hours"`
+}
+
+type protocolNonInferiority struct {
+	Comparison      string   `yaml:"comparison"`
+	Suites          []string `yaml:"suites"`
+	MarginPoints    float64  `yaml:"margin_points"`
+	MaxTaskLossRuns int      `yaml:"max_task_loss_runs"`
+}
+
+type protocolAgentic struct {
+	MechanismCoverage float64 `yaml:"mechanism_coverage"`
+}
+
+type protocolQuality struct {
+	Comparison                 string  `yaml:"comparison"`
+	Suite                      string  `yaml:"suite"`
+	MinMeanDelta               float64 `yaml:"min_mean_delta"`
+	MinCILower                 float64 `yaml:"min_ci_lower"`
+	MinWinRate                 float64 `yaml:"min_win_rate"`
+	MinJudgeAgreement          float64 `yaml:"min_judge_agreement"`
+	MinHumanDirectionAgreement float64 `yaml:"min_human_direction_agreement"`
+}
+
+type protocolEarlyStop struct {
+	Suite                string  `yaml:"suite"`
+	MinStopRate          float64 `yaml:"min_stop_rate"`
+	AgenticMinEscalation float64 `yaml:"agentic_min_escalation"`
+}
+
+type protocolClaims struct {
+	NonInferiority protocolNonInferiority `yaml:"non_inferiority"`
+	Agentic        protocolAgentic        `yaml:"agentic"`
+	Quality        protocolQuality        `yaml:"quality"`
+	EarlyStop      protocolEarlyStop      `yaml:"early_stop"`
+}
+
 type benchProtocol struct {
-	Version             int                   `yaml:"version"`
-	Benchmark           string                `yaml:"benchmark"`
-	Cut                 string                `yaml:"cut"`
-	Status              string                `yaml:"status"`
-	TaskDigest          string                `yaml:"task_digest"`
-	CanonicalPersonaSet protocolPersonaSet    `yaml:"canonical_persona_set"`
-	RunShape            protocolRunShape      `yaml:"run_shape"`
-	Roster              []protocolRosterEntry `yaml:"roster"`
+	Version             int                      `yaml:"version"`
+	Benchmark           string                   `yaml:"benchmark"`
+	Cut                 string                   `yaml:"cut"`
+	Status              string                   `yaml:"status"`
+	TaskDigest          string                   `yaml:"task_digest"`
+	CanonicalPersonaSet protocolPersonaSet       `yaml:"canonical_persona_set"`
+	RunShape            protocolRunShape         `yaml:"run_shape"`
+	Roster              []protocolRosterEntry    `yaml:"roster"`
+	Generators          []string                 `yaml:"generators"`
+	Judges              []string                 `yaml:"judges"`
+	Suites              map[string]protocolSuite `yaml:"suites"`
+	Claims              protocolClaims           `yaml:"claims"`
 	Embeddings          struct {
 		Model  string `yaml:"model"`
 		Digest string `yaml:"digest"`
@@ -118,7 +167,7 @@ func loadProtocol(path string) (benchProtocol, error) {
 	if err := yaml.Unmarshal(data, &p); err != nil {
 		return benchProtocol{}, fmt.Errorf("parsing protocol %s: %w", path, err)
 	}
-	if p.Version < 1 || p.Version > 2 || p.Benchmark == "" {
+	if p.Version < 1 || p.Version > 3 || p.Benchmark == "" {
 		return benchProtocol{}, fmt.Errorf("protocol %s: unsupported version/benchmark", path)
 	}
 	if len(p.CanonicalPersonaSet.Roles) != len(protocolRoleNames) {
@@ -141,7 +190,122 @@ func loadProtocol(path string) (benchProtocol, error) {
 	if len(p.Roster) == 0 {
 		return benchProtocol{}, fmt.Errorf("protocol %s: roster is empty", path)
 	}
+	if p.Version == 3 {
+		if err := validateV3(p); err != nil {
+			return benchProtocol{}, fmt.Errorf("protocol %s: %w", path, err)
+		}
+	}
 	return p, nil
+}
+
+// validateV3 enforces the v3 contract (ADR-0133): two generators, two judges,
+// four families, four claim suites, and non-zero pre-registered thresholds.
+// It does not require the corpus files to exist yet; corpus checks are a
+// separate gate once the version is frozen.
+func validateV3(p benchProtocol) error {
+	if p.Benchmark != "v3" {
+		return fmt.Errorf("benchmark = %q, want v3", p.Benchmark)
+	}
+	if p.TaskDigest == "" {
+		return fmt.Errorf("task_digest is empty")
+	}
+	if len(p.Generators) != 2 {
+		return fmt.Errorf("generators = %d, want 2", len(p.Generators))
+	}
+	if len(p.Judges) != 2 {
+		return fmt.Errorf("judges = %d, want 2", len(p.Judges))
+	}
+	byLabel := map[string]protocolRosterEntry{}
+	for _, e := range p.Roster {
+		if e.Label == "" || e.Model == "" || e.Family == "" || e.Digest == "" {
+			return fmt.Errorf("roster entry %+v is incomplete", e)
+		}
+		if _, dup := byLabel[e.Label]; dup {
+			return fmt.Errorf("duplicate roster label %q", e.Label)
+		}
+		byLabel[e.Label] = e
+	}
+	families := map[string]bool{}
+	for _, label := range append(append([]string{}, p.Generators...), p.Judges...) {
+		e, ok := byLabel[label]
+		if !ok {
+			return fmt.Errorf("model label %q is not in the roster", label)
+		}
+		families[e.Family] = true
+	}
+	if len(families) != 4 {
+		return fmt.Errorf("model families = %d, want 4 distinct families", len(families))
+	}
+	seen := map[string]bool{}
+	for _, label := range p.Generators {
+		if seen[label] {
+			return fmt.Errorf("generator %q appears twice", label)
+		}
+		seen[label] = true
+	}
+	for _, label := range p.Judges {
+		if seen[label] {
+			return fmt.Errorf("judge %q is also a generator", label)
+		}
+	}
+	// The in-loop security role must be one of the pinned judges.
+	security := p.CanonicalPersonaSet.Roles["security"].Model
+	inLoop := false
+	for _, label := range p.Judges {
+		if byLabel[label].Model == security {
+			inLoop = true
+			break
+		}
+	}
+	if !inLoop {
+		return fmt.Errorf("security role %q is not a pinned judge", security)
+	}
+	for _, name := range []string{"core", "agentic", "quality", "one_shot"} {
+		s, ok := p.Suites[name]
+		if !ok {
+			return fmt.Errorf("missing suite %q", name)
+		}
+		if s.Tasks == "" {
+			return fmt.Errorf("suite %q has no task file", name)
+		}
+		if s.Passes < 1 {
+			return fmt.Errorf("suite %q passes = %d, want >= 1", name, s.Passes)
+		}
+		if len(s.Arms) == 0 {
+			return fmt.Errorf("suite %q has no arms", name)
+		}
+		if s.HeldOut < 0 {
+			return fmt.Errorf("suite %q held_out = %d, want >= 0", name, s.HeldOut)
+		}
+		if s.MachineBudgetHours <= 0 || s.MachineBudgetHours > 12 {
+			return fmt.Errorf("suite %q machine_budget_hours = %v, want (0, 12]",
+				name, s.MachineBudgetHours)
+		}
+	}
+	if p.Suites["core"].Tasks != p.RunShape.Full.Tasks {
+		return fmt.Errorf("full.tasks = %q, want core suite %q",
+			p.RunShape.Full.Tasks, p.Suites["core"].Tasks)
+	}
+	c := p.Claims
+	if c.NonInferiority.Comparison == "" || len(c.NonInferiority.Suites) == 0 ||
+		c.NonInferiority.MarginPoints <= 0 || c.NonInferiority.MaxTaskLossRuns < 0 {
+		return fmt.Errorf("non_inferiority claim is incomplete")
+	}
+	if c.Agentic.MechanismCoverage <= 0 || c.Agentic.MechanismCoverage > 1 {
+		return fmt.Errorf("agentic.mechanism_coverage = %v, want (0, 1]", c.Agentic.MechanismCoverage)
+	}
+	if c.Quality.Comparison == "" || c.Quality.Suite == "" ||
+		c.Quality.MinMeanDelta <= 0 || c.Quality.MinCILower <= 0 ||
+		c.Quality.MinWinRate <= 0 || c.Quality.MinWinRate > 1 ||
+		c.Quality.MinJudgeAgreement <= 0 || c.Quality.MinJudgeAgreement > 1 ||
+		c.Quality.MinHumanDirectionAgreement <= 0 || c.Quality.MinHumanDirectionAgreement > 1 {
+		return fmt.Errorf("quality claim is incomplete or out of range")
+	}
+	if c.EarlyStop.Suite == "" || c.EarlyStop.MinStopRate <= 0 || c.EarlyStop.MinStopRate > 1 ||
+		c.EarlyStop.AgenticMinEscalation <= 0 || c.EarlyStop.AgenticMinEscalation > 1 {
+		return fmt.Errorf("early_stop claim is incomplete or out of range")
+	}
+	return nil
 }
 
 // checkRoster compares the pinned roster with the installed models. actual maps
