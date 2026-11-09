@@ -15,7 +15,7 @@ export CGO_ENABLED
 # tag-less binary can never silently run.
 GO_TAGS = -tags sqlite_fts5
 
-.PHONY: build release test test-race test-integration integration-images vet lint check vuln tidy tidy-check fuzz cover cover-check run clean hooks bench probe-micro probe probe-judge probe-anchor probe-report probe-bundle probe-reconcile probe-measure jobpod-image jobpod-polyglot-image core-image core-smoke bench-core-focused bench-preflight bench-host-smoke bench-anchor-host bench-anchor-core bench-v3-verify bench-v3-run bench-v3-suite bench-v3-paired-report fresh install soak soak-mini soak-ladder diagnostic diagnostic-pair diagnostic-cascade diagnostic-categories
+.PHONY: build release test test-race test-integration integration-images vet lint check vuln tidy tidy-check fuzz cover cover-check run clean hooks bench probe-micro probe probe-judge probe-anchor probe-report probe-bundle probe-reconcile probe-measure jobpod-image jobpod-polyglot-image core-image core-smoke bench-core-focused bench-preflight bench-host-smoke bench-anchor-host bench-anchor-core bench-v3-verify bench-v3-run bench-v3-suite bench-v3-paired-report bench-v3-quality fresh install soak soak-mini soak-ladder diagnostic diagnostic-pair diagnostic-cascade diagnostic-categories
 
 build:
 	go build $(GO_TAGS) -o bin/athanor ./cmd/athanor
@@ -376,6 +376,12 @@ bench-v3-paired-report:
 	go run $(GO_TAGS) ./tools/bench paired-report -out $(BENCH_V3_OUT) \
 		-generator $(BENCH_V3_GENERATOR) \
 		-json $(BENCH_V3_OUT)/paired.json -md $(BENCH_V3_OUT)/paired.md
+
+bench-v3-quality:
+	go run $(GO_TAGS) ./tools/bench quality -in $(BENCH_V3_OUT) \
+		-rubric $(BENCH_V3_DIR)/quality-rubric.yaml \
+		-judges "granite4.2:8b,lfm3-omni:2b-mxfp8" \
+		-out $(BENCH_V3_OUT)/quality-scores.json
 
 run:
 	go run $(GO_TAGS) ./cmd/athanor

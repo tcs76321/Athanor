@@ -14,6 +14,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -279,6 +280,47 @@ func qualityAgreement(scores []qualityScore) float64 {
 	return judgeq.Spearman(samples)
 }
 
+// loadArtifacts reads one artifacts.json or merges every one under a results
+// tree. The v3 runner writes one per (suite, generator, arm), so a directory
+// is the common input.
+func loadArtifacts(path string) ([]collectedArtifact, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return nil, err
+	}
+	if !info.IsDir() {
+		return readArtifactsFile(path)
+	}
+	var all []collectedArtifact
+	err = filepath.WalkDir(path, func(p string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() || d.Name() != "artifacts.json" {
+			return nil
+		}
+		rows, err := readArtifactsFile(p)
+		if err != nil {
+			return err
+		}
+		all = append(all, rows...)
+		return nil
+	})
+	return all, err
+}
+
+func readArtifactsFile(path string) ([]collectedArtifact, error) {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	var rows []collectedArtifact
+	if err := json.Unmarshal(raw, &rows); err != nil {
+		return nil, fmt.Errorf("%s: %w", path, err)
+	}
+	return rows, nil
+}
+
 func runQuality(args []string) {
 	fs := flag.NewFlagSet("quality", flag.ExitOnError)
 	inPath := fs.String("in", "", "artifacts.json from the probe")
@@ -299,12 +341,8 @@ func runQuality(args []string) {
 		os.Exit(1)
 	}
 	var artifacts []collectedArtifact
-	raw, err := os.ReadFile(*inPath)
+	artifacts, err = loadArtifacts(*inPath)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "quality:", err)
-		os.Exit(1)
-	}
-	if err := json.Unmarshal(raw, &artifacts); err != nil {
 		fmt.Fprintln(os.Stderr, "quality:", err)
 		os.Exit(1)
 	}

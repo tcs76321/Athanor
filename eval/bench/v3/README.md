@@ -127,6 +127,9 @@ BENCH_V3_SUITE=agentic BENCH_V3_GENERATOR=bonsai27b make bench-v3-suite
 # Join every arm under BENCH_V3_OUT and write paired.json / paired.md.
 make bench-v3-paired-report
 
+# Score the quality suite artifacts with both pinned judges (offline).
+make bench-v3-quality
+
 # The four suites are core, agentic, quality, and one-shot. Repeat the
 # generator for gemma12b. The quality suite uses single and full only.
 ```

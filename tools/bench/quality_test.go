@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -134,5 +136,26 @@ func TestQualitySeedDeterministic(t *testing.T) {
 	}
 	if first == qualitySeed("a", "k") {
 		t.Error("seed does not depend on the judge")
+	}
+}
+
+func TestLoadArtifactsMergesTree(t *testing.T) {
+	dir := t.TempDir()
+	for _, name := range []string{"a/out", "b/out"} {
+		if err := os.MkdirAll(filepath.Join(dir, name), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		rows := []collectedArtifact{{GoalName: name, Arm: "single", Run: 1, ArtifactID: name, Text: "x"}}
+		raw, _ := json.Marshal(rows)
+		if err := os.WriteFile(filepath.Join(dir, name, "artifacts.json"), raw, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got, err := loadArtifacts(dir)
+	if err != nil {
+		t.Fatalf("loadArtifacts: %v", err)
+	}
+	if len(got) != 2 {
+		t.Errorf("artifacts = %d, want 2", len(got))
 	}
 }
