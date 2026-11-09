@@ -184,6 +184,8 @@ func main() {
 		runPairedReport(os.Args[2:])
 	case "quality":
 		runQuality(os.Args[2:])
+	case "quality-report":
+		runQualityReport(os.Args[2:])
 	case "verify-models":
 		runVerifyModels(os.Args[2:])
 	default:
@@ -210,6 +212,7 @@ commands:
   evidence  reduce a daemon state dir into the soak report/CSV (read-only; F5)
   paired-report join single/cascade/full results and report non-inferiority (ADR-0133)
   quality   score artifacts offline with the two pinned judges and the v3 rubric
+  quality-report compare full vs single rubric scores with a clustered interval
   verify-models check the frozen protocol roster against the local Ollama digests
 
 Run each command with -h for its flags. Protocol:

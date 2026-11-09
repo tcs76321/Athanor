@@ -130,6 +130,9 @@ make bench-v3-paired-report
 # Score the quality suite artifacts with both pinned judges (offline).
 make bench-v3-quality
 
+# Compare full vs single rubric scores with a clustered interval.
+make bench-v3-quality-report
+
 # The four suites are core, agentic, quality, and one-shot. Repeat the
 # generator for gemma12b. The quality suite uses single and full only.
 ```
