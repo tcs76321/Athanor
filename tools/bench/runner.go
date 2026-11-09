@@ -330,6 +330,9 @@ func (r *runnerConfig) runArm(m probeModel, a arm) error {
 	if err := writeJSON(filepath.Join(runDir, "results.json"), metrics); err != nil {
 		return err
 	}
+	if err := writeArtifacts(runDir, metrics); err != nil {
+		return err
+	}
 	if err := writeCSV(filepath.Join(runDir, "results.csv"), metrics); err != nil {
 		return err
 	}
@@ -722,6 +725,32 @@ func writeJSON(path string, v any) error {
 		return err
 	}
 	return os.WriteFile(path, append(b, '\n'), 0o644)
+}
+
+// collectedArtifact is the quality-scoring input. results.json deliberately
+// omits artifact text (it can be large); the probe writes this companion file
+// after every pass so the offline judges can score the exact final artifact.
+type collectedArtifact struct {
+	GoalName   string `json:"goal_name"`
+	ModelLabel string `json:"model_label"`
+	Arm        string `json:"arm"`
+	Run        int    `json:"run"`
+	ArtifactID string `json:"artifact_id"`
+	Text       string `json:"text"`
+}
+
+func writeArtifacts(outDir string, metrics []jobMetrics) error {
+	rows := make([]collectedArtifact, 0, len(metrics))
+	for _, m := range metrics {
+		if m.ArtifactText == "" {
+			continue
+		}
+		rows = append(rows, collectedArtifact{
+			GoalName: m.GoalName, ModelLabel: m.ModelLabel, Arm: m.Arm,
+			Run: m.Run, ArtifactID: m.ArtifactID, Text: m.ArtifactText,
+		})
+	}
+	return writeJSON(filepath.Join(outDir, "artifacts.json"), rows)
 }
 
 // writeCSV writes the metrics as a flat CSV for spreadsheet inspection.
