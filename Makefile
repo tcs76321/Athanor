@@ -343,7 +343,8 @@ BENCH_V3_JUDGE        ?= granite4.2:8b
 BENCH_V3_HOURS        ?= 6
 BENCH_V3_TIMEOUT      ?= 45m
 BENCH_V3_STATE_VOLUME ?= athanor-bench-v3-state
-BENCH_V3_TAG           = $(BENCH_V3_SUITE)-$(BENCH_V3_GENERATOR)-$(BENCH_V3_ARM)
+BENCH_V3_RUN_ID       ?=
+BENCH_V3_TAG           = $(BENCH_V3_SUITE)-$(BENCH_V3_GENERATOR)-$(BENCH_V3_ARM)$(if $(BENCH_V3_RUN_ID),-$(BENCH_V3_RUN_ID))
 BENCH_V3_RUN_OUT       = $(BENCH_V3_OUT)/$(BENCH_V3_TAG)
 
 bench-v3-verify:

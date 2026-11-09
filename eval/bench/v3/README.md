@@ -137,6 +137,11 @@ BENCH_V3_SUITE=agentic BENCH_V3_GENERATOR=bonsai27b BENCH_V3_ARM=cascade make be
 # Run all three arms for a suite (single, cascade, full), sequentially.
 BENCH_V3_SUITE=agentic BENCH_V3_GENERATOR=bonsai27b make bench-v3-suite
 
+# Independent re-run: a run id gives a fresh output dir AND state volume.
+# Omit it to resume an existing arm; reuse across independent runs contaminates
+# memory and project state.
+BENCH_V3_SUITE=quality BENCH_V3_GENERATOR=bonsai27b BENCH_V3_RUN_ID=2 make bench-v3-run
+
 # Join every arm under BENCH_V3_OUT and write paired.json / paired.md.
 make bench-v3-paired-report
 
