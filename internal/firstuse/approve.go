@@ -40,10 +40,9 @@ type ApproveResult struct {
 	IndexWarning string
 }
 
-// ApproveCycle turns a reviewed frame and graph into a project, a cycle, a
-// compiled DAG, and (when a starter is present) running jobs. The existing
-// scheduler is the only executor; this function does not run work itself.
-func ApproveCycle(ctx context.Context, deps Deps, cycles *cycle.Repo, starter Starter, in ApproveInput) (ApproveResult, error) {
+// CreateDraft turns a reviewed frame and graph into a project and a draft
+// cycle. The canvas edits the draft; StartDraft compiles and starts it.
+func CreateDraft(ctx context.Context, deps Deps, cycles *cycle.Repo, in ApproveInput) (ApproveResult, error) {
 	if cycles == nil {
 		return ApproveResult{}, fmt.Errorf("firstuse: cycle repository is required")
 	}
@@ -74,7 +73,6 @@ func ApproveCycle(ctx context.Context, deps Deps, cycles *cycle.Repo, starter St
 		return ApproveResult{}, err
 	}
 	p := created.Project
-
 	if len(in.Frame.Capabilities) > 0 {
 		if err := deps.Projects.UpdateCapabilities(ctx, p.ID, in.Frame.Capabilities); err != nil {
 			return ApproveResult{}, fmt.Errorf("firstuse: setting frame capabilities: %w", err)
@@ -83,10 +81,7 @@ func ApproveCycle(ctx context.Context, deps Deps, cycles *cycle.Repo, starter St
 			p = got
 		}
 	}
-
 	res := ApproveResult{Project: p, Index: created.Index, IndexWarning: created.IndexWarning}
-	// The guided create is metadata-only, so run the one bounded pre-index
-	// here as well: the first cycle's code tasks must not start blind.
 	if p.RepositoryPath != "" && deps.Indexer != nil {
 		ictx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 		sum, ierr := deps.Indexer.IndexOnceSummary(ictx, p.ID, p.RepositoryPath)
@@ -110,20 +105,65 @@ func ApproveCycle(ctx context.Context, deps Deps, cycles *cycle.Repo, starter St
 	if err := cycles.SetFrame(ctx, c.ID, string(frameJSON), in.Frame.ReviewPolicy); err != nil {
 		return ApproveResult{}, err
 	}
+	graphJSON, err := json.Marshal(in.Graph)
+	if err != nil {
+		return ApproveResult{}, fmt.Errorf("firstuse: encoding graph: %w", err)
+	}
+	if err := cycles.SetGraph(ctx, c.ID, string(graphJSON)); err != nil {
+		return ApproveResult{}, err
+	}
+	res.Cycle = c
+	if deps.Events != nil {
+		_, _ = deps.Events.AppendEvent(ctx, store.Event{
+			Category: "projects", ProjectID: p.ID,
+			Data: map[string]any{
+				"event": "cycle_drafted", "cycle": c.ID, "kind": string(kind),
+				"blocks": len(in.Graph.Blocks),
+			},
+		})
+	}
+	return res, nil
+}
 
-	specs, err := workflow.Compile(in.Graph, workflow.CompileOptions{CycleID: c.ID})
+// StartDraft compiles the draft graph and starts its ready leaves. The
+// existing scheduler is the only executor; this function does not run work.
+func StartDraft(ctx context.Context, deps Deps, cycles *cycle.Repo, starter Starter, cycleID string) (ApproveResult, error) {
+	if cycles == nil {
+		return ApproveResult{}, fmt.Errorf("firstuse: cycle repository is required")
+	}
+	c, err := cycles.Get(ctx, cycleID)
 	if err != nil {
 		return ApproveResult{}, err
 	}
-	goalID, tasks, err := deps.Projects.CreateDAG(ctx, p.ID, in.Frame.Goal, specs)
+	if c.State == cycle.StateRunning {
+		return ApproveResult{}, fmt.Errorf("firstuse: cycle %s is already running", cycleID)
+	}
+	if c.State == cycle.StateCompleted || c.State == cycle.StateFailed || c.State == cycle.StateCancelled {
+		return ApproveResult{}, fmt.Errorf("firstuse: cycle %s is terminal", cycleID)
+	}
+	p, err := deps.Projects.Get(ctx, c.ProjectID)
+	if err != nil {
+		return ApproveResult{}, err
+	}
+	var graph workflow.Graph
+	if err := json.Unmarshal([]byte(c.GraphJSON), &graph); err != nil {
+		return ApproveResult{}, fmt.Errorf("firstuse: decoding cycle graph: %w", err)
+	}
+	if err := workflow.Validate(graph, workflow.DefaultLimits()); err != nil {
+		return ApproveResult{}, err
+	}
+	specs, err := workflow.Compile(graph, workflow.CompileOptions{CycleID: c.ID})
+	if err != nil {
+		return ApproveResult{}, err
+	}
+	goalID, tasks, err := deps.Projects.CreateDAG(ctx, p.ID, c.Goal, specs)
 	if err != nil {
 		return ApproveResult{}, fmt.Errorf("firstuse: creating cycle DAG: %w", err)
 	}
-	res.Cycle, res.GoalID, res.Tasks = c, goalID, tasks
 	if err := cycles.SetState(ctx, c.ID, cycle.StateApproved); err != nil {
 		return ApproveResult{}, err
 	}
-
+	res := ApproveResult{Project: p, Cycle: c, GoalID: goalID, Tasks: tasks}
 	if starter != nil {
 		jobs, err := starter.Start(ctx, goalID)
 		if err != nil {
@@ -135,17 +175,31 @@ func ApproveCycle(ctx context.Context, deps Deps, cycles *cycle.Repo, starter St
 		}
 	}
 	res.Cycle, _ = cycles.Get(ctx, c.ID)
-
 	if deps.Events != nil {
 		_, _ = deps.Events.AppendEvent(ctx, store.Event{
 			Category: "projects", ProjectID: p.ID,
 			Data: map[string]any{
-				"event": "cycle_created", "cycle": c.ID, "kind": string(kind),
-				"blocks": len(in.Graph.Blocks), "goal": goalID,
+				"event": "cycle_started", "cycle": c.ID, "kind": string(c.Kind),
+				"blocks": len(graph.Blocks), "goal": goalID,
 				"jobs": len(res.JobIDs), "started": starter != nil,
 			},
 		})
 	}
+	return res, nil
+}
+
+// ApproveCycle is the one-shot form used by the conversation approval path:
+// create the draft, compile it, and start it.
+func ApproveCycle(ctx context.Context, deps Deps, cycles *cycle.Repo, starter Starter, in ApproveInput) (ApproveResult, error) {
+	draft, err := CreateDraft(ctx, deps, cycles, in)
+	if err != nil {
+		return ApproveResult{}, err
+	}
+	res, err := StartDraft(ctx, deps, cycles, starter, draft.Cycle.ID)
+	if err != nil {
+		return res, err
+	}
+	res.Index, res.IndexWarning = draft.Index, draft.IndexWarning
 	return res, nil
 }
 

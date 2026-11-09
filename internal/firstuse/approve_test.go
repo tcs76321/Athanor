@@ -40,6 +40,59 @@ func buildGraph() workflow.Graph {
 	}
 }
 
+func TestCreateDraftThenStart(t *testing.T) {
+	deps, _ := newDeps(t, &fakeIndexer{sum: Summary{Chunks: 2}}, frozen(false))
+	cycles := cycle.NewRepo(deps.Events)
+	draft, err := CreateDraft(context.Background(), deps, cycles, ApproveInput{
+		Frame: buildFrame(t), Graph: buildGraph(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if draft.Cycle.State != cycle.StateDraft {
+		t.Errorf("state = %q, want draft", draft.Cycle.State)
+	}
+	var tasks int
+	if err := deps.Events.DB().QueryRow(`SELECT COUNT(*) FROM tasks WHERE project_id = ?`, draft.Project.ID).Scan(&tasks); err != nil {
+		t.Fatal(err)
+	}
+	if tasks != 0 {
+		t.Errorf("tasks = %d before start, want 0", tasks)
+	}
+	starter := &fakeStarter{jobs: []string{"job-1"}}
+	res, err := StartDraft(context.Background(), deps, cycles, starter, draft.Cycle.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Cycle.State != cycle.StateRunning || len(res.Tasks) != 2 || len(res.JobIDs) != 1 {
+		t.Errorf("started = %+v", res)
+	}
+}
+
+func TestStartDraftRejectsInvalidEditedGraph(t *testing.T) {
+	deps, _ := newDeps(t, &fakeIndexer{}, frozen(false))
+	cycles := cycle.NewRepo(deps.Events)
+	draft, err := CreateDraft(context.Background(), deps, cycles, ApproveInput{
+		Frame: buildFrame(t), Graph: buildGraph(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := cycles.SetGraph(context.Background(), draft.Cycle.ID, `{"blocks":[{"id":"a","kind":"teleport"}]}`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := StartDraft(context.Background(), deps, cycles, nil, draft.Cycle.ID); err == nil {
+		t.Fatal("invalid edited graph started")
+	}
+	got, err := cycles.Get(context.Background(), draft.Cycle.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.State != cycle.StateDraft {
+		t.Errorf("state = %q, want draft", got.State)
+	}
+}
+
 func TestApproveCycleCreatesProjectCycleAndDAG(t *testing.T) {
 	idx := &fakeIndexer{sum: Summary{Indexed: 2, Chunks: 4}}
 	deps, _ := newDeps(t, idx, frozen(false))

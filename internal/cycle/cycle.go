@@ -58,6 +58,7 @@ type Cycle struct {
 	BudgetJSON      string
 	ReviewPolicy    string
 	FrameJSON       string
+	GraphJSON       string
 	CreatedAt       string
 	UpdatedAt       string
 }
@@ -70,7 +71,7 @@ func NewRepo(s *store.Store) *Repo { return &Repo{store: s} }
 
 const columns = `id, project_id, ordinal, kind, goal, state, template_id,
 	template_version, trigger_id, budget_json, review_policy, frame_json,
-	created_at, updated_at`
+	graph_json, created_at, updated_at`
 
 // Create appends a cycle to a project's timeline. The ordinal is the next
 // unused position, so a legacy cycle 0 is never overwritten.
@@ -95,9 +96,9 @@ func (r *Repo) Create(ctx context.Context, projectID string, kind Kind, goal str
 		Goal: goal, State: StateDraft, BudgetJSON: "{}", FrameJSON: "{}",
 	}
 	if _, err := r.store.DB().ExecContext(ctx,
-		`INSERT INTO project_cycles (id, project_id, ordinal, kind, goal, state, budget_json, frame_json)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		c.ID, c.ProjectID, c.Ordinal, c.Kind, c.Goal, c.State, c.BudgetJSON, c.FrameJSON,
+		`INSERT INTO project_cycles (id, project_id, ordinal, kind, goal, state, budget_json, frame_json, graph_json)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		c.ID, c.ProjectID, c.Ordinal, c.Kind, c.Goal, c.State, c.BudgetJSON, c.FrameJSON, "{}",
 	); err != nil {
 		return Cycle{}, fmt.Errorf("cycle: insert: %w", err)
 	}
@@ -173,6 +174,29 @@ func (r *Repo) SetGraphRef(ctx context.Context, id, templateID string, version i
 	return nil
 }
 
+// SetGraph stores a validated draft graph on the cycle. The canvas edits this
+// JSON; StartDraftCycle compiles it to tasks.
+func (r *Repo) SetGraph(ctx context.Context, id, graphJSON string) error {
+	if graphJSON == "" {
+		return fmt.Errorf("cycle: graph json is required")
+	}
+	res, err := r.store.DB().ExecContext(ctx,
+		`UPDATE project_cycles SET graph_json = ?,
+		 updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?`,
+		graphJSON, id)
+	if err != nil {
+		return fmt.Errorf("cycle: set graph: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
 // SetFrame stores the reviewed project frame and its review policy on the
 // cycle. The frame is the conversation's contract: the graph and tasks are
 // derived from it, and later cycles can read the decisions it records.
@@ -194,7 +218,7 @@ func scan(row interface{ Scan(...any) error }) (Cycle, error) {
 	var c Cycle
 	err := row.Scan(&c.ID, &c.ProjectID, &c.Ordinal, &c.Kind, &c.Goal, &c.State,
 		&c.TemplateID, &c.TemplateVersion, &c.TriggerID, &c.BudgetJSON,
-		&c.ReviewPolicy, &c.FrameJSON, &c.CreatedAt, &c.UpdatedAt)
+		&c.ReviewPolicy, &c.FrameJSON, &c.GraphJSON, &c.CreatedAt, &c.UpdatedAt)
 	return c, err
 }
 
