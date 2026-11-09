@@ -707,6 +707,9 @@ tasks:
       Rewrite the comment below in two paragraphs for a code review. Keep the
       technical point (the retry loop can run forever) and remove the personal
       attack. Do not use "obviously", "stupid", or "wrong".
+
+      Comment: "This retry loop is obviously wrong and stupid; it can run
+      forever if the server never succeeds."
     criteria:
       - exactly two paragraphs
       - keeps the technical point
