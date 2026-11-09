@@ -3,6 +3,7 @@ package planning
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -42,6 +43,38 @@ func TestParseValidatePreservesOrder(t *testing.T) {
 	}
 	if validated[0].Title != "Smallest verifiable slice" || validated[2].Title != "Lowest-risk sequence" {
 		t.Fatalf("Validate reordered the plans: %+v", validated)
+	}
+}
+
+func TestParseMergesMultipleTopLevelValues(t *testing.T) {
+	a := `[{"title":"A","summary":"a","tasks":[{"title":"t","description":"d","capability":"text","criteria":["c"]}]}]`
+	b := `[{"title":"B","summary":"b","tasks":[{"title":"t","description":"d","capability":"text","criteria":["c"]}]}]`
+	for _, raw := range []string{
+		a + ", " + b,
+		a + "\n" + b,
+		"Here are plans:\n" + a + "\nand\n" + b + "\n",
+		"```json\n" + a + "\n" + b + "\n```",
+	} {
+		got, err := Parse(raw)
+		if err != nil {
+			t.Fatalf("Parse(%q): %v", raw, err)
+		}
+		if len(got) != 2 || got[0].Title != "A" || got[1].Title != "B" {
+			t.Fatalf("Parse(%q) = %+v, want A and B", raw, got)
+		}
+	}
+}
+
+func TestParseSalvagesTrailingCommaAndTruncation(t *testing.T) {
+	raw := `[{"title":"A","summary":"a"},{"title":"B","summary":"b"},]`
+	got, err := Parse(raw)
+	if err != nil || len(got) != 2 {
+		t.Fatalf("trailing comma: got %+v err %v", got, err)
+	}
+	raw = `[{"title":"A","summary":"a"},{"title":"B","summary":"b"},{"title":"C"`
+	got, err = Parse(raw)
+	if err != nil || len(got) != 2 {
+		t.Fatalf("truncated array: got %+v err %v", got, err)
 	}
 }
 
@@ -146,6 +179,38 @@ func openPlanStore(t *testing.T) (*store.Store, *Store) {
 		t.Fatal(err)
 	}
 	return s, NewStore(s)
+}
+
+type repairPlanGenerator struct {
+	calls int
+	raws  []string
+}
+
+func (g *repairPlanGenerator) Generate(_ context.Context, req Request) (string, error) {
+	if g.calls > 0 && strings.TrimSpace(req.Repair) == "" {
+		return "", fmt.Errorf("retry had no repair hint")
+	}
+	raw := g.raws[g.calls]
+	g.calls++
+	return raw, nil
+}
+
+func TestGenerateRepairsOnce(t *testing.T) {
+	_, ps := openPlanStore(t)
+	two, _ := json.Marshal([]Candidate{candidate("A"), candidate("B")})
+	three, _ := json.Marshal([]Candidate{candidate("A"), candidate("B"), candidate("C")})
+	gen := &repairPlanGenerator{raws: []string{string(two), string(three)}}
+	svc := NewService(gen, ps)
+	sess, err := svc.Generate(context.Background(), "p1", "o1", Request{Goal: "a daily news brief"})
+	if err != nil {
+		t.Fatalf("repair run: %v", err)
+	}
+	if gen.calls != 2 {
+		t.Fatalf("calls = %d, want original + one repair", gen.calls)
+	}
+	if sess.Status != "ready" || len(sess.Candidates) != 3 {
+		t.Fatalf("session = %+v, want a ready three-candidate plan", sess)
+	}
 }
 
 func TestBuildPromptOmitsHumanCostAndUngroundedSignals(t *testing.T) {

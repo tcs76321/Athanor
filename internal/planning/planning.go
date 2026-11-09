@@ -62,6 +62,9 @@ type Request struct {
 	Approach    string
 	Deliverable string
 	FirstCheck  string
+	// Repair carries a bounded rejection reason on a retry after a parse or
+	// validation failure.
+	Repair string
 }
 
 // Generator produces the raw JSON plan array.
@@ -114,37 +117,210 @@ func BuildPrompt(req Request) string {
 	b.WriteString("- Do not estimate time, cost, human effort, or required skills; Athanor runs locally under its own budget.\n")
 	b.WriteString("- Cite only the allowed sources; do not invent data or citations.\n")
 	b.WriteString("- Output only the JSON array, no markdown or commentary.\n")
+	if repair := strings.TrimSpace(req.Repair); repair != "" {
+		if len(repair) > 500 {
+			repair = repair[:500] + "…"
+		}
+		b.WriteString("\nREPAIR REQUIRED: the previous response was rejected: " + repair + "\n")
+		b.WriteString("Return ONE JSON array of exactly three complete plan objects. Every object must include title, summary, tasks with title/description/capability/criteria, risks, and assumptions. Do not return two arrays, concatenated objects, or a partial object.\n")
+	}
 	return b.String()
 }
 
-// Parse extracts a candidate array from a model response.
+// Parse extracts plan candidates from a model response. Models sometimes emit
+// more than one top-level value — two arrays, concatenated objects, or a
+// wrapped object followed by another array — which a single json.Unmarshal
+// rejects with "invalid character ',' after top-level value". The parser
+// scans complete top-level JSON values, parses each one, and merges the
+// candidates. A truncated final array is salvaged for its complete objects.
 func Parse(raw string) ([]Candidate, error) {
 	s := strings.TrimSpace(raw)
 	s = strings.TrimPrefix(s, "```json")
 	s = strings.TrimPrefix(s, "```")
 	s = strings.TrimSuffix(s, "```")
 	s = strings.TrimSpace(s)
-	start := strings.Index(s, "[")
-	end := strings.LastIndex(s, "]")
-	if start < 0 || end <= start {
-		if ostart := strings.Index(s, "{"); ostart >= 0 {
-			var wrapped struct {
-				Plans []Candidate `json:"plans"`
-			}
-			if err := json.Unmarshal([]byte(s[ostart:]), &wrapped); err == nil && len(wrapped.Plans) > 0 {
-				return wrapped.Plans, nil
-			}
-		}
-		return nil, fmt.Errorf("planning: response contains no JSON array")
-	}
 	var out []Candidate
-	if err := json.Unmarshal([]byte(s[start:end+1]), &out); err != nil {
-		return nil, fmt.Errorf("planning: decoding candidates: %w", err)
+	for _, value := range topLevelValues(s) {
+		out = append(out, parsePlanValue(value)...)
 	}
 	if len(out) == 0 {
-		return nil, fmt.Errorf("planning: empty candidate array")
+		// Compatibility fallback for a response whose outer syntax is too
+		// damaged for the scanner: keep the old bounded extraction, but only
+		// as a last resort.
+		if start := strings.Index(s, "["); start >= 0 {
+			if end := strings.LastIndex(s, "]"); end > start {
+				var arr []Candidate
+				if err := json.Unmarshal([]byte(s[start:end+1]), &arr); err == nil && len(arr) > 0 {
+					out = append(out, arr...)
+				}
+			}
+			if len(out) == 0 {
+				out = append(out, parseSequence(s[start:])...)
+			}
+		}
+		if len(out) == 0 {
+			if start := strings.Index(s, "{"); start >= 0 {
+				out = append(out, parsePlanValue(s[start:])...)
+			}
+		}
+	}
+	out = Dedupe(out)
+	if len(out) == 0 {
+		return nil, fmt.Errorf("planning: response contains no complete plan objects")
 	}
 	return out, nil
+}
+
+// topLevelValues scans complete top-level JSON arrays/objects. It skips prose,
+// commas, and separators between values; a truncated final value is returned
+// as the remainder so the caller can salvage its complete objects.
+func topLevelValues(s string) []string {
+	var out []string
+	for i := 0; i < len(s); {
+		for i < len(s) {
+			switch s[i] {
+			case ' ', '\t', '\n', '\r', ',', ';':
+				i++
+				continue
+			}
+			break
+		}
+		if i >= len(s) {
+			break
+		}
+		if s[i] != '[' && s[i] != '{' {
+			// Prose: advance to the next plausible JSON value.
+			for i < len(s) && s[i] != '[' && s[i] != '{' {
+				i++
+			}
+			continue
+		}
+		start := i
+		depth := 0
+		inString := false
+		escaped := false
+		closed := false
+		for ; i < len(s); i++ {
+			c := s[i]
+			if inString {
+				if escaped {
+					escaped = false
+					continue
+				}
+				if c == '\\' {
+					escaped = true
+					continue
+				}
+				if c == '"' {
+					inString = false
+				}
+				continue
+			}
+			switch c {
+			case '"':
+				inString = true
+			case '[', '{':
+				depth++
+			case ']', '}':
+				depth--
+				if depth == 0 {
+					i++
+					closed = true
+				}
+			}
+			if closed {
+				break
+			}
+		}
+		if closed {
+			out = append(out, s[start:i])
+			continue
+		}
+		// A truncated tail: keep it for salvage, then stop.
+		out = append(out, s[start:])
+		break
+	}
+	return out
+}
+
+// parsePlanValue parses one top-level value as an array of candidates, a
+// wrapped {plans|[...]} object, or a single candidate object.
+func parsePlanValue(raw string) []Candidate {
+	t := strings.TrimSpace(raw)
+	if t == "" {
+		return nil
+	}
+	switch t[0] {
+	case '[':
+		var arr []Candidate
+		if err := json.Unmarshal([]byte(t), &arr); err == nil {
+			return arr
+		}
+		// A truncated or trailing-comma array: scan its complete object
+		// values directly rather than relying on one Decode pass, which stops
+		// at the comma before the next object.
+		inner := strings.TrimSpace(strings.TrimPrefix(t, "["))
+		inner = strings.TrimSuffix(inner, "]")
+		var out []Candidate
+		for _, value := range topLevelValues(inner) {
+			out = append(out, parsePlanValue(value)...)
+		}
+		if len(out) > 0 {
+			return out
+		}
+		return parseSequence(inner)
+	case '{':
+		var wrapped struct {
+			Plans      []Candidate `json:"plans"`
+			Candidates []Candidate `json:"candidates"`
+		}
+		if err := json.Unmarshal([]byte(t), &wrapped); err == nil {
+			if len(wrapped.Plans) > 0 {
+				return wrapped.Plans
+			}
+			if len(wrapped.Candidates) > 0 {
+				return wrapped.Candidates
+			}
+		}
+		var c Candidate
+		if err := json.Unmarshal([]byte(t), &c); err == nil && strings.TrimSpace(c.Title) != "" {
+			return []Candidate{c}
+		}
+	}
+	return nil
+}
+
+// Dedupe removes duplicate plan titles, keeping the first occurrence.
+func Dedupe(candidates []Candidate) []Candidate {
+	seen := map[string]bool{}
+	out := make([]Candidate, 0, len(candidates))
+	for _, c := range candidates {
+		key := strings.ToLower(strings.Join(strings.Fields(strings.TrimSpace(c.Title)), " "))
+		if key == "" || seen[key] {
+			continue
+		}
+		seen[key] = true
+		out = append(out, c)
+	}
+	return out
+}
+
+// parseSequence decodes concatenated candidate objects from a fragment. It is
+// used for a truncated array and for a model that emits objects without the
+// enclosing brackets.
+func parseSequence(s string) []Candidate {
+	dec := json.NewDecoder(strings.NewReader(s))
+	var out []Candidate
+	for {
+		var c Candidate
+		if err := dec.Decode(&c); err != nil {
+			break
+		}
+		if strings.TrimSpace(c.Title) != "" {
+			out = append(out, c)
+		}
+	}
+	return out
 }
 
 // Validate enforces the plan's structural contract and capability set.
@@ -358,29 +534,39 @@ func (s *Service) Generate(ctx context.Context, projectID, optionID string, req 
 		s.store.Fail(fctx, sess.ID, err.Error())
 		return Session{}, err
 	}
-	raw, err := s.gen.Generate(ctx, req)
-	if err != nil {
-		return fail(err)
+	accept := func(raw string) ([]Candidate, error) {
+		candidates, err := Parse(raw)
+		if err != nil {
+			return nil, err
+		}
+		return Validate(candidates)
 	}
-	candidates, err := Parse(raw)
-	if err != nil {
-		return fail(err)
+	var lastErr error
+	for attempt := 0; attempt < 2; attempt++ {
+		if attempt > 0 {
+			req.Repair = lastErr.Error()
+		}
+		raw, genErr := s.gen.Generate(ctx, req)
+		if genErr != nil {
+			return fail(genErr)
+		}
+		candidates, acceptErr := accept(raw)
+		if acceptErr == nil {
+			if err := s.store.Complete(ctx, sess.ID, candidates); err != nil {
+				return fail(err)
+			}
+			got, ok, err := s.store.getByID(ctx, sess.ID)
+			if err != nil {
+				return Session{}, err
+			}
+			if !ok {
+				return Session{}, fmt.Errorf("planning: session disappeared after completion")
+			}
+			return got, nil
+		}
+		lastErr = acceptErr
 	}
-	candidates, err = Validate(candidates)
-	if err != nil {
-		return fail(err)
-	}
-	if err := s.store.Complete(ctx, sess.ID, candidates); err != nil {
-		return fail(err)
-	}
-	got, ok, err := s.store.getByID(ctx, sess.ID)
-	if err != nil {
-		return Session{}, err
-	}
-	if !ok {
-		return Session{}, fmt.Errorf("planning: session disappeared after completion")
-	}
-	return got, nil
+	return fail(lastErr)
 }
 
 func (s *Service) Get(ctx context.Context, projectID string) (Session, bool, error) {
