@@ -65,3 +65,75 @@ tasks:
       - changes behavior to make the code prettier
       - adds a framework dependency
       - leaves the nested branches intact and only renames variables
+
+  - id: quality-research-brief
+    title: Brief a non-technical reader on relay trust from three sources
+    suite: quality
+    archetype: text
+    tier: X
+    context_demand: long
+    held_out: false
+    rubric: quality-v1
+    goal: |
+      Write a three-paragraph brief for a non-technical reader using only the
+      three sources below. Explain what the relay can see, where the keys live,
+      and what a malicious relay can still do. Cite each source by label. Do not
+      add facts that are not in the sources.
+
+      Source A: "The relay sees encrypted blobs and timestamps, not file contents."
+      Source B: "Key custody stays on the device; the relay never receives the key."
+      Source C: "A malicious relay can drop or delay updates, but cannot read them."
+    criteria:
+      - exactly three paragraphs
+      - cites A, B, and C
+      - no unsupported claims
+      - under 300 words
+    checks:
+      exact_paragraphs: 3
+      max_words: 300
+      must_contain: [key custody, relay]
+      forbidden_phrases: [end-to-end encryption guarantees, cannot be attacked]
+    acceptance_floor: every deterministic check passes
+    quality_rubric:
+      - '5: three paragraphs, each source used, relay limits and key custody clear'
+      - '3: facts correct but a citation is missing'
+      - '1: invents a guarantee the sources do not make'
+    expected_failure_modes:
+      - claims the relay cannot deny service
+      - omits key custody
+      - adds a fact not in the sources
+
+  - id: quality-api-design
+    title: Design a cancel-job API with idempotency and honest errors
+    suite: quality
+    archetype: document
+    tier: X
+    context_demand: long
+    held_out: false
+    rubric: quality-v1
+    goal: |
+      Design an HTTP API for cancelling a running job in a local-first agent
+      runtime. Cover Endpoints, Request, Responses, Errors, and Idempotency.
+      Show the path and method, the success and conflict responses, and what
+      happens when the job is already terminal. Be concrete enough to implement
+      this week.
+    criteria:
+      - required sections in order
+      - one endpoint with method and path
+      - success, conflict, and not-found responses
+      - idempotency is addressed
+    checks:
+      required_sections: [Endpoints, Request, Responses, Errors, Idempotency]
+      strict_section_order: [Endpoints, Request, Responses, Errors, Idempotency]
+      max_words: 700
+      must_contain: [POST, 202, 409, idempotent]
+    acceptance_floor: every deterministic check passes
+    quality_rubric:
+      - '5: one clear endpoint, terminal-state semantics, idempotency, honest errors'
+      - '3: endpoint works but a state transition is ambiguous'
+      - '1: no idempotency or invents a 200 for a conflict'
+    expected_failure_modes:
+      - returns 200 for an already-cancelled job
+      - no terminal-state behavior
+      - hides the conflict behind a generic 400
+

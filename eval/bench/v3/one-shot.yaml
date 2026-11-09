@@ -91,3 +91,61 @@ tasks:
     expected_failure_modes:
       - sorts lexicographically
       - emits a comma-separated list
+
+  - id: os-code-reverse
+    title: Reverse a string
+    suite: one_shot
+    archetype: code
+    tier: H
+    language: python
+    held_out: false
+    goal: |
+      Implement reverse(s) in solution.py returning the characters of s in
+      reverse order. Do not use slicing with a negative step.
+    criteria:
+      - pure stdlib
+      - empty string returns an empty string
+      - unicode characters are preserved
+    test_command: |
+      python -c 'import solution
+      assert solution.reverse("abc") == "cba"
+      assert solution.reverse("") == ""
+      assert solution.reverse("åb") == "bå"'
+    acceptance_floor: test_command exits 0
+    one_shot_expected: pass
+    quality_rubric:
+      - '5: correct, readable, unicode-safe'
+      - '3: correct but uses s[::-1] against the brief'
+      - '1: off by one or drops a character'
+    expected_failure_modes:
+      - uses s[::-1] despite the constraint
+      - mishandles the empty string
+
+  - id: os-data-unique
+    title: Deduplicate three ids
+    suite: one_shot
+    archetype: data
+    tier: H
+    held_out: false
+    goal: |
+      Emit a JSON array of objects with unique `id` values from
+      [{"id":2},{"id":1},{"id":2}], sorted ascending.
+    criteria:
+      - JSON array
+      - two objects
+      - unique ids, ascending
+    checks:
+      json_extract: true
+      array_length: 2
+      array_unique_by: id
+      array_sorted_by: id
+    acceptance_floor: every deterministic check passes
+    one_shot_expected: pass
+    quality_rubric:
+      - '5: exact array, no prose'
+      - '3: correct but wrapped'
+      - '1: keeps the duplicate'
+    expected_failure_modes:
+      - keeps both id 2 objects
+      - leaves the order unsorted
+
