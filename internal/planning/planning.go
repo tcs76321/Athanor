@@ -1118,7 +1118,7 @@ func (s *Service) Generate(ctx context.Context, projectID, optionID string, req 
 	if err := s.store.SaveSeeds(ctx, sess.ID, seeds); err != nil {
 		return fail(err)
 	}
-	report(ProgressEvent{Phase: "seed", Stage: "seeds", Detail: "three plan seeds ready", Candidates: 3})
+	report(ProgressEvent{Phase: "seed", Stage: "seeds", Detail: "three plan seeds ready"})
 
 	// Calls 2–4: one expansion per seed, once each, with one contract repair.
 	for i, seed := range seeds {
