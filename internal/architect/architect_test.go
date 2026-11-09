@@ -70,6 +70,9 @@ func TestProposeFallsBackOnModelFailure(t *testing.T) {
 	if !p.Degraded || !p.Ready() {
 		t.Fatalf("fallback = %+v", p)
 	}
+	if !strings.Contains(p.Notes, "no model") {
+		t.Errorf("notes = %q, want the model error", p.Notes)
+	}
 	if p.Frame.FirstCycle != "build" {
 		t.Errorf("first cycle = %q, want build", p.Frame.FirstCycle)
 	}

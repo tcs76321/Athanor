@@ -89,13 +89,13 @@ func (s *Service) Propose(ctx context.Context, messages []Message) (Proposal, er
 	raw, err := s.LLM.Complete(ctx, buildPrompt(messages))
 	if err != nil {
 		fallback.Degraded = true
-		fallback.Notes = "The model call failed; this is the deterministic starting proposal."
+		fallback.Notes = "The model call failed (" + err.Error() + "); this is the deterministic starting proposal."
 		return fallback, nil
 	}
 	p, err := parseProposal(raw, lastUser)
 	if err != nil {
 		fallback.Degraded = true
-		fallback.Notes = "The model response could not be used; this is the deterministic starting proposal."
+		fallback.Notes = "The model response could not be used (" + err.Error() + "); this is the deterministic starting proposal."
 		return fallback, nil
 	}
 	if err := workflow.Validate(p.Graph, workflow.DefaultLimits()); err != nil {
