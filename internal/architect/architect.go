@@ -160,18 +160,25 @@ func parseProposal(raw, lastUser string) (Proposal, error) {
 }
 
 // alignCycle keeps the frame's first cycle consistent with the graph's shape.
-// A graph that ends in a human selection is a discovery cycle regardless of
-// the label the model chose: the user is choosing a direction, not shipping.
+// A graph that offers choices without shipping anything is a discovery cycle
+// regardless of the label the model chose: the user is choosing a direction,
+// not building. A graph that implements, tests, or publishes keeps its label.
 func alignCycle(f *Frame, g workflow.Graph) {
 	if f.FirstCycle == "discovery" {
 		return
 	}
+	var options, shipping bool
 	for _, b := range g.Blocks {
-		if b.Kind == workflow.KindSelect {
-			f.FirstCycle = "discovery"
-			f.Inferred = appendUnique(f.Inferred, "first_cycle")
-			return
+		switch b.Kind {
+		case workflow.KindGenerateOptions, workflow.KindSelect:
+			options = true
+		case workflow.KindImplement, workflow.KindTest, workflow.KindReview, workflow.KindPublish:
+			shipping = true
 		}
+	}
+	if options && !shipping {
+		f.FirstCycle = "discovery"
+		f.Inferred = appendUnique(f.Inferred, "first_cycle")
 	}
 }
 
@@ -305,12 +312,15 @@ func fallbackGraph(cycle string) workflow.Graph {
 	}
 }
 
-// normalizeGraph makes model IDs safe before validation: lowercase, spaces to
-// hyphens, unique suffixes. It does not change kinds or edges.
+// normalizeGraph makes model output safe before validation: block kinds are
+// resolved against the closed registry (a title or a hyphenated spelling is
+// accepted), IDs are lowercased and deduplicated, and edges are re-pointed at
+// the normalized IDs.
 func normalizeGraph(g workflow.Graph) workflow.Graph {
 	seen := map[string]int{}
 	idMap := map[string]string{}
 	for i := range g.Blocks {
+		g.Blocks[i].Kind = canonicalKind(g.Blocks[i].Kind)
 		old := g.Blocks[i].ID
 		id := strings.ToLower(strings.TrimSpace(old))
 		id = strings.ReplaceAll(id, "_", "-")
@@ -336,6 +346,25 @@ func normalizeGraph(g workflow.Graph) workflow.Graph {
 		}
 	}
 	return g
+}
+
+// canonicalKind resolves a model's spelling of a block kind against the
+// closed registry. A title ("Generate options") or a hyphenated kind
+// ("generate-options") maps to the canonical kind; an unknown value is left
+// untouched so validation reports exactly what the model invented.
+func canonicalKind(raw workflow.Kind) workflow.Kind {
+	norm := func(s string) string {
+		s = strings.ToLower(strings.TrimSpace(s))
+		s = strings.NewReplacer(" ", "_", "-", "_").Replace(s)
+		return s
+	}
+	want := norm(string(raw))
+	for _, spec := range workflow.Registry() {
+		if norm(string(spec.Kind)) == want || norm(spec.Title) == want {
+			return spec.Kind
+		}
+	}
+	return raw
 }
 
 func lastUserMessage(messages []Message) string {

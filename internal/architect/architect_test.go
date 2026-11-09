@@ -116,6 +116,28 @@ func TestProposeNormalizesIDsAndEdges(t *testing.T) {
 	}
 }
 
+func TestProposeResolvesTitlesAndHyphenatedKinds(t *testing.T) {
+	// Models often echo the block title instead of the kind. The closed
+	// registry should resolve it; inventing a kind must still fail.
+	raw := `{"questions":[],"frame":{"name":"Directions","goal":"Propose three game directions","first_cycle":"build","capabilities":["code"]},
+	  "graph":{"blocks":[{"id":"research","kind":"Research"},{"id":"options","kind":"Generate options"}],
+	            "edges":[{"from":"research","to":"options"}]}}`
+	s := New(fakeLLM{response: raw})
+	p, err := s.Propose(context.Background(), []Message{{Role: "user", Content: "Propose three directions."}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.Degraded {
+		t.Fatalf("degraded: %s", p.Notes)
+	}
+	if p.Graph.Blocks[1].Kind != workflow.KindGenerateOptions {
+		t.Errorf("kind = %q, want generate_options", p.Graph.Blocks[1].Kind)
+	}
+	if p.Frame.FirstCycle != "discovery" {
+		t.Errorf("first cycle = %q, want discovery", p.Frame.FirstCycle)
+	}
+}
+
 func TestProposeAlignsSelectionGraphToDiscovery(t *testing.T) {
 	// The model may label a choose-a-direction graph "build". A graph that ends
 	// in a human select is a discovery cycle: the user is choosing, not shipping.
