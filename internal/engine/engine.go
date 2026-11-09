@@ -328,6 +328,7 @@ type Engine struct {
 	draining atomic.Bool
 	mu       sync.Mutex // guards running set to avoid double-running a job
 	running  map[string]bool
+	priority *priorityQueue
 	// cancelMu guards per-job cancel funcs and the user-cancel set. A job is
 	// cancellable only while its Run goroutine is alive.
 	cancelMu  sync.Mutex
@@ -420,6 +421,7 @@ func New(d Deps) *Engine {
 		ctxProvider:  d.ContextProvider,
 		podLifecycle: d.Pods,
 		running:      map[string]bool{},
+		priority:     newPriorityQueue(),
 		cancels:      map[string]context.CancelFunc{},
 		cancelled:    map[string]bool{},
 		pauseReq:     map[string]bool{},
@@ -1051,13 +1053,36 @@ func (e *Engine) EnqueueContext(ctx context.Context, jobID string) {
 				}
 			}
 		}
+		// The job is ready for a slot: register its project priority before
+		// competing. The gate only orders waiters; it never blocks a job that
+		// is not registered.
+		e.priority.add(jobID, e.jobPriority(jobCtx, jobID), time.Now())
+		defer e.priority.remove(jobID)
 		// ADR-0125: when a lane admission is wired, it owns the slot. A
 		// policy refusal falls back to the aggregate cap rather than
 		// stranding the job; a canceled wait abandons it.
 		if e.admission != nil {
+			for {
+				max := e.cap.MaxConcurrentJobs()
+				if max < 1 {
+					max = 1
+				}
+				if e.priority.allows(jobID, max, time.Now(), PriorityAging) {
+					break
+				}
+				timer := time.NewTimer(50 * time.Millisecond)
+				select {
+				case <-jobCtx.Done():
+					timer.Stop()
+					e.finishQueuedCancel(jobID)
+					return
+				case <-timer.C:
+				}
+			}
 			lane := e.laneFor(jobCtx, jobID)
 			release, aerr := e.admission.Acquire(jobCtx, lane)
 			if aerr == nil {
+				e.priority.remove(jobID)
 				defer release()
 				e.Run(jobCtx, jobID)
 				return
@@ -1085,7 +1110,7 @@ func (e *Engine) EnqueueContext(ctx context.Context, jobID string) {
 			// exceeded, wait cancellably; if the CAS lost a race, retry
 			// immediately so we do not burn a wait cycle.
 			cur := atomic.LoadInt64(&e.inFlight)
-			if cur >= int64(max) {
+			if cur >= int64(max) || !e.priority.allows(jobID, max-int(cur), time.Now(), PriorityAging) {
 				timer := time.NewTimer(50 * time.Millisecond)
 				select {
 				case <-jobCtx.Done():
@@ -1104,11 +1129,26 @@ func (e *Engine) EnqueueContext(ctx context.Context, jobID string) {
 			// decrement a slot that was never acquired whenever the wait was
 			// abandoned, driving inFlight negative and silently raising the
 			// cap for the rest of the process lifetime.
+			e.priority.remove(jobID)
 			defer atomic.AddInt64(&e.inFlight, -1)
 			e.Run(jobCtx, jobID)
 			return
 		}
 	}()
+}
+
+// jobPriority reads the project priority for a queued job. The queue uses it
+// only for ordering; a lookup failure falls back to medium.
+func (e *Engine) jobPriority(ctx context.Context, jobID string) int {
+	j, err := e.jobs.Get(ctx, jobID)
+	if err != nil {
+		return priorityRank(project.PriorityMedium)
+	}
+	p, err := e.projects.Get(ctx, j.ProjectID)
+	if err != nil {
+		return priorityRank(project.PriorityMedium)
+	}
+	return priorityRank(p.Priority)
 }
 
 // finishQueuedCancel commits `cancelled` for a job that was cancelled while it

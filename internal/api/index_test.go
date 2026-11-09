@@ -128,9 +128,10 @@ func TestProjectCreatePreindexesRepository(t *testing.T) {
 
 	repo := t.TempDir()
 	body := []byte(fmt.Sprintf(`{
-		"name": "preindex", "archetype": "text",
+		"name": "preindex",
 		"goal": "Write a short essay about lossless context.",
-		"repository_path": %q
+		"repository_path": %q,
+		"start": true
 	}`, repo))
 	resp, err := http.Post(h.ts.URL+"/projects", "application/json", bytes.NewReader(body))
 	if err != nil {

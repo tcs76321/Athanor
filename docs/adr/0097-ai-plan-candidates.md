@@ -111,3 +111,16 @@ self-reported confidence, so it ranked plan bloat rather than plan quality.
 Plans remain ordered as the model proposed them, and each task still requires
 an acceptance criterion.
 
+## Amendment — 2026-11-08: one seed call plus three expansions
+
+Planning is now four bounded calls: one seed call returns three compact
+scaffolds, one per stance, and three expansion calls turn each seed into a
+complete plan. Each call gets at most one repair retry with a bounded rejection
+reason. The run pins the model chosen by the seed call so the three plans are
+comparable, persists the stage, prompt/response size, tail, token count, and a
+heartbeat, and records a per-plan status. A restart marks an orphaned run
+interrupted immediately instead of waiting for a long timeout; a failed
+expansion leaves the other plans usable. The expanded tasks carry explicit
+keys and dependency edges, validated for uniqueness, resolved references, and
+acyclicity before approval. Migration 0043 adds the run and candidate columns.
+

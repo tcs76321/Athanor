@@ -433,6 +433,15 @@ const newProjectBody = `
   <label>Repository path (optional) <input name="repository_path" value="{{.RepositoryPath}}" placeholder="/absolute/path/to/repo"></label>
   <div class="field-help">Core Pod: the repository must be visible inside the Core. The installer mounts <code>~/athanor/repos</code> at the same host path; place the repository there and use that absolute path.</div>
   <label>Acceptance criteria (optional, one per line) <textarea name="criteria" rows="4" data-refine-field="project.criteria">{{.Criteria}}</textarea></label>
+  <label>Priority
+    <select name="priority">
+      <option value="critical" {{if eq .Priority "critical"}}selected{{end}}>Critical (one project at a time)</option>
+      <option value="high" {{if eq .Priority "high"}}selected{{end}}>High</option>
+      <option value="medium" {{if or (eq .Priority "medium") (eq .Priority "")}}selected{{end}}>Medium</option>
+      <option value="low" {{if eq .Priority "low"}}selected{{end}}>Low</option>
+    </select>
+  </label>
+  <div class="field-help">Priority orders queued work: critical first, then high, medium, low. It does not preempt a running job; a waiting job is promoted after a while so low work is not starved.</div>
   <div class="actions">
     <button name="start" value="" class="primary">Create and continue to onboarding</button>
   </div>
@@ -441,54 +450,11 @@ const newProjectBody = `
 <p class="muted">Onboarding asks for clarification, limits, web sources, and success criteria, then explores directions for exploratory goals. Work starts only after you approve a plan. A repository-backed project is indexed once before the first job.</p>
 `
 
-const interviewBody = `
-<h1>Plan: {{.Project.Name}}</h1>
-<p class="sub">{{.Project.Goal}}</p>
-<div class="actions"><a class="btn secondary" href="/ui/projects/{{.Project.ID}}">Back to project</a></div>
-<p>Status:
-  <span class="pill {{if interviewDone .Interview.Status}}ok{{else}}warn{{end}}">{{interviewLabel .Interview.Status}}</span>
-</p>
-
-{{if not (interviewDone .Interview.Status)}}
-<div class="card">
-  <h2>Clarify (optional, resumable)</h2>
-  <form method="post" action="/ui/projects/{{.Project.ID}}/interview">
-  {{range .Questions}}
-    <label>{{.Prompt}}
-      <textarea name="{{.ID}}" rows="2" data-refine-field="interview.answer">{{index $.Answers .ID}}</textarea>
-    </label>
-    {{if .Help}}<div class="muted">{{.Help}}</div>{{end}}
-  {{end}}
-  <button>Save answers and build plan</button>
-  </form>
-</div>
-{{end}}
-
-<h2>Plan</h2>
-{{if .Plan}}<div class="card"><div class="prose">{{markdown .Plan}}</div></div>
-{{else}}<div class="empty">Answer the questions and save, or skip the interview to use the goal and criteria as the plan.</div>{{end}}
-
-<div class="card">
-  <h2>Decision</h2>
-  {{if not (interviewDone .Interview.Status)}}
-    <p class="muted">Approving starts the first job. Skipping uses the goal and criteria as the plan. Both are reversible through the project page.</p>
-    <div class="actions">
-    <form method="post" action="/ui/projects/{{.Project.ID}}/interview/approve"><button>Approve plan and start work</button></form>
-    <form method="post" action="/ui/projects/{{.Project.ID}}/interview/skip"><button class="secondary">Skip interview and start work</button></form>
-    </div>
-  {{else}}
-    <p>This plan is <b>{{interviewLabel .Interview.Status}}</b>. Work has started.</p>
-    <div class="actions"><a class="btn" href="/ui/projects/{{.Project.ID}}">Back to project</a></div>
-  {{end}}
-</div>
-`
-
 const projectBody = `
 <h1>{{.Project.Name}} <span class="pill">{{join .Project.Capabilities}}</span></h1>
 <p class="sub">{{.Project.Goal}}</p>
 <div class="actions">
   <a class="btn" href="/ui/projects/{{.Project.ID}}/onboarding">Onboarding / explore</a>
-  <a class="btn secondary" href="/ui/projects/{{.Project.ID}}/interview">Plan / interview</a>
   <a class="btn secondary" href="#submit-goal">Submit a goal</a>
   {{if and .Project.RepositoryPath .CanPush}}
   <form method="post" action="/ui/projects/{{.Project.ID}}/push">

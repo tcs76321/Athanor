@@ -41,12 +41,12 @@ type fakeDiscovery struct {
 
 func (f *fakeDiscovery) Generate(_ context.Context, projectID string, _ discovery.Request) (discovery.Session, error) {
 	opts := []discovery.Option{
-		{ID: "o1", Title: "Daily news brief", OneLiner: "A short source-triaged update", Domain: "Media", Focus: "World news", Audience: "Readers", Need: "Fragmented coverage", Approach: "Group by consequence", Format: "Daily brief", Availability: "Public", FirstDeliverable: "One-page brief", FirstCheck: "Five readers review it"},
-		{ID: "o2", Title: "CSV reconciliation CLI", OneLiner: "Explain row differences locally", Domain: "Software", Focus: "Data operations", Audience: "Analysts", Need: "Manual reconciliation", Approach: "Field-level diff", Format: "Command-line tool", Availability: "Internal", FirstDeliverable: "Working prototype", FirstCheck: "Run on a known mismatch"},
-		{ID: "o3", Title: "Procurement policy memo", OneLiner: "A clear internal decision memo", Domain: "Public policy", Focus: "Procurement", Audience: "Procurement staff", Need: "Inconsistent rules", Approach: "Compare and propose a checklist", Format: "Memo", Availability: "Internal", FirstDeliverable: "Two-page memo", FirstCheck: "Two policy owners review it"},
-		{ID: "o4", Title: "Air-quality dataset", OneLiner: "Normalized readings with provenance", Domain: "Environment", Focus: "Air quality", Audience: "Local researchers", Need: "Scattered formats", Approach: "Normalize and document gaps", Format: "Dataset", Availability: "Public", FirstDeliverable: "One cleaned month", FirstCheck: "Re-run on a second month"},
-		{ID: "o5", Title: "Water-cycle diagrams", OneLiner: "Annotated visuals for a lesson", Domain: "Education", Focus: "Science communication", Audience: "Students", Need: "Abstract process", Approach: "Step-by-step annotation", Format: "Image set", Availability: "Public", FirstDeliverable: "Three diagrams", FirstCheck: "A teacher uses them"},
-		{ID: "o6", Title: "Battery-recycling digest", OneLiner: "A weekly annotated paper digest", Domain: "Research", Focus: "Materials", Audience: "A lab team", Need: "Papers are easy to miss", Approach: "Annotate claims and limits", Format: "Weekly digest", Availability: "Internal", FirstDeliverable: "Five annotated papers", FirstCheck: "The team rates it"},
+		{ID: "o1", Title: "Daily news brief", Problem: "Fragmented coverage", Scope: "World news, one daily update; excludes opinion", Approach: "Group by consequence", Deliverable: "One-page brief", Check: "Five readers review it"},
+		{ID: "o2", Title: "CSV reconciliation CLI", Problem: "Manual reconciliation", Scope: "Two exports; excludes schema migration", Approach: "Field-level diff", Deliverable: "Working prototype", Check: "Run on a known mismatch"},
+		{ID: "o3", Title: "Procurement policy memo", Problem: "Inconsistent rules", Scope: "A two-page memo for the committee", Approach: "Compare and propose a checklist", Deliverable: "Two-page memo", Check: "Two policy owners review it"},
+		{ID: "o4", Title: "Air-quality dataset", Problem: "Scattered formats", Scope: "One month of local readings", Approach: "Normalize and document gaps", Deliverable: "One cleaned month", Check: "Re-run on a second month"},
+		{ID: "o5", Title: "Water-cycle diagrams", Problem: "Abstract process", Scope: "A secondary-school lesson", Approach: "Step-by-step annotation", Deliverable: "Three diagrams", Check: "A teacher uses them"},
+		{ID: "o6", Title: "Battery-recycling digest", Problem: "Papers are easy to miss", Scope: "A small lab team; five papers per issue", Approach: "Annotate claims and limits", Deliverable: "Five annotated papers", Check: "The team rates it"},
 	}
 	f.mu.Lock()
 	f.sess = discovery.Session{ID: "s1", ProjectID: projectID, Status: "ready", Options: opts}
@@ -85,6 +85,7 @@ func planCandidate(title string) planning.Candidate {
 			{Title: title + " task", Description: "A concrete first step.", Capability: "document", Criteria: []string{"done"}},
 			{Title: title + " verify", Description: "Verify the first step.", Capability: "document", Criteria: []string{"verified"}},
 		},
+		Status: "ready",
 	}
 }
 
@@ -95,9 +96,9 @@ func (f *fakePlanning) Generate(_ context.Context, projectID, optionID string, _
 	f.sess = planning.Session{
 		ID: "ps1", ProjectID: projectID, OptionID: optionID, Status: "ready", SelectedIndex: -1,
 		Candidates: []planning.Candidate{
-			planCandidate("Fastest first draft"),
+			planCandidate("Smallest verifiable slice"),
 			planCandidate("Deepest coverage"),
-			planCandidate("Leanest path"),
+			planCandidate("Lowest-risk sequence"),
 		},
 	}
 	f.has = true
@@ -141,14 +142,23 @@ func TestHostAllowedSuffixBoundary(t *testing.T) {
 	}
 }
 
-// TestPlanningProgressIsHonest pins the removal of the fabricated 45% bar.
-// Planning is one model pass with no progress feed, so the page uses an
-// indeterminate indicator and says so.
+// TestPlanningProgressIsHonest pins the removal of fabricated progress. The
+// page shows the real stage, model, sizes, and tail, plus the seed/expand
+// pipeline, rather than a percentage.
 func TestPlanningProgressIsHonest(t *testing.T) {
 	if strings.Contains(projectOnboardingBody, `value="45"`) {
 		t.Error("planning page still shows a fabricated 45% progress value")
 	}
-	for _, want := range []string{"no honest percentage", "<progress class=\"progress\" max=\"100\"></progress>"} {
+	if strings.Contains(projectOnboardingBody, `<progress class="progress" max="100"></progress>`) {
+		t.Error("planning page still shows an indeterminate progress bar")
+	}
+	for _, want := range []string{
+		"One call drafts three distinct seeds",
+		"three calls expand each into a complete plan",
+		"model stays pinned",
+		"Raw model output",
+		"Cancel and choose another direction",
+	} {
 		if !strings.Contains(projectOnboardingBody, want) {
 			t.Errorf("planning page missing %q", want)
 		}
@@ -413,7 +423,7 @@ func TestProjectOnboardingAIPlanFlow(t *testing.T) {
 	found := false
 	for time.Now().Before(deadline) {
 		_, body = get(t, fx.ts.URL+"/ui/projects/"+fx.project.ID+"/onboarding")
-		if strings.Contains(body, "Three plans") && strings.Contains(body, "Fastest first draft") {
+		if strings.Contains(body, "Three plans") && strings.Contains(body, "Smallest verifiable slice") {
 			found = true
 			break
 		}

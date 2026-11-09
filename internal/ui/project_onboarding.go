@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/tcs76321/athanor/internal/config"
+	"github.com/tcs76321/athanor/internal/dag"
 	"github.com/tcs76321/athanor/internal/discovery"
 	"github.com/tcs76321/athanor/internal/firstuse"
 	"github.com/tcs76321/athanor/internal/hitl"
@@ -85,12 +86,21 @@ type discoveryStep struct {
 }
 
 type planRun struct {
-	OptionID  string
-	Status    string
-	Error     string
-	StartedAt time.Time
-	UpdatedAt time.Time
-	Session   planning.Session
+	OptionID      string
+	Status        string
+	Stage         string
+	Detail        string
+	Model         string
+	PromptBytes   int
+	ResponseBytes int
+	Tail          string
+	PlanIndex     int
+	Expanded      int
+	Error         string
+	StartedAt     time.Time
+	UpdatedAt     time.Time
+	Steps         []discoveryStep
+	Session       planning.Session
 }
 
 // sourceStatus is the allowlist state of one human-supplied research URL.
@@ -134,6 +144,64 @@ func hostAllowed(host string, allow []string) bool {
 		}
 	}
 	return false
+}
+
+// allowedSources returns the brief sources whose host is on the gateway
+// allowlist. Requested-but-disallowed URLs stay visible in the brief and the
+// access-request flow, but never reach the model or the plan as if readable.
+func (u *UI) allowedSources(sources []string) []string {
+	var allow []string
+	if u.deps.Config != nil {
+		allow = u.deps.Config.Network.AllowList
+	}
+	out := make([]string, 0, len(sources))
+	for _, raw := range sources {
+		raw = strings.TrimSpace(raw)
+		if raw == "" {
+			continue
+		}
+		parsed, err := url.Parse(raw)
+		if err != nil {
+			continue
+		}
+		if hostAllowed(parsed.Hostname(), allow) {
+			out = append(out, raw)
+		}
+	}
+	return out
+}
+
+func (u *UI) discoverSources(brief projectBrief) []string {
+	return u.allowedSources(brief.Sources)
+}
+
+func (u *UI) briefWithAllowedSources(b projectBrief) projectBrief {
+	b.Sources = u.allowedSources(b.Sources)
+	return b
+}
+
+// validateTaskGraph applies the same structural rules as the autonomous
+// decomposer to an approved plan: keys, references, acyclicity, bounds, and
+// leaf acceptance criteria.
+func (u *UI) validateTaskGraph(specs []project.TaskSpec) error {
+	nodes := make([]dag.Node, 0, len(specs))
+	for _, s := range specs {
+		nodes = append(nodes, dag.Node{
+			Key: s.Key, ParentKey: s.ParentKey, Title: s.Title,
+			Description: s.Description, DependsOn: s.DependsOn,
+			Criteria: s.Criteria, Budget: s.Budget,
+		})
+	}
+	limits := dag.Limits{}
+	if u.deps.Config != nil {
+		limits = dag.Limits{
+			MaxTasks:     u.deps.Config.Execution.DAGMaxTasks,
+			MaxDepth:     u.deps.Config.Execution.DAGMaxDepth,
+			MaxTotalJobs: u.deps.Config.Execution.DAGMaxTotalJobs,
+		}
+	}
+	_, err := dag.Validate(dag.Graph{Nodes: nodes}, limits)
+	return err
 }
 
 func (u *UI) loadBrief(ctx context.Context, p project.Project) (projectBrief, error) {
@@ -192,6 +260,17 @@ func (u *UI) saveBrief(ctx context.Context, b projectBrief) error {
 	if err != nil {
 		return fmt.Errorf("saving project brief: %w", err)
 	}
+	// Keep the project's intent and capabilities aligned with the refined
+	// brief. The brief is the single source for the outcome; the project page,
+	// scheduler, and verification read the same goal.
+	if u.deps.Projects != nil && strings.TrimSpace(b.Goal) != "" {
+		if p, perr := u.deps.Projects.Get(ctx, b.ProjectID); perr == nil {
+			caps := project.InferCapabilities(b.Goal, p.RepositoryPath)
+			if uerr := u.deps.Projects.UpdateGoalAndCapabilities(ctx, b.ProjectID, b.Goal, caps); uerr != nil {
+				return fmt.Errorf("updating project intent: %w", uerr)
+			}
+		}
+	}
 	return nil
 }
 
@@ -244,22 +323,26 @@ func (u *UI) handleProjectOnboarding(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case brief.Status == "approved":
 		stage = "approved"
+	case brief.Status == "draft":
+		stage = "brief"
 	case hasSession && sess.SelectedID != "" && brief.Status == "planned":
 		switch {
+		case pRun != nil && pRun.Status == "running":
+			stage = "generating_plan"
 		case hasPlan && planSess.Status == "generating":
-			if time.Since(planSess.UpdatedAt) > 20*time.Minute {
-				stage = "plan"
-				planError = "The previous plan generation was interrupted. Generate again when ready."
-			} else {
-				stage = "generating_plan"
-			}
+			// No live in-memory run reached this branch (a running run is
+			// caught above), so the Core restarted or the run was lost. The
+			// session is durable but orphaned: show interrupted immediately.
+			stage = "plan"
+			planError = "The previous plan pass was interrupted. Generate again when ready."
 		case hasPlan && planSess.Status == "failed":
 			stage = "plan"
 			planError = planSess.Error
+			if planSess.StopReason == "interrupted" {
+				planError = "The previous plan pass was interrupted. Generate again when ready."
+			}
 		case hasPlan && len(planSess.Candidates) > 0:
 			stage = "plan"
-		case pRun != nil && pRun.Status == "running":
-			stage = "generating_plan"
 		case pRun != nil && pRun.Status == "failed":
 			stage = "plan"
 			planError = pRun.Error
@@ -269,11 +352,14 @@ func (u *UI) handleProjectOnboarding(w http.ResponseWriter, r *http.Request) {
 	case hasSession && len(sess.Options) > 0:
 		stage = "choose"
 	case hasSession && sess.Status == "generating":
-		if time.Since(sess.UpdatedAt) > 20*time.Minute {
-			stage = "brief"
-			discoveryError = "The previous discovery run was interrupted. Start it again when you are ready."
-		} else {
+		// A live in-memory run means the pass is still working; no live run
+		// means the Core restarted or the pass was lost, so it is interrupted
+		// immediately rather than after a long timeout.
+		if run != nil && run.Status == "running" {
 			stage = "generating"
+		} else {
+			stage = "brief"
+			discoveryError = "The previous discovery run was interrupted. Start it again when ready."
 		}
 	case hasSession && sess.Status == "failed":
 		stage = "brief"
@@ -283,6 +369,16 @@ func (u *UI) handleProjectOnboarding(w http.ResponseWriter, r *http.Request) {
 	case run != nil && run.Status == "failed":
 		stage = "brief"
 		discoveryError = run.Error
+	}
+	if view := r.URL.Query().Get("view"); brief.Status != "approved" {
+		switch view {
+		case "brief":
+			stage = "brief"
+		case "choose":
+			if hasSession && len(sess.Options) > 0 {
+				stage = "choose"
+			}
+		}
 	}
 	var selected *discovery.Option
 	if hasSession && sess.SelectedID != "" {
@@ -304,7 +400,7 @@ func (u *UI) handleProjectOnboarding(w http.ResponseWriter, r *http.Request) {
 	}
 	plan := ""
 	if selected != nil {
-		plan, _ = buildProjectPlan(p, brief, *selected)
+		plan, _ = buildProjectPlan(p, u.briefWithAllowedSources(brief), *selected)
 	}
 	planElapsed := ""
 	if pRun != nil && pRun.Status == "running" {
@@ -319,6 +415,8 @@ func (u *UI) handleProjectOnboarding(w http.ResponseWriter, r *http.Request) {
 		"DiscoveryPercent": discPercent, "DiscoveryElapsed": discElapsed,
 		"PlanningAvailable": u.deps.Planning != nil,
 		"PlanCandidates":    planSess.Candidates,
+		"PlanSession":       planSess,
+		"PlanRun":           pRun,
 		"SelectedPlan":      selectedPlan, "PlanError": planError,
 	})
 }
@@ -467,6 +565,13 @@ func (u *UI) handleProjectOnboardingPost(w http.ResponseWriter, r *http.Request)
 			cancel()
 		}
 		u.planMu.Unlock()
+		brief.Status = "briefed"
+		if err := u.saveBrief(ctx, brief); err != nil {
+			u.fail(w, err)
+			return
+		}
+	case "regenerate_directions":
+		u.startDiscovery(p, brief)
 	case "request_access":
 		source := strings.TrimSpace(r.FormValue("source"))
 		host := ""
@@ -502,8 +607,19 @@ func (u *UI) handleProjectOnboardingPost(w http.ResponseWriter, r *http.Request)
 			u.fail(w, err)
 			return
 		}
-	case "reset":
+	case "reset", "back_to_directions":
+		u.planMu.Lock()
+		if cancel := u.planCancels[p.ID]; cancel != nil {
+			cancel()
+		}
+		u.planMu.Unlock()
 		brief.Status = "briefed"
+		if err := u.saveBrief(ctx, brief); err != nil {
+			u.fail(w, err)
+			return
+		}
+	case "back_to_brief":
+		brief.Status = "draft"
 		if err := u.saveBrief(ctx, brief); err != nil {
 			u.fail(w, err)
 			return
@@ -643,7 +759,7 @@ func (u *UI) startDiscovery(p project.Project, brief projectBrief) {
 
 	req := discovery.Request{
 		Goal: brief.Goal, Brief: brief.Limitations, Constraints: brief.Constraints,
-		Sources: brief.Sources, Count: 10,
+		Sources: u.discoverSources(brief), Count: 10,
 		Progress: func(ev discovery.ProgressEvent) { u.reportDiscovery(p.ID, ev) },
 	}
 	go func() {
@@ -679,11 +795,52 @@ func (u *UI) startDiscovery(p project.Project, brief projectBrief) {
 	}()
 }
 
+// reportPlanning applies one planning progress event to the visible run.
+func (u *UI) reportPlanning(projectID string, ev planning.ProgressEvent) {
+	u.planMu.Lock()
+	defer u.planMu.Unlock()
+	run := u.planRuns[projectID]
+	if run == nil {
+		return
+	}
+	now := time.Now()
+	run.Stage = ev.Stage
+	if ev.Detail != "" {
+		run.Detail = ev.Detail
+	}
+	if ev.Model != "" {
+		run.Model = ev.Model
+	}
+	if ev.PromptBytes > 0 {
+		run.PromptBytes = ev.PromptBytes
+	}
+	if ev.ResponseBytes > run.ResponseBytes {
+		run.ResponseBytes = ev.ResponseBytes
+	}
+	if ev.Tail != "" {
+		run.Tail = ev.Tail
+	}
+	if ev.PlanIndex > 0 {
+		run.PlanIndex = ev.PlanIndex
+	}
+	if ev.Candidates > run.Expanded {
+		run.Expanded = ev.Candidates
+	}
+	run.UpdatedAt = now
+	if n := len(run.Steps); n == 0 || run.Steps[n-1].Stage != ev.Stage || run.Steps[n-1].Detail != ev.Detail {
+		run.Steps = append(run.Steps, discoveryStep{Stage: ev.Stage, Detail: ev.Detail, At: now})
+		if len(run.Steps) > 20 {
+			run.Steps = run.Steps[len(run.Steps)-20:]
+		}
+	}
+}
+
 func (u *UI) planRunFor(projectID string) *planRun {
 	u.planMu.Lock()
 	defer u.planMu.Unlock()
 	if run := u.planRuns[projectID]; run != nil {
 		cp := *run
+		cp.Steps = append([]discoveryStep(nil), run.Steps...)
 		return &cp
 	}
 	return nil
@@ -699,8 +856,8 @@ func (u *UI) startPlanning(p project.Project, brief projectBrief, option discove
 		return
 	}
 	now := time.Now()
-	run := &planRun{OptionID: option.ID, Status: "running", StartedAt: now, UpdatedAt: now}
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Minute)
+	run := &planRun{OptionID: option.ID, Status: "running", Stage: "starting", Detail: "preparing planning", StartedAt: now, UpdatedAt: now}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 	pruneRuns(u.planRuns, maxRunHistory)
 	u.planRuns[p.ID] = run
 	u.planCancels[p.ID] = cancel
@@ -709,9 +866,10 @@ func (u *UI) startPlanning(p project.Project, brief projectBrief, option discove
 	u.auditProject(p.ID, "plan_started", map[string]any{"option": option.ID, "title": option.Title})
 	req := planning.Request{
 		Goal: brief.Goal, Brief: brief.Limitations, Constraints: brief.Constraints,
-		Sources: brief.Sources, OptionTitle: option.Title, OneLiner: option.OneLiner,
-		Audience: option.Audience, Need: option.Need, Approach: option.Approach,
-		Deliverable: option.FirstDeliverable, FirstCheck: option.FirstCheck,
+		Sources: u.discoverSources(brief), OptionTitle: option.Title, Problem: option.Problem,
+		Scope: option.Scope, Approach: option.Approach,
+		Deliverable: option.Deliverable, Check: option.Check,
+		Progress: func(ev planning.ProgressEvent) { u.reportPlanning(p.ID, ev) },
 	}
 	go func() {
 		defer cancel()
@@ -724,14 +882,19 @@ func (u *UI) startPlanning(p project.Project, brief projectBrief, option discove
 		run.UpdatedAt = time.Now()
 		if err != nil {
 			run.Status = "failed"
+			run.Stage = "failed"
 			run.Error = err.Error()
 			if errors.Is(err, context.Canceled) {
 				run.Error = "cancelled by operator"
+				run.Detail = "planning cancelled"
 			}
 			u.auditProject(p.ID, "plan_failed", map[string]any{"error": run.Error})
 			return
 		}
 		run.Status = "done"
+		run.Stage = "done"
+		run.Detail = "plans ready"
+		run.Expanded = sess.ExpandedCount
 		run.Session = sess
 		u.auditProject(p.ID, "plan_completed", map[string]any{
 			"session": sess.ID, "candidates": len(sess.Candidates),
@@ -761,24 +924,18 @@ func (u *UI) auditProject(projectID, event string, data map[string]any) {
 // buildProjectPlan turns the chosen option and the brief into a reviewable
 // plan and a dependency-ordered task graph. It is deterministic: the same
 // inputs produce the same plan, and no model call is needed at approval time.
-// The wording follows the direction (audience, need, approach, deliverable),
-// never a fixed project-type template.
+// The wording follows the direction (problem, scope, approach, deliverable,
+// check), never a fixed project-type template.
 func buildProjectPlan(p project.Project, b projectBrief, o discovery.Option) (string, []project.TaskSpec) {
 	var out strings.Builder
 	fmt.Fprintf(&out, "# %s\n\n", o.Title)
-	fmt.Fprintf(&out, "**Direction:** %s\n\n", o.OneLiner)
 	fmt.Fprintf(&out, "**Project:** %s\n\n", p.Name)
 	fmt.Fprintf(&out, "## The direction\n\n")
-	fmt.Fprintf(&out, "- **Domain:** %s · %s\n", o.Domain, o.Focus)
-	fmt.Fprintf(&out, "- **Audience:** %s\n", o.Audience)
-	fmt.Fprintf(&out, "- **Need:** %s\n", o.Need)
+	fmt.Fprintf(&out, "- **Problem:** %s\n", o.Problem)
+	fmt.Fprintf(&out, "- **Scope:** %s\n", o.Scope)
 	fmt.Fprintf(&out, "- **Approach:** %s\n", o.Approach)
-	fmt.Fprintf(&out, "- **Format:** %s\n", o.Format)
-	if o.Availability != "" && !strings.EqualFold(strings.TrimSpace(o.Availability), "not applicable") {
-		fmt.Fprintf(&out, "- **Availability:** %s\n", o.Availability)
-	}
-	fmt.Fprintf(&out, "- **First deliverable:** %s\n", o.FirstDeliverable)
-	fmt.Fprintf(&out, "- **First check:** %s\n", o.FirstCheck)
+	fmt.Fprintf(&out, "- **Deliverable:** %s\n", o.Deliverable)
+	fmt.Fprintf(&out, "- **Check:** %s\n", o.Check)
 	out.WriteString("\n## Assumptions to test\n\n")
 	if len(o.Assumptions) == 0 {
 		out.WriteString("- (none recorded)\n")
@@ -796,10 +953,9 @@ func buildProjectPlan(p project.Project, b projectBrief, o discovery.Option) (st
 		}
 	}
 	out.WriteString("\n## First iteration\n\n")
-	fmt.Fprintf(&out, "1. **Gather the source material.** %s\n", o.FirstCheck)
-	fmt.Fprintf(&out, "2. **Produce the first deliverable.** %s\n", o.FirstDeliverable)
-	out.WriteString("3. **Check it against the brief.** Review coverage, accuracy, and the success criteria; record gaps.\n")
-	out.WriteString("4. **Decide the next iteration.** Keep what worked, fix what did not, and choose one concrete next step.\n")
+	out.WriteString("1. **Establish the baseline.** Read the repository or source material, record the current state, and confirm the scope.\n")
+	fmt.Fprintf(&out, "2. **Produce the deliverable.** %s\n", o.Deliverable)
+	fmt.Fprintf(&out, "3. **Verify it.** %s\n", o.Check)
 	out.WriteString("\n## Limits\n\n")
 	if len(b.Constraints) == 0 {
 		out.WriteString("- (none recorded)\n")
@@ -826,62 +982,50 @@ func buildProjectPlan(p project.Project, b projectBrief, o discovery.Option) (st
 			}
 		}
 	}
-	if len(criteria) == 0 && strings.TrimSpace(o.FirstCheck) != "" {
-		// The first check is the operator's own definition of useful work;
-		// use it rather than approving a task graph with no criteria.
-		criteria = append(criteria, "The first check passes: "+strings.TrimSpace(o.FirstCheck))
+	if len(criteria) == 0 && strings.TrimSpace(o.Check) != "" {
+		criteria = append(criteria, "The check passes: "+strings.TrimSpace(o.Check))
 	}
 	sourceLine := ""
 	if len(b.Sources) > 0 {
 		sourceLine = " Allowed sources (fetch only these): " + strings.Join(b.Sources, " ")
 	}
-	// The primary output follows the project's inferred capability; the other
-	// tasks are deliberately prose so review and decisions stay readable. Code
-	// projects inspect the repository first; data projects normalize inputs;
-	// everything else gathers prose or source material.
 	primary := project.PrimaryCapability(p.Capabilities)
-	deliverable := project.InferTaskCapability(o.Title+" "+o.FirstDeliverable, p.Capabilities, p.RepositoryPath)
-	gather := project.CapabilityText
-	gatherTitle := "Gather the source material"
-	gatherDescription := fmt.Sprintf("Collect and read the material for %q. %s. Record what each source contributes, what is missing, and any conflicting claims. Cite only the allowed sources.%s", o.Title, o.FirstCheck, sourceLine)
+	deliverable := project.InferTaskCapability(o.Title+" "+o.Deliverable, p.Capabilities, p.RepositoryPath)
+	baseline := project.CapabilityText
+	baselineTitle := "Establish the baseline"
+	baselineDescription := fmt.Sprintf("Read the material for %q. Record the current state, what each source contributes, what is missing, and any conflicting claims. Cite only the allowed sources.%s", o.Title, sourceLine)
 	switch primary {
 	case project.CapabilityData:
-		gather = project.CapabilityData
+		baseline = project.CapabilityData
 	case project.CapabilityCode:
-		gather = project.CapabilityCode
-		gatherTitle = "Inspect the code and constraints"
-		gatherDescription = fmt.Sprintf("Read the relevant files, run the existing checks, and record constraints, gaps, and anything that must not break for %q.%s", o.Title, sourceLine)
+		baseline = project.CapabilityCode
+		baselineTitle = "Inspect the code and constraints"
+		baselineDescription = fmt.Sprintf("Read the relevant files, run the existing checks, and record constraints, gaps, and anything that must not break for %q.%s", o.Title, sourceLine)
 	}
-	gatherCriteria := "A source inventory names each allowed source, what it contributes, and any conflicting claims."
+	baselineCriteria := "A baseline note names the current state, the relevant source or files, and the gaps that remain."
 	switch primary {
 	case project.CapabilityCode:
-		gatherCriteria = "An inspection note names the relevant files, the existing checks, and the constraints that must not break."
+		baselineCriteria = "An inspection note names the relevant files, the existing checks, and the constraints that must not break."
 	case project.CapabilityData:
-		gatherCriteria = "A source inventory names each input, its format, and the fields that must be normalized."
+		baselineCriteria = "A source inventory names each input, its format, and the fields that must be normalized."
 	}
 	specs := []project.TaskSpec{
 		{
-			Key: "gather", Title: gatherTitle, Capability: gather,
-			Description: gatherDescription,
-			Criteria:    []string{gatherCriteria},
+			Key: "baseline", Title: baselineTitle, Capability: baseline,
+			Description: baselineDescription,
+			Criteria:    []string{baselineCriteria},
 		},
 		{
-			Key: "deliverable", Title: "Produce the first deliverable", Capability: deliverable,
-			Description: fmt.Sprintf("Produce the first usable deliverable for %s: %s. Format: %s. Audience: %s. Need: %s. Follow the brief's limits and do not broaden the scope.%s", o.Title, o.FirstDeliverable, o.Format, o.Audience, o.Need, sourceLine),
-			DependsOn:   []string{"gather"},
+			Key: "deliverable", Title: "Produce the deliverable", Capability: deliverable,
+			Description: fmt.Sprintf("Produce the deliverable for %s: %s. Problem: %s. Scope: %s. Approach: %s. Follow the brief's limits and do not broaden the scope.%s", o.Title, o.Deliverable, o.Problem, o.Scope, o.Approach, sourceLine),
+			DependsOn:   []string{"baseline"},
 			Criteria:    criteria,
 		},
 		{
-			Key: "check", Title: "Check it against the brief", Capability: project.CapabilityDocument,
-			Description: "Review the deliverable against the brief and the success criteria. Record gaps, weak evidence, and anything that would mislead a reader. Do not rewrite the deliverable unless a gap requires it.",
+			Key: "verify", Title: "Verify against the check", Capability: project.CapabilityDocument,
+			Description: fmt.Sprintf("Verify the deliverable against the check: %s. Record gaps, weak evidence, and anything that would mislead a reader. Do not rewrite the deliverable unless a gap requires it.", o.Check),
 			DependsOn:   []string{"deliverable"},
 			Criteria:    criteria,
-		},
-		{
-			Key: "next", Title: "Decide the next iteration", Capability: project.CapabilityDocument,
-			Description: "Write a short decision note: what was produced, what evidence supports it, what remains unverified, and one concrete next step. Keep it under one page.",
-			DependsOn:   []string{"check"},
-			Criteria:    []string{"A one-page decision note names what was produced, the evidence, what remains unverified, and one concrete next step."},
 		},
 	}
 	return out.String(), specs
@@ -934,25 +1078,30 @@ func (u *UI) approveProjectPlan(ctx context.Context, p project.Project, b projec
 	if selected == nil {
 		return fmt.Errorf("the selected option is missing from the portfolio")
 	}
+	allowedBrief := u.briefWithAllowedSources(b)
 	var specs []project.TaskSpec
-	goalText := fmt.Sprintf("%s: %s", selected.Title, selected.OneLiner)
+	goalText := fmt.Sprintf("%s: %s", selected.Title, selected.Problem)
 	if u.deps.Planning != nil {
 		ps, has, perr := u.deps.Planning.Get(ctx, p.ID)
 		if perr != nil {
 			return fmt.Errorf("reading the selected plan: %w", perr)
 		}
 		if has && ps.Status == "ready" && ps.OptionID == sess.SelectedID &&
-			ps.SelectedIndex >= 0 && ps.SelectedIndex < len(ps.Candidates) {
+			ps.SelectedIndex >= 0 && ps.SelectedIndex < len(ps.Candidates) &&
+			ps.Candidates[ps.SelectedIndex].Status == "ready" {
 			cand := ps.Candidates[ps.SelectedIndex]
 			specs = planning.ToTaskSpecs(cand)
 			goalText = fmt.Sprintf("%s: %s", cand.Title, cand.Summary)
 		}
 	}
 	if len(specs) == 0 {
-		_, specs = buildProjectPlan(p, b, *selected)
+		_, specs = buildProjectPlan(p, allowedBrief, *selected)
 	}
-	if len(specs) > 0 && len(b.Sources) > 0 {
-		specs[0].Description += " Allowed sources (fetch only these): " + strings.Join(b.Sources, " ")
+	if err := u.validateTaskGraph(specs); err != nil {
+		return fmt.Errorf("the plan is not a valid task graph: %w", err)
+	}
+	if len(specs) > 0 && len(allowedBrief.Sources) > 0 {
+		specs[0].Description += " Allowed sources (fetch only these): " + strings.Join(allowedBrief.Sources, " ")
 		specs[0].AllowedTools = withSourceAccess(specs[0].Capability, specs[0].AllowedTools)
 	}
 	criteria := []string{}
@@ -968,6 +1117,23 @@ func (u *UI) approveProjectPlan(ctx context.Context, p project.Project, b projec
 	}
 	if len(goalText) < 3 {
 		goalText = p.Goal
+	}
+	// Refresh the project's intent and capability set before the DAG is
+	// created, so task-capability inference and verification use the refined
+	// brief and the chosen direction, not the original create-time guess.
+	caps := append([]string(nil), p.Capabilities...)
+	caps = append(caps, project.InferCapabilities(b.Goal+" "+selected.Problem+" "+selected.Deliverable, p.RepositoryPath)...)
+	for _, s := range specs {
+		if project.ValidCapability(s.Capability) {
+			caps = append(caps, s.Capability)
+		}
+	}
+	intent := b.Goal
+	if strings.TrimSpace(intent) == "" {
+		intent = p.Goal
+	}
+	if err := u.deps.Projects.UpdateGoalAndCapabilities(ctx, p.ID, intent, caps); err != nil {
+		return fmt.Errorf("updating the project intent: %w", err)
 	}
 	if err := u.waitForIndex(ctx, p); err != nil {
 		return err

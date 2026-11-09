@@ -99,7 +99,7 @@ func SpecFor(id string) (Spec, bool) {
 var specs = map[string]Spec{
 	"project.goal": {
 		ID: "project.goal", Label: "Project goal",
-		Purpose:      "The durable goal of a project. It is consumed by discovery, the interview, planning, and every task.",
+		Purpose:      "The durable goal of a project. It is consumed by discovery, planning, and every task.",
 		Requirements: "State the outcome and the scope boundary. Include who it is for only if the user stated it; otherwise leave it out and record the missing audience in added_assumptions. One to four sentences. Do not add generic adjectives or claims.",
 		Preserve:     "Preserve the user's intent, language, named entities, constraints, and any explicit exclusions. Do not add facts, URLs, numbers, names, audiences, or requirements that are not present or strictly implied.",
 		MaxWords:     160,
@@ -159,13 +159,6 @@ var specs = map[string]Spec{
 		Requirements: "Use observable signals: a count, a decision, a shipped artifact, a test, or a user action. Prefer 1–5 lines.",
 		Preserve:     "Preserve the user's intent and any existing signals. Do not invent metrics or numbers.",
 		MaxWords:     120,
-	},
-	"interview.answer": {
-		ID: "interview.answer", Label: "Interview answer",
-		Purpose:      "An answer to a project-clarifying question. It feeds the project brief and plan.",
-		Requirements: "Answer the question directly and specifically. Keep the user's facts; remove filler.",
-		Preserve:     "Preserve the user's language and every concrete fact. Do not invent answers, preferences, or constraints.",
-		MaxWords:     150,
 	},
 	"correction.reason": {
 		ID: "correction.reason", Label: "Why it was rejected",
@@ -242,10 +235,6 @@ var clarifyQuestions = map[string][]string{
 	"brief.sources": {
 		"Which sources should discovery use?",
 		"What does each source support?",
-	},
-	"interview.answer": {
-		"What should the answer to this question be?",
-		"Which facts or preferences must it include?",
 	},
 	"correction.reason": {
 		"What was wrong, and where?",

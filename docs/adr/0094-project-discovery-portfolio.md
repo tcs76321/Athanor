@@ -111,3 +111,15 @@ directions make a usable portfolio. If validation still fails, the service
 makes one bounded repair attempt with the rejection reason and the mandatory
 field list; only a second failure is surfaced to the operator.
 
+## Amendment — 2026-11-08: the six-field work contract
+
+Migration 0042 replaces the audience-first fields with six required work
+fields — **title, problem, scope, approach, deliverable, check** — plus
+optional risks and assumptions. `one_liner`, `domain`, `focus`, `audience`,
+`need`, `format`, `availability`, `first_deliverable`, `first_check`, and the
+evidence list were removed; existing rows were backfilled into the new fields
+rather than discarded. An audience-first pitch was the wrong shape for a
+local agent doing contained work, and the evidence list was ungrounded because
+the model never read the sources. No field asks for human time, cost, or
+skills, and no score ranks the portfolio.
+

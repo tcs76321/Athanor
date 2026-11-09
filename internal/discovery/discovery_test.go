@@ -14,12 +14,12 @@ import (
 
 func sampleOptions() []Option {
 	return []Option{
-		{Title: "Daily global news brief", OneLiner: "A short, source-triaged world brief", Domain: "Media", Focus: "World news", Audience: "Readers who want one coherent update", Need: "Coverage is fragmented across outlets", Approach: "Group stories by region, then by consequence", Format: "Daily brief", Availability: "Public", FirstDeliverable: "One-page brief with source links", FirstCheck: "Five readers mark what is unclear"},
-		{Title: "CSV reconciliation CLI", OneLiner: "A local tool that explains row differences", Domain: "Software", Focus: "Data operations", Audience: "Analysts comparing exports", Need: "Manual reconciliation is slow and error-prone", Approach: "Field-level diff with a readable report", Format: "Command-line tool", Availability: "Internal", FirstDeliverable: "Working prototype on two sample files", FirstCheck: "Run it against a known mismatch"},
-		{Title: "AI procurement policy memo", OneLiner: "A decision memo for internal tool purchases", Domain: "Public policy", Focus: "Procurement", Audience: "Procurement staff", Need: "Current rules are unclear and inconsistent", Approach: "Compare existing policies and propose a checklist", Format: "Memo", Availability: "Internal", FirstDeliverable: "Two-page memo with a draft checklist", FirstCheck: "Review with two policy owners"},
-		{Title: "Local air-quality dataset", OneLiner: "Normalized readings with provenance notes", Domain: "Environment", Focus: "Air quality", Audience: "Local researchers", Need: "Readings are scattered across formats", Approach: "Normalize, deduplicate, and document gaps", Format: "Dataset plus notes", Availability: "Public", FirstDeliverable: "One month of cleaned readings", FirstCheck: "Re-run the normalization on a second month"},
-		{Title: "Water-cycle visual explainer", OneLiner: "Annotated diagrams for a school lesson", Domain: "Education", Focus: "Science communication", Audience: "Secondary-school students", Need: "The process is abstract without visuals", Approach: "Step-by-step annotated diagrams", Format: "Image set", Availability: "Public", FirstDeliverable: "Three labeled diagrams", FirstCheck: "Ask a teacher to teach from them"},
-		{Title: "Battery-recycling research digest", OneLiner: "A weekly annotated paper digest", Domain: "Research", Focus: "Materials", Audience: "A small lab team", Need: "Relevant papers are easy to miss", Approach: "Annotate claims, methods, and limits", Format: "Weekly digest", Availability: "Internal", FirstDeliverable: "First digest with five papers", FirstCheck: "The lab team rates its usefulness"},
+		{Title: "Daily global news brief", Problem: "Coverage is fragmented across outlets", Scope: "World news in one coherent daily update; excludes opinion columns", Approach: "Group stories by region, then by consequence", Deliverable: "One-page brief with source links", Check: "Five readers mark what is unclear"},
+		{Title: "CSV reconciliation CLI", Problem: "Manual reconciliation is slow and error-prone", Scope: "Analysts comparing two exports; excludes schema migration", Approach: "Field-level diff with a readable report", Deliverable: "Command-line tool with a sample report", Check: "Run it against a known mismatch"},
+		{Title: "AI procurement policy memo", Problem: "Current rules are unclear and inconsistent", Scope: "A two-page decision memo for the procurement committee", Approach: "Compare existing policies and propose a checklist", Deliverable: "Memo with a draft checklist", Check: "Two policy owners review it"},
+		{Title: "Local air-quality dataset", Problem: "Readings are scattered across formats", Scope: "One month of local readings; excludes historical backfill", Approach: "Normalize, deduplicate, and document gaps", Deliverable: "Dataset plus provenance notes", Check: "Re-run the normalization on a second month"},
+		{Title: "Water-cycle visual explainer", Problem: "The process is abstract without visuals", Scope: "A secondary-school lesson; excludes a full animation", Approach: "Step-by-step annotated diagrams", Deliverable: "Three labeled diagrams", Check: "Ask a teacher to teach from them"},
+		{Title: "Battery-recycling research digest", Problem: "Relevant papers are easy to miss", Scope: "A small lab team; five papers per issue", Approach: "Annotate claims, methods, and limits", Deliverable: "Weekly digest with five annotated papers", Check: "The lab team rates its usefulness"},
 	}
 }
 
@@ -85,14 +85,14 @@ func TestDedupeAndValidate(t *testing.T) {
 
 func TestValidateRequiresCoreFields(t *testing.T) {
 	opts := sampleOptions()
-	opts[0].FirstCheck = ""
-	if _, err := Validate(opts); err == nil || !strings.Contains(err.Error(), "first_check") {
-		t.Fatalf("missing first_check error = %v", err)
+	opts[0].Check = ""
+	if _, err := Validate(opts); err == nil || !strings.Contains(err.Error(), "check") {
+		t.Fatalf("missing check error = %v", err)
 	}
 	opts = sampleOptions()
-	opts[0].Need = ""
-	if _, err := Validate(opts); err == nil || !strings.Contains(err.Error(), "need") {
-		t.Fatalf("missing need error = %v", err)
+	opts[0].Problem = ""
+	if _, err := Validate(opts); err == nil || !strings.Contains(err.Error(), "problem") {
+		t.Fatalf("missing problem error = %v", err)
 	}
 }
 
@@ -150,7 +150,7 @@ func TestStoreRoundTripAndSelect(t *testing.T) {
 	if got.SelectedID != sess.Options[0].ID {
 		t.Fatalf("selected = %q, want %q", got.SelectedID, sess.Options[0].ID)
 	}
-	if got.Options[0].FirstCheck == "" || got.Options[0].Need == "" {
+	if got.Options[0].Check == "" || got.Options[0].Problem == "" {
 		t.Fatal("content fields did not survive the round trip")
 	}
 	if !strings.Contains(got.Options[0].Title, " ") {
@@ -240,10 +240,11 @@ func TestBuildPromptDoesNotForceBusinessFraming(t *testing.T) {
 	p := BuildPrompt(Request{Goal: "produce a daily global news report"})
 	for _, want := range []string{
 		"Stay inside the goal's subject",
-		"audience: who the work is for",
-		"format: the delivery format or operating model",
-		"first_deliverable",
-		"first_check",
+		"problem: the concrete gap",
+		"scope: the part of the goal",
+		"approach: the distinctive method",
+		"deliverable: the first concrete artifact",
+		"check: the concrete test",
 		"Do not add a commercial or fundraising framing",
 		"Do not estimate time, cost, human effort, or required skills",
 	} {
@@ -255,30 +256,18 @@ func TestBuildPromptDoesNotForceBusinessFraming(t *testing.T) {
 		"first paid offer", "time to first revenue", "time_to_first_revenue",
 		"business_model", "customer", "pricing",
 		"time_to_first_deliverable_days", "setup_cost_usd", "skills_required",
-		"confidence", "alternatives",
+		"confidence", "alternatives", "audience:", "first_deliverable", "first_check",
 	} {
 		if strings.Contains(strings.ToLower(p), unwanted) {
-			t.Errorf("prompt still contains human-cost or ungrounded instruction %q", unwanted)
+			t.Errorf("prompt still contains old direction instruction %q", unwanted)
 		}
-	}
-}
-
-func TestSanitizeFallsBackOneLiner(t *testing.T) {
-	opts := sampleOptions()
-	opts[0].OneLiner = ""
-	cleaned, dropped := Sanitize(opts)
-	if len(cleaned) != 6 || len(dropped) != 0 {
-		t.Fatalf("cleaned=%d dropped=%v, want 6 and none", len(cleaned), dropped)
-	}
-	if cleaned[0].OneLiner != cleaned[0].Title {
-		t.Fatalf("one_liner = %q, want the title %q", cleaned[0].OneLiner, cleaned[0].Title)
 	}
 }
 
 func TestSanitizeDropsIncompleteDirections(t *testing.T) {
 	opts := sampleOptions()
-	opts[2].Need = ""
-	opts[3].FirstCheck = ""
+	opts[2].Problem = ""
+	opts[3].Check = ""
 	cleaned, dropped := Sanitize(opts)
 	if len(cleaned) != 4 || len(dropped) != 2 {
 		t.Fatalf("cleaned=%d dropped=%d, want 4 and 2 (%v)", len(cleaned), len(dropped), dropped)
@@ -323,7 +312,7 @@ func TestGenerateRepairsARejectedPortfolioOnce(t *testing.T) {
 		t.Fatal(err)
 	}
 	broken := sampleOptions()[:4]
-	broken[0].Need = ""
+	broken[0].Problem = ""
 	brokenRaw, _ := json.Marshal(broken)
 	goodRaw, _ := json.Marshal(sampleOptions())
 	gen := &repairGenerator{raws: []string{string(brokenRaw), string(goodRaw)}}

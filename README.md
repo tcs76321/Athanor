@@ -171,11 +171,12 @@ Then watch it work in real time from the Watch View, or queue it and check the M
 - **Project onboarding, discovery, and research limits.** Creating a project
   now continues into a guided brief: clarify the outcome, the limits, the
   success criteria, and the sources Athanor may read. Goals get a **portfolio**
-  of directions (domain, focus, audience, need, approach, format, first
-  deliverable, first check) instead of one generated document; the operator
-  chooses a direction, can ask for **three reviewable plans**, and approves one
-  that creates dependency-ordered tasks. The deterministic plan remains the
-  zero-cost fallback. The legacy interview remains available. Discovery and
+  of directions (problem, scope, approach, deliverable, check, with optional
+  risks and assumptions) instead of one generated document; the operator
+  chooses a direction, generates **three reviewable plans** from one seed call
+  plus one expansion per plan, and approves one that creates
+  dependency-ordered tasks. The deterministic plan remains the zero-cost
+  fallback. The classic interview is retired. Discovery and
   planning use the measured model pool, are bounded, and never invent facts or
   citations; only human-approved sources are fetched through the gateway. See
   [ADR-0094](docs/adr/0094-project-discovery-portfolio.md),

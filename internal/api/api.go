@@ -8,7 +8,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -20,7 +19,6 @@ import (
 	"github.com/tcs76321/athanor/internal/decompose"
 	"github.com/tcs76321/athanor/internal/firstuse"
 	"github.com/tcs76321/athanor/internal/hitl"
-	"github.com/tcs76321/athanor/internal/interview"
 	"github.com/tcs76321/athanor/internal/job"
 	"github.com/tcs76321/athanor/internal/project"
 	"github.com/tcs76321/athanor/internal/review"
@@ -96,15 +94,6 @@ type Scheduler interface {
 // daemon that does not wire one answers 503 on the reset route.
 type TaskResetter interface {
 	Reset(ctx context.Context, taskID string) ([]string, error)
-}
-
-// Interview is the F3 project interview surface. The concrete implementation
-// is *interview.Repo.
-type Interview interface {
-	Ensure(ctx context.Context, projectID string, questions []interview.Question) (interview.Interview, error)
-	Get(ctx context.Context, projectID string) (interview.Interview, bool, error)
-	SaveAnswers(ctx context.Context, projectID string, answers map[string]string, plan string) (interview.Interview, error)
-	Decide(ctx context.Context, projectID, status string) (interview.Interview, error)
 }
 
 // ReviewStore is the F4 review queue surface. The concrete implementation is
@@ -189,7 +178,6 @@ type API struct {
 	scheduler   Scheduler
 	resetter    TaskResetter
 	hitl        HITL
-	interview   Interview
 	reviews     ReviewStore
 	pusher      Pusher
 	corrections Corrections
@@ -258,10 +246,6 @@ func (a *API) SetTaskResetter(r TaskResetter) { a.resetter = r }
 // wire one answers 503 on the queue routes.
 func (a *API) SetHITL(h HITL) { a.hitl = h }
 
-// SetInterview wires the F3 project interview. A daemon without one answers
-// 503 on the interview routes.
-func (a *API) SetInterview(i Interview) { a.interview = i }
-
 // SetReviews wires the F4 review queue.
 func (a *API) SetReviews(r ReviewStore) { a.reviews = r }
 
@@ -295,10 +279,6 @@ func (a *API) SetAlarms(s Alarms) { a.alarms = s }
 func (a *API) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /projects", a.handleProjectCreate)
 	mux.HandleFunc("GET /projects/{id}", a.handleProjectGet)
-	mux.HandleFunc("GET /projects/{id}/interview", a.handleInterview)
-	mux.HandleFunc("POST /projects/{id}/interview", a.handleInterviewSave)
-	mux.HandleFunc("POST /projects/{id}/interview/approve", a.handleInterviewApprove)
-	mux.HandleFunc("POST /projects/{id}/interview/skip", a.handleInterviewSkip)
 	mux.HandleFunc("POST /projects/{id}/goals", a.handleGoalSubmit)
 	mux.HandleFunc("GET /projects/{id}/artifacts", a.handleArtifacts)
 	mux.HandleFunc("GET /jobs/{id}", a.handleJobGet)
@@ -369,6 +349,7 @@ type projectRequest struct {
 	Name      string   `json:"name"`
 	Archetype string   `json:"archetype"`
 	Goal      string   `json:"goal"`
+	Priority  string   `json:"priority,omitempty"`
 	Criteria  []string `json:"acceptance_criteria"`
 	// RepositoryPath is the §6.1 repository root the M5-T8 indexer walks
 	// (ADR-0028). Optional; empty means no repository is configured.
@@ -377,8 +358,8 @@ type projectRequest struct {
 	// ADR-0031). Absent means "use the built-in archetype defaults".
 	Execution *projectExecution `json:"execution"`
 	// Start controls whether the initial goal is enqueued immediately.
-	// Omitted means true: the first goal starts work (M9-T5). Set false
-	// only to create project metadata without a job.
+	// Omitted means false: the project continues into guided onboarding.
+	// Set true only for the direct one-job path.
 	Start *bool `json:"start,omitempty"`
 }
 
@@ -425,7 +406,9 @@ func (a *API) handleProjectCreate(w http.ResponseWriter, r *http.Request) {
 	// M9-T5: project create starts the first goal by default, so a fresh
 	// project is not left with an unrun task. A metadata-only create is
 	// explicitly start:false.
-	start := req.Start == nil || *req.Start
+	// Omitted start means guided onboarding: metadata first, then the brief and
+	// approved plan. A caller that wants the direct one-job path sets true.
+	start := req.Start != nil && *req.Start
 	deps := firstuse.Deps{
 		Projects: a.projects, Jobs: a.jobs, Engine: a.engine,
 		Events: a.db, Freezer: a.freezer,
@@ -445,7 +428,7 @@ func (a *API) handleProjectCreate(w http.ResponseWriter, r *http.Request) {
 	res, err := firstuse.Create(r.Context(), deps, firstuse.Input{
 		Name: req.Name, Goal: req.Goal,
 		RepositoryPath: req.RepositoryPath, Criteria: req.Criteria,
-		Execution: execution, Start: start,
+		Execution: execution, Priority: req.Priority, Start: start,
 	})
 	if err != nil {
 		status := http.StatusBadRequest
@@ -471,109 +454,6 @@ func (a *API) handleProjectCreate(w http.ResponseWriter, r *http.Request) {
 		RepositoryPath: res.Project.RepositoryPath,
 		TaskID:         res.Task.ID, JobID: res.JobID,
 		Index: index, IndexWarning: res.IndexWarning,
-	})
-}
-
-// firstUseDeps builds the shared create/start dependencies.
-func (a *API) firstUseDeps() firstuse.Deps {
-	return firstuse.Deps{
-		Projects: a.projects, Jobs: a.jobs, Engine: a.engine,
-		Events: a.db, Freezer: a.freezer,
-	}
-}
-
-func (a *API) firstTask(ctx context.Context, projectID string) (project.Task, error) {
-	tasks, err := a.projects.TasksByProject(ctx, projectID)
-	if err != nil {
-		return project.Task{}, err
-	}
-	if len(tasks) == 0 {
-		return project.Task{}, fmt.Errorf("project has no task")
-	}
-	return tasks[0], nil
-}
-
-func (a *API) handleInterview(w http.ResponseWriter, r *http.Request) {
-	if a.interview == nil {
-		writeError(w, http.StatusServiceUnavailable, "project interview is not configured")
-		return
-	}
-	p, err := a.projects.Get(r.Context(), r.PathValue("id"))
-	if err != nil {
-		writeError(w, http.StatusNotFound, err.Error())
-		return
-	}
-	in, err := a.interview.Ensure(r.Context(), p.ID, interview.Questions(p.PrimaryCapability()))
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	writeJSON(w, http.StatusOK, in)
-}
-
-type interviewSaveRequest struct {
-	Answers map[string]string `json:"answers"`
-}
-
-func (a *API) handleInterviewSave(w http.ResponseWriter, r *http.Request) {
-	if a.interview == nil {
-		writeError(w, http.StatusServiceUnavailable, "project interview is not configured")
-		return
-	}
-	p, err := a.projects.Get(r.Context(), r.PathValue("id"))
-	if err != nil {
-		writeError(w, http.StatusNotFound, err.Error())
-		return
-	}
-	task, err := a.firstTask(r.Context(), p.ID)
-	if err != nil {
-		writeError(w, http.StatusConflict, err.Error())
-		return
-	}
-	var req interviewSaveRequest
-	if !decodeBody(w, r, &req) {
-		return
-	}
-	questions := interview.Questions(p.PrimaryCapability())
-	plan := interview.BuildPlan(interview.PlanInput{
-		Name: p.Name, Archetype: p.PrimaryCapability(), Goal: p.Goal,
-		Criteria: task.Criteria, TestCommand: p.TestCommand(),
-		Answers: req.Answers, Questions: questions,
-	})
-	in, err := a.interview.SaveAnswers(r.Context(), p.ID, req.Answers, plan)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	writeJSON(w, http.StatusOK, in)
-}
-
-func (a *API) handleInterviewApprove(w http.ResponseWriter, r *http.Request) {
-	a.handleInterviewDecision(w, r, interview.StatusApproved)
-}
-
-func (a *API) handleInterviewSkip(w http.ResponseWriter, r *http.Request) {
-	a.handleInterviewDecision(w, r, interview.StatusSkipped)
-}
-
-func (a *API) handleInterviewDecision(w http.ResponseWriter, r *http.Request, status string) {
-	if a.interview == nil {
-		writeError(w, http.StatusServiceUnavailable, "project interview is not configured")
-		return
-	}
-	projectID := r.PathValue("id")
-	in, err := a.interview.Decide(r.Context(), projectID, status)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	jobID, err := firstuse.StartProject(r.Context(), a.firstUseDeps(), projectID)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{
-		"interview": in, "job_id": jobID,
 	})
 }
 

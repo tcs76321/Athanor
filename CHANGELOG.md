@@ -10,16 +10,52 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Onboarding contract + planning pipeline (2026-11-08)
+
+- **Direction is a work contract.** Six required fields — problem, scope,
+  approach, deliverable, and check, plus the title — with optional risks and
+  assumptions. The audience-first fields (`one_liner`, `domain`, `focus`,
+  `audience`, `need`, `format`, `availability`, `first_deliverable`,
+  `first_check`, evidence) are gone from the prompt, model, store, UI, and
+  docs; migration 0042 backfills existing rows into the new fields and drops
+  the old columns.
+- **Planning is one seed call plus three expansions.** The seed call returns
+  three compact scaffolds, one per stance (smallest verifiable slice, deepest
+  coverage, lowest-risk sequence); three expansion calls turn each seed into a
+  complete plan, once each, with one bounded repair retry per call. The model
+  chosen by the seed call is pinned for the run. The run persists its stage,
+  prompt/response size, output tail, token count, heartbeat, and per-plan
+  status; a restart marks an orphaned run interrupted immediately, and a
+  failed expansion leaves the other plans usable. Migration 0043 adds the
+  columns.
+- **Plan approval validates a DAG.** Expanded tasks carry explicit keys and
+  dependency edges; approval rejects duplicate keys, unresolved references,
+  cycles, and missing acceptance criteria before creating tasks, and refreshes
+  the project's inferred capabilities.
+- **Guided create has no placeholder task.** A UI/API create without
+  `start: true` leaves the first task graph to the approved plan; the classic
+  direct path is explicit (`-start` on the CLI, `start: true` in the API).
+- **Project priority.** `critical|high|medium|low` is stored per project and
+  exposed in the create UI, API, and CLI. At most one project is critical (a
+  new critical demotes the previous one to high). The queue dispatches by
+  priority with 30-minute aging that never promotes to critical; it does not
+  preempt a running job.
+- **The classic interview is retired.** The UI page, API routes, package,
+  templates, and `project_interviews` table are removed (migration 0044). The
+  brief, portfolio, and approved plan are the single onboarding path.
+- **Back navigation.** The step rail links back to the brief and directions,
+  and the plan step can return to directions without losing the selected
+  direction. A failed or interrupted plan is immediately retryable.
+
 ### Project initialization cleanup (2026-11-08)
 
-- **Discovery is resilient to one bad direction.** A missing `one_liner` now
-  falls back to the title; a direction missing a substantive field (`need`,
-  `format`, `first_deliverable`, `first_check`) is dropped by name. A portfolio
-  of four complete directions is accepted, and the service makes one bounded
-  repair pass with the rejection reason when validation still fails. The prompt
-  requires non-empty keys and at least four complete objects. This fixes the
-  “option 4 is missing one_liner” failure that rejected an otherwise usable
-  portfolio.
+- **Discovery is resilient to one bad direction.** A direction missing a
+  substantive field is dropped by name rather than rejecting the whole
+  portfolio. A portfolio of four complete directions is accepted, and the
+  service makes one bounded repair pass with the rejection reason when
+  validation still fails. The prompt requires non-empty keys and at least four
+  complete objects. (The field list was replaced later the same day by the
+  six-field contract above.)
 
 - **Human cost and time removed.** A discovery direction no longer carries
   `setup_cost_usd` or `time_to_first_deliverable_days`, and the prompts no

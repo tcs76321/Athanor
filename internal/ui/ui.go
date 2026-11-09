@@ -36,7 +36,6 @@ import (
 	"github.com/tcs76321/athanor/internal/firstuse"
 	"github.com/tcs76321/athanor/internal/hitl"
 	"github.com/tcs76321/athanor/internal/interruptions"
-	"github.com/tcs76321/athanor/internal/interview"
 	"github.com/tcs76321/athanor/internal/job"
 	"github.com/tcs76321/athanor/internal/operator"
 	"github.com/tcs76321/athanor/internal/project"
@@ -139,7 +138,6 @@ type Deps struct {
 	Eval          *evaluation.Repo
 	HITL          *hitl.Service
 	HITLRepo      *hitl.Repo
-	Interviews    *interview.Repo
 	Interruptions *interruptions.Repo
 	Strategy      *strategy.Repo
 	Freezer       Freezer
@@ -548,11 +546,12 @@ func (u *UI) handleProjectCreate(w http.ResponseWriter, r *http.Request) {
 	goal := strings.TrimSpace(r.FormValue("goal"))
 	repo := strings.TrimSpace(r.FormValue("repository_path"))
 	criteria := splitCriteria(r.FormValue("criteria"))
+	priority := strings.TrimSpace(r.FormValue("priority"))
 	start := r.FormValue("start") != ""
 
 	values := map[string]any{
 		"Name": name, "Goal": goal, "RepositoryPath": repo,
-		"Criteria": r.FormValue("criteria"), "Start": start,
+		"Criteria": r.FormValue("criteria"), "Priority": priority, "Start": start,
 	}
 	if name == "" || goal == "" {
 		values["Error"] = "name and goal are required"
@@ -568,7 +567,7 @@ func (u *UI) handleProjectCreate(w http.ResponseWriter, r *http.Request) {
 	}
 	res, err := firstuse.Create(r.Context(), deps, firstuse.Input{
 		Name: name, Goal: goal,
-		RepositoryPath: repo, Criteria: criteria, Start: start,
+		RepositoryPath: repo, Criteria: criteria, Priority: priority, Start: start,
 	})
 	if err != nil {
 		values["Error"] = err.Error()
@@ -659,98 +658,9 @@ func (u *UI) handleProject(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// interviewState loads the project, its first task, and the resumable
-// interview row. The plan is generated only when the operator saves answers;
-// this page can be revisited at any time.
-func (u *UI) interviewState(ctx context.Context, projectID string) (project.Project, project.Task, interview.Interview, error) {
-	if u.deps.Interviews == nil {
-		return project.Project{}, project.Task{}, interview.Interview{}, fmt.Errorf("project interview is not configured")
-	}
-	p, err := u.deps.Projects.Get(ctx, projectID)
-	if err != nil {
-		return project.Project{}, project.Task{}, interview.Interview{}, err
-	}
-	tasks, err := u.deps.Projects.TasksByProject(ctx, projectID)
-	if err != nil {
-		return project.Project{}, project.Task{}, interview.Interview{}, err
-	}
-	if len(tasks) == 0 {
-		return project.Project{}, project.Task{}, interview.Interview{}, fmt.Errorf("project has no task")
-	}
-	in, err := u.deps.Interviews.Ensure(ctx, projectID, interview.Questions(p.PrimaryCapability()))
-	return p, tasks[0], in, err
-}
-
-func (u *UI) handleInterviewPage(w http.ResponseWriter, r *http.Request) {
-	p, task, in, err := u.interviewState(r.Context(), r.PathValue("id"))
-	if err != nil {
-		u.fail(w, err)
-		return
-	}
-	u.render(w, "Plan "+p.Name, interviewBody, map[string]any{
-		"Project": p, "Task": task, "Interview": in,
-		"Questions": in.Questions, "Plan": in.Plan, "Answers": in.Answers,
-	})
-}
-
-func (u *UI) handleInterviewSave(w http.ResponseWriter, r *http.Request) {
-	p, task, in, err := u.interviewState(r.Context(), r.PathValue("id"))
-	if err != nil {
-		u.fail(w, err)
-		return
-	}
-	if err := r.ParseForm(); err != nil {
-		u.fail(w, err)
-		return
-	}
-	answers := map[string]string{}
-	for _, q := range in.Questions {
-		if v := strings.TrimSpace(r.FormValue(q.ID)); v != "" {
-			answers[q.ID] = v
-		}
-	}
-	plan := interview.BuildPlan(interview.PlanInput{
-		Name: p.Name, Archetype: p.PrimaryCapability(), Goal: p.Goal,
-		Criteria: task.Criteria, TestCommand: p.TestCommand(),
-		Answers: answers, Questions: in.Questions,
-	})
-	if _, err := u.deps.Interviews.SaveAnswers(r.Context(), p.ID, answers, plan); err != nil {
-		u.fail(w, err)
-		return
-	}
-	http.Redirect(w, r, "/ui/projects/"+p.ID+"/interview", http.StatusSeeOther)
-}
-
-func (u *UI) handleInterviewApprove(w http.ResponseWriter, r *http.Request) {
-	u.decideInterview(w, r, interview.StatusApproved)
-}
-
-func (u *UI) handleInterviewSkip(w http.ResponseWriter, r *http.Request) {
-	u.decideInterview(w, r, interview.StatusSkipped)
-}
-
-func (u *UI) decideInterview(w http.ResponseWriter, r *http.Request, status string) {
-	projectID := r.PathValue("id")
-	if _, err := u.deps.Interviews.Decide(r.Context(), projectID, status); err != nil {
-		u.fail(w, err)
-		return
-	}
-	deps := firstuse.Deps{
-		Projects: u.deps.Projects, Jobs: u.deps.Jobs, Engine: u.deps.Engine,
-		Events: u.deps.Store, Freezer: u.deps.Freezer,
-	}
-	jobID, err := firstuse.StartProject(r.Context(), deps, projectID)
-	if err != nil {
-		u.fail(w, err)
-		return
-	}
-	http.Redirect(w, r, "/ui/jobs/"+jobID, http.StatusSeeOther)
-}
-
 // handleGoalCreate submits a follow-up goal to an existing project from the
 // project page. It creates the M1 task/job and enqueues it, then redirects to
-// the watch view. The full project interview (F3) is still to-build; this is
-// the minimal human loop.
+// the watch view.
 // handleTaskReset returns a blocked task and its blocked dependents to
 // pending through the scheduler's operator recovery path.
 func (u *UI) handleTaskReset(w http.ResponseWriter, r *http.Request) {
@@ -1739,16 +1649,6 @@ var funcs = template.FuncMap{
 			return s
 		}
 	},
-	"interviewLabel": func(s string) string {
-		switch s {
-		case "questions":
-			return "awaiting answers"
-		case "plan_ready":
-			return "plan ready"
-		default:
-			return s
-		}
-	},
 	"when": func(v any) string {
 		var t time.Time
 		switch x := v.(type) {
@@ -1783,7 +1683,6 @@ var funcs = template.FuncMap{
 		}
 		return string(b)
 	},
-	"interviewDone": func(s string) bool { return s == "approved" || s == "skipped" },
 	"priorityClass": func(v any) string {
 		switch project.NormalizePriority(fmt.Sprint(v)) {
 		case project.PriorityCritical:

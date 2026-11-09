@@ -208,8 +208,10 @@ athanor goal submit -project <ID> -goal "..." -criteria "..."   # optional follo
 ```
 
 `project create`'s `-goal` is the first goal and it is enqueued immediately; the
-command prints the job id to watch. The UI project interview (to build) replaces
-this flow.
+command prints the job id to watch. The CLI and API send `start: true` for this
+direct one-job path. Creating a project from the UI continues into guided
+onboarding instead: no placeholder task is created, and approval of the chosen
+plan creates the task graph.
 
 > **Code projects need tools.** The shipped daemon default is
 > `job_pod.default_tools: []`. `project create` and `goal submit` now give a
@@ -263,8 +265,9 @@ Two tracks; the first makes beta usable, the second makes it learn.
 3. **Onboarding (minimal)** — inferred quiet hours, optional name; a shipped
    **qualification ladder** command that enumerates installed models, runs a
    bounded grounded qualification, and proposes routing (apply = config edit).
-4. **Project interview + plan artifact** — resumable clarifying questions, a
-   plan the operator approves; a `clarification` HITL type.
+4. **Guided project plan** — a brief, a direction portfolio, and a seed +
+   three-expansion plan the operator approves; the classic interview is
+   retired.
 5. **Presentation surface** — "what was built / how to run / known-broken /
    cost", with the signal to present.
 6. **Notifications** — pending HITL, completion, critical alarm.

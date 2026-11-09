@@ -181,40 +181,100 @@ func openPlanStore(t *testing.T) (*store.Store, *Store) {
 	return s, NewStore(s)
 }
 
-type repairPlanGenerator struct {
-	calls int
-	raws  []string
+type pipelineGenerator struct {
+	calls      int
+	failFirst  bool
+	failedOnce bool
 }
 
-func (g *repairPlanGenerator) Generate(_ context.Context, req Request) (string, error) {
-	if g.calls > 0 && strings.TrimSpace(req.Repair) == "" {
-		return "", fmt.Errorf("retry had no repair hint")
-	}
-	raw := g.raws[g.calls]
+func (g *pipelineGenerator) Generate(_ context.Context, req Request) (string, error) {
 	g.calls++
-	return raw, nil
+	switch req.Phase {
+	case "seed":
+		seeds := []Seed{
+			{Stance: StanceSmallest, Title: "Smallest slice", Summary: "The smallest useful slice.", TaskTitles: []string{"Baseline", "Deliverable", "Check"}},
+			{Stance: StanceDeepest, Title: "Deepest coverage", Summary: "The deepest useful coverage.", TaskTitles: []string{"Survey", "Analyze", "Build", "Verify"}},
+			{Stance: StanceLowestRisk, Title: "Lowest risk", Summary: "Retire the largest uncertainty first.", TaskTitles: []string{"Probe", "Decide", "Build"}},
+		}
+		return string(mustJSON(seeds)), nil
+	case "expand":
+		if req.Seed == nil {
+			return "", fmt.Errorf("missing seed")
+		}
+		if g.failFirst && !g.failedOnce {
+			g.failedOnce = true
+			// Three tasks fail the expansion contract; the service must repair.
+			bad := Candidate{Stance: req.Seed.Stance, Title: req.Seed.Title, Summary: req.Seed.Summary,
+				Tasks: []Task{{Key: "t1", Title: "Only", Description: "too short", Capability: "document", Criteria: []string{"x"}}}}
+			return string(mustJSON(bad)), nil
+		}
+		c := Candidate{
+			Stance: req.Seed.Stance, Title: req.Seed.Title + " plan", Summary: req.Seed.Summary,
+			Tasks: []Task{
+				{Key: "t1", Title: "Establish baseline", Description: "Read the material and record the current state.", Capability: "document", Criteria: []string{"baseline recorded"}},
+				{Key: "t2", Title: "Produce deliverable", Description: "Produce the first deliverable.", Capability: "document", DependsOn: []string{"t1"}, Criteria: []string{"deliverable exists"}},
+				{Key: "t3", Title: "Probe risk", Description: "Check the riskiest assumption.", Capability: "document", DependsOn: []string{"t1"}, Criteria: []string{"probe recorded"}},
+				{Key: "t4", Title: "Verify", Description: "Run the check and record gaps.", Capability: "document", DependsOn: []string{"t2", "t3"}, Criteria: []string{"check recorded"}},
+			},
+			Risks: []string{"source gaps"}, Assumptions: []string{"sources are reachable"},
+		}
+		return string(mustJSON(c)), nil
+	}
+	return "", fmt.Errorf("unexpected phase %q", req.Phase)
 }
 
-func TestGenerateRepairsOnce(t *testing.T) {
+func mustJSON(v any) []byte {
+	b, err := json.Marshal(v)
+	if err != nil {
+		panic(err)
+	}
+	return b
+}
+
+func TestGenerateSeedsAndExpandsThreePlans(t *testing.T) {
 	_, ps := openPlanStore(t)
-	two, _ := json.Marshal([]Candidate{candidate("A"), candidate("B")})
-	three, _ := json.Marshal([]Candidate{candidate("A"), candidate("B"), candidate("C")})
-	gen := &repairPlanGenerator{raws: []string{string(two), string(three)}}
+	gen := &pipelineGenerator{}
 	svc := NewService(gen, ps)
 	sess, err := svc.Generate(context.Background(), "p1", "o1", Request{Goal: "a daily news brief"})
 	if err != nil {
-		t.Fatalf("repair run: %v", err)
+		t.Fatalf("generate: %v", err)
 	}
-	if gen.calls != 2 {
-		t.Fatalf("calls = %d, want original + one repair", gen.calls)
+	if gen.calls != 4 {
+		t.Fatalf("calls = %d, want seed + three expansions", gen.calls)
 	}
 	if sess.Status != "ready" || len(sess.Candidates) != 3 {
-		t.Fatalf("session = %+v, want a ready three-candidate plan", sess)
+		t.Fatalf("session = %+v, want three ready plans", sess)
+	}
+	seen := map[string]bool{}
+	for _, c := range sess.Candidates {
+		if c.Status != "ready" || len(c.Tasks) != 4 {
+			t.Fatalf("candidate = %+v, want a ready four-task plan", c)
+		}
+		seen[c.Stance] = true
+	}
+	if !seen[StanceSmallest] || !seen[StanceDeepest] || !seen[StanceLowestRisk] {
+		t.Fatalf("stances = %v, want all three", seen)
+	}
+}
+
+func TestGenerateRepairsOneExpansion(t *testing.T) {
+	_, ps := openPlanStore(t)
+	gen := &pipelineGenerator{failFirst: true}
+	svc := NewService(gen, ps)
+	sess, err := svc.Generate(context.Background(), "p1", "o1", Request{Goal: "a daily news brief"})
+	if err != nil {
+		t.Fatalf("generate: %v", err)
+	}
+	if gen.calls != 5 {
+		t.Fatalf("calls = %d, want seed + three expansions + one repair", gen.calls)
+	}
+	if sess.Status != "ready" || len(sess.Candidates) != 3 {
+		t.Fatalf("session = %+v, want three ready plans", sess)
 	}
 }
 
 func TestBuildPromptOmitsHumanCostAndUngroundedSignals(t *testing.T) {
-	p := BuildPrompt(Request{Goal: "a daily news brief", OptionTitle: "Daily brief", OneLiner: "A source-triaged update"})
+	p := BuildPrompt(Request{Goal: "a daily news brief", OptionTitle: "Daily brief", Problem: "Coverage is fragmented", Scope: "World news", Deliverable: "A daily brief", Check: "Five readers review it"})
 	for _, unwanted := range []string{"confidence", "score", "time to first", "setup cost", "fastest", "leanest"} {
 		if strings.Contains(strings.ToLower(p), unwanted) {
 			t.Errorf("plan prompt still contains %q", unwanted)
@@ -277,11 +337,14 @@ func TestSelectRejectsNonReadySession(t *testing.T) {
 func TestBuildPromptIncludesDirectionConstraintsAndRules(t *testing.T) {
 	got := BuildPrompt(Request{
 		Goal: "a daily news brief", OptionTitle: "Daily news brief",
-		OneLiner: "A short source-triaged update", Constraints: []string{"two hours a day"},
-		Sources: []string{"https://example.com"},
+		Problem: "A short source-triaged update", Scope: "World news",
+		Deliverable: "A daily brief", Check: "Five readers review it",
+		Constraints: []string{"two hours a day"},
+		Sources:     []string{"https://example.com"},
 	})
 	for _, want := range []string{
-		"GOAL: a daily news brief", "Daily news brief — A short source-triaged update",
+		"GOAL: a daily news brief", "CHOSEN DIRECTION: Daily news brief",
+		"PROBLEM: A short source-triaged update", "SCOPE: World news",
 		"two hours a day", "ALLOWED SOURCES", "exactly 3 objects",
 		"capability must be one of",
 	} {

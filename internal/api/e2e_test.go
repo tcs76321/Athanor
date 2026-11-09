@@ -237,13 +237,13 @@ func TestProjectCreateStartsFirstGoal(t *testing.T) {
 		return out
 	}
 
-	// Default: the first goal starts immediately.
+	// Explicit direct mode: the first goal starts immediately.
 	out := started(`{
-		"name": "starts-now", "archetype": "text",
+		"name": "starts-now", "archetype": "text", "start": true,
 		"goal": "Write a short essay about deterministic judgment."
 	}`)
 	if out.JobID == "" {
-		t.Fatal("default project create did not return a job id")
+		t.Fatal("direct project create did not return a job id")
 	}
 	jobs, err := h.jobs.ByTask(context.Background(), out.TaskID)
 	if err != nil {
@@ -256,19 +256,19 @@ func TestProjectCreateStartsFirstGoal(t *testing.T) {
 		t.Fatalf("started job = %s, want completed", j.State)
 	}
 
-	// Explicit false: metadata only, no job, no orphan work.
+	// Default (guided): metadata only, no placeholder task, no job.
 	meta := started(`{
-		"name": "metadata-only", "archetype": "text",
-		"goal": "Write a short essay about lossless context.", "start": false
+		"name": "metadata-only",
+		"goal": "Write a short essay about lossless context."
 	}`)
-	if meta.JobID != "" {
-		t.Fatalf("start:false returned job id %q", meta.JobID)
+	if meta.JobID != "" || meta.TaskID != "" {
+		t.Fatalf("guided create returned task %q job %q, want no work", meta.TaskID, meta.JobID)
 	}
-	jobs, err = h.jobs.ByTask(context.Background(), meta.TaskID)
+	tasks, err := h.api.projects.TasksByProject(context.Background(), meta.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(jobs) != 0 {
-		t.Fatalf("start:false created %d jobs, want 0", len(jobs))
+	if len(tasks) != 0 {
+		t.Fatalf("guided create left %d placeholder tasks, want 0", len(tasks))
 	}
 }

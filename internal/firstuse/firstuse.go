@@ -64,34 +64,10 @@ type Input struct {
 	RepositoryPath string
 	Criteria       []string
 	Execution      *project.Execution
-	Start          bool
-}
-
-// StartProject starts the first task that has no job yet. It is the F3
-// approval path: the project and task were created metadata-only, and the
-// operator has now approved (or skipped) the plan. A project whose task already
-// has a job returns that job instead of creating a duplicate.
-func StartProject(ctx context.Context, deps Deps, projectID string) (string, error) {
-	tasks, err := deps.Projects.TasksByProject(ctx, projectID)
-	if err != nil {
-		return "", err
-	}
-	if len(tasks) == 0 {
-		return "", errors.New("firstuse: project has no task to start")
-	}
-	t := tasks[0]
-	existing, err := deps.Jobs.ByTask(ctx, t.ID)
-	if err != nil {
-		return "", err
-	}
-	if len(existing) > 0 {
-		return existing[0].ID, nil
-	}
-	j, err := StartTaskJob(ctx, deps.Events, deps.Projects, deps.Jobs, deps.Engine, t.ID, t.ProjectID)
-	if err != nil {
-		return "", fmt.Errorf("starting first task: %w", err)
-	}
-	return j, nil
+	// Priority is the operator's project priority (critical|high|medium|low).
+	// Empty means medium.
+	Priority string
+	Start    bool
 }
 
 // StartTaskJob creates a queued job and marks a pending/ready task running in
@@ -185,9 +161,21 @@ func Create(ctx context.Context, deps Deps, in Input) (Result, error) {
 	var p project.Project
 	var task project.Task
 	if in.Archetype == "" {
-		p, task, err = deps.Projects.CreateInferred(ctx, in.Name, in.Goal, in.RepositoryPath, in.Criteria)
+		if start {
+			p, task, err = deps.Projects.CreateInferredWithPriority(ctx, in.Name, in.Goal, in.RepositoryPath, in.Criteria, in.Priority)
+		} else {
+			// Guided onboarding: the project exists before its first task.
+			// Approval creates the validated DAG; there is no placeholder.
+			p, err = deps.Projects.CreateBareInferred(ctx, in.Name, in.Goal, in.RepositoryPath, in.Criteria, in.Priority)
+		}
 	} else {
 		p, task, err = deps.Projects.Create(ctx, in.Name, in.Archetype, in.Goal, in.RepositoryPath, in.Criteria)
+		if err == nil && strings.TrimSpace(in.Priority) != "" {
+			if perr := deps.Projects.SetPriority(ctx, p.ID, in.Priority); perr != nil {
+				return Result{}, fmt.Errorf("setting project priority: %w", perr)
+			}
+			p.Priority = project.NormalizePriority(in.Priority)
+		}
 	}
 	if err != nil {
 		return Result{}, err

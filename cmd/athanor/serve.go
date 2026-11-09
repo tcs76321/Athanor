@@ -36,7 +36,6 @@ import (
 	"github.com/tcs76321/athanor/internal/internalapi"
 	"github.com/tcs76321/athanor/internal/internalapi/runner"
 	"github.com/tcs76321/athanor/internal/interruptions"
-	"github.com/tcs76321/athanor/internal/interview"
 	"github.com/tcs76321/athanor/internal/job"
 	"github.com/tcs76321/athanor/internal/jobpod"
 	"github.com/tcs76321/athanor/internal/llm"
@@ -449,7 +448,6 @@ func run(configPath, addr, stateDir string, container bool) error {
 	// known-issues H8: the operator reset seam behind POST /tasks/{id}/reset.
 	externalAPI.SetTaskResetter(sched)
 	externalAPI.SetHITL(hitlSvc)
-	externalAPI.SetInterview(interview.NewRepo(st))
 	externalAPI.SetReviews(review.NewRepo(st))
 	externalAPI.SetPusher(gitPusher{projects: projectRepo, hitl: hitlRepo, artifacts: artifactStore})
 	externalAPI.SetCorrections(correctionsRepo)
@@ -479,6 +477,13 @@ func run(configPath, addr, stateDir string, container bool) error {
 		runtimeLabel = "host (development)"
 	}
 	restartCh := make(chan struct{}, 1)
+	// M9-T3: the planning store marks any run whose process died as
+	// interrupted at boot, so the plan step can retry immediately instead of
+	// waiting for a long timeout.
+	planningStore := planning.NewStore(st)
+	if err := planningStore.InterruptStale(context.Background(), 0); err != nil {
+		slog.Error("planning: marking stale runs interrupted", "err", err)
+	}
 	webUI := ui.New(ui.Deps{
 		Store: st, Projects: projectRepo, Jobs: job.NewRepository(st),
 		Artifacts: artifactStore, Corrections: correctionsRepo, HITL: hitlSvc,
@@ -488,7 +493,6 @@ func run(configPath, addr, stateDir string, container bool) error {
 		Config:        cfg,
 		Runtime:       runtimeLabel,
 		Version:       version,
-		Interviews:    interview.NewRepo(st),
 		Interruptions: interruptionsRepo, Strategy: strategyRepo,
 		Freezer: killSwitch, Control: killSwitch, Operator: opCtrl, Pool: modelPool, Engine: eng, Indexer: indexer,
 		Assist: assistSvc,
@@ -498,7 +502,7 @@ func run(configPath, addr, stateDir string, container bool) error {
 		),
 		Planning: planning.NewService(
 			&planningGenerator{client: llmClient, cfg: cfg, pool: modelPool},
-			planning.NewStore(st),
+			planningStore,
 		),
 		ModelAudit:   os.Getenv("ATHANOR_MODEL_AUDIT"),
 		Scheduler:    sched,

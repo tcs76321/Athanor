@@ -1,6 +1,7 @@
 # ADR 0088 — The project interview is a resumable plan gate
 
-**Status:** Accepted · **Date:** 2026-10-29 · **Refs:**
+**Status:** Superseded by [ADR-0094](0094-project-discovery-portfolio.md) and
+[ADR-0097](0097-ai-plan-candidates.md) · **Date:** 2026-10-29 · **Refs:**
 `docs/first-use.md` F3; ARCHITECTURE §6.1 (project model), §20 (HITL),
 §27 (UI); [ADR-0031](0031-project-execution-config.md) (execution config),
 [ADR-0087](0087-cooperative-job-cancellation.md) (job start).
@@ -62,3 +63,14 @@ prompt-injection surface. The plan is about intent, not prose quality.
   adds an expiry race for an internal, reversible decision.
 - **Edit `project create` to always stop.** Breaks the CLI/API contract and the
   existing M9-T5 behavior; the metadata-only path already exists.
+
+## Amendment — 2026-11-08: the classic interview is retired
+
+The separate question set is gone from the UI, API, package, and database
+(migration 0044). Guided onboarding replaced it with a durable brief, a
+direction portfolio, and a seed + three-expansion plan. The first job still
+starts only on an explicit approval; a project created for guided onboarding
+has no placeholder task, so approval creates the validated task graph. The
+deterministic plan remains the fallback when no generated plan is selected.
+This ADR is retained for the history of the plan gate, not as a current
+contract.

@@ -59,8 +59,8 @@ The GUI foundation and two-level onboarding are now implemented
   (`internal/discovery`, [ADR-0094](adr/0094-project-discovery-portfolio.md)),
   a selection, then either three reviewable plans
   (`internal/planning`, [ADR-0097](adr/0097-ai-plan-candidates.md)) or the
-  deterministic plan; approval creates the task graph. The legacy interview
-  remains.
+  deterministic plan; approval creates the task graph. The classic interview
+  is retired.
 - **Reading and search.** Safe Markdown rendering for artifacts and plans;
   global search over projects, artifacts, jobs, events, and surfaces; HTMX live
   search; a sitemap and command palette.

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/tcs76321/athanor/internal/ids"
@@ -49,7 +50,7 @@ func (r *Repo) Create(ctx context.Context, name, archetype, goal, repositoryPath
 		return Project{}, Task{}, fmt.Errorf("invalid archetype %q (§6.2: text|code|document|data|media)", archetype)
 	}
 	caps := CapabilitiesFromArchetype(archetype)
-	p, task, err := r.create(ctx, name, archetype, caps, PrimaryCapability(caps), goal, repositoryPath, criteria)
+	p, task, err := r.create(ctx, name, archetype, caps, PrimaryCapability(caps), goal, repositoryPath, criteria, PriorityMedium)
 	if err != nil || archetype != ArchetypeCode {
 		return p, task, err
 	}
@@ -72,19 +73,129 @@ func (r *Repo) Create(ctx context.Context, name, archetype, goal, repositoryPath
 // legacy archetype column is written with the primary capability only for
 // compatibility.
 func (r *Repo) CreateInferred(ctx context.Context, name, goal, repositoryPath string, criteria []string) (Project, Task, error) {
+	return r.CreateInferredWithPriority(ctx, name, goal, repositoryPath, criteria, PriorityMedium)
+}
+
+// CreateInferredWithPriority is the product project-create path: capabilities
+// are inferred and the operator's priority is set in the same transaction,
+// including the exclusive critical demotion.
+func (r *Repo) CreateInferredWithPriority(ctx context.Context, name, goal, repositoryPath string, criteria []string, priority string) (Project, Task, error) {
 	caps := InferCapabilities(goal, repositoryPath)
 	capability := InferTaskCapability(goal, caps, repositoryPath)
-	return r.create(ctx, name, capability, caps, capability, goal, repositoryPath, criteria)
+	return r.create(ctx, name, capability, caps, capability, goal, repositoryPath, criteria, priority)
+}
+
+// CreateBareInferred creates a project and its goal without a placeholder
+// task. The guided onboarding owns the first task graph; approval creates it.
+// The create-form criteria are stored in the project brief's success field so
+// they survive the absence of a task.
+func (r *Repo) CreateBareInferred(ctx context.Context, name, goal, repositoryPath string, criteria []string, priority string) (Project, error) {
+	if err := validateGoalText(goal); err != nil {
+		return Project{}, err
+	}
+	if name == "" {
+		return Project{}, fmt.Errorf("project name must not be empty")
+	}
+	priority = strings.TrimSpace(priority)
+	if priority == "" {
+		priority = PriorityMedium
+	}
+	if !ValidPriority(priority) {
+		return Project{}, fmt.Errorf("invalid project priority %q (critical|high|medium|low)", priority)
+	}
+	caps := NormalizeCapabilities(InferCapabilities(goal, repositoryPath))
+	capsJSON, err := json.Marshal(caps)
+	if err != nil {
+		return Project{}, fmt.Errorf("marshalling capabilities: %w", err)
+	}
+	projectID, goalID := ids.New(), ids.New()
+	tx, err := r.store.DB().BeginTx(ctx, nil)
+	if err != nil {
+		return Project{}, fmt.Errorf("beginning project create: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	if priority == PriorityCritical {
+		if _, err := tx.ExecContext(ctx,
+			`UPDATE projects SET priority = ? WHERE priority = ?`, PriorityHigh, PriorityCritical); err != nil {
+			return Project{}, fmt.Errorf("demoting the previous critical project: %w", err)
+		}
+	}
+	if _, err := tx.ExecContext(ctx,
+		`INSERT INTO projects (id, name, archetype, goal, repository_path, capabilities_json, priority) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		projectID, name, PrimaryCapability(caps), goal, nullIfEmpty(repositoryPath), string(capsJSON), priority,
+	); err != nil {
+		return Project{}, fmt.Errorf("inserting project: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx,
+		`INSERT INTO goals (id, project_id, text) VALUES (?, ?, ?)`,
+		goalID, projectID, goal,
+	); err != nil {
+		return Project{}, fmt.Errorf("inserting goal: %w", err)
+	}
+	success := strings.Join(criteria, "\n")
+	if _, err := tx.ExecContext(ctx,
+		`INSERT INTO project_briefs (project_id, status, goal, success) VALUES (?, 'pending', ?, ?)`,
+		projectID, goal, success,
+	); err != nil {
+		return Project{}, fmt.Errorf("seeding project brief: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return Project{}, fmt.Errorf("committing project create: %w", err)
+	}
+	return r.Get(ctx, projectID)
+}
+
+// UpdateGoalAndCapabilities keeps the project's intent and inferred
+// capabilities in step with a refined brief. It is one transaction so the
+// project cannot be left with a new goal and a stale capability set.
+func (r *Repo) UpdateGoalAndCapabilities(ctx context.Context, id, goal string, caps []string) error {
+	if err := validateGoalText(goal); err != nil {
+		return err
+	}
+	caps = NormalizeCapabilities(caps)
+	capsJSON, err := json.Marshal(caps)
+	if err != nil {
+		return fmt.Errorf("marshalling capabilities: %w", err)
+	}
+	res, err := r.store.DB().ExecContext(ctx,
+		`UPDATE projects SET goal = ?, capabilities_json = ? WHERE id = ?`,
+		goal, string(capsJSON), id)
+	if err != nil {
+		return fmt.Errorf("updating project intent: %w", err)
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return fmt.Errorf("%w: %s", ErrNotFound, id)
+	}
+	return nil
+}
+
+// UpdateCapabilities adds or replaces the project's inferred capability set.
+func (r *Repo) UpdateCapabilities(ctx context.Context, id string, caps []string) error {
+	caps = NormalizeCapabilities(caps)
+	capsJSON, err := json.Marshal(caps)
+	if err != nil {
+		return fmt.Errorf("marshalling capabilities: %w", err)
+	}
+	_, err = r.store.DB().ExecContext(ctx,
+		`UPDATE projects SET capabilities_json = ? WHERE id = ?`, string(capsJSON), id)
+	return err
 }
 
 // create is the shared insert path. archetype is the legacy column value;
 // primary is the first task's capability.
-func (r *Repo) create(ctx context.Context, name, archetype string, caps []string, primary, goal, repositoryPath string, criteria []string) (Project, Task, error) {
+func (r *Repo) create(ctx context.Context, name, archetype string, caps []string, primary, goal, repositoryPath string, criteria []string, priority string) (Project, Task, error) {
 	if err := validateGoalText(goal); err != nil {
 		return Project{}, Task{}, err
 	}
 	if name == "" {
 		return Project{}, Task{}, fmt.Errorf("project name must not be empty")
+	}
+	priority = strings.TrimSpace(priority)
+	if priority == "" {
+		priority = PriorityMedium
+	}
+	if !ValidPriority(priority) {
+		return Project{}, Task{}, fmt.Errorf("invalid project priority %q (critical|high|medium|low)", priority)
 	}
 	caps = NormalizeCapabilities(caps)
 	if !ValidCapability(primary) {
@@ -113,9 +224,16 @@ func (r *Repo) create(ctx context.Context, name, archetype string, caps []string
 	}
 	defer func() { _ = tx.Rollback() }()
 
+	if priority == PriorityCritical {
+		if _, err := tx.ExecContext(ctx,
+			`UPDATE projects SET priority = ? WHERE priority = ?`,
+			PriorityHigh, PriorityCritical); err != nil {
+			return Project{}, Task{}, fmt.Errorf("demoting the previous critical project: %w", err)
+		}
+	}
 	if _, err := tx.ExecContext(ctx,
-		`INSERT INTO projects (id, name, archetype, goal, repository_path, capabilities_json) VALUES (?, ?, ?, ?, ?, ?)`,
-		projectID, name, archetype, goal, nullIfEmpty(repositoryPath), string(capsJSON),
+		`INSERT INTO projects (id, name, archetype, goal, repository_path, capabilities_json, priority) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		projectID, name, archetype, goal, nullIfEmpty(repositoryPath), string(capsJSON), priority,
 	); err != nil {
 		return Project{}, Task{}, fmt.Errorf("inserting project: %w", err)
 	}

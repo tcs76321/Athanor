@@ -93,8 +93,8 @@ func TestCreateInfersCapabilities(t *testing.T) {
 		!slices.Contains(res.Project.Capabilities, project.CapabilityDocument) {
 		t.Errorf("capabilities = %v, want code+document", res.Project.Capabilities)
 	}
-	if res.Task.Capability != project.CapabilityCode {
-		t.Errorf("task capability = %q, want code", res.Task.Capability)
+	if res.Task.ID != "" {
+		t.Errorf("guided create made placeholder task %q; the plan owns the first task", res.Task.ID)
 	}
 }
 
@@ -121,29 +121,36 @@ func TestCreateRefusesWhenFrozen(t *testing.T) {
 	}
 }
 
-func TestStartProjectCreatesOneJob(t *testing.T) {
+func TestGuidedCreateHasNoPlaceholderTask(t *testing.T) {
 	deps, eng := newDeps(t, nil, frozen(false))
 	res, err := Create(context.Background(), deps, Input{
-		Name: "plan-first", Archetype: "text", Goal: "Write a short project brief.",
-		Start: false,
+		Name: "guided", Goal: "Write a short project brief.", Start: false,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if res.JobID != "" {
-		t.Fatalf("metadata create started a job: %s", res.JobID)
+	if res.Task.ID != "" || res.JobID != "" || len(eng.ids) != 0 {
+		t.Fatalf("guided create made work: task=%q job=%q enqueued=%v", res.Task.ID, res.JobID, eng.ids)
 	}
-	jobID, err := StartProject(context.Background(), deps, res.Project.ID)
+	tasks, err := deps.Projects.TasksByProject(context.Background(), res.Project.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if jobID == "" || len(eng.ids) != 1 {
-		t.Fatalf("start = %q / enqueued %v, want one job", jobID, eng.ids)
+	if len(tasks) != 0 {
+		t.Fatalf("guided create left %d placeholder tasks, want 0", len(tasks))
 	}
-	// Re-approval must not create a second job.
-	again, err := StartProject(context.Background(), deps, res.Project.ID)
-	if err != nil || again != jobID || len(eng.ids) != 1 {
-		t.Errorf("repeat start = (%q, %v) / enqueued %v, want the same job", again, err, eng.ids)
+}
+
+func TestDirectCreateStartsOneJob(t *testing.T) {
+	deps, eng := newDeps(t, nil, frozen(false))
+	res, err := Create(context.Background(), deps, Input{
+		Name: "direct", Goal: "Write a short project brief.", Start: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Task.ID == "" || res.JobID == "" || len(eng.ids) != 1 || eng.ids[0] != res.JobID {
+		t.Fatalf("direct create = task %q job %q enqueued %v, want one job", res.Task.ID, res.JobID, eng.ids)
 	}
 }
 

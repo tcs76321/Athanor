@@ -26,6 +26,7 @@ func runProject(args []string) error {
 	name := fs.String("name", "", "project name (required)")
 	archetype := fs.String("archetype", "", "deprecated compatibility override; normally inferred (code|data|document|text|media)")
 	goal := fs.String("goal", "", "project goal, 3-500 characters (required)")
+	priority := fs.String("priority", "", "project priority: critical|high|medium|low (default medium)")
 	repo := fs.String("repo", "", "repository root the indexer walks (optional)")
 	testCmd := fs.String("test-command", "", "advanced override; normally detected from the repository")
 	buildCmd := fs.String("build-command", "", "override the build command (optional)")
@@ -45,6 +46,10 @@ func runProject(args []string) error {
 	body := map[string]any{
 		"name": *name, "goal": *goal,
 		"acceptance_criteria": criteria, "repository_path": *repo,
+		"start": true,
+	}
+	if *priority != "" {
+		body["priority"] = *priority
 	}
 	if *archetype != "" {
 		body["archetype"] = *archetype
@@ -83,7 +88,11 @@ func runProject(args []string) error {
 	if err := apiCall(http.MethodPost, *addr+"/projects", body, &out); err != nil {
 		return err
 	}
-	fmt.Printf("project %s created (task %s)\n", out.ID, out.TaskID)
+	if out.TaskID != "" {
+		fmt.Printf("project %s created (task %s)\n", out.ID, out.TaskID)
+	} else {
+		fmt.Printf("project %s created\n", out.ID)
+	}
 	if out.Index != nil {
 		fmt.Printf("repository pre-index: %d indexed, %d skipped, %d chunks, %d summaries (%d failed)\n",
 			out.Index.Indexed, out.Index.Skipped, out.Index.Chunks, out.Index.Summarized, out.Index.Failed)

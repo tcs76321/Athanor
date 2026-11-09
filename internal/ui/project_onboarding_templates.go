@@ -5,7 +5,6 @@ const projectOnboardingBody = `
 <p class="sub">{{.Project.Goal}}</p>
 <div class="actions">
   <a class="btn secondary" href="/ui/projects/{{.Project.ID}}">Back to project</a>
-  <a class="btn secondary" href="/ui/projects/{{.Project.ID}}/interview">Classic interview</a>
 </div>
 {{if .Requested}}<div class="notice">Access request queued in the Inbox. The host stays unused until the allowlist is updated in config.yaml.</div>{{end}}
 {{if .DiscoveryError}}<div class="notice bad">Discovery failed: {{.DiscoveryError}}<br>The brief is still saved; start discovery again when ready.{{if .Run}}{{if .Run.Tail}}<details><summary>Raw model output (last 1200 chars)</summary><pre class="wrap">{{.Run.Tail}}</pre></details>{{end}}{{end}}</div>{{end}}
@@ -14,10 +13,10 @@ const projectOnboardingBody = `
   <div class="card">
     <div class="eyebrow">Project onboarding</div>
     <div class="stepper">
-      <div class="step {{if eq .Stage "brief"}}current{{end}} {{if or (eq .Stage "generating") (eq .Stage "choose") (eq .Stage "generating_plan") (eq .Stage "plan") (eq .Stage "approved")}}done{{end}}"><span class="num">1</span><span><span class="t">Brief</span><span class="d">Goal, limits, sources</span></span></div>
-      <div class="step {{if eq .Stage "generating"}}current{{end}} {{if or (eq .Stage "choose") (eq .Stage "generating_plan") (eq .Stage "plan") (eq .Stage "approved")}}done{{end}}"><span class="num">2</span><span><span class="t">Discover</span><span class="d">A portfolio of directions</span></span></div>
-      <div class="step {{if eq .Stage "choose"}}current{{end}} {{if or (eq .Stage "generating_plan") (eq .Stage "plan") (eq .Stage "approved")}}done{{end}}"><span class="num">3</span><span><span class="t">Choose</span><span class="d">Pick one direction</span></span></div>
-      <div class="step {{if or (eq .Stage "plan") (eq .Stage "generating_plan")}}current{{end}} {{if eq .Stage "approved"}}done{{end}}"><span class="num">4</span><span><span class="t">Plan</span><span class="d">Three AI plans</span></span></div>
+      <a class="step {{if eq .Stage "brief"}}current{{end}} {{if or (eq .Stage "generating") (eq .Stage "choose") (eq .Stage "generating_plan") (eq .Stage "plan") (eq .Stage "approved")}}done{{end}}" href="?view=brief"><span class="num">1</span><span><span class="t">Brief</span><span class="d">Goal, limits, sources</span></span></a>
+      <a class="step {{if eq .Stage "generating"}}current{{end}} {{if or (eq .Stage "choose") (eq .Stage "generating_plan") (eq .Stage "plan") (eq .Stage "approved")}}done{{end}}" href="?view=choose"><span class="num">2</span><span><span class="t">Discover</span><span class="d">A portfolio of directions</span></span></a>
+      <a class="step {{if eq .Stage "choose"}}current{{end}} {{if or (eq .Stage "generating_plan") (eq .Stage "plan") (eq .Stage "approved")}}done{{end}}" href="?view=choose"><span class="num">3</span><span><span class="t">Choose</span><span class="d">Pick one direction</span></span></a>
+      <div class="step {{if or (eq .Stage "plan") (eq .Stage "generating_plan")}}current{{end}} {{if eq .Stage "approved"}}done{{end}}"><span class="num">4</span><span><span class="t">Plan</span><span class="d">Seed + three expansions</span></span></div>
       <div class="step {{if eq .Stage "approved"}}current{{end}}"><span class="num">5</span><span><span class="t">Start</span><span class="d">Approve and run</span></span></div>
     </div>
   </div>
@@ -110,7 +109,7 @@ const projectOnboardingBody = `
   {{else if eq .Stage "choose"}}
     <div class="card">
       <h2>{{len .Session.Options}} directions</h2>
-      <p class="muted">Each option is a different audience, need, and approach. Read them and choose the one you want to develop; no synthetic score decides for you.</p>
+      <p class="muted">Each option is a different problem, scope, and approach. Read them and choose the one you want to develop; no synthetic score decides for you.</p>
     </div>
     {{if .Run}}{{if eq .Run.Status "failed"}}<div class="notice bad">{{.Run.Error}}<div class="actions"><a class="btn secondary" href="/ui/projects/{{$.Project.ID}}/onboarding">Try again</a></div></div>{{end}}{{end}}
     <div class="grid cols-2">
@@ -118,23 +117,16 @@ const projectOnboardingBody = `
       <div class="option">
         <div class="top">
           <div>
-            <div class="eyebrow">{{.Domain}} · {{.Focus}}</div>
             <div class="title">{{.Title}}</div>
           </div>
         </div>
-        <div class="one-liner">{{.OneLiner}}</div>
-        <div class="meta">
-          <span class="pill">{{len .Evidence}} evidence note{{if ne (len .Evidence) 1}}s{{end}}</span>
-        </div>
         <div class="stack">
-          <div><b>Audience</b> <span class="muted">{{.Audience}}</span></div>
-          <div><b>Need</b> <span class="muted">{{.Need}}</span></div>
+          <div><b>Problem</b> <span class="muted">{{.Problem}}</span></div>
+          <div><b>Scope</b> <span class="muted">{{.Scope}}</span></div>
           <div><b>Approach</b> <span class="muted">{{.Approach}}</span></div>
-          <div><b>Format</b> <span class="muted">{{.Format}}</span></div>
-          <div><b>First deliverable</b> <span class="muted">{{.FirstDeliverable}}</span></div>
-          <div><b>How to test it</b> <span class="muted">{{.FirstCheck}}</span></div>
+          <div><b>Deliverable</b> <span class="muted">{{.Deliverable}}</span></div>
+          <div><b>Check</b> <span class="muted">{{.Check}}</span></div>
         </div>
-        {{if .Evidence}}<details><summary>Evidence</summary>{{range .Evidence}}<div class="ev">{{.Claim}}{{if .Source}} — <span class="mono wrap">{{.Source}}</span>{{else}} <span class="muted">(unverified)</span>{{end}}</div>{{end}}</details>{{end}}
         {{if .Risks}}<details><summary>Risks and assumptions</summary>{{range .Risks}}<div class="ev">{{.}}</div>{{end}}{{range .Assumptions}}<div class="ev">Assumption: {{.}}</div>{{end}}</details>{{end}}
         <form method="post" action="/ui/projects/{{$.Project.ID}}/onboarding" class="actions">
           <input type="hidden" name="option" value="{{.ID}}">
@@ -143,17 +135,52 @@ const projectOnboardingBody = `
       </div>
       {{end}}
     </div>
+    <div class="actions">
+      <form method="post" action="/ui/projects/{{.Project.ID}}/onboarding">
+        <button class="secondary" name="action" value="back_to_brief">Back to brief</button>
+      </form>
+      <form method="post" action="/ui/projects/{{.Project.ID}}/onboarding">
+        <button class="secondary" name="action" value="regenerate_directions">Regenerate directions</button>
+      </form>
+    </div>
   {{else if eq .Stage "generating_plan"}}
-    <div class="card" data-live-card="planning" data-live-interval="4000">
+    <div class="card" data-live-card="planning" data-live-interval="3000">
       <div class="eyebrow">Planning in progress</div>
-      <h2>Athanor is drafting three plans.</h2>
-      <p class="muted">They differ by speed, depth, and risk. Planning is one bounded model pass, so there is no honest percentage; the status below updates in place and the session is resumable.</p>
-      <progress class="progress" max="100"></progress>
-      <p class="muted">{{if .PlanElapsed}}{{.PlanElapsed}} elapsed. {{end}}You can leave this page and come back; the plans stay here when the pass finishes.</p>
+      <h2>Seed the plans, then expand each one once.</h2>
+      <p class="muted">One call drafts three distinct seeds; three calls expand each into a complete plan. The model stays pinned for the whole run. No work starts until you approve a plan.</p>
+      {{with .PlanRun}}
+      <dl class="kv">
+        <dt>stage</dt><dd><code>{{.Stage}}</code>{{if .Detail}} — {{.Detail}}{{end}}</dd>
+        <dt>model</dt><dd><code>{{if .Model}}{{.Model}}{{else}}selecting…{{end}}</code></dd>
+        <dt>prompt</dt><dd>{{.PromptBytes}} chars assembled</dd>
+        <dt>response</dt><dd>{{.ResponseBytes}} chars received</dd>
+        {{if .PlanIndex}}<dt>plan</dt><dd>{{.PlanIndex}} of 3 · {{.Expanded}} ready</dd>{{end}}
+      </dl>
+      {{if .Tail}}<details><summary>Raw model output (last 1200 chars, display only)</summary><pre class="wrap">{{.Tail}}</pre></details>{{end}}
+      {{if .Steps}}<details open><summary>What Athanor is doing</summary><ol class="stack">{{range .Steps}}<li><span class="mono">{{ts .At}}</span> <b>{{.Stage}}</b> — {{.Detail}}</li>{{end}}</ol></details>{{end}}
+      {{end}}
+      {{if not .PlanRun}}
+      <dl class="kv">
+        <dt>stage</dt><dd><code>{{if .PlanSession.Stage}}{{.PlanSession.Stage}}{{else}}seed{{end}}</code></dd>
+        <dt>model</dt><dd><code>{{if .PlanSession.Model}}{{.PlanSession.Model}}{{else}}—{{end}}</code></dd>
+        <dt>prompt</dt><dd>{{.PlanSession.PromptBytes}} chars assembled</dd>
+        <dt>response</dt><dd>{{.PlanSession.ResponseBytes}} chars received</dd>
+        <dt>expanded</dt><dd>{{.PlanSession.ExpandedCount}} of 3</dd>
+      </dl>
+      {{if .PlanSession.Tail}}<details><summary>Raw model output (last 1200 chars, display only)</summary><pre class="wrap">{{.PlanSession.Tail}}</pre></details>{{end}}
+      {{end}}
+      {{if .PlanSession.Candidates}}
+      <div class="table-wrap">
+      <table><thead><tr><th>Stance</th><th>Seed</th><th>Status</th></tr></thead><tbody>
+      {{range .PlanSession.Candidates}}<tr><td>{{if .Stance}}{{.Stance}}{{else}}—{{end}}</td><td>{{.Title}}</td><td><span class="pill {{if eq .Status "ready"}}ok{{else if eq .Status "failed"}}bad{{else}}run{{end}}">{{.Status}}</span>{{if .Error}}<div class="del small">{{.Error}}</div>{{end}}</td></tr>{{end}}
+      </tbody></table>
+      </div>
+      {{end}}
+      <p class="muted">{{if .PlanElapsed}}{{.PlanElapsed}} elapsed. {{end}}You can leave this page and come back; the persisted stage is shown if the live run is unavailable.</p>
       <div class="actions">
         <a class="btn secondary" href="/ui/projects/{{.Project.ID}}/onboarding">Refresh</a>
         <form method="post" action="/ui/projects/{{.Project.ID}}/onboarding">
-          <button class="danger" name="action" value="cancel_planning" data-confirm="Cancel this plan pass? The selected direction stays; you can generate again.">Cancel planning</button>
+          <button class="secondary" name="action" value="cancel_planning">Cancel and choose another direction</button>
         </form>
       </div>
     </div>
@@ -161,17 +188,20 @@ const projectOnboardingBody = `
     <div class="card">
       <div class="eyebrow">Selected direction</div>
       <h2>{{.Selected.Title}}</h2>
-      <p class="muted">{{.Selected.OneLiner}}</p>
-      <div class="meta">
-        <span class="pill">{{.Selected.Domain}} · {{.Selected.Focus}}</span>
+      <div class="stack">
+        <div><b>Problem</b> <span class="muted">{{.Selected.Problem}}</span></div>
+        <div><b>Scope</b> <span class="muted">{{.Selected.Scope}}</span></div>
+        <div><b>Approach</b> <span class="muted">{{.Selected.Approach}}</span></div>
+        <div><b>Deliverable</b> <span class="muted">{{.Selected.Deliverable}}</span></div>
+        <div><b>Check</b> <span class="muted">{{.Selected.Check}}</span></div>
       </div>
       <div class="actions">
         <form method="post" action="/ui/projects/{{.Project.ID}}/onboarding">
-          <button class="secondary" name="action" value="reset">Choose a different direction</button>
+          <button class="secondary" name="action" value="back_to_directions">Back to directions</button>
         </form>
       </div>
     </div>
-    {{if .PlanError}}<div class="notice bad">Plan generation failed: {{.PlanError}}</div>{{end}}
+    {{if .PlanError}}<div class="notice bad">Plan generation failed: {{.PlanError}}<div class="actions"><form method="post" action="/ui/projects/{{.Project.ID}}/onboarding"><button class="primary small" name="action" value="generate_plans">Try again</button></form><form method="post" action="/ui/projects/{{.Project.ID}}/onboarding"><button class="secondary small" name="action" value="back_to_directions">Choose another direction</button></form></div></div>{{end}}
 
     {{if .SelectedPlan}}
     <div class="card">
@@ -202,23 +232,27 @@ const projectOnboardingBody = `
     </div>
     {{else if .PlanCandidates}}
     <h2>Three plans</h2>
-    <p class="muted">Choose the plan you want to execute. They differ by stance — a smallest verifiable slice, the deepest coverage, or the lowest-risk sequence — not by a score.</p>
+    <p class="muted">Choose the plan you want to execute. They differ by stance — a smallest verifiable slice, the deepest coverage, or the lowest-risk sequence — not by a score. A plan is usable only after its expansion finishes.</p>
     <div class="grid cols-3">
       {{range $i, $c := .PlanCandidates}}
       <div class="option">
         <div class="top">
-          <div><div class="eyebrow">Option {{add $i 1}}</div><div class="title">{{$c.Title}}</div></div>
+          <div><div class="eyebrow">{{if $c.Stance}}{{$c.Stance}}{{else}}Option{{end}} {{add $i 1}}</div><div class="title">{{$c.Title}}</div></div>
+          <span class="pill {{if eq $c.Status "ready"}}ok{{else if eq $c.Status "failed"}}bad{{else}}run{{end}}">{{if $c.Status}}{{$c.Status}}{{else}}seed{{end}}</span>
         </div>
         <p class="muted">{{$c.Summary}}</p>
         <div class="meta"><span class="pill">{{len $c.Tasks}} tasks</span></div>
         <div class="stack">
-          {{range $c.Tasks}}<div class="ev"><b>{{.Title}}</b> <span class="muted">· {{.Capability}}</span></div>{{end}}
+          {{range $c.Tasks}}<div class="ev"><b>{{.Title}}</b>{{if .Capability}} <span class="muted">· {{.Capability}}</span>{{end}}</div>{{end}}
         </div>
         {{if $c.Risks}}<details><summary>Risks</summary>{{range $c.Risks}}<div class="ev">{{.}}</div>{{end}}</details>{{end}}
+        {{if $c.Error}}<div class="del small">{{$c.Error}}</div>{{end}}
+        {{if eq $c.Status "ready"}}
         <form method="post" action="/ui/projects/{{$.Project.ID}}/onboarding" class="actions">
           <input type="hidden" name="plan" value="{{$i}}">
           <button class="primary" name="action" value="select_plan">Use this plan</button>
         </form>
+        {{end}}
       </div>
       {{end}}
     </div>
@@ -226,16 +260,20 @@ const projectOnboardingBody = `
       <form method="post" action="/ui/projects/{{.Project.ID}}/onboarding">
         <button class="secondary" name="action" value="generate_plans">Generate three again</button>
       </form>
+      <form method="post" action="/ui/projects/{{.Project.ID}}/onboarding">
+        <button class="secondary" name="action" value="back_to_directions">Back to directions</button>
+      </form>
     </div>
     {{else}}
     <div class="card">
       <div class="eyebrow">AI plans</div>
       {{if .PlanningAvailable}}
       <h2>Draft three plans.</h2>
-      <p class="muted">Athanor will turn the selected direction and your brief into three distinct plans: fastest usable first version, deepest coverage, and leanest path. You choose before work starts.</p>
+      <p class="muted">Athanor drafts three distinct seeds, then expands each once into a complete plan: a smallest verifiable slice, the deepest coverage, and the lowest-risk sequence. You choose before work starts.</p>
       <form method="post" action="/ui/projects/{{.Project.ID}}/onboarding">
         <button class="primary" name="action" value="generate_plans">Generate three plans</button>
       </form>
+      <p class="muted small">One seed call plus three expansion calls. The model stays pinned for the run.</p>
       <p class="muted small">Or approve the deterministic plan below without an extra model call.</p>
       {{else}}
       <h2>Simple plan.</h2>
@@ -244,6 +282,9 @@ const projectOnboardingBody = `
       <div class="actions">
         <form method="post" action="/ui/projects/{{.Project.ID}}/onboarding">
           <button class="{{if .PlanningAvailable}}secondary{{else}}primary{{end}}" name="action" value="approve">Approve plan and start</button>
+        </form>
+        <form method="post" action="/ui/projects/{{.Project.ID}}/onboarding">
+          <button class="secondary" name="action" value="back_to_directions">Back to directions</button>
         </form>
       </div>
     </div>
