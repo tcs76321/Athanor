@@ -32,6 +32,7 @@ image=${PROBE_IMAGE:-athanor-bench:latest}
 name=${BENCH_CORE_NAME:-athanor-bench-core}
 probe_out=${BENCH_PROBE_OUT:-/bench/out}
 bench_dir=${BENCH_DIR:-eval/bench/v2}
+ollama_url=${BENCH_OLLAMA:-http://host.containers.internal:11434}
 
 machine_sock() {
 	if [ "$(uname -s)" = Darwin ]; then
@@ -60,10 +61,10 @@ wait_health() {
 preflight() {
 	curl -fsS --max-time 3 http://127.0.0.1:7420/healthz >/dev/null ||
 		{ echo "bench-core: preflight: Core Pod is not healthy on 127.0.0.1:7420" >&2; return 1; }
-	podman exec "$name" sh -c '
+	podman exec -e ATHANOR_BENCH_OLLAMA="$ollama_url" "$name" sh -c '
 		set -eu
-		curl -fsS --max-time 5 http://host.containers.internal:11434/api/tags >/dev/null ||
-			{ echo "bench-core: preflight: Core cannot reach host Ollama at host.containers.internal:11434" >&2; 			  echo "  fix: bind Ollama to an address reachable from the Podman VM (see docs/deploy-core-pod.md)" >&2; exit 1; }
+		curl -fsS --max-time 5 "$ATHANOR_BENCH_OLLAMA/api/tags" >/dev/null ||
+			{ echo "bench-core: preflight: Core cannot reach host Ollama at $ATHANOR_BENCH_OLLAMA" >&2; 			  echo "  fix: bind Ollama to an address reachable from the Podman VM or run a loopback forwarder (see docs/deploy-core-pod.md)" >&2; exit 1; }
 		test -w /var/lib/athanor/state || { echo "bench-core: preflight: state volume is not writable" >&2; exit 1; }
 		test -d /bench || { echo "bench-core: preflight: /bench mount is missing" >&2; exit 1; }
 		podman info >/dev/null 2>&1 || { echo "bench-core: preflight: Podman socket is not reachable inside the Core" >&2; exit 1; }
@@ -106,6 +107,7 @@ probe)
 	shift
 	podman exec -w /bench/repo "$name" /usr/local/bin/athanor-probe soak \
 		-external -addr 127.0.0.1:7420 -state-dir /var/lib/athanor/state \
+		-ollama "$ollama_url" \
 		-out "$probe_out" "$@"
 	;;
 memory)

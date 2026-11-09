@@ -51,7 +51,7 @@ FROM debian:bookworm-slim
 # workspace egress is blocked (`scanner:clamav:absent`); `freshclam` bakes the
 # signature DB at build time so a fresh Core Pod can scan without a network.
 RUN apt-get update \
- && apt-get install -y --no-install-recommends ca-certificates tini podman git clamav yara \
+ && apt-get install -y --no-install-recommends ca-certificates curl tini podman git clamav yara \
  && rm -rf /var/lib/apt/lists/* \
  && freshclam --quiet
 
