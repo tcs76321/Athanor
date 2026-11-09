@@ -214,6 +214,24 @@ func (r *Repo) SetFrame(ctx context.Context, id, frameJSON, reviewPolicy string)
 	return nil
 }
 
+// TrackGoal maps a finished goal's status onto its cycle (ADR-0134). The
+// scheduler calls it when the goal reaches a terminal state; a non-terminal
+// status or an empty cycle ID is a no-op, so legacy one-shot goals are
+// unaffected.
+func (r *Repo) TrackGoal(ctx context.Context, cycleID, goalStatus string) error {
+	if cycleID == "" {
+		return nil
+	}
+	switch goalStatus {
+	case "completed":
+		return r.SetState(ctx, cycleID, StateCompleted)
+	case "failed":
+		return r.SetState(ctx, cycleID, StateFailed)
+	default:
+		return nil
+	}
+}
+
 func scan(row interface{ Scan(...any) error }) (Cycle, error) {
 	var c Cycle
 	err := row.Scan(&c.ID, &c.ProjectID, &c.Ordinal, &c.Kind, &c.Goal, &c.State,

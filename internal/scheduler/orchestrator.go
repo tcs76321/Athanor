@@ -38,6 +38,13 @@ type Escalator interface {
 // operator action cannot disturb an in-flight or already-terminal task.
 var ErrNotBlocked = errors.New("task is not blocked")
 
+// CycleTracker records a cycle's terminal state when its goal finishes
+// (ADR-0134). *cycle.Repo fills it; nil means cycles are not tracked, which is
+// the legacy one-shot posture.
+type CycleTracker interface {
+	TrackGoal(ctx context.Context, cycleID, goalStatus string) error
+}
+
 // Scheduler schedules a goal's DAG and advances it as jobs finish
 // (ARCHITECTURE §7.2; ADR-0033, ADR-0034). One mutex serializes every
 // scheduling pass so concurrent terminal callbacks cannot race a
@@ -50,6 +57,7 @@ type Scheduler struct {
 	maxRetries  int
 	redecompose ReDecomposer
 	escalator   Escalator
+	cycles      CycleTracker
 	mu          sync.Mutex
 }
 
@@ -75,6 +83,25 @@ func (s *Scheduler) SetReDecomposer(r ReDecomposer) { s.redecompose = r }
 
 // SetEscalator wires the HITL escalation seam.
 func (s *Scheduler) SetEscalator(e Escalator) { s.escalator = e }
+
+// SetCycleTracker wires the project-cycle state seam (ADR-0134).
+func (s *Scheduler) SetCycleTracker(t CycleTracker) { s.cycles = t }
+
+// trackCycle mirrors a finished goal's terminal status onto its cycle. A
+// tracker, cycle ID, or non-terminal status makes it a no-op.
+func (s *Scheduler) trackCycle(ctx context.Context, tasks []project.Task) {
+	if s.cycles == nil || len(tasks) == 0 || tasks[0].CycleID == "" {
+		return
+	}
+	status, err := s.projects.GoalStatus(ctx, tasks[0].GoalID)
+	if err != nil {
+		slog.Error("scheduler: loading goal status for cycle", "goal", tasks[0].GoalID, "err", err)
+		return
+	}
+	if err := s.cycles.TrackGoal(ctx, tasks[0].CycleID, status); err != nil {
+		slog.Error("scheduler: tracking cycle state", "cycle", tasks[0].CycleID, "err", err)
+	}
+}
 
 // Start schedules the ready leaves of a goal and returns the new job IDs.
 func (s *Scheduler) Start(ctx context.Context, goalID string) ([]string, error) {
@@ -156,6 +183,7 @@ func (s *Scheduler) OnJobTerminal(ctx context.Context, jobID string, state job.S
 	if err := s.projects.RecomputeGoalStatus(ctx, t.GoalID); err != nil {
 		slog.Error("scheduler: recomputing goal status", "goal", t.GoalID, "err", err)
 	}
+	s.trackCycle(ctx, tasks)
 }
 
 // handleFailure applies the §7.2 leaf-failure policy (ADR-0034 §1): retry
@@ -365,7 +393,11 @@ func (s *Scheduler) Reconcile(ctx context.Context, goalID string) error {
 	if _, err = s.advance(ctx, tasks); err != nil {
 		return err
 	}
-	return s.projects.RecomputeGoalStatus(ctx, goalID)
+	if err = s.projects.RecomputeGoalStatus(ctx, goalID); err != nil {
+		return err
+	}
+	s.trackCycle(ctx, tasks)
+	return nil
 }
 
 // settleTask applies a terminal task outcome recovered from a job. A task

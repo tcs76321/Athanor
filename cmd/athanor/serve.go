@@ -354,6 +354,9 @@ func run(configPath, addr, stateDir string, container bool) error {
 	// the engine notifies it through the terminal seam below.
 	sched := scheduler.New(projectRepo, job.NewRepository(st), eng, st)
 	sched.SetMaxTaskRetries(cfg.Execution.MaxTaskRetriesValue())
+	// ADR-0134: a finished goal marks its project cycle terminal.
+	cycleRepo := cycle.NewRepo(st)
+	sched.SetCycleTracker(cycleRepo)
 	eng.SetOnJobTerminal(sched.OnJobTerminal)
 	// M6-T4 (ADR-0035): the HITL queue. The scheduler's Escalator seam
 	// turns an exhausted task into a request; the service waits resumes,
@@ -526,7 +529,7 @@ func run(configPath, addr, stateDir string, container bool) error {
 		Freezer: killSwitch, Control: killSwitch, Operator: opCtrl, Pool: modelPool, Engine: eng, Indexer: indexer,
 		Assist:       assistSvc,
 		Intake:       intakeSvc,
-		Cycles:       cycle.NewRepo(st),
+		Cycles:       cycleRepo,
 		Starter:      sched,
 		Architect:    architectSvc,
 		ModelAudit:   os.Getenv("ATHANOR_MODEL_AUDIT"),

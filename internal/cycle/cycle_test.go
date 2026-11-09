@@ -81,6 +81,35 @@ func TestSetStateAndGraphRef(t *testing.T) {
 	}
 }
 
+func TestTrackGoalMapsTerminalStatus(t *testing.T) {
+	_, r := openStore(t)
+	ctx := context.Background()
+	c, err := r.Create(ctx, "p1", KindDiscovery, "Find a direction.")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := r.TrackGoal(ctx, c.ID, "decomposed"); err != nil {
+		t.Fatal(err)
+	}
+	got, err := r.Get(ctx, c.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.State != StateDraft {
+		t.Errorf("non-terminal status changed state to %q", got.State)
+	}
+	if err := r.TrackGoal(ctx, c.ID, "completed"); err != nil {
+		t.Fatal(err)
+	}
+	got, _ = r.Get(ctx, c.ID)
+	if got.State != StateCompleted {
+		t.Errorf("state = %q, want completed", got.State)
+	}
+	if err := r.TrackGoal(ctx, "", "completed"); err != nil {
+		t.Errorf("empty cycle: %v", err)
+	}
+}
+
 func TestCreateRejectsBadInput(t *testing.T) {
 	_, r := openStore(t)
 	ctx := context.Background()

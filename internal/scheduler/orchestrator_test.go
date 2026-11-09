@@ -527,6 +527,58 @@ func TestAdvanceRollsBackOnStatusConflict(t *testing.T) {
 
 // known-issues B1: the owning goal's status advances with its task graph, so a
 // fully-completed goal is reported honestly (the Morning Digest).
+type fakeCycleTracker struct {
+	cycleID string
+	status  string
+}
+
+func (f *fakeCycleTracker) TrackGoal(_ context.Context, cycleID, status string) error {
+	f.cycleID, f.status = cycleID, status
+	return nil
+}
+
+func TestCycleTrackerSeesTerminalGoal(t *testing.T) {
+	ctx := context.Background()
+	cases := []struct {
+		name   string
+		state  job.State
+		status string
+	}{
+		{"completed", job.StateCompleted, "completed"},
+		{"failed", job.StateCancelled, "failed"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			specs := []project.TaskSpec{{Key: "A", Title: "A", Criteria: []string{"a"}, CycleID: "cycle-1"}}
+			sched, _, _, _, goalID := harnessWith(t, specs)
+			tracker := &fakeCycleTracker{}
+			sched.SetCycleTracker(tracker)
+			started, err := sched.Start(ctx, goalID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			sched.OnJobTerminal(ctx, started[0], tc.state)
+			if tracker.cycleID != "cycle-1" || tracker.status != tc.status {
+				t.Errorf("tracked %q/%q, want cycle-1/%s", tracker.cycleID, tracker.status, tc.status)
+			}
+		})
+	}
+}
+
+func TestCycleTrackerIgnoresLegacyTasks(t *testing.T) {
+	sched, _, _, _, goalID := harness(t) // no CycleID on any spec
+	tracker := &fakeCycleTracker{}
+	sched.SetCycleTracker(tracker)
+	started, err := sched.Start(context.Background(), goalID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sched.OnJobTerminal(context.Background(), started[0], job.StateCompleted)
+	if tracker.cycleID != "" {
+		t.Errorf("legacy task tracked cycle %q", tracker.cycleID)
+	}
+}
+
 func TestGoalStatusAdvancesWithGraph(t *testing.T) {
 	sched, projects, _, eng, goalID := harness(t)
 	ctx := context.Background()
