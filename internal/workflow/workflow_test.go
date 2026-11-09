@@ -78,6 +78,63 @@ func TestCompileLinearGraph(t *testing.T) {
 	}
 }
 
+func TestValidateResolvesUniqueCompatiblePorts(t *testing.T) {
+	// research has two outputs (urls, text). An unnamed edge resolves by the
+	// unique compatible pair, so both natural compositions validate.
+	g := Graph{
+		Blocks: []Block{
+			{ID: "research", Kind: KindResearch},
+			{ID: "fetch", Kind: KindFetch},
+			{ID: "options", Kind: KindGenerateOptions},
+		},
+		Edges: []Edge{
+			{From: "research", To: "fetch"},
+			{From: "research", To: "options"},
+		},
+	}
+	if err := Validate(g, DefaultLimits()); err != nil {
+		t.Fatalf("unique-pair graph rejected: %v", err)
+	}
+}
+
+func TestValidateRejectsAmbiguousPorts(t *testing.T) {
+	// condense has one input and one output of the same type, so a chain
+	// between two condensers has two compatible pairs only if a block exposes
+	// both. Build that case explicitly: two identical ports on one side.
+	orig, _ := Spec(KindCondense)
+	dup := orig
+	dup.Inputs = []Port{{Name: "a", Type: PortItems}, {Name: "b", Type: PortItems}}
+	specs[KindCondense] = dup
+	t.Cleanup(func() { specs[KindCondense] = orig })
+	g := Graph{
+		Blocks: []Block{{ID: "x", Kind: KindCondense}, {ID: "y", Kind: KindCondense}},
+		Edges:  []Edge{{From: "x", To: "y"}},
+	}
+	err := Validate(g, DefaultLimits())
+	if err == nil || !strings.Contains(err.Error(), "ambiguous edge") {
+		t.Fatalf("Validate = %v, want ambiguous edge", err)
+	}
+}
+
+func TestValidateRepairsExplicitIncompatiblePorts(t *testing.T) {
+	// The model may name a plausible but wrong pair. With exactly one
+	// compatible pair between the blocks, the edge is repaired rather than
+	// the whole graph rejected.
+	g := Graph{
+		Blocks: []Block{
+			{ID: "research", Kind: KindResearch},
+			{ID: "options", Kind: KindGenerateOptions},
+		},
+		Edges: []Edge{{
+			From: "research", To: "options",
+			FromPort: "sources", ToPort: "brief", // urls -> text, wrong
+		}},
+	}
+	if err := Validate(g, DefaultLimits()); err != nil {
+		t.Fatalf("repairable edge rejected: %v", err)
+	}
+}
+
 func TestValidateRejectsBadGraphs(t *testing.T) {
 	base := func() Graph { return linearGraph() }
 

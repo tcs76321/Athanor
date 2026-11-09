@@ -79,8 +79,11 @@ type BlockSpec struct {
 var specs = map[Kind]BlockSpec{
 	KindResearch: {
 		Kind: KindResearch, Title: "Research", Capability: project.CapabilityDocument,
-		Inputs:       []Port{{Name: "topic", Type: PortText, Required: true}},
-		Outputs:      []Port{{Name: "sources", Type: PortURLs}},
+		Inputs: []Port{{Name: "topic", Type: PortText, Required: true}},
+		// Research both finds sources and leaves a written brief, so it can
+		// feed a fetch chain or an option generator directly. The unique
+		// compatible port pair decides an unnamed edge.
+		Outputs:      []Port{{Name: "sources", Type: PortURLs}, {Name: "notes", Type: PortText}},
 		DefaultTools: []string{"fetch_url", "search_web"},
 	},
 	KindFetch: {
@@ -266,18 +269,9 @@ func Validate(g Graph, limits Limits) error {
 		}
 		fromSpec, _ := Spec(from.Kind)
 		toSpec, _ := Spec(to.Kind)
-		fp, err := resolvePort(fromSpec.Outputs, e.FromPort, "output")
+		fp, tp, err := resolveEdgePorts(fromSpec.Outputs, toSpec.Inputs, e.FromPort, e.ToPort, e.From, e.To)
 		if err != nil {
 			return &ValidationError{Path: fmt.Sprintf("edges[%d]", i), Msg: err.Error()}
-		}
-		tp, err := resolvePort(toSpec.Inputs, e.ToPort, "input")
-		if err != nil {
-			return &ValidationError{Path: fmt.Sprintf("edges[%d]", i), Msg: err.Error()}
-		}
-		if fp.Type != tp.Type {
-			return &ValidationError{Path: fmt.Sprintf("edges[%d]", i),
-				Msg: fmt.Sprintf("type mismatch: %s.%s is %s, %s.%s is %s",
-					e.From, fp.Name, fp.Type, e.To, tp.Name, tp.Type)}
 		}
 		key := e.From + "\x00" + e.To + "\x00" + fp.Name + "\x00" + tp.Name
 		if seenEdge[key] {
@@ -294,19 +288,90 @@ func Validate(g Graph, limits Limits) error {
 	return nil
 }
 
-func resolvePort(ports []Port, name, direction string) (Port, error) {
-	if name != "" {
-		for _, p := range ports {
-			if p.Name == name {
-				return p, nil
+func namedPort(ports []Port, name, direction string) (Port, error) {
+	for _, p := range ports {
+		if p.Name == name {
+			return p, nil
+		}
+	}
+	return Port{}, fmt.Errorf("unknown %s port %q", direction, name)
+}
+
+// resolveEdgePorts picks the typed output/input pair an edge carries. An
+// explicit name must exist. An omitted side, or an explicitly named pair whose
+// types disagree, is resolved by the compatible pairs between the two blocks:
+// exactly one is used, zero is a type error, and more is ambiguous. Ports are
+// wiring, not a user contract, so a model's plausible-but-wrong port name is
+// repaired instead of discarding an otherwise sound graph. This is what keeps
+// a natural composition like research.notes -> generate_options.brief working.
+func resolveEdgePorts(outputs, inputs []Port, fromName, toName, fromID, toID string) (Port, Port, error) {
+	var fp, tp Port
+	if fromName != "" {
+		var err error
+		if fp, err = namedPort(outputs, fromName, "output"); err != nil {
+			return Port{}, Port{}, err
+		}
+	}
+	if toName != "" {
+		var err error
+		if tp, err = namedPort(inputs, toName, "input"); err != nil {
+			return Port{}, Port{}, err
+		}
+	}
+	if fromName != "" && toName != "" && fp.Type == tp.Type {
+		return fp, tp, nil
+	}
+	// A named pair that does not type-check is searched across all ports; an
+	// omitted side restricts the search to the named side.
+	filterFrom, filterTo := fromName, toName
+	requestedMismatch := fromName != "" && toName != "" && fp.Type != tp.Type
+	if requestedMismatch {
+		filterFrom, filterTo = "", ""
+	}
+	type pair struct{ out, in Port }
+	var candidates []pair
+	for _, o := range outputs {
+		if filterFrom != "" && o.Name != filterFrom {
+			continue
+		}
+		for _, in := range inputs {
+			if filterTo != "" && in.Name != filterTo {
+				continue
+			}
+			if o.Type == in.Type {
+				candidates = append(candidates, pair{o, in})
 			}
 		}
-		return Port{}, fmt.Errorf("unknown %s port %q", direction, name)
 	}
-	if len(ports) == 1 {
-		return ports[0], nil
+	switch len(candidates) {
+	case 0:
+		if requestedMismatch {
+			return Port{}, Port{}, fmt.Errorf("type mismatch: %s.%s is %s, %s.%s is %s, and no compatible pair exists",
+				fromID, fp.Name, fp.Type, toID, tp.Name, tp.Type)
+		}
+		return Port{}, Port{}, fmt.Errorf("type mismatch: no compatible port pair between %s and %s (%s)",
+			fromID, toID, describePorts(outputs, inputs))
+	case 1:
+		return candidates[0].out, candidates[0].in, nil
+	default:
+		if requestedMismatch {
+			return Port{}, Port{}, fmt.Errorf("ambiguous edge from %s to %s: requested %s->%s is incompatible and %d other compatible pairs exist",
+				fromID, toID, fp.Name, tp.Name, len(candidates))
+		}
+		return Port{}, Port{}, fmt.Errorf("ambiguous edge from %s to %s: %d compatible port pairs; specify from_port/to_port",
+			fromID, toID, len(candidates))
 	}
-	return Port{}, fmt.Errorf("ambiguous %s port; specify a name", direction)
+}
+
+func describePorts(outputs, inputs []Port) string {
+	part := func(ports []Port) string {
+		names := make([]string, 0, len(ports))
+		for _, p := range ports {
+			names = append(names, p.Name+":"+string(p.Type))
+		}
+		return strings.Join(names, ", ")
+	}
+	return "outputs " + part(outputs) + "; inputs " + part(inputs)
 }
 
 func validateAcyclic(g Graph, byID map[string]Block) error {
