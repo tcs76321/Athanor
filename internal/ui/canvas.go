@@ -215,6 +215,7 @@ const canvasEmptyBody = `
     <h2>Start with a conversation</h2>
     <p class="muted">A project's timeline begins with a reviewed frame and a cycle-0 graph. The conversation onboarding creates the first draft; this canvas is where you refine and start it.</p>
     <a class="btn primary" href="/ui/projects/{{.Project.ID}}/onboarding">Open onboarding</a>
+    <a class="btn secondary" href="/ui/projects/{{.Project.ID}}/cycles/new">Start from a template</a>
   </div>
 </div>
 `

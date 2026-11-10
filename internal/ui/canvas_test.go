@@ -44,6 +44,7 @@ func canvasSetup(t *testing.T) (*UI, *httptest.Server, project.Project, cycle.Cy
 	p, err := projects.CreateGuided(ctx, project.Intent{
 		Name: "canvas-demo", Goal: "Build a small parser with tests.",
 		RepositoryPath: t.TempDir(),
+		Sources:        []string{"https://example.com/a"},
 	})
 	if err != nil {
 		t.Fatal(err)
