@@ -78,7 +78,7 @@ func TestCompileLinearGraph(t *testing.T) {
 	if _, ok := byKey["implement"]; ok {
 		t.Error("implement unexpectedly present")
 	}
-	if got := specs[byKey["research"]].AllowedTools; len(got) != 2 || got[0] != "fetch_url" {
+	if got := specs[byKey["research"]].AllowedTools; len(got) != 3 || got[0] != "fetch_url" {
 		t.Errorf("research tools = %v", got)
 	}
 }

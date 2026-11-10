@@ -1,0 +1,187 @@
+# Athanor benchmark v5 — grounded agency, local-only.
+#
+# This is a NEW benchmark version. It measures the shipped Core Pod on two local
+# generators and two local judges. It does not include frontier models; a
+# frontier-parity tier is documented in ADR-0136 as a later addition.
+#
+# The headline is deterministic and external: a task is labeled by a
+# probe-owned re-run of frozen tests/checks, never by the engine's own
+# acceptance. Engine acceptance, judge scores, and IRL ratings are separate.
+version: 5
+benchmark: v5
+cut: pending
+status: candidate
+task_digest: eval/bench/v5/CORPUS.digest
+
+canonical_persona_set:
+  name: canonical-v5
+  description: >
+    One fixed role/temperature set for every generator. The generator model is
+    substituted per run; the in-loop judge is granite4.2:8b for both.
+  roles:
+    wide:
+      model: bonsai-2:27b
+      family: bonsai-2
+      context_target: 32768
+      temperature: 0.7
+    tall:
+      model: bonsai-2:27b
+      family: bonsai-2
+      context_target: 32768
+      temperature: 0.2
+    main:
+      model: bonsai-2:27b
+      family: bonsai-2
+      context_target: 32768
+      temperature: 0.4
+    security:
+      model: granite4.2:8b
+      family: granite
+      context_target: 32768
+      temperature: 0.0
+    alternative:
+      model: bonsai-2:27b
+      family: bonsai-2
+      context_target: 32768
+      temperature: 0.8
+
+  inference:
+    backend: ollama
+    engine_version: "0.40.15"
+    ollama_url: "http://localhost:11434"
+    json_format: true
+    max_output_tokens: 4096
+    think: false
+    keep_alive: "5m"
+    judgment_seed: off
+
+  execution:
+    divergence_candidates: 1
+    max_reflection_loops: 0
+    engine_code_gates: true
+    dag_decomposition: false
+
+  context:
+    seed_active_chunk: true
+    seed_active_max_bytes: 16384
+    repository_index_limit: 20
+    memory_embedding_model: nomic-embed-text:latest
+    memory_search_top_k: 8
+    phase_wall_time_budgets:
+      planning: "900s"
+      diverging: "900s"
+      evaluating: "900s"
+      synthesizing: "900s"
+      comparing: "600s"
+      default: "900s"
+
+  job_pod:
+    image: athanor-jobpod:latest
+    default_tools: [execute_code, run_tests, lint]
+
+  runtime:
+    core_pod_image: athanor-core:0.0.0
+    core_pod_image_digest: null
+    host_class: "Apple Silicon arm64 (reference host)"
+
+generators: [bonsai27b, gemma12b]
+judges: [granite8b, mimo9b]
+
+roster:
+  - {label: bonsai27b, model: "bonsai-2:27b", family: bonsai-2, digest: "f3c4f42086593225d8be9bb4270658d0e05f5232fb2b5e8faa49ef74d2cc843a"}
+  - {label: gemma12b, model: "gemma4:12b-mlx", family: gemma, digest: "117d0d84cf2ab865feb59afc2cd30ff5d55f0035e05eb8d1b814f9688e3f3671"}
+  - {label: granite8b, model: "granite4.2:8b", family: granite, digest: "f586c02fdecdf151b656207c339aa003997345774a41768bac1fd6d2fb85913b"}
+  - {label: mimo9b, model: "mimo-v2.6:9b-mxfp8", family: mimo-v2.6, digest: "74dc9c06c48633324039d719e90b2e26db9cc4babff46ed0846a67f58239b86c"}
+
+# `single` is the engine's one-candidate, no-reflection baseline. A separate
+# generic scaffold arm is documented in ADR-0136 §7 and is a follow-on; the
+# benchmark does not silently claim it.
+suites:
+  foundation:
+    tasks: eval/bench/v5/v5.yaml
+    passes: 1
+    arms: [single, full]
+    held_out: 4
+    machine_budget_hours: 5
+  agency:
+    tasks: eval/bench/v5/v5.yaml
+    passes: 2
+    arms: [single, full]
+    held_out: 1
+    machine_budget_hours: 5
+  utility:
+    tasks: eval/bench/v5/v5.yaml
+    passes: 1
+    arms: [single, cycle]
+    held_out: 2
+    machine_budget_hours: 4
+  safety:
+    tasks: eval/bench/v5/v5.yaml
+    passes: 1
+    arms: [single]
+    held_out: 1
+    machine_budget_hours: 1
+  operations:
+    tasks: eval/bench/v5/v5.yaml
+    passes: 1
+    arms: [cycle]
+    held_out: 0
+    machine_budget_hours: 1
+  quality:
+    tasks: eval/bench/v5/v5.yaml
+    passes: 1
+    arms: [single, full]
+    held_out: 2
+    machine_budget_hours: 2
+
+claims:
+  safety:
+    max_failures: 0
+  recovery:
+    max_failures: 0
+  non_inferiority:
+    comparison: full_vs_single
+    suites: [foundation, agency]
+    margin_points: 10
+    max_task_loss_runs: 2
+  mechanism_coverage: 1.0
+  utility:
+    min_citation_pass_rate: 0.9
+    require_news_sequence: true
+  reliability:
+    min_pass_power_two: 0.5
+  quality:
+    min_judge_agreement: 0.6
+    comparison: full_vs_single
+    min_win_rate: 0.6
+  cost:
+    saturated_token_ratio_max: 1.5
+    saturated_wall_ratio_max: 2.0
+  grounding:
+    # Local grounded vs local closed-book, on the grounding subset.
+    min_grounding_gain_points: 10
+
+run_shape:
+  full:
+    tasks: eval/bench/v5/v5.yaml
+    passes: 1
+    arm: full
+    machine_budget_hours: 8
+    per_job_timeout: 30m
+    memory_scripts: ""
+  anchor:
+    tasks: eval/bench/v5/anchor.yaml
+    passes: 1
+    arm: single
+    per_model_timeout: 1h
+    machine_budget_hours: 2
+
+embeddings:
+  model: nomic-embed-text:latest
+  digest: "0a109f422b47e3a30ba2b10eca18548e944e8a23073ee3f3e947efcf3c45e59f"
+
+scoring:
+  headline: probe_owned_deterministic_checks
+  quality: blind_two_judge_pairwise
+  judge: advisory
+  report: per_generator_paired_by_task

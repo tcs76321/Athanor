@@ -157,13 +157,13 @@ var specs = map[Kind]BlockSpec{
 		// feed a fetch chain or an option generator directly. The unique
 		// compatible port pair decides an unnamed edge.
 		Outputs:      []Port{{Name: "sources", Type: PortURLs}, {Name: "notes", Type: PortText}},
-		DefaultTools: []string{"fetch_url", "search_web"},
+		DefaultTools: []string{"fetch_url", "search_web", "read_file"},
 	},
 	KindFetch: {
 		Kind: KindFetch, Title: "Fetch", Capability: project.CapabilityDocument,
 		Inputs:       []Port{{Name: "urls", Type: PortURLs, Required: true}},
 		Outputs:      []Port{{Name: "documents", Type: PortDocuments}},
-		DefaultTools: []string{"fetch_url"},
+		DefaultTools: []string{"fetch_url", "read_file"},
 	},
 	KindExtract: {
 		Kind: KindExtract, Title: "Extract", Capability: project.CapabilityData,

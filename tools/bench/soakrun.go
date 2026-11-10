@@ -52,6 +52,7 @@ type soakRunConfig struct {
 	// runs), reusing the `run` command's semantics.
 	onlyCSV   string
 	goalLimit int
+	suite     string
 	// anchorPath, when set, narrows the corpus to the ids in that file (the
 	// 12-task onboarding/leaderboard anchor). It composes with -only.
 	anchorPath string
@@ -134,6 +135,7 @@ func runSoak(args []string) {
 	fs.StringVar(&c.rolesCSV, "roles", "", "heterogeneous per-role models: main=tag,tall=tag,security=tag,alternative=tag,wide=tag (overrides -model per role)")
 	fs.BoolVar(&c.dag, "dag", false, "enable execution.dag_decomposition: decompose each goal and run the M6 scheduler")
 	fs.StringVar(&c.onlyCSV, "only", "", "comma-separated goal names to soak (empty = all)")
+	fs.StringVar(&c.suite, "suite", "", "only run tasks whose suite field matches (v5)")
 	fs.StringVar(&c.anchorPath, "anchor-tasks", "", "anchor YAML file whose task ids narrow the corpus (eval/bench/anchor.yaml)")
 	fs.IntVar(&c.passes, "passes", 0, "cap full corpus passes (0 = until the deadline); 1 = one full slice")
 	fs.BoolVar(&c.external, "external", false, "attach to an already-running Core Pod; do not start/stop/kill a daemon")
@@ -181,6 +183,18 @@ func (c *soakRunConfig) run() error {
 			return err
 		}
 		goals = g
+	}
+	if c.suite != "" {
+		var matched []sampleGoal
+		for _, g := range goals {
+			if g.Suite == c.suite {
+				matched = append(matched, g)
+			}
+		}
+		if len(matched) == 0 {
+			return fmt.Errorf("no tasks in suite %q", c.suite)
+		}
+		goals = matched
 	}
 	// Apply -only / -goals selection (same semantics as the `run` command).
 	sel := &runnerConfig{corpus: goals, onlyCSV: c.onlyCSV, goalLimit: c.goalLimit}

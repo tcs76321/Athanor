@@ -31,6 +31,7 @@ type cycleConfig struct {
 	model    string
 	template string
 	only     string
+	suite    string
 	timeout  time.Duration
 	interval time.Duration
 }
@@ -66,6 +67,7 @@ func runCycle(args []string) {
 	fs.StringVar(&c.model, "model", "bonsai27b", "generator label (metadata; the Core config selects the model)")
 	fs.StringVar(&c.template, "template", "", "fallback template when a task does not name one")
 	fs.StringVar(&c.only, "only", "", "comma-separated task ids (empty = all)")
+	fs.StringVar(&c.suite, "suite", "", "only run tasks whose suite field matches")
 	fs.DurationVar(&c.timeout, "timeout", 30*time.Minute, "per-task wall-clock timeout")
 	fs.DurationVar(&c.interval, "interval", 5*time.Second, "poll interval")
 	_ = fs.Parse(args)
@@ -95,6 +97,9 @@ func runCycle(args []string) {
 		if len(only) > 0 && !only[g.Name] {
 			continue
 		}
+		if c.suite != "" && g.Suite != c.suite {
+			continue
+		}
 		tpl := g.Template
 		if tpl == "" {
 			tpl = c.template
@@ -103,7 +108,7 @@ func runCycle(args []string) {
 			tpl = "daily-brief"
 		}
 		start := time.Now()
-		res, err := runOneCycle(client, base, c, g.Name, g.Goal, g.Sources, tpl, g.Checks, g.ArtifactTitle)
+		res, err := runOneCycle(client, base, c, g.Name, g.Goal, g.Sources, tpl, g.Repo, g.Checks, g.ArtifactTitle)
 		res.DurationSeconds = time.Since(start).Seconds()
 		if err != nil {
 			res.ID, res.Pass = g.Name, false
@@ -129,9 +134,9 @@ func runCycle(args []string) {
 	fmt.Printf("cycle: wrote %s (%d tasks)\n", name, len(results.Tasks))
 }
 
-func runOneCycle(client *http.Client, base string, c *cycleConfig, name, goal string, sources []string, template string, checks map[string]any, artifactTitle string) (cycleTaskResult, error) {
+func runOneCycle(client *http.Client, base string, c *cycleConfig, name, goal string, sources []string, template, repo string, checks map[string]any, artifactTitle string) (cycleTaskResult, error) {
 	res := cycleTaskResult{ID: name}
-	projectID, err := createProject(client, base, name, goal, sources)
+	projectID, err := createProject(client, base, name, goal, sources, repo)
 	if err != nil {
 		return res, fmt.Errorf("create project: %w", err)
 	}
@@ -186,12 +191,18 @@ func runOneCycle(client *http.Client, base string, c *cycleConfig, name, goal st
 
 // checkMapForTask was replaced by passing the task's checks directly.
 
-func createProject(client *http.Client, base, name, goal string, sources []string) (string, error) {
+func createProject(client *http.Client, base, name, goal string, sources []string, repo string) (string, error) {
 	form := url.Values{
 		"name":       {name},
 		"goal":       {goal},
 		"boundaries": {"Read only the declared sources; do not invent a source."},
 		"sources":    {strings.Join(sources, "\n")},
+	}
+	if repo != "" {
+		abs, err := filepath.Abs(repo)
+		if err == nil {
+			form.Set("repository_path", abs)
+		}
 	}
 	resp, err := client.PostForm(base+"/ui/projects", form)
 	if err != nil {

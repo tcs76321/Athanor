@@ -81,9 +81,44 @@ func BuildTemplate() Template {
 	}
 }
 
+// NewsTemplate is the operating cycle for a local-first news wire: read the
+// wire files, extract and dedupe items, write the report, verify it, and
+// record what was covered. It uses read_file, not the network.
+func NewsTemplate() Template {
+	return Template{
+		ID: "news-report", Name: "News Report", Version: 1, CycleKind: "operate",
+		Graph: Graph{
+			Blocks: []Block{
+				{ID: "research", Kind: KindResearch, Title: "Read the wire",
+					Config: map[string]any{"instructions": "Read the wire files under wire/ with read_file. Do not use the network. List the story ids you found."}},
+				{ID: "fetch", Kind: KindFetch, Title: "Load the wire files"},
+				{ID: "extract", Kind: KindExtract, Title: "Extract wire items"},
+				{ID: "condense", Kind: KindCondense, Title: "Dedupe and rank",
+					Config: map[string]any{"instructions": "Merge duplicate story ids across sources. Mark updates to an earlier story as updates, not new stories."}},
+				{ID: "synthesize", Kind: KindSynthesize, Title: "Write the brief",
+					Config: map[string]any{"instructions": "Use the headings New, Previously reported, and Sources. Cite the wire item id for every item. If there is nothing new, say so."}},
+				{ID: "verify", Kind: KindVerify, Title: "Check citations and coverage"},
+				{ID: "retain", Kind: KindRetain, Title: "Remember what was covered"},
+			},
+			Edges: []Edge{
+				{From: "research", To: "fetch"},
+				{From: "fetch", To: "extract"},
+				{From: "extract", To: "condense"},
+				{From: "condense", To: "synthesize"},
+				{From: "synthesize", To: "verify"},
+				{From: "synthesize", To: "retain"},
+			},
+		},
+		Triggers: []Trigger{
+			{ID: "schedule", Kind: TriggerSchedule, Spec: "0 * * * *", Enabled: true},
+			{ID: "manual", Kind: TriggerManual, Enabled: true},
+		},
+	}
+}
+
 // Templates returns the built-ins in a stable order.
 func Templates() []Template {
-	return []Template{DailyBriefTemplate(), DiscoveryTemplate(), BuildTemplate()}
+	return []Template{DailyBriefTemplate(), DiscoveryTemplate(), BuildTemplate(), NewsTemplate()}
 }
 
 // TemplateByID resolves a built-in by ID.

@@ -48,6 +48,8 @@ var knownCheckKeys = map[string]bool{
 	"array_length": true, "array_unique_by": true, "array_sorted_by": true,
 	"json_field_matches": true,
 	"allowed_urls":       true, "cite_every_paragraph": true,
+	"allowed_sources": true, "must_not_contain": true,
+	"new_items_section": true,
 }
 
 func init() {
@@ -145,11 +147,43 @@ func runChecks(checks map[string]any, content string) (bool, []checkResult) {
 		}
 		add("allowed_urls", len(unlisted) == 0, false, "unlisted: "+strings.Join(unlisted, ", "))
 	}
+	if v, ok := checks["allowed_sources"]; ok {
+		allowed := toStrings(v)
+		var unlisted []string
+		for _, src := range sourceRefPattern.FindAllString(content, -1) {
+			known := false
+			for _, a := range allowed {
+				if src == a || strings.HasSuffix(src, a) {
+					known = true
+					break
+				}
+			}
+			if !known {
+				unlisted = append(unlisted, src)
+			}
+		}
+		add("allowed_sources", len(unlisted) == 0, false, "unlisted: "+strings.Join(unlisted, ", "))
+	}
 	if v, ok := checks["cite_every_paragraph"]; ok && toBool(v) {
-		allowed := toStrings(checks["allowed_urls"])
+		allowed := append(toStrings(checks["allowed_urls"]), toStrings(checks["allowed_sources"])...)
 		missing, total := uncitedParagraphs(content, allowed)
 		add("cite_every_paragraph", missing == 0, false,
 			fmt.Sprintf("uncited=%d/%d", missing, total))
+	}
+	if v, ok := checks["must_not_contain"]; ok {
+		low := strings.ToLower(content)
+		var hit []string
+		for _, s := range toStrings(v) {
+			if strings.Contains(low, strings.ToLower(s)) {
+				hit = append(hit, s)
+			}
+		}
+		add("must_not_contain", len(hit) == 0, false, "found: "+strings.Join(hit, ", "))
+	}
+	if v, ok := checks["new_items_section"]; ok {
+		m, _ := v.(map[string]any)
+		fail := newItemsSectionFailures(content, m)
+		add("new_items_section", len(fail) == 0, false, strings.Join(fail, "; "))
 	}
 	if v, ok := checks["must_contain"]; ok {
 		low := strings.ToLower(content)
@@ -497,6 +531,10 @@ func toBool(v any) bool {
 // punctuation is stripped by normalizeURL.
 var urlPattern = regexp.MustCompile(`https?://[^\s<>"'` + "`" + `\[\]]+`)
 
+// sourceRefPattern matches a file-shaped source reference such as
+// "sources/local-first.md" or "local-first.md".
+var sourceRefPattern = regexp.MustCompile(`[A-Za-z0-9._-]+\.md`)
+
 // extractURLs returns the absolute URLs in content, in first-seen order.
 func extractURLs(content string) []string {
 	return urlPattern.FindAllString(content, -1)
@@ -532,15 +570,26 @@ func uncitedParagraphs(content string, allowed []string) (missing, total int) {
 		if block == "" || strings.HasPrefix(block, "#") {
 			continue
 		}
-		if len(strings.Fields(block)) < 15 {
+		if len(strings.Fields(block)) < 10 {
 			continue
 		}
 		total++
 		cited := false
-		for _, u := range extractURLs(block) {
-			if allow[normalizeURL(u)] {
+		for _, a := range allowed {
+			if a == "" {
+				continue
+			}
+			if strings.Contains(block, a) {
 				cited = true
 				break
+			}
+		}
+		if !cited {
+			for _, u := range extractURLs(block) {
+				if allow[normalizeURL(u)] {
+					cited = true
+					break
+				}
 			}
 		}
 		if !cited {
@@ -548,4 +597,71 @@ func uncitedParagraphs(content string, allowed []string) (missing, total int) {
 		}
 	}
 	return missing, total
+}
+
+// newItemsSectionFailures enforces a "new since last run" report: required IDs
+// must appear in the named section, and old IDs may appear only in a section
+// that is clearly marked as previously reported.
+func newItemsSectionFailures(content string, m map[string]any) []string {
+	want := strings.ToLower(strings.TrimSpace(fmt.Sprint(m["section"])))
+	if want == "" {
+		want = "new"
+	}
+	required := toStrings(m["required"])
+	old := toStrings(m["old_ids"])
+	sections := splitSections(content)
+	var fails []string
+	for _, id := range required {
+		found := false
+		for heading, body := range sections {
+			if strings.Contains(strings.ToLower(heading), want) && strings.Contains(body, id) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			fails = append(fails, "missing "+id+" in "+want)
+		}
+	}
+	for _, id := range old {
+		for heading, body := range sections {
+			if !strings.Contains(body, id) {
+				continue
+			}
+			lh := strings.ToLower(heading)
+			if strings.Contains(lh, "previous") || strings.Contains(lh, "already") || strings.Contains(lh, "old") {
+				continue
+			}
+			fails = append(fails, "old item "+id+" in "+heading)
+		}
+	}
+	return fails
+}
+
+// splitSections maps a heading (lowercased by the caller when needed) to its
+// body. Text before the first heading lives under "".
+func splitSections(content string) map[string]string {
+	sections := map[string]string{}
+	var heading strings.Builder
+	var body strings.Builder
+	flush := func() {
+		if heading.Len() == 0 && body.Len() == 0 {
+			return
+		}
+		key := strings.TrimSpace(heading.String())
+		sections[key] += body.String()
+		heading.Reset()
+		body.Reset()
+	}
+	for _, line := range strings.Split(content, "\n") {
+		if strings.HasPrefix(strings.TrimSpace(line), "#") {
+			flush()
+			heading.WriteString(strings.TrimLeft(strings.TrimSpace(line), "# "))
+			continue
+		}
+		body.WriteString(line)
+		body.WriteString("\n")
+	}
+	flush()
+	return sections
 }

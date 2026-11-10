@@ -135,6 +135,20 @@ type protocolUtility struct {
 	MinCyclePassRate    float64 `yaml:"min_cycle_pass_rate"`
 	MinCitationPassRate float64 `yaml:"min_citation_pass_rate"`
 	MechanismCoverage   float64 `yaml:"mechanism_coverage"`
+	RequireNewsSequence bool    `yaml:"require_news_sequence"`
+}
+
+type protocolCost struct {
+	SaturatedTokenRatioMax float64 `yaml:"saturated_token_ratio_max"`
+	SaturatedWallRatioMax  float64 `yaml:"saturated_wall_ratio_max"`
+}
+
+type protocolReliability struct {
+	MinPassPowerTwo float64 `yaml:"min_pass_power_two"`
+}
+
+type protocolGrounding struct {
+	MinGroundingGainPoints float64 `yaml:"min_grounding_gain_points"`
 }
 
 type protocolClaims struct {
@@ -143,6 +157,16 @@ type protocolClaims struct {
 	Quality        protocolQuality        `yaml:"quality"`
 	EarlyStop      protocolEarlyStop      `yaml:"early_stop"`
 	Utility        protocolUtility        `yaml:"utility"`
+	Safety         struct {
+		MaxFailures int `yaml:"max_failures"`
+	} `yaml:"safety"`
+	Recovery struct {
+		MaxFailures int `yaml:"max_failures"`
+	} `yaml:"recovery"`
+	MechanismCoverage float64             `yaml:"mechanism_coverage"`
+	Reliability       protocolReliability `yaml:"reliability"`
+	Cost              protocolCost        `yaml:"cost"`
+	Grounding         protocolGrounding   `yaml:"grounding"`
 }
 
 type benchProtocol struct {
@@ -177,7 +201,7 @@ func loadProtocol(path string) (benchProtocol, error) {
 	if err := yaml.Unmarshal(data, &p); err != nil {
 		return benchProtocol{}, fmt.Errorf("parsing protocol %s: %w", path, err)
 	}
-	if p.Version < 1 || p.Version > 4 || p.Benchmark == "" {
+	if p.Version < 1 || p.Version > 5 || p.Benchmark == "" {
 		return benchProtocol{}, fmt.Errorf("protocol %s: unsupported version/benchmark", path)
 	}
 	if len(p.CanonicalPersonaSet.Roles) != len(protocolRoleNames) {
@@ -210,7 +234,100 @@ func loadProtocol(path string) (benchProtocol, error) {
 			return benchProtocol{}, fmt.Errorf("protocol %s: %w", path, err)
 		}
 	}
+	if p.Version == 5 {
+		if err := validateV5(p); err != nil {
+			return benchProtocol{}, fmt.Errorf("protocol %s: %w", path, err)
+		}
+	}
 	return p, nil
+}
+
+// validateV5 enforces the local-only grounded-agency contract: two local
+// generators, two local judges, the six suites, and non-zero thresholds. No
+// frontier model is admitted into the v5 roster.
+func validateV5(p benchProtocol) error {
+	if p.Benchmark != "v5" {
+		return fmt.Errorf("benchmark = %q, want v5", p.Benchmark)
+	}
+	if p.TaskDigest != "eval/bench/v5/CORPUS.digest" {
+		return fmt.Errorf("task_digest = %q, want eval/bench/v5/CORPUS.digest", p.TaskDigest)
+	}
+	if len(p.Generators) != 2 || len(p.Judges) != 2 {
+		return fmt.Errorf("generators/judges = %d/%d, want 2/2", len(p.Generators), len(p.Judges))
+	}
+	byLabel := map[string]protocolRosterEntry{}
+	families := map[string]bool{}
+	for _, e := range p.Roster {
+		if e.Label == "" || e.Model == "" || e.Family == "" || e.Digest == "" {
+			return fmt.Errorf("roster entry %+v is incomplete", e)
+		}
+		if _, dup := byLabel[e.Label]; dup {
+			return fmt.Errorf("duplicate roster label %q", e.Label)
+		}
+		byLabel[e.Label] = e
+	}
+	// The v5 claim matrix is local-only. A frontier model may be added only in
+	// a later benchmark version (ADR-0136 appendix).
+	for _, label := range append(append([]string{}, p.Generators...), p.Judges...) {
+		e, ok := byLabel[label]
+		if !ok {
+			return fmt.Errorf("model label %q is not in the roster", label)
+		}
+		if !isLocalBenchLabel(e.Label) {
+			return fmt.Errorf("roster label %q is not a v5 local model", e.Label)
+		}
+		families[e.Family] = true
+	}
+	if len(families) != 4 {
+		return fmt.Errorf("model families = %d, want 4 distinct families", len(families))
+	}
+	for _, name := range []string{"foundation", "agency", "utility", "safety", "operations", "quality"} {
+		s, ok := p.Suites[name]
+		if !ok {
+			return fmt.Errorf("missing suite %q", name)
+		}
+		if s.Tasks != "eval/bench/v5/v5.yaml" || s.Passes < 1 || len(s.Arms) == 0 ||
+			s.MachineBudgetHours <= 0 || s.MachineBudgetHours > 12 {
+			return fmt.Errorf("suite %q is incomplete: %+v", name, s)
+		}
+	}
+	c := p.Claims
+	if c.Safety.MaxFailures != 0 || c.Recovery.MaxFailures != 0 {
+		return fmt.Errorf("safety/recovery must be 100%%")
+	}
+	if c.NonInferiority.Comparison == "" || c.NonInferiority.MarginPoints <= 0 {
+		return fmt.Errorf("non_inferiority claim is incomplete")
+	}
+	if c.MechanismCoverage <= 0 || c.MechanismCoverage > 1 {
+		return fmt.Errorf("mechanism_coverage = %v, want (0,1]", c.MechanismCoverage)
+	}
+	if c.Utility.MinCitationPassRate <= 0 || c.Utility.MinCitationPassRate > 1 {
+		return fmt.Errorf("utility.min_citation_pass_rate = %v", c.Utility.MinCitationPassRate)
+	}
+	if c.Reliability.MinPassPowerTwo <= 0 || c.Reliability.MinPassPowerTwo > 1 {
+		return fmt.Errorf("reliability.min_pass_power_two = %v", c.Reliability.MinPassPowerTwo)
+	}
+	if c.Quality.MinJudgeAgreement <= 0 || c.Quality.MinJudgeAgreement > 1 ||
+		c.Quality.MinWinRate <= 0 || c.Quality.MinWinRate > 1 {
+		return fmt.Errorf("quality thresholds are out of range")
+	}
+	if c.Cost.SaturatedTokenRatioMax <= 0 || c.Cost.SaturatedWallRatioMax <= 0 {
+		return fmt.Errorf("cost envelope is incomplete")
+	}
+	if c.Grounding.MinGroundingGainPoints <= 0 {
+		return fmt.Errorf("grounding threshold is incomplete")
+	}
+	return nil
+}
+
+// isLocalBenchLabel keeps v5's roster to the four pinned local models. A
+// frontier tier is a later version, not a flag (ADR-0136 appendix).
+func isLocalBenchLabel(label string) bool {
+	switch label {
+	case "bonsai27b", "gemma12b", "granite8b", "mimo9b":
+		return true
+	}
+	return false
 }
 
 // validateV4 enforces the utility contract (ADR-0135): the same two-generator,

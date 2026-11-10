@@ -1,0 +1,30 @@
+# Athanor benchmark v5 — quick screen anchor.
+#
+# Tuning-only subset. Never the headline, and no held-out task may appear here.
+version: 5
+benchmark: v5
+tasks:
+  - id: v5-ledger-1
+    tier: H
+    archetype: code
+    why: atomic state transitions; a correctness floor
+  - id: v5-data-schema-1
+    tier: H
+    archetype: data
+    why: count, uniqueness, and ordering
+  - id: v5-doc-spec-1
+    tier: H
+    archetype: document
+    why: required sections and a concrete design
+  - id: v5-text-constraint-1
+    tier: H
+    archetype: text
+    why: hard constraints and no added claims
+  - id: v5-brief-local-first
+    tier: H
+    archetype: document
+    why: local-first source grounding and citations
+  - id: v5-quality-rfc
+    tier: X
+    archetype: document
+    why: design trade-offs and alternatives
