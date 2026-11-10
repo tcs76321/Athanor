@@ -242,6 +242,13 @@ func (r *reader) scanAndReject(ctx context.Context, rawURL, md string) error {
 			return fmt.Errorf("gateway: %s scan failed: %w", s.Name(), err)
 		}
 		if res.Verdict != scanner.VerdictClean {
+			// The audit row keeps the stable "prompt_injection" reason, but
+			// the log names the scanner and its own reason so a false
+			// positive (ClamAV/YARA vs the heuristic) is diagnosable.
+			if r.logger != nil {
+				r.logger.Warn("gateway: reader rejected content",
+					"url", rawURL, "scanner", s.Name(), "scanner_reason", res.Reason)
+			}
 			r.auditRejectedURL(ctx, rawURL, "prompt_injection")
 			return ErrPromptInjection
 		}

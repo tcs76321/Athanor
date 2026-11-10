@@ -79,9 +79,11 @@ func (c *ClamAV) Scan(ctx context.Context, in scanner.ScanInput) (scanner.ScanRe
 			Reason:  "scanner:clamav:absent",
 		}, nil
 	}
-	// --no-summary: don't print the trailing summary
-	// line; --stdout: write the verdict to stdout so
-	// the helper can capture it.
+	// --no-summary: don't print the trailing summary line. --infected: print
+	// ONLY infected matches, so a clean scan has empty stdout. The shared
+	// runner reads "exit 0 + empty stdout" as clean; --stdout would print
+	// "stdin: OK" on every clean scan and reject all content (found against
+	// a real source page in the Core Pod).
 	return runCommand(ctx, c.Name(), bin,
-		[]string{"--no-summary", "--stdout", "-"}, in)
+		[]string{"--no-summary", "--infected", "-"}, in)
 }

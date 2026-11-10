@@ -15,6 +15,32 @@ import (
 	"github.com/tcs76321/athanor/internal/airlock/scanner"
 )
 
+// TestClamAV_CleanScanHasEmptyStdout is the regression for the Core Pod bug:
+// real clamscan under --stdout prints "stdin: OK" on a clean scan, and the
+// shared runner reads any stdout as a rejection. The adapter must pass
+// --infected so clean content produces no output.
+func TestClamAV_CleanScanHasEmptyStdout(t *testing.T) {
+	dir := t.TempDir()
+	bin := filepath.Join(dir, "clamscan")
+	script := "#!/bin/sh\n" +
+		"for a in \"$@\"; do\n" +
+		"  if [ \"$a\" = \"--infected\" ]; then exit 0; fi\n" +
+		"done\n" +
+		"echo 'stdin: OK'\n" +
+		"exit 0\n"
+	if err := os.WriteFile(bin, []byte(script), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	c := &ClamAV{Binary: bin}
+	res, err := c.Scan(context.Background(), scanner.ScanInput{Bytes: []byte("clean content")})
+	if err != nil {
+		t.Fatalf("Scan: %v", err)
+	}
+	if res.Verdict != scanner.VerdictClean {
+		t.Fatalf("Verdict = %v, want VerdictClean (stdout = %v)", res.Verdict, res.Details["stdout"])
+	}
+}
+
 // TestClamAV_AbsentBinaryFailsClosed: with PATH cleared,
 // Available() reports false.
 func TestClamAV_AbsentBinaryFailsClosed(t *testing.T) {
