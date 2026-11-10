@@ -45,6 +45,7 @@ import (
 	"github.com/tcs76321/athanor/internal/review"
 	"github.com/tcs76321/athanor/internal/store"
 	"github.com/tcs76321/athanor/internal/strategy"
+	"github.com/tcs76321/athanor/internal/trigger"
 )
 
 // Freezer reports the §22 kill-switch state.
@@ -168,6 +169,9 @@ type Deps struct {
 	Cycles    *cycle.Repo
 	Starter   firstuse.Starter
 	Architect *architect.Service
+	// Triggers records a project's cycle schedules (ADR-0134). nil disables
+	// schedule persistence; the cycle still works as a manual run.
+	Triggers *trigger.Repo
 	// ModelAudit is the measured model-fit JSON passed by `athanor start`.
 	// Empty means no audit was available.
 	ModelAudit string

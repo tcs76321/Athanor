@@ -189,6 +189,58 @@ func StartDraft(ctx context.Context, deps Deps, cycles *cycle.Repo, starter Star
 	return res, nil
 }
 
+// CreateTemplateDraft creates a draft cycle from a built-in template. The
+// project supplies the goal, sources, and capabilities; the template supplies
+// the graph. Nothing runs until StartDraft. The trigger ID records which
+// trigger (if any) will start this cycle, including manual starts.
+func CreateTemplateDraft(ctx context.Context, cycles *cycle.Repo, p project.Project, tpl workflow.Template, triggerID string) (cycle.Cycle, error) {
+	if cycles == nil {
+		return cycle.Cycle{}, fmt.Errorf("firstuse: cycle repository is required")
+	}
+	if err := workflow.ValidateTemplate(tpl); err != nil {
+		return cycle.Cycle{}, err
+	}
+	c, err := cycles.Create(ctx, p.ID, cycle.Kind(tpl.CycleKind), p.Goal)
+	if err != nil {
+		return cycle.Cycle{}, fmt.Errorf("firstuse: creating cycle: %w", err)
+	}
+	graphJSON, err := json.Marshal(tpl.Graph)
+	if err != nil {
+		return cycle.Cycle{}, fmt.Errorf("firstuse: encoding graph: %w", err)
+	}
+	if err := cycles.SetGraph(ctx, c.ID, string(graphJSON)); err != nil {
+		return cycle.Cycle{}, err
+	}
+	if err := cycles.SetGraphRef(ctx, c.ID, tpl.ID, tpl.Version, triggerID); err != nil {
+		return cycle.Cycle{}, err
+	}
+	frame := architect.Frame{
+		Name: p.Name, Goal: p.Goal, Outcome: p.Goal,
+		Repository: p.RepositoryPath, Sources: append([]string(nil), p.Sources...),
+		Capabilities: append([]string(nil), p.Capabilities...),
+		FirstCycle:   tpl.CycleKind,
+		ReviewPolicy: "internal work may proceed; external or irreversible actions require approval",
+	}
+	frameJSON, err := json.Marshal(frame)
+	if err != nil {
+		return cycle.Cycle{}, fmt.Errorf("firstuse: encoding frame: %w", err)
+	}
+	if err := cycles.SetFrame(ctx, c.ID, string(frameJSON), frame.ReviewPolicy); err != nil {
+		return cycle.Cycle{}, err
+	}
+	return cycles.Get(ctx, c.ID)
+}
+
+// StartTemplate creates a draft from the template and starts it through the
+// existing scheduler. A schedule trigger uses this same path.
+func StartTemplate(ctx context.Context, deps Deps, cycles *cycle.Repo, starter Starter, p project.Project, tpl workflow.Template, triggerID string) (ApproveResult, error) {
+	c, err := CreateTemplateDraft(ctx, cycles, p, tpl, triggerID)
+	if err != nil {
+		return ApproveResult{}, err
+	}
+	return StartDraft(ctx, deps, cycles, starter, c.ID)
+}
+
 // ApproveCycle is the one-shot form used by the conversation approval path:
 // create the draft, compile it, and start it.
 func ApproveCycle(ctx context.Context, deps Deps, cycles *cycle.Repo, starter Starter, in ApproveInput) (ApproveResult, error) {

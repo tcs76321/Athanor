@@ -20,7 +20,7 @@ func TestProjectIntakeMigrationBackfillsBrief(t *testing.T) {
 	t.Cleanup(func() { _ = s.Close() })
 	ctx := context.Background()
 
-	if err := Migrate(s.DB(), migrationsExcept(t, "0045", "0046", "0047", "0048"), ""); err != nil {
+	if err := Migrate(s.DB(), migrationsExcept(t, "0045", "0046", "0047", "0048", "0049"), ""); err != nil {
 		t.Fatalf("migrate to 44: %v", err)
 	}
 	if got := VersionOf(t, s.DB()); got != 44 {

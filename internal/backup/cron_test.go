@@ -37,6 +37,37 @@ func TestParseCronAndMatch(t *testing.T) {
 	}
 }
 
+func TestScheduleNext(t *testing.T) {
+	at := func(y int, mo time.Month, d, h, mi int) time.Time {
+		return time.Date(y, mo, d, h, mi, 0, 0, time.UTC)
+	}
+	cases := []struct {
+		spec string
+		from time.Time
+		want time.Time
+	}{
+		{"0 7 * * *", at(2026, 1, 2, 6, 59), at(2026, 1, 2, 7, 0)},
+		{"0 7 * * *", at(2026, 1, 2, 7, 0), at(2026, 1, 3, 7, 0)},
+		{"* * * * *", at(2026, 1, 2, 6, 59), at(2026, 1, 2, 7, 0)},
+		{"*/15 * * * *", at(2026, 1, 2, 10, 10), at(2026, 1, 2, 10, 15)},
+	}
+	for _, c := range cases {
+		s, err := ParseCron(c.spec)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got, ok := s.Next(c.from)
+		if !ok || !got.Equal(c.want) {
+			t.Errorf("%q.Next(%s) = %s/%v, want %s", c.spec, c.from.Format(time.RFC3339),
+				got.Format(time.RFC3339), ok, c.want.Format(time.RFC3339))
+		}
+	}
+	s, _ := ParseCron("0 0 30 2 *") // never in a non-leap year
+	if _, ok := s.Next(at(2026, 1, 1, 0, 0)); ok {
+		t.Error("impossible schedule found a next minute")
+	}
+}
+
 func TestParseCronRejectsBadSpecs(t *testing.T) {
 	for _, spec := range []string{"", "* * * *", "60 * * * *", "* 24 * * *", "*/0 * * * *", "a * * * *", "* * * * 8"} {
 		if _, err := ParseCron(spec); err == nil {

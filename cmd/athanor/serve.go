@@ -35,6 +35,7 @@ import (
 	"github.com/tcs76321/athanor/internal/doctor"
 	"github.com/tcs76321/athanor/internal/engine"
 	"github.com/tcs76321/athanor/internal/evaluation"
+	"github.com/tcs76321/athanor/internal/firstuse"
 	"github.com/tcs76321/athanor/internal/hitl"
 	"github.com/tcs76321/athanor/internal/intake"
 	"github.com/tcs76321/athanor/internal/internalapi"
@@ -55,6 +56,7 @@ import (
 	"github.com/tcs76321/athanor/internal/server"
 	"github.com/tcs76321/athanor/internal/store"
 	"github.com/tcs76321/athanor/internal/strategy"
+	"github.com/tcs76321/athanor/internal/trigger"
 	"github.com/tcs76321/athanor/internal/ui"
 	"github.com/tcs76321/athanor/migrations"
 )
@@ -371,6 +373,7 @@ func run(configPath, addr, stateDir string, container bool) error {
 	// ADR-0134: a finished goal marks its project cycle terminal.
 	cycleRepo := cycle.NewRepo(st)
 	sched.SetCycleTracker(cycleRepo)
+	triggerRepo := trigger.NewRepo(st)
 	eng.SetOnJobTerminal(sched.OnJobTerminal)
 	// M6-T4 (ADR-0035): the HITL queue. The scheduler's Escalator seam
 	// turns an exhausted task into a request; the service waits resumes,
@@ -548,6 +551,7 @@ func run(configPath, addr, stateDir string, container bool) error {
 		Assist:       assistSvc,
 		Intake:       intakeSvc,
 		Cycles:       cycleRepo,
+		Triggers:     triggerRepo,
 		Starter:      sched,
 		Architect:    architectSvc,
 		ModelAudit:   os.Getenv("ATHANOR_MODEL_AUDIT"),
@@ -883,6 +887,16 @@ func run(configPath, addr, stateDir string, container bool) error {
 	reaperCtx, stopReaper := context.WithCancel(context.Background())
 	defer stopReaper()
 	go reapIdlePods(reaperCtx, eng)
+
+	// ADR-0134: scheduled cycles. One tick per 30s; a slot is claimed before
+	// its cycle starts, so a restart cannot launch the same slot twice.
+	triggerCtx, stopTriggers := context.WithCancel(context.Background())
+	defer stopTriggers()
+	go trigger.NewRunner(triggerRepo, templateLauncher{
+		projects: projectRepo, cycles: cycleRepo,
+		deps:    firstuse.Deps{Projects: projectRepo, Events: st, Freezer: killSwitch},
+		starter: sched,
+	}).Run(triggerCtx)
 
 	fmt.Printf("athanor %s listening on http://%s\n", version, listenAddr)
 

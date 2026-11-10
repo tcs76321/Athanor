@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/tcs76321/athanor/internal/trigger"
 	"github.com/tcs76321/athanor/internal/workflow"
 )
 
@@ -21,7 +22,9 @@ func TestCreateCycleFromDailyBriefTemplate(t *testing.T) {
 		t.Fatalf("templates missing from page: %s", body)
 	}
 
-	resp := postForm(t, ts.URL+"/ui/projects/"+p.ID+"/cycles", url.Values{"template_id": {"daily-brief"}})
+	resp := postForm(t, ts.URL+"/ui/projects/"+p.ID+"/cycles", url.Values{
+		"template_id": {"daily-brief"}, "schedule": {"* * * * *"},
+	})
 	if resp.StatusCode != http.StatusSeeOther {
 		t.Fatalf("create = %d, want 303", resp.StatusCode)
 	}
@@ -80,6 +83,26 @@ func TestCreateCycleFromDailyBriefTemplate(t *testing.T) {
 	}
 	if len(researchCriteria) == 0 {
 		t.Error("block acceptance not compiled")
+	}
+
+	triggers, err := u.deps.Triggers.ListByProject(context.Background(), p.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(triggers) != 2 {
+		t.Fatalf("triggers = %d, want schedule + manual", len(triggers))
+	}
+	var schedule *trigger.Record
+	for i := range triggers {
+		if triggers[i].Kind == trigger.KindSchedule {
+			schedule = &triggers[i]
+		}
+	}
+	if schedule == nil {
+		t.Fatal("schedule trigger missing")
+	}
+	if schedule.Spec != "* * * * *" || !schedule.Enabled || schedule.NextRunAt == "" {
+		t.Errorf("schedule = %+v", schedule)
 	}
 }
 

@@ -71,6 +71,21 @@ func (s Schedule) Matches(t time.Time) bool {
 	return domMatch && dowMatch
 }
 
+// Next returns the first minute strictly after `after` that matches the
+// schedule. It scans at most 366 days; ok is false when no matching minute
+// exists in that window (for example "0 0 30 2 *").
+func (s Schedule) Next(after time.Time) (time.Time, bool) {
+	t := after.Truncate(time.Minute).Add(time.Minute)
+	limit := t.AddDate(1, 0, 0)
+	for t.Before(limit) {
+		if s.Matches(t) {
+			return t, true
+		}
+		t = t.Add(time.Minute)
+	}
+	return time.Time{}, false
+}
+
 func parseField(spec string, min, max int) (fieldSet, error) {
 	f := fieldSet{values: map[int]bool{}}
 	for _, part := range strings.Split(spec, ",") {

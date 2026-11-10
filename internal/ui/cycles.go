@@ -1,14 +1,36 @@
 package ui
 
 import (
-	"encoding/json"
+	"log/slog"
 	"net/http"
 	"strings"
 
-	"github.com/tcs76321/athanor/internal/architect"
-	"github.com/tcs76321/athanor/internal/cycle"
+	"github.com/tcs76321/athanor/internal/firstuse"
+	"github.com/tcs76321/athanor/internal/trigger"
 	"github.com/tcs76321/athanor/internal/workflow"
 )
+
+// templateCard is one built-in template plus its default schedule, so the form
+// can prefill the cron field.
+type templateCard struct {
+	workflow.Template
+	Schedule string
+}
+
+func templateCards() []templateCard {
+	var cards []templateCard
+	for _, tpl := range workflow.Templates() {
+		card := templateCard{Template: tpl}
+		for _, tr := range tpl.Triggers {
+			if tr.Kind == workflow.TriggerSchedule {
+				card.Schedule = tr.Spec
+				break
+			}
+		}
+		cards = append(cards, card)
+	}
+	return cards
+}
 
 // handleNewCycle lists the built-in templates. A cycle created here is a draft:
 // the canvas opens it for editing and nothing runs until the user starts it.
@@ -22,13 +44,13 @@ func (u *UI) handleNewCycle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	u.render(w, "New cycle — "+p.Name, newCycleBody, map[string]any{
-		"Project": p, "Templates": workflow.Templates(),
+		"Project": p, "Templates": templateCards(),
 	})
 }
 
-// handleCreateCycle creates a draft cycle from a built-in template. The project
-// supplies the sources, capabilities, and goal; the template supplies the
-// graph. Compilation happens when the user starts the cycle.
+// handleCreateCycle creates a draft cycle from a built-in template and records
+// its schedule. The project supplies the sources, capabilities, and goal; the
+// template supplies the graph. Compilation happens when the cycle is started.
 func (u *UI) handleCreateCycle(w http.ResponseWriter, r *http.Request) {
 	if !u.requireCycles(w) {
 		return
@@ -48,39 +70,22 @@ func (u *UI) handleCreateCycle(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "unknown template", http.StatusNotFound)
 		return
 	}
-	c, err := u.deps.Cycles.Create(ctx, p.ID, cycle.Kind(tpl.CycleKind), p.Goal)
+	c, err := firstuse.CreateTemplateDraft(ctx, u.deps.Cycles, p, tpl, "")
 	if err != nil {
 		u.fail(w, err)
 		return
 	}
-	graphJSON, err := json.Marshal(tpl.Graph)
-	if err != nil {
-		u.fail(w, err)
-		return
-	}
-	if err := u.deps.Cycles.SetGraph(ctx, c.ID, string(graphJSON)); err != nil {
-		u.fail(w, err)
-		return
-	}
-	if err := u.deps.Cycles.SetGraphRef(ctx, c.ID, tpl.ID, tpl.Version, ""); err != nil {
-		u.fail(w, err)
-		return
-	}
-	frame := architect.Frame{
-		Name: p.Name, Goal: p.Goal, Outcome: p.Goal,
-		Repository: p.RepositoryPath, Sources: append([]string(nil), p.Sources...),
-		Capabilities: append([]string(nil), p.Capabilities...),
-		FirstCycle:   tpl.CycleKind,
-		ReviewPolicy: "internal work may proceed; external or irreversible actions require approval",
-	}
-	frameJSON, err := json.Marshal(frame)
-	if err != nil {
-		u.fail(w, err)
-		return
-	}
-	if err := u.deps.Cycles.SetFrame(ctx, c.ID, string(frameJSON), frame.ReviewPolicy); err != nil {
-		u.fail(w, err)
-		return
+	schedule := strings.TrimSpace(r.FormValue("schedule"))
+	if u.deps.Triggers != nil {
+		for _, tr := range tpl.Triggers {
+			spec := tr.Spec
+			if tr.Kind == workflow.TriggerSchedule && schedule != "" {
+				spec = schedule
+			}
+			if _, err := u.deps.Triggers.Ensure(ctx, p.ID, tpl.ID, trigger.Kind(tr.Kind), spec, tr.Enabled); err != nil {
+				slog.Warn("ui: recording cycle trigger", "project", p.ID, "template", tpl.ID, "err", err)
+			}
+		}
 	}
 	http.Redirect(w, r, "/ui/projects/"+p.ID+"/canvas?cycle="+c.ID, http.StatusSeeOther)
 }
@@ -99,6 +104,10 @@ const newCycleBody = `
     </ul>
     <form method="post" action="/ui/projects/{{$.Project.ID}}/cycles">
       <input type="hidden" name="template_id" value="{{.ID}}">
+      {{if .Schedule}}<label class="field"><span>Schedule (5-field cron, UTC)</span>
+        <input name="schedule" value="{{.Schedule}}" maxlength="80"></label>
+      <p class="muted small">Enabled when you create the draft; the scheduler starts a new cycle at the next matching minute.</p>
+      {{end}}
       <button class="btn primary">Create draft</button>
     </form>
   </div>

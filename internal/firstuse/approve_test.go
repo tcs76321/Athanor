@@ -7,6 +7,7 @@ import (
 
 	"github.com/tcs76321/athanor/internal/architect"
 	"github.com/tcs76321/athanor/internal/cycle"
+	"github.com/tcs76321/athanor/internal/project"
 	"github.com/tcs76321/athanor/internal/workflow"
 )
 
@@ -90,6 +91,40 @@ func TestStartDraftRejectsInvalidEditedGraph(t *testing.T) {
 	}
 	if got.State != cycle.StateDraft {
 		t.Errorf("state = %q, want draft", got.State)
+	}
+}
+
+func TestStartTemplateCreatesAndStartsCycle(t *testing.T) {
+	deps, _ := newDeps(t, &fakeIndexer{}, frozen(false))
+	cycles := cycle.NewRepo(deps.Events)
+	ctx := context.Background()
+	p, err := deps.Projects.CreateGuided(ctx, project.Intent{
+		Name: "briefs", Goal: "Write a daily brief.", Sources: []string{"https://example.com/a"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	starter := &fakeStarter{jobs: []string{"job-1"}}
+	res, err := StartTemplate(ctx, deps, cycles, starter, p, workflow.DailyBriefTemplate(), "trig-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Cycle.Kind != cycle.KindOperate || res.Cycle.State != cycle.StateRunning {
+		t.Errorf("cycle = %+v", res.Cycle)
+	}
+	if res.Cycle.TemplateID != "daily-brief" || res.Cycle.TemplateVersion != 1 || res.Cycle.TriggerID != "trig-1" {
+		t.Errorf("provenance = %+v", res.Cycle)
+	}
+	if len(res.Tasks) != len(workflow.DailyBriefTemplate().Graph.Blocks) {
+		t.Errorf("tasks = %d", len(res.Tasks))
+	}
+	for _, task := range res.Tasks {
+		if task.CycleID != res.Cycle.ID {
+			t.Errorf("task %s cycle = %q", task.ID, task.CycleID)
+		}
+	}
+	if starter.goalID != res.GoalID || len(res.JobIDs) != 1 {
+		t.Errorf("started = %+v", res)
 	}
 }
 

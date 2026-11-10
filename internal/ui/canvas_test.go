@@ -15,6 +15,7 @@ import (
 	"github.com/tcs76321/athanor/internal/job"
 	"github.com/tcs76321/athanor/internal/project"
 	"github.com/tcs76321/athanor/internal/store"
+	"github.com/tcs76321/athanor/internal/trigger"
 	"github.com/tcs76321/athanor/internal/workflow"
 	"github.com/tcs76321/athanor/migrations"
 )
@@ -65,7 +66,8 @@ func canvasSetup(t *testing.T) (*UI, *httptest.Server, project.Project, cycle.Cy
 	starter := &canvasStarter{jobs: []string{"job-1"}}
 	u := New(Deps{
 		Store: s, Projects: projects, Jobs: job.NewRepository(s), Config: cfg,
-		Cycles: cycles, Starter: starter, Freezer: fakeFreezer{}, Engine: &fakeEngine{},
+		Cycles: cycles, Starter: starter, Triggers: trigger.NewRepo(s),
+		Freezer: fakeFreezer{}, Engine: &fakeEngine{},
 	})
 	mux := http.NewServeMux()
 	u.Register(mux)
