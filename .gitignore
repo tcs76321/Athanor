@@ -39,3 +39,4 @@
 !/spikes/**/go.mod
 !/spikes/**/go.sum
 !/spikes/**/README.md
+.bench-aider/

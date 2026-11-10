@@ -185,3 +185,17 @@ scoring:
   quality: blind_two_judge_pairwise
   judge: advisory
   report: per_generator_paired_by_task
+
+# External validation track. This is not the frozen claim suite: the adapter,
+# exercise list, and source commit are versioned in the manifest and may be
+# updated independently. The report names the track version and never uses it
+# to tune the claim corpus.
+external:
+  aider_polyglot:
+    manifest: eval/bench/v5/aider-polyglot.yaml
+    adapter: athanor-custom
+    role: external_validation
+    note: >
+      Official Exercism tests re-run in a fresh container after Athanor exits.
+      Not an official Aider leaderboard entry.
+

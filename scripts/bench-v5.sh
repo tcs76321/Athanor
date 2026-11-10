@@ -96,6 +96,16 @@ for arm in single full; do
 	fi
 done
 
+# External validation track: official Exercism tests, custom Athanor adapter.
+# Kept separate from the frozen claim suites; the report names the track version.
+if [ ! -f "$dir/aider/complete" ]; then
+	mkdir -p "$dir/aider"
+	AIDER_OUT="$dir/aider" BENCH_OLLAMA="$ollama" \
+		scripts/bench-aider-polyglot.sh "$model" full \
+		two-fer,leap,pangram,isogram,raindrops,rna-transcription,acronym,hamming
+	touch "$dir/aider/complete"
+fi
+
 python3 eval/bench/v5/analyze.py -root "$dir" -model "$model" \
 	-json "$dir/v5-report.json" -md "$dir/v5-report.md"
 

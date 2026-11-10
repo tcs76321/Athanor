@@ -171,6 +171,25 @@ def main():
         report["claims"]["utility"] = util_ok
     lines.append("")
 
+    # External validation track: official Exercism tests, custom adapter.
+    aider = load_json(os.path.join(args.root, "aider", "report.json"))
+    if aider:
+        lines.append("## External — Aider Polyglot (Python subset, custom adapter)")
+        lines.append("")
+        lines.append(f"**{aider.get('passed', 0)}/{aider.get('n', 0)}** official Exercism exercises passed.")
+        lines.append("")
+        lines.append(md_table(["exercise", "pass", "reason"],
+                              [[r.get("slug"), r.get("pass"), (r.get("reason") or "; ".join(r.get("tests_tail", [])))[:100]]
+                               for r in aider.get("results", [])]))
+        lines.append("")
+        lines.append("> Custom adapter over the official Exercism tests; not an official Aider leaderboard entry. "
+                     "The label is external to Athanor's verifier.")
+        lines.append("")
+        report["external"] = aider
+        report["claims"]["external_grounded"] = {
+            "passed": aider.get("passed", 0), "n": aider.get("n", 0),
+        }
+
     md = "\n".join(lines)
     print(md)
     if args.md:
