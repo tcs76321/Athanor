@@ -1,0 +1,47 @@
+{
+  "adapter": "athanor-aider-polyglot-python-subset",
+  "n": 4,
+  "passed": 4,
+  "results": [
+    {
+      "slug": "two-fer",
+      "pass": true,
+      "exit": 0,
+      "artifact_id": "c29ba1c7-e645-4fbc-8470-86af6e45d6f8",
+      "tests_tail": [
+        "...                                                                      [100%]",
+        "3 passed in 0.01s"
+      ]
+    },
+    {
+      "slug": "leap",
+      "pass": true,
+      "exit": 0,
+      "artifact_id": "b43a5297-c10d-445f-905f-c92d3e18d8d0",
+      "tests_tail": [
+        ".........                                                                [100%]",
+        "9 passed in 0.02s"
+      ]
+    },
+    {
+      "slug": "pangram",
+      "pass": true,
+      "exit": 0,
+      "artifact_id": "1d7ad72f-2352-44dc-ae60-774f851fd43c",
+      "tests_tail": [
+        "............                                                             [100%]",
+        "12 passed in 0.02s"
+      ]
+    },
+    {
+      "slug": "isogram",
+      "pass": true,
+      "exit": 0,
+      "artifact_id": "bddd0c4c-9d00-4bb3-add8-0dfdff3e9f97",
+      "tests_tail": [
+        "..............                                                           [100%]",
+        "14 passed in 0.02s"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,42 @@
+{
+  "adapter": "athanor-aider-polyglot-python-subset",
+  "n": 4,
+  "passed": 3,
+  "results": [
+    {
+      "slug": "raindrops",
+      "pass": true,
+      "exit": 0,
+      "artifact_id": "18ad85c3-8ca5-4fe3-b3f7-6960bbf161d9",
+      "tests_tail": [
+        "..................                                                       [100%]",
+        "18 passed in 0.02s"
+      ]
+    },
+    {
+      "slug": "rna-transcription",
+      "pass": true,
+      "exit": 0,
+      "artifact_id": "3a93c702-c508-41ec-9c17-005d493b9040",
+      "tests_tail": [
+        "......                                                                   [100%]",
+        "6 passed in 0.02s"
+      ]
+    },
+    {
+      "slug": "acronym",
+      "pass": false,
+      "reason": "no code artifact produced"
+    },
+    {
+      "slug": "hamming",
+      "pass": true,
+      "exit": 0,
+      "artifact_id": "b24d2410-8f7c-4eef-b161-52a95403e11c",
+      "tests_tail": [
+        ".........                                                                [100%]",
+        "9 passed in 0.02s"
+      ]
+    }
+  ]
+}

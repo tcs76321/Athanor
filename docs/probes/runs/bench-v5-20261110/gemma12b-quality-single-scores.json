@@ -1,0 +1,165 @@
+{
+  "rubric": "quality-v1",
+  "judges": [
+    "granite4.2:8b",
+    "mimo-v2.6:9b-mxfp8"
+  ],
+  "artifacts": 4,
+  "scores": [
+    {
+      "goal_name": "v5-quality-rfc",
+      "model_label": "gemma12b",
+      "arm": "single",
+      "run": 1,
+      "artifact_id": "92229524-b5b4-4ae6-9354-d595df2d78e6",
+      "judge": "granite4.2:8b",
+      "scores": {
+        "appropriate_complexity": 3,
+        "completeness": 3,
+        "correctness": 5,
+        "depth": 3,
+        "maintainability": 3,
+        "originality": 3,
+        "robustness": 3,
+        "structure": 4
+      },
+      "overall": 3,
+      "rationale": "The artifact is mostly complete and correct but contains bloat (e.g., versioning column and audit logs for LWW, which contradicts LWW's simplicity; SQLite file path `/var/lib/app/state.db` is over-specified without justification for location), lacks clear reasoning about trade-offs, and repeats generic phrases; thus appropriate_complexity is reduced from 5 to 3 due to gratuitous scope (versioning + audit logs for LWW).",
+      "raw": "{\n  \"scores\": {\n    \"appropriate_complexity\": 3,\n    \"completeness\": 3,\n    \"correctness\": 5,\n    \"depth\": 3,\n    \"maintainability\": 3,\n    \"originality\": 3,\n    \"robustness\": 3,\n    \"structure\": 4\n  },\n  \"overall\": 3,\n  \"rationale\": \"The artifact is mostly complete and correct but contains bloat (e.g., versioning column and audit logs for LWW, which contradicts LWW's simplicity; SQLite file path `/var/lib/app/state.db` is over-specified without justification for location), lacks clear reasoning about trade-offs, and repeats generic phrases; thus appropriate_complexity is reduced from 5 to 3 due to gratuitous scope (versioning + audit logs for LWW).\"\n}"
+    },
+    {
+      "goal_name": "v5-quality-refactor",
+      "model_label": "gemma12b",
+      "arm": "single",
+      "run": 1,
+      "artifact_id": "89cbcafc-65cf-4c42-8a3d-fc475270db9e",
+      "judge": "granite4.2:8b",
+      "scores": {
+        "appropriate_complexity": 5,
+        "completeness": 5,
+        "correctness": 5,
+        "depth": 5,
+        "maintainability": 5,
+        "originality": 3,
+        "robustness": 3,
+        "structure": 5
+      },
+      "overall": 4,
+      "rationale": "Correct and minimal; robustness and originality slightly lacking in handling edge cases and non-obvious trade-offs.",
+      "raw": "{\"scores\":{\"appropriate_complexity\":5,\"completeness\":5,\"correctness\":5,\"depth\":5,\"maintainability\":5,\"originality\":3,\"robustness\":3,\"structure\":5},\"overall\":4,\"rationale\":\"Correct and minimal; robustness and originality slightly lacking in handling edge cases and non-obvious trade-offs.\"}"
+    },
+    {
+      "goal_name": "v5-quality-migration",
+      "model_label": "gemma12b",
+      "arm": "single",
+      "run": 1,
+      "artifact_id": "0e61d4f9-94d8-4f36-a2a7-4ecb0731576b",
+      "judge": "granite4.2:8b",
+      "scores": {
+        "appropriate_complexity": 4,
+        "completeness": 5,
+        "correctness": 5,
+        "depth": 4,
+        "maintainability": 3,
+        "originality": 3,
+        "robustness": 3,
+        "structure": 4
+      },
+      "overall": 3.5,
+      "rationale": "Mostly correct and complete, but contains minor bloat and lacks clear separation of concerns in script logic, reducing maintainability and depth slightly.",
+      "raw": "{\n  \"scores\": {\n    \"appropriate_complexity\": 4,\n    \"completeness\": 5,\n    \"correctness\": 5,\n    \"depth\": 4,\n    \"maintainability\": 3,\n    \"originality\": 3,\n    \"robustness\": 3,\n    \"structure\": 4\n  },\n  \"overall\": 3.5,\n  \"rationale\": \"Mostly correct and complete, but contains minor bloat and lacks clear separation of concerns in script logic, reducing maintainability and depth slightly.\"\n}"
+    },
+    {
+      "goal_name": "v5-quality-spec",
+      "model_label": "gemma12b",
+      "arm": "single",
+      "run": 1,
+      "artifact_id": "4c5be880-3542-4df5-8726-9fb4cb591e0c",
+      "judge": "granite4.2:8b",
+      "scores": {
+        "appropriate_complexity": 5,
+        "completeness": 5,
+        "correctness": 5,
+        "depth": 5,
+        "maintainability": 4,
+        "originality": 3,
+        "robustness": 4,
+        "structure": 5
+      },
+      "overall": 4,
+      "rationale": "Meets all brief requirements with clear structure and reasoning, but minor redundancy in schema description slightly reduces maintainability; handles edge cases appropriately.",
+      "raw": "{\"scores\":{\"appropriate_complexity\":5,\"completeness\":5,\"correctness\":5,\"depth\":5,\"maintainability\":4,\"originality\":3,\"robustness\":4,\"structure\":5},\"overall\":4,\"rationale\":\"Meets all brief requirements with clear structure and reasoning, but minor redundancy in schema description slightly reduces maintainability; handles edge cases appropriately.\"}"
+    },
+    {
+      "goal_name": "v5-quality-rfc",
+      "model_label": "gemma12b",
+      "arm": "single",
+      "run": 1,
+      "artifact_id": "92229524-b5b4-4ae6-9354-d595df2d78e6",
+      "judge": "mimo-v2.6:9b-mxfp8",
+      "scores": {
+        "appropriate_complexity": 3,
+        "completeness": 3,
+        "correctness": 3,
+        "depth": 3,
+        "maintainability": 3,
+        "originality": 3,
+        "robustness": 3,
+        "structure": 3
+      },
+      "overall": 3,
+      "rationale": "The RFC is coherent and complete on its stated scope, but it is thin for a distributed-state decision: it asserts LWW as the conflict policy without addressing the central correctness problem (LWW silently discards concurrent updates, which the brief itself flags as a split-brain risk), omits the versioning/audit mechanism it promises, and offers no operational detail on locking, durability, or failure recovery.",
+      "raw": "{\"scores\":{\"appropriate_complexity\":3,\"completeness\":3,\"correctness\":3,\"depth\":3,\"maintainability\":3,\"originality\":3,\"robustness\":3,\"structure\":3},\"overall\":3,\"rationale\":\"The RFC is coherent and complete on its stated scope, but it is thin for a distributed-state decision: it asserts LWW as the conflict policy without addressing the central correctness problem (LWW silently discards concurrent updates, which the brief itself flags as a split-brain risk), omits the versioning/audit mechanism it promises, and offers no operational detail on locking, durability, or failure recovery.\"}"
+    },
+    {
+      "goal_name": "v5-quality-refactor",
+      "model_label": "gemma12b",
+      "arm": "single",
+      "run": 1,
+      "artifact_id": "89cbcafc-65cf-4c42-8a3d-fc475270db9e",
+      "judge": "mimo-v2.6:9b-mxfp8",
+      "scores": {
+        "dimension": 5
+      },
+      "overall": 5,
+      "rationale": "The artifact is a minimal, well-structured solution that directly addresses the brief with no unnecessary complexity or bloat.",
+      "raw": "{\"scores\":{\"dimension\":5},\"overall\":5,\"rationale\":\"The artifact is a minimal, well-structured solution that directly addresses the brief with no unnecessary complexity or bloat.\"}"
+    },
+    {
+      "goal_name": "v5-quality-migration",
+      "model_label": "gemma12b",
+      "arm": "single",
+      "run": 1,
+      "artifact_id": "0e61d4f9-94d8-4f36-a2a7-4ecb0731576b",
+      "judge": "mimo-v2.6:9b-mxfp8",
+      "scores": {
+        "appropriate_complexity": 3,
+        "completeness": 3,
+        "correctness": 3,
+        "depth": 3,
+        "maintainability": 3,
+        "originality": 3,
+        "robustness": 3,
+        "structure": 3
+      },
+      "overall": 3,
+      "rationale": "The plan covers the requested migration steps and rollback, but the verification query is internally inconsistent (it counts records with an order_id column rather than validating migrated orders), the chunked-locking mitigation contradicts the stated bulk-insert approach, and the plan lacks a data-loss/recovery path for rows that fail validation.",
+      "raw": "{\"scores\":{\"appropriate_complexity\":3,\"completeness\":3,\"correctness\":3,\"depth\":3,\"maintainability\":3,\"originality\":3,\"robustness\":3,\"structure\":3},\"overall\":3,\"rationale\":\"The plan covers the requested migration steps and rollback, but the verification query is internally inconsistent (it counts records with an order_id column rather than validating migrated orders), the chunked-locking mitigation contradicts the stated bulk-insert approach, and the plan lacks a data-loss/recovery path for rows that fail validation.\"}"
+    },
+    {
+      "goal_name": "v5-quality-spec",
+      "model_label": "gemma12b",
+      "arm": "single",
+      "run": 1,
+      "artifact_id": "4c5be880-3542-4df5-8726-9fb4cb591e0c",
+      "judge": "mimo-v2.6:9b-mxfp8",
+      "scores": {
+        "dimension": 3
+      },
+      "overall": 3,
+      "rationale": "The spec covers the core container, encoding, versioning, and compatibility rules, but omits concrete schema definitions, migration function signatures, and error/recovery behavior, leaving it thin and partly generic.",
+      "raw": "{\"scores\":{\"dimension\":3},\"overall\":3,\"rationale\":\"The spec covers the core container, encoding, versioning, and compatibility rules, but omits concrete schema definitions, migration function signatures, and error/recovery behavior, leaving it thin and partly generic.\"}"
+    }
+  ],
+  "agreement": 0.5443310539518174
+}

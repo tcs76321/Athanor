@@ -1,0 +1,107 @@
+{
+  "model": "gemma12b",
+  "suites": {
+    "foundation": {
+      "single": {
+        "n": 12,
+        "pass_rate": 0.8333333333333334,
+        "tokens": 6946.916666666667
+      },
+      "full": {
+        "n": 12,
+        "pass_rate": 0.9166666666666666,
+        "tokens": 13372.416666666666
+      }
+    },
+    "agency": {
+      "single": {
+        "n": 2,
+        "pass_rate": 1.0,
+        "tokens": 6130
+      },
+      "full": {
+        "n": 2,
+        "pass_rate": 1.0,
+        "tokens": 13064
+      }
+    },
+    "utility": {
+      "single": {
+        "n": 5,
+        "pass_rate": 0.2,
+        "tokens": 11675.2
+      },
+      "full": {
+        "n": 0,
+        "pass_rate": 0.0,
+        "tokens": 0.0
+      }
+    },
+    "safety": {
+      "single": {
+        "n": 4,
+        "pass_rate": 1.0,
+        "tokens": 4612.5
+      },
+      "full": {
+        "n": 0,
+        "pass_rate": 0.0,
+        "tokens": 0.0
+      }
+    },
+    "memory": {
+      "single": {
+        "n": 2,
+        "pass_rate": 0.5,
+        "tokens": 8503
+      },
+      "full": {
+        "n": 0,
+        "pass_rate": 0.0,
+        "tokens": 0.0
+      }
+    },
+    "quality": {
+      "single": {
+        "n": 6,
+        "pass_rate": 0.6666666666666666,
+        "tokens": 8316.5
+      },
+      "full": {
+        "n": 6,
+        "pass_rate": 0.8333333333333334,
+        "tokens": 26996.5
+      }
+    }
+  },
+  "cycle": {
+    "n": 5,
+    "pass_rate": 0.4,
+    "complete_rate": 0.4,
+    "engine_accept_rate": 0.6
+  },
+  "claims": {
+    "paired": {
+      "foundation": {
+        "wins": 1,
+        "ties": 11,
+        "losses": 0
+      },
+      "agency": {
+        "wins": 0,
+        "ties": 2,
+        "losses": 0
+      }
+    },
+    "safety": true,
+    "non_inferiority_foundation": {
+      "delta_points": 8.333333333333325,
+      "pass": true
+    },
+    "non_inferiority_agency": {
+      "delta_points": 0.0,
+      "pass": true
+    },
+    "utility": false
+  }
+}

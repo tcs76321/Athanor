@@ -1,0 +1,236 @@
+{
+  "rubric": "quality-v1",
+  "judges": [
+    "granite4.2:8b",
+    "mimo-v2.6:9b-mxfp8"
+  ],
+  "artifacts": 6,
+  "scores": [
+    {
+      "goal_name": "v5-quality-rfc",
+      "model_label": "bonsai27b",
+      "arm": "full",
+      "run": 1,
+      "artifact_id": "4a02cc38-bd5d-456e-b83f-a9e732099c37",
+      "judge": "granite4.2:8b",
+      "scores": {
+        "appropriate_complexity": 5,
+        "completeness": 5,
+        "correctness": 5,
+        "depth": 5,
+        "maintainability": 5,
+        "originality": 5,
+        "robustness": 5,
+        "structure": 5
+      },
+      "overall": 5,
+      "rationale": "Every element serves the brief; no bloat; handles conflict policy, edge cases, schema safety, and clear structure without overreach.",
+      "raw": "{\n  \"scores\": {\n    \"appropriate_complexity\": 5,\n    \"completeness\": 5,\n    \"correctness\": 5,\n    \"depth\": 5,\n    \"maintainability\": 5,\n    \"originality\": 5,\n    \"robustness\": 5,\n    \"structure\": 5\n  },\n  \"overall\": 5,\n  \"rationale\": \"Every element serves the brief; no bloat; handles conflict policy, edge cases, schema safety, and clear structure without overreach.\"\n}"
+    },
+    {
+      "goal_name": "v5-quality-refactor",
+      "model_label": "bonsai27b",
+      "arm": "full",
+      "run": 1,
+      "artifact_id": "21d333f5-e83d-461a-a6bf-d7188fc965b7",
+      "judge": "granite4.2:8b",
+      "scores": {
+        "appropriate_complexity": 5,
+        "completeness": 5,
+        "correctness": 5,
+        "depth": 5,
+        "maintainability": 5,
+        "originality": 3,
+        "robustness": 3,
+        "structure": 5
+      },
+      "overall": 4,
+      "rationale": "Correct and minimal; robustness and depth slightly lacking in explicit failure handling.",
+      "raw": "{\n  \"scores\": {\n    \"appropriate_complexity\": 5,\n    \"completeness\": 5,\n    \"correctness\": 5,\n    \"depth\": 5,\n    \"maintainability\": 5,\n    \"originality\": 3,\n    \"robustness\": 3,\n    \"structure\": 5\n  },\n  \"overall\": 4,\n  \"rationale\": \"Correct and minimal; robustness and depth slightly lacking in explicit failure handling.\"\n}"
+    },
+    {
+      "goal_name": "v5-quality-migration",
+      "model_label": "bonsai27b",
+      "arm": "full",
+      "run": 1,
+      "artifact_id": "41481b76-efa3-49de-bd40-551300d5c474",
+      "judge": "granite4.2:8b",
+      "scores": {
+        "appropriate_complexity": 5,
+        "completeness": 5,
+        "correctness": 5,
+        "depth": 5,
+        "maintainability": 5,
+        "originality": 5,
+        "robustness": 5,
+        "structure": 5
+      },
+      "overall": 5,
+      "rationale": "Every section is justified by the brief; no bloat; handles risks, rollback, verification, and edge cases with concrete checks.",
+      "raw": "{\n  \"scores\": {\n    \"appropriate_complexity\": 5,\n    \"completeness\": 5,\n    \"correctness\": 5,\n    \"depth\": 5,\n    \"maintainability\": 5,\n    \"originality\": 5,\n    \"robustness\": 5,\n    \"structure\": 5\n  },\n  \"overall\": 5,\n  \"rationale\": \"Every section is justified by the brief; no bloat; handles risks, rollback, verification, and edge cases with concrete checks.\"\n}"
+    },
+    {
+      "goal_name": "v5-quality-incident",
+      "model_label": "bonsai27b",
+      "arm": "full",
+      "run": 1,
+      "artifact_id": "7c0e8d7e-045b-4ad3-8fb1-1bf6b90490cd",
+      "judge": "granite4.2:8b",
+      "scores": {
+        "appropriate_complexity": 5,
+        "completeness": 5,
+        "correctness": 5,
+        "depth": 5,
+        "maintainability": 5,
+        "originality": 5,
+        "robustness": 5,
+        "structure": 5
+      },
+      "overall": 5,
+      "rationale": "Every element directly addresses the brief with no bloat; reasoning is precise, actionable, and anticipates failure modes.",
+      "raw": "{\n  \"scores\": {\n    \"appropriate_complexity\": 5,\n    \"completeness\": 5,\n    \"correctness\": 5,\n    \"depth\": 5,\n    \"maintainability\": 5,\n    \"originality\": 5,\n    \"robustness\": 5,\n    \"structure\": 5\n  },\n  \"overall\": 5,\n  \"rationale\": \"Every element directly addresses the brief with no bloat; reasoning is precise, actionable, and anticipates failure modes.\"\n}"
+    },
+    {
+      "goal_name": "v5-quality-synthesis",
+      "model_label": "bonsai27b",
+      "arm": "full",
+      "run": 1,
+      "artifact_id": "cc063322-e357-4ef1-8f1a-928231ca5d4b",
+      "judge": "granite4.2:8b",
+      "scores": {
+        "appropriate_complexity": 3,
+        "completeness": 4,
+        "correctness": 5,
+        "depth": 4,
+        "maintainability": 3,
+        "originality": 3,
+        "robustness": 3,
+        "structure": 3
+      },
+      "overall": 3,
+      "rationale": "Addresses the brief with reasonable depth and clarity but includes redundant framing (positions A/B) and lacks concrete structure or actionable insight beyond summarization.",
+      "raw": "{\n  \"scores\": {\n    \"appropriate_complexity\": 3,\n    \"completeness\": 4,\n    \"correctness\": 5,\n    \"depth\": 4,\n    \"maintainability\": 3,\n    \"originality\": 3,\n    \"robustness\": 3,\n    \"structure\": 3\n  },\n  \"overall\": 3,\n  \"rationale\": \"Addresses the brief with reasonable depth and clarity but includes redundant framing (positions A/B) and lacks concrete structure or actionable insight beyond summarization.\"\n}"
+    },
+    {
+      "goal_name": "v5-quality-spec",
+      "model_label": "bonsai27b",
+      "arm": "full",
+      "run": 1,
+      "artifact_id": "58066481-741c-4cc4-82af-2a6e69580296",
+      "judge": "granite4.2:8b",
+      "scores": {
+        "appropriate_complexity": 5,
+        "completeness": 5,
+        "correctness": 5,
+        "depth": 5,
+        "maintainability": 5,
+        "originality": 5,
+        "robustness": 5,
+        "structure": 5
+      },
+      "overall": 5,
+      "rationale": "Every element directly serves the brief; no bloat; handles edge cases implicitly via schema rules; clear, minimal structure; non-obvious constraint (forward compatibility via major version guard) named and enforced.",
+      "raw": "{\"scores\":{\"appropriate_complexity\":5,\"completeness\":5,\"correctness\":5,\"depth\":5,\"maintainability\":5,\"originality\":5,\"robustness\":5,\"structure\":5},\"overall\":5,\"rationale\":\"Every element directly serves the brief; no bloat; handles edge cases implicitly via schema rules; clear, minimal structure; non-obvious constraint (forward compatibility via major version guard) named and enforced.\"}"
+    },
+    {
+      "goal_name": "v5-quality-rfc",
+      "model_label": "bonsai27b",
+      "arm": "full",
+      "run": 1,
+      "artifact_id": "4a02cc38-bd5d-456e-b83f-a9e732099c37",
+      "judge": "mimo-v2.6:9b-mxfp8",
+      "scores": {
+        "dimension": 4,
+        "overall": 4
+      },
+      "overall": 4,
+      "rationale": "The RFC is well-structured and complete, with a clear decision, justified alternatives, and named risks; it loses points for a few unresolved gaps (no WAL-checkpointing or connection-closing detail, no schema_version row creation procedure, and the busy_timeout retry is asserted without a code seam).",
+      "raw": "{\"scores\":{\"dimension\":4,\"overall\":4},\"rationale\":\"The RFC is well-structured and complete, with a clear decision, justified alternatives, and named risks; it loses points for a few unresolved gaps (no WAL-checkpointing or connection-closing detail, no schema_version row creation procedure, and the busy_timeout retry is asserted without a code seam).\"}"
+    },
+    {
+      "goal_name": "v5-quality-refactor",
+      "model_label": "bonsai27b",
+      "arm": "full",
+      "run": 1,
+      "artifact_id": "21d333f5-e83d-461a-a6bf-d7188fc965b7",
+      "judge": "mimo-v2.6:9b-mxfp8",
+      "scores": {
+        "dimension": 5
+      },
+      "overall": 5,
+      "rationale": "The artifact is a minimal, correct implementation of the requested behavior with no gratuitous scope, and it handles the falsy-input edge case explicitly.",
+      "raw": "{\"scores\":{\"dimension\":5},\"overall\":5,\"rationale\":\"The artifact is a minimal, correct implementation of the requested behavior with no gratuitous scope, and it handles the falsy-input edge case explicitly.\"}"
+    },
+    {
+      "goal_name": "v5-quality-migration",
+      "model_label": "bonsai27b",
+      "arm": "full",
+      "run": 1,
+      "artifact_id": "41481b76-efa3-49de-bd40-551300d5c474",
+      "judge": "mimo-v2.6:9b-mxfp8",
+      "scores": {
+        "dimension": 4,
+        "overall": 4
+      },
+      "overall": 4,
+      "raw": "{\"scores\":{\"dimension\":4,\"overall\":4,\"rationale\":\"The migration plan is well-structured and complete, but it is a generic template that assumes a single legacy_table and omits the non-obvious failure modes (partial JSON, duplicate keys, FK constraint failures, and the fact that a single transaction cannot safely hold a DROP COLUMN in SQLite, which makes the stated rollback path impossible as written).\"}}"
+    },
+    {
+      "goal_name": "v5-quality-incident",
+      "model_label": "bonsai27b",
+      "arm": "full",
+      "run": 1,
+      "artifact_id": "7c0e8d7e-045b-4ad3-8fb1-1bf6b90490cd",
+      "judge": "mimo-v2.6:9b-mxfp8",
+      "scores": {
+        "appropriate_complexity": 5,
+        "completeness": 5,
+        "correctness": 5,
+        "depth": 5,
+        "maintainability": 5,
+        "originality": 5,
+        "robustness": 5,
+        "structure": 5
+      },
+      "overall": 5,
+      "rationale": "The postmortem is complete, well-organized, and every section earns its place without gratuitous scope.",
+      "raw": "{\"scores\":{\"appropriate_complexity\":5,\"completeness\":5,\"correctness\":5,\"depth\":5,\"maintainability\":5,\"originality\":5,\"robustness\":5,\"structure\":5},\"overall\":5,\"rationale\":\"The postmortem is complete, well-organized, and every section earns its place without gratuitous scope.\"}"
+    },
+    {
+      "goal_name": "v5-quality-synthesis",
+      "model_label": "bonsai27b",
+      "arm": "full",
+      "run": 1,
+      "artifact_id": "cc063322-e357-4ef1-8f1a-928231ca5d4b",
+      "judge": "mimo-v2.6:9b-mxfp8",
+      "scores": {
+        "appropriate_complexity": 5,
+        "completeness": 5,
+        "correctness": 5,
+        "depth": 5,
+        "maintainability": 5,
+        "originality": 5,
+        "robustness": 5,
+        "structure": 5
+      },
+      "overall": 5,
+      "rationale": "The artifact is a concise, well-structured technical synthesis that directly addresses the brief with a clear thesis, balanced disagreement, and a decisive condition.",
+      "raw": "{\"scores\":{\"appropriate_complexity\":5,\"completeness\":5,\"correctness\":5,\"depth\":5,\"maintainability\":5,\"originality\":5,\"robustness\":5,\"structure\":5},\"overall\":5,\"rationale\":\"The artifact is a concise, well-structured technical synthesis that directly addresses the brief with a clear thesis, balanced disagreement, and a decisive condition.\"}"
+    },
+    {
+      "goal_name": "v5-quality-spec",
+      "model_label": "bonsai27b",
+      "arm": "full",
+      "run": 1,
+      "artifact_id": "58066481-741c-4cc4-82af-2a6e69580296",
+      "judge": "mimo-v2.6:9b-mxfp8",
+      "scores": {
+        "dimension": 5,
+        "overall": 5
+      },
+      "overall": 5,
+      "raw": "{\"scores\":{\"dimension\":5,\"overall\":5,\"rationale\":\"The spec is a tight, complete, and well-organized contract for a portable export format, with every section earning its place and no gratuitous scope.\"}}"
+    }
+  ],
+  "agreement": -0.48989794855663565
+}
