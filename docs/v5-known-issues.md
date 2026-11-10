@@ -12,10 +12,12 @@ product claims fail. Fix these before treating v5 as a frozen instrument.
 ## P0 — blocks a credible v5 claim or freeze
 
 ### 1. Engine repo-test/acceptance is mis-wired for external repo tasks
-- **Evidence:** Aider/Exercism single arm: **7/8 external passes** (71 official
-  assertions) while the engine accepted only **~2/8**. In the first batch:
-  4/4 external, 1/4 engine accepted. Second batch: 3/4 external, 1/4 engine
-  accepted; `acronym` produced no artifact after an index timeout.
+- **Evidence:** Aider/Exercism single arm: **8/8 external passes** (80 official
+  assertions) while the engine accepted only **~2/8**. First batch: 4/4
+  external, 1/4 engine accepted. Second batch: 3/4 external, 1/4 engine
+  accepted; `acronym` produced no artifact after an index timeout and passed on
+  retry. The engine's own state was `failed` on exercises whose best candidate
+  passed the official tests.
 - **Meaning:** Athanor generated the correct code; its own test/acceptance path
   did not test the artifact that the external scorer tested, or rejected it.
   Until fixed, the external track is a model + best-candidate signal, not a
@@ -61,12 +63,12 @@ product claims fail. Fix these before treating v5 as a frozen instrument.
   `docs/probes/runs/bench-v5-20261110/`) or a non-ignored `eval/bench/v5/runs/`
   with a manifest. Do not commit large artifacts.
 
-### 6. The Aider external track is not merged into the v5 report
-- The 4/4 and 3/4 reports exist separately; `acronym` retry is pending.
-- **Fix:** merge the best valid result per exercise into
-  `tools/bench/results/v5/<model>/aider/report.json` (or a durable evidence
-  path), rerun `analyze.py`, and label it "single arm, 8 Python exercises,
-  custom adapter." Record the retry as an infrastructure retry.
+### 6. External track is now merged (verify after re-runs)
+- The 4/4, 3/4, and acronym 1/1 reports are merged into an **8/8** report under
+  `tools/bench/results/v5/bonsai27b/aider/` and into the committed evidence dir;
+  `analyze.py` now includes the external section.
+- **Remaining:** do the same for gemma; regenerate the report whenever a track
+  run changes.
 
 ---
 
@@ -109,11 +111,12 @@ product claims fail. Fix these before treating v5 as a frozen instrument.
   external signal; keep the 8-exercise single as the cheap floor. Label both.
 
 ### 12. `acronym` index timeout
-- **Evidence:** the repository index call exceeded the 10-minute client timeout;
-  the job produced no artifact.
+- **Evidence:** the first attempt's repository index call exceeded the
+  10-minute client timeout and the job produced no artifact; the retry passed
+  the official tests (9/9).
 - **Fix:** investigate sync index latency for a 67-chunk repo, decouple index
-  from job start, raise/soften the timeout, and retry. Document infrastructure
-  retries separately from model failures.
+  from job start, raise/soften the timeout, and keep retries classified as
+  infrastructure, not model failures.
 
 ### 13. `analyze.py` correctness gaps
 - Unrun arms (`utility/full`, `safety/full`, `memory/full`) display **0%**
@@ -183,6 +186,8 @@ product claims fail. Fix these before treating v5 as a frozen instrument.
 - Cycle probe detects stalls instead of waiting out the timeout.
 - Aider adapter parses multi-file `=== FILE: ... ===` artifacts.
 - External track is single-arm by default and versioned separately.
+- Aider 8/8 report merged; `analyze.py` renders the external section.
+- Acronym index-timeout retry passed 9/9 official tests.
 - v5 protocol/corpus/digest, v5 validation test, and `make check` green.
 - v5 2×2 completed for both generators.
 
@@ -195,7 +200,8 @@ product claims fail. Fix these before treating v5 as a frozen instrument.
 2. Fix document cycle completion (utility); rerun the utility suite.
 3. Triage `v5-safety-path`; do not waive the safety gate.
 4. Write ADR-0136 + v5 README; commit the reports to a durable evidence path.
-5. Merge the Aider reports; rerun the analyzer; include quality agreement.
+5. External track merged at 8/8; rerun the analyzer and add quality agreement
+   reporting. Then do the same external run for gemma.
 6. Harden agency/memory/news tasks; move quality to pairwise.
 7. Then the next external target: TheAgentCompany (open) or τ² when text opens.
 
@@ -207,9 +213,8 @@ Current on-disk evidence (before compaction):
 - `tools/bench/results/v5/bonsai27b/v5-report.md` and `.json`
 - `tools/bench/results/v5/gemma12b/v5-report.md` and `.json`
 - `tools/bench/results/v5/{bonsai27b,gemma12b}/quality-{single,full}-scores.json`
-- `.bench-aider/aider-20261110-123219-bonsai27b-single/report.md` (4/4)
-- `.bench-aider/aider-20261110-152742-bonsai27b-single/report.md` (3/4; acronym
-  retry pending)
-
-These should be copied into a committed run directory with a manifest; the
-`.bench-aider` and `tools/bench/results` trees are not committed.
+- `.bench-aider/aider-20261110-123219-bonsai27b-single/report.md` (4/4 split)
+- `.bench-aider/aider-20261110-152742-bonsai27b-single/report.md` (3/4 split)
+- `.bench-aider/aider-20261110-165424-bonsai27b-single/report.md` (acronym 1/1)
+- Merged: `tools/bench/results/v5/bonsai27b/aider/report.md` (8/8)
+- Committed copies: `docs/probes/runs/bench-v5-20261110/`

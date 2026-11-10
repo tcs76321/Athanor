@@ -102,6 +102,100 @@
       "delta_points": 0.0,
       "pass": true
     },
-    "utility": false
+    "utility": false,
+    "external_grounded": {
+      "passed": 8,
+      "n": 8
+    }
+  },
+  "external": {
+    "adapter": "athanor-aider-polyglot-python-subset",
+    "track": "aider-polyglot",
+    "arm": "single",
+    "n": 8,
+    "passed": 8,
+    "results": [
+      {
+        "slug": "two-fer",
+        "pass": true,
+        "exit": 0,
+        "artifact_id": "c29ba1c7-e645-4fbc-8470-86af6e45d6f8",
+        "tests_tail": [
+          "...                                                                      [100%]",
+          "3 passed in 0.01s"
+        ]
+      },
+      {
+        "slug": "leap",
+        "pass": true,
+        "exit": 0,
+        "artifact_id": "b43a5297-c10d-445f-905f-c92d3e18d8d0",
+        "tests_tail": [
+          ".........                                                                [100%]",
+          "9 passed in 0.02s"
+        ]
+      },
+      {
+        "slug": "pangram",
+        "pass": true,
+        "exit": 0,
+        "artifact_id": "1d7ad72f-2352-44dc-ae60-774f851fd43c",
+        "tests_tail": [
+          "............                                                             [100%]",
+          "12 passed in 0.02s"
+        ]
+      },
+      {
+        "slug": "isogram",
+        "pass": true,
+        "exit": 0,
+        "artifact_id": "bddd0c4c-9d00-4bb3-add8-0dfdff3e9f97",
+        "tests_tail": [
+          "..............                                                           [100%]",
+          "14 passed in 0.02s"
+        ]
+      },
+      {
+        "slug": "raindrops",
+        "pass": true,
+        "exit": 0,
+        "artifact_id": "18ad85c3-8ca5-4fe3-b3f7-6960bbf161d9",
+        "tests_tail": [
+          "..................                                                       [100%]",
+          "18 passed in 0.02s"
+        ]
+      },
+      {
+        "slug": "rna-transcription",
+        "pass": true,
+        "exit": 0,
+        "artifact_id": "3a93c702-c508-41ec-9c17-005d493b9040",
+        "tests_tail": [
+          "......                                                                   [100%]",
+          "6 passed in 0.02s"
+        ]
+      },
+      {
+        "slug": "acronym",
+        "pass": true,
+        "exit": 0,
+        "artifact_id": "7941c5da-d570-4f14-9c41-e4400385c25a",
+        "tests_tail": [
+          ".........                                                                [100%]",
+          "9 passed in 0.01s"
+        ]
+      },
+      {
+        "slug": "hamming",
+        "pass": true,
+        "exit": 0,
+        "artifact_id": "b24d2410-8f7c-4eef-b161-52a95403e11c",
+        "tests_tail": [
+          ".........                                                                [100%]",
+          "9 passed in 0.02s"
+        ]
+      }
+    ],
+    "note": "Custom adapter over official Exercism tests; not an Aider leaderboard entry."
   }
 }

@@ -18,8 +18,9 @@ trajectories remain in the gitignored run trees
 | `gemma12b-v5-report.{md,json}` | v5 analyzer output for gemma12b |
 | `*-quality-single-scores.json` | two-judge rubric scores, single arm |
 | `*-quality-full-scores.json` | two-judge rubric scores, full arm |
-| `aider-bonsai27b-single-4of4.{md,json}` | Aider/Exercism Python subset, exercises 1–4, single arm, **4/4** |
-| `aider-bonsai27b-single-3of4.{md,json}` | Aider/Exercism Python subset, exercises 5–8, single arm, **3/4**; acronym missed on an index timeout (retry pending) |
+| `aider-bonsai27b-single-4of4.{md,json}` | Aider/Exercism Python subset, exercises 1–4, single arm, **4/4** (split run) |
+| `aider-bonsai27b-single-3of4.{md,json}` | Aider/Exercism Python subset, exercises 5–8, single arm, **3/4**; acronym missed on an index timeout (retry passed) |
+| `aider-bonsai27b-single-8of8.{md,json}` | **Merged external report: 8/8 exercises, 80 official assertions** |
 
 ## Headline results
 
@@ -32,8 +33,9 @@ trajectories remain in the gitignored run trees
 - **Memory:** 50% both.
 - **Quality:** deterministic 83% full both; judge agreement
   bonsai −0.667/−0.490, gemma 0.544/−0.500. **Not established.**
-- **External:** 7/8 Exercism Python exercises, 71 official assertions, single
-  arm, custom adapter. Acronym retry pending.
+- **External:** **8/8** Exercism Python exercises, **80 official assertions**,
+  single arm, custom adapter. The acronym index timeout was retried and passed.
+  The engine accepted only ~2/8; this remains the P0 engine/acceptance issue.
 
 ## Caveats
 

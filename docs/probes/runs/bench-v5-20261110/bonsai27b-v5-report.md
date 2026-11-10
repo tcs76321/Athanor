@@ -56,3 +56,20 @@
 - **Utility external pass ≥75%**: NOT ESTABLISHED (60%)
 - **Cycle completion**: 0%; engine accept 40%
 
+## External — Aider Polyglot (Python subset, custom adapter)
+
+**8/8** official Exercism exercises passed.
+
+| exercise | pass | reason |
+|---|---|---|
+| two-fer | True | ...                                                                      [100%]; 3 passed in 0.01s |
+| leap | True | .........                                                                [100%]; 9 passed in 0.02s |
+| pangram | True | ............                                                             [100%]; 12 passed in 0.02s |
+| isogram | True | ..............                                                           [100%]; 14 passed in 0.02s |
+| raindrops | True | ..................                                                       [100%]; 18 passed in 0.02s |
+| rna-transcription | True | ......                                                                   [100%]; 6 passed in 0.02s |
+| acronym | True | .........                                                                [100%]; 9 passed in 0.01s |
+| hamming | True | .........                                                                [100%]; 9 passed in 0.02s |
+
+> Custom adapter over the official Exercism tests; not an official Aider leaderboard entry. The label is external to Athanor's verifier.
+
