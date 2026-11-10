@@ -75,7 +75,7 @@ func TestCreateCycleFromDailyBriefTemplate(t *testing.T) {
 	if !foundResearch {
 		t.Fatal("research task missing")
 	}
-	if !strings.Contains(researchDesc, "every claim names the URL") {
+	if !strings.Contains(researchDesc, "every claim names the source") {
 		t.Errorf("contract not compiled: %q", researchDesc)
 	}
 	if !strings.Contains(researchDesc, "https://example.com/a") {
