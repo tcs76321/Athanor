@@ -106,6 +106,40 @@ func TestCreateCycleFromDailyBriefTemplate(t *testing.T) {
 	}
 }
 
+func TestTriggerTogglePausesSchedule(t *testing.T) {
+	u, ts, p, _, _ := canvasSetup(t)
+	resp := postForm(t, ts.URL+"/ui/projects/"+p.ID+"/cycles", url.Values{
+		"template_id": {"daily-brief"}, "schedule": {"* * * * *"},
+	})
+	if resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("create = %d", resp.StatusCode)
+	}
+	triggers, err := u.deps.Triggers.ListByProject(context.Background(), p.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var scheduleID string
+	for _, tr := range triggers {
+		if tr.Kind == trigger.KindSchedule {
+			scheduleID = tr.ID
+		}
+	}
+	if scheduleID == "" {
+		t.Fatal("schedule trigger missing")
+	}
+	resp = postForm(t, ts.URL+"/ui/projects/"+p.ID+"/triggers/"+scheduleID+"/toggle", url.Values{})
+	if resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("toggle = %d", resp.StatusCode)
+	}
+	got, err := u.deps.Triggers.Get(context.Background(), scheduleID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Enabled || got.NextRunAt != "" {
+		t.Errorf("paused = %+v", got)
+	}
+}
+
 func TestCreateCycleRejectsUnknownTemplate(t *testing.T) {
 	_, ts, p, _, _ := canvasSetup(t)
 	resp := postForm(t, ts.URL+"/ui/projects/"+p.ID+"/cycles", url.Values{"template_id": {"nope"}})

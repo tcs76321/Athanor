@@ -471,6 +471,31 @@ const projectBody = `
 </div>
 {{if .PushRequested}}<div class="notice">Push request queued in the Inbox. Nothing is pushed until you approve it there.</div>{{end}}
 
+{{if .Scheduled}}
+<h2 id="scheduled">Scheduled cycles</h2>
+<div class="card">
+  <table>
+    <thead><tr><th>Template</th><th>Schedule (UTC)</th><th>Next run</th><th>State</th><th></th></tr></thead>
+    <tbody>
+    {{range .Scheduled}}
+      <tr>
+        <td class="mono">{{.TemplateID}}</td>
+        <td class="mono">{{if .Spec}}{{.Spec}}{{else}}manual{{end}}</td>
+        <td class="mono muted">{{if .NextRunAt}}{{.NextRunAt}}{{else}}—{{end}}</td>
+        <td><span class="pill">{{if .Enabled}}enabled{{else}}paused{{end}}</span></td>
+        <td>
+          <form method="post" action="/ui/projects/{{$.Project.ID}}/triggers/{{.ID}}/toggle">
+            <button class="secondary small">{{if .Enabled}}Pause{{else}}Enable{{end}}</button>
+          </form>
+        </td>
+      </tr>
+    {{end}}
+    </tbody>
+  </table>
+  <p class="muted small">A scheduled cycle starts on its own. Pause it here; no new run starts until you enable it again.</p>
+</div>
+{{end}}
+
 <div class="tabs" role="tablist">
   <a href="#overview" aria-current="page">Overview</a>
   <a href="#work">Work</a>

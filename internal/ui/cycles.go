@@ -90,6 +90,26 @@ func (u *UI) handleCreateCycle(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/ui/projects/"+p.ID+"/canvas?cycle="+c.ID, http.StatusSeeOther)
 }
 
+// handleTriggerToggle pauses or re-enables a project's scheduled cycle. A
+// paused trigger keeps its row and spec; re-enabling computes the next slot.
+func (u *UI) handleTriggerToggle(w http.ResponseWriter, r *http.Request) {
+	if u.deps.Triggers == nil {
+		http.Error(w, "scheduler is not configured", http.StatusServiceUnavailable)
+		return
+	}
+	projectID := r.PathValue("id")
+	tr, err := u.deps.Triggers.Get(r.Context(), r.PathValue("triggerID"))
+	if err != nil || tr.ProjectID != projectID {
+		http.Error(w, "trigger not found", http.StatusNotFound)
+		return
+	}
+	if err := u.deps.Triggers.SetEnabled(r.Context(), tr.ID, !tr.Enabled); err != nil {
+		u.fail(w, err)
+		return
+	}
+	http.Redirect(w, r, "/ui/projects/"+projectID+"#scheduled", http.StatusSeeOther)
+}
+
 const newCycleBody = `
 <h1>New cycle — {{.Project.Name}}</h1>
 <p class="sub">A cycle is one bounded run. Start from a template, then edit its graph in the canvas. Nothing runs until you start it.</p>

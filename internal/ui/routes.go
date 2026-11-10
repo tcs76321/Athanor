@@ -26,6 +26,7 @@ func (u *UI) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /ui/projects/{id}/canvas", u.handleProjectCanvas)
 	mux.HandleFunc("GET /ui/projects/{id}/cycles/new", u.handleNewCycle)
 	mux.HandleFunc("POST /ui/projects/{id}/cycles", u.handleCreateCycle)
+	mux.HandleFunc("POST /ui/projects/{id}/triggers/{triggerID}/toggle", u.handleTriggerToggle)
 	mux.HandleFunc("GET /ui/cycles/{id}/graph.json", u.handleCycleGraph)
 	mux.HandleFunc("POST /ui/cycles/{id}/graph", u.handleCycleGraphSave)
 	mux.HandleFunc("POST /ui/cycles/{id}/start", u.handleCycleStart)

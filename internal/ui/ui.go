@@ -642,11 +642,18 @@ func (u *UI) handleProject(w http.ResponseWriter, r *http.Request) {
 		}
 		work = append(work, workItem{Task: t, Jobs: jobs, TotalJobs: total})
 	}
+	var scheduled []trigger.Record
+	if u.deps.Triggers != nil {
+		if list, err := u.deps.Triggers.ListByProject(ctx, p.ID); err == nil {
+			scheduled = list
+		}
+	}
 	u.render(w, "Project "+p.Name, projectBody, map[string]any{
 		"Project": p, "Artifacts": arts, "Corrections": corr, "Work": work,
 		"ArtifactsTotal": artsTotal, "CorrectionsTotal": corrTotal,
 		"CanPush": u.deps.Pusher != nil, "PushRequested": r.URL.Query().Get("push") == "requested",
 		"IndexRun": u.indexView(p.ID), "HasIndexer": u.deps.Indexer != nil,
+		"Scheduled": scheduled,
 	})
 }
 
