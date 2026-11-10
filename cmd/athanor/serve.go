@@ -400,6 +400,10 @@ func run(configPath, addr, stateDir string, container bool) error {
 	eng.SetStrategyHistory(strategyRepo)
 	// ADR-0109: persistent per-job working memory reaches every phase.
 	eng.SetNotebook(notebook.New(st))
+	// ADR-0134: a downstream block's prompt carries its upstream blocks'
+	// accepted output, so a compiled cycle composes instead of running tasks
+	// in parallel isolation.
+	eng.SetDependencies(dependencyOutputs{projects: projectRepo, artifacts: artifactStore})
 	// ADR-0091: horizon budget. The ledger is inert while
 	// budget.tokens_per_window and wall_time_per_window are both 0.
 	eng.SetBudgetLedger(budget.New(st.DB()))

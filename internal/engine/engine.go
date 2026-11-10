@@ -307,6 +307,10 @@ type Engine struct {
 	// notebook is the ADR-0109 persistent working-memory seam. nil keeps
 	// the pre-notebook prompt and behavior.
 	notebook Notebook
+	// dependencies is the ADR-0134 downstream read path: a task's prompt
+	// includes its completed upstream blocks' accepted output. nil keeps the
+	// pre-cycle behavior.
+	dependencies contextasm.Dependencies
 	// clarifier is the ADR-0112 mid-job question seam. nil ignores the
 	// QUESTION marker.
 	clarifier Clarifier
@@ -505,6 +509,9 @@ func (e *Engine) SetStrategyHistory(h StrategyHistory) { e.history = h }
 
 // SetNotebook wires the ADR-0109 working-memory store.
 func (e *Engine) SetNotebook(n Notebook) { e.notebook = n }
+
+// SetDependencies wires the ADR-0134 upstream-output read path.
+func (e *Engine) SetDependencies(d contextasm.Dependencies) { e.dependencies = d }
 
 // Clarifier parks a job on a model-initiated question (ADR-0112). A nil
 // clarifier ignores the QUESTION marker.

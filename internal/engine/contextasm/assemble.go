@@ -50,6 +50,20 @@ type Notebook interface {
 	Recent(ctx context.Context, jobID string, limit int) ([]notebook.Entry, error)
 }
 
+// DependencyOutput is one upstream block's result, ready to inject as context.
+type DependencyOutput struct {
+	TaskID  string
+	Title   string
+	Content string
+}
+
+// Dependencies is the downstream read path for a block graph (ADR-0134): the
+// accepted output of a task's dependency tasks. It is what makes a typed block
+// chain compose instead of running as unrelated tasks.
+type Dependencies interface {
+	TaskOutputs(ctx context.Context, projectID string, taskIDs []string) ([]DependencyOutput, error)
+}
+
 // Runtime exposes the seams the assembler reads. Every getter is called on each
 // Prepare so a seam wired after engine.New (corrections, memory, insights,
 // notebook, interruption queue, planner) takes effect without a restart.
@@ -61,6 +75,7 @@ type Runtime interface {
 	Insights() Insights
 	Interruptions() Interruptions
 	Notebook() Notebook
+	Dependencies() Dependencies
 	Planner() Planner
 	AuditCat(ctx context.Context, jobID, category string, data map[string]any)
 }
@@ -134,21 +149,69 @@ type promptTiers struct {
 // flood of tiny corrections from crowding the section.
 const maxInjectedCorrections = 8
 
+// Upstream context bounds. One block's output and the whole section are
+// capped so a long upstream document cannot crowd out the task itself.
+const (
+	maxUpstreamBlockChars = 4000
+	maxUpstreamTotalChars = 12000
+)
+
+// withUpstream appends the completed dependency tasks' accepted output to the
+// task description. The description is the pinned task section of every prompt,
+// so a downstream block sees what its upstream blocks produced without a second
+// data channel. Reads are best-effort: a failure leaves the task unchanged.
+func (a *Assembler) withUpstream(ctx context.Context, req PrepareRequest) project.Task {
+	task := req.Task
+	if len(task.DependsOn) == 0 || a.rt == nil || a.rt.Dependencies() == nil {
+		return task
+	}
+	outputs, err := a.rt.Dependencies().TaskOutputs(ctx, req.Project.ID, task.DependsOn)
+	if err != nil {
+		slog.Warn("contextasm: reading upstream outputs", "task", task.ID, "err", err)
+		return task
+	}
+	var b strings.Builder
+	total := 0
+	for _, out := range outputs {
+		text := strings.TrimSpace(out.Content)
+		if text == "" {
+			continue
+		}
+		if len(text) > maxUpstreamBlockChars {
+			text = text[:maxUpstreamBlockChars] + "…"
+		}
+		if remaining := maxUpstreamTotalChars - total; remaining <= 0 {
+			break
+		} else if len(text) > remaining {
+			text = text[:remaining]
+		}
+		fmt.Fprintf(&b, "\n\nUPSTREAM RESULT — %s\n%s", out.Title, text)
+		total += len(text)
+	}
+	if b.Len() == 0 {
+		return task
+	}
+	task.Description = strings.TrimRight(task.Description, "\n") +
+		"\n\nUpstream blocks have already run. Build on their results:\n" + b.String()
+	return task
+}
+
 // Prepare builds the prompt for one phase call. It may return *NeedsPause when
 // the context window cannot be made safe; every other error is a real failure.
 func (a *Assembler) Prepare(ctx context.Context, req PrepareRequest) (Prepared, error) {
 	if a.cfg == nil {
 		return Prepared{}, fmt.Errorf("contextasm: config is nil")
 	}
-	capability := project.CapabilityFor(req.Project, req.Task)
+	task := a.withUpstream(ctx, req)
+	capability := project.CapabilityFor(req.Project, task)
 	persona := req.Persona
 
 	// ADR-0124: an adaptive planner chooses this job's window. A nil planner
 	// (or one that declines) preserves the legacy fixed-floor path.
 	planned := false
 	if planner := a.rt.Planner(); planner != nil {
-		demand := project.ContextDemand(req.Project, req.Task)
-		pinned := prompt.EstimateTokens(req.Task.Title+"\n"+req.Task.Description+"\n"+strings.Join(req.Task.Criteria, "\n")) + 512
+		demand := project.ContextDemand(req.Project, task)
+		pinned := prompt.EstimateTokens(task.Title+"\n"+task.Description+"\n"+strings.Join(task.Criteria, "\n")) + 512
 		working := 0
 		if capability == project.CapabilityCode && a.cfg.ContextEngine.WorkingSetMaxBytes > 0 {
 			working = a.cfg.ContextEngine.WorkingSetMaxBytes / 4
@@ -190,7 +253,7 @@ func (a *Assembler) Prepare(ctx context.Context, req PrepareRequest) (Prepared, 
 		}
 	}
 
-	tiers := a.gatherTiers(ctx, req.Job, req.Project, req.Task, req.Phase, req.Candidates)
+	tiers := a.gatherTiers(ctx, req.Job, req.Project, task, req.Phase, req.Candidates)
 	suppressed := a.loadSuppressed(ctx, req.Job.ID)
 	ceiling := ceilingFor(a.cfg.ContextEngine, persona.ContextTarget)
 	notes, noteIDs := a.pendingInterruptions(ctx, req.Job.ID)
@@ -208,8 +271,8 @@ func (a *Assembler) Prepare(ctx context.Context, req PrepareRequest) (Prepared, 
 	res, err := prompt.Assemble(prompt.Input{
 		Phase:                  req.Phase,
 		Project:                prompt.Project{Name: req.Project.Name, Archetype: capability, Goal: req.Project.Goal},
-		Task:                   prompt.Task{Title: req.Task.Title, Description: req.Task.Description, TestCommand: req.Project.TestCommand()},
-		Criteria:               req.Task.Criteria,
+		Task:                   prompt.Task{Title: task.Title, Description: task.Description, TestCommand: req.Project.TestCommand()},
+		Criteria:               task.Criteria,
 		Checks:                 req.Project.Execution.Checks.Describe(),
 		DataSchema:             req.Project.Execution.DataSchema,
 		AllowQuestions:         req.AllowQuestions,

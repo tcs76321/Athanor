@@ -39,6 +39,27 @@ func (a *Store) ListByProject(ctx context.Context, projectID string) ([]Artifact
 	return out, rows.Err()
 }
 
+// ListByTask returns a task's artifacts, newest first. It is the read path for
+// dependency context: a downstream block sees what its upstream blocks
+// produced (ADR-0134 §2).
+func (a *Store) ListByTask(ctx context.Context, taskID string) ([]Artifact, error) {
+	rows, err := a.db.DB().QueryContext(ctx,
+		artifactSelect+` WHERE task_id = ? ORDER BY created_at DESC, id ASC`, taskID)
+	if err != nil {
+		return nil, fmt.Errorf("listing artifacts by task: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	var out []Artifact
+	for rows.Next() {
+		art, err := scanArtifact(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, art)
+	}
+	return out, rows.Err()
+}
+
 // ListByJob returns the artifacts a single job
 // produced, in creation order (oldest first). M3-T1
 // follow-up (ROADMAP §7): the E1 dialectical-loop

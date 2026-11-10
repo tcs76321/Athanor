@@ -24,7 +24,10 @@ func (h ctxHost) Interruptions() contextasm.Interruptions {
 	return h.e.interruptions
 }
 func (h ctxHost) Notebook() contextasm.Notebook { return h.e.notebook }
-func (h ctxHost) Planner() contextasm.Planner   { return h.e.contextPlanner }
+func (h ctxHost) Dependencies() contextasm.Dependencies {
+	return h.e.dependencies
+}
+func (h ctxHost) Planner() contextasm.Planner { return h.e.contextPlanner }
 
 func (h ctxHost) AuditCat(ctx context.Context, jobID, category string, data map[string]any) {
 	h.e.auditCat(ctx, jobID, category, data)
