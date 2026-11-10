@@ -80,6 +80,32 @@ Migration 0048 creates one `legacy` cycle per existing project and backfills
 `tasks.cycle_id`. A project with no cycles behaves exactly as before. New
 tasks may carry a cycle ID; empty means a legacy one-shot task.
 
+### 6. Execution contracts and data flow (Phase 2)
+
+Blocks are only useful if a downstream block sees what its upstream blocks
+produced and each block tells the engine what output counts as done.
+
+- **Contracts.** Each kind carries an instruction and default acceptance
+  criteria. `Compile` folds them into the task description and criteria. An
+  operator instruction is appended, never substituted, so a block's meaning
+  cannot be erased by a task note.
+- **Data flow.** The context assembler appends the accepted artifact of each
+  completed dependency task to the task description, bounded per block and in
+  total. The task description is the pinned task section of every prompt, so
+  this is the one data channel and no second executor or prompt schema is
+  needed.
+- **Memory.** Completed jobs are already remembered per project (ADR-0114) and
+  retrieved per prompt. `retain` is the explicit curation block: its task
+  records what was covered, so the next operating run starts from that record
+  instead of repeating it.
+- **Templates.** `daily-brief`, `discovery`, and `build` are ordinary graphs,
+  not privileged flows. Creating a cycle from one records the template ID and
+  version on the cycle, then opens the draft in the canvas. Triggers are data
+  until the trigger runner lands.
+- **Completion.** A goal that reaches `completed` or `failed` marks its cycle
+  terminal through a scheduler seam; the UI no longer shows a finished run as
+  `running`.
+
 ## Consequences
 
 - One project can contain design and coding work without archetype forks.
