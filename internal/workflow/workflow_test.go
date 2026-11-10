@@ -388,6 +388,24 @@ func TestCompileUsesDefaultAcceptanceWhenConfigOmitsIt(t *testing.T) {
 	}
 }
 
+func TestCompileInjectsLocalSourceText(t *testing.T) {
+	g := Graph{Blocks: []Block{{ID: "research", Kind: KindResearch}}}
+	specs, err := Compile(g, CompileOptions{
+		Sources:     []string{"note.md"},
+		SourceTexts: map[string]string{"note.md": "The authoritative fact."},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	desc := specs[0].Description
+	if !strings.Contains(desc, "SOURCE MATERIAL") || !strings.Contains(desc, "The authoritative fact.") {
+		t.Errorf("source text not injected: %q", desc)
+	}
+	if !strings.Contains(desc, "note.md") {
+		t.Errorf("source name not injected: %q", desc)
+	}
+}
+
 func TestCompileIsTopological(t *testing.T) {
 	g := Graph{
 		Blocks: []Block{

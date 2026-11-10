@@ -50,6 +50,8 @@ type cycleTaskResult struct {
 	CycleID         string        `json:"cycle_id"`
 	State           string        `json:"state"`
 	ArtifactID      string        `json:"artifact_id,omitempty"`
+	EngineAccepted  bool          `json:"engine_accepted"`
+	Complete        bool          `json:"complete"`
 	Blocks          int           `json:"blocks"`
 	BlocksCompleted int           `json:"blocks_completed"`
 	Checks          []checkResult `json:"checks,omitempty"`
@@ -145,13 +147,9 @@ func runOneCycle(client *http.Client, base string, c *cycleConfig, name, goal st
 		return res, fmt.Errorf("create cycle: %w", err)
 	}
 	res.CycleID = cycleID
-	if err := startCycle(client, base, cycleID); err != nil {
-		return res, fmt.Errorf("start cycle: %w", err)
-	}
-	state, err := waitCycle(client, base, cycleID, c.timeout, c.interval)
-	res.State = state
+	goalID, err := startCycle(client, base, cycleID)
 	if err != nil {
-		return res, err
+		return res, fmt.Errorf("start cycle: %w", err)
 	}
 	db, err := openReadOnly(filepath.Join(c.stateDir, "athanor.db"))
 	if err != nil {
@@ -159,23 +157,31 @@ func runOneCycle(client *http.Client, base string, c *cycleConfig, name, goal st
 	}
 	defer func() { _ = db.Close() }()
 
-	blocks, done, err := cycleBlocks(db, cycleID)
+	state, err := waitCycle(client, base, cycleID, goalID, db, c.timeout, c.interval)
+	res.State = state
+	if err != nil {
+		res.Failures = append(res.Failures, err.Error())
+	}
+
+	blocks, done, err := cycleBlocks(db, goalID)
 	if err != nil {
 		return res, err
 	}
 	res.Blocks, res.BlocksCompleted = blocks, done
+	res.Complete = state == "completed" && blocks > 0 && done == blocks
 	if state != "completed" {
 		res.Failures = append(res.Failures, "cycle state is "+state)
 	}
 	if blocks == 0 || done != blocks {
 		res.Failures = append(res.Failures, fmt.Sprintf("blocks completed %d/%d", done, blocks))
 	}
-	artifactID, content, err := latestAcceptedDocument(db, c.stateDir, projectID, cycleID, artifactTitle)
+	artifactID, content, accepted, err := bestArtifact(db, c.stateDir, projectID, goalID, artifactTitle)
 	if err != nil {
 		res.Failures = append(res.Failures, err.Error())
 		return res, nil
 	}
 	res.ArtifactID = artifactID
+	res.EngineAccepted = accepted
 	pass, results := runChecks(checks, content)
 	res.Checks = results
 	if !pass {
@@ -185,7 +191,9 @@ func runOneCycle(client *http.Client, base string, c *cycleConfig, name, goal st
 			}
 		}
 	}
-	res.Pass = pass && len(res.Failures) == 0
+	// The label is the external check outcome. Cycle completion is reported
+	// separately (mechanism/utility coverage), never folded into the label.
+	res.Pass = pass
 	return res, nil
 }
 
@@ -252,22 +260,30 @@ func createCycle(client *http.Client, base, projectID, template string) (string,
 	return id, nil
 }
 
-func startCycle(client *http.Client, base, cycleID string) error {
+func startCycle(client *http.Client, base, cycleID string) (string, error) {
 	resp, err := client.Post(base+"/ui/cycles/"+cycleID+"/start", "application/json",
 		strings.NewReader("{}"))
 	if err != nil {
-		return err
+		return "", err
 	}
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
-		return fmt.Errorf("status %d: %s", resp.StatusCode, body)
+		return "", fmt.Errorf("status %d: %s", resp.StatusCode, body)
 	}
-	return nil
+	var out struct {
+		Goal string `json:"goal"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return "", fmt.Errorf("decoding start response: %w", err)
+	}
+	return out.Goal, nil
 }
 
-func waitCycle(client *http.Client, base, cycleID string, timeout, interval time.Duration) (string, error) {
+func waitCycle(client *http.Client, base, cycleID, goalID string, db *sql.DB, timeout, interval time.Duration) (string, error) {
 	deadline := time.Now().Add(timeout)
+	sawActive := false
+	idle := 0
 	for {
 		state, err := cycleState(client, base, cycleID)
 		if err != nil {
@@ -277,15 +293,35 @@ func waitCycle(client *http.Client, base, cycleID string, timeout, interval time
 		case "completed", "failed", "cancelled":
 			return state, nil
 		case "awaiting_review", "paused":
-			// The brief template has no human gate; a pause is a stall, not a
-			// pass. Fail fast rather than burning the timeout.
+			// The brief/news templates have no human gate; a pause is a stall,
+			// not a pass. Fail fast rather than burning the timeout.
 			return state, fmt.Errorf("cycle stalled in state %q", state)
+		}
+		active, aerr := activeTasks(db, goalID)
+		if aerr == nil {
+			if active > 0 {
+				sawActive, idle = true, 0
+			} else if sawActive {
+				idle++
+				if idle >= 3 {
+					return state, fmt.Errorf("cycle stalled in state %q: no active tasks", state)
+				}
+			}
 		}
 		if time.Now().After(deadline) {
 			return state, fmt.Errorf("cycle timed out in state %q after %s", state, timeout)
 		}
 		time.Sleep(interval)
 	}
+}
+
+// activeTasks counts tasks that can still make progress. A cycle with none and
+// a non-terminal state has stalled (the scheduler blocked or exhausted retries).
+func activeTasks(db *sql.DB, goalID string) (int, error) {
+	var n int
+	err := db.QueryRow(`SELECT COUNT(*) FROM tasks
+		WHERE goal_id = ? AND status IN ('pending','ready','running','paused')`, goalID).Scan(&n)
+	return n, err
 }
 
 func cycleState(client *http.Client, base, cycleID string) (string, error) {
@@ -309,7 +345,9 @@ func cycleState(client *http.Client, base, cycleID string) (string, error) {
 }
 
 func openReadOnly(path string) (*sql.DB, error) {
-	db, err := sql.Open("sqlite3", "file:"+path+"?mode=ro&_busy_timeout=5000")
+	// mode=rw (not ro) so SQLite can attach the WAL/shm and see committed
+	// rows while the daemon is running. The probe only issues SELECTs.
+	db, err := sql.Open("sqlite3", "file:"+path+"?mode=rw&_busy_timeout=5000")
 	if err != nil {
 		return nil, err
 	}
@@ -320,42 +358,51 @@ func openReadOnly(path string) (*sql.DB, error) {
 	return db, nil
 }
 
-func cycleBlocks(db *sql.DB, cycleID string) (total, completed int, err error) {
+func cycleBlocks(db *sql.DB, goalID string) (total, completed int, err error) {
 	row := db.QueryRow(`SELECT COUNT(*), COALESCE(SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END), 0)
-		FROM tasks WHERE cycle_id = ?`, cycleID)
+		FROM tasks WHERE goal_id = ?`, goalID)
 	if err := row.Scan(&total, &completed); err != nil {
-		return 0, 0, fmt.Errorf("counting cycle blocks: %w", err)
+		return 0, 0, fmt.Errorf("counting goal blocks: %w", err)
 	}
 	return total, completed, nil
 }
 
-// latestAcceptedDocument returns the accepted document produced by the cycle's
-// synthesize task. The artifact title is explicit so a verification report
-// that is also a document is never mistaken for the brief.
-func latestAcceptedDocument(db *sql.DB, stateDir, projectID, cycleID, title string) (string, string, error) {
-	var id string
+// bestArtifact returns the artifact the external checks should score: the
+// accepted document for the named synthesize task when it exists, otherwise
+// the best candidate the engine produced. Engine acceptance is reported
+// separately (ADR-0092); a rejected best candidate can still pass the frozen
+// checks, and a stalled cycle is not silently treated as a pass.
+func bestArtifact(db *sql.DB, stateDir, projectID, goalID, title string) (string, string, bool, error) {
+	var id, status string
 	var err error
 	if title != "" {
-		err = db.QueryRow(`SELECT a.id FROM artifacts a JOIN tasks t ON a.task_id = t.id
-			WHERE t.cycle_id = ? AND t.title = ? AND a.kind = 'document' AND a.status = 'accepted'
-			ORDER BY a.created_at DESC, a.id ASC LIMIT 1`, cycleID, title).Scan(&id)
+		err = db.QueryRow(`SELECT a.id, a.status FROM artifacts a JOIN tasks t ON a.task_id = t.id
+			WHERE t.goal_id = ? AND t.title = ? AND a.kind = 'document' AND a.status = 'accepted'
+			ORDER BY a.created_at DESC, a.id ASC LIMIT 1`, goalID, title).Scan(&id, &status)
 	}
 	if title == "" || err == sql.ErrNoRows {
-		err = db.QueryRow(`SELECT id FROM artifacts
-			WHERE project_id = ? AND kind = 'document' AND status = 'accepted'
-			ORDER BY created_at DESC, id ASC LIMIT 1`, projectID).Scan(&id)
+		err = db.QueryRow(`SELECT a.id, a.status FROM artifacts a JOIN tasks t ON a.task_id = t.id
+			WHERE t.goal_id = ? AND a.kind IN ('document','proposal')
+			ORDER BY CASE a.status WHEN 'accepted' THEN 0 WHEN 'candidate' THEN 1 ELSE 2 END,
+			         a.created_at DESC, a.id ASC LIMIT 1`, goalID).Scan(&id, &status)
 	}
 	if err == sql.ErrNoRows {
-		return "", "", fmt.Errorf("no accepted document artifact")
+		err = db.QueryRow(`SELECT id, status FROM artifacts
+			WHERE project_id = ? AND kind IN ('document','proposal')
+			ORDER BY CASE status WHEN 'accepted' THEN 0 WHEN 'candidate' THEN 1 ELSE 2 END,
+			         created_at DESC, id ASC LIMIT 1`, projectID).Scan(&id, &status)
+	}
+	if err == sql.ErrNoRows {
+		return "", "", false, fmt.Errorf("no artifact produced")
 	}
 	if err != nil {
-		return "", "", fmt.Errorf("loading artifact: %w", err)
+		return "", "", false, fmt.Errorf("loading artifact: %w", err)
 	}
 	raw, err := os.ReadFile(filepath.Join(stateDir, "artifacts", id))
 	if err != nil {
-		return "", "", fmt.Errorf("reading artifact %s: %w", id, err)
+		return "", "", false, fmt.Errorf("reading artifact %s: %w", id, err)
 	}
-	return id, string(raw), nil
+	return id, string(raw), status == "accepted", nil
 }
 
 func renderCycleReport(r cycleResults, goals []sampleGoal) string {
@@ -365,15 +412,15 @@ func renderCycleReport(r cycleResults, goals []sampleGoal) string {
 	}
 	passes := 0
 	var b strings.Builder
-	b.WriteString("# v4 cycle-arm report\n\n")
+	b.WriteString("# v5 cycle-arm report\n\n")
 	fmt.Fprintf(&b, "- Model: `%s`\n- Started: %s\n- Tasks: %d\n\n", r.Model, r.StartedAt, len(r.Tasks))
-	b.WriteString("| task | held out | pass | state | blocks | artifact |\n|---|---|---|---|---|---|\n")
+	b.WriteString("| task | held out | pass | complete | engine | state | blocks | artifact |\n|---|---|---|---|---|---|---|---|\n")
 	for _, t := range r.Tasks {
 		if t.Pass {
 			passes++
 		}
-		fmt.Fprintf(&b, "| %s | %v | %v | %s | %d/%d | `%s` |\n",
-			t.ID, held[t.ID], t.Pass, t.State, t.BlocksCompleted, t.Blocks, t.ArtifactID)
+		fmt.Fprintf(&b, "| %s | %v | %v | %v | %v | %s | %d/%d | `%s` |\n",
+			t.ID, held[t.ID], t.Pass, t.Complete, t.EngineAccepted, t.State, t.BlocksCompleted, t.Blocks, t.ArtifactID)
 	}
 	if len(r.Tasks) > 0 {
 		fmt.Fprintf(&b, "\nCycle pass rate: %d/%d (%.0f%%)\n", passes, len(r.Tasks),

@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -156,12 +158,45 @@ const (
 	maxUpstreamTotalChars = 12000
 )
 
+// withProjectSources appends the project's declared local sources to the task
+// description when the compiler has not already embedded them. This is what
+// gives a one-shot task the same authoritative text a cycle task gets, without
+// a tool call or a network fetch. Reads are best-effort and bounded.
+func (a *Assembler) withProjectSources(p project.Project, task project.Task) project.Task {
+	if p.RepositoryPath == "" || len(p.Sources) == 0 || strings.Contains(task.Description, "SOURCE MATERIAL") {
+		return task
+	}
+	var b strings.Builder
+	total := 0
+	for _, name := range p.Sources {
+		clean := filepath.Base(name)
+		data, err := os.ReadFile(filepath.Join(p.RepositoryPath, "sources", clean))
+		if err != nil || len(data) == 0 {
+			continue
+		}
+		text := string(data)
+		if len(text) > maxUpstreamBlockChars {
+			text = text[:maxUpstreamBlockChars] + "…"
+		}
+		if total+len(text) > maxUpstreamTotalChars {
+			break
+		}
+		fmt.Fprintf(&b, "\n\n--- %s ---\n%s", name, strings.TrimSpace(text))
+		total += len(text)
+	}
+	if b.Len() == 0 {
+		return task
+	}
+	task.Description = strings.TrimRight(task.Description, "\n") +
+		"\n\nSOURCE MATERIAL (authoritative; cite the file name, do not invent facts):" + b.String()
+	return task
+}
+
 // withUpstream appends the completed dependency tasks' accepted output to the
 // task description. The description is the pinned task section of every prompt,
 // so a downstream block sees what its upstream blocks produced without a second
 // data channel. Reads are best-effort: a failure leaves the task unchanged.
-func (a *Assembler) withUpstream(ctx context.Context, req PrepareRequest) project.Task {
-	task := req.Task
+func (a *Assembler) withUpstream(ctx context.Context, req PrepareRequest, task project.Task) project.Task {
 	if len(task.DependsOn) == 0 || a.rt == nil || a.rt.Dependencies() == nil {
 		return task
 	}
@@ -202,7 +237,8 @@ func (a *Assembler) Prepare(ctx context.Context, req PrepareRequest) (Prepared, 
 	if a.cfg == nil {
 		return Prepared{}, fmt.Errorf("contextasm: config is nil")
 	}
-	task := a.withUpstream(ctx, req)
+	task := a.withProjectSources(req.Project, req.Task)
+	task = a.withUpstream(ctx, req, task)
 	capability := project.CapabilityFor(req.Project, task)
 	persona := req.Persona
 

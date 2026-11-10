@@ -90,15 +90,15 @@ type contract struct {
 // the *output*, not the process, so the engine can still choose its own method.
 var contracts = map[Kind]contract{
 	KindResearch: {
-		Instruction: "Research the topic using only the allowed sources. Return a sourced brief: every claim names the URL it came from, and end with the list of URLs actually used.",
-		Acceptance:  []string{"every claim names its source", "the used URLs are listed"},
+		Instruction: "Research the topic using only the allowed sources. Return a sourced brief: every claim names the source it came from (a URL or a local file name), and end with the list of sources actually used.",
+		Acceptance:  []string{"every paragraph names its source", "the sources section lists the files used"},
 	},
 	KindFetch: {
-		Instruction: "Fetch the listed sources. Return their key content with attribution: each passage names the source URL. Do not add claims the sources do not make.",
-		Acceptance:  []string{"content is attributed to its source URL"},
+		Instruction: "Fetch or read the listed sources. Return their key content with attribution: each passage names its source (URL or file name). Do not add claims the sources do not make.",
+		Acceptance:  []string{"content is attributed to its source"},
 	},
 	KindExtract: {
-		Instruction: "Extract the substantive items from the upstream material. One item per line, each with its source URL and, where present, its date.",
+		Instruction: "Extract the substantive items from the upstream material. One item per line, each with its source (URL or file name) and, where present, its date.",
 		Acceptance:  []string{"one item per line", "every item names its source"},
 	},
 	KindCondense: {
@@ -580,10 +580,14 @@ func longestPath(g Graph, byID map[string]Block) int {
 // CompileOptions carries the cycle identity and any defaults the caller owns.
 type CompileOptions struct {
 	CycleID string
-	// Sources are the project's declared sources. They are folded into the
-	// research and fetch blocks' descriptions, which is where the engine's
+	// Sources are the project's declared source names. They are folded into
+	// the research and fetch blocks' descriptions, which is where the engine's
 	// research sub-step reads URLs from.
 	Sources []string
+	// SourceTexts carries the local source documents (name -> text) read from
+	// the project repository. The model gets the authoritative text in the
+	// task prompt, so a local-first source does not depend on a tool call.
+	SourceTexts map[string]string
 }
 
 // Compile validates the graph and returns TaskSpecs in topological order. The
@@ -641,11 +645,36 @@ func description(b Block, spec BlockSpec, opts CompileOptions) string {
 	if (b.Kind == KindResearch || b.Kind == KindFetch) && len(opts.Sources) > 0 {
 		var sb strings.Builder
 		sb.WriteString("Sources to use:")
-		for _, url := range opts.Sources {
+		for _, src := range opts.Sources {
 			sb.WriteString("\n- ")
-			sb.WriteString(url)
+			sb.WriteString(src)
 		}
 		parts = append(parts, sb.String())
+	}
+	if (b.Kind == KindResearch || b.Kind == KindFetch) && len(opts.SourceTexts) > 0 {
+		var sb strings.Builder
+		sb.WriteString("SOURCE MATERIAL (authoritative; cite the file name, do not invent facts):")
+		total := 0
+		for _, src := range opts.Sources {
+			text, ok := opts.SourceTexts[src]
+			if !ok || strings.TrimSpace(text) == "" {
+				continue
+			}
+			if len(text) > 6000 {
+				text = text[:6000] + "…"
+			}
+			if total+len(text) > 16000 {
+				break
+			}
+			sb.WriteString("\n\n--- ")
+			sb.WriteString(src)
+			sb.WriteString(" ---\n")
+			sb.WriteString(strings.TrimSpace(text))
+			total += len(text)
+		}
+		if total > 0 {
+			parts = append(parts, sb.String())
+		}
 	}
 	if len(parts) == 0 {
 		return fmt.Sprintf("%s block (%s).", spec.Title, b.Kind)

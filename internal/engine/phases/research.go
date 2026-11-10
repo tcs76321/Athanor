@@ -94,9 +94,10 @@ func extractSourceURLs(text string, max int) []string {
 // whole phase (the M3-T6 recovery shape), so the fetches re-run too
 // — they are idempotent downloads, gateway-audited and rate-limited.
 func (d *Deps) researchContext(ctx context.Context, j job.Job, p project.Project, t project.Task) (string, error) {
+	local := localSourceBlock(t.Description)
 	urls := extractSourceURLs(t.Description+"\n"+p.Goal, maxResearchSources)
 	if len(urls) == 0 {
-		return "", nil
+		return local, nil
 	}
 	d.audit(ctx, j.ID, map[string]any{
 		"event":   "research_start",
@@ -108,7 +109,7 @@ func (d *Deps) researchContext(ctx context.Context, j job.Job, p project.Project
 			"skipped": true,
 			"reason":  "no ToolRunner wired (dev mode)",
 		})
-		return "", nil
+		return local, nil
 	}
 
 	// Bound the whole sequential fetch loop by the diverging phase budget.
@@ -166,9 +167,28 @@ func (d *Deps) researchContext(ctx context.Context, j job.Job, p project.Project
 		fmt.Fprintf(&b, "\n\n### Source: %s\n\n%s\n", u, md)
 	}
 	if b.Len() == 0 {
-		return "", nil
+		return local, nil
 	}
-	return "RESEARCH SOURCES (fetched through the gateway — ground claims in these and cite them):\n" + b.String(), nil
+	fetched := "RESEARCH SOURCES (fetched through the gateway — ground claims in these and cite them):\n" + b.String()
+	if local != "" {
+		return local + "\n\n" + fetched, nil
+	}
+	return fetched, nil
+}
+
+// localSourceBlock returns the local source material embedded in a task
+// description by the cycle compiler, bounded to the research prompt budget.
+func localSourceBlock(description string) string {
+	const marker = "SOURCE MATERIAL"
+	idx := strings.Index(description, marker)
+	if idx < 0 {
+		return ""
+	}
+	block := strings.TrimSpace(description[idx:])
+	if len(block) > maxSourceBlockChars*2 {
+		block = block[:maxSourceBlockChars*2] + "\n…[local source truncated at the prompt-side budget]"
+	}
+	return block
 }
 
 // researchBudget bounds the sequential research fetch loop by the diverging

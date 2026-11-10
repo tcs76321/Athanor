@@ -72,6 +72,23 @@ func TestResearchContext_NoURLsIsSilentNoOp(t *testing.T) {
 	}
 }
 
+func TestResearchContext_LocalSourceMaterial(t *testing.T) {
+	env := newEnv(t)
+	ctx, j, p, task := researchFixture(t, env,
+		"Read the note.\n\nSOURCE MATERIAL (authoritative)\n--- note.md ---\nThe authoritative fact.")
+	task.Description = "Read the note.\n\nSOURCE MATERIAL (authoritative)\n--- note.md ---\nThe authoritative fact."
+	block, err := env.eng.phaseDeps.ResearchContext(ctx, j, p, task)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(block, "SOURCE MATERIAL") || !strings.Contains(block, "The authoritative fact.") {
+		t.Errorf("block = %q", block)
+	}
+	if env.runner.CallCount() != 0 {
+		t.Errorf("runner calls = %d, want 0", env.runner.CallCount())
+	}
+}
+
 // TestResearchContext_FetchesAndFormats proves the happy path: each
 // declared URL is fetched once, the block carries attributed source
 // headings, and the audit log records the outcomes.

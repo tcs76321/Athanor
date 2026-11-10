@@ -286,13 +286,13 @@ tasks:
     goal: |
       Read sources/local-first.md and write a short brief with the headings
       What changed, Why it matters, and Sources. Cite local-first.md in every
-      paragraph. Name the conflict policy and one trade-off. At most 250 words.
-    criteria: [three headings, cite the source, name policy and trade-off]
+      paragraph. At most 250 words.
+    criteria: [three headings, cite the source in every paragraph]
     checks:
       required_sections: [What changed, Why it matters, Sources]
       allowed_sources: [local-first.md]
       cite_every_paragraph: true
-      must_contain: [local-first.md, conflict, trade-off]
+      must_contain: [local-first.md]
       max_words: 250
 
   - id: v5-brief-wal

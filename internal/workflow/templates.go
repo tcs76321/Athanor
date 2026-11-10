@@ -14,7 +14,7 @@ func DailyBriefTemplate() Template {
 		Graph: Graph{
 			Blocks: []Block{
 				{ID: "research", Kind: KindResearch, Title: "Find today's sources",
-					Config: map[string]any{"instructions": "Focus on what changed in the last 24 hours. Prefer primary sources over commentary."}},
+					Config: map[string]any{"instructions": "Focus on what is new or changed in the sources. Prefer primary sources over commentary. Do not invent a change that the sources do not state."}},
 				{ID: "fetch", Kind: KindFetch, Title: "Fetch the sources"},
 				{ID: "extract", Kind: KindExtract, Title: "Extract dated items"},
 				{ID: "condense", Kind: KindCondense, Title: "Condense the items"},

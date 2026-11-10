@@ -3,6 +3,9 @@ package firstuse
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/tcs76321/athanor/internal/architect"
@@ -125,6 +128,39 @@ func TestStartTemplateCreatesAndStartsCycle(t *testing.T) {
 	}
 	if starter.goalID != res.GoalID || len(res.JobIDs) != 1 {
 		t.Errorf("started = %+v", res)
+	}
+}
+
+func TestStartTemplateInjectsLocalSources(t *testing.T) {
+	deps, _ := newDeps(t, &fakeIndexer{}, frozen(false))
+	cycles := cycle.NewRepo(deps.Events)
+	ctx := context.Background()
+	repo := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(repo, "sources"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(repo, "sources", "note.md"), []byte("The authoritative fact."), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	p, err := deps.Projects.CreateGuided(ctx, project.Intent{
+		Name: "briefs", Goal: "Write a cited brief.", RepositoryPath: repo,
+		Sources: []string{"note.md"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err := StartTemplate(ctx, deps, cycles, &fakeStarter{jobs: []string{"job-1"}}, p, workflow.DailyBriefTemplate(), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, task := range res.Tasks {
+		if strings.Contains(task.Description, "SOURCE MATERIAL") && strings.Contains(task.Description, "The authoritative fact.") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("no task carried the source text: %+v", res.Tasks)
 	}
 }
 

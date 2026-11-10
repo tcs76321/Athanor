@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -153,7 +155,11 @@ func StartDraft(ctx context.Context, deps Deps, cycles *cycle.Repo, starter Star
 	if err := workflow.Validate(graph, workflow.DefaultLimits()); err != nil {
 		return ApproveResult{}, err
 	}
-	specs, err := workflow.Compile(graph, workflow.CompileOptions{CycleID: c.ID, Sources: p.Sources})
+	specs, err := workflow.Compile(graph, workflow.CompileOptions{
+		CycleID:     c.ID,
+		Sources:     p.Sources,
+		SourceTexts: readSourceTexts(p),
+	})
 	if err != nil {
 		return ApproveResult{}, err
 	}
@@ -254,6 +260,26 @@ func ApproveCycle(ctx context.Context, deps Deps, cycles *cycle.Repo, starter St
 	}
 	res.Index, res.IndexWarning = draft.Index, draft.IndexWarning
 	return res, nil
+}
+
+// readSourceTexts loads the project's declared local source files from its
+// repository. It is best-effort: a missing source is omitted rather than
+// failing the cycle, and the block contract still applies. The caller bounds
+// prompt size when compiling.
+func readSourceTexts(p project.Project) map[string]string {
+	if p.RepositoryPath == "" || len(p.Sources) == 0 {
+		return nil
+	}
+	out := make(map[string]string, len(p.Sources))
+	for _, name := range p.Sources {
+		clean := filepath.Base(name)
+		data, err := os.ReadFile(filepath.Join(p.RepositoryPath, "sources", clean))
+		if err != nil {
+			continue
+		}
+		out[name] = string(data)
+	}
+	return out
 }
 
 func cycleKind(kind string) (cycle.Kind, error) {

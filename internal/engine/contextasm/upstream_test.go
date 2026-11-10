@@ -44,9 +44,7 @@ func TestWithUpstreamAppendsDependencyOutputs(t *testing.T) {
 	a := &Assembler{rt: stubRuntime{deps: deps}}
 	task := project.Task{ID: "options", DependsOn: []string{"research"}, Description: "Generate three options."}
 
-	got := a.withUpstream(context.Background(), PrepareRequest{
-		Project: project.Project{ID: "p1"}, Task: task,
-	})
+	got := a.withUpstream(context.Background(), PrepareRequest{Project: project.Project{ID: "p1"}}, task)
 	if deps.project != "p1" || len(deps.tasks) != 1 || deps.tasks[0] != "research" {
 		t.Errorf("read = %q/%v", deps.project, deps.tasks)
 	}
@@ -63,24 +61,24 @@ func TestWithUpstreamLeavesTaskWhenThereIsNoData(t *testing.T) {
 	task := project.Task{ID: "x", DependsOn: []string{"a"}, Description: "do it"}
 
 	a := &Assembler{} // nil runtime
-	if got := a.withUpstream(context.Background(), PrepareRequest{Task: task}); got.Description != task.Description {
+	if got := a.withUpstream(context.Background(), PrepareRequest{}, task); got.Description != task.Description {
 		t.Errorf("nil runtime changed description: %q", got.Description)
 	}
 
 	a = &Assembler{rt: stubRuntime{deps: &fakeDeps{err: errors.New("db down")}}}
-	if got := a.withUpstream(context.Background(), PrepareRequest{Task: task}); got.Description != task.Description {
+	if got := a.withUpstream(context.Background(), PrepareRequest{}, task); got.Description != task.Description {
 		t.Errorf("error changed description: %q", got.Description)
 	}
 
 	a = &Assembler{rt: stubRuntime{deps: &fakeDeps{outputs: []DependencyOutput{{TaskID: "a", Title: "A", Content: "  "}}}}}
-	if got := a.withUpstream(context.Background(), PrepareRequest{Task: task}); got.Description != task.Description {
+	if got := a.withUpstream(context.Background(), PrepareRequest{}, task); got.Description != task.Description {
 		t.Errorf("empty output changed description: %q", got.Description)
 	}
 
 	noDeps := project.Task{ID: "x", Description: "do it"}
 	deps := &fakeDeps{outputs: []DependencyOutput{{TaskID: "a", Title: "A", Content: "ignored"}}}
 	a = &Assembler{rt: stubRuntime{deps: deps}}
-	if got := a.withUpstream(context.Background(), PrepareRequest{Task: noDeps}); got.Description != noDeps.Description {
+	if got := a.withUpstream(context.Background(), PrepareRequest{}, noDeps); got.Description != noDeps.Description {
 		t.Errorf("no dependencies changed description: %q", got.Description)
 	}
 	if deps.project != "" {
@@ -92,10 +90,7 @@ func TestWithUpstreamCapsOneBlock(t *testing.T) {
 	long := strings.Repeat("x", maxUpstreamBlockChars+500)
 	deps := &fakeDeps{outputs: []DependencyOutput{{TaskID: "a", Title: "Big", Content: long}}}
 	a := &Assembler{rt: stubRuntime{deps: deps}}
-	got := a.withUpstream(context.Background(), PrepareRequest{
-		Project: project.Project{ID: "p1"},
-		Task:    project.Task{ID: "b", DependsOn: []string{"a"}, Description: "next"},
-	})
+	got := a.withUpstream(context.Background(), PrepareRequest{Project: project.Project{ID: "p1"}}, project.Task{ID: "b", DependsOn: []string{"a"}, Description: "next"})
 	if len(got.Description) > len("next")+maxUpstreamBlockChars+600 {
 		t.Errorf("description length = %d, not capped", len(got.Description))
 	}
