@@ -1054,6 +1054,7 @@ func printConfig(args []string) {
 	tokenHostDir := fs.String("token-host-dir", "", "Podman-machine-visible token base (Core Pod only)")
 	scratchHostDir := fs.String("scratch-host-dir", "", "Podman-machine-visible repository snapshot base (Core Pod only)")
 	soak := fs.Bool("soak", false, "compress time-triggered schedules (Core Pod / soak shape)")
+	allowCSV := fs.String("allow", "", "comma-separated network.allow_list hosts (v4 sources)")
 	_ = fs.Parse(args)
 
 	m, ok := modelByLabel(*modelLabel)
@@ -1069,6 +1070,12 @@ func printConfig(args []string) {
 		fmt.Fprintf(os.Stderr, "unknown arm %q (single|dialectical|bestof3|reflect|full)\n", *armName)
 		os.Exit(2)
 	}
+	var allow []string
+	for _, h := range strings.Split(*allowCSV, ",") {
+		if h = strings.TrimSpace(h); h != "" {
+			allow = append(allow, h)
+		}
+	}
 	fmt.Print(probeConfigYAML(m, a, *seed, *addr, *noReflect,
-		probePolicy{JudgeMode: *judgeMode, JudgeModel: *judgeModel, AltModel: *altModel, OllamaURL: *ollamaURL, CodeGates: *gates, JobPodImage: *jobPodImage, TokenHostDir: *tokenHostDir, ScratchHostDir: *scratchHostDir, Soak: *soak}))
+		probePolicy{JudgeMode: *judgeMode, JudgeModel: *judgeModel, AltModel: *altModel, OllamaURL: *ollamaURL, CodeGates: *gates, JobPodImage: *jobPodImage, TokenHostDir: *tokenHostDir, ScratchHostDir: *scratchHostDir, Soak: *soak, AllowList: allow}))
 }

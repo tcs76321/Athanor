@@ -19,6 +19,9 @@ type probePolicy struct {
 	// mirrors a real deployment, where a user runs different models per role.
 	// An unset role falls back to JudgeModel/AltModel, then to the run model.
 	RoleModels map[string]string
+	// AllowList is the network.allow_list the Core may read. A v4 cycle task
+	// declares its sources; without these entries the gateway denies them.
+	AllowList []string
 	// DAG enables execution.dag_decomposition: every submitted goal is
 	// decomposed by the tall persona into a task DAG and executed through the
 	// M6 dependency scheduler (exercises the DAG/scheduler subsystem).
@@ -121,6 +124,13 @@ func probeConfigYAML(m probeModel, a arm, seedPolicy, addr string, noReflect boo
 	mainModel, mainFamily := roleModel("main"), roleFamily("main")
 	secModel, secFamily := roleModel("security"), roleFamily("security")
 	altModel, altFamily := roleModel("alternative"), roleFamily("alternative")
+	var allowBuf strings.Builder
+	if len(p.AllowList) > 0 {
+		allowBuf.WriteString("  allow_list:\n")
+		for _, host := range p.AllowList {
+			fmt.Fprintf(&allowBuf, "    - %q\n", host)
+		}
+	}
 	var b strings.Builder
 	fmt.Fprintf(&b, `version: 2
 
@@ -136,7 +146,7 @@ inference:
 network:
   external_api_host_allowlist:
     - %q
-
+%s
 personas:
   wide:
     model: %q
@@ -170,7 +180,7 @@ execution:
   require_documentation_for_code: %t
   dag_decomposition: %t
 `,
-		orDefault(p.OllamaURL, "http://localhost:11434"), seedPolicy, addr,
+		orDefault(p.OllamaURL, "http://localhost:11434"), seedPolicy, addr, allowBuf.String(),
 		wideModel, wideFamily, m.ContextTarget,
 		tallModel, tallFamily,
 		mainModel, mainFamily, m.ContextTarget,

@@ -110,6 +110,12 @@ probe)
 		-ollama "$ollama_url" \
 		-out "$probe_out" "$@"
 	;;
+cycle)
+	shift
+	podman exec -w /bench/repo "$name" /usr/local/bin/athanor-probe cycle \
+		-addr 127.0.0.1:7420 -state-dir /var/lib/athanor/state \
+		-out "$probe_out" "$@"
+	;;
 memory)
 	shift
 	podman exec -w /bench/repo "$name" /usr/local/bin/athanor-probe memory \

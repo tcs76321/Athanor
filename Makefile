@@ -15,7 +15,7 @@ export CGO_ENABLED
 # tag-less binary can never silently run.
 GO_TAGS = -tags sqlite_fts5
 
-.PHONY: build release test test-race test-integration integration-images vet lint check vuln tidy tidy-check fuzz cover cover-check run clean hooks bench probe-micro probe probe-judge probe-anchor probe-report probe-bundle probe-reconcile probe-measure jobpod-image jobpod-polyglot-image core-image core-smoke bench-core-focused bench-preflight bench-host-smoke bench-anchor-host bench-anchor-core bench-v3-verify bench-v3-run bench-v3-suite bench-v3-paired-report bench-v3-quality bench-v3-quality-report fresh install soak soak-mini soak-ladder diagnostic diagnostic-pair diagnostic-cascade diagnostic-categories
+.PHONY: build release test test-race test-integration integration-images vet lint check vuln tidy tidy-check fuzz cover cover-check run clean hooks bench probe-micro probe probe-judge probe-anchor probe-report probe-bundle probe-reconcile probe-measure jobpod-image jobpod-polyglot-image core-image core-smoke bench-core-focused bench-preflight bench-host-smoke bench-anchor-host bench-anchor-core bench-v3-verify bench-v3-run bench-v3-suite bench-v3-paired-report bench-v3-quality bench-v3-quality-report bench-v4-verify bench-v4-cycle bench-v4-baseline bench-v4-report bench-v4-suite fresh install soak soak-mini soak-ladder diagnostic diagnostic-pair diagnostic-cascade diagnostic-categories
 
 build:
 	go build $(GO_TAGS) -o bin/athanor ./cmd/athanor
@@ -228,7 +228,7 @@ bench-config:
 		-ollama $(BENCH_OLLAMA) -addr 127.0.0.1:7420 \
 		-jobpod-image athanor-jobpod:latest \
 		-token-host-dir $(abspath $(BENCH_OUT))/tokens \
-		-scratch-host-dir $(abspath $(BENCH_OUT))/scratch -soak > $(BENCH_CONFIG)
+		-scratch-host-dir $(abspath $(BENCH_OUT))/scratch -soak $(if $(BENCH_ALLOW),-allow $(BENCH_ALLOW)) > $(BENCH_CONFIG)
 
 # The full benchmark on the shipped runtime: ONE canonical persona set, one
 # pass, <=12h hard cap. The probe runs inside the Core Pod and reads the named
@@ -391,6 +391,68 @@ bench-v3-quality-report:
 	go run $(GO_TAGS) ./tools/bench quality-report \
 		-scores $(BENCH_V3_OUT)/quality-scores.json \
 		-json $(BENCH_V3_OUT)/quality-delta.json -md $(BENCH_V3_OUT)/quality-delta.md
+
+# --- Benchmark v4 (0.x utility/cycle instrument, ADR-0135) ------------------
+# The cycle arm drives project -> template draft -> start through the UI and
+# scores the produced brief. The baseline arm is one engine task on the same
+# goal. Both are deterministic; the report pairs them by task.
+BENCH_V4_DIR           ?= eval/bench/v4
+BENCH_V4_OUT           ?= tools/bench/results/v4
+BENCH_V4_MODEL         ?= bonsai27b
+BENCH_V4_JUDGE         ?= granite4.2:8b
+BENCH_V4_STATE_VOLUME  ?= athanor-bench-v4-state
+BENCH_V4_TIMEOUT       ?= 30m
+BENCH_V4_HOURS         ?= 4
+BENCH_V4_ONLY          ?=
+BENCH_V4_ALLOW         ?= sqlite.org,example.com
+BENCH_V4_RUN_OUT        = $(BENCH_V4_OUT)/cycle-$(BENCH_V4_MODEL)
+BENCH_V4_BASE_OUT       = $(BENCH_V4_OUT)/baseline-$(BENCH_V4_MODEL)
+
+bench-v4-verify:
+	go run $(GO_TAGS) ./tools/bench verify-models -protocol $(BENCH_V4_DIR)/protocol.yaml
+
+bench-v4-cycle: bench-v4-verify bench-image
+	@mkdir -p $(BENCH_V4_RUN_OUT)
+	@$(MAKE) bench-config BENCH_ARM=single BENCH_MODEL=$(BENCH_V4_MODEL) \
+		BENCH_JUDGE=$(BENCH_V4_JUDGE) BENCH_OUT=$(BENCH_V4_RUN_OUT) \
+		BENCH_CONFIG=$(BENCH_V4_RUN_OUT)/core-config.yaml \
+		BENCH_ALLOW=$(BENCH_V4_ALLOW)
+	@BENCH_OUT=$(BENCH_V4_RUN_OUT) BENCH_CONFIG=$(BENCH_V4_RUN_OUT)/core-config.yaml \
+		BENCH_STATE_VOLUME=$(BENCH_V4_STATE_VOLUME)-$(BENCH_V4_MODEL) \
+		PROBE_IMAGE=$(PROBE_IMAGE) BENCH_OLLAMA=$(BENCH_OLLAMA) ./scripts/bench-core.sh start
+	@BENCH_OUT=$(BENCH_V4_RUN_OUT) BENCH_PROBE_OUT=/bench/out ./scripts/bench-core.sh cycle \
+		-corpus $(BENCH_V4_DIR)/brief.yaml -model $(BENCH_V4_MODEL) \
+		-timeout $(BENCH_V4_TIMEOUT) $(if $(BENCH_V4_ONLY),-only $(BENCH_V4_ONLY))
+	@BENCH_OUT=$(BENCH_V4_RUN_OUT) ./scripts/bench-core.sh stop
+
+bench-v4-baseline: bench-v4-verify bench-image
+	@mkdir -p $(BENCH_V4_BASE_OUT)
+	@$(MAKE) bench-config BENCH_ARM=single BENCH_MODEL=$(BENCH_V4_MODEL) \
+		BENCH_JUDGE=$(BENCH_V4_JUDGE) BENCH_OUT=$(BENCH_V4_BASE_OUT) \
+		BENCH_CONFIG=$(BENCH_V4_BASE_OUT)/core-config.yaml \
+		BENCH_ALLOW=$(BENCH_V4_ALLOW)
+	@BENCH_OUT=$(BENCH_V4_BASE_OUT) BENCH_CONFIG=$(BENCH_V4_BASE_OUT)/core-config.yaml \
+		BENCH_STATE_VOLUME=$(BENCH_V4_STATE_VOLUME)-baseline-$(BENCH_V4_MODEL) \
+		PROBE_IMAGE=$(PROBE_IMAGE) BENCH_OLLAMA=$(BENCH_OLLAMA) ./scripts/bench-core.sh start
+	@BENCH_OUT=$(BENCH_V4_BASE_OUT) BENCH_PROBE_OUT=/bench/out BENCH_OLLAMA=$(BENCH_OLLAMA) \
+		./scripts/bench-core.sh probe -corpus $(BENCH_V4_DIR)/brief.yaml \
+		-model $(BENCH_V4_MODEL) -arm single -judge-model $(BENCH_V4_JUDGE) \
+		-passes 1 -hours $(BENCH_V4_HOURS) -timeout $(BENCH_V4_TIMEOUT) \
+		$(if $(BENCH_V4_ONLY),-only $(BENCH_V4_ONLY))
+	@BENCH_OUT=$(BENCH_V4_BASE_OUT) ./scripts/bench-core.sh stop
+
+bench-v4-report:
+	go run $(GO_TAGS) ./tools/bench v4-report \
+		-baseline $(BENCH_V4_BASE_OUT)/out/results.json \
+		-cycle $(BENCH_V4_RUN_OUT)/cycle-$(BENCH_V4_MODEL).json \
+		-model $(BENCH_V4_MODEL) \
+		-json $(BENCH_V4_OUT)/paired-$(BENCH_V4_MODEL).json \
+		-md $(BENCH_V4_OUT)/paired-$(BENCH_V4_MODEL).md
+
+bench-v4-suite:
+	@$(MAKE) bench-v4-baseline
+	@$(MAKE) bench-v4-cycle
+	@$(MAKE) bench-v4-report
 
 run:
 	go run $(GO_TAGS) ./cmd/athanor

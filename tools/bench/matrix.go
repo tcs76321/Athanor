@@ -49,6 +49,11 @@ type sampleGoal struct {
 	OneShotExpected string
 	// Rubric names the quality rubric for a quality task (quality-v1).
 	Rubric string
+	// Template and Sources are the v4 cycle fields (ADR-0135): the built-in
+	// template the cycle arm compiles and the sources it may read.
+	Template      string
+	Sources       []string
+	ArtifactTitle string
 	// Steps turns the task into a multi-goal sequence in one project
 	// (ADR-0116). Empty keeps the one-goal behavior.
 	Steps []sampleStep

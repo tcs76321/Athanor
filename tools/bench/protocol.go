@@ -128,11 +128,21 @@ type protocolEarlyStop struct {
 	AgenticMinEscalation float64 `yaml:"agentic_min_escalation"`
 }
 
+type protocolUtility struct {
+	Comparison          string  `yaml:"comparison"`
+	Suite               string  `yaml:"suite"`
+	MarginPoints        float64 `yaml:"margin_points"`
+	MinCyclePassRate    float64 `yaml:"min_cycle_pass_rate"`
+	MinCitationPassRate float64 `yaml:"min_citation_pass_rate"`
+	MechanismCoverage   float64 `yaml:"mechanism_coverage"`
+}
+
 type protocolClaims struct {
 	NonInferiority protocolNonInferiority `yaml:"non_inferiority"`
 	Agentic        protocolAgentic        `yaml:"agentic"`
 	Quality        protocolQuality        `yaml:"quality"`
 	EarlyStop      protocolEarlyStop      `yaml:"early_stop"`
+	Utility        protocolUtility        `yaml:"utility"`
 }
 
 type benchProtocol struct {
@@ -167,7 +177,7 @@ func loadProtocol(path string) (benchProtocol, error) {
 	if err := yaml.Unmarshal(data, &p); err != nil {
 		return benchProtocol{}, fmt.Errorf("parsing protocol %s: %w", path, err)
 	}
-	if p.Version < 1 || p.Version > 3 || p.Benchmark == "" {
+	if p.Version < 1 || p.Version > 4 || p.Benchmark == "" {
 		return benchProtocol{}, fmt.Errorf("protocol %s: unsupported version/benchmark", path)
 	}
 	if len(p.CanonicalPersonaSet.Roles) != len(protocolRoleNames) {
@@ -195,7 +205,74 @@ func loadProtocol(path string) (benchProtocol, error) {
 			return benchProtocol{}, fmt.Errorf("protocol %s: %w", path, err)
 		}
 	}
+	if p.Version == 4 {
+		if err := validateV4(p); err != nil {
+			return benchProtocol{}, fmt.Errorf("protocol %s: %w", path, err)
+		}
+	}
 	return p, nil
+}
+
+// validateV4 enforces the utility contract (ADR-0135): the same two-generator,
+// two-judge roster as v3, one `brief` suite with a one-shot baseline and a
+// cycle arm, and pre-registered deterministic utility thresholds.
+func validateV4(p benchProtocol) error {
+	if p.Benchmark != "v4" {
+		return fmt.Errorf("benchmark = %q, want v4", p.Benchmark)
+	}
+	if p.TaskDigest != "eval/bench/v4/CORPUS.digest" {
+		return fmt.Errorf("task_digest = %q, want eval/bench/v4/CORPUS.digest", p.TaskDigest)
+	}
+	if len(p.Generators) != 2 {
+		return fmt.Errorf("generators = %d, want 2", len(p.Generators))
+	}
+	if len(p.Judges) != 2 {
+		return fmt.Errorf("judges = %d, want 2", len(p.Judges))
+	}
+	byLabel := map[string]protocolRosterEntry{}
+	families := map[string]bool{}
+	for _, e := range p.Roster {
+		if e.Label == "" || e.Model == "" || e.Family == "" || e.Digest == "" {
+			return fmt.Errorf("roster entry %+v is incomplete", e)
+		}
+		if _, dup := byLabel[e.Label]; dup {
+			return fmt.Errorf("duplicate roster label %q", e.Label)
+		}
+		byLabel[e.Label] = e
+	}
+	for _, label := range append(append([]string{}, p.Generators...), p.Judges...) {
+		e, ok := byLabel[label]
+		if !ok {
+			return fmt.Errorf("model label %q is not in the roster", label)
+		}
+		families[e.Family] = true
+	}
+	if len(families) != 4 {
+		return fmt.Errorf("model families = %d, want 4 distinct families", len(families))
+	}
+	suite, ok := p.Suites["brief"]
+	if !ok {
+		return fmt.Errorf("missing suite %q", "brief")
+	}
+	if suite.Tasks != "eval/bench/v4/brief.yaml" {
+		return fmt.Errorf("brief tasks = %q, want eval/bench/v4/brief.yaml", suite.Tasks)
+	}
+	if len(suite.Arms) != 2 || suite.Arms[0] != "oneshot" || suite.Arms[1] != "cycle" {
+		return fmt.Errorf("brief arms = %v, want [oneshot cycle]", suite.Arms)
+	}
+	if suite.HeldOut < 1 {
+		return fmt.Errorf("brief held_out = %d, want >= 1", suite.HeldOut)
+	}
+	c := p.Claims.Utility
+	if c.Comparison != "cycle_vs_oneshot" || c.Suite != "brief" {
+		return fmt.Errorf("utility claim comparison/suite = %q/%q", c.Comparison, c.Suite)
+	}
+	if c.MarginPoints <= 0 || c.MinCyclePassRate <= 0 || c.MinCyclePassRate > 1 ||
+		c.MinCitationPassRate <= 0 || c.MinCitationPassRate > 1 ||
+		c.MechanismCoverage <= 0 || c.MechanismCoverage > 1 {
+		return fmt.Errorf("utility claim thresholds are incomplete or out of range")
+	}
+	return nil
 }
 
 // validateV3 enforces the v3 contract (ADR-0133): two generators, two judges,

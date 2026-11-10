@@ -47,6 +47,7 @@ var knownCheckKeys = map[string]bool{
 	"must_contain_any": true, "json_extract": true, "json_schema": true,
 	"array_length": true, "array_unique_by": true, "array_sorted_by": true,
 	"json_field_matches": true,
+	"allowed_urls":       true, "cite_every_paragraph": true,
 }
 
 func init() {
@@ -130,6 +131,25 @@ func runChecks(checks map[string]any, content string) (bool, []checkResult) {
 	}
 	if v, ok := checks["min_distinct_arguments"]; ok {
 		add("min_distinct_arguments", countParagraphs(content) >= toInt(v), false, "")
+	}
+	// allowed_urls and cite_every_paragraph are the v4 citation contract
+	// (ADR-0135): a brief may not invent a source, and every substantive
+	// paragraph must name the source it came from. Both are deterministic.
+	if v, ok := checks["allowed_urls"]; ok {
+		allowed := normalizeURLSet(toStrings(v))
+		var unlisted []string
+		for _, u := range extractURLs(content) {
+			if !allowed[normalizeURL(u)] {
+				unlisted = append(unlisted, u)
+			}
+		}
+		add("allowed_urls", len(unlisted) == 0, false, "unlisted: "+strings.Join(unlisted, ", "))
+	}
+	if v, ok := checks["cite_every_paragraph"]; ok && toBool(v) {
+		allowed := toStrings(checks["allowed_urls"])
+		missing, total := uncitedParagraphs(content, allowed)
+		add("cite_every_paragraph", missing == 0, false,
+			fmt.Sprintf("uncited=%d/%d", missing, total))
 	}
 	if v, ok := checks["must_contain"]; ok {
 		low := strings.ToLower(content)
@@ -471,4 +491,61 @@ func toInt(v any) int {
 func toBool(v any) bool {
 	b, _ := v.(bool)
 	return b
+}
+
+// urlPattern matches absolute http(s) URLs in artifact prose. Trailing prose
+// punctuation is stripped by normalizeURL.
+var urlPattern = regexp.MustCompile(`https?://[^\s<>"'` + "`" + `\[\]]+`)
+
+// extractURLs returns the absolute URLs in content, in first-seen order.
+func extractURLs(content string) []string {
+	return urlPattern.FindAllString(content, -1)
+}
+
+// normalizeURL canonicalizes a URL for comparison: trim prose punctuation and
+// a trailing slash so "https://example.com/" and "https://example.com" match.
+func normalizeURL(u string) string {
+	u = strings.TrimRight(strings.TrimSpace(u), ".,;:!?)]}")
+	return strings.TrimRight(u, "/")
+}
+
+func normalizeURLSet(urls []string) map[string]bool {
+	out := make(map[string]bool, len(urls))
+	for _, u := range urls {
+		out[normalizeURL(u)] = true
+	}
+	return out
+}
+
+// uncitedParagraphs counts substantive paragraphs (>= 15 words) that name none
+// of the allowed sources. When allowed is empty, any URL counts, which keeps
+// the check meaningful on a task that did not declare an allowlist.
+func uncitedParagraphs(content string, allowed []string) (missing, total int) {
+	allow := normalizeURLSet(allowed)
+	if len(allow) == 0 {
+		for _, u := range extractURLs(content) {
+			allow[normalizeURL(u)] = true
+		}
+	}
+	for _, block := range strings.Split(content, "\n\n") {
+		block = strings.TrimSpace(block)
+		if block == "" || strings.HasPrefix(block, "#") {
+			continue
+		}
+		if len(strings.Fields(block)) < 15 {
+			continue
+		}
+		total++
+		cited := false
+		for _, u := range extractURLs(block) {
+			if allow[normalizeURL(u)] {
+				cited = true
+				break
+			}
+		}
+		if !cited {
+			missing++
+		}
+	}
+	return missing, total
 }

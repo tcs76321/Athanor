@@ -160,6 +160,10 @@ func main() {
 		runMatrix(os.Args[2:])
 	case "soak":
 		runSoak(os.Args[2:])
+	case "cycle":
+		runCycle(os.Args[2:])
+	case "v4-report":
+		runV4Report(os.Args[2:])
 	case "report":
 		runReport(os.Args[2:])
 	case "compare":

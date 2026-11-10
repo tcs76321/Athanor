@@ -33,6 +33,34 @@ func TestRunChecksText(t *testing.T) {
 	}
 }
 
+func TestRunChecksCitations(t *testing.T) {
+	const src = "https://www.sqlite.org/whentouse.html"
+	checks := map[string]any{
+		"allowed_urls":         []any{src},
+		"cite_every_paragraph": true,
+		"required_sections":    []any{"What changed", "Why it matters", "Sources"},
+		"must_contain":         []any{src},
+	}
+	good := "# What changed\n\nSQLite is a good fit for embedded storage and small local tools. See " + src + " for the guidance.\n\n" +
+		"# Why it matters\n\nIt removes an external service and keeps data local, which simplifies deployment. Source: " + src + ".\n\n" +
+		"# Sources\n\n- " + src + "\n"
+	if pass, results := runChecks(checks, good); !pass {
+		t.Errorf("cited brief failed: %+v", results)
+	}
+
+	uncited := "# What changed\n\nSQLite is a good fit for embedded storage and small local tools in many products.\n\n" +
+		"# Why it matters\n\nIt removes an external service and keeps data local, which simplifies deployment.\n\n" +
+		"# Sources\n\n- " + src + "\n"
+	if pass, results := runChecks(checks, uncited); pass {
+		t.Errorf("uncited brief passed: %+v", results)
+	}
+
+	invented := good + "\nSee also https://example.com/made-up for more.\n"
+	if pass, results := runChecks(checks, invented); pass {
+		t.Errorf("invented source passed: %+v", results)
+	}
+}
+
 func TestRunChecksExactParagraphsAndHeadings(t *testing.T) {
 	checks := map[string]any{"exact_paragraphs": 2, "no_headings": true}
 	if pass, results := runChecks(checks, "First para.\n\nSecond para.\n"); !pass {

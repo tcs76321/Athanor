@@ -1,0 +1,119 @@
+# Athanor benchmark v4 — brief suite.
+#
+# Each task is the same goal under two arms: a one-shot engine task, and a
+# Daily Brief cycle over the declared sources. The deterministic checks score
+# citation discipline, not prose quality: the brief must use the three
+# headings, name only the declared source, cite it in every substantive
+# paragraph, and never claim it could not read the source.
+version: 4
+suite: brief
+tasks:
+  - id: v4-brief-sqlite
+    title: When to use SQLite
+    suite: brief
+    archetype: document
+    tier: H
+    held_out: false
+    template: daily-brief
+    artifact_title: Write the brief
+    sources:
+      - https://www.sqlite.org/whentouse.html
+    goal: |
+      Write a short brief on when to use SQLite. Use the headings What changed,
+      Why it matters, and Sources. Cite https://www.sqlite.org/whentouse.html in
+      every paragraph, and name no other source.
+    criteria:
+      - uses the three required headings
+      - cites only the declared source
+      - every substantive paragraph names the source
+    checks:
+      required_sections: [What changed, Why it matters, Sources]
+      must_contain: ["https://www.sqlite.org/whentouse.html"]
+      allowed_urls: ["https://www.sqlite.org/whentouse.html"]
+      cite_every_paragraph: true
+      min_words: 50
+      max_words: 400
+      forbidden_phrases: ["I cannot", "cannot access", "unable to access"]
+
+  - id: v4-brief-wal
+    title: Write-ahead logging trade-offs
+    suite: brief
+    archetype: document
+    tier: H
+    held_out: false
+    template: daily-brief
+    artifact_title: Write the brief
+    sources:
+      - https://www.sqlite.org/wal.html
+    goal: |
+      Write a short brief on SQLite write-ahead logging and its trade-offs. Use
+      the headings What changed, Why it matters, and Sources. Cite
+      https://www.sqlite.org/wal.html in every paragraph, and name no other
+      source.
+    criteria:
+      - uses the three required headings
+      - cites only the declared source
+      - every substantive paragraph names the source
+    checks:
+      required_sections: [What changed, Why it matters, Sources]
+      must_contain: ["https://www.sqlite.org/wal.html"]
+      allowed_urls: ["https://www.sqlite.org/wal.html"]
+      cite_every_paragraph: true
+      min_words: 50
+      max_words: 400
+      forbidden_phrases: ["I cannot", "cannot access", "unable to access"]
+
+  - id: v4-brief-testing
+    title: How SQLite tests itself
+    suite: brief
+    archetype: document
+    tier: H
+    held_out: false
+    template: daily-brief
+    artifact_title: Write the brief
+    sources:
+      - https://www.sqlite.org/testing.html
+    goal: |
+      Write a short brief on how SQLite tests itself. Use the headings What
+      changed, Why it matters, and Sources. Cite
+      https://www.sqlite.org/testing.html in every paragraph, and name no other
+      source.
+    criteria:
+      - uses the three required headings
+      - cites only the declared source
+      - every substantive paragraph names the source
+    checks:
+      required_sections: [What changed, Why it matters, Sources]
+      must_contain: ["https://www.sqlite.org/testing.html"]
+      allowed_urls: ["https://www.sqlite.org/testing.html"]
+      cite_every_paragraph: true
+      min_words: 50
+      max_words: 400
+      forbidden_phrases: ["I cannot", "cannot access", "unable to access"]
+
+  - id: v4-brief-example
+    title: A minimal cited brief (held out)
+    suite: brief
+    archetype: document
+    tier: M
+    held_out: true
+    template: daily-brief
+    artifact_title: Write the brief
+    sources:
+      - https://example.com
+    goal: |
+      Write a short brief about https://example.com. Use the headings What
+      changed, Why it matters, and Sources. Cite https://example.com in every
+      paragraph, and name no other source.
+    criteria:
+      - uses the three required headings
+      - cites only the declared source
+      - every substantive paragraph names the source
+    checks:
+      required_sections: [What changed, Why it matters, Sources]
+      must_contain: ["https://example.com"]
+      allowed_urls: ["https://example.com"]
+      cite_every_paragraph: true
+      min_words: 40
+      max_words: 300
+      forbidden_phrases: ["I cannot", "cannot access", "unable to access"]

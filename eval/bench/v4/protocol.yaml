@@ -1,0 +1,147 @@
+# Athanor benchmark v4 (0.x) — utility/cycle instrument.
+#
+# v4 measures the architecture the 0.x line is *for*: a project is a timeline
+# of cycles, a cycle is a typed block graph, and the graph composes. It is a NEW
+# version, not an edit to v2 or v3 (ADR-0135). v3 remains the paired
+# single/cascade/full instrument and stays in the tree; it did not reach a
+# quality-claim freeze, so v4 becomes the 0.x utility instrument. v2 stays
+# frozen/historical.
+#
+# The headline is deterministic: does the cycle produce a correct, cited brief
+# more often than a one-shot generation of the same goal, without ever being
+# worse than the one-shot margin?
+version: 4
+benchmark: v4
+cut: 2026-11-10
+status: draft
+task_digest: eval/bench/v4/CORPUS.digest
+
+# The generator substitution and in-loop judge are identical to v3 so a delta
+# is attributable to the architecture, not to a persona change.
+canonical_persona_set:
+  name: canonical-v4
+  description: >
+    One fixed role/temperature set for every generator. The generator model is
+    substituted per run; the in-loop judge is granite4.2:8b for both.
+  roles:
+    wide:
+      model: bonsai-2:27b
+      family: bonsai-2
+      context_target: 32768
+      temperature: 0.7
+    tall:
+      model: bonsai-2:27b
+      family: bonsai-2
+      context_target: 32768
+      temperature: 0.2
+    main:
+      model: bonsai-2:27b
+      family: bonsai-2
+      context_target: 32768
+      temperature: 0.4
+    security:
+      model: granite4.2:8b
+      family: granite
+      context_target: 32768
+      temperature: 0.0
+    alternative:
+      model: bonsai-2:27b
+      family: bonsai-2
+      context_target: 32768
+      temperature: 0.8
+
+  inference:
+    backend: ollama
+    engine_version: "0.40.15"
+    ollama_url: "http://localhost:11434"
+    json_format: true
+    max_output_tokens: 4096
+    think: false
+    keep_alive: "5m"
+    judgment_seed: off
+
+  execution:
+    divergence_candidates: 1
+    max_reflection_loops: 0
+    engine_code_gates: true
+    dag_decomposition: false
+
+  context:
+    seed_active_chunk: true
+    seed_active_max_bytes: 16384
+    repository_index_limit: 20
+    memory_embedding_model: nomic-embed-text:latest
+    memory_search_top_k: 8
+    phase_wall_time_budgets:
+      planning: "900s"
+      diverging: "900s"
+      evaluating: "900s"
+      synthesizing: "900s"
+      comparing: "600s"
+      default: "900s"
+
+  job_pod:
+    image: athanor-jobpod:latest
+    default_tools: [execute_code, run_tests, lint]
+
+  runtime:
+    core_pod_image: athanor-core:0.0.0
+    core_pod_image_digest: null
+    host_class: "Apple Silicon arm64 (reference host)"
+
+generators: [bonsai27b, gemma12b]
+judges: [granite8b, mimo9b]
+
+roster:
+  - {label: bonsai27b, model: "bonsai-2:27b", family: bonsai-2, digest: "f3c4f42086593225d8be9bb4270658d0e05f5232fb2b5e8faa49ef74d2cc843a"}
+  - {label: gemma12b, model: "gemma4:12b-mlx", family: gemma, digest: "117d0d84cf2ab865feb59afc2cd30ff5d55f0035e05eb8d1b814f9688e3f3671"}
+  - {label: granite8b, model: "granite4.2:8b", family: granite, digest: "f586c02fdecdf151b656207c339aa003997345774a41768bac1fd6d2fb85913b"}
+  - {label: mimo9b, model: "mimo-v2.6:9b-mxfp8", family: mimo-v2.6, digest: "74dc9c06c48633324039d719e90b2e26db9cc4babff46ed0846a67f58239b86c"}
+
+# One claim suite. `oneshot` is a single engine task on the same goal; `cycle`
+# is the built-in Daily Brief template on the task's declared sources.
+suites:
+  brief:
+    tasks: eval/bench/v4/brief.yaml
+    passes: 1
+    arms: [oneshot, cycle]
+    held_out: 1
+    machine_budget_hours: 4
+
+# Pre-registered thresholds. The report MUST evaluate exactly these.
+claims:
+  utility:
+    comparison: cycle_vs_oneshot
+    suite: brief
+    # The cycle is never worse than one-shot beyond this task-clustered margin.
+    margin_points: 5
+    min_cycle_pass_rate: 0.75
+    min_citation_pass_rate: 0.75
+    mechanism_coverage: 1.0
+
+# Reviewer-facing shape. `full` is the brief suite; `anchor` is a one-task
+# screen using the first corpus task with the one-shot arm.
+run_shape:
+  full:
+    tasks: eval/bench/v4/brief.yaml
+    passes: 1
+    arm: cycle
+    machine_budget_hours: 4
+    per_job_timeout: 30m
+    memory_scripts: ""
+  anchor:
+    tasks: eval/bench/v4/brief.yaml
+    passes: 1
+    arm: oneshot
+    per_model_timeout: 1h
+    machine_budget_hours: 1
+
+embeddings:
+  model: nomic-embed-text:latest
+  digest: "0a109f422b47e3a30ba2b10eca18548e944e8a23073ee3f3e947efcf3c45e59f"
+
+scoring:
+  headline: deterministic_checks
+  quality: two_judge_rubric_advisory
+  judge: advisory
+  report: per_generator_paired_by_task

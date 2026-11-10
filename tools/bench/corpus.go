@@ -36,6 +36,14 @@ type corpusTask struct {
 	Requires        []string `yaml:"requires"`
 	OneShotExpected string   `yaml:"one_shot_expected"`
 	Rubric          string   `yaml:"rubric"`
+	// v4 fields (ADR-0135): a cycle-shaped task names the built-in template
+	// and the sources the cycle may read. The one-shot arm ignores both.
+	Template string   `yaml:"template"`
+	Sources  []string `yaml:"sources"`
+	// ArtifactTitle names the cycle task whose accepted document is the
+	// artifact under test (the synthesize block's title). Empty falls back to
+	// the newest accepted document in the project.
+	ArtifactTitle string `yaml:"artifact_title"`
 	// Steps turns the task into a multi-goal sequence in one project
 	// (ADR-0116): each step is submitted only after the previous one reaches
 	// a terminal state. The top-level Goal is the sequence description; a
@@ -168,6 +176,9 @@ func loadCorpus(path string) ([]sampleGoal, error) {
 			Requires:        t.Requires,
 			OneShotExpected: t.OneShotExpected,
 			Rubric:          t.Rubric,
+			Template:        t.Template,
+			Sources:         append([]string(nil), t.Sources...),
+			ArtifactTitle:   t.ArtifactTitle,
 			Steps:           convertSteps(t.Steps),
 		})
 	}
