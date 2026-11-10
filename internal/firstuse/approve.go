@@ -153,7 +153,7 @@ func StartDraft(ctx context.Context, deps Deps, cycles *cycle.Repo, starter Star
 	if err := workflow.Validate(graph, workflow.DefaultLimits()); err != nil {
 		return ApproveResult{}, err
 	}
-	specs, err := workflow.Compile(graph, workflow.CompileOptions{CycleID: c.ID})
+	specs, err := workflow.Compile(graph, workflow.CompileOptions{CycleID: c.ID, Sources: p.Sources})
 	if err != nil {
 		return ApproveResult{}, err
 	}
