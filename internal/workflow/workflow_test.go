@@ -69,7 +69,7 @@ func TestCompileLinearGraph(t *testing.T) {
 	if got := specs[byKey["research"]].Description; !strings.Contains(got, "Find sources.") {
 		t.Errorf("instructions not carried: %q", got)
 	}
-	if got := specs[byKey["research"]].Description; !strings.Contains(got, "every claim names the URL") {
+	if got := specs[byKey["research"]].Description; !strings.Contains(got, "every claim names the source") {
 		t.Errorf("block contract not carried: %q", got)
 	}
 	if got := specs[byKey["synthesize"]].Criteria; len(got) != 2 {

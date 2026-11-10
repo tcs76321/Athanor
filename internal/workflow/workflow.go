@@ -654,10 +654,15 @@ func description(b Block, spec BlockSpec, opts CompileOptions) string {
 	if (b.Kind == KindResearch || b.Kind == KindFetch) && len(opts.SourceTexts) > 0 {
 		var sb strings.Builder
 		sb.WriteString("SOURCE MATERIAL (authoritative; cite the file name, do not invent facts):")
+		names := make([]string, 0, len(opts.SourceTexts))
+		for name := range opts.SourceTexts {
+			names = append(names, name)
+		}
+		sort.Strings(names)
 		total := 0
-		for _, src := range opts.Sources {
-			text, ok := opts.SourceTexts[src]
-			if !ok || strings.TrimSpace(text) == "" {
+		for _, name := range names {
+			text := opts.SourceTexts[name]
+			if strings.TrimSpace(text) == "" {
 				continue
 			}
 			if len(text) > 6000 {
@@ -667,7 +672,7 @@ func description(b Block, spec BlockSpec, opts CompileOptions) string {
 				break
 			}
 			sb.WriteString("\n\n--- ")
-			sb.WriteString(src)
+			sb.WriteString(name)
 			sb.WriteString(" ---\n")
 			sb.WriteString(strings.TrimSpace(text))
 			total += len(text)

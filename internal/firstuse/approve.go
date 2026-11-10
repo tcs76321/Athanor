@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -267,7 +268,7 @@ func ApproveCycle(ctx context.Context, deps Deps, cycles *cycle.Repo, starter St
 // failing the cycle, and the block contract still applies. The caller bounds
 // prompt size when compiling.
 func readSourceTexts(p project.Project) map[string]string {
-	if p.RepositoryPath == "" || len(p.Sources) == 0 {
+	if p.RepositoryPath == "" {
 		return nil
 	}
 	out := make(map[string]string, len(p.Sources))
@@ -278,6 +279,29 @@ func readSourceTexts(p project.Project) map[string]string {
 			continue
 		}
 		out[name] = string(data)
+	}
+	// A local news wire lives under wire/. Read it deterministically so the
+	// report does not depend on a tool call or the network.
+	wireRoot := filepath.Join(p.RepositoryPath, "wire")
+	total := 0
+	_ = filepath.WalkDir(wireRoot, func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".md") {
+			return nil
+		}
+		if total > 16000 {
+			return fs.SkipAll
+		}
+		data, rerr := os.ReadFile(path)
+		if rerr != nil {
+			return nil
+		}
+		rel, _ := filepath.Rel(p.RepositoryPath, path)
+		out[rel] = string(data)
+		total += len(data)
+		return nil
+	})
+	if len(out) == 0 {
+		return nil
 	}
 	return out
 }

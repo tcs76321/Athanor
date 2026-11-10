@@ -3,6 +3,7 @@ package contextasm
 import (
 	"context"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -163,7 +164,7 @@ const (
 // gives a one-shot task the same authoritative text a cycle task gets, without
 // a tool call or a network fetch. Reads are best-effort and bounded.
 func (a *Assembler) withProjectSources(p project.Project, task project.Task) project.Task {
-	if p.RepositoryPath == "" || len(p.Sources) == 0 || strings.Contains(task.Description, "SOURCE MATERIAL") {
+	if p.RepositoryPath == "" || strings.Contains(task.Description, "SOURCE MATERIAL") {
 		return task
 	}
 	var b strings.Builder
@@ -184,6 +185,27 @@ func (a *Assembler) withProjectSources(p project.Project, task project.Task) pro
 		fmt.Fprintf(&b, "\n\n--- %s ---\n%s", name, strings.TrimSpace(text))
 		total += len(text)
 	}
+	// The local news wire is source material too.
+	_ = filepath.WalkDir(filepath.Join(p.RepositoryPath, "wire"), func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".md") || total > maxUpstreamTotalChars {
+			return nil
+		}
+		data, rerr := os.ReadFile(path)
+		if rerr != nil {
+			return nil
+		}
+		text := string(data)
+		if len(text) > maxUpstreamBlockChars {
+			text = text[:maxUpstreamBlockChars] + "…"
+		}
+		rel, _ := filepath.Rel(p.RepositoryPath, path)
+		if total+len(text) > maxUpstreamTotalChars {
+			return fs.SkipAll
+		}
+		fmt.Fprintf(&b, "\n\n--- %s ---\n%s", rel, strings.TrimSpace(text))
+		total += len(text)
+		return nil
+	})
 	if b.Len() == 0 {
 		return task
 	}
