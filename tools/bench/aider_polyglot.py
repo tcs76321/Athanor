@@ -14,6 +14,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -90,6 +91,30 @@ def file_hash(path):
     return h.hexdigest()
 
 
+def write_artifact(root, text, default_solution):
+    """Write a candidate into the exercise. The engine may emit a multi-file
+    tree with `=== FILE: name ===` markers; write each file. Otherwise treat
+    the text as the default solution module."""
+    parts = re.split(r"^=== FILE: (.+?) ===\s*$", text, flags=re.M)
+    if len(parts) >= 3:
+        wrote = False
+        for i in range(1, len(parts), 2):
+            name = parts[i].strip()
+            body = parts[i + 1].strip() + "\n"
+            rel = os.path.normpath(name)
+            if os.path.isabs(rel) or rel.startswith(".."):
+                continue
+            dst = os.path.join(root, rel)
+            os.makedirs(os.path.dirname(dst) or root, exist_ok=True)
+            with open(dst, "w", encoding="utf-8") as f:
+                f.write(body)
+            wrote = True
+        if wrote:
+            return
+    with open(os.path.join(root, default_solution), "w", encoding="utf-8") as f:
+        f.write(text)
+
+
 def score(args):
     with open(os.path.join(args.work, "meta.json"), encoding="utf-8") as f:
         meta = json.load(f)
@@ -108,9 +133,7 @@ def score(args):
             res["reason"] = "no code artifact produced"
             results.append(res)
             continue
-        sol = os.path.join(m["host"], m["solution"])
-        with open(sol, "w", encoding="utf-8") as f:
-            f.write(row["text"])
+        write_artifact(m["host"], row["text"], m["solution"])
         # The official tests are the label. They run in a fresh container.
         cmd = [
             "podman", "run", "--rm", "--network=none",

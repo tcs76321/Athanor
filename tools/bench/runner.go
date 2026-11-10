@@ -588,6 +588,14 @@ func (r *runnerConfig) runOne(g sampleGoal, m probeModel, a arm, run int, stateD
 	if txt, err := readArtifact(stateDir, mx.ArtifactID); err == nil {
 		mx.ArtifactText = txt
 	}
+	// A rejected code job still has a best candidate. Export it so the
+	// external scorer can test the artifact the system actually produced, not
+	// only the one the engine accepted (ADR-0092).
+	if mx.ArtifactText == "" {
+		if id, text, err := bestCandidateArtifact(db, stateDir, mx.JobID); err == nil && text != "" {
+			mx.ArtifactID, mx.ArtifactText = id, text
+		}
+	}
 	// The benchmark checks score the accepted artifact and the best candidate;
 	// a pass on either is a benchmark pass. ADR-0092 needs the candidate path
 	// so an engine rejection cannot hide a check-passing artifact; synthesis
