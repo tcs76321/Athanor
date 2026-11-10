@@ -98,10 +98,12 @@ done
 
 # External validation track: official Exercism tests, custom Athanor adapter.
 # Kept separate from the frozen claim suites; the report names the track version.
+# The external track uses the single arm: it is the affordable, comparable shape
+# (the full arm exceeded the 2h budget at 6/8 exercises).
 if [ ! -f "$dir/aider/complete" ]; then
 	mkdir -p "$dir/aider"
 	AIDER_OUT="$dir/aider" BENCH_OLLAMA="$ollama" \
-		scripts/bench-aider-polyglot.sh "$model" full \
+		scripts/bench-aider-polyglot.sh "$model" single \
 		two-fer,leap,pangram,isogram,raindrops,rna-transcription,acronym,hamming
 	touch "$dir/aider/complete"
 fi
