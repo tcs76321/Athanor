@@ -281,6 +281,14 @@ func run(configPath, addr, stateDir string, container bool) error {
 		"summarizer", mceRT.Summarizer != nil,
 		"compaction_store", mceRT.CompactStore != nil,
 		"compactor", mceRT.Compactor != nil)
+	// The job tool envelope is the config default unless the task overrides
+	// it. It is resolved before the engine so the Core fetch path can enforce
+	// the same envelope as the internal API.
+	defaultEnv, err := cfg.JobPodEnvelope()
+	if err != nil {
+		return fmt.Errorf("resolving job_pod.default_tools: %w", err)
+	}
+	coreFetchRunner := &coreFetch{envelopes: projectRepo, defaultEnv: defaultEnv}
 	eng := engine.New(engine.Deps{
 		Config:     cfg,
 		Store:      st,
@@ -297,7 +305,13 @@ func run(configPath, addr, stateDir string, container bool) error {
 		// authenticates each call with the per-job bearer token retrieved
 		// from the Job Pod manager, so the engine is just another client
 		// of the loopback internal API (ADR-0009 D5).
-		Runner: runner.New("http://"+internalAddr, podMgr),
+		//
+		// fetch_url is Core-executed (ADR-0019 §5): it goes to the gateway
+		// directly, because a text-only cycle has no Job Pod to hold a token.
+		Runner: hybridRunner{
+			pod:  runner.New("http://"+internalAddr, podMgr),
+			core: coreFetchRunner,
+		},
 		// M5-T5.6: the §10.4 eviction seam is the real §10.5 ladder
 		// (ADR-0023 §6): one step down the tier order per pressure call.
 		Evictor: engine.NewLadderEvictor(),
@@ -589,12 +603,9 @@ func run(configPath, addr, stateDir string, container bool) error {
 	// in-memory map of podID → token, adapted to the
 	// internalapi.TokenStore shape (ErrNotFound → ErrTokenNotFound).
 	// The tool envelope lookup is the project repo, which loads
-	// the per-task override and falls back to the config default.
+	// the per-task override and falls back to the config default; it was
+	// resolved before engine.New so the Core fetch path can use it too.
 	// Structural proof is Gate G2 (internal/gate/gate_g2_test.go).
-	defaultEnv, err := cfg.JobPodEnvelope()
-	if err != nil {
-		return fmt.Errorf("resolving job_pod.default_tools: %w", err)
-	}
 	// M4-T7 (ADR-0019 §2): the gateway-backed tools dispatch through
 	// the adapter over GatewayParts — the §21.5 Client + Reader
 	// constructed below. Failures to construct the gateway are
@@ -623,9 +634,14 @@ func run(configPath, addr, stateDir string, container bool) error {
 			"(execute_code / run_tests / lint) will refuse until an image is configured "+
 			"(see config.example.yaml; ADR-0024 §6)")
 	}
+	// One gateway adapter serves both the internal API (pod callers) and the
+	// engine's Core fetch path.
+	gatewayToolAdapter := newGatewayToolAdapter(gw, cfg.Network.SearchEngineURLTemplate,
+		cfg.Network.MaxResponseBytes, cfg.Limits.MaxConcurrentFetches)
+	coreFetchRunner.gateway = gatewayToolAdapter
 	internalapi.New(tokenStoreAdapter{podMgr}, project.NewRepo(st), st,
 		project.NewRepo(st), defaultEnv,
-		newGatewayToolAdapter(gw, cfg.Network.SearchEngineURLTemplate, cfg.Network.MaxResponseBytes, cfg.Limits.MaxConcurrentFetches),
+		gatewayToolAdapter,
 		// M5-T3.3: the context_swap adapter over the MCE chunk store built
 		// above. A daemon with lossless swapping disabled still constructs
 		// it; every swap then returns ErrSwapDisabled (501).
