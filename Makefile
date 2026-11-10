@@ -15,7 +15,7 @@ export CGO_ENABLED
 # tag-less binary can never silently run.
 GO_TAGS = -tags sqlite_fts5
 
-.PHONY: build release test test-race test-integration integration-images vet lint check vuln tidy tidy-check fuzz cover cover-check run clean hooks bench probe-micro probe probe-judge probe-anchor probe-report probe-bundle probe-reconcile probe-measure jobpod-image jobpod-polyglot-image core-image core-smoke bench-core-focused bench-preflight bench-host-smoke bench-anchor-host bench-anchor-core fresh install soak soak-mini soak-ladder diagnostic diagnostic-pair diagnostic-cascade diagnostic-categories
+.PHONY: build release test test-race test-integration integration-images vet lint check vuln tidy tidy-check fuzz cover cover-check run clean hooks bench probe-micro probe probe-judge probe-anchor probe-report probe-bundle probe-reconcile probe-measure jobpod-image jobpod-polyglot-image core-image core-smoke bench-core-focused bench-preflight bench-host-smoke bench-anchor-host bench-anchor-core bench-v3-verify bench-v3-run bench-v3-suite bench-v3-paired-report bench-v3-quality bench-v3-quality-report fresh install soak soak-mini soak-ladder diagnostic diagnostic-pair diagnostic-cascade diagnostic-categories
 
 build:
 	go build $(GO_TAGS) -o bin/athanor ./cmd/athanor
@@ -198,6 +198,7 @@ soak-smoke:
 BENCH_ARM          ?= full
 BENCH_MODEL        ?= ornith9b
 BENCH_JUDGE        ?= granite4.2:3b
+BENCH_OLLAMA       ?= http://host.containers.internal:11434
 BENCH_OUT          ?= tools/bench/results/bench-v2
 BENCH_CONFIG       ?= $(BENCH_OUT)/core-config.yaml
 BENCH_STATE_VOLUME ?= athanor-bench-v2-state
@@ -224,7 +225,7 @@ bench-config:
 	@mkdir -p $(BENCH_OUT)
 	CGO_ENABLED=1 go run $(GO_TAGS) ./tools/bench config \
 		-model $(BENCH_MODEL) -arm $(BENCH_ARM) -judge-model $(BENCH_JUDGE) \
-		-ollama http://host.containers.internal:11434 -addr 127.0.0.1:7420 \
+		-ollama $(BENCH_OLLAMA) -addr 127.0.0.1:7420 \
 		-jobpod-image athanor-jobpod:latest \
 		-token-host-dir $(abspath $(BENCH_OUT))/tokens \
 		-scratch-host-dir $(abspath $(BENCH_OUT))/scratch -soak > $(BENCH_CONFIG)
@@ -240,9 +241,9 @@ bench-full: bench-verify bench-image bench-config
 		echo "=== incomplete full run at $(BENCH_OUT)/out; remove it to restart ===" >&2; exit 1; \
 	fi
 	@BENCH_OUT=$(BENCH_OUT) BENCH_CONFIG=$(BENCH_CONFIG) BENCH_STATE_VOLUME=$(BENCH_STATE_VOLUME) \
-		PROBE_IMAGE=$(PROBE_IMAGE) ./scripts/bench-core.sh start
-	@BENCH_OUT=$(BENCH_OUT) ./scripts/bench-core.sh preflight
-	@BENCH_OUT=$(BENCH_OUT) BENCH_PROBE_OUT=/bench/out \
+		PROBE_IMAGE=$(PROBE_IMAGE) BENCH_OLLAMA=$(BENCH_OLLAMA) ./scripts/bench-core.sh start
+	@BENCH_OUT=$(BENCH_OUT) BENCH_OLLAMA=$(BENCH_OLLAMA) ./scripts/bench-core.sh preflight
+	@BENCH_OUT=$(BENCH_OUT) BENCH_PROBE_OUT=/bench/out BENCH_OLLAMA=$(BENCH_OLLAMA) \
 		./scripts/bench-core.sh probe -corpus $(BENCH_DIR)/tasks.yaml \
 		-model $(BENCH_MODEL) -arm $(BENCH_ARM) -judge-model $(BENCH_JUDGE) \
 		-passes 1 -hours $(BENCH_HOURS) -timeout $(BENCH_TIMEOUT)
@@ -321,12 +322,75 @@ bench-anchor-core: bench-verify bench-image
 		BENCH_STATE_VOLUME=$(BENCH_ANCHOR_STATE_VOLUME)
 	@BENCH_OUT=$(BENCH_ANCHOR_OUT) BENCH_CONFIG=$(BENCH_ANCHOR_OUT)/core-config.yaml \
 		BENCH_STATE_VOLUME=$(BENCH_ANCHOR_STATE_VOLUME) PROBE_IMAGE=$(PROBE_IMAGE) \
-		./scripts/bench-core.sh start
-	@BENCH_OUT=$(BENCH_ANCHOR_OUT) ./scripts/bench-core.sh probe \
+		BENCH_OLLAMA=$(BENCH_OLLAMA) ./scripts/bench-core.sh start
+	@BENCH_OUT=$(BENCH_ANCHOR_OUT) BENCH_OLLAMA=$(BENCH_OLLAMA) ./scripts/bench-core.sh probe \
 		-corpus $(BENCH_DIR)/tasks.yaml -anchor-tasks $(BENCH_DIR)/anchor.yaml \
 		-model $(BENCH_ANCHOR_MODEL) -arm single -judge-model $(BENCH_JUDGE) \
 		-passes 1 -hours $(BENCH_ANCHOR_HOURS) -timeout $(BENCH_TIMEOUT)
 	@BENCH_OUT=$(BENCH_ANCHOR_OUT) ./scripts/bench-core.sh stop
+
+# --- Benchmark v3 (0.x paired instrument, ADR-0133) -------------------------
+# The corpus is split into suites. Run one (suite, generator, arm) per
+# invocation; `bench-v3-suite` runs single/cascade/full. The paired report
+# joins the results tree. This target does not run the whole matrix; the
+# overnight orchestration is a script/human decision, not a Make default.
+BENCH_V3_DIR          ?= eval/bench/v3
+BENCH_V3_OUT          ?= tools/bench/results/v3
+BENCH_V3_SUITE        ?= core
+BENCH_V3_GENERATOR    ?= bonsai27b
+BENCH_V3_ARM          ?= full
+BENCH_V3_JUDGE        ?= granite4.2:8b
+BENCH_V3_HOURS        ?= 6
+BENCH_V3_TIMEOUT      ?= 45m
+BENCH_V3_STATE_VOLUME ?= athanor-bench-v3-state
+BENCH_V3_RUN_ID       ?=
+BENCH_V3_ONLY         ?=
+BENCH_V3_TAG           = $(BENCH_V3_SUITE)-$(BENCH_V3_GENERATOR)-$(BENCH_V3_ARM)$(if $(BENCH_V3_RUN_ID),-$(BENCH_V3_RUN_ID))
+BENCH_V3_RUN_OUT       = $(BENCH_V3_OUT)/$(BENCH_V3_TAG)
+
+bench-v3-verify:
+	go run $(GO_TAGS) ./tools/bench verify-models -protocol $(BENCH_V3_DIR)/protocol.yaml
+
+bench-v3-run: bench-v3-verify bench-image
+	@mkdir -p $(BENCH_V3_RUN_OUT)
+	@if [ -f "$(BENCH_V3_RUN_OUT)/out/complete" ]; then \
+		echo "=== v3 $(BENCH_V3_TAG) already complete ==="; exit 0; fi
+	@$(MAKE) bench-config BENCH_ARM=$(BENCH_V3_ARM) BENCH_MODEL=$(BENCH_V3_GENERATOR) \
+		BENCH_JUDGE=$(BENCH_V3_JUDGE) BENCH_OUT=$(BENCH_V3_RUN_OUT) \
+		BENCH_CONFIG=$(BENCH_V3_RUN_OUT)/core-config.yaml \
+		BENCH_STATE_VOLUME=$(BENCH_V3_STATE_VOLUME)-$(BENCH_V3_TAG)
+	@BENCH_OUT=$(BENCH_V3_RUN_OUT) BENCH_CONFIG=$(BENCH_V3_RUN_OUT)/core-config.yaml \
+		BENCH_STATE_VOLUME=$(BENCH_V3_STATE_VOLUME)-$(BENCH_V3_TAG) PROBE_IMAGE=$(PROBE_IMAGE) \
+		BENCH_OLLAMA=$(BENCH_OLLAMA) ./scripts/bench-core.sh start
+	@BENCH_OUT=$(BENCH_V3_RUN_OUT) BENCH_OLLAMA=$(BENCH_OLLAMA) ./scripts/bench-core.sh preflight
+	@BENCH_OUT=$(BENCH_V3_RUN_OUT) BENCH_PROBE_OUT=/bench/out BENCH_OLLAMA=$(BENCH_OLLAMA) ./scripts/bench-core.sh probe \
+		-corpus $(BENCH_V3_DIR)/$(BENCH_V3_SUITE).yaml \
+		-model $(BENCH_V3_GENERATOR) -arm $(BENCH_V3_ARM) -judge-model $(BENCH_V3_JUDGE) \
+		-passes 1 -hours $(BENCH_V3_HOURS) -timeout $(BENCH_V3_TIMEOUT) \
+		$(if $(BENCH_V3_ONLY),-only $(BENCH_V3_ONLY))
+	@BENCH_OUT=$(BENCH_V3_RUN_OUT) ./scripts/bench-core.sh stop
+
+bench-v3-suite:
+	@for arm in single cascade full; do \
+		echo "=== v3 $(BENCH_V3_SUITE)/$(BENCH_V3_GENERATOR)/$$arm ==="; \
+		$(MAKE) bench-v3-run BENCH_V3_ARM=$$arm || exit 1; \
+	done
+
+bench-v3-paired-report:
+	go run $(GO_TAGS) ./tools/bench paired-report -out $(BENCH_V3_OUT) \
+		-generator $(BENCH_V3_GENERATOR) \
+		-json $(BENCH_V3_OUT)/paired.json -md $(BENCH_V3_OUT)/paired.md
+
+bench-v3-quality:
+	go run $(GO_TAGS) ./tools/bench quality -in $(BENCH_V3_OUT) \
+		-rubric $(BENCH_V3_DIR)/quality-rubric.yaml \
+		-judges "granite4.2:8b,mimo-v2.6:9b-mxfp8" \
+		-out $(BENCH_V3_OUT)/quality-scores.json
+
+bench-v3-quality-report:
+	go run $(GO_TAGS) ./tools/bench quality-report \
+		-scores $(BENCH_V3_OUT)/quality-scores.json \
+		-json $(BENCH_V3_OUT)/quality-delta.json -md $(BENCH_V3_OUT)/quality-delta.md
 
 run:
 	go run $(GO_TAGS) ./cmd/athanor

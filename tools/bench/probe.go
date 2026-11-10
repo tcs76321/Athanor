@@ -180,6 +180,12 @@ func main() {
 		runMemory(os.Args[2:])
 	case "evidence":
 		runEvidence(os.Args[2:])
+	case "paired-report":
+		runPairedReport(os.Args[2:])
+	case "quality":
+		runQuality(os.Args[2:])
+	case "quality-report":
+		runQualityReport(os.Args[2:])
 	case "verify-models":
 		runVerifyModels(os.Args[2:])
 	default:
@@ -204,6 +210,9 @@ commands:
   measure   write onboard measurements.json from a results tree + anchor (M9-T2b)
   memory    run the memory scripts (sequence: task -> correction/insight -> task)
   evidence  reduce a daemon state dir into the soak report/CSV (read-only; F5)
+  paired-report join single/cascade/full results and report non-inferiority (ADR-0133)
+  quality   score artifacts offline with the two pinned judges and the v3 rubric
+  quality-report compare full vs single rubric scores with a clustered interval
   verify-models check the frozen protocol roster against the local Ollama digests
 
 Run each command with -h for its flags. Protocol:

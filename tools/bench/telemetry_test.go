@@ -11,6 +11,38 @@ import (
 // TestFillTelemetry pins the ADR-0073 §3 reducer: the per-phase/per-persona
 // token counts and the engine's lever counters are read from the job's event
 // log, and an unknown event is ignored rather than corrupting the reduction.
+// TestFillMechanisms pins the v3 requirement audit (ADR-0133): a task's
+// declared mechanisms are read from the event trace, and a missing one is
+// recorded even when the artifact passes.
+func TestFillMechanisms(t *testing.T) {
+	m := jobMetrics{
+		Requires:    []string{"run_tests", "edit_multiple_files", "repair", "use_memory"},
+		CodeTestRan: true,
+	}
+	m.Telemetry = &jobTelemetry{
+		Events:      map[string]int{"tests_ran": 1, "git_committed": 1},
+		GitFiles:    3,
+		RepairLoops: 1,
+		MemoryHits:  1,
+	}
+	m.fillMechanisms()
+	if len(m.MissingMechanisms) != 0 {
+		t.Fatalf("missing = %v, want none", m.MissingMechanisms)
+	}
+	for _, req := range m.Requires {
+		if !m.Mechanisms[req] {
+			t.Errorf("mechanism %q not recorded", req)
+		}
+	}
+
+	missing := jobMetrics{Requires: []string{"run_tests", "edit_multiple_files"}}
+	missing.Telemetry = &jobTelemetry{}
+	missing.fillMechanisms()
+	if len(missing.MissingMechanisms) != 2 {
+		t.Errorf("missing = %v, want both requirements", missing.MissingMechanisms)
+	}
+}
+
 func TestFillTelemetry(t *testing.T) {
 	db, err := sql.Open("sqlite3", ":memory:")
 	if err != nil {

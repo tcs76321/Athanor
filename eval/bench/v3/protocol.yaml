@@ -1,0 +1,185 @@
+# Athanor benchmark v3 (0.x) — paired, multi-model, quality-first.
+#
+# This is a NEW benchmark version, not an edit to v1 or v2 (ADR-0133).
+# v1/v2 remain frozen historical pilots. v3 is the 0.x instrument and is
+# frozen at v0.0.0-rc1; v4 is the 1.0 cut.
+#
+# The headline is not a bare pass rate. It is:
+#   1. quality/complexity vs one-shot
+#   2. agentic mechanism coverage
+#   3. non-inferiority vs one-shot
+#   4. early stop on one-shot-sufficient tasks
+#   5. cost
+#
+# Generation is unseeded; pairing is by task, not by sample. All intervals
+# are task-clustered.
+version: 3
+benchmark: v3
+cut: 2026-11-10
+status: draft
+task_digest: eval/bench/v3/CORPUS.digest
+
+# The role temperatures and context targets are pinned. The generator model
+# is substituted per run from `generators`; `security` is the in-loop judge.
+canonical_persona_set:
+  name: canonical-v3
+  description: >
+    One fixed role/temperature set for every generator. The generator model is
+    substituted per run so a delta is attributable to the generator, not to a
+    persona change. The in-loop judge is granite4.2:8b for both generators.
+  roles:
+    wide:
+      model: bonsai-2:27b
+      family: bonsai-2
+      context_target: 32768
+      temperature: 0.7
+    tall:
+      model: bonsai-2:27b
+      family: bonsai-2
+      context_target: 32768
+      temperature: 0.2
+    main:
+      model: bonsai-2:27b
+      family: bonsai-2
+      context_target: 32768
+      temperature: 0.4
+    security:
+      model: granite4.2:8b
+      family: granite
+      context_target: 32768
+      temperature: 0.0
+    alternative:
+      model: bonsai-2:27b
+      family: bonsai-2
+      context_target: 32768
+      temperature: 0.8
+
+  inference:
+    backend: ollama
+    engine_version: "0.40.15"
+    ollama_url: "http://localhost:11434"
+    json_format: true
+    max_output_tokens: 4096
+    think: false
+    keep_alive: "5m"
+    judgment_seed: off
+
+  execution:
+    divergence_candidates: 3
+    max_reflection_loops: 2
+    engine_code_gates: true
+    dag_decomposition: false
+
+  context:
+    seed_active_chunk: true
+    seed_active_max_bytes: 16384
+    repository_index_limit: 20
+    memory_embedding_model: nomic-embed-text:latest
+    memory_search_top_k: 8
+    phase_wall_time_budgets:
+      planning: "900s"
+      diverging: "900s"
+      evaluating: "900s"
+      synthesizing: "900s"
+      comparing: "600s"
+      default: "900s"
+
+  job_pod:
+    image: athanor-jobpod:latest
+    default_tools: [execute_code, run_tests, lint]
+
+  runtime:
+    core_pod_image: athanor-core:0.0.0
+    core_pod_image_digest: null
+    host_class: "Apple Silicon arm64 (reference host)"
+
+# Two generators, two judges, four families. Labels are stable; the roster
+# carries the exact Ollama tags and digests. `bench-verify` refuses a moved
+# digest. The same labels are accepted by `tools/bench -model`.
+generators: [bonsai27b, gemma12b]
+judges: [granite8b, mimo9b]
+
+roster:
+  - {label: bonsai27b, model: "bonsai-2:27b", family: bonsai-2, digest: "f3c4f42086593225d8be9bb4270658d0e05f5232fb2b5e8faa49ef74d2cc843a"}
+  - {label: gemma12b, model: "gemma4:12b-mlx", family: gemma, digest: "117d0d84cf2ab865feb59afc2cd30ff5d55f0035e05eb8d1b814f9688e3f3671"}
+  - {label: granite8b, model: "granite4.2:8b", family: granite, digest: "f586c02fdecdf151b656207c339aa003997345774a41768bac1fd6d2fb85913b"}
+  - {label: mimo9b, model: "mimo-v2.6:9b-mxfp8", family: mimo-v2.6, digest: "74dc9c06c48633324039d719e90b2e26db9cc4babff46ed0846a67f58239b86c"}
+
+# One suite per claim. `passes` is the number of independent protocol
+# invocations, not a `-passes` multi-pass run. Tier A (agentic + quality) is
+# the claim-critical set and runs three times; breadth runs once.
+suites:
+  core:
+    tasks: eval/bench/v3/core.yaml
+    passes: 1
+    arms: [single, cascade, full]
+    held_out: 8
+    machine_budget_hours: 6
+  agentic:
+    tasks: eval/bench/v3/agentic.yaml
+    passes: 3
+    arms: [single, cascade, full]
+    held_out: 4
+    machine_budget_hours: 12
+  quality:
+    tasks: eval/bench/v3/quality.yaml
+    passes: 3
+    arms: [single, full]
+    held_out: 3
+    machine_budget_hours: 8
+  one_shot:
+    tasks: eval/bench/v3/one_shot.yaml
+    passes: 1
+    arms: [single, cascade]
+    held_out: 1
+    machine_budget_hours: 2
+
+# Pre-registered thresholds. The report MUST evaluate exactly these; a new
+# threshold is a new benchmark version.
+claims:
+  non_inferiority:
+    comparison: cascade_vs_single
+    suites: [core, agentic]
+    margin_points: 5
+    max_task_loss_runs: 2
+  agentic:
+    mechanism_coverage: 1.0
+  quality:
+    comparison: full_vs_single
+    suite: quality
+    min_mean_delta: 0.5
+    min_ci_lower: 0.2
+    min_win_rate: 0.6
+    min_judge_agreement: 0.6
+    min_human_direction_agreement: 0.7
+  early_stop:
+    suite: one_shot
+    min_stop_rate: 0.75
+    agentic_min_escalation: 0.5
+
+# Compatibility fields for the existing runner/protocol loader. `full` is the
+# core suite; `anchor` is a 12-task quick screen authored from the core suite.
+run_shape:
+  full:
+    tasks: eval/bench/v3/core.yaml
+    passes: 1
+    arm: full
+    machine_budget_hours: 6
+    per_job_timeout: 45m
+    memory_scripts: eval/bench/v3/memory-scripts.yaml
+  anchor:
+    tasks: eval/bench/v3/anchor.yaml
+    passes: 1
+    arm: single
+    per_model_timeout: 1h
+    machine_budget_hours: 4
+
+embeddings:
+  model: nomic-embed-text:latest
+  digest: "0a109f422b47e3a30ba2b10eca18548e944e8a23073ee3f3e947efcf3c45e59f"
+
+scoring:
+  headline: deterministic_checks
+  quality: blind_two_judge_rubric_plus_human_sample
+  judge: advisory
+  report: per_generator_with_clustered_ci

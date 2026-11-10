@@ -501,6 +501,9 @@ func writeRollingReport(outDir string, metrics []jobMetrics) error {
 	if err := writeJSON(filepath.Join(outDir, "results.json"), metrics); err != nil {
 		return err
 	}
+	if err := writeArtifacts(outDir, metrics); err != nil {
+		return err
+	}
 	if err := writeCSV(filepath.Join(outDir, "results.csv"), metrics); err != nil {
 		return err
 	}

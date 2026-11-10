@@ -36,6 +36,10 @@ type jobTelemetry struct {
 	Corrections      int            `json:"corrections_injected,omitempty"`
 	GitCommitted     int            `json:"git_committed,omitempty"`
 	GitCommitFailed  int            `json:"git_commit_failed,omitempty"`
+	GitFiles         int            `json:"git_files,omitempty"`
+	// Events counts every event name once. It is the raw vocabulary the
+	// mechanism assertions read (ADR-0133); unknown events are harmless.
+	Events map[string]int `json:"events,omitempty"`
 	// P1 MCE mechanism metrics (ADR-0075 sensitivity): what retrieval put in
 	// front of the model and what compaction paid for it.
 	DormantRows      int `json:"dormant_index_rows,omitempty"`
@@ -90,10 +94,15 @@ func (m *jobMetrics) fillTelemetry(db *sql.DB) {
 			Hits             int    `json:"hits"`
 			SourceBytes      int    `json:"source_bytes"`
 			CompactedBytes   int    `json:"compacted_bytes"`
+			Files            int    `json:"files"`
 		}
 		if json.Unmarshal([]byte(raw), &d) != nil {
 			continue
 		}
+		if t.Events == nil {
+			t.Events = map[string]int{}
+		}
+		t.Events[d.Event]++
 		switch d.Event {
 		case "llm_call":
 			t.Calls++
@@ -153,6 +162,7 @@ func (m *jobMetrics) fillTelemetry(db *sql.DB) {
 			t.Corrections++
 		case "git_committed":
 			t.GitCommitted++
+			t.GitFiles += d.Files
 		case "git_commit_failed":
 			t.GitCommitFailed++
 		case "learned_candidate_selection":
@@ -169,11 +179,59 @@ func (m *jobMetrics) fillTelemetry(db *sql.DB) {
 	}
 	sort.Strings(t.Models)
 	m.Telemetry = &t
+	m.fillMechanisms()
 	// A completed job that never repaired, reflected, replanned, or observed
 	// a file is a first-pass success: useful as a ranking row, not as
 	// evidence that the iterative loop was needed (ADR-0116).
 	m.Saturated = m.State == "completed" &&
 		t.RepairLoops == 0 && t.ReflectLoops == 0 && t.Replans == 0 && t.Observations == 0
+}
+
+// knownMechanisms is the closed set of requirements a v3 task may declare.
+// The corpus test rejects a typo so it cannot become an event-name fallback
+// that never fires.
+var knownMechanisms = map[string]bool{
+	"run_tests": true, "observe_failure": true, "edit_multiple_files": true,
+	"repair": true, "use_memory": true, "multi_job": true,
+}
+
+// fillMechanisms audits a v3 task's required mechanisms against the event
+// trace. A mechanism that did not run is a capability gap even if the artifact
+// happened to pass (ADR-0133).
+func (m *jobMetrics) fillMechanisms() {
+	if len(m.Requires) == 0 {
+		return
+	}
+	t := m.Telemetry
+	if t == nil {
+		t = &jobTelemetry{}
+	}
+	event := func(name string) int { return t.Events[name] }
+	mech := map[string]bool{}
+	for _, req := range m.Requires {
+		switch req {
+		case "run_tests":
+			mech[req] = m.CodeTestRan || event("tests_ran") > 0
+		case "observe_failure":
+			mech[req] = t.Observations > 0 || event("tests_run_failed") > 0 || event("self_refine") > 0
+		case "edit_multiple_files":
+			mech[req] = t.GitFiles >= 2
+		case "repair":
+			mech[req] = t.RepairLoops > 0 || t.Observations > 0
+		case "use_memory":
+			mech[req] = t.MemoryHits > 0 || t.Corrections > 0 || event("memory_injected") > 0
+		case "multi_job":
+			mech[req] = len(m.Sequence) > 1 || m.Progress > 0
+		default:
+			// A named event is the escape hatch for a future mechanism; the
+			// corpus test rejects unknown requirements at freeze time.
+			mech[req] = event(req) > 0
+		}
+		if !mech[req] {
+			m.MissingMechanisms = append(m.MissingMechanisms, req)
+		}
+	}
+	m.Mechanisms = mech
 }
 
 // telemetryRow aggregates telemetry across the jobs of one model.

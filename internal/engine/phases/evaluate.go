@@ -201,6 +201,7 @@ func (d *Deps) evaluateCandidate(ctx context.Context, j job.Job, p project.Proje
 		d.audit(ctx, j.ID, map[string]any{
 			"event": "tests_ran", "candidate": idx,
 			"passed": vin.TestsPassed, "command": vin.TestCommand,
+			"output": vin.TestOutput,
 		})
 	}
 	d.auditVerification(ctx, j.ID, "candidate", ver)

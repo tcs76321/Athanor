@@ -27,6 +27,16 @@ func (f *fakePodExecer) Exec(_ context.Context, _ string, spec jobpod.ExecSpec) 
 	return f.res, f.err
 }
 
+func TestResetWorkDirClearsRepoReadyFlag(t *testing.T) {
+	got := resetWorkDir()
+	if !strings.Contains(got, "rm -f "+repoReadyFlag) {
+		t.Fatalf("resetWorkDir does not clear %s: %q", repoReadyFlag, got)
+	}
+	if !strings.Contains(got, repoMount) {
+		t.Fatalf("resetWorkDir does not re-prepare from %s: %q", repoMount, got)
+	}
+}
+
 func TestPodExecutor_RunCode_MaterializesFileViaStdin(t *testing.T) {
 	f := &fakePodExecer{res: jobpod.ExecResult{ExitCode: 0, Stdout: "1\n"}}
 	a := newPodExecutor(f, "alpine:3.20")

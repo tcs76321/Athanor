@@ -1,0 +1,151 @@
+# Athanor benchmark v3 — one-shot-sufficient suite.
+#
+# These tasks are deliberately easy. Cascade should stop after one candidate
+# and match the one-shot pass rate; escalation here is overhead, not progress.
+version: 3
+suite: one_shot
+tasks:
+  - id: os-code-fizzbuzz
+    title: FizzBuzz for 1..15
+    suite: one_shot
+    archetype: code
+    tier: H
+    language: python
+    held_out: false
+    goal: |
+      Implement fizzbuzz(n) in solution.py returning a list of strings for 1..n:
+      "Fizz" for multiples of 3, "Buzz" for multiples of 5, "FizzBuzz" for both,
+      and the number as a string otherwise.
+    criteria:
+      - pure stdlib
+      - correct for 1..15
+    test_command: |
+      python -c 'import solution
+      got=solution.fizzbuzz(15)
+      assert got[0]=="1" and got[2]=="Fizz" and got[4]=="Buzz"
+      assert got[14]=="FizzBuzz" and len(got)==15'
+    acceptance_floor: test_command exits 0
+    one_shot_expected: pass
+    quality_rubric:
+      - '5: all pass, simple and readable'
+      - '3: all pass but duplicated branches'
+      - '1: wrong at a boundary'
+    expected_failure_modes:
+      - checks 3 before 15
+      - returns integers for non-multiples
+
+  - id: os-text-summary
+    title: Summarize a release note in one sentence
+    suite: one_shot
+    archetype: text
+    tier: H
+    held_out: true
+    goal: |
+      Summarize the note below in exactly one sentence under 40 words. Keep the
+      version and the two user-visible changes.
+
+      "Athanor 0.0.0-rc1 adds a paired benchmark, fixes the document word-limit
+      regression, and makes the first-use path run from a checksummed release."
+    criteria:
+      - exactly one sentence
+      - under 40 words
+      - names the version and both changes
+    checks:
+      max_words: 40
+      exact_paragraphs: 1
+      must_contain: [0.0.0-rc1, paired benchmark, word-limit]
+    acceptance_floor: every deterministic check passes
+    one_shot_expected: pass
+    quality_rubric:
+      - '5: one sentence, all facts, no filler'
+      - '3: all facts but two sentences or over the limit'
+      - '1: drops a change'
+    expected_failure_modes:
+      - bullet list instead of a sentence
+      - omits the version
+
+  - id: os-data-sort
+    title: Sort three ids ascending
+    suite: one_shot
+    archetype: data
+    tier: H
+    held_out: false
+    goal: |
+      Emit a JSON array of the objects below in ascending id order:
+      [{"id":3},{"id":1},{"id":2}]
+    criteria:
+      - JSON array
+      - three objects
+      - unique ids, ascending
+    checks:
+      json_extract: true
+      array_length: 3
+      array_sorted_by: id
+      must_contain: ['1', '2', '3']
+    acceptance_floor: every deterministic check passes
+    one_shot_expected: pass
+    quality_rubric:
+      - '5: exact array, no prose'
+      - '3: correct but wrapped in prose'
+      - '1: unsorted or wrong length'
+    expected_failure_modes:
+      - sorts lexicographically
+      - emits a comma-separated list
+
+  - id: os-code-reverse
+    title: Reverse a string
+    suite: one_shot
+    archetype: code
+    tier: H
+    language: python
+    held_out: false
+    goal: |
+      Implement reverse(s) in solution.py returning the characters of s in
+      reverse order. Do not use slicing with a negative step.
+    criteria:
+      - pure stdlib
+      - empty string returns an empty string
+      - unicode characters are preserved
+    test_command: |
+      python -c 'import solution
+      assert solution.reverse("abc") == "cba"
+      assert solution.reverse("") == ""
+      assert solution.reverse("åb") == "bå"'
+    acceptance_floor: test_command exits 0
+    one_shot_expected: pass
+    quality_rubric:
+      - '5: correct, readable, unicode-safe'
+      - '3: correct but uses s[::-1] against the brief'
+      - '1: off by one or drops a character'
+    expected_failure_modes:
+      - uses s[::-1] despite the constraint
+      - mishandles the empty string
+
+  - id: os-data-unique
+    title: Deduplicate three ids
+    suite: one_shot
+    archetype: data
+    tier: H
+    held_out: false
+    goal: |
+      Emit a JSON array of objects with unique `id` values from
+      [{"id":2},{"id":1},{"id":2}], sorted ascending.
+    criteria:
+      - JSON array
+      - two objects
+      - unique ids, ascending
+    checks:
+      json_extract: true
+      array_length: 2
+      array_unique_by: id
+      array_sorted_by: id
+    acceptance_floor: every deterministic check passes
+    one_shot_expected: pass
+    quality_rubric:
+      - '5: exact array, no prose'
+      - '3: correct but wrapped'
+      - '1: keeps the duplicate'
+    expected_failure_modes:
+      - keeps both id 2 objects
+      - leaves the order unsorted
+

@@ -35,6 +35,38 @@ var advisoryChecks = []string{
 	"required_citations_from_fixture",
 }
 
+// knownCheckKeys is every key runChecks handles, including advisory keys and
+// the JSON extraction switch. A corpus test rejects an unknown key so a typo
+// cannot become a silent pass.
+var knownCheckKeys = map[string]bool{
+	"required_sections": true, "strict_section_order": true,
+	"exact_paragraphs": true, "max_words": true, "min_words": true,
+	"forbidden_phrases": true, "no_headings": true,
+	"count_alternatives_min": true, "count_risks_min": true,
+	"min_distinct_arguments": true, "must_contain": true,
+	"must_contain_any": true, "json_extract": true, "json_schema": true,
+	"array_length": true, "array_unique_by": true, "array_sorted_by": true,
+	"json_field_matches": true,
+}
+
+func init() {
+	for _, k := range advisoryChecks {
+		knownCheckKeys[k] = true
+	}
+}
+
+// unknownCheckKeys returns declared check keys the scorer does not understand.
+// The corpus test fails on a non-empty result.
+func unknownCheckKeys(checks map[string]any) []string {
+	var out []string
+	for k := range checks {
+		if !knownCheckKeys[k] {
+			out = append(out, k)
+		}
+	}
+	return out
+}
+
 // runChecks applies a task's `checks` map to artifact content. It returns
 // whether every *deterministic* check passed, and the per-check results in a
 // stable order. Pure.
@@ -71,6 +103,11 @@ func runChecks(checks map[string]any, content string) (bool, []checkResult) {
 		n := toInt(v)
 		got := len(strings.Fields(content))
 		add("max_words", got <= n, false, fmt.Sprintf("words=%d max=%d", got, n))
+	}
+	if v, ok := checks["min_words"]; ok {
+		n := toInt(v)
+		got := len(strings.Fields(content))
+		add("min_words", got >= n, false, fmt.Sprintf("words=%d min=%d", got, n))
 	}
 	if v, ok := checks["forbidden_phrases"]; ok {
 		low := strings.ToLower(content)
@@ -217,6 +254,15 @@ func checksToExecution(checks map[string]any) map[string]any {
 	out := map[string]any{}
 	for _, k := range []string{
 		"required_sections", "strict_section_order", "must_contain", "must_contain_any", "forbidden_phrases",
+	} {
+		if v, ok := checks[k]; ok {
+			// YAML parses an unquoted numeric token (e.g. `[POST, 202]`) as an
+			// int. The daemon's execution schema is string-only, so coerce here
+			// rather than rejecting the project with a 400.
+			out[k] = toStrings(v)
+		}
+	}
+	for _, k := range []string{
 		"exact_paragraphs", "max_words", "min_words",
 		"array_length", "array_unique_by", "array_sorted_by", "json_field_matches",
 	} {
@@ -395,13 +441,15 @@ func toStrings(v any) []string {
 	case []any:
 		out := make([]string, 0, len(t))
 		for _, e := range t {
-			if s, ok := e.(string); ok {
-				out = append(out, s)
-			}
+			// YAML parses an unquoted numeric token as an int; the execution
+			// schema is string-only, so coerce rather than silently drop it.
+			out = append(out, fmt.Sprint(e))
 		}
 		return out
 	case []string:
 		return t
+	case string:
+		return []string{t}
 	default:
 		return nil
 	}

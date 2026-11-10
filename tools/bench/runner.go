@@ -330,6 +330,9 @@ func (r *runnerConfig) runArm(m probeModel, a arm) error {
 	if err := writeJSON(filepath.Join(runDir, "results.json"), metrics); err != nil {
 		return err
 	}
+	if err := writeArtifacts(runDir, metrics); err != nil {
+		return err
+	}
 	if err := writeCSV(filepath.Join(runDir, "results.csv"), metrics); err != nil {
 		return err
 	}
@@ -420,6 +423,7 @@ func (r *runnerConfig) runOne(g sampleGoal, m probeModel, a arm, run int, stateD
 		GoalName: g.Name, GoalNumber: g.Number, Archetype: g.Archetype, Tier: tierOf(g.Source),
 		ModelLabel: m.Label, Model: m.Model, Family: m.Family, Arm: a.Name, Run: run,
 		HeldOut: g.HeldOut, ContextDemand: g.ContextDemand, Category: g.Category,
+		Suite: g.Suite, Requires: g.Requires,
 		Bench: strings.HasPrefix(g.Source, "bench:"), LabelVersion: benchLabelVersion,
 	}
 	name := fmt.Sprintf("%s-%s-%s-r%d-%d", g.Name, m.Label, a.Name, run, time.Now().UnixNano()%1_000_000)
@@ -584,29 +588,53 @@ func (r *runnerConfig) runOne(g sampleGoal, m probeModel, a arm, run int, stateD
 	if txt, err := readArtifact(stateDir, mx.ArtifactID); err == nil {
 		mx.ArtifactText = txt
 	}
-	// The benchmark checks score the best candidate, not only the artifact
-	// the engine accepted (ADR-0075 §4, ADR-0092). Keep ArtifactText for the
-	// judge packets; use a separate text for the checks. Before ADR-0092 the
-	// fallback ran only when the engine accepted nothing, so an accepted-but-
-	// weaker artifact could hide a check-passing candidate.
-	checkID, checkText := mx.ArtifactID, mx.ArtifactText
+	// The benchmark checks score the accepted artifact and the best candidate;
+	// a pass on either is a benchmark pass. ADR-0092 needs the candidate path
+	// so an engine rejection cannot hide a check-passing artifact; synthesis
+	// needs the accepted path because the final document can be better than a
+	// raw proposal.
 	if len(g.Checks) > 0 {
-		checkID, checkText = checkArtifactText(db, stateDir, mx.JobID, mx.ArtifactID, mx.ArtifactText)
-	}
-	mx.ScoredArtifactID = checkID
-	// M8-T21: apply the task's deterministic non-code checks to the best
-	// candidate. Code tasks carry no `checks` (their frozen test command is
-	// the check, recorded as `tests_ran`).
-	if len(g.Checks) > 0 && checkText != "" {
-		pass, results := runChecks(g.Checks, checkText)
-		mx.CheckPass = &pass
-		for _, r := range results {
-			if r.Advisory {
-				mx.CheckAdvisory = append(mx.CheckAdvisory, r.Kind)
-			} else if !r.Pass {
-				mx.CheckFailures = append(mx.CheckFailures, r.Kind)
+		candidates := checkArtifactTexts(db, stateDir, mx.JobID, mx.ArtifactID, mx.ArtifactText)
+		var firstID string
+		var firstFailures, firstAdvisory []string
+		for _, c := range candidates {
+			if c.Text == "" {
+				continue
+			}
+			if firstID == "" {
+				firstID = c.ID
+			}
+			pass, results := runChecks(g.Checks, c.Text)
+			if pass {
+				mx.ScoredArtifactID = c.ID
+				mx.CheckPass = &pass
+				for _, r := range results {
+					if r.Advisory {
+						mx.CheckAdvisory = append(mx.CheckAdvisory, r.Kind)
+					}
+				}
+				firstID = ""
+				break
+			}
+			if firstFailures == nil {
+				for _, r := range results {
+					if r.Advisory {
+						firstAdvisory = append(firstAdvisory, r.Kind)
+					} else if !r.Pass {
+						firstFailures = append(firstFailures, r.Kind)
+					}
+				}
 			}
 		}
+		if firstID != "" {
+			mx.ScoredArtifactID = firstID
+			fail := false
+			mx.CheckPass = &fail
+			mx.CheckFailures = firstFailures
+			mx.CheckAdvisory = firstAdvisory
+		}
+	} else {
+		mx.ScoredArtifactID = mx.ArtifactID
 	}
 	mx.PassSource = passSource(mx)
 	return mx
@@ -721,6 +749,32 @@ func writeJSON(path string, v any) error {
 		return err
 	}
 	return os.WriteFile(path, append(b, '\n'), 0o644)
+}
+
+// collectedArtifact is the quality-scoring input. results.json deliberately
+// omits artifact text (it can be large); the probe writes this companion file
+// after every pass so the offline judges can score the exact final artifact.
+type collectedArtifact struct {
+	GoalName   string `json:"goal_name"`
+	ModelLabel string `json:"model_label"`
+	Arm        string `json:"arm"`
+	Run        int    `json:"run"`
+	ArtifactID string `json:"artifact_id"`
+	Text       string `json:"text"`
+}
+
+func writeArtifacts(outDir string, metrics []jobMetrics) error {
+	rows := make([]collectedArtifact, 0, len(metrics))
+	for _, m := range metrics {
+		if m.ArtifactText == "" {
+			continue
+		}
+		rows = append(rows, collectedArtifact{
+			GoalName: m.GoalName, ModelLabel: m.ModelLabel, Arm: m.Arm,
+			Run: m.Run, ArtifactID: m.ArtifactID, Text: m.ArtifactText,
+		})
+	}
+	return writeJSON(filepath.Join(outDir, "artifacts.json"), rows)
 }
 
 // writeCSV writes the metrics as a flat CSV for spreadsheet inspection.

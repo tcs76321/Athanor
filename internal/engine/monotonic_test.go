@@ -96,3 +96,54 @@ func TestBestPassingCandidateFallsBackToBestScore(t *testing.T) {
 		t.Fatalf("picked %s, want the highest-scoring candidate %s", got.ID, artifacts[1].ID)
 	}
 }
+
+// TestOneShotFirstGeneratesOneCandidate pins the cascade shape at the engine
+// boundary: a passing first attempt must not pay for the full panel. This is
+// the behavior the v3 benchmark's early-stop arm measures (ADR-0118/0133).
+func TestOneShotFirstGeneratesOneCandidate(t *testing.T) {
+	e := newEnv(t)
+	on := true
+	e.cfg.Execution.Policy.OneShotFirst = &on
+	e.cfg.Execution.DivergenceCandidates = 3
+	jobID := e.submit(t)
+	e.eng.Run(context.Background(), jobID)
+	if got := e.ollama.callsByPhase["DIVERGENCE"]; got != 1 {
+		t.Fatalf("divergence calls = %d, want 1 (one-shot-first should stop on a passing candidate); calls=%v", got, e.ollama.callsByPhase)
+	}
+}
+
+// TestFullGeneratesAllCandidates is the control for the cascade test: with
+// one-shot-first off, the same job pays for N candidates.
+func TestFullGeneratesAllCandidates(t *testing.T) {
+	e := newEnv(t)
+	off := false
+	e.cfg.Execution.Policy.OneShotFirst = &off
+	e.cfg.Execution.DivergenceCandidates = 3
+	jobID := e.submit(t)
+	e.eng.Run(context.Background(), jobID)
+	if got := e.ollama.callsByPhase["DIVERGENCE"]; got != 3 {
+		t.Fatalf("divergence calls = %d, want 3 (the full arm must generate N candidates); calls=%v", got, e.ollama.callsByPhase)
+	}
+}
+
+// TestCascadeEscalatesOnFailure pins the other half of the one-shot-first
+// policy: a failed first attempt pays for the full panel, not a silent stop.
+func TestCascadeEscalatesOnFailure(t *testing.T) {
+	e := newEnv(t)
+	on := true
+	e.cfg.Execution.Policy.OneShotFirst = &on
+	e.cfg.Execution.DivergenceCandidates = 3
+	zero := 0
+	e.cfg.Execution.MaxReflectionLoops = &zero
+	e.ollama.evalVerdicts = []string{
+		`{"passed":false,"score":0.1,"confidence":0.1,"summary":"first attempt failed"}`,
+	}
+	jobID := e.submit(t)
+	e.eng.Run(context.Background(), jobID)
+	// The exact escalation path (a second divergence cycle or self-refine)
+	// is policy-dependent; the invariant is that a failed first attempt does
+	// not stop after one evaluation.
+	if got := e.ollama.callsByPhase["EVALUATION"]; got < 2 {
+		t.Fatalf("evaluation calls = %d, want escalation after the failed first attempt; calls=%v", got, e.ollama.callsByPhase)
+	}
+}

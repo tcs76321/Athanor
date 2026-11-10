@@ -1,0 +1,100 @@
+# Athanor benchmark v3 — agentic suite.
+#
+# A passing artifact is not enough here: the benchmark asserts the required
+# mechanisms against the job event trace. A pass without the mechanism is a
+# capability failure, not an agentic win (ADR-0133).
+version: 3
+suite: agentic
+tasks:
+  - id: ag-repair-multifile-01
+    title: Fix a bug in the package core and a second bug in the CLI
+    suite: agentic
+    archetype: code
+    tier: X
+    language: python
+    held_out: false
+    fixture: eval/bench/v3/fixtures/ag-repair-multifile-01
+    repo: eval/bench/v3/fixtures/ag-repair-multifile-01
+    goal: |
+      The provided `calc` package has two bugs: `add` returns the wrong value,
+      and `run` subtracts one after calling it. Fix both without changing the
+      tests or the public API. Run the test suite to see the failures. Emit the
+      full changed files as === FILE: path === blocks.
+    criteria:
+      - all tests pass
+      - the tests are unchanged
+      - the public API is unchanged
+    test_command: pytest -q
+    requires: [run_tests, observe_failure, edit_multiple_files, repair]
+    one_shot_expected: fail
+    acceptance_floor: pytest exits 0 and tests are unmodified
+    quality_rubric:
+      - '5: both bugs fixed at the source; no test edits; minimal diff'
+      - '3: tests pass but the fix is duplicated in both layers'
+      - '1: edits tests, patches output, or fixes only one bug'
+    expected_failure_modes:
+      - edits the test instead of the implementation
+      - fixes `add` but leaves `run` subtracting one
+      - hard-codes the expected values
+
+  - id: ag-repair-observe-01
+    title: Make mean([]) return zero by reading the failing test
+    suite: agentic
+    archetype: code
+    tier: X
+    language: python
+    held_out: true
+    fixture: eval/bench/v3/fixtures/ag-repair-observe-01
+    repo: eval/bench/v3/fixtures/ag-repair-observe-01
+    goal: |
+      The provided `observe` package has a failing test. Run the tests, read the
+      failure, and fix the implementation without changing the test or the
+      public API. Emit the full changed files as === FILE: path === blocks.
+    criteria:
+      - all tests pass
+      - the test is unchanged
+      - mean([]) returns 0.0
+    test_command: pytest -q
+    requires: [run_tests, observe_failure, repair]
+    one_shot_expected: fail
+    acceptance_floor: pytest exits 0 and the test is unmodified
+    quality_rubric:
+      - '5: reads the failure, fixes the empty case, keeps the non-empty case'
+      - '3: tests pass but uses a broad exception or special-cases the test input'
+      - '1: edits the test or returns a wrong value'
+    expected_failure_modes:
+      - edits the test
+      - catches all exceptions and returns 0 for every input
+      - returns None for an empty list
+
+  - id: ag-repair-multifile-02
+    title: Thread a discount field through the model and the service
+    suite: agentic
+    archetype: code
+    tier: X
+    language: python
+    held_out: false
+    fixture: eval/bench/v3/fixtures/ag-repair-multifile-02
+    repo: eval/bench/v3/fixtures/ag-repair-multifile-02
+    goal: |
+      The provided `shop` package needs a per-item `discount` in [0, 1]. Add it
+      to `Item` with a default of 0, apply it in `total`, and clamp a discount
+      above 1 to a full-price item. Do not change the tests. Run the tests to
+      see the failures. Emit the full changed files as === FILE: path === blocks.
+    criteria:
+      - all tests pass
+      - Item accepts an optional discount
+      - total applies the discount
+      - discounts above 1 are clamped
+    test_command: pytest -q
+    requires: [run_tests, observe_failure, edit_multiple_files, repair]
+    one_shot_expected: fail
+    acceptance_floor: pytest exits 0 and tests are unmodified
+    quality_rubric:
+      - '5: one coherent change across model and service; clamped; tests untouched'
+      - '3: tests pass but the clamp lives in only one layer or the default is missing'
+      - '1: edits tests or special-cases the fixture values'
+    expected_failure_modes:
+      - adds `discount` only to the service and not the model
+      - forgets the default, breaking existing callers
+      - applies the discount twice

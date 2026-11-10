@@ -149,6 +149,15 @@ func TestChecksToExecution(t *testing.T) {
 			t.Errorf("%s did not carry into the execution checks", key)
 		}
 	}
+	if mc, ok := got["must_contain"].([]string); !ok || len(mc) != 1 || mc[0] != "choose" {
+		t.Errorf("must_contain = %#v, want []string{choose}", got["must_contain"])
+	}
+	// YAML parses an unquoted numeric token as an int; the execution schema
+	// requires strings, so the translation must coerce rather than drop it.
+	numeric := checksToExecution(map[string]any{"must_contain": []any{"POST", 202, 409}})
+	if mc, ok := numeric["must_contain"].([]string); !ok || len(mc) != 3 || mc[1] != "202" || mc[2] != "409" {
+		t.Errorf("numeric must_contain = %#v, want POST/202/409 strings", numeric["must_contain"])
+	}
 
 	// An advisory-only map produces no execution block.
 	if got := checksToExecution(map[string]any{"must_flag_contradiction": true}); got != nil {

@@ -101,6 +101,14 @@ type jobMetrics struct {
 	HeldOut       bool   `json:"held_out,omitempty"`
 	ContextDemand string `json:"context_demand,omitempty"`
 	Category      string `json:"category,omitempty"`
+	// v3 claim suite and required mechanisms (ADR-0133).
+	Suite    string   `json:"suite,omitempty"`
+	Requires []string `json:"requires,omitempty"`
+	// Mechanisms is the per-requirement outcome read from the event trace;
+	// MissingMechanisms lists the requirements that did not run. A pass with a
+	// missing mechanism is a capability failure, not an agentic win.
+	Mechanisms        map[string]bool `json:"mechanisms,omitempty"`
+	MissingMechanisms []string        `json:"missing_mechanisms,omitempty"`
 	// Bench is true for rows from eval/bench/tasks.yaml (including the original
 	// 15), false for the locked M3-T7 set; the held-out table uses it to keep
 	// the locked set out of the tuning count.
@@ -274,10 +282,33 @@ func bestCandidateArtifact(db *sql.DB, stateDir, jobID string) (id, text string,
 	return "", "", nil
 }
 
-// checkArtifactText chooses the artifact the benchmark's deterministic checks
-// score: the best candidate when one is readable, else the engine's accepted
-// artifact. Keeping the accepted artifact for judge packets and scoring the
-// best candidate for checks is the ADR-0075 §4 / ADR-0092 rule.
+// artifactCandidate is one text the benchmark checks may score.
+type artifactCandidate struct {
+	ID   string
+	Text string
+}
+
+// checkArtifactTexts chooses the artifacts the benchmark's deterministic
+// checks score. ADR-0092 requires the best candidate to be visible so an
+// engine rejection cannot hide a check-passing artifact; the accepted artifact
+// must also be visible because synthesis can improve a candidate (a document
+// with headings may be the synthesized final, not a raw proposal). The caller
+// passes if either satisfies the checks and records which one it scored.
+func checkArtifactTexts(db *sql.DB, stateDir, jobID, acceptedID, acceptedText string) []artifactCandidate {
+	var out []artifactCandidate
+	if acceptedID != "" && acceptedText != "" {
+		out = append(out, artifactCandidate{ID: acceptedID, Text: acceptedText})
+	}
+	if bestID, bestText, err := bestCandidateArtifact(db, stateDir, jobID); err == nil &&
+		bestText != "" && bestID != acceptedID {
+		out = append(out, artifactCandidate{ID: bestID, Text: bestText})
+	}
+	return out
+}
+
+// checkArtifactText is the single-artifact compatibility form used by the
+// sequence runner and older tests: the best readable candidate, else the
+// accepted artifact (the original ADR-0092 rule).
 func checkArtifactText(db *sql.DB, stateDir, jobID, acceptedID, acceptedText string) (id, text string) {
 	if bestID, bestText, err := bestCandidateArtifact(db, stateDir, jobID); err == nil && bestText != "" {
 		return bestID, bestText
