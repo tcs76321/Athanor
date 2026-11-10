@@ -63,7 +63,9 @@ type Port struct {
 }
 
 // BlockSpec is the registry entry for one kind. Ports are fixed per kind so
-// the canvas and the compiler share one definition.
+// the canvas and the compiler share one definition. Instruction and
+// Acceptance are the block's execution contract: the compiler folds them into
+// the task description and criteria, and the engine remains the executor.
 type BlockSpec struct {
 	Kind         Kind     `json:"kind"`
 	Title        string   `json:"title"`
@@ -72,6 +74,77 @@ type BlockSpec struct {
 	Outputs      []Port   `json:"outputs"`
 	DefaultTools []string `json:"default_tools,omitempty"`
 	HumanGate    bool     `json:"human_gate,omitempty"`
+	Instruction  string   `json:"instruction,omitempty"`
+	Acceptance   []string `json:"acceptance,omitempty"`
+}
+
+// contract is what one block kind must produce. It is deliberately prompt-level
+// work, not a second executor: the block tells the existing engine what outcome
+// counts as done for this kind.
+type contract struct {
+	Instruction string
+	Acceptance  []string
+}
+
+// contracts is the closed execution contract set. Keep the instructions about
+// the *output*, not the process, so the engine can still choose its own method.
+var contracts = map[Kind]contract{
+	KindResearch: {
+		Instruction: "Research the topic using only the allowed sources. Return a sourced brief: every claim names the URL it came from, and end with the list of URLs actually used.",
+		Acceptance:  []string{"every claim names its source", "the used URLs are listed"},
+	},
+	KindFetch: {
+		Instruction: "Fetch the listed sources. Return their key content with attribution: each passage names the source URL. Do not add claims the sources do not make.",
+		Acceptance:  []string{"content is attributed to its source URL"},
+	},
+	KindExtract: {
+		Instruction: "Extract the substantive items from the upstream material. One item per line, each with its source URL and, where present, its date.",
+		Acceptance:  []string{"one item per line", "every item names its source"},
+	},
+	KindCondense: {
+		Instruction: "Condense the upstream items into a short set of findings. Keep source attribution, drop duplicates, and introduce no new claims.",
+		Acceptance:  []string{"no claim beyond the upstream material", "every finding keeps its source"},
+	},
+	KindGenerateOptions: {
+		Instruction: "Produce three materially distinct options. For each: what it is, who it is for, the first concrete step, and the main risk. Do not recommend one yet.",
+		Acceptance:  []string{"three distinct options", "each option names a first concrete step and a risk"},
+	},
+	KindCritique: {
+		Instruction: "Critique each upstream option against the goal. Name the strongest and the weakest, and the specific trade-off that separates them.",
+		Acceptance:  []string{"names the strongest and weakest option", "names the deciding trade-off"},
+	},
+	KindSelect: {
+		Instruction: "Recommend one upstream option. State the reason, the rejected alternatives, and what would change the choice. This is a human gate: propose, do not decide for the user.",
+		Acceptance:  []string{"one recommendation with a reason", "the alternatives and the change condition are stated"},
+	},
+	KindSynthesize: {
+		Instruction: "Synthesize the upstream material into the requested artifact. Preserve every citation and introduce no unsourced claim.",
+		Acceptance:  []string{"every citation is preserved", "no unsourced claim"},
+	},
+	KindImplement: {
+		Instruction: "Implement the requested change in the project repository. Keep the diff focused and reviewable; do not touch unrelated code.",
+		Acceptance:  []string{"the change is focused and reviewable", "the project still builds"},
+	},
+	KindTest: {
+		Instruction: "Run the project's tests and report the exact command, the pass/fail outcome, and the first failure with its file and line.",
+		Acceptance:  []string{"the exact command and its outcome are reported"},
+	},
+	KindVerify: {
+		Instruction: "Verify the upstream artifact against the acceptance criteria. Mark each criterion met, not met, or unverifiable, and cite the evidence.",
+		Acceptance:  []string{"every criterion is marked met, not met, or unverifiable"},
+	},
+	KindRetain: {
+		Instruction: "Record what was covered: the items seen, the sources used, and the date. This memory is what stops the next cycle repeating today's work.",
+		Acceptance:  []string{"lists the items covered and the sources used", "records the date"},
+	},
+	KindReview: {
+		Instruction: "Review the upstream artifact against the project frame. Recommend accept, revise, or reject, with reasons. This is a human gate: propose, do not decide for the user.",
+		Acceptance:  []string{"recommendation is accept, revise, or reject", "reasons are given"},
+	},
+	KindPublish: {
+		Instruction: "Prepare the upstream artifact for release. List every external or irreversible action this would take; take none of them without approval.",
+		Acceptance:  []string{"external actions are listed before any is taken"},
+	},
 }
 
 // specs is the closed repertoire. Keep it small and orthogonal; a new kind is
@@ -142,12 +215,22 @@ var specs = map[Kind]BlockSpec{
 	},
 	KindRetain: {
 		Kind: KindRetain, Title: "Retain", Capability: project.CapabilityDocument,
-		Inputs:  []Port{{Name: "item", Type: PortItem, Required: true}},
+		// Retain accepts whichever upstream form exists: a selected item, an
+		// item list, or a finished artifact. The unique compatible pair picks
+		// the right one.
+		Inputs: []Port{
+			{Name: "item", Type: PortItem},
+			{Name: "items", Type: PortItems},
+			{Name: "artifact", Type: PortArtifact},
+		},
 		Outputs: []Port{{Name: "memory", Type: PortJSON}},
 	},
 	KindReview: {
 		Kind: KindReview, Title: "Review", Capability: project.CapabilityDocument,
-		Inputs:    []Port{{Name: "artifact", Type: PortArtifact, Required: true}},
+		Inputs: []Port{
+			{Name: "artifact", Type: PortArtifact},
+			{Name: "verdict", Type: PortVerdict},
+		},
 		Outputs:   []Port{{Name: "decision", Type: PortVerdict}},
 		HumanGate: true,
 	},
@@ -158,20 +241,30 @@ var specs = map[Kind]BlockSpec{
 	},
 }
 
-// Registry returns the closed repertoire in deterministic kind order.
+// Registry returns the closed repertoire in deterministic kind order, with
+// each kind's execution contract attached.
 func Registry() []BlockSpec {
 	out := make([]BlockSpec, 0, len(specs))
 	for _, s := range specs {
+		if c, ok := contracts[s.Kind]; ok {
+			s.Instruction, s.Acceptance = c.Instruction, c.Acceptance
+		}
 		out = append(out, s)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Kind < out[j].Kind })
 	return out
 }
 
-// Spec resolves one kind.
+// Spec resolves one kind, with its execution contract attached.
 func Spec(kind Kind) (BlockSpec, bool) {
 	s, ok := specs[kind]
-	return s, ok
+	if !ok {
+		return s, false
+	}
+	if c, ok := contracts[kind]; ok {
+		s.Instruction, s.Acceptance = c.Instruction, c.Acceptance
+	}
+	return s, true
 }
 
 // Block is one node in a cycle graph. Config carries block-specific settings
@@ -487,6 +580,10 @@ func longestPath(g Graph, byID map[string]Block) int {
 // CompileOptions carries the cycle identity and any defaults the caller owns.
 type CompileOptions struct {
 	CycleID string
+	// Sources are the project's declared sources. They are folded into the
+	// research and fetch blocks' descriptions, which is where the engine's
+	// research sub-step reads URLs from.
+	Sources []string
 }
 
 // Compile validates the graph and returns TaskSpecs in topological order. The
@@ -516,9 +613,9 @@ func Compile(g Graph, opts CompileOptions) ([]project.TaskSpec, error) {
 		out = append(out, project.TaskSpec{
 			Key:          b.ID,
 			Title:        title,
-			Description:  description(b, spec),
+			Description:  description(b, spec, opts),
 			DependsOn:    append([]string(nil), deps[id]...),
-			Criteria:     criteria(b.Config),
+			Criteria:     criteria(b.Config, spec.Acceptance),
 			Budget:       dag.Budget{},
 			Capability:   spec.Capability,
 			AllowedTools: append([]string(nil), spec.DefaultTools...),
@@ -528,20 +625,43 @@ func Compile(g Graph, opts CompileOptions) ([]project.TaskSpec, error) {
 	return out, nil
 }
 
-func description(b Block, spec BlockSpec) string {
-	if s, ok := b.Config["instructions"].(string); ok && strings.TrimSpace(s) != "" {
-		return s
+// description folds the block's contract, the operator's instructions, and the
+// project's sources into the task description. The description is the pinned
+// task section of every engine prompt, so this is where a block's semantics
+// reach the executor. An explicit instruction never erases the contract: it
+// adds task-specific direction after it.
+func description(b Block, spec BlockSpec, opts CompileOptions) string {
+	parts := make([]string, 0, 3)
+	if spec.Instruction != "" {
+		parts = append(parts, spec.Instruction)
 	}
-	return fmt.Sprintf("%s block (%s).", spec.Title, b.Kind)
+	if s, ok := b.Config["instructions"].(string); ok && strings.TrimSpace(s) != "" {
+		parts = append(parts, s)
+	}
+	if (b.Kind == KindResearch || b.Kind == KindFetch) && len(opts.Sources) > 0 {
+		var sb strings.Builder
+		sb.WriteString("Sources to use:")
+		for _, url := range opts.Sources {
+			sb.WriteString("\n- ")
+			sb.WriteString(url)
+		}
+		parts = append(parts, sb.String())
+	}
+	if len(parts) == 0 {
+		return fmt.Sprintf("%s block (%s).", spec.Title, b.Kind)
+	}
+	return strings.Join(parts, "\n\n")
 }
 
-func criteria(config map[string]any) []string {
+// criteria returns the operator's acceptance override, or the block kind's
+// default criteria when none is set.
+func criteria(config map[string]any, defaults []string) []string {
 	if config == nil {
-		return nil
+		return append([]string(nil), defaults...)
 	}
 	raw, ok := config["acceptance"]
 	if !ok {
-		return nil
+		return append([]string(nil), defaults...)
 	}
 	switch v := raw.(type) {
 	case []string:
@@ -613,20 +733,29 @@ type Trigger struct {
 
 // Template is a versioned cycle graph plus its triggers.
 type Template struct {
-	ID       string    `json:"id"`
-	Name     string    `json:"name"`
-	Version  int       `json:"version"`
-	Graph    Graph     `json:"graph"`
-	Triggers []Trigger `json:"triggers,omitempty"`
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	Version int    `json:"version"`
+	// CycleKind is the timeline role the template produces: discovery, design,
+	// build, operate, or review. It is a plain string so this package stays
+	// free of the cycle repository; the caller maps it.
+	CycleKind string    `json:"cycle_kind"`
+	Graph     Graph     `json:"graph"`
+	Triggers  []Trigger `json:"triggers,omitempty"`
 }
 
-// ValidateTemplate validates the graph and the trigger kinds.
+// ValidateTemplate validates the graph, the trigger kinds, and the cycle kind.
 func ValidateTemplate(t Template) error {
 	if strings.TrimSpace(t.ID) == "" || strings.TrimSpace(t.Name) == "" {
 		return &ValidationError{Msg: "template id and name are required"}
 	}
 	if t.Version < 1 {
 		return &ValidationError{Msg: "template version must be >= 1"}
+	}
+	switch t.CycleKind {
+	case "discovery", "design", "build", "operate", "review":
+	default:
+		return &ValidationError{Msg: fmt.Sprintf("unknown cycle kind %q", t.CycleKind)}
 	}
 	if err := Validate(t.Graph, DefaultLimits()); err != nil {
 		return err

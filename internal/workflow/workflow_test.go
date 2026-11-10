@@ -3,6 +3,8 @@ package workflow
 import (
 	"strings"
 	"testing"
+
+	"github.com/tcs76321/athanor/internal/project"
 )
 
 func linearGraph() Graph {
@@ -64,8 +66,11 @@ func TestCompileLinearGraph(t *testing.T) {
 	checkDep("fetch", "research")
 	checkDep("synthesize", "condense")
 	checkDep("verify", "synthesize")
-	if got := specs[byKey["research"]].Description; got != "Find sources." {
+	if got := specs[byKey["research"]].Description; !strings.Contains(got, "Find sources.") {
 		t.Errorf("instructions not carried: %q", got)
+	}
+	if got := specs[byKey["research"]].Description; !strings.Contains(got, "every claim names the URL") {
+		t.Errorf("block contract not carried: %q", got)
 	}
 	if got := specs[byKey["synthesize"]].Criteria; len(got) != 2 {
 		t.Errorf("criteria = %v, want 2", got)
@@ -287,7 +292,7 @@ func TestRegistryClosed(t *testing.T) {
 
 func TestTemplateRoundTrip(t *testing.T) {
 	tpl := Template{
-		ID: "daily-brief", Name: "Daily Brief", Version: 1,
+		ID: "daily-brief", Name: "Daily Brief", Version: 1, CycleKind: "operate",
 		Graph: linearGraph(),
 		Triggers: []Trigger{
 			{ID: "schedule", Kind: TriggerSchedule, Spec: "0 7 * * *", Enabled: true},
@@ -314,6 +319,72 @@ func TestTemplateRoundTrip(t *testing.T) {
 	tpl.Triggers[0].Kind = "cron"
 	if _, err := EncodeTemplate(tpl); err == nil {
 		t.Fatal("unknown trigger accepted")
+	}
+}
+
+func TestBuiltinTemplatesValidate(t *testing.T) {
+	for _, tpl := range Templates() {
+		if err := ValidateTemplate(tpl); err != nil {
+			t.Errorf("%s: %v", tpl.ID, err)
+		}
+		if _, err := EncodeTemplate(tpl); err != nil {
+			t.Errorf("%s encode: %v", tpl.ID, err)
+		}
+	}
+	brief, ok := TemplateByID("daily-brief")
+	if !ok {
+		t.Fatal("daily-brief missing")
+	}
+	if brief.CycleKind != "operate" || len(brief.Graph.Blocks) != 7 {
+		t.Errorf("daily brief = %+v", brief)
+	}
+	seen := map[string]bool{}
+	for _, b := range brief.Graph.Blocks {
+		seen[b.ID] = true
+	}
+	for _, want := range []string{"research", "fetch", "extract", "condense", "synthesize", "verify", "retain"} {
+		if !seen[want] {
+			t.Errorf("daily brief missing %q", want)
+		}
+	}
+	if _, ok := TemplateByID("nope"); ok {
+		t.Error("unknown template resolved")
+	}
+}
+
+func TestCompileFoldsSourcesIntoResearchAndFetch(t *testing.T) {
+	specs, err := Compile(linearGraph(), CompileOptions{
+		CycleID: "c1", Sources: []string{"https://example.com/a", "https://example.com/b"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	byKey := map[string]project.TaskSpec{}
+	for _, s := range specs {
+		byKey[s.Key] = s
+	}
+	for _, key := range []string{"research", "fetch"} {
+		desc := byKey[key].Description
+		if !strings.Contains(desc, "https://example.com/a") || !strings.Contains(desc, "https://example.com/b") {
+			t.Errorf("%s description missing sources: %q", key, desc)
+		}
+	}
+	if desc := byKey["condense"].Description; strings.Contains(desc, "https://example.com/a") {
+		t.Errorf("condense should not carry project sources: %q", desc)
+	}
+}
+
+func TestCompileUsesDefaultAcceptanceWhenConfigOmitsIt(t *testing.T) {
+	g := Graph{Blocks: []Block{{ID: "research", Kind: KindResearch}}}
+	specs, err := Compile(g, CompileOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(specs[0].Criteria) == 0 {
+		t.Fatal("research has no default criteria")
+	}
+	if !strings.Contains(strings.Join(specs[0].Criteria, " "), "source") {
+		t.Errorf("criteria = %v", specs[0].Criteria)
 	}
 }
 
