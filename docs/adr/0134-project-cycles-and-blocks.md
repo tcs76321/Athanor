@@ -100,8 +100,10 @@ produced and each block tells the engine what output counts as done.
   instead of repeating it.
 - **Templates.** `daily-brief`, `discovery`, and `build` are ordinary graphs,
   not privileged flows. Creating a cycle from one records the template ID and
-  version on the cycle, then opens the draft in the canvas. Triggers are data
-  until the trigger runner lands.
+  version on the cycle, then opens the draft in the canvas. A schedule trigger
+  starts a new cycle at its next matching minute (at-most-once per slot: the
+  slot is claimed before the cycle starts), and the project page can pause or
+  re-enable it. Event triggers are still data.
 - **Completion.** A goal that reaches `completed` or `failed` marks its cycle
   terminal through a scheduler seam; the UI no longer shows a finished run as
   `running`.
