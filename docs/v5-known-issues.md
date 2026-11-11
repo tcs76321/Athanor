@@ -132,9 +132,13 @@ run clears the release-blocking gates.
   does not use it: without a known old-id list it rejects a valid update that
   references the new id under both sections. The probe's `new_items_section`
   check remains the precise label.
+- **Gemma brief-wal:** the cycle artifact is structurally valid and cites
+  `wal.md`, but it omits the required term "checkpoint". That is a content
+  gap, not a structural one. The task's `must_contain` checks are now injected
+  into the draft synthesize block so the engine can repair it on the next run.
 - **Held out:** day2 is not tuned on. It remains a red held-out claim. Wiring
-  the known old ids into the cycle, or a news-specific previous-id feed, is the
-  next product step.
+  the known old ids into the cycle is now implemented; the rerun decides
+  whether the engine can repair the placement.
 
 ### 11. External track is single-arm only; full arm times out
 - **Evidence:** the `full` arm reached 6/8 at the 2h cap (isogram running,
