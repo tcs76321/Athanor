@@ -235,9 +235,14 @@ the release-blocking gates.
 5. ~~Merge the 8/8 exploratory external report; add pairwise quality~~ — the
    one-shot external run is 4/8 and engine-convergent. Run gemma’s external
    track and pairwise quality next.
-6. ~~Harden agency/memory/news~~ — corpus/runner changes are in; full utility
-   completes 5/5, external pass 3/5.
-7. Then the next external target: TheAgentCompany (open) or τ² when text opens.
+6. ~~Harden agency/memory/news~~ — corpus/runner changes are in; the
+   reconciliation bundle shows cycle completion but the utility evidence is
+   3/5. The 90% aggregate is replaced by component gates.
+7. Rerun the full five-task utility suite for both generators (single + cycle)
+   after the day3 check and template contract fix; update the merged evidence.
+8. Rerun the affected suites at one commit for the freeze; set `status: frozen`
+   and `cut: 0.0.0` only when the release-blocking claims are green.
+9. Then the next external target: TheAgentCompany (open) or τ² when text opens.
 
 ---
 
