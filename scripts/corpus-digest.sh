@@ -32,7 +32,7 @@ manifest() {
 		find "$dir" -type f \
 			! -name 'CORPUS.digest' \
 			! -name 'reference.yaml' \
-			! -path 'eval/bench/v2/*' \
+			! -path 'eval/bench/v*/*' \
 			\( -name '*.yaml' -o -path 'eval/bench/fixtures/*' \) \
 			| LC_ALL=C sort \
 			| while IFS= read -r f; do
