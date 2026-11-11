@@ -46,10 +46,10 @@
     },
     {
       "id": "v5-brief-wal",
-      "pass": false,
-      "cycle_id": "246a2f18-3ad9-4b64-823c-e645f306c8b9",
+      "pass": true,
+      "cycle_id": "e2c9fc1f-7ff0-4663-9d08-c171416aa2f1",
       "state": "completed",
-      "artifact_id": "72b7535d-b06b-4ca2-b196-1ccbf74aa850",
+      "artifact_id": "54184b90-8798-4d1c-b51d-df7cf4314e5f",
       "engine_accepted": false,
       "complete": true,
       "blocks": 7,
@@ -65,7 +65,7 @@
           "Kind": "max_words",
           "Pass": true,
           "Advisory": false,
-          "Detail": "words=73 max=250"
+          "Detail": "words=96 max=250"
         },
         {
           "Kind": "allowed_sources",
@@ -81,15 +81,12 @@
         },
         {
           "Kind": "must_contain",
-          "Pass": false,
+          "Pass": true,
           "Advisory": false,
-          "Detail": "missing: checkpoint"
+          "Detail": "missing: "
         }
       ],
-      "failures": [
-        "must_contain: missing: checkpoint"
-      ],
-      "duration_s": 265.820375946
+      "duration_s": 280.658936366
     },
     {
       "id": "v5-news-day1",
@@ -131,10 +128,10 @@
     },
     {
       "id": "v5-news-day2",
-      "pass": false,
-      "cycle_id": "3ddf8dd1-592e-469d-bf17-05b54fefa6ea",
+      "pass": true,
+      "cycle_id": "cbed0a6d-fb78-4b1c-99a9-b2c4be657dd3",
       "state": "completed",
-      "artifact_id": "d4b5dc3a-882c-4fe9-ab06-c91c60f19357",
+      "artifact_id": "46dc5fd7-99ed-4b28-93e8-60d3b7e83356",
       "engine_accepted": false,
       "complete": true,
       "blocks": 7,
@@ -150,19 +147,16 @@
           "Kind": "max_words",
           "Pass": true,
           "Advisory": false,
-          "Detail": "words=175 max=400"
+          "Detail": "words=181 max=400"
         },
         {
           "Kind": "new_items_section",
-          "Pass": false,
+          "Pass": true,
           "Advisory": false,
-          "Detail": "old item story-001 in New; old item story-004 in New"
+          "Detail": ""
         }
       ],
-      "failures": [
-        "new_items_section: old item story-001 in New; old item story-004 in New"
-      ],
-      "duration_s": 441.126583165
+      "duration_s": 466.028177659
     },
     {
       "id": "v5-news-day3",

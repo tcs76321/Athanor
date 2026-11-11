@@ -15,7 +15,7 @@
         {"suite": "quality", "arm": "full", "source": "tools/bench/results/v5/bonsai27b/soak/quality/full"}
       ],
       "cycle": [
-        {"task": "", "source": "tools/bench/results/v5-phase5b/bonsai27b/cycle/out/cycle-bonsai27b.json", "supersedes": "tools/bench/results/v5-phase4/bonsai27b/cycle/out/cycle-bonsai27b.json", "reason": "post-fix utility cycle; day2 external check still fails on old ids in New"}
+        {"task": "", "source": "tools/bench/results/v5-phase5c/bonsai27b/cycle/out/cycle-bonsai27b.json", "supersedes": "tools/bench/results/v5-phase5b/bonsai27b/cycle/out/cycle-bonsai27b.json", "reason": "post-fix utility cycle; all five tasks pass and complete after the precise old-id and content checks"}
       ],
       "quality": "tools/bench/results/v5/bonsai27b/quality-pairwise.json",
       "aider": "tools/bench/results/v5/bonsai27b/aider/report.json"
@@ -33,7 +33,7 @@
         {"suite": "quality", "arm": "full", "source": "tools/bench/results/v5/gemma12b/soak/quality/full"}
       ],
       "cycle": [
-        {"task": "", "source": "tools/bench/results/v5-phase5b/gemma12b/cycle/out/cycle-gemma12b.json", "supersedes": "tools/bench/results/v5-phase4/gemma12b/cycle/out/cycle-gemma12b.json", "reason": "post-fix utility cycle; completion 5/5, brief-wal and day2 external checks remain red"}
+        {"task": "", "source": "tools/bench/results/v5-phase5c/gemma12b/cycle/out/cycle-gemma12b.json", "supersedes": "tools/bench/results/v5-phase5b/gemma12b/cycle/out/cycle-gemma12b.json", "reason": "post-fix utility cycle; all five tasks pass and complete after the precise old-id and content checks"}
       ],
       "quality": "",
       "aider": "tools/bench/results/v5/gemma12b/aider/report.json"

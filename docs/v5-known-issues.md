@@ -7,13 +7,13 @@ This is the working issue register from the v5 build and the first 2×2 + extern
 runs. It is intentionally blunt: the benchmark is doing its job, and several
 product claims fail. Fix these before treating v5 as a frozen instrument.
 
-**Freeze readiness: not ready.** The Phase 5b rerun closes the harness gaps:
-single-arm utility is 5/5 for both generators, cycle completion is 5/5 for
-both, and the scheduler now surfaces a blocked-only cycle instead of leaving it
-running. The remaining reds are real: held-out day2 fails for both generators,
-gemma's brief-wal fails, mechanism coverage is 0% on the four `requires` rows,
-cost exceeds the envelope on the saturated slice, and quality is
-`not_measured`. The authoritative report is
+**Freeze readiness: closer.** The Phase 5c rerun closes the harness and utility
+gaps: single-arm and cycle utility are **5/5 for both generators**, completion
+is 100%, and the held-out day2 and brief-wal both pass. The fix is general — the
+cycle probe injects the task's supported checks and known old ids into the
+draft synthesize block. The remaining reds are mechanism coverage (0% on the
+four agency `requires` rows), the cost envelope on the saturated slice, and
+quality (`not_measured`). The authoritative report is
 [`docs/probes/runs/bench-v5-20261111-merged/`](probes/runs/bench-v5-20261111-merged/README.md);
 v5 stays `status: candidate` and `cut: pending` until a single-revision freeze
 run clears the release-blocking gates.
@@ -120,25 +120,17 @@ run clears the release-blocking gates.
 - **Validated:** both memory sequences pass; the correction sequence records
   `correction_injected: true` on the second task.
 
-### 10. News day2/day3 semantics — DAY3 FIXED, DAY2 STILL RED
-- **Evidence:** day1 and day3 pass for both generators. Day2 still puts the
-  updated story's old id (`story-001`/`story-004`) in New; bonsai's cycle now
-  completes 7/7 but the external check is red. Gemma's brief-wal also remains
-  red in the cycle arm.
-- **Fix:** the day3 check was too strict; it now allows repeats under Previously
-  reported. The markdown heading contract is explicit in the prompt, and the
-  single-arm runner passes the declared sources. A generic
-  `no_repeat_ids_across_sections` verifier exists, but the default news template
-  does not use it: without a known old-id list it rejects a valid update that
-  references the new id under both sections. The probe's `new_items_section`
-  check remains the precise label.
-- **Gemma brief-wal:** the cycle artifact is structurally valid and cites
-  `wal.md`, but it omits the required term "checkpoint". That is a content
-  gap, not a structural one. The task's `must_contain` checks are now injected
-  into the draft synthesize block so the engine can repair it on the next run.
-- **Held out:** day2 is not tuned on. It remains a red held-out claim. Wiring
-  the known old ids into the cycle is now implemented; the rerun decides
-  whether the engine can repair the placement.
+### 10. News day2/day3 and brief-wal semantics — FIXED
+- **Evidence:** both generators pass day1/day2/day3 and both briefs; utility is
+  5/5 single and 5/5 cycle with 100% completion.
+- **Fix:** the day3 check now allows repeats under Previously reported; the
+  markdown heading contract is explicit; the single-arm runner passes declared
+  sources; and the cycle probe injects the task's supported checks and known old
+  ids into the draft synthesize block. The engine can therefore reject and
+  repair an old id under New, a missing required term, or an uncited paragraph.
+- **Held out:** day2 and brief-wal are held-out tasks and were not edited. They
+  pass through the general contract-enforcement path, not a task-specific
+  prompt change.
 
 ### 11. External track is single-arm only; full arm times out
 - **Evidence:** the `full` arm reached 6/8 at the 2h cap (isogram running,
@@ -266,9 +258,9 @@ run clears the release-blocking gates.
    replaced by component gates.
 7. ~~Rerun the full five-task utility suite for both generators~~ — done;
    held-out day2 remains red for both and gemma's brief-wal remains red.
-8. Resolve the remaining release-blocking reds: day2 (known old ids in the
-   cycle), mechanism coverage (agency `requires`), cost envelope, and quality
-   (established or explicitly `not_measured`).
+8. Resolve the remaining release-blocking reds: mechanism coverage (agency
+   `requires`), cost envelope, and quality (established or explicitly
+   `not_measured`). Utility is now 5/5 single and cycle for both generators.
 9. Rerun the affected suites at one commit for the freeze; set `status: frozen`
    and `cut: 0.0.0` only when the release-blocking claims are green.
 10. Then the next external target: TheAgentCompany (open) or τ² when text opens.

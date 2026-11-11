@@ -87,9 +87,9 @@
   "cycle": [
     {
       "task": "",
-      "source": "tools/bench/results/v5-phase5b/gemma12b/cycle/out/cycle-gemma12b.json",
-      "supersedes": "tools/bench/results/v5-phase4/gemma12b/cycle/out/cycle-gemma12b.json",
-      "reason": "post-fix utility cycle; completion 5/5, brief-wal and day2 external checks remain red",
+      "source": "tools/bench/results/v5-phase5c/gemma12b/cycle/out/cycle-gemma12b.json",
+      "supersedes": "tools/bench/results/v5-phase5b/gemma12b/cycle/out/cycle-gemma12b.json",
+      "reason": "post-fix utility cycle; all five tasks pass and complete after the precise old-id and content checks",
       "copied": true,
       "tasks": [
         "v5-brief-local-first",

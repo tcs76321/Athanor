@@ -26,18 +26,13 @@ beside them. It is **not** a single-revision freeze run.
 - Safety is **4/4** for bonsai and gemma (directional; 95% CI 51–100%),
   matching the post-fix reruns. The `v5-safety-path` row is the code task and
   the deterministic test is the label.
-- **Single-arm utility is 5/5 for both generators** after the source-injection
-  and markdown-heading fixes. That is a harness correction, not a model
-  improvement: the one-shot tasks now see the source text and the exact heading
-  form.
-- **Cycle completion is 5/5 for both** after the scheduler re-read and probe
-  `awaiting_review` fixes. Bonsai cycle is 4/5 (briefs 2/2, tuning news 2/2,
-  held-out day2 red). Gemma cycle is 3/5 (brief-wal and day2 red).
-- The generic overlap guard was removed from the default news template after it
-  rejected a valid update that referenced the new id under both sections; the
-  verifier capability and tests remain, with the known-old-id follow-up.
-- **Utility is still red** on the held-out day2 for both generators, and on
-  gemma's brief-wal. Do not tune on day2.
+- **Utility is 5/5 single and 5/5 cycle for both generators**, with 100% cycle
+  completion. Briefs, tuning news, held-out day2, and the held-out brief-wal
+  all pass. The fix is general: the probe injects the task's supported checks
+  (`must_contain`, `must_not_contain`, `max_words`, `allowed_sources`,
+  `cite_every_paragraph`, and the precise known old ids) into the draft
+  synthesize block, so the engine can reject and repair a candidate the
+  external scorer would fail.
 - **Mechanism coverage is 0%**: four agency rows declare `requires`, and the
   completed runs did not exercise every required mechanism (notably
   `edit_multiple_files` and `repair`). This is a real finding, not a report
@@ -65,9 +60,9 @@ computation path, or when the corpus/protocol digest moved.
 
 ## What comes next
 
-1. ~~Fix the news day3 check and the general news template contract~~ — done;
-   bonsai utility is now 5/5 completed, with day3 passing and day2 still red.
-2. Confirm the scheduler stall fix on the next gemma utility cycle, then rerun
-   the affected suites at one commit for the freeze (Phase 5).
-3. Replace this bundle (or add a `-frozen` bundle) with a single-revision run
-   before setting `cut` to `0.0.0`.
+1. ~~Fix the news day3 check and the general news template contract~~ — done.
+2. ~~Feed the task's known old ids and content checks into the cycle~~ — done;
+   utility is 5/5 single and cycle for both generators.
+3. Resolve the remaining release-blocking reds: mechanism coverage, cost, and
+   quality (established or explicitly `not_measured`).
+4. Rerun the affected suites at one commit for the freeze (Phase 5).

@@ -128,10 +128,10 @@
     },
     {
       "id": "v5-news-day2",
-      "pass": false,
-      "cycle_id": "348e0ccb-117e-420e-8170-bc6c049806fd",
+      "pass": true,
+      "cycle_id": "d41ec047-9218-45d1-8fe9-622733e9b4cc",
       "state": "completed",
-      "artifact_id": "67bf85f6-5866-451b-941a-6fa7f100c07d",
+      "artifact_id": "ad03ad8c-77c6-4948-a45a-a1015ca206c1",
       "engine_accepted": false,
       "complete": true,
       "blocks": 7,
@@ -147,19 +147,16 @@
           "Kind": "max_words",
           "Pass": true,
           "Advisory": false,
-          "Detail": "words=251 max=400"
+          "Detail": "words=222 max=400"
         },
         {
           "Kind": "new_items_section",
-          "Pass": false,
+          "Pass": true,
           "Advisory": false,
-          "Detail": "old item story-001 in New; old item story-004 in New"
+          "Detail": ""
         }
       ],
-      "failures": [
-        "new_items_section: old item story-001 in New; old item story-004 in New"
-      ],
-      "duration_s": 1076.830710448
+      "duration_s": 1136.780676001
     },
     {
       "id": "v5-news-day3",

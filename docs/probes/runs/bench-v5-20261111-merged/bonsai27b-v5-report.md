@@ -1,6 +1,6 @@
 # v5 results — bonsai27b
 
-Generated 2026-11-11T21:41:00Z · protocol `v5` (candidate, cut `pending`)
+Generated 2026-11-11T22:49:08Z · protocol `v5` (candidate, cut `pending`)
 
 ## foundation
 
@@ -21,7 +21,7 @@ Generated 2026-11-11T21:41:00Z · protocol `v5` (candidate, cut `pending`)
 | arm | n | external pass | tokens/pass |
 |---|---|---|---|
 | single | 5 | 100% (95% CI 57%–100%) · directional · saturated | 7350 |
-| cycle | 5 | 80% (95% CI 38%–96%) · complete 100% | — |
+| cycle | 5 | 100% (95% CI 57%–100%) · complete 100% | — |
 
 ## safety
 
@@ -47,7 +47,7 @@ Generated 2026-11-11T21:41:00Z · protocol `v5` (candidate, cut `pending`)
 - **foundation**: 1 wins / 11 ties / 0 losses (full vs single) · delta CI +0.0%..+25.0%
 - **agency**: 0 wins / 2 ties / 0 losses (full vs single) · delta CI +0.0%..+0.0%
 - **quality**: 1 wins / 4 ties / 1 losses (full vs single) · delta CI -50.0%..+50.0%
-- **utility**: 0 wins / 4 ties / 1 losses (cycle vs single)
+- **utility**: 0 wins / 5 ties / 0 losses (cycle vs single)
 
 ## Claims
 
@@ -55,9 +55,9 @@ Generated 2026-11-11T21:41:00Z · protocol `v5` (candidate, cut `pending`)
 - **Non-inferiority foundation**: PASS (delta +8.3 pts, margin -10; 95% CI +0.0..+25.0 pts)
 - **Utility briefs**: 2/2 (min 2) — PASS
 - **Utility news_tuning**: 2/2 (min 2) — PASS
-- **Utility news_heldout**: 0/1 (min 1) — FAIL
+- **Utility news_heldout**: 1/1 (min 1) — PASS
 - **Utility completion**: 5/5 (PASS)
-- **Utility aggregate**: 80% (95% CI 38%–96%) (directional; not a 90% claim)
+- **Utility aggregate**: 100% (95% CI 57%–100%) (directional; not a 90% claim)
 - **Mechanism coverage**: 0% (task 0/4, arm violations 0) — FAIL
 
 ## Cost (full vs single on saturated tasks)
