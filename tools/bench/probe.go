@@ -219,6 +219,7 @@ commands:
   paired-report join single/cascade/full results and report non-inferiority (ADR-0133)
   quality   score artifacts offline with the two pinned judges and the v3 rubric
   quality-report compare full vs single rubric scores with a clustered interval
+  quality-pairwise compare single/full artifacts blind, both orders, two judges
   verify-models check the frozen protocol roster against the local Ollama digests
 
 Run each command with -h for its flags. Protocol:

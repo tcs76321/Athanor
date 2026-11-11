@@ -11,35 +11,33 @@ product claims fail. Fix these before treating v5 as a frozen instrument.
 
 ## P0 — blocks a credible v5 claim or freeze
 
-### 1. Engine repo-test/acceptance is mis-wired for external repo tasks
-- **Evidence:** Aider/Exercism single arm: **8/8 external passes** (80 official
-  assertions) while the engine accepted only **~2/8**. First batch: 4/4
-  external, 1/4 engine accepted. Second batch: 3/4 external, 1/4 engine
-  accepted; `acronym` produced no artifact after an index timeout and passed on
-  retry. The engine's own state was `failed` on exercises whose best candidate
-  passed the official tests.
-- **Meaning:** Athanor generated the correct code; its own test/acceptance path
-  did not test the artifact that the external scorer tested, or rejected it.
-  Until fixed, the external track is a model + best-candidate signal, not a
-  harness-verification signal.
-- **Fix:** apply the synthesized candidate tree to the exercise repo snapshot
-  before the frozen test command (or make the corpus test command copy the
-  artifact to the target module), then re-run the same 8 exercises. The engine's
-  label and the external label should converge.
-- **Files:** `internal/engine/phases/*` (code materialization/test path),
-  `tools/bench/` repo task collection, `tools/bench/aider_polyglot.py`.
+### 1. Engine repo-test/acceptance is mis-wired for external repo tasks — FIXED (validate)
+- **Cause:** the engine staged a single-file candidate as `solution.py` unless
+  it could infer the module name from the test command, while the Exercism
+  tests import `two_fer`, `raindrops`, etc. The task's declared solution file
+  was not on the project execution wire shape, so it was never persisted.
+- **Evidence:** after fixing `solution_file` staging + API persistence, the
+  one-exercise rerun (`two-fer`) was external pass **1/1** and engine accepted
+  **1/1**. The full 8-exercise rerun is the remaining validation.
+- **Also fixed:** a passing hard verifier no longer loses to the judge's
+  advisory `missing_criteria`, and the pod exports `REPO=/tmp/work` for test
+  commands.
+- **Files:** `internal/project/project.go`, `internal/api/api.go`,
+  `internal/engine/phases/pod_wiring.go`, `internal/engine/phases/evaluate.go`,
+  `cmd/athanor/pod_executor.go`, `tools/bench/aider_polyglot.py`.
 
-### 2. Document cycles do not complete
-- **Evidence:** utility cycle completion **0/5 (bonsai)** and **2/5 (gemma)**.
-  Brief cycles stop at 5–6/7 blocks; news day1/day3 stop at 0/7 or 5/7. The
-  produced artifacts pass the external citation checks (cycle external pass
-  60% bonsai / 40% gemma) but the DAG never finishes.
-- **Meaning:** the cycle is not a completed operating run. Engine
-  acceptance/retry on document tasks is the bottleneck.
-- **Fix:** deterministic document verifier or a more tolerant acceptance path;
-  stop retrying when the artifact passes the frozen checks; ensure verify/retain
-  blocks terminate. Re-run the utility suite and require both external pass and
-  cycle completion for the claim.
+### 2. Document cycles do not complete — FIXED (validate)
+- **Root causes:** cycle blocks had no deterministic per-task checks; a judge
+  `missing_criteria` could veto a passing check; `bestArtifact` fell back to
+  the newest document when the named synthesize artifact was rejected; and a
+  blocked leaf left the cycle `running` forever.
+- **Fix:** compile block acceptance into per-task `checks_json`, make hard
+  checks authoritative, prefer the named synthesize artifact even when it is a
+  candidate, and make a cycle with a blocked-only graph enter
+  `awaiting_review` immediately instead of stalling.
+- **Validation:** re-run the utility suite for both models; require external
+  pass and 100% cycle completion. The pre-fix numbers remain in the historical
+  report.
 
 ### 3. Safety path-escape failure (bonsai)
 - **Evidence:** `v5-safety-path` failed for `bonsai27b`; gemma passed 4/4. Safety
@@ -48,20 +46,16 @@ product claims fail. Fix these before treating v5 as a frozen instrument.
   `read_note` accepted `../secret` or the test path failed. Add a regression
   task; do not waive the gate.
 
-### 4. Missing ADR and README for v5
-- The protocol and comments reference **ADR-0136**, but
-  `docs/adr/0136-*` does not exist. `eval/bench/v5/README.md` is also missing.
-- **Fix:** write ADR-0136 (v5 instrument: local-only 2×2, claim vector,
-  external track, freeze rules) and the v5 README (how to run, what is frozen,
-  what is a subset). Correct any references.
+### 4. Missing ADR and README for v5 — FIXED
+- `docs/adr/0136-v5-grounded-agency-benchmark.md` and `eval/bench/v5/README.md`
+  now exist and are committed. The ADR records the claim vector, deterministic
+  acceptance authority, external track, freeze rules, and the separate
+  frontier tier.
 
-### 5. Evidence is not durable
-- `tools/bench/results/` is gitignored, so the 2×2 reports and quality scores
-  are only on this machine. Aider reports live under `.bench-aider/` (also
-  ignored).
-- **Fix:** copy the small reports/scores to a committed evidence path (e.g.
-  `docs/probes/runs/bench-v5-20261110/`) or a non-ignored `eval/bench/v5/runs/`
-  with a manifest. Do not commit large artifacts.
+### 5. Evidence is not durable — FIXED
+- Small reports, quality scores, and Aider reports are committed under
+  `docs/probes/runs/bench-v5-20261110/` with a manifest. Large artifacts and
+  per-trial state remain in the gitignored run trees.
 
 ### 6. External track is now merged (verify after re-runs)
 - The 4/4, 3/4, and acronym 1/1 reports are merged into an **8/8** report under
@@ -74,35 +68,37 @@ product claims fail. Fix these before treating v5 as a frozen instrument.
 
 ## P1 — validity and measurement
 
-### 7. Quality judges disagree; quality is not established
-- **Evidence:** bonsai agreement **−0.667 (single) / −0.490 (full)**; gemma
-  **0.544 / −0.500**. The gemma score command exits 1 below the 0.60 floor; the
-  runner continues with `|| true`.
-- **Meaning:** the pointwise rubric is not a measuring instrument at n=6.
-- **Fix:** move to **blind pairwise A/B (both orders)** with the two judges and a
-  human/frontier anchor; report win/tie/loss and agreement. Do not claim quality
-  from the absolute rubric. Update `analyze.py` to read
-  `quality-*-scores.json` and report agreement explicitly.
+### 7. Quality judges disagree; quality is not established — INSTRUMENTED
+- **Evidence:** the pre-fix pointwise rubric gave bonsai −0.667/−0.490 and
+  gemma 0.544/−0.500.
+- **Fix:** `tools/bench quality-pairwise` now runs blind A/B in both orders
+  with granite and mimo, reports inter-judge agreement, self-consistency, and a
+  full-vs-single win rate, and the analyzer reads those fields and the protocol
+  floors. The old pointwise scores are reference only.
+- **Remaining:** run pairwise on fresh full/single artifacts and report the
+  claim. Do not use the pointwise rubric as evidence.
 
-### 8. Agency suite is saturated
-- **Evidence:** 100% on both arms and both generators.
-- **Meaning:** these tasks do not discriminate; they do not support the agency
-  claim. They are currently anchors, not evidence.
-- **Fix:** harder agentic tasks (multi-file, repair, observation, long-horizon,
-  interruption), or mark the suite saturated and exclude it from the claim.
+### 8. Agency suite is saturated — HARDENED
+- **Evidence:** the pre-fix suite was 100% on both arms/generators with two
+  tasks.
+- **Fix:** added three harder tasks: observation-driven multi-file repair, a
+  multi-module wire-format contract, and a two-step long-horizon sequence. The
+  suite is only evidence if it now discriminates; a 100% rerun is reported as
+  saturated.
 
-### 9. Memory correction sequence fails
-- **Evidence:** memory suite 50% on both (insight passes, correction fails).
-- **Fix:** inspect the second-step output; ensure the correction is injected and
-  that the check tests the applied term. If the engine cannot carry the
-  correction, fix the memory path before claiming memory.
+### 9. Memory correction sequence fails — INSTRUMENTED
+- **Evidence:** the pre-fix two-step sequence failed at the first step.
+- **Fix:** the sequence runner now supports a `correction` step, posts it
+  through the project corrections API, and requires the next job's
+  `corrections_injected` event. The v5 correction task no longer restates the
+  corrected term in step 2, so the later artifact must use the injected
+  guidance. Re-run the memory suite to validate.
 
-### 10. News day2/day3 semantics
-- **Evidence:** day1 external pass for both; day2/day3 fail their new/old/no-op
-  checks; cycle completion low.
-- **Fix:** tune the news template/prompt and the `new_items_section` semantics;
-  verify the wire fixture is the only source. This is both a product-quality and
-  task-design issue.
+### 10. News day2/day3 semantics — TEMPLATE HARDENED
+- **Evidence:** day1 external pass; day2/day3 failed their new/old/no-op checks.
+- **Fix:** the news template now states the no-change and update rules in the
+  synthesize block; the block's required sections are deterministic checks.
+  The held-out day2 is not tuned on. Re-run all three days after the cycle fix.
 
 ### 11. External track is single-arm only; full arm times out
 - **Evidence:** the `full` arm reached 6/8 at the 2h cap (isogram running,
@@ -118,15 +114,14 @@ product claims fail. Fix these before treating v5 as a frozen instrument.
   from job start, raise/soften the timeout, and keep retries classified as
   infrastructure, not model failures.
 
-### 13. `analyze.py` correctness gaps
-- Unrun arms (`utility/full`, `safety/full`, `memory/full`) display **0%**
-  instead of “not run.” Omit unrun arms.
-- Quality scores/agreement are not read.
-- The external Aider section is absent until the report is merged.
-- The cycle table mixes external pass and completion; make both explicit (it
-  does) but add the completion gate to the claim text.
-- Paired W/T/L only covers foundation/agency; add utility/quality where valid.
-- Add the external track version/commit to the report.
+### 13. `analyze.py` correctness gaps — FIXED
+- Unrun arms are omitted/`—` instead of 0%.
+- Quality is read from `quality-pairwise.json` with protocol floors.
+- The external Aider section includes the engine-accept column.
+- Cycle external pass and completion are separate claims.
+- Paired W/T/L covers foundation, agency, quality, and utility.
+- Thresholds come from `protocol.yaml` (the old hardcoded 0.75 vs 0.9 mismatch
+  is gone).
 
 ### 14. Aider/Exercism is a custom adapter, not the official harness
 - One attempt per exercise, 8 Python exercises, custom artifact application.

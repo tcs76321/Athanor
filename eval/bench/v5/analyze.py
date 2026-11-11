@@ -36,8 +36,22 @@ def load_json(path, default=None):
         return default
 
 
-def load_claims(protocol_path):
-    """Minimal reader for the numeric claim thresholds.
+def load_external_manifest(path):
+    """Read the handful of scalar fields the report names from the external
+    track manifest without importing PyYAML."""
+    try:
+        text = open(path, encoding="utf-8").read()
+    except OSError:
+        return {}
+    out = {}
+    for key in ("version", "track", "adapter", "source_commit", "arm"):
+        m = re.search(rf"^{key}:\s*([^\s#]+)", text, re.MULTILINE)
+        if m:
+            out[key] = m.group(1)
+    return out
+
+
+def load_claims(protocol_path):    """Minimal reader for the numeric claim thresholds.
 
     The analyzer is stdlib-only, so it does not import PyYAML. The protocol is
     a small, stable file; these four values are the only ones the report
@@ -278,8 +292,13 @@ def main():
     # External validation track: official Exercism tests, custom adapter.
     aider = load_json(os.path.join(args.root, "aider", "report.json"))
     if aider:
+        track = load_external_manifest(os.path.join(os.path.dirname(args.protocol), "aider-polyglot.yaml"))
         lines.append("## External — Aider Polyglot (Python subset, custom adapter)")
         lines.append("")
+        if track:
+            lines.append(f"Track v{track.get('version', '?')} · `{track.get('source_commit', '?')[:12]}` · "
+                         f"{track.get('adapter', 'custom')} · arm `{track.get('arm', 'single')}`.")
+            lines.append("")
         lines.append(f"**{aider.get('passed', 0)}/{aider.get('n', 0)}** official Exercism exercises passed.")
         engine = [r for r in aider.get("results", []) if r.get("engine_accepted")]
         if any("engine_accepted" in r for r in aider.get("results", [])):

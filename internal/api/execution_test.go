@@ -17,6 +17,7 @@ func TestProjectExecutionPatch(t *testing.T) {
 
 	body := `{
 		"test_command": "go test ./...",
+		"solution_file": "raindrops.py",
 		"checks": {"required_sections": ["Overview"], "max_words": 120}
 	}`
 	req, err := http.NewRequest(http.MethodPatch,
@@ -40,6 +41,9 @@ func TestProjectExecutionPatch(t *testing.T) {
 	}
 	if got := p.TestCommand(); got != "go test ./..." {
 		t.Errorf("TestCommand() = %q, want go test ./...", got)
+	}
+	if p.Execution.SolutionFile != "raindrops.py" {
+		t.Errorf("solution_file = %q, want raindrops.py", p.Execution.SolutionFile)
 	}
 	if p.Execution.Checks == nil ||
 		len(p.Execution.Checks.RequiredSections) != 1 ||
