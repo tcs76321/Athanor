@@ -44,6 +44,7 @@ type soakRunConfig struct {
 	soakInterval time.Duration
 	killAfter    time.Duration
 	gates        bool
+	skipIndex    bool
 	ollamaURL    string
 	// judgeModel overrides personas.security.model so the deciding judge is a
 	// different family from the generator (F4 cross-family guard).
@@ -130,6 +131,7 @@ func runSoak(args []string) {
 	fs.DurationVar(&c.soakInterval, "soak-interval", 30*time.Second, "RSS/DB/disk sampling interval")
 	fs.DurationVar(&c.killAfter, "kill-after", 0, "kill -9 the daemon once after this elapsed time, then restart (0 = off)")
 	fs.BoolVar(&c.gates, "gates", false, "enable the F5 code acceptance gates")
+	fs.BoolVar(&c.skipIndex, "skip-index", false, "skip the repository index pass before each task")
 	fs.StringVar(&c.ollamaURL, "ollama", "http://localhost:11434", "Ollama base URL for the /api/ps residency check")
 	fs.StringVar(&c.judgeModel, "judge-model", "", "personas.security.model override (use a cross-family judge)")
 	fs.StringVar(&c.rolesCSV, "roles", "", "heterogeneous per-role models: main=tag,tall=tag,security=tag,alternative=tag,wide=tag (overrides -model per role)")
@@ -255,6 +257,7 @@ func (c *soakRunConfig) run() error {
 		outDir:    c.outDir,
 		timeout:   c.timeout,
 		ollamaURL: c.ollamaURL,
+		skipIndex: c.skipIndex,
 	}
 
 	var interrupted atomic.Bool

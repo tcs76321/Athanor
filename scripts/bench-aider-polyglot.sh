@@ -28,7 +28,7 @@ BENCH_OUT="$work" BENCH_CONFIG="$work/config.yaml" \
 	BENCH_OLLAMA="$ollama" ./scripts/bench-core.sh start
 BENCH_OUT="$work" BENCH_PROBE_OUT=/bench/out BENCH_OLLAMA="$ollama" \
 	./scripts/bench-core.sh probe -corpus "/bench/repo/.bench-aider/$run/corpus.yaml" \
-	-model "$model" -arm "$arm" -suite aider -passes 1 -hours "$hours" -timeout 10m
+	-model "$model" -arm "$arm" -suite aider -passes 1 -hours "$hours" -timeout 10m -skip-index
 BENCH_OUT="$work" ./scripts/bench-core.sh stop || true
 
 python3 tools/bench/aider_polyglot.py score \

@@ -41,6 +41,10 @@ type runnerConfig struct {
 	altModel   string
 	// gates enables the F5 code acceptance gates in the generated config.
 	gates bool
+	// skipIndex skips the project repository index pass. The external
+	// Exercism track does not need it for the task and a wedged indexer must
+	// not consume the per-task budget.
+	skipIndex bool
 	// dialecticalRuns overrides the dialectical arm's repetition (default 3).
 	// A cross-model panel runs 1 to bound wall time; the core generator keeps
 	// 3 for T-c stability.
@@ -88,6 +92,7 @@ func runMatrix(args []string) {
 	fs.StringVar(&r.judgeModel, "judge-model", "", "personas.security.model override (cross-family judge)")
 	fs.StringVar(&r.altModel, "alt-model", "", "personas.alternative.model override (multi-model generation)")
 	fs.BoolVar(&r.gates, "gates", false, "enable the F5 code acceptance gates (require_tests_for_code, require_documentation_for_code); default off to isolate the loop")
+	fs.BoolVar(&r.skipIndex, "skip-index", false, "skip the repository index pass before each task")
 	fs.IntVar(&r.dialecticalRuns, "dialectical-runs", 3, "repetitions of the dialectical arm (panel runs 1; the core generator keeps 3 for T-c)")
 	fs.StringVar(&r.corpusPath, "corpus", "", "path to eval/bench/tasks.yaml; when set, run the harder corpus instead of the locked sampleGoals (M8-T16)")
 	fs.BoolVar(&r.ablation, "ablation", false, "run the four-arm component ablation (single | bestof3 | reflect | full) instead of dialectical-vs-single (M8-T22)")
@@ -508,7 +513,7 @@ func (r *runnerConfig) runOne(g sampleGoal, m probeModel, a arm, run int, stateD
 
 	// M8-T19: index the repository before the goal so the job's Dormant Index
 	// is populated (best effort; a failure is a warning, not a job error).
-	if repoSource != "" {
+	if repoSource != "" && !r.skipIndex {
 		var isum indexSummary
 		if ierr := apiCall("POST", r.baseURL()+"/projects/"+pr.ID+"/index", map[string]any{}, &isum); ierr != nil {
 			fmt.Printf("  %-24s index warning: %v\n", g.Name, ierr)
