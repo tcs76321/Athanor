@@ -98,12 +98,7 @@ func (s *Scheduler) trackCycle(ctx context.Context, tasks []project.Task) {
 		slog.Error("scheduler: loading goal status for cycle", "goal", tasks[0].GoalID, "err", err)
 		return
 	}
-	if status == "decomposed" && stalledOnBlocked(tasks) {
-		// A cycle with a blocked leaf and no task able to make progress cannot
-		// finish until an operator resets it. Report that immediately instead
-		// of leaving the cycle "running" forever (the v5 utility stall).
-		status = "blocked"
-	}
+	status = cycleStatusFor(status, tasks)
 	if err := s.cycles.TrackGoal(ctx, tasks[0].CycleID, status); err != nil {
 		slog.Error("scheduler: tracking cycle state", "cycle", tasks[0].CycleID, "err", err)
 	}
@@ -126,6 +121,17 @@ func stalledOnBlocked(tasks []project.Task) bool {
 		}
 	}
 	return blocked
+}
+
+// cycleStatusFor maps a goal status onto the cycle status the tracker should
+// see. A goal can still report "running" while its graph is blocked-only (the
+// scheduler has no active task); that must surface as awaiting_review, not as
+// an eternal running cycle.
+func cycleStatusFor(status string, tasks []project.Task) string {
+	if (status == "decomposed" || status == "running") && stalledOnBlocked(tasks) {
+		return "blocked"
+	}
+	return status
 }
 
 // Start schedules the ready leaves of a goal and returns the new job IDs.

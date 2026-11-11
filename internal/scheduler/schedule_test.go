@@ -87,6 +87,31 @@ func TestBlockedPropagatesFromBlockedDep(t *testing.T) {
 	}
 }
 
+func TestCycleStatusForBlockedOnlyGraph(t *testing.T) {
+	blocked := project.Task{Status: project.TaskBlocked}
+	completed := project.Task{Status: project.TaskCompleted}
+	pending := project.Task{Status: project.TaskPending}
+	cases := []struct {
+		name   string
+		status string
+		tasks  []project.Task
+		want   string
+	}{
+		{"running blocked-only", "running", []project.Task{completed, blocked}, "blocked"},
+		{"decomposed blocked-only", "decomposed", []project.Task{completed, blocked}, "blocked"},
+		{"running with pending", "running", []project.Task{blocked, pending}, "running"},
+		{"running with only completed", "running", []project.Task{completed}, "running"},
+		{"failed passes through", "failed", []project.Task{blocked}, "failed"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := cycleStatusFor(c.status, c.tasks); got != c.want {
+				t.Errorf("cycleStatusFor(%q, %v) = %q, want %q", c.status, c.tasks, got, c.want)
+			}
+		})
+	}
+}
+
 func TestStalledOnBlockedOnlyWhenNoProgress(t *testing.T) {
 	cases := []struct {
 		name    string
