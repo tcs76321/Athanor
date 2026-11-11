@@ -218,7 +218,8 @@ the release-blocking gates.
   matching the strict markdown-heading parser (2026-11-11).
 - The news cycle carries a generic `no_repeat_ids_across_sections` guard, and
   the probe treats `awaiting_review` as a terminal blocked cycle rather than a
-  running stall (2026-11-11).
+  running stall (2026-11-11). The scheduler re-reads the task graph after
+  `advance` before tracking the cycle, so the blocked leaf is actually visible.
 - Source-agnostic research/fetch/extract contracts (URL or file name).
 - Cycle probe exports the **best candidate** when the engine rejects.
 - Cycle probe detects stalls instead of waiting out the timeout.
