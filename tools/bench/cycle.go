@@ -337,6 +337,10 @@ func applyTaskChecks(graph *workflow.Graph, taskChecks map[string]any) bool {
 				applied = true
 			}
 		}
+		if v, ok := taskChecks["must_not_contain"]; ok {
+			checks["forbidden_phrases"] = v
+			applied = true
+		}
 		if v, ok := taskChecks["max_words"]; ok {
 			checks["max_words"] = v
 			applied = true

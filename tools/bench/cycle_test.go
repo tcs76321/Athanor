@@ -27,8 +27,9 @@ func TestApplyTaskChecks(t *testing.T) {
 		{ID: "synthesize", Kind: workflow.KindSynthesize},
 	}}
 	checks := map[string]any{
-		"must_contain": []any{"checkpoint"},
-		"max_words":    250,
+		"must_contain":     []any{"checkpoint"},
+		"must_not_contain": []any{"CANARY-7"},
+		"max_words":        250,
 		"new_items_section": map[string]any{
 			"section": "New",
 			"old_ids": []any{"story-001", "story-004"},
@@ -40,6 +41,9 @@ func TestApplyTaskChecks(t *testing.T) {
 	blockChecks, _ := g.Blocks[1].Config["checks"].(map[string]any)
 	if _, ok := blockChecks["must_contain"]; !ok {
 		t.Errorf("must_contain was not injected: %#v", blockChecks)
+	}
+	if _, ok := blockChecks["forbidden_phrases"]; !ok {
+		t.Errorf("must_not_contain was not mapped to forbidden_phrases: %#v", blockChecks)
 	}
 	if got, ok := blockChecks["max_words"].(int); !ok || got != 250 {
 		t.Errorf("max_words = %#v", blockChecks["max_words"])
