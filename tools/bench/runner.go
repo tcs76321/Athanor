@@ -470,6 +470,9 @@ func (r *runnerConfig) runOne(g sampleGoal, m probeModel, a arm, run int, stateD
 			tc = "true"
 		}
 		exec["test_command"] = tc
+		if g.SolutionFile != "" {
+			exec["solution_file"] = g.SolutionFile
+		}
 		// ADR-0065: a bench code task with a starter tree passes its
 		// fixture_path (absolute, so the daemon reads it regardless of cwd).
 		if g.Fixture != "" {

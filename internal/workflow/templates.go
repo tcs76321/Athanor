@@ -19,7 +19,13 @@ func DailyBriefTemplate() Template {
 				{ID: "extract", Kind: KindExtract, Title: "Extract dated items"},
 				{ID: "condense", Kind: KindCondense, Title: "Condense the items"},
 				{ID: "synthesize", Kind: KindSynthesize, Title: "Write the brief",
-					Config: map[string]any{"instructions": "A short brief: what changed, why it matters, and the source for each point."}},
+					Config: map[string]any{
+						"instructions": "A short brief: what changed, why it matters, and the source for each point.",
+						"checks": map[string]any{
+							"required_sections": []string{"What changed", "Why it matters", "Sources"},
+							"max_words":         300,
+						},
+					}},
 				{ID: "verify", Kind: KindVerify, Title: "Check citations and criteria"},
 				{ID: "retain", Kind: KindRetain, Title: "Remember what was covered"},
 			},
@@ -96,7 +102,13 @@ func NewsTemplate() Template {
 				{ID: "condense", Kind: KindCondense, Title: "Dedupe and rank",
 					Config: map[string]any{"instructions": "Merge duplicate story ids across sources. Mark updates to an earlier story as updates, not new stories."}},
 				{ID: "synthesize", Kind: KindSynthesize, Title: "Write the brief",
-					Config: map[string]any{"instructions": "Use the headings New, Previously reported, and Sources. Cite the wire item id for every item. If there is nothing new, say so."}},
+					Config: map[string]any{
+						"instructions": "Use the headings New, Previously reported, and Sources. Cite the wire item id for every item. If there is nothing new, say so under New and do not repeat old ids there.",
+						"checks": map[string]any{
+							"required_sections": []string{"New", "Previously reported", "Sources"},
+							"max_words":         450,
+						},
+					}},
 				{ID: "verify", Kind: KindVerify, Title: "Check citations and coverage"},
 				{ID: "retain", Kind: KindRetain, Title: "Remember what was covered"},
 			},

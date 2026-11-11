@@ -406,6 +406,42 @@ func TestCompileInjectsLocalSourceText(t *testing.T) {
 	}
 }
 
+func TestCompileAttachesDeterministicBlockChecks(t *testing.T) {
+	g := Graph{
+		Blocks: []Block{
+			{ID: "synthesize", Kind: KindSynthesize, Config: map[string]any{
+				"checks": map[string]any{
+					"required_sections": []string{"New", "Sources"},
+					"max_words":         120,
+				},
+			}},
+			{ID: "verify", Kind: KindVerify},
+			{ID: "retain", Kind: KindRetain},
+		},
+		Edges: []Edge{
+			{From: "synthesize", To: "verify"},
+			{From: "synthesize", To: "retain"},
+		},
+	}
+	specs, err := Compile(g, CompileOptions{})
+	if err != nil {
+		t.Fatalf("Compile: %v", err)
+	}
+	byKey := map[string]project.TaskSpec{}
+	for _, s := range specs {
+		byKey[s.Key] = s
+	}
+	if c := byKey["synthesize"].Checks; c == nil || c.MaxWords != 120 || len(c.RequiredSections) != 2 {
+		t.Errorf("synthesize checks = %+v, want the declared config", c)
+	}
+	if c := byKey["verify"].Checks; c == nil || len(c.RequiredSections) != 2 {
+		t.Errorf("verify checks = %+v, want the structural default", c)
+	}
+	if c := byKey["retain"].Checks; c == nil || len(c.RequiredSections) != 3 {
+		t.Errorf("retain checks = %+v, want the structural default", c)
+	}
+}
+
 func TestCompileIsTopological(t *testing.T) {
 	g := Graph{
 		Blocks: []Block{

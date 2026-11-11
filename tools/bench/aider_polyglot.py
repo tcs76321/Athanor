@@ -71,6 +71,7 @@ def prepare(args):
       the tests or any other file. Return the full Python module.
     criteria: [all provided tests pass, tests unchanged]
     repo: {m['container_repo']}
+    solution_file: {m['solution']}
     test_command: |
       cd "$REPO" && python -m pytest -q
 """
@@ -123,12 +124,21 @@ def score(args):
         with open(args.artifacts, encoding="utf-8") as f:
             rows = json.load(f)
     by_goal = {r.get("goal_name"): r for r in rows}
+    engine_by_goal = {}
+    engine_path = os.path.join(args.work, "out", "results.json")
+    if os.path.exists(engine_path):
+        with open(engine_path, encoding="utf-8") as f:
+            for r in json.load(f):
+                engine_by_goal[r.get("goal_name")] = r
 
     results = []
     passed = 0
     for slug, m in meta.items():
         row = by_goal.get(f"aider-{slug}")
-        res = {"slug": slug, "pass": False}
+        engine = engine_by_goal.get(f"aider-{slug}", {})
+        res = {"slug": slug, "pass": False,
+               "engine_state": engine.get("state", ""),
+               "engine_accepted": bool(engine.get("engine_accepted", False))}
         if not row or not row.get("text"):
             res["reason"] = "no code artifact produced"
             results.append(res)
@@ -155,10 +165,10 @@ def score(args):
         json.dump(report, f, indent=2)
     lines = ["# Aider Polyglot — Python subset (custom Athanor adapter)", "",
              f"Passed **{passed}/{len(results)}**", "",
-             "| exercise | pass | exit | reason |", "|---|---|---|---|"]
+             "| exercise | pass | engine accepted | state | exit | reason |", "|---|---|---|---|---|---|"]
     for r in results:
         reason = r.get("reason", "; ".join(r.get("tests_tail", []))[:120])
-        lines.append(f"| {r['slug']} | {r['pass']} | {r.get('exit','')} | {reason} |")
+        lines.append(f"| {r['slug']} | {r['pass']} | {r.get('engine_accepted', '')} | {r.get('engine_state','')} | {r.get('exit','')} | {reason} |")
     lines += ["", "> Custom adapter over the official Exercism exercises. "
                   "The test outcome is external to Athanor. Not an official Aider leaderboard entry."]
     with open(args.out + ".md", "w", encoding="utf-8") as f:

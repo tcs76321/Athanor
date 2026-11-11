@@ -41,10 +41,12 @@ def main():
 
     lines = ["# Aider Polyglot — Python subset (custom Athanor adapter)", "",
              f"Passed **{passed}/{len(rows)}**", "",
-             "| exercise | pass | exit | reason |", "|---|---|---|---|"]
+             "| exercise | pass | engine accepted | state | exit | reason |",
+             "|---|---|---|---|---|---|"]
     for r in rows:
         reason = r.get("reason") or "; ".join(r.get("tests_tail", []))[:120]
-        lines.append(f"| {r['slug']} | {r['pass']} | {r.get('exit','')} | {reason} |")
+        lines.append(f"| {r['slug']} | {r['pass']} | {r.get('engine_accepted', '')} | "
+                     f"{r.get('engine_state','')} | {r.get('exit','')} | {reason} |")
     lines += ["", "> Custom adapter over the official Exercism exercises. "
                   "The test outcome is external to Athanor. Not an official Aider leaderboard entry."]
     with open(args.out + ".md", "w", encoding="utf-8") as f:

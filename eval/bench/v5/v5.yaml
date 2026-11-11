@@ -272,6 +272,70 @@ tasks:
       assert d=={"a":"1","b":"3"}, d
       assert solution.parse(solution.dump(d))==d'
 
+  - id: v5-ag-observe-repair
+    title: Repair a multi-file inventory bug from test output
+    suite: agency
+    archetype: code
+    tier: X
+    language: python
+    held_out: false
+    repo: eval/bench/v5/fixtures/ag-observe-repair-01
+    test_command: |
+      cd "$REPO" && python -m pytest -q
+    goal: |
+      The inventory package has failing tests. Run the tests, read the failure,
+      and fix the implementation without changing any file under tests/. Keep
+      the public Item and Inventory API stable. Two behaviors are wrong.
+    criteria: [tests pass, tests unchanged, public API stable]
+    requires: [run_tests, observe_failure, edit_multiple_files, repair]
+
+  - id: v5-ag-contract
+    title: Implement a multi-module wire format contract
+    suite: agency
+    archetype: code
+    tier: X
+    language: python
+    held_out: false
+    repo: eval/bench/v5/fixtures/ag-contract-01
+    test_command: |
+      cd "$REPO" && python -m pytest -q
+    goal: |
+      Implement wireformat/codec.py so encode(value) and decode(text) round-trip
+      nested dict/list/scalar JSON-like values, preserve unicode and embedded
+      quotes/newlines, and decode raises ValueError on malformed input. Do not
+      change the tests or the package __init__.
+    criteria: [round trip, unicode and escapes preserved, malformed input raises]
+    requires: [run_tests, edit_multiple_files, repair]
+
+  - id: v5-ag-long-horizon
+    title: Extend a parser across a two-step sequence
+    suite: agency
+    archetype: code
+    tier: X
+    held_out: false
+    goal: |
+      A two-step sequence in one project: implement a tiny parser, then extend
+      it with a serializer while preserving the first step's behavior.
+    steps:
+      - goal: |
+          Implement solution.py with parse(text) -> dict for "key=value" lines.
+          Blank lines and lines starting with # are ignored; duplicate keys keep
+          the last value. Keep it pure stdlib.
+        criteria: [parse ignores comments and blanks, last duplicate wins]
+        test_command: |
+          python -c 'import solution
+          d=solution.parse("# c\na=1\nb=2\na=3\n")
+          assert d=={"a":"3","b":"2"}, d'
+      - goal: |
+          Extend the existing solution.py with dump(data) -> text so
+          parse(dump(data)) == data. Preserve the parse behavior from step 1.
+        criteria: [dump round trips, parse behavior unchanged]
+        test_command: |
+          python -c 'import solution
+          d={"a":"3","b":"2"}
+          assert solution.parse(solution.dump(d))==d
+          assert solution.parse("# c\na=1\nb=2\na=3\n")==d'
+
   # ---------------- utility ----------------
   - id: v5-brief-local-first
     title: Brief from a local source
@@ -582,9 +646,14 @@ tasks:
         checks:
           required_sections: [Plan]
           must_contain: [pull sync]
+      - kind: correction
+        category: style
+        severity: medium
+        reason: The team standardized on "push sync" for this project.
+        desired: Use the term "push sync" and never "pull sync".
       - goal: |
-          Revise the plan. The correct term is "push sync", not "pull sync".
-          Use "push sync" everywhere and keep the note under 120 words.
+          Revise the plan. Keep it under 120 words and use the corrected sync
+          term from the project guidance.
         checks:
           required_sections: [Plan]
           must_contain: [push sync]

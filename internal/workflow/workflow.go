@@ -130,11 +130,11 @@ var contracts = map[Kind]contract{
 		Acceptance:  []string{"the exact command and its outcome are reported"},
 	},
 	KindVerify: {
-		Instruction: "Verify the upstream artifact against the acceptance criteria. Mark each criterion met, not met, or unverifiable, and cite the evidence.",
+		Instruction: "Verify the upstream artifact against the acceptance criteria. Use the headings Verdict and Evidence. Mark each criterion met, not met, or unverifiable, and cite the evidence.",
 		Acceptance:  []string{"every criterion is marked met, not met, or unverifiable"},
 	},
 	KindRetain: {
-		Instruction: "Record what was covered: the items seen, the sources used, and the date. This memory is what stops the next cycle repeating today's work.",
+		Instruction: "Record what was covered. Use the headings Covered, Sources, and Date. List the items seen and the sources used, and record the date. This memory is what stops the next cycle repeating today's work.",
 		Acceptance:  []string{"lists the items covered and the sources used", "records the date"},
 	},
 	KindReview: {
@@ -624,9 +624,46 @@ func Compile(g Graph, opts CompileOptions) ([]project.TaskSpec, error) {
 			Capability:   spec.Capability,
 			AllowedTools: append([]string(nil), spec.DefaultTools...),
 			CycleID:      opts.CycleID,
+			Checks:       blockChecks(b),
 		})
 	}
 	return out, nil
+}
+
+// blockChecks compiles a block's deterministic acceptance. A block may carry
+// an explicit `checks` map (same vocabulary as project execution checks);
+// otherwise the kind gets a structural default so an advisory judge cannot
+// wedge a cycle. Synthesize blocks are expected to declare their own headings
+// in the template; without one, the block falls back to non-empty structural
+// bounds.
+func blockChecks(b Block) *project.ExecutionChecks {
+	if raw, ok := b.Config["checks"]; ok && raw != nil {
+		data, err := json.Marshal(raw)
+		if err == nil {
+			var checks project.ExecutionChecks
+			if err := json.Unmarshal(data, &checks); err == nil && !checks.IsZero() {
+				return &checks
+			}
+		}
+	}
+	switch b.Kind {
+	case KindResearch, KindFetch, KindExtract, KindCondense:
+		return &project.ExecutionChecks{MinWords: 8, MaxWords: 4000}
+	case KindVerify:
+		return &project.ExecutionChecks{
+			RequiredSections: []string{"Verdict", "Evidence"},
+			MustContainAny:   []string{"met", "not met", "unverifiable"},
+			MinWords:         5,
+			MaxWords:         800,
+		}
+	case KindRetain:
+		return &project.ExecutionChecks{
+			RequiredSections: []string{"Covered", "Sources", "Date"},
+			MinWords:         5,
+			MaxWords:         800,
+		}
+	}
+	return nil
 }
 
 // description folds the block's contract, the operator's instructions, and the

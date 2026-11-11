@@ -27,6 +27,7 @@ type corpusTask struct {
 	Fixture       string         `yaml:"fixture"`
 	Repo          string         `yaml:"repo"`
 	TestCommand   string         `yaml:"test_command"`
+	SolutionFile  string         `yaml:"solution_file"`
 	Checks        map[string]any `yaml:"checks"`
 	HeldOut       bool           `yaml:"held_out"`
 	ContextDemand string         `yaml:"context_demand"`
@@ -55,10 +56,15 @@ type corpusTask struct {
 // goal, criteria, and the deterministic check (test command or declared
 // checks).
 type corpusStep struct {
+	Kind        string         `yaml:"kind"`
 	Goal        string         `yaml:"goal"`
 	Criteria    []string       `yaml:"criteria"`
 	TestCommand string         `yaml:"test_command"`
 	Checks      map[string]any `yaml:"checks"`
+	Category    string         `yaml:"category"`
+	Severity    string         `yaml:"severity"`
+	Reason      string         `yaml:"reason"`
+	Desired     string         `yaml:"desired"`
 }
 
 // indexSummary mirrors the daemon's IndexSummary JSON (M8-T19).
@@ -168,6 +174,7 @@ func loadCorpus(path string) ([]sampleGoal, error) {
 			Fixture:         t.Fixture,
 			Repo:            t.Repo,
 			TestCommand:     t.TestCommand,
+			SolutionFile:    t.SolutionFile,
 			Checks:          t.Checks,
 			HeldOut:         t.HeldOut,
 			ContextDemand:   t.ContextDemand,

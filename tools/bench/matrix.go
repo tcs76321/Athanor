@@ -18,6 +18,10 @@ type sampleGoal struct {
 	// candidate is materialized to /tmp/solution.py (F4-T0). It imports the
 	// module and asserts the goal's contract. Empty for non-code goals.
 	TestCommand string
+	// SolutionFile is the relative filename a single-file code candidate is
+	// staged under (e.g. `raindrops.py`). Empty lets the engine infer it from
+	// the test command.
+	SolutionFile string
 	// Fixture is the bench task's starter repo/files path (M8-T16, ADR-0061);
 	// empty for the locked M3-T7 set and for tasks with no fixture.
 	Fixture string
@@ -61,10 +65,15 @@ type sampleGoal struct {
 
 // sampleStep is one goal in a multi-step task.
 type sampleStep struct {
+	Kind        string
 	Goal        string
 	Criteria    []string
 	TestCommand string
 	Checks      map[string]any
+	Category    string
+	Severity    string
+	Reason      string
+	Desired     string
 }
 
 // sampleGoals is the 10-goal set: M1-T8's five then M3-T2's five, with no

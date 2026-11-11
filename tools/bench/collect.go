@@ -130,17 +130,20 @@ type jobMetrics struct {
 
 // sequenceStep is one goal's checkpoint outcome in a multi-step task.
 type sequenceStep struct {
-	Index       int      `json:"index"`
-	Goal        string   `json:"goal"`
-	JobID       string   `json:"job_id,omitempty"`
-	State       string   `json:"state"`
-	ArtifactID  string   `json:"artifact_id,omitempty"`
-	Pass        bool     `json:"pass"`
-	CheckPass   *bool    `json:"check_pass,omitempty"`
-	CheckFailed []string `json:"check_failures,omitempty"`
-	Tokens      int      `json:"tokens,omitempty"`
-	WallMS      int      `json:"wall_ms,omitempty"`
-	Error       string   `json:"error,omitempty"`
+	Index              int      `json:"index"`
+	Kind               string   `json:"kind,omitempty"`
+	Goal               string   `json:"goal"`
+	JobID              string   `json:"job_id,omitempty"`
+	State              string   `json:"state"`
+	ArtifactID         string   `json:"artifact_id,omitempty"`
+	Pass               bool     `json:"pass"`
+	CheckPass          *bool    `json:"check_pass,omitempty"`
+	CheckFailed        []string `json:"check_failures,omitempty"`
+	CorrectionID       string   `json:"correction_id,omitempty"`
+	CorrectionInjected *bool    `json:"correction_injected,omitempty"`
+	Tokens             int      `json:"tokens,omitempty"`
+	WallMS             int      `json:"wall_ms,omitempty"`
+	Error              string   `json:"error,omitempty"`
 }
 
 // benchLabelVersion marks rows collected under the ADR-0092 label rules.

@@ -190,6 +190,8 @@ func main() {
 		runQuality(os.Args[2:])
 	case "quality-report":
 		runQualityReport(os.Args[2:])
+	case "quality-pairwise":
+		runQualityPairwise(os.Args[2:])
 	case "verify-models":
 		runVerifyModels(os.Args[2:])
 	default:

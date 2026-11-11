@@ -22,7 +22,31 @@ func (r *runnerConfig) runSequence(g sampleGoal, projectID, stateDir string, mx 
 
 	passed := 0
 	var aggregate *jobTelemetry
+	pendingCorrection := ""
+	taskTotal := 0
+	for _, step := range steps {
+		if step.Kind == "" || step.Kind == "task" {
+			taskTotal++
+		}
+	}
 	for i, step := range steps {
+		if step.Kind == "correction" {
+			if projectID == "" {
+				mx.Error = fmt.Sprintf("step %d correction: no project yet", i+1)
+				break
+			}
+			id, cerr := postSequenceCorrection(r.baseURL(), projectID, step)
+			if cerr != nil {
+				mx.Error = fmt.Sprintf("step %d correction: %v", i+1, cerr)
+				break
+			}
+			pendingCorrection = id
+			mx.Sequence = append(mx.Sequence, sequenceStep{
+				Index: i + 1, Kind: "correction", Goal: step.Desired,
+				CorrectionID: id, Pass: true,
+			})
+			continue
+		}
 		exec := map[string]any{
 			"test_command": step.TestCommand,
 			"checks":       checksToExecution(step.Checks),
@@ -59,7 +83,7 @@ func (r *runnerConfig) runSequence(g sampleGoal, projectID, stateDir string, mx 
 		}
 
 		sr := sequenceStep{
-			Index: i + 1, Goal: step.Goal, JobID: jobIDs[0],
+			Index: i + 1, Kind: "task", Goal: step.Goal, JobID: jobIDs[0],
 			State: state, ArtifactID: artifactID,
 		}
 		stepPass := state == "completed"
@@ -99,6 +123,15 @@ func (r *runnerConfig) runSequence(g sampleGoal, projectID, stateDir string, mx 
 			stepPass = state == "completed" && ok
 			mx.CheckPass = &ok
 		}
+		if pendingCorrection != "" {
+			injected := correctionInjected(db, jobIDs[0], pendingCorrection)
+			sr.CorrectionInjected = &injected
+			pendingCorrection = ""
+			if !injected {
+				stepPass = false
+				sr.CheckFailed = append(sr.CheckFailed, "correction_not_injected")
+			}
+		}
 		sr.Pass = stepPass
 		mx.State, mx.ArtifactID, mx.ArtifactText = state, scoredID, text
 		if stepPass {
@@ -121,8 +154,8 @@ func (r *runnerConfig) runSequence(g sampleGoal, projectID, stateDir string, mx 
 	}
 	mx.Telemetry = aggregate
 	mx.Progress = 0
-	if len(steps) > 0 {
-		mx.Progress = float64(passed) / float64(len(steps))
+	if taskTotal > 0 {
+		mx.Progress = float64(passed) / float64(taskTotal)
 	}
 	mx.EngineAccepted = mx.State == "completed" && mx.Winner == "new"
 }
@@ -203,4 +236,32 @@ func mergeIntMap(dst, src map[string]int) map[string]int {
 		dst[k] += v
 	}
 	return dst
+}
+
+// postSequenceCorrection records an operator correction between two task steps.
+// The next job must show it in the corrections_injected audit event; that is
+// the memory signal the sequence scores.
+func postSequenceCorrection(baseURL, projectID string, step sampleStep) (string, error) {
+	var out struct {
+		ID string `json:"id"`
+	}
+	category := step.Category
+	if category == "" {
+		category = "style"
+	}
+	severity := step.Severity
+	if severity == "" {
+		severity = "medium"
+	}
+	body := map[string]any{
+		"source": "user_correction", "category": category, "severity": severity,
+		"reason": step.Reason, "desired_behavior": step.Desired, "scope": "project",
+	}
+	if err := apiCall("POST", baseURL+"/projects/"+projectID+"/corrections", body, &out); err != nil {
+		return "", err
+	}
+	if out.ID == "" {
+		return "", fmt.Errorf("correction returned no id")
+	}
+	return out.ID, nil
 }

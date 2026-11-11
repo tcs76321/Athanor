@@ -96,6 +96,18 @@ for arm in single full; do
 	fi
 done
 
+# Pairwise quality is the v5 claim instrument. The pointwise scores above are
+# retained only as reference.
+single_arts="$dir/soak/quality/single/out/artifacts.json"
+full_arts="$dir/soak/quality/full/out/artifacts.json"
+if [ -f "$single_arts" ] && [ -f "$full_arts" ] && [ ! -f "$dir/quality-pairwise.json" ]; then
+	CGO_ENABLED=1 go run -tags sqlite_fts5 ./tools/bench quality-pairwise \
+		-single "$single_arts" -full "$full_arts" -corpus "$corpus" \
+		-judges "granite4.2:8b,mimo-v2.6:9b-mxfp8" \
+		-ollama http://localhost:11434 \
+		-out "$dir/quality-pairwise.json" || true
+fi
+
 # External validation track: official Exercism tests, custom Athanor adapter.
 # Kept separate from the frozen claim suites; the report names the track version.
 # The external track uses the single arm: it is the affordable, comparable shape

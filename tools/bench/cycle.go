@@ -377,8 +377,9 @@ func bestArtifact(db *sql.DB, stateDir, projectID, goalID, title string) (string
 	var err error
 	if title != "" {
 		err = db.QueryRow(`SELECT a.id, a.status FROM artifacts a JOIN tasks t ON a.task_id = t.id
-			WHERE t.goal_id = ? AND t.title = ? AND a.kind = 'document' AND a.status = 'accepted'
-			ORDER BY a.created_at DESC, a.id ASC LIMIT 1`, goalID, title).Scan(&id, &status)
+			WHERE t.goal_id = ? AND t.title = ? AND a.kind IN ('document','proposal')
+			ORDER BY CASE a.status WHEN 'accepted' THEN 0 WHEN 'candidate' THEN 1 ELSE 2 END,
+			         a.created_at DESC, a.id ASC LIMIT 1`, goalID, title).Scan(&id, &status)
 	}
 	if title == "" || err == sql.ErrNoRows {
 		err = db.QueryRow(`SELECT a.id, a.status FROM artifacts a JOIN tasks t ON a.task_id = t.id
