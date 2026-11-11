@@ -371,28 +371,26 @@ func TestNewsTemplateStatesUpdateContract(t *testing.T) {
 			t.Errorf("synthesize update contract missing %q: %q", want, synth)
 		}
 	}
-	specs, err := Compile(tpl.Graph, CompileOptions{})
+	// The generic no_repeat_ids_across_sections verifier is available, but the
+	// default news template does not use it: without the task's known old-id
+	// list it rejects a valid update that references the new id under both
+	// sections. The probe's new_items_section check is the precise label.
+	for _, s := range mustCompile(t, tpl.Graph) {
+		if s.Key == "synthesize" && s.Checks != nil &&
+			len(s.Checks.NoRepeatIDsAcrossSections) > 0 {
+			t.Errorf("news synthesize must not carry the generic overlap rule: %+v",
+				s.Checks.NoRepeatIDsAcrossSections)
+		}
+	}
+}
+
+func mustCompile(t *testing.T, g Graph) []project.TaskSpec {
+	t.Helper()
+	specs, err := Compile(g, CompileOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	found := false
-	for _, s := range specs {
-		if s.Key != "synthesize" {
-			continue
-		}
-		if s.Checks == nil || len(s.Checks.NoRepeatIDsAcrossSections) != 1 {
-			t.Errorf("synthesize checks = %+v, want the id rule", s.Checks)
-			continue
-		}
-		rule := s.Checks.NoRepeatIDsAcrossSections[0]
-		if rule.New != "New" || rule.Old != "Previously reported" || rule.Pattern == "" {
-			t.Errorf("id rule = %+v", rule)
-		}
-		found = true
-	}
-	if !found {
-		t.Fatal("compiled graph has no synthesize task")
-	}
+	return specs
 }
 
 func TestCompileFoldsSourcesIntoResearchAndFetch(t *testing.T) {

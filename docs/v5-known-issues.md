@@ -216,8 +216,12 @@ the release-blocking gates.
   so one-shot briefs see the same text as cycle tasks.
 - Required sections are rendered as `# Heading` in the declared-checks prompt,
   matching the strict markdown-heading parser (2026-11-11).
-- The news cycle carries a generic `no_repeat_ids_across_sections` guard, and
-  the probe treats `awaiting_review` as a terminal blocked cycle rather than a
+- The verifier supports a generic `no_repeat_ids_across_sections` rule
+  (2026-11-11), but the default news template does not use it: without the
+  task's known old-id list it rejects a valid update that references the new id
+  under both sections. The probe's `new_items_section` check remains the precise
+  label; wiring the known old ids into the cycle is the follow-up.
+- The probe treats `awaiting_review` as a terminal blocked cycle rather than a
   running stall (2026-11-11). The scheduler re-reads the task graph after
   `advance` before tracking the cycle, so the blocked leaf is actually visible.
 - Source-agnostic research/fetch/extract contracts (URL or file name).

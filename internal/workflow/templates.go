@@ -107,9 +107,6 @@ func NewsTemplate() Template {
 						"checks": map[string]any{
 							"required_sections": []string{"New", "Previously reported", "Sources"},
 							"max_words":         450,
-							"no_repeat_ids_across_sections": []map[string]any{
-								{"new": "New", "old": "Previously reported", "pattern": `story-[0-9]{3}`},
-							},
 						},
 					}},
 				{ID: "verify", Kind: KindVerify, Title: "Check citations and coverage"},
