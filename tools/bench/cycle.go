@@ -149,17 +149,17 @@ func runOneCycle(client *http.Client, base string, c *cycleConfig, name, goal st
 	if err != nil {
 		return res, fmt.Errorf("create cycle: %w", err)
 	}
-	// The task's declared old ids are the only precise old-id list. Inject them
-	// into the draft synthesize block so the engine can reject an old id placed
-	// under New. Without this the engine has only the generic overlap rule,
-	// which cannot tell a new id from an old one.
-	if section, ids := oldIDsFromChecks(checks); len(ids) > 0 {
+	// The task's declared checks are narrower than the template's structural
+	// defaults. Inject the supported ones (must_contain, max_words, the known
+	// old ids) into the draft synthesize block so the engine can reject and
+	// repair a candidate the external scorer would fail.
+	if len(checks) > 0 {
 		graph, gerr := fetchCycleGraph(client, base, cycleID)
 		if gerr != nil {
 			return res, fmt.Errorf("read draft graph: %w", gerr)
 		}
-		if !applyTaskChecks(&graph, section, ids) {
-			return res, fmt.Errorf("cycle template %q has no synthesize block for the old-id rule", template)
+		if !applyTaskChecks(&graph, checks) {
+			return res, fmt.Errorf("cycle template %q has no synthesize block for the task checks", template)
 		}
 		if serr := saveCycleGraph(client, base, cycleID, graph); serr != nil {
 			return res, fmt.Errorf("save draft graph: %w", serr)
@@ -309,13 +309,16 @@ func oldIDsFromChecks(checks map[string]any) (string, []string) {
 	return section, ids
 }
 
-// applyTaskChecks injects the precise old-id rule into the first synthesize
-// block of a draft cycle graph. It returns false when the graph has no
-// synthesize block, which is a template/probe mismatch.
-func applyTaskChecks(graph *workflow.Graph, section string, ids []string) bool {
-	if len(ids) == 0 {
+// applyTaskChecks injects the task's supported deterministic checks into the
+// first synthesize block of a draft cycle graph. The template carries the
+// structural defaults; the corpus task carries the precise ones (must_contain,
+// max_words, and the known old ids). Returns false when nothing was applied or
+// the graph has no synthesize block, which is a template/probe mismatch.
+func applyTaskChecks(graph *workflow.Graph, taskChecks map[string]any) bool {
+	if len(taskChecks) == 0 {
 		return false
 	}
+	applied := false
 	for i := range graph.Blocks {
 		if graph.Blocks[i].Kind != workflow.KindSynthesize {
 			continue
@@ -328,12 +331,26 @@ func applyTaskChecks(graph *workflow.Graph, section string, ids []string) bool {
 		if checks == nil {
 			checks = map[string]any{}
 		}
-		checks["forbidden_ids_in_sections"] = []map[string]any{
-			{"section": section, "ids": ids},
+		for _, key := range []string{"required_sections", "must_contain", "must_contain_any", "forbidden_phrases"} {
+			if v, ok := taskChecks[key]; ok {
+				checks[key] = v
+				applied = true
+			}
+		}
+		if v, ok := taskChecks["max_words"]; ok {
+			checks["max_words"] = v
+			applied = true
+		}
+		section, ids := oldIDsFromChecks(taskChecks)
+		if len(ids) > 0 {
+			checks["forbidden_ids_in_sections"] = []map[string]any{
+				{"section": section, "ids": ids},
+			}
+			applied = true
 		}
 		cfg["checks"] = checks
 		graph.Blocks[i].Config = cfg
-		return true
+		return applied
 	}
 	return false
 }
