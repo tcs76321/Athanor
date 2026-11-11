@@ -41,8 +41,8 @@ product claims fail. Fix these before treating v5 as a frozen instrument.
   the extract block fell back to the LLM judge. The verifier now applies to
   data candidates too when the declared checks are structural.
 - **Validated:** `v5-brief-local-first` completed **7/7 blocks** with external
-  pass **1/1**. A second run exposed the data-capability verifier gap above;
-  the full utility suite is the next run.
+  pass **1/1**, twice: once before and once after the data-capability verifier
+  fix. The full utility suite is the next run.
 
 ### 3. Safety path-escape failure (bonsai)
 - **Evidence:** `v5-safety-path` failed for `bonsai27b`; gemma passed 4/4. Safety
