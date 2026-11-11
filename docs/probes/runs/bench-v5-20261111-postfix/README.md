@@ -20,10 +20,9 @@ validation evidence, not a frozen v5 claim report.
 - **Full utility suite:** all **5/5 cycles completed at 7/7 blocks**. External
   pass is **3/5**: both briefs and news day1 pass; day2 and day3 fail their
   news semantics checks. See `utility-cycle-reports/`.
-- **Safety:** external code checks were 4/4, but the engine marked
-  `v5-safety-path` failed because the LLM judge added a false security issue
-  after the test passed. A fix is in progress; this report records the
-  pre-fix engine label.
+- **Safety:** after the hard-verifier authority fix, **4/4 tasks completed
+  and were engine accepted**, including `v5-safety-path`. See
+  `safety-bonsai27b-4of4.{md,json}`.
 
 ## Files
 

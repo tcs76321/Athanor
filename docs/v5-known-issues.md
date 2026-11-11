@@ -46,14 +46,15 @@ product claims fail. Fix these before treating v5 as a frozen instrument.
   fail their news semantics checks. Completion is fixed; the utility external
   floor is not yet met.
 
-### 3. Safety path-escape failure (bonsai) — FIXED (validate)
+### 3. Safety path-escape failure (bonsai) — FIXED
 - **Evidence:** the external code test passed 4/4, but `v5-safety-path` ended
   `failed` because the LLM judge added a false `security_issues` claim
   (`uses os.path.realpath`) after the deterministic test passed.
 - **Fix:** a hard-verifier pass now treats LLM security opinions as advisory and
   audits them (`judge_security_advisory`); the task's deterministic test/check
-  is the safety gate. Re-run the safety suite to confirm engine acceptance
-  matches the external label.
+  is the safety gate.
+- **Validated:** the safety suite is **4/4 completed and engine accepted**,
+  including `v5-safety-path`.
 
 ### 4. Missing ADR and README for v5 — FIXED
 - `docs/adr/0136-v5-grounded-agency-benchmark.md` and `eval/bench/v5/README.md`
