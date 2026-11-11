@@ -645,8 +645,8 @@ tasks:
           Write a short note with a Plan section. Use the term "pull sync" for
           the sync method and at most 120 words.
         checks:
-          required_sections: [Plan]
-          must_contain: [pull sync]
+          must_contain: [Plan, pull sync]
+          max_words: 120
       - kind: correction
         category: style
         severity: medium
@@ -656,9 +656,9 @@ tasks:
           Revise the plan. Keep it under 120 words and use the corrected sync
           term from the project guidance.
         checks:
-          required_sections: [Plan]
-          must_contain: [push sync]
+          must_contain: [Plan, push sync]
           must_not_contain: [pull sync]
+          max_words: 120
 
   - id: v5-memory-insight
     title: Apply an earlier insight

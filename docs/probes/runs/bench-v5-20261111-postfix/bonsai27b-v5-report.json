@@ -100,6 +100,7 @@
     "utility": false,
     "utility_external": false,
     "utility_completion": false,
+    "quality": false,
     "external_grounded": {
       "passed": 4,
       "n": 8,
@@ -111,6 +112,181 @@
     "quality_min_agreement": 0.6,
     "quality_min_win_rate": 0.6,
     "noninferiority_margin_points": 10.0
+  },
+  "quality": {
+    "generators": [
+      "bonsai27b"
+    ],
+    "judges": [
+      "granite4.2:8b",
+      "mimo-v2.6:9b-mxfp8"
+    ],
+    "pairs": [
+      {
+        "goal": "v5-quality-incident",
+        "run": 1,
+        "votes": [
+          {
+            "goal": "v5-quality-incident",
+            "run": 1,
+            "judge": "granite4.2:8b",
+            "forward": "single",
+            "reverse": "full",
+            "winner": "inconsistent"
+          },
+          {
+            "goal": "v5-quality-incident",
+            "run": 1,
+            "judge": "mimo-v2.6:9b-mxfp8",
+            "forward": "single",
+            "reverse": "single",
+            "winner": "single"
+          }
+        ],
+        "winner": "single"
+      },
+      {
+        "goal": "v5-quality-migration",
+        "run": 1,
+        "votes": [
+          {
+            "goal": "v5-quality-migration",
+            "run": 1,
+            "judge": "granite4.2:8b",
+            "forward": "single",
+            "reverse": "full",
+            "winner": "inconsistent"
+          },
+          {
+            "goal": "v5-quality-migration",
+            "run": 1,
+            "judge": "mimo-v2.6:9b-mxfp8",
+            "forward": "full",
+            "reverse": "full",
+            "winner": "full"
+          }
+        ],
+        "winner": "full"
+      },
+      {
+        "goal": "v5-quality-refactor",
+        "run": 1,
+        "votes": [
+          {
+            "goal": "v5-quality-refactor",
+            "run": 1,
+            "judge": "granite4.2:8b",
+            "forward": "single",
+            "reverse": "full",
+            "winner": "inconsistent"
+          },
+          {
+            "goal": "v5-quality-refactor",
+            "run": 1,
+            "judge": "mimo-v2.6:9b-mxfp8",
+            "forward": "tie",
+            "reverse": "full",
+            "winner": "full"
+          }
+        ],
+        "winner": "full"
+      },
+      {
+        "goal": "v5-quality-rfc",
+        "run": 1,
+        "votes": [
+          {
+            "goal": "v5-quality-rfc",
+            "run": 1,
+            "judge": "granite4.2:8b",
+            "forward": "single",
+            "reverse": "full",
+            "winner": "inconsistent"
+          },
+          {
+            "goal": "v5-quality-rfc",
+            "run": 1,
+            "judge": "mimo-v2.6:9b-mxfp8",
+            "forward": "full",
+            "reverse": "full",
+            "winner": "full"
+          }
+        ],
+        "winner": "full"
+      },
+      {
+        "goal": "v5-quality-spec",
+        "run": 1,
+        "votes": [
+          {
+            "goal": "v5-quality-spec",
+            "run": 1,
+            "judge": "granite4.2:8b",
+            "forward": "single",
+            "reverse": "full",
+            "winner": "inconsistent"
+          },
+          {
+            "goal": "v5-quality-spec",
+            "run": 1,
+            "judge": "mimo-v2.6:9b-mxfp8",
+            "forward": "single",
+            "reverse": "full",
+            "winner": "inconsistent"
+          }
+        ],
+        "winner": "tie"
+      }
+    ],
+    "tasks": [
+      {
+        "goal": "v5-quality-incident",
+        "pairs": 1,
+        "single_wins": 1,
+        "full_wins": 0,
+        "ties": 0,
+        "inconsistent": 0
+      },
+      {
+        "goal": "v5-quality-migration",
+        "pairs": 1,
+        "single_wins": 0,
+        "full_wins": 1,
+        "ties": 0,
+        "inconsistent": 0
+      },
+      {
+        "goal": "v5-quality-refactor",
+        "pairs": 1,
+        "single_wins": 0,
+        "full_wins": 1,
+        "ties": 0,
+        "inconsistent": 0
+      },
+      {
+        "goal": "v5-quality-rfc",
+        "pairs": 1,
+        "single_wins": 0,
+        "full_wins": 1,
+        "ties": 0,
+        "inconsistent": 0
+      },
+      {
+        "goal": "v5-quality-spec",
+        "pairs": 1,
+        "single_wins": 0,
+        "full_wins": 0,
+        "ties": 1,
+        "inconsistent": 0
+      }
+    ],
+    "single_wins": 1,
+    "full_wins": 3,
+    "ties": 1,
+    "decisive": 4,
+    "win_rate": 0.75,
+    "agreement": 0,
+    "self_consistency": 0.3
   },
   "external": {
     "adapter": "athanor-aider-polyglot-python-subset",

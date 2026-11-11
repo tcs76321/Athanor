@@ -32,4 +32,4 @@ d590a281f1151cfb4229d2865a10d68dcba719b9f95af5a9b021df88d4df52c2  eval/bench/v5/
 24364ea1332b20f0b326e629182d987f01bd5c8c3f64b16b7f1e75bbb0a4b2ff  eval/bench/v5/fixtures/sources-local-first/sources/local-first.md
 42ea06b2fe2acabbc8cf017e428ccd0d3f9a05bed305176f7dda820a1d78bbcf  eval/bench/v5/fixtures/sources-wal/sources/wal.md
 ad905f4a14b886084fc1a7192b85c1c83d5151ee826c23d6df32a151ac389557  eval/bench/v5/protocol.yaml
-ee7738d9dbf7c3a0603922a5c2c2a893c25ec05191ecf664e68d1a57d75e463b  eval/bench/v5/v5.yaml
+5224b72b4fdc4fe93eb0bd5967ba1849fde542b38d25e1112391ac151838964d  eval/bench/v5/v5.yaml

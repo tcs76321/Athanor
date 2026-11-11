@@ -18,7 +18,8 @@ product claims fail. Fix these before treating v5 as a frozen instrument.
   was not on the project execution wire shape, so it was never persisted.
 - **Evidence:** after fixing `solution_file` staging + API persistence, the
   one-shot 8-exercise rerun was **4/8 external and exactly 4/8 engine
-  accepted** — row-for-row convergence. The earlier 8/8 exploratory run used
+  accepted** for bonsai, and **1/8 external and exactly 1/8 engine accepted**
+  for gemma — row-for-row convergence. The earlier 8/8 exploratory run used
   scheduler retries and is a different measurement shape.
 - **Also fixed:** a passing hard verifier no longer loses to the judge's
   advisory `missing_criteria`, and the pod exports `REPO=/tmp/work` for test
@@ -78,15 +79,17 @@ product claims fail. Fix these before treating v5 as a frozen instrument.
 
 ## P1 — validity and measurement
 
-### 7. Quality judges disagree; quality is not established — INSTRUMENTED
+### 7. Quality judges disagree; quality is not established — NOT ESTABLISHED
 - **Evidence:** the pre-fix pointwise rubric gave bonsai −0.667/−0.490 and
   gemma 0.544/−0.500.
 - **Fix:** `tools/bench quality-pairwise` now runs blind A/B in both orders
   with granite and mimo, reports inter-judge agreement, self-consistency, and a
   full-vs-single win rate, and the analyzer reads those fields and the protocol
   floors. The old pointwise scores are reference only.
-- **Remaining:** run pairwise on fresh full/single artifacts and report the
-  claim. Do not use the pointwise rubric as evidence.
+- **Remaining:** pairwise was run on the existing quality artifacts: full win
+  rate 0.75, but inter-judge agreement **0.00** and self-consistency 0.30. The
+  quality claim is **not established**. The old pointwise scores are reference
+  only.
 
 ### 8. Agency suite is saturated — HARDENED
 - **Evidence:** the pre-fix suite was 100% on both arms/generators with two
@@ -96,13 +99,15 @@ product claims fail. Fix these before treating v5 as a frozen instrument.
   suite is only evidence if it now discriminates; a 100% rerun is reported as
   saturated.
 
-### 9. Memory correction sequence fails — INSTRUMENTED
+### 9. Memory correction sequence fails — FIXED
 - **Evidence:** the pre-fix two-step sequence failed at the first step.
 - **Fix:** the sequence runner now supports a `correction` step, posts it
   through the project corrections API, and requires the next job's
   `corrections_injected` event. The v5 correction task no longer restates the
   corrected term in step 2, so the later artifact must use the injected
-  guidance. Re-run the memory suite to validate.
+  guidance.
+- **Validated:** both memory sequences pass; the correction sequence records
+  `correction_injected: true` on the second task.
 
 ### 10. News day2/day3 semantics — TEMPLATE HARDENED
 - **Evidence:** day1 external pass; day2/day3 failed their new/old/no-op checks.

@@ -9,10 +9,11 @@ validation evidence, not a frozen v5 claim report.
 
 ## Results
 
-- **Aider/Exercism single arm: 4/8** external passes, and **engine accepted
-  exactly the same 4/8**. This is the important result: the engine's test path
-  and the external scorer now agree row-for-row. The earlier 8/8 came from a
-  different shape with scheduler retries; these 8 exercises are one-shot.
+- **Aider/Exercism single arm: 4/8** external passes for bonsai, **1/8** for
+  gemma. In both cases the engine accepted exactly the same rows. This is the
+  important result: the engine's test path and the external scorer now agree
+  row-for-row. The earlier bonsai 8/8 came from a different shape with
+  scheduler retries; these runs are one-shot.
 - **Cycle brief (`v5-brief-local-first`): 1/1 external pass, 7/7 blocks,
   cycle completed.** The previous cycle stalled at 5–6/7. A second confirming
   run after the data-capability verifier fix also completed 7/7; see
@@ -25,6 +26,13 @@ validation evidence, not a frozen v5 claim report.
 - **Safety:** after the hard-verifier authority fix, **4/4 tasks completed
   and were engine accepted**, including `v5-safety-path`. See
   `safety-bonsai27b-4of4.{md,json}`.
+- **Quality:** pairwise judging was run on the existing quality artifacts:
+  full win rate 0.75, but inter-judge agreement **0.00** and forward/reverse
+  self-consistency 0.30. The quality claim is **not established**. See
+  `quality-pairwise-bonsai27b.json`.
+- **Memory:** both sequences pass. The correction sequence records
+  `correction_injected: true` on the second task. See
+  `memory-bonsai27b-2of2.{md,json}`.
 
 ## Files
 

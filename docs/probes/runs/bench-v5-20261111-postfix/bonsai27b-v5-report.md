@@ -57,6 +57,15 @@ Cycle mechanism: engine accept 40%, complete 0%. Completion is a separate gate, 
 - **Utility external pass ≥90%**: NOT ESTABLISHED (60%)
 - **Cycle completion 100%**: NOT ESTABLISHED (0%)
 
+## Quality — blind pairwise (full vs single)
+
+- Judges: granite4.2:8b, mimo-v2.6:9b-mxfp8
+- Pairs: 5; full wins 3, single wins 1, ties 1
+- Full win rate: 0.75 (floor 0.60)
+- Inter-judge agreement: 0.00 (floor 0.60)
+- Forward/reverse self-consistency: 0.30
+- **Quality claim**: NOT ESTABLISHED
+
 ## External — Aider Polyglot (Python subset, custom adapter)
 
 Track v1 · `479f11b44b02` · athanor-custom · arm `single`.
