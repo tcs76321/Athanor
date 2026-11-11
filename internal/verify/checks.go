@@ -24,7 +24,7 @@ import (
 type checksVerifier struct{}
 
 func (checksVerifier) Capabilities() []string {
-	return []string{project.ArchetypeText, project.ArchetypeDocument}
+	return []string{project.ArchetypeText, project.ArchetypeDocument, project.ArchetypeData}
 }
 func (checksVerifier) Name() string { return "checks" }
 

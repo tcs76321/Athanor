@@ -11,7 +11,7 @@ product claims fail. Fix these before treating v5 as a frozen instrument.
 
 ## P0 — blocks a credible v5 claim or freeze
 
-### 1. Engine repo-test/acceptance is mis-wired for external repo tasks — FIXED (validate)
+### 1. Engine repo-test/acceptance is mis-wired for external repo tasks — FIXED
 - **Cause:** the engine staged a single-file candidate as `solution.py` unless
   it could infer the module name from the test command, while the Exercism
   tests import `two_fer`, `raindrops`, etc. The task's declared solution file
@@ -36,8 +36,13 @@ product claims fail. Fix these before treating v5 as a frozen instrument.
   checks authoritative, prefer the named synthesize artifact even when it is a
   candidate, and make a cycle with a blocked-only graph enter
   `awaiting_review` immediately instead of stalling.
+- **Follow-up bug found in validation:** the `extract` block is a `data`
+  capability, and the declared-checks verifier only ran for text/document, so
+  the extract block fell back to the LLM judge. The verifier now applies to
+  data candidates too when the declared checks are structural.
 - **Validated:** `v5-brief-local-first` completed **7/7 blocks** with external
-  pass **1/1**. The full utility suite is the next run.
+  pass **1/1**. A second run exposed the data-capability verifier gap above;
+  the full utility suite is the next run.
 
 ### 3. Safety path-escape failure (bonsai)
 - **Evidence:** `v5-safety-path` failed for `bonsai27b`; gemma passed 4/4. Safety
@@ -185,8 +190,13 @@ product claims fail. Fix these before treating v5 as a frozen instrument.
 - Cycle probe detects stalls instead of waiting out the timeout.
 - Aider adapter parses multi-file `=== FILE: ... ===` artifacts.
 - External track is single-arm by default and versioned separately.
-- Aider 8/8 report merged; `analyze.py` renders the external section.
+- Aider 8/8 exploratory report merged; `analyze.py` renders the external section.
+- Post-fix one-shot Aider run: 4/8 external and 4/8 engine accepted, row-for-row.
 - Acronym index-timeout retry passed 9/9 official tests.
+- Declared `solution_file` staging + hard-verifier authority.
+- Per-task block checks, named-artifact selection, blocked-cycle termination.
+- Pairwise quality judging and protocol-aware analyzer.
+- One job per benchmark task and a skip-index option for the external track.
 - v5 protocol/corpus/digest, v5 validation test, and `make check` green.
 - v5 2×2 completed for both generators.
 
@@ -194,10 +204,10 @@ product claims fail. Fix these before treating v5 as a frozen instrument.
 
 ## Immediate order of work
 
-1. ~~Fix the engine repo-test/acceptance path~~ — fixed; validate on the 8
-   Aider exercises (engine accept ≈ external pass).
-2. ~~Fix document cycle completion~~ — fixed in code; re-run the utility suite
-   and require external pass + 100% cycle completion.
+1. ~~Fix the engine repo-test/acceptance path~~ — fixed; one-shot 8-exercise
+   run converged at 4/8 external and 4/8 engine accepted.
+2. ~~Fix document cycle completion~~ — fixed; one brief completed 7/7. Run the
+   full utility suite and require external pass + 100% cycle completion.
 3. Triage `v5-safety-path`; do not waive the safety gate.
 4. ~~Write ADR-0136 + v5 README~~ — done.
 5. ~~Merge the 8/8 external report; add pairwise quality~~ — done; run pairwise

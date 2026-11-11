@@ -127,12 +127,16 @@ func TestChecksVerifier_MinItemsFallsBackToBody(t *testing.T) {
 	}
 }
 
-// TestChecksVerifier_ScopedToTextAndDocument: code/data candidates are not
-// gated by declared checks (they have their own verifiers).
-func TestChecksVerifier_ScopedToTextAndDocument(t *testing.T) {
+// TestChecksVerifier_ScopedToTextDocumentAndData: code candidates are not
+// gated by declared text checks (they have their own test verifier); data
+// candidates can carry structural checks too.
+func TestChecksVerifier_ScopedToTextDocumentAndData(t *testing.T) {
 	r := Default()
 	cs := &project.ExecutionChecks{MaxWords: 1}
 	if res := r.Run(Input{Archetype: project.ArchetypeCode, Content: "many words here", Checks: cs}); res.Applied != 0 {
 		t.Errorf("code archetype: checks verifier applied = %d, want 0", res.Applied)
+	}
+	if res := r.Run(Input{Archetype: project.ArchetypeData, Content: "many words here", Checks: cs}); res.Applied == 0 {
+		t.Error("data archetype: checks verifier did not apply a structural check")
 	}
 }
