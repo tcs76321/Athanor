@@ -19,7 +19,9 @@ validation evidence, not a frozen v5 claim report.
   `cycle-bonsai27b-brief-local-first-datafix.{md,json}`.
 - **Full utility suite:** all **5/5 cycles completed at 7/7 blocks**. External
   pass is **3/5**: both briefs and news day1 pass; day2 and day3 fail their
-  news semantics checks. See `utility-cycle-reports/`.
+  news semantics checks. See `utility-cycle-reports/`. The day1 report was
+  emitted by the interrupted full-suite run and is recorded in the run tree;
+  day2/day3 reports are copied here.
 - **Safety:** after the hard-verifier authority fix, **4/4 tasks completed
   and were engine accepted**, including `v5-safety-path`. See
   `safety-bonsai27b-4of4.{md,json}`.

@@ -213,12 +213,14 @@ product claims fail. Fix these before treating v5 as a frozen instrument.
    run converged at 4/8 external and 4/8 engine accepted.
 2. ~~Fix document cycle completion~~ — fixed; one brief completed 7/7. Run the
    full utility suite and require external pass + 100% cycle completion.
-3. Triage `v5-safety-path`; do not waive the safety gate.
+3. ~~Triage `v5-safety-path`~~ — fixed; 4/4 safety tasks completed and
+   engine accepted.
 4. ~~Write ADR-0136 + v5 README~~ — done.
-5. ~~Merge the 8/8 external report; add pairwise quality~~ — done; run pairwise
-   on fresh artifacts and do gemma's external track.
-6. ~~Harden agency/memory/news~~ — done in the corpus/runner; validate with a
-   fresh run.
+5. ~~Merge the 8/8 exploratory external report; add pairwise quality~~ — the
+   one-shot external run is 4/8 and engine-convergent. Run gemma’s external
+   track and pairwise quality next.
+6. ~~Harden agency/memory/news~~ — corpus/runner changes are in; full utility
+   completes 5/5, external pass 3/5.
 7. Then the next external target: TheAgentCompany (open) or τ² when text opens.
 
 ---
