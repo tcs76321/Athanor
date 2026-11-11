@@ -1,6 +1,6 @@
 # v5 results — gemma12b
 
-Generated 2026-11-11T18:28:04Z · protocol `v5` (candidate, cut `pending`)
+Generated 2026-11-11T21:07:58Z · protocol `v5` (candidate, cut `pending`)
 
 ## foundation
 

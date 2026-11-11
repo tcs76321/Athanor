@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "model": "bonsai27b",
-  "generated_at": "2026-11-11T18:28:04Z",
+  "generated_at": "2026-11-11T21:07:57Z",
   "analyzer": "analyze.py",
   "corpus": {
     "benchmark": "v5",
@@ -127,23 +127,23 @@
       {
         "suite": "utility",
         "arm": "single",
-        "git_commit": "39af05c051010d7a41ffa7ba9f569d773eb5b918",
+        "git_commit": "2a9751a2b3539d18bb402271427aaefb44d8b806",
         "core_image": "athanor-bench:latest",
-        "core_digest": "sha256:891507082804d91341053c6f3d11a73f8fb911c0e962d48cedcdf3a9d3a74595",
+        "core_digest": "sha256:43a42f5421f5c6a068681fcdceafedb491c4c60784b4736afbf35da0c85c8ec1",
         "ollama_version": "0.40.16",
         "model_digests": {
           "bonsai-2:27b": "f3c4f42086593225d8be9bb4270658d0e05f5232fb2b5e8faa49ef74d2cc843a",
           "granite4.2:8b": "f586c02fdecdf151b656207c339aa003997345774a41768bac1fd6d2fb85913b"
         },
-        "started_at": "2026-11-11T16:17:58Z",
-        "completed_at": "2026-11-11T16:34:10Z"
+        "started_at": "2026-11-11T19:16:11Z",
+        "completed_at": "2026-11-11T19:25:57Z"
       }
     ],
     "missing": [],
     "mixed_revisions": true,
     "commits": [
+      "2a9751a2b3539d18bb402271427aaefb44d8b806",
       "36be1b94c2d7a4810901d15c590d041931bd7604",
-      "39af05c051010d7a41ffa7ba9f569d773eb5b918",
       "4737cf57a574c65816ec2b892c2a0d2547380fb9",
       "a6a1fbc5acbc52bd6aa0a154b8d4cf53f2ffbdab"
     ]
@@ -274,17 +274,17 @@
     "utility": {
       "single": {
         "n": 5,
-        "passed": 4,
-        "pass_rate": 0.8,
+        "passed": 5,
+        "pass_rate": 1.0,
         "ci95": {
-          "low": 0.3755282641185388,
-          "high": 0.9637768390302125
+          "low": 0.5655085052479191,
+          "high": 1.0
         },
         "directional": true,
         "runs": 1,
-        "pass_at_1": 4,
-        "saturated": false,
-        "tokens": 8973.4
+        "pass_at_1": 5,
+        "saturated": true,
+        "tokens": 7349.8
       }
     }
   },
@@ -390,8 +390,8 @@
       },
       "utility": {
         "wins": 0,
-        "ties": 5,
-        "losses": 0
+        "ties": 4,
+        "losses": 1
       }
     },
     "safety": {
@@ -493,7 +493,7 @@
     "task_rows": 4,
     "task_covered": 0,
     "task_coverage": 0.0,
-    "arm_rows": 44,
+    "arm_rows": 45,
     "arm_violations": [],
     "cycle_missing": [],
     "coverage": 0.0

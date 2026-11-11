@@ -41,9 +41,9 @@
     {
       "suite": "utility",
       "arm": "single",
-      "source": "tools/bench/results/v5-phase4/bonsai27b/soak/utility/single",
-      "supersedes": "tools/bench/results/v5/bonsai27b/soak/utility/single",
-      "reason": "post-fix corpus: day3 no-change check and the general news update contract",
+      "source": "tools/bench/results/v5-phase5/bonsai27b/soak/utility/single",
+      "supersedes": "tools/bench/results/v5-phase4/bonsai27b/soak/utility/single",
+      "reason": "post-fix corpus: source injection, markdown heading contract, no-repeat guard removed",
       "results": true,
       "run": true
     },
@@ -87,9 +87,9 @@
   "cycle": [
     {
       "task": "",
-      "source": "tools/bench/results/v5-phase4/bonsai27b/cycle/out/cycle-bonsai27b.json",
-      "supersedes": "tools/bench/results/v5-validation/bonsai27b/cycle-brief2/out/cycle-bonsai27b.json",
-      "reason": "full five-task post-fix utility cycle run; all cycles completed 7/7",
+      "source": "tools/bench/results/v5-phase5b/bonsai27b/cycle/out/cycle-bonsai27b.json",
+      "supersedes": "tools/bench/results/v5-phase4/bonsai27b/cycle/out/cycle-bonsai27b.json",
+      "reason": "post-fix utility cycle; day2 external check still fails on old ids in New",
       "copied": true,
       "tasks": [
         "v5-brief-local-first",

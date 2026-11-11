@@ -26,11 +26,11 @@ beside them. It is **not** a single-revision freeze run.
 - Safety is **4/4** for bonsai and gemma (directional; 95% CI 51–100%),
   matching the post-fix reruns. The `v5-safety-path` row is the code task and
   the deterministic test is the label.
-- Utility is green for bonsai's tuning gates (briefs 2/2, news 2/2, completion
-  5/5) but red on the held-out day2. Gemma is red: single 2/5, cycle 3/5,
-  completion 4/5. Its day3 cycle stalled at 4/7 (`state: running`); the
-  scheduler predicate was fixed after the run and the next run must confirm it.
-  The utility claim is therefore not established, honestly.
+- Bonsai utility is **5/5 single** and **4/5 cycle** with 100% cycle completion:
+  briefs 2/2, tuning news 2/2, day3 passes, held-out day2 fails on the old ids
+  in New. The generic overlap guard was removed from the default template after
+  it rejected a valid update; the verifier capability remains. Gemma is being
+  rerun after the same fixes.
 - **Mechanism coverage is 0%**: four agency rows declare `requires`, and the
   completed runs did not exercise every required mechanism (notably
   `edit_multiple_files` and `repair`). This is a real finding, not a report

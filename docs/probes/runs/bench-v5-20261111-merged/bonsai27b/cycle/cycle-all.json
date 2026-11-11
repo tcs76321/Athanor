@@ -3,9 +3,9 @@
     {
       "id": "v5-brief-local-first",
       "pass": true,
-      "cycle_id": "02c84d5c-dca6-4ce1-8c65-e7bb99a26909",
+      "cycle_id": "a8f87e83-acdf-4a25-9dfb-aa2fdb9eec1b",
       "state": "completed",
-      "artifact_id": "7b0f300d-6a54-4fe1-9078-d88761be66c2",
+      "artifact_id": "d2bb2971-a2c2-4b66-95a6-d0ce6135798e",
       "engine_accepted": false,
       "complete": true,
       "blocks": 7,
@@ -21,7 +21,7 @@
           "Kind": "max_words",
           "Pass": true,
           "Advisory": false,
-          "Detail": "words=135 max=250"
+          "Detail": "words=145 max=250"
         },
         {
           "Kind": "allowed_sources",
@@ -33,7 +33,7 @@
           "Kind": "cite_every_paragraph",
           "Pass": true,
           "Advisory": false,
-          "Detail": "uncited=0/2"
+          "Detail": "uncited=0/0"
         },
         {
           "Kind": "must_contain",
@@ -42,14 +42,14 @@
           "Detail": "missing: "
         }
       ],
-      "duration_s": 550.753107866
+      "duration_s": 601.013639086
     },
     {
       "id": "v5-brief-wal",
       "pass": true,
-      "cycle_id": "4f319024-2bbc-4f74-bf3a-0727f09fb9af",
+      "cycle_id": "288387e5-a22b-4dd8-bb55-c4fdd45880a2",
       "state": "completed",
-      "artifact_id": "1a350d62-c6ea-4b79-a4b7-c5de59d4bb0a",
+      "artifact_id": "6db3226d-25a4-47da-8ec4-0d1313fc91e6",
       "engine_accepted": false,
       "complete": true,
       "blocks": 7,
@@ -65,7 +65,7 @@
           "Kind": "max_words",
           "Pass": true,
           "Advisory": false,
-          "Detail": "words=98 max=250"
+          "Detail": "words=101 max=250"
         },
         {
           "Kind": "allowed_sources",
@@ -77,7 +77,7 @@
           "Kind": "cite_every_paragraph",
           "Pass": true,
           "Advisory": false,
-          "Detail": "uncited=0/2"
+          "Detail": "uncited=0/3"
         },
         {
           "Kind": "must_contain",
@@ -86,14 +86,14 @@
           "Detail": "missing: "
         }
       ],
-      "duration_s": 560.863556822
+      "duration_s": 641.163774135
     },
     {
       "id": "v5-news-day1",
       "pass": true,
-      "cycle_id": "bcf0be49-2828-4f9d-b7a7-6ec2786a496a",
+      "cycle_id": "557093a5-6ac0-47c1-aa53-dafa9dafe917",
       "state": "completed",
-      "artifact_id": "478d19ef-f724-429c-badd-bcb8b1a7e2d7",
+      "artifact_id": "58ac489b-ccff-4ce8-9150-25335cde97bc",
       "engine_accepted": false,
       "complete": true,
       "blocks": 7,
@@ -109,7 +109,7 @@
           "Kind": "max_words",
           "Pass": true,
           "Advisory": false,
-          "Detail": "words=289 max=400"
+          "Detail": "words=262 max=400"
         },
         {
           "Kind": "must_not_contain",
@@ -124,14 +124,14 @@
           "Detail": "missing: "
         }
       ],
-      "duration_s": 1261.952365526
+      "duration_s": 1091.964071239
     },
     {
       "id": "v5-news-day2",
       "pass": false,
-      "cycle_id": "b442fc23-3ccc-4687-a691-6e49c186d6aa",
+      "cycle_id": "348e0ccb-117e-420e-8170-bc6c049806fd",
       "state": "completed",
-      "artifact_id": "ed961eeb-7de1-41d9-8f0d-468269af5256",
+      "artifact_id": "67bf85f6-5866-451b-941a-6fa7f100c07d",
       "engine_accepted": false,
       "complete": true,
       "blocks": 7,
@@ -147,7 +147,7 @@
           "Kind": "max_words",
           "Pass": true,
           "Advisory": false,
-          "Detail": "words=217 max=400"
+          "Detail": "words=251 max=400"
         },
         {
           "Kind": "new_items_section",
@@ -159,14 +159,14 @@
       "failures": [
         "new_items_section: old item story-001 in New; old item story-004 in New"
       ],
-      "duration_s": 1748.077333304
+      "duration_s": 1076.830710448
     },
     {
       "id": "v5-news-day3",
       "pass": true,
-      "cycle_id": "21e6b939-2d0b-41ea-b355-25f618054504",
+      "cycle_id": "86e3d68f-edd4-4b13-9040-d2cf4c7b8932",
       "state": "completed",
-      "artifact_id": "9e233959-1a0b-4acf-befc-d369de29a556",
+      "artifact_id": "cb57da8a-aef3-40f0-ae46-f3b3b6b7b394",
       "engine_accepted": false,
       "complete": true,
       "blocks": 7,
@@ -182,7 +182,7 @@
           "Kind": "max_words",
           "Pass": true,
           "Advisory": false,
-          "Detail": "words=122 max=250"
+          "Detail": "words=123 max=250"
         },
         {
           "Kind": "new_items_section",
@@ -197,7 +197,7 @@
           "Detail": ""
         }
       ],
-      "duration_s": 736.233772413
+      "duration_s": 976.704735545
     }
   ]
 }

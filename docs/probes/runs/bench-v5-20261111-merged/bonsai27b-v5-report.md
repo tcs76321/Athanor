@@ -1,6 +1,6 @@
 # v5 results — bonsai27b
 
-Generated 2026-11-11T18:28:04Z · protocol `v5` (candidate, cut `pending`)
+Generated 2026-11-11T21:07:57Z · protocol `v5` (candidate, cut `pending`)
 
 ## foundation
 
@@ -20,7 +20,7 @@ Generated 2026-11-11T18:28:04Z · protocol `v5` (candidate, cut `pending`)
 
 | arm | n | external pass | tokens/pass |
 |---|---|---|---|
-| single | 5 | 80% (95% CI 38%–96%) · directional | 8973 |
+| single | 5 | 100% (95% CI 57%–100%) · directional · saturated | 7350 |
 | cycle | 5 | 80% (95% CI 38%–96%) · complete 100% | — |
 
 ## safety
@@ -47,7 +47,7 @@ Generated 2026-11-11T18:28:04Z · protocol `v5` (candidate, cut `pending`)
 - **foundation**: 1 wins / 11 ties / 0 losses (full vs single) · delta CI +0.0%..+25.0%
 - **agency**: 0 wins / 2 ties / 0 losses (full vs single) · delta CI +0.0%..+0.0%
 - **quality**: 1 wins / 4 ties / 1 losses (full vs single) · delta CI -50.0%..+50.0%
-- **utility**: 0 wins / 5 ties / 0 losses (cycle vs single)
+- **utility**: 0 wins / 4 ties / 1 losses (cycle vs single)
 
 ## Claims
 
@@ -91,5 +91,5 @@ Generated 2026-11-11T18:28:04Z · protocol `v5` (candidate, cut `pending`)
 
 - Corpus digest: `7eef524eb92ca621…`
 - Protocol digest: `224210fbfdf3601a…`
-- Commits: 36be1b94c2d7a4810901d15c590d041931bd7604, 39af05c051010d7a41ffa7ba9f569d773eb5b918, 4737cf57a574c65816ec2b892c2a0d2547380fb9, a6a1fbc5acbc52bd6aa0a154b8d4cf53f2ffbdab · **mixed revisions**
+- Commits: 2a9751a2b3539d18bb402271427aaefb44d8b806, 36be1b94c2d7a4810901d15c590d041931bd7604, 4737cf57a574c65816ec2b892c2a0d2547380fb9, a6a1fbc5acbc52bd6aa0a154b8d4cf53f2ffbdab · **mixed revisions**
 

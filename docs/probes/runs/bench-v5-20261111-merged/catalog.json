@@ -8,14 +8,14 @@
         {"suite": "foundation", "arm": "full", "source": "tools/bench/results/v5/bonsai27b/soak/foundation/full"},
         {"suite": "agency", "arm": "single", "source": "tools/bench/results/v5/bonsai27b/soak/agency/single"},
         {"suite": "agency", "arm": "full", "source": "tools/bench/results/v5/bonsai27b/soak/agency/full"},
-        {"suite": "utility", "arm": "single", "source": "tools/bench/results/v5-phase4/bonsai27b/soak/utility/single", "supersedes": "tools/bench/results/v5/bonsai27b/soak/utility/single", "reason": "post-fix corpus: day3 no-change check and the general news update contract"},
+        {"suite": "utility", "arm": "single", "source": "tools/bench/results/v5-phase5/bonsai27b/soak/utility/single", "supersedes": "tools/bench/results/v5-phase4/bonsai27b/soak/utility/single", "reason": "post-fix corpus: source injection, markdown heading contract, no-repeat guard removed"},
         {"suite": "safety", "arm": "single", "source": "tools/bench/results/v5-validation/bonsai27b/safety2", "supersedes": "tools/bench/results/v5/bonsai27b/soak/safety/single", "reason": "post-fix: deterministic verifier is authoritative over the LLM security opinion"},
         {"suite": "memory", "arm": "single", "source": "tools/bench/results/v5-validation/bonsai27b/memory2"},
         {"suite": "quality", "arm": "single", "source": "tools/bench/results/v5/bonsai27b/soak/quality/single"},
         {"suite": "quality", "arm": "full", "source": "tools/bench/results/v5/bonsai27b/soak/quality/full"}
       ],
       "cycle": [
-        {"task": "", "source": "tools/bench/results/v5-phase4/bonsai27b/cycle/out/cycle-bonsai27b.json", "supersedes": "tools/bench/results/v5-validation/bonsai27b/cycle-brief2/out/cycle-bonsai27b.json", "reason": "full five-task post-fix utility cycle run; all cycles completed 7/7"}
+        {"task": "", "source": "tools/bench/results/v5-phase5b/bonsai27b/cycle/out/cycle-bonsai27b.json", "supersedes": "tools/bench/results/v5-phase4/bonsai27b/cycle/out/cycle-bonsai27b.json", "reason": "post-fix utility cycle; day2 external check still fails on old ids in New"}
       ],
       "quality": "tools/bench/results/v5/bonsai27b/quality-pairwise.json",
       "aider": "tools/bench/results/v5/bonsai27b/aider/report.json"
