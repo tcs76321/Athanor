@@ -113,33 +113,31 @@ func runQualityPairwise(args []string) {
 	judges := splitCSV(*judgesCSV)
 	base := strings.TrimRight(*ollamaURL, "/")
 	report := pairwiseReport{Judges: judges}
-	for _, judge := range judges {
-		for _, key := range keys {
-			s := singleBy[key]
-			f := fullBy[key]
-			goalspec, ok := goalByID[s.GoalName]
-			if !ok {
-				continue
-			}
-			pair := pairwisePair{Goal: s.GoalName, Run: s.Run}
+	for _, key := range keys {
+		s := singleBy[key]
+		f := fullBy[key]
+		goalspec, ok := goalByID[s.GoalName]
+		if !ok {
+			continue
+		}
+		pair := pairwisePair{Goal: s.GoalName, Run: s.Run}
+		for _, judge := range judges {
 			fwd, err := pairwiseOnce(base, judge, goalspec, s.Text, f.Text, false)
 			if err != nil {
 				pair.Votes = append(pair.Votes, pairwiseVote{Goal: s.GoalName, Run: s.Run, Judge: judge, ErrorText: err.Error()})
-				report.Pairs = append(report.Pairs, pair)
 				continue
 			}
 			rev, err := pairwiseOnce(base, judge, goalspec, s.Text, f.Text, true)
 			if err != nil {
 				pair.Votes = append(pair.Votes, pairwiseVote{Goal: s.GoalName, Run: s.Run, Judge: judge, Forward: fwd, ErrorText: err.Error()})
-				report.Pairs = append(report.Pairs, pair)
 				continue
 			}
 			vote := pairwiseVote{Goal: s.GoalName, Run: s.Run, Judge: judge,
 				Forward: fwd, Reverse: rev, Winner: reconcilePairWinner(fwd, rev)}
 			pair.Votes = append(pair.Votes, vote)
-			report.Pairs = append(report.Pairs, pair)
 			fmt.Printf("  %-24s run %d %-20s %s\n", s.GoalName, s.Run, judge, vote.Winner)
 		}
+		report.Pairs = append(report.Pairs, pair)
 	}
 	// Collapse each pair's judges into one majority winner.
 	for i := range report.Pairs {

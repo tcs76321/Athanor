@@ -51,7 +51,8 @@ def load_external_manifest(path):
     return out
 
 
-def load_claims(protocol_path):    """Minimal reader for the numeric claim thresholds.
+def load_claims(protocol_path):
+    """Minimal reader for the numeric claim thresholds.
 
     The analyzer is stdlib-only, so it does not import PyYAML. The protocol is
     a small, stable file; these four values are the only ones the report
