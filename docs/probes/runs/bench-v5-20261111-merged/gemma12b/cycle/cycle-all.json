@@ -1,0 +1,220 @@
+{
+  "tasks": [
+    {
+      "id": "v5-brief-local-first",
+      "pass": true,
+      "cycle_id": "991c3491-35b2-47c4-ac4e-0dfe8bd6e9b0",
+      "state": "completed",
+      "artifact_id": "47ca2d69-fc26-4afc-96e7-2ddb1c98dd3a",
+      "engine_accepted": true,
+      "complete": true,
+      "blocks": 7,
+      "blocks_completed": 7,
+      "checks": [
+        {
+          "Kind": "required_sections",
+          "Pass": true,
+          "Advisory": false,
+          "Detail": "missing: "
+        },
+        {
+          "Kind": "max_words",
+          "Pass": true,
+          "Advisory": false,
+          "Detail": "words=115 max=250"
+        },
+        {
+          "Kind": "allowed_sources",
+          "Pass": true,
+          "Advisory": false,
+          "Detail": "unlisted: "
+        },
+        {
+          "Kind": "cite_every_paragraph",
+          "Pass": true,
+          "Advisory": false,
+          "Detail": "uncited=0/0"
+        },
+        {
+          "Kind": "must_contain",
+          "Pass": true,
+          "Advisory": false,
+          "Detail": "missing: "
+        }
+      ],
+      "duration_s": 627.006282912
+    },
+    {
+      "id": "v5-brief-wal",
+      "pass": true,
+      "cycle_id": "7cbd9e9b-74b4-422e-9988-66ee195791bc",
+      "state": "running",
+      "artifact_id": "670fbca4-7ff1-449c-b776-45b776899a91",
+      "engine_accepted": true,
+      "complete": false,
+      "blocks": 7,
+      "blocks_completed": 6,
+      "checks": [
+        {
+          "Kind": "required_sections",
+          "Pass": true,
+          "Advisory": false,
+          "Detail": "missing: "
+        },
+        {
+          "Kind": "max_words",
+          "Pass": true,
+          "Advisory": false,
+          "Detail": "words=101 max=250"
+        },
+        {
+          "Kind": "allowed_sources",
+          "Pass": true,
+          "Advisory": false,
+          "Detail": "unlisted: "
+        },
+        {
+          "Kind": "cite_every_paragraph",
+          "Pass": true,
+          "Advisory": false,
+          "Detail": "uncited=0/0"
+        },
+        {
+          "Kind": "must_contain",
+          "Pass": true,
+          "Advisory": false,
+          "Detail": "missing: "
+        }
+      ],
+      "failures": [
+        "cycle stalled in state \"running\": no active tasks",
+        "cycle state is running",
+        "blocks completed 6/7"
+      ],
+      "duration_s": 1127.595249066
+    },
+    {
+      "id": "v5-news-day1",
+      "pass": false,
+      "cycle_id": "5a392b48-560e-45bf-96e8-0a8954f472a3",
+      "state": "running",
+      "artifact_id": "4def31e9-b228-4ee0-9565-73543ebaaa61",
+      "engine_accepted": false,
+      "complete": false,
+      "blocks": 7,
+      "blocks_completed": 0,
+      "checks": [
+        {
+          "Kind": "required_sections",
+          "Pass": false,
+          "Advisory": false,
+          "Detail": "missing: New, Previously reported, Sources"
+        },
+        {
+          "Kind": "max_words",
+          "Pass": true,
+          "Advisory": false,
+          "Detail": "words=144 max=400"
+        },
+        {
+          "Kind": "must_not_contain",
+          "Pass": true,
+          "Advisory": false,
+          "Detail": "found: "
+        },
+        {
+          "Kind": "must_contain",
+          "Pass": true,
+          "Advisory": false,
+          "Detail": "missing: "
+        }
+      ],
+      "failures": [
+        "cycle stalled in state \"running\": no active tasks",
+        "cycle state is running",
+        "blocks completed 0/7",
+        "required_sections: missing: New, Previously reported, Sources"
+      ],
+      "duration_s": 486.014892181
+    },
+    {
+      "id": "v5-news-day2",
+      "pass": false,
+      "cycle_id": "023d327a-4d0c-466e-a8b8-bf107c8cd4ad",
+      "state": "running",
+      "artifact_id": "209f1ad1-7f11-4a70-83a7-9231fae20d1a",
+      "engine_accepted": false,
+      "complete": false,
+      "blocks": 7,
+      "blocks_completed": 0,
+      "checks": [
+        {
+          "Kind": "required_sections",
+          "Pass": true,
+          "Advisory": false,
+          "Detail": "missing: "
+        },
+        {
+          "Kind": "max_words",
+          "Pass": true,
+          "Advisory": false,
+          "Detail": "words=190 max=400"
+        },
+        {
+          "Kind": "new_items_section",
+          "Pass": false,
+          "Advisory": false,
+          "Detail": "old item story-001 in New; old item story-004 in New"
+        }
+      ],
+      "failures": [
+        "cycle stalled in state \"running\": no active tasks",
+        "cycle state is running",
+        "blocks completed 0/7",
+        "new_items_section: old item story-001 in New; old item story-004 in New"
+      ],
+      "duration_s": 926.757009159
+    },
+    {
+      "id": "v5-news-day3",
+      "pass": false,
+      "cycle_id": "6ccfbf9a-4dd6-40da-ad29-2b29097521e7",
+      "state": "completed",
+      "artifact_id": "694b2630-6b4d-4b87-bd43-6489961699d4",
+      "engine_accepted": true,
+      "complete": true,
+      "blocks": 7,
+      "blocks_completed": 7,
+      "checks": [
+        {
+          "Kind": "required_sections",
+          "Pass": false,
+          "Advisory": false,
+          "Detail": "missing: New, Previously reported, Sources"
+        },
+        {
+          "Kind": "max_words",
+          "Pass": true,
+          "Advisory": false,
+          "Detail": "words=77 max=250"
+        },
+        {
+          "Kind": "must_not_contain",
+          "Pass": true,
+          "Advisory": false,
+          "Detail": "found: "
+        },
+        {
+          "Kind": "must_contain_any",
+          "Pass": true,
+          "Advisory": false,
+          "Detail": ""
+        }
+      ],
+      "failures": [
+        "required_sections: missing: New, Previously reported, Sources"
+      ],
+      "duration_s": 756.791584119
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "runtime": "core-pod",
+  "diagnostic": false,
+  "host_class": "linux/arm64",
+  "core_image": "athanor-bench:latest",
+  "core_digest": "sha256:ff09bf73624caf1aab0883742319e7948bf09b5d6c539ce0896ed2bf068db424",
+  "ollama_url": "http://host.containers.internal:11435",
+  "ollama_version": "0.40.16",
+  "model": "gemma4:12b-mlx",
+  "judge_model": "granite4.2:8b",
+  "models": [
+    "gemma4:12b-mlx"
+  ],
+  "model_digests": {
+    "gemma4:12b-mlx": "117d0d84cf2ab865feb59afc2cd30ff5d55f0035e05eb8d1b814f9688e3f3671",
+    "granite4.2:8b": "f586c02fdecdf151b656207c339aa003997345774a41768bac1fd6d2fb85913b"
+  },
+  "git_commit": "36be1b94c2d7a4810901d15c590d041931bd7604",
+  "task_count": 12,
+  "passes": 1,
+  "rows": 12,
+  "started_at": "2026-11-10T13:55:59Z",
+  "completed_at": "2026-11-10T14:08:38Z",
+  "complete": true
+}

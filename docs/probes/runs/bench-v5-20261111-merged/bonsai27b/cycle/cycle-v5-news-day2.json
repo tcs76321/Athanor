@@ -1,0 +1,39 @@
+{
+  "tasks": [
+    {
+      "id": "v5-news-day2",
+      "pass": false,
+      "cycle_id": "b26f7a68-c673-4bf9-88d7-ccd9a75cbc81",
+      "state": "completed",
+      "artifact_id": "71d17792-2e6c-4d5b-bbe8-8f164cba8a6e",
+      "engine_accepted": false,
+      "complete": true,
+      "blocks": 7,
+      "blocks_completed": 7,
+      "checks": [
+        {
+          "Kind": "required_sections",
+          "Pass": true,
+          "Advisory": false,
+          "Detail": "missing: "
+        },
+        {
+          "Kind": "max_words",
+          "Pass": true,
+          "Advisory": false,
+          "Detail": "words=225 max=400"
+        },
+        {
+          "Kind": "new_items_section",
+          "Pass": false,
+          "Advisory": false,
+          "Detail": "old item story-001 in New; old item story-004 in New"
+        }
+      ],
+      "failures": [
+        "new_items_section: old item story-001 in New; old item story-004 in New"
+      ],
+      "duration_s": 976.779376524
+    }
+  ]
+}

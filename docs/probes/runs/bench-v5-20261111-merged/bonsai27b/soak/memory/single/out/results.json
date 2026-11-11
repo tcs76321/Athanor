@@ -1,0 +1,232 @@
+[
+  {
+    "goal_name": "v5-memory-correction",
+    "goal_number": 33,
+    "archetype": "document",
+    "model_label": "bonsai27b",
+    "model": "bonsai-2:27b",
+    "family": "bonsai-2",
+    "arm": "single",
+    "run": 1,
+    "job_id": "",
+    "state": "completed",
+    "artifact_id": "67258911-63a5-48b0-a057-18b77461d8fc",
+    "winner": "new",
+    "confidence": 0,
+    "score": 0,
+    "token_cost": 9000,
+    "wall_ms": 80403,
+    "retries": 0,
+    "reflection_loops": 0,
+    "diversity": 0,
+    "candidates": 0,
+    "tier": "H",
+    "check_pass": true,
+    "engine_accepted": true,
+    "label_version": "adr-0092",
+    "suite": "memory",
+    "bench": true,
+    "sequence": [
+      {
+        "index": 1,
+        "kind": "task",
+        "goal": "Write a short note with a Plan section. Use the term \"pull sync\" for\nthe sync method and at most 120 words.\n",
+        "job_id": "ce8683b4-5987-4da0-a68f-90c89e28042f",
+        "state": "completed",
+        "artifact_id": "acbce746-69c5-4870-8e59-3e31beea7fa5",
+        "pass": true,
+        "check_pass": true,
+        "tokens": 3692,
+        "wall_ms": 37684
+      },
+      {
+        "index": 2,
+        "kind": "correction",
+        "goal": "Use the term \"push sync\" and never \"pull sync\".",
+        "state": "",
+        "pass": true,
+        "correction_id": "d40c42f7-c94c-41c1-a77e-bbfa3cfa795e"
+      },
+      {
+        "index": 3,
+        "kind": "task",
+        "goal": "Revise the plan. Keep it under 120 words and use the corrected sync\nterm from the project guidance.\n",
+        "job_id": "7cb4ee41-95ae-4f45-b96c-e43fd6e63175",
+        "state": "completed",
+        "artifact_id": "67258911-63a5-48b0-a057-18b77461d8fc",
+        "pass": true,
+        "check_pass": true,
+        "correction_injected": true,
+        "tokens": 5308,
+        "wall_ms": 42719
+      }
+    ],
+    "progress": 1,
+    "telemetry": {
+      "calls": 8,
+      "prompt_tokens": 8071,
+      "completion_tokens": 929,
+      "by_phase_calls": {
+        "diverging": 2,
+        "evaluating": 2,
+        "planning": 2,
+        "synthesizing": 2
+      },
+      "by_phase_tokens": {
+        "diverging": 1890,
+        "evaluating": 2757,
+        "planning": 2055,
+        "synthesizing": 2298
+      },
+      "by_persona_tokens": {
+        "main": 4188,
+        "security": 2757,
+        "tall": 2055
+      },
+      "models": [
+        "bonsai-2:27b",
+        "granite4.2:8b"
+      ],
+      "candidate_raise": 2,
+      "kv_pressure": 8,
+      "corrections_injected": 4,
+      "events": {
+        "comparison": 1,
+        "compute_planned": 2,
+        "created": 3,
+        "difficulty_hint": 1,
+        "divergence_candidate": 1,
+        "divergence_jaccard": 1,
+        "divergence_start": 1,
+        "evaluating_done": 1,
+        "evaluation_record_created": 2,
+        "git_commit_skipped": 1,
+        "kv_cache_assembled": 4,
+        "kv_cache_pressure": 4,
+        "llm_call": 4,
+        "memory_memo_written": 1,
+        "memory_remembered": 1,
+        "novelty_reset": 1,
+        "process_eval": 1,
+        "status": 2,
+        "task_analysis": 1,
+        "transition": 7,
+        "verification": 3,
+        "verification_decision": 1
+      },
+      "memory_hits": 4,
+      "memory_bytes": 5396,
+      "memory_remembered": 2
+    }
+  },
+  {
+    "goal_name": "v5-memory-insight",
+    "goal_number": 34,
+    "archetype": "document",
+    "model_label": "bonsai27b",
+    "model": "bonsai-2:27b",
+    "family": "bonsai-2",
+    "arm": "single",
+    "run": 1,
+    "job_id": "",
+    "state": "completed",
+    "artifact_id": "a935c369-8923-496a-8c18-a03d3f3bda8a",
+    "winner": "new",
+    "confidence": 0,
+    "score": 0,
+    "token_cost": 8584,
+    "wall_ms": 78567,
+    "retries": 0,
+    "reflection_loops": 0,
+    "diversity": 0,
+    "candidates": 0,
+    "tier": "H",
+    "check_pass": true,
+    "engine_accepted": true,
+    "label_version": "adr-0092",
+    "suite": "memory",
+    "bench": true,
+    "sequence": [
+      {
+        "index": 1,
+        "kind": "task",
+        "goal": "Write a short review of a local-first backup plan. Note one risk and\none mitigation in at most 150 words.\n",
+        "job_id": "d2f70a07-7ee7-46d8-aa49-a5da8b87a29c",
+        "state": "completed",
+        "artifact_id": "04a1a5f4-b09a-4498-9625-ce1e97aadec1",
+        "pass": true,
+        "check_pass": true,
+        "tokens": 3629,
+        "wall_ms": 36731
+      },
+      {
+        "index": 2,
+        "kind": "task",
+        "goal": "Write a second review. Reuse the risk you identified earlier and add\na verification step for it. Keep it under 150 words.\n",
+        "job_id": "00a1c767-4bc1-4e9f-964d-aaa8f4f332bc",
+        "state": "completed",
+        "artifact_id": "a935c369-8923-496a-8c18-a03d3f3bda8a",
+        "pass": true,
+        "check_pass": true,
+        "tokens": 4955,
+        "wall_ms": 41836
+      }
+    ],
+    "progress": 1,
+    "telemetry": {
+      "calls": 8,
+      "prompt_tokens": 7632,
+      "completion_tokens": 952,
+      "by_phase_calls": {
+        "diverging": 2,
+        "evaluating": 2,
+        "planning": 2,
+        "synthesizing": 2
+      },
+      "by_phase_tokens": {
+        "diverging": 1776,
+        "evaluating": 2677,
+        "planning": 1881,
+        "synthesizing": 2250
+      },
+      "by_persona_tokens": {
+        "main": 4026,
+        "security": 2677,
+        "tall": 1881
+      },
+      "models": [
+        "bonsai-2:27b",
+        "granite4.2:8b"
+      ],
+      "candidate_raise": 2,
+      "kv_pressure": 8,
+      "events": {
+        "comparison": 1,
+        "compute_planned": 2,
+        "created": 3,
+        "difficulty_hint": 1,
+        "divergence_candidate": 1,
+        "divergence_jaccard": 1,
+        "divergence_start": 1,
+        "evaluating_done": 1,
+        "evaluation_record_created": 2,
+        "git_commit_skipped": 1,
+        "kv_cache_assembled": 4,
+        "kv_cache_pressure": 4,
+        "llm_call": 4,
+        "memory_memo_written": 1,
+        "memory_remembered": 1,
+        "novelty_reset": 1,
+        "process_eval": 1,
+        "status": 2,
+        "task_analysis": 1,
+        "transition": 7,
+        "verification": 3,
+        "verification_decision": 1
+      },
+      "memory_hits": 4,
+      "memory_bytes": 5432,
+      "memory_remembered": 2
+    }
+  }
+]

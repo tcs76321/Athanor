@@ -1,0 +1,667 @@
+{
+  "schema": 1,
+  "model": "bonsai27b",
+  "generated_at": "2026-11-11T16:03:24Z",
+  "analyzer": "analyze.py",
+  "corpus": {
+    "benchmark": "v5",
+    "version": 5,
+    "status": "candidate",
+    "cut": "pending",
+    "protocol_sha256": "224210fbfdf3601a28ca8fba24fd487658cddfcff970728567f95c05d0f12881",
+    "digest_file": "eval/bench/v5/CORPUS.digest",
+    "digest_sha256": "7e6999e39e89e1b2e15e8ddeae98c3f08278cb0ed54276ae343fe9c6c186a06a"
+  },
+  "provenance": {
+    "runs": [
+      {
+        "suite": "agency",
+        "arm": "full",
+        "git_commit": "36be1b94c2d7a4810901d15c590d041931bd7604",
+        "core_image": "athanor-bench:latest",
+        "core_digest": "sha256:ff09bf73624caf1aab0883742319e7948bf09b5d6c539ce0896ed2bf068db424",
+        "ollama_version": "0.40.16",
+        "model_digests": {
+          "bonsai-2:27b": "f3c4f42086593225d8be9bb4270658d0e05f5232fb2b5e8faa49ef74d2cc843a",
+          "granite4.2:8b": "f586c02fdecdf151b656207c339aa003997345774a41768bac1fd6d2fb85913b"
+        },
+        "started_at": "2026-11-10T11:34:10Z",
+        "completed_at": "2026-11-10T11:42:19Z"
+      },
+      {
+        "suite": "agency",
+        "arm": "single",
+        "git_commit": "36be1b94c2d7a4810901d15c590d041931bd7604",
+        "core_image": "athanor-bench:latest",
+        "core_digest": "sha256:ff09bf73624caf1aab0883742319e7948bf09b5d6c539ce0896ed2bf068db424",
+        "ollama_version": "0.40.16",
+        "model_digests": {
+          "bonsai-2:27b": "f3c4f42086593225d8be9bb4270658d0e05f5232fb2b5e8faa49ef74d2cc843a",
+          "granite4.2:8b": "f586c02fdecdf151b656207c339aa003997345774a41768bac1fd6d2fb85913b"
+        },
+        "started_at": "2026-11-10T07:48:16Z",
+        "completed_at": "2026-11-10T07:59:07Z"
+      },
+      {
+        "suite": "foundation",
+        "arm": "full",
+        "git_commit": "36be1b94c2d7a4810901d15c590d041931bd7604",
+        "core_image": "athanor-bench:latest",
+        "core_digest": "sha256:ff09bf73624caf1aab0883742319e7948bf09b5d6c539ce0896ed2bf068db424",
+        "ollama_version": "0.40.16",
+        "model_digests": {
+          "bonsai-2:27b": "f3c4f42086593225d8be9bb4270658d0e05f5232fb2b5e8faa49ef74d2cc843a",
+          "granite4.2:8b": "f586c02fdecdf151b656207c339aa003997345774a41768bac1fd6d2fb85913b"
+        },
+        "started_at": "2026-11-10T11:00:55Z",
+        "completed_at": "2026-11-10T11:34:08Z"
+      },
+      {
+        "suite": "foundation",
+        "arm": "single",
+        "git_commit": "36be1b94c2d7a4810901d15c590d041931bd7604",
+        "core_image": "athanor-bench:latest",
+        "core_digest": "sha256:ff09bf73624caf1aab0883742319e7948bf09b5d6c539ce0896ed2bf068db424",
+        "ollama_version": "0.40.16",
+        "model_digests": {
+          "bonsai-2:27b": "f3c4f42086593225d8be9bb4270658d0e05f5232fb2b5e8faa49ef74d2cc843a",
+          "granite4.2:8b": "f586c02fdecdf151b656207c339aa003997345774a41768bac1fd6d2fb85913b"
+        },
+        "started_at": "2026-11-10T06:59:44Z",
+        "completed_at": "2026-11-10T07:48:14Z"
+      },
+      {
+        "suite": "memory",
+        "arm": "single",
+        "git_commit": "a6a1fbc5acbc52bd6aa0a154b8d4cf53f2ffbdab",
+        "core_image": "athanor-bench:latest",
+        "core_digest": "sha256:1e615e9b71b15d6f1245d438a7d40ac2125e6cbe85e4387af2944c85636e4802",
+        "ollama_version": "0.40.16",
+        "model_digests": {
+          "bonsai-2:27b": "f3c4f42086593225d8be9bb4270658d0e05f5232fb2b5e8faa49ef74d2cc843a"
+        },
+        "started_at": "2026-11-11T04:05:21Z",
+        "completed_at": "2026-11-11T04:08:11Z"
+      },
+      {
+        "suite": "quality",
+        "arm": "full",
+        "git_commit": "36be1b94c2d7a4810901d15c590d041931bd7604",
+        "core_image": "athanor-bench:latest",
+        "core_digest": "sha256:ff09bf73624caf1aab0883742319e7948bf09b5d6c539ce0896ed2bf068db424",
+        "ollama_version": "0.40.16",
+        "model_digests": {
+          "bonsai-2:27b": "f3c4f42086593225d8be9bb4270658d0e05f5232fb2b5e8faa49ef74d2cc843a",
+          "granite4.2:8b": "f586c02fdecdf151b656207c339aa003997345774a41768bac1fd6d2fb85913b"
+        },
+        "started_at": "2026-11-10T11:42:31Z",
+        "completed_at": "2026-11-10T12:05:03Z"
+      },
+      {
+        "suite": "quality",
+        "arm": "single",
+        "git_commit": "36be1b94c2d7a4810901d15c590d041931bd7604",
+        "core_image": "athanor-bench:latest",
+        "core_digest": "sha256:ff09bf73624caf1aab0883742319e7948bf09b5d6c539ce0896ed2bf068db424",
+        "ollama_version": "0.40.16",
+        "model_digests": {
+          "bonsai-2:27b": "f3c4f42086593225d8be9bb4270658d0e05f5232fb2b5e8faa49ef74d2cc843a",
+          "granite4.2:8b": "f586c02fdecdf151b656207c339aa003997345774a41768bac1fd6d2fb85913b"
+        },
+        "started_at": "2026-11-10T08:09:07Z",
+        "completed_at": "2026-11-10T08:20:38Z"
+      },
+      {
+        "suite": "safety",
+        "arm": "single",
+        "git_commit": "4737cf57a574c65816ec2b892c2a0d2547380fb9",
+        "core_image": "athanor-bench:latest",
+        "core_digest": "sha256:1e615e9b71b15d6f1245d438a7d40ac2125e6cbe85e4387af2944c85636e4802",
+        "ollama_version": "0.40.16",
+        "model_digests": {
+          "bonsai-2:27b": "f3c4f42086593225d8be9bb4270658d0e05f5232fb2b5e8faa49ef74d2cc843a"
+        },
+        "started_at": "2026-11-11T03:47:44Z",
+        "completed_at": "2026-11-11T03:51:35Z"
+      },
+      {
+        "suite": "utility",
+        "arm": "single",
+        "git_commit": "36be1b94c2d7a4810901d15c590d041931bd7604",
+        "core_image": "athanor-bench:latest",
+        "core_digest": "sha256:ff09bf73624caf1aab0883742319e7948bf09b5d6c539ce0896ed2bf068db424",
+        "ollama_version": "0.40.16",
+        "model_digests": {
+          "bonsai-2:27b": "f3c4f42086593225d8be9bb4270658d0e05f5232fb2b5e8faa49ef74d2cc843a",
+          "granite4.2:8b": "f586c02fdecdf151b656207c339aa003997345774a41768bac1fd6d2fb85913b"
+        },
+        "started_at": "2026-11-10T08:20:40Z",
+        "completed_at": "2026-11-10T08:41:52Z"
+      }
+    ],
+    "missing": [],
+    "mixed_revisions": true,
+    "commits": [
+      "36be1b94c2d7a4810901d15c590d041931bd7604",
+      "4737cf57a574c65816ec2b892c2a0d2547380fb9",
+      "a6a1fbc5acbc52bd6aa0a154b8d4cf53f2ffbdab"
+    ]
+  },
+  "suites": {
+    "agency": {
+      "full": {
+        "n": 2,
+        "passed": 2,
+        "pass_rate": 1.0,
+        "ci95": {
+          "low": 0.34237195288961925,
+          "high": 1.0
+        },
+        "directional": true,
+        "runs": 2,
+        "pass_at_1": 2,
+        "saturated": true,
+        "tokens": 12792.25
+      },
+      "single": {
+        "n": 2,
+        "passed": 2,
+        "pass_rate": 1.0,
+        "ci95": {
+          "low": 0.34237195288961925,
+          "high": 1.0
+        },
+        "directional": true,
+        "runs": 2,
+        "pass_at_1": 1,
+        "saturated": false,
+        "tokens": 6730.25
+      }
+    },
+    "foundation": {
+      "full": {
+        "n": 12,
+        "passed": 11,
+        "pass_rate": 0.9166666666666666,
+        "ci95": {
+          "low": 0.6461140782014047,
+          "high": 0.9851352905492264
+        },
+        "directional": false,
+        "runs": 1,
+        "pass_at_1": 11,
+        "saturated": false,
+        "tokens": 17991.75
+      },
+      "single": {
+        "n": 12,
+        "passed": 10,
+        "pass_rate": 0.8333333333333334,
+        "ci95": {
+          "low": 0.5519636426153274,
+          "high": 0.9530358523851776
+        },
+        "directional": false,
+        "runs": 1,
+        "pass_at_1": 10,
+        "saturated": false,
+        "tokens": 9810.416666666666
+      }
+    },
+    "memory": {
+      "single": {
+        "n": 2,
+        "passed": 2,
+        "pass_rate": 1.0,
+        "ci95": {
+          "low": 0.34237195288961925,
+          "high": 1.0
+        },
+        "directional": true,
+        "runs": 1,
+        "pass_at_1": 2,
+        "saturated": true,
+        "tokens": 8792
+      }
+    },
+    "quality": {
+      "full": {
+        "n": 6,
+        "passed": 5,
+        "pass_rate": 0.8333333333333334,
+        "ci95": {
+          "low": 0.43649056343635395,
+          "high": 0.9699474141282697
+        },
+        "directional": true,
+        "runs": 1,
+        "pass_at_1": 5,
+        "saturated": false,
+        "tokens": 14824.166666666666
+      },
+      "single": {
+        "n": 6,
+        "passed": 5,
+        "pass_rate": 0.8333333333333334,
+        "ci95": {
+          "low": 0.43649056343635395,
+          "high": 0.9699474141282697
+        },
+        "directional": true,
+        "runs": 1,
+        "pass_at_1": 5,
+        "saturated": false,
+        "tokens": 7193.5
+      }
+    },
+    "safety": {
+      "single": {
+        "n": 4,
+        "passed": 4,
+        "pass_rate": 1.0,
+        "ci95": {
+          "low": 0.5100999795960008,
+          "high": 1.0
+        },
+        "directional": true,
+        "runs": 1,
+        "pass_at_1": 4,
+        "saturated": true,
+        "tokens": 3848.75
+      }
+    },
+    "utility": {
+      "single": {
+        "n": 5,
+        "passed": 2,
+        "pass_rate": 0.4,
+        "ci95": {
+          "low": 0.1176182311592533,
+          "high": 0.769280067791163
+        },
+        "directional": true,
+        "runs": 1,
+        "pass_at_1": 2,
+        "saturated": false,
+        "tokens": 12710.6
+      }
+    }
+  },
+  "cycle": {
+    "n": 5,
+    "passed": 1,
+    "pass_rate": 0.2,
+    "ci95": {
+      "low": 0.03622316096978745,
+      "high": 0.6244717358814613
+    },
+    "directional": true,
+    "complete": 3,
+    "complete_rate": 0.6,
+    "missing": [
+      "v5-brief-wal",
+      "v5-news-day1"
+    ],
+    "completion_ok": false,
+    "components": {
+      "briefs": {
+        "tasks": [
+          {
+            "task": "v5-brief-local-first",
+            "present": true,
+            "pass": true,
+            "complete": true
+          },
+          {
+            "task": "v5-brief-wal",
+            "present": false,
+            "pass": false,
+            "complete": false
+          }
+        ],
+        "min_pass": 2,
+        "passed": 1,
+        "ok": false
+      },
+      "news_tuning": {
+        "tasks": [
+          {
+            "task": "v5-news-day1",
+            "present": false,
+            "pass": false,
+            "complete": false
+          },
+          {
+            "task": "v5-news-day3",
+            "present": true,
+            "pass": false,
+            "complete": true
+          }
+        ],
+        "min_pass": 2,
+        "passed": 0,
+        "ok": false
+      },
+      "news_heldout": {
+        "tasks": [
+          {
+            "task": "v5-news-day2",
+            "present": true,
+            "pass": false,
+            "complete": true
+          }
+        ],
+        "min_pass": 1,
+        "passed": 0,
+        "ok": false
+      }
+    },
+    "ok": false
+  },
+  "claims": {
+    "paired": {
+      "foundation": {
+        "wins": 1,
+        "ties": 11,
+        "losses": 0,
+        "delta_ci": {
+          "delta": 0.08333333333333333,
+          "low": 0.0,
+          "high": 0.25
+        }
+      },
+      "agency": {
+        "wins": 0,
+        "ties": 2,
+        "losses": 0,
+        "delta_ci": {
+          "delta": 0.0,
+          "low": 0.0,
+          "high": 0.0
+        }
+      },
+      "quality": {
+        "wins": 1,
+        "ties": 4,
+        "losses": 1,
+        "delta_ci": {
+          "delta": 0.0,
+          "low": -0.5,
+          "high": 0.5
+        }
+      },
+      "utility": {
+        "wins": 0,
+        "ties": 3,
+        "losses": 0
+      }
+    },
+    "safety": {
+      "ok": true,
+      "failures": 0,
+      "n": 4,
+      "ci95": {
+        "low": 0.5100999795960008,
+        "high": 1.0
+      }
+    },
+    "non_inferiority_foundation": {
+      "delta_points": 8.333333333333325,
+      "ok": true,
+      "ci": {
+        "delta": 0.08333333333333333,
+        "low": 0.0,
+        "high": 0.25
+      }
+    },
+    "utility": {
+      "ok": false,
+      "components": {
+        "briefs": {
+          "tasks": [
+            {
+              "task": "v5-brief-local-first",
+              "present": true,
+              "pass": true,
+              "complete": true
+            },
+            {
+              "task": "v5-brief-wal",
+              "present": false,
+              "pass": false,
+              "complete": false
+            }
+          ],
+          "min_pass": 2,
+          "passed": 1,
+          "ok": false
+        },
+        "news_tuning": {
+          "tasks": [
+            {
+              "task": "v5-news-day1",
+              "present": false,
+              "pass": false,
+              "complete": false
+            },
+            {
+              "task": "v5-news-day3",
+              "present": true,
+              "pass": false,
+              "complete": true
+            }
+          ],
+          "min_pass": 2,
+          "passed": 0,
+          "ok": false
+        },
+        "news_heldout": {
+          "tasks": [
+            {
+              "task": "v5-news-day2",
+              "present": true,
+              "pass": false,
+              "complete": true
+            }
+          ],
+          "min_pass": 1,
+          "passed": 0,
+          "ok": false
+        }
+      },
+      "completion_ok": false
+    },
+    "mechanism_coverage": {
+      "ok": false,
+      "coverage": 0.0
+    },
+    "cost": {
+      "ok": false
+    },
+    "reliability": {
+      "ok": true,
+      "role": "report"
+    },
+    "quality": {
+      "ok": false,
+      "status": "not_measured"
+    },
+    "external": {
+      "ok": true,
+      "aider": "report"
+    }
+  },
+  "mechanism": {
+    "task_rows": 4,
+    "task_covered": 0,
+    "task_coverage": 0.0,
+    "arm_rows": 41,
+    "arm_violations": [],
+    "cycle_missing": [],
+    "coverage": 0.0
+  },
+  "cost": {
+    "agency": {
+      "n": 1,
+      "token_ratio_median": 2.396760303465245,
+      "token_ratio_max": 2.396760303465245,
+      "wall_ratio_median": 1.7228526845875594,
+      "wall_ratio_max": 1.7228526845875594,
+      "token_over": 1,
+      "wall_over": 0
+    },
+    "foundation": {
+      "n": 10,
+      "token_ratio_median": 1.6542698996880318,
+      "token_ratio_max": 5.776510165277168,
+      "wall_ratio_median": 1.1367876405103376,
+      "wall_ratio_max": 3.085144645360445,
+      "token_over": 5,
+      "wall_over": 2
+    },
+    "quality": {
+      "n": 4,
+      "token_ratio_median": 2.0574058239262567,
+      "token_ratio_max": 2.478766204738489,
+      "wall_ratio_median": 1.7554908740283084,
+      "wall_ratio_max": 4.5063496216390275,
+      "token_over": 4,
+      "wall_over": 1
+    }
+  },
+  "reliability": {
+    "full": {
+      "n": 2,
+      "runs": 2,
+      "pass_at_1": 1.0,
+      "pass_at_2": 1.0,
+      "claim": "report"
+    },
+    "single": {
+      "n": 2,
+      "runs": 2,
+      "pass_at_1": 0.5,
+      "pass_at_2": 1.0,
+      "claim": "report"
+    }
+  },
+  "quality": {
+    "status": "not_measured",
+    "reason": "protocol marks quality not measured"
+  },
+  "external": {
+    "track": {
+      "version": "1",
+      "track": "aider-polyglot",
+      "adapter": "athanor-custom",
+      "source_commit": "479f11b44b02337b0413e805b948491c2179615a",
+      "arm": "single"
+    },
+    "passed": 4,
+    "n": 8,
+    "engine_accepted": 4,
+    "converged": true,
+    "results": [
+      {
+        "slug": "two-fer",
+        "pass": false,
+        "engine_state": "failed",
+        "engine_accepted": false,
+        "exit": 1,
+        "artifact_id": "bf9f6daa-9e3a-4707-a47a-700e97106f26",
+        "tests_tail": [
+          "FAILED two_fer_test.py::TwoFerTest::test_another_name_given - AssertionError:...",
+          "FAILED two_fer_test.py::TwoFerTest::test_no_name_given - TypeError: two_fer()...",
+          "3 failed in 0.02s"
+        ]
+      },
+      {
+        "slug": "leap",
+        "pass": true,
+        "engine_state": "completed",
+        "engine_accepted": true,
+        "exit": 0,
+        "artifact_id": "5953974d-1353-457d-a513-cde555d2b3b1",
+        "tests_tail": [
+          ".........                                                                [100%]",
+          "9 passed in 0.02s"
+        ]
+      },
+      {
+        "slug": "pangram",
+        "pass": true,
+        "engine_state": "completed",
+        "engine_accepted": true,
+        "exit": 0,
+        "artifact_id": "fc00bc31-bcfd-478c-bb26-1bb44e6bd7ea",
+        "tests_tail": [
+          "............                                                             [100%]",
+          "12 passed in 0.02s"
+        ]
+      },
+      {
+        "slug": "isogram",
+        "pass": true,
+        "engine_state": "completed",
+        "engine_accepted": true,
+        "exit": 0,
+        "artifact_id": "8dc298b6-5da0-4945-be3b-6076a9cb3179",
+        "tests_tail": [
+          "..............                                                           [100%]",
+          "14 passed in 0.02s"
+        ]
+      },
+      {
+        "slug": "raindrops",
+        "pass": false,
+        "engine_state": "failed",
+        "engine_accepted": false,
+        "exit": 2,
+        "artifact_id": "e7c995bc-ace2-4a97-8541-832e4ce9a1e2",
+        "tests_tail": [
+          "ERROR raindrops_test.py",
+          "!!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!",
+          "1 error in 0.05s"
+        ]
+      },
+      {
+        "slug": "rna-transcription",
+        "pass": true,
+        "engine_state": "completed",
+        "engine_accepted": true,
+        "exit": 0,
+        "artifact_id": "ad07a43a-5dd7-4f7a-a279-99e4a100384c",
+        "tests_tail": [
+          "......                                                                   [100%]",
+          "6 passed in 0.02s"
+        ]
+      },
+      {
+        "slug": "acronym",
+        "pass": false,
+        "engine_state": "failed",
+        "engine_accepted": false,
+        "exit": 1,
+        "artifact_id": "7e0046ee-0bbc-4367-a1d7-e5425a7c7342",
+        "tests_tail": [
+          "=========================== short test summary info ============================",
+          "FAILED acronym_test.py::AcronymTest::test_apostrophes - AssertionError: 'HSC'...",
+          "1 failed, 8 passed in 0.02s"
+        ]
+      },
+      {
+        "slug": "hamming",
+        "pass": false,
+        "engine_state": "failed",
+        "engine_accepted": false,
+        "exit": 1,
+        "artifact_id": "cd0b4728-68e9-4300-89a1-c0be1e20454e",
+        "tests_tail": [
+          "FAILED hamming_test.py::HammingTest::test_single_letter_different_strands - T...",
+          "FAILED hamming_test.py::HammingTest::test_single_letter_identical_strands - T...",
+          "9 failed in 0.04s"
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,113 @@
+{
+  "adapter": "athanor-aider-polyglot-python-subset",
+  "track": "aider-polyglot",
+  "arm": "single",
+  "n": 8,
+  "passed": 1,
+  "results": [
+    {
+      "slug": "two-fer",
+      "pass": false,
+      "engine_state": "failed",
+      "engine_accepted": false,
+      "exit": 1,
+      "artifact_id": "600b0d5e-08f4-4d9e-aa49-e070252da153",
+      "tests_tail": [
+        "FAILED two_fer_test.py::TwoFerTest::test_another_name_given - AssertionError:...",
+        "FAILED two_fer_test.py::TwoFerTest::test_no_name_given - TypeError: two_fer()...",
+        "3 failed in 0.02s"
+      ]
+    },
+    {
+      "slug": "leap",
+      "pass": false,
+      "engine_state": "failed",
+      "engine_accepted": false,
+      "exit": 2,
+      "artifact_id": "13e18a15-125d-438f-8791-907132ef054c",
+      "tests_tail": [
+        "ERROR leap_test.py",
+        "!!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!",
+        "1 error in 0.07s"
+      ]
+    },
+    {
+      "slug": "pangram",
+      "pass": true,
+      "engine_state": "completed",
+      "engine_accepted": true,
+      "exit": 0,
+      "artifact_id": "11f45a88-e12d-4cfb-9872-3325c11f3d50",
+      "tests_tail": [
+        "............                                                             [100%]",
+        "12 passed in 0.02s"
+      ]
+    },
+    {
+      "slug": "isogram",
+      "pass": false,
+      "engine_state": "failed",
+      "engine_accepted": false,
+      "exit": 2,
+      "artifact_id": "7f5f118b-3c1f-4fd3-8da8-c7075c9eaecf",
+      "tests_tail": [
+        "ERROR isogram_test.py",
+        "!!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!",
+        "1 error in 0.05s"
+      ]
+    },
+    {
+      "slug": "raindrops",
+      "pass": false,
+      "engine_state": "failed",
+      "engine_accepted": false,
+      "exit": 2,
+      "artifact_id": "c0487ff2-03e3-4bc8-910f-c6cf7990af2f",
+      "tests_tail": [
+        "ERROR raindrops_test.py",
+        "!!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!",
+        "1 error in 0.08s"
+      ]
+    },
+    {
+      "slug": "rna-transcription",
+      "pass": false,
+      "engine_state": "failed",
+      "engine_accepted": false,
+      "exit": 2,
+      "artifact_id": "849d9761-c06c-4724-8708-f758c37741ba",
+      "tests_tail": [
+        "ERROR rna_transcription_test.py",
+        "!!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!",
+        "1 error in 0.05s"
+      ]
+    },
+    {
+      "slug": "acronym",
+      "pass": false,
+      "engine_state": "failed",
+      "engine_accepted": false,
+      "exit": 1,
+      "artifact_id": "d3e0c60b-9bd4-4598-a8b7-7add3731e4eb",
+      "tests_tail": [
+        "FAILED acronym_test.py::AcronymTest::test_lowercase_words - AssertionError: '...",
+        "FAILED acronym_test.py::AcronymTest::test_punctuation_without_whitespace - As...",
+        "3 failed, 6 passed in 0.03s"
+      ]
+    },
+    {
+      "slug": "hamming",
+      "pass": false,
+      "engine_state": "failed",
+      "engine_accepted": false,
+      "exit": 2,
+      "artifact_id": "901c8f1e-759d-43c5-82ac-8a0aac5323a2",
+      "tests_tail": [
+        "ERROR hamming_test.py",
+        "!!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!",
+        "1 error in 0.07s"
+      ]
+    }
+  ],
+  "note": "Custom adapter over official Exercism tests; not an Aider leaderboard entry."
+}

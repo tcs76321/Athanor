@@ -1,0 +1,112 @@
+{
+  "model": "gemma12b",
+  "mixed_ok": true,
+  "soak": [
+    {
+      "suite": "foundation",
+      "arm": "single",
+      "source": "tools/bench/results/v5/gemma12b/soak/foundation/single",
+      "supersedes": "",
+      "reason": "",
+      "results": true,
+      "run": true
+    },
+    {
+      "suite": "foundation",
+      "arm": "full",
+      "source": "tools/bench/results/v5/gemma12b/soak/foundation/full",
+      "supersedes": "",
+      "reason": "",
+      "results": true,
+      "run": true
+    },
+    {
+      "suite": "agency",
+      "arm": "single",
+      "source": "tools/bench/results/v5/gemma12b/soak/agency/single",
+      "supersedes": "",
+      "reason": "",
+      "results": true,
+      "run": true
+    },
+    {
+      "suite": "agency",
+      "arm": "full",
+      "source": "tools/bench/results/v5/gemma12b/soak/agency/full",
+      "supersedes": "",
+      "reason": "",
+      "results": true,
+      "run": true
+    },
+    {
+      "suite": "utility",
+      "arm": "single",
+      "source": "tools/bench/results/v5/gemma12b/soak/utility/single",
+      "supersedes": "",
+      "reason": "",
+      "results": true,
+      "run": true
+    },
+    {
+      "suite": "safety",
+      "arm": "single",
+      "source": "tools/bench/results/v5/gemma12b/soak/safety/single",
+      "supersedes": "",
+      "reason": "",
+      "results": true,
+      "run": true
+    },
+    {
+      "suite": "memory",
+      "arm": "single",
+      "source": "tools/bench/results/v5/gemma12b/soak/memory/single",
+      "supersedes": "",
+      "reason": "",
+      "results": true,
+      "run": true
+    },
+    {
+      "suite": "quality",
+      "arm": "single",
+      "source": "tools/bench/results/v5/gemma12b/soak/quality/single",
+      "supersedes": "",
+      "reason": "",
+      "results": true,
+      "run": true
+    },
+    {
+      "suite": "quality",
+      "arm": "full",
+      "source": "tools/bench/results/v5/gemma12b/soak/quality/full",
+      "supersedes": "",
+      "reason": "",
+      "results": true,
+      "run": true
+    }
+  ],
+  "cycle": [
+    {
+      "task": "",
+      "source": "tools/bench/results/v5/gemma12b/cycle/out/cycle-gemma12b.json",
+      "supersedes": "",
+      "reason": "pre-fix cycle run; utility report marks completion honestly",
+      "copied": true,
+      "tasks": [
+        "v5-brief-local-first",
+        "v5-brief-wal",
+        "v5-news-day1",
+        "v5-news-day2",
+        "v5-news-day3"
+      ]
+    }
+  ],
+  "quality": {
+    "source": "",
+    "copied": false
+  },
+  "aider": {
+    "source": "tools/bench/results/v5/gemma12b/aider/report.json",
+    "copied": true
+  },
+  "missing": []
+}

@@ -1,0 +1,128 @@
+{
+  "model": "bonsai27b",
+  "mixed_ok": true,
+  "soak": [
+    {
+      "suite": "foundation",
+      "arm": "single",
+      "source": "tools/bench/results/v5/bonsai27b/soak/foundation/single",
+      "supersedes": "",
+      "reason": "",
+      "results": true,
+      "run": true
+    },
+    {
+      "suite": "foundation",
+      "arm": "full",
+      "source": "tools/bench/results/v5/bonsai27b/soak/foundation/full",
+      "supersedes": "",
+      "reason": "",
+      "results": true,
+      "run": true
+    },
+    {
+      "suite": "agency",
+      "arm": "single",
+      "source": "tools/bench/results/v5/bonsai27b/soak/agency/single",
+      "supersedes": "",
+      "reason": "",
+      "results": true,
+      "run": true
+    },
+    {
+      "suite": "agency",
+      "arm": "full",
+      "source": "tools/bench/results/v5/bonsai27b/soak/agency/full",
+      "supersedes": "",
+      "reason": "",
+      "results": true,
+      "run": true
+    },
+    {
+      "suite": "utility",
+      "arm": "single",
+      "source": "tools/bench/results/v5/bonsai27b/soak/utility/single",
+      "supersedes": "",
+      "reason": "",
+      "results": true,
+      "run": true
+    },
+    {
+      "suite": "safety",
+      "arm": "single",
+      "source": "tools/bench/results/v5-validation/bonsai27b/safety2",
+      "supersedes": "tools/bench/results/v5/bonsai27b/soak/safety/single",
+      "reason": "post-fix: deterministic verifier is authoritative over the LLM security opinion",
+      "results": true,
+      "run": true
+    },
+    {
+      "suite": "memory",
+      "arm": "single",
+      "source": "tools/bench/results/v5-validation/bonsai27b/memory2",
+      "supersedes": "",
+      "reason": "",
+      "results": true,
+      "run": true
+    },
+    {
+      "suite": "quality",
+      "arm": "single",
+      "source": "tools/bench/results/v5/bonsai27b/soak/quality/single",
+      "supersedes": "",
+      "reason": "",
+      "results": true,
+      "run": true
+    },
+    {
+      "suite": "quality",
+      "arm": "full",
+      "source": "tools/bench/results/v5/bonsai27b/soak/quality/full",
+      "supersedes": "",
+      "reason": "",
+      "results": true,
+      "run": true
+    }
+  ],
+  "cycle": [
+    {
+      "task": "v5-brief-local-first",
+      "source": "tools/bench/results/v5-validation/bonsai27b/cycle-brief2/out/cycle-bonsai27b.json",
+      "supersedes": "tools/bench/results/v5-validation/bonsai27b/cycle-brief/out/cycle-bonsai27b.json",
+      "reason": "confirming run after the data-capability verifier fix",
+      "copied": true,
+      "tasks": [
+        "v5-brief-local-first"
+      ]
+    },
+    {
+      "task": "v5-news-day2",
+      "source": "tools/bench/results/v5-validation/bonsai27b/news-day2/out/cycle-bonsai27b.json",
+      "supersedes": "",
+      "reason": "post-fix cycle completion; external check still fails (held out)",
+      "copied": true,
+      "tasks": [
+        "v5-news-day2"
+      ]
+    },
+    {
+      "task": "v5-news-day3",
+      "source": "tools/bench/results/v5-validation/bonsai27b/news-day3/out/cycle-bonsai27b.json",
+      "supersedes": "",
+      "reason": "post-fix cycle completion; external check fails on the too-strict must_not_contain",
+      "copied": true,
+      "tasks": [
+        "v5-news-day3"
+      ]
+    }
+  ],
+  "quality": {
+    "source": "tools/bench/results/v5/bonsai27b/quality-pairwise.json",
+    "copied": true
+  },
+  "aider": {
+    "source": "tools/bench/results/v5/bonsai27b/aider/report.json",
+    "copied": true
+  },
+  "missing": []
+}

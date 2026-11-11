@@ -1,0 +1,211 @@
+[
+  {
+    "goal_name": "v5-memory-correction",
+    "goal_number": 30,
+    "archetype": "document",
+    "model_label": "gemma12b",
+    "model": "gemma4:12b-mlx",
+    "family": "gemma",
+    "arm": "single",
+    "run": 1,
+    "job_id": "",
+    "state": "failed",
+    "artifact_id": "af17d0a9-6682-45a3-9782-0428043306db",
+    "winner": "none",
+    "confidence": 0,
+    "score": 0,
+    "token_cost": 5571,
+    "wall_ms": 28564,
+    "retries": 0,
+    "reflection_loops": 0,
+    "diversity": 0,
+    "candidates": 0,
+    "tier": "H",
+    "check_pass": false,
+    "label_version": "adr-0092",
+    "suite": "memory",
+    "bench": true,
+    "sequence": [
+      {
+        "index": 1,
+        "goal": "Write a short note with a Plan section. Use the term \"pull sync\" for\nthe sync method and at most 120 words.\n",
+        "job_id": "4e03a703-dcda-4c17-b891-2e1007369044",
+        "state": "failed",
+        "pass": false,
+        "check_pass": false,
+        "check_failures": [
+          "required_sections"
+        ],
+        "tokens": 5571,
+        "wall_ms": 28564
+      }
+    ],
+    "telemetry": {
+      "calls": 5,
+      "prompt_tokens": 4601,
+      "completion_tokens": 970,
+      "by_phase_calls": {
+        "diverging": 1,
+        "evaluating": 2,
+        "planning": 1,
+        "refining": 1
+      },
+      "by_phase_tokens": {
+        "diverging": 703,
+        "evaluating": 2815,
+        "planning": 799,
+        "refining": 1254
+      },
+      "by_persona_tokens": {
+        "main": 1957,
+        "security": 2815,
+        "tall": 799
+      },
+      "models": [
+        "gemma4:12b-mlx",
+        "granite4.2:8b"
+      ],
+      "repair_loops": 1,
+      "candidate_raise": 1,
+      "kv_pressure": 5,
+      "corrections_injected": 2,
+      "events": {
+        "compute_planned": 2,
+        "correction_created": 3,
+        "corrections_injected": 2,
+        "created": 3,
+        "difficulty_hint": 1,
+        "divergence_candidate": 1,
+        "divergence_jaccard": 1,
+        "divergence_start": 1,
+        "evaluating_done": 1,
+        "evaluation_record_created": 2,
+        "kv_cache_assembled": 5,
+        "kv_cache_pressure": 5,
+        "llm_call": 5,
+        "novelty_reset": 1,
+        "process_eval": 1,
+        "regulator_decision": 1,
+        "self_refine": 1,
+        "task_analysis": 1,
+        "transition": 6,
+        "verification": 2
+      }
+    }
+  },
+  {
+    "goal_name": "v5-memory-insight",
+    "goal_number": 31,
+    "archetype": "document",
+    "model_label": "gemma12b",
+    "model": "gemma4:12b-mlx",
+    "family": "gemma",
+    "arm": "single",
+    "run": 1,
+    "job_id": "",
+    "state": "completed",
+    "artifact_id": "6f691572-af6e-490a-a758-10427ef48426",
+    "winner": "new",
+    "confidence": 0,
+    "score": 0,
+    "token_cost": 11435,
+    "wall_ms": 42203,
+    "retries": 0,
+    "reflection_loops": 0,
+    "diversity": 0,
+    "candidates": 0,
+    "tier": "H",
+    "check_pass": true,
+    "engine_accepted": true,
+    "label_version": "adr-0092",
+    "suite": "memory",
+    "bench": true,
+    "sequence": [
+      {
+        "index": 1,
+        "goal": "Write a short review of a local-first backup plan. Note one risk and\none mitigation in at most 150 words.\n",
+        "job_id": "1b317445-2c42-471d-bf6f-84ec3c092113",
+        "state": "completed",
+        "artifact_id": "6530cb6d-b757-4857-b62b-8b5ad73da26a",
+        "pass": true,
+        "check_pass": true,
+        "tokens": 5911,
+        "wall_ms": 22866
+      },
+      {
+        "index": 2,
+        "goal": "Write a second review. Reuse the risk you identified earlier and add\na verification step for it. Keep it under 150 words.\n",
+        "job_id": "efa14e61-0363-4d8f-8a7c-aaddd6912daf",
+        "state": "completed",
+        "artifact_id": "6f691572-af6e-490a-a758-10427ef48426",
+        "pass": true,
+        "check_pass": true,
+        "tokens": 5524,
+        "wall_ms": 19337
+      }
+    ],
+    "progress": 1,
+    "telemetry": {
+      "calls": 10,
+      "prompt_tokens": 10309,
+      "completion_tokens": 1126,
+      "by_phase_calls": {
+        "diverging": 2,
+        "evaluating": 3,
+        "planning": 2,
+        "refining": 1,
+        "synthesizing": 2
+      },
+      "by_phase_tokens": {
+        "diverging": 1905,
+        "evaluating": 4025,
+        "planning": 2058,
+        "refining": 1019,
+        "synthesizing": 2428
+      },
+      "by_persona_tokens": {
+        "main": 5352,
+        "security": 4025,
+        "tall": 2058
+      },
+      "models": [
+        "gemma4:12b-mlx",
+        "granite4.2:8b"
+      ],
+      "repair_loops": 1,
+      "candidate_raise": 2,
+      "kv_pressure": 10,
+      "corrections_injected": 7,
+      "events": {
+        "comparison": 1,
+        "compute_planned": 2,
+        "correction_created": 1,
+        "corrections_injected": 3,
+        "created": 4,
+        "difficulty_hint": 1,
+        "divergence_candidate": 1,
+        "divergence_jaccard": 1,
+        "divergence_start": 1,
+        "evaluating_done": 1,
+        "evaluation_record_created": 3,
+        "git_commit_skipped": 1,
+        "kv_cache_assembled": 6,
+        "kv_cache_pressure": 6,
+        "llm_call": 6,
+        "memory_memo_written": 1,
+        "memory_remembered": 1,
+        "novelty_reset": 1,
+        "process_eval": 1,
+        "self_refine": 1,
+        "status": 2,
+        "task_analysis": 1,
+        "transition": 7,
+        "verification": 4,
+        "verification_decision": 1
+      },
+      "memory_hits": 4,
+      "memory_bytes": 6144,
+      "memory_remembered": 2
+    }
+  }
+]

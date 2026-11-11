@@ -1,0 +1,671 @@
+{
+  "schema": 1,
+  "model": "gemma12b",
+  "generated_at": "2026-11-11T16:03:24Z",
+  "analyzer": "analyze.py",
+  "corpus": {
+    "benchmark": "v5",
+    "version": 5,
+    "status": "candidate",
+    "cut": "pending",
+    "protocol_sha256": "224210fbfdf3601a28ca8fba24fd487658cddfcff970728567f95c05d0f12881",
+    "digest_file": "eval/bench/v5/CORPUS.digest",
+    "digest_sha256": "7e6999e39e89e1b2e15e8ddeae98c3f08278cb0ed54276ae343fe9c6c186a06a"
+  },
+  "provenance": {
+    "runs": [
+      {
+        "suite": "agency",
+        "arm": "full",
+        "git_commit": "36be1b94c2d7a4810901d15c590d041931bd7604",
+        "core_image": "athanor-bench:latest",
+        "core_digest": "sha256:ff09bf73624caf1aab0883742319e7948bf09b5d6c539ce0896ed2bf068db424",
+        "ollama_version": "0.40.16",
+        "model_digests": {
+          "gemma4:12b-mlx": "117d0d84cf2ab865feb59afc2cd30ff5d55f0035e05eb8d1b814f9688e3f3671",
+          "granite4.2:8b": "f586c02fdecdf151b656207c339aa003997345774a41768bac1fd6d2fb85913b"
+        },
+        "started_at": "2026-11-10T14:08:41Z",
+        "completed_at": "2026-11-10T14:16:51Z"
+      },
+      {
+        "suite": "agency",
+        "arm": "single",
+        "git_commit": "36be1b94c2d7a4810901d15c590d041931bd7604",
+        "core_image": "athanor-bench:latest",
+        "core_digest": "sha256:ff09bf73624caf1aab0883742319e7948bf09b5d6c539ce0896ed2bf068db424",
+        "ollama_version": "0.40.16",
+        "model_digests": {
+          "gemma4:12b-mlx": "117d0d84cf2ab865feb59afc2cd30ff5d55f0035e05eb8d1b814f9688e3f3671",
+          "granite4.2:8b": "f586c02fdecdf151b656207c339aa003997345774a41768bac1fd6d2fb85913b"
+        },
+        "started_at": "2026-11-10T12:24:23Z",
+        "completed_at": "2026-11-10T12:27:51Z"
+      },
+      {
+        "suite": "foundation",
+        "arm": "full",
+        "git_commit": "36be1b94c2d7a4810901d15c590d041931bd7604",
+        "core_image": "athanor-bench:latest",
+        "core_digest": "sha256:ff09bf73624caf1aab0883742319e7948bf09b5d6c539ce0896ed2bf068db424",
+        "ollama_version": "0.40.16",
+        "model_digests": {
+          "gemma4:12b-mlx": "117d0d84cf2ab865feb59afc2cd30ff5d55f0035e05eb8d1b814f9688e3f3671",
+          "granite4.2:8b": "f586c02fdecdf151b656207c339aa003997345774a41768bac1fd6d2fb85913b"
+        },
+        "started_at": "2026-11-10T13:55:59Z",
+        "completed_at": "2026-11-10T14:08:38Z"
+      },
+      {
+        "suite": "foundation",
+        "arm": "single",
+        "git_commit": "36be1b94c2d7a4810901d15c590d041931bd7604",
+        "core_image": "athanor-bench:latest",
+        "core_digest": "sha256:ff09bf73624caf1aab0883742319e7948bf09b5d6c539ce0896ed2bf068db424",
+        "ollama_version": "0.40.16",
+        "model_digests": {
+          "gemma4:12b-mlx": "117d0d84cf2ab865feb59afc2cd30ff5d55f0035e05eb8d1b814f9688e3f3671",
+          "granite4.2:8b": "f586c02fdecdf151b656207c339aa003997345774a41768bac1fd6d2fb85913b"
+        },
+        "started_at": "2026-11-10T12:06:46Z",
+        "completed_at": "2026-11-10T12:24:18Z"
+      },
+      {
+        "suite": "memory",
+        "arm": "single",
+        "git_commit": "36be1b94c2d7a4810901d15c590d041931bd7604",
+        "core_image": "athanor-bench:latest",
+        "core_digest": "sha256:ff09bf73624caf1aab0883742319e7948bf09b5d6c539ce0896ed2bf068db424",
+        "ollama_version": "0.40.16",
+        "model_digests": {
+          "gemma4:12b-mlx": "117d0d84cf2ab865feb59afc2cd30ff5d55f0035e05eb8d1b814f9688e3f3671",
+          "granite4.2:8b": "f586c02fdecdf151b656207c339aa003997345774a41768bac1fd6d2fb85913b"
+        },
+        "started_at": "2026-11-10T12:29:54Z",
+        "completed_at": "2026-11-10T12:32:56Z"
+      },
+      {
+        "suite": "quality",
+        "arm": "full",
+        "git_commit": "36be1b94c2d7a4810901d15c590d041931bd7604",
+        "core_image": "athanor-bench:latest",
+        "core_digest": "sha256:ff09bf73624caf1aab0883742319e7948bf09b5d6c539ce0896ed2bf068db424",
+        "ollama_version": "0.40.16",
+        "model_digests": {
+          "gemma4:12b-mlx": "117d0d84cf2ab865feb59afc2cd30ff5d55f0035e05eb8d1b814f9688e3f3671",
+          "granite4.2:8b": "f586c02fdecdf151b656207c339aa003997345774a41768bac1fd6d2fb85913b"
+        },
+        "started_at": "2026-11-10T14:17:01Z",
+        "completed_at": "2026-11-10T14:33:34Z"
+      },
+      {
+        "suite": "quality",
+        "arm": "single",
+        "git_commit": "36be1b94c2d7a4810901d15c590d041931bd7604",
+        "core_image": "athanor-bench:latest",
+        "core_digest": "sha256:ff09bf73624caf1aab0883742319e7948bf09b5d6c539ce0896ed2bf068db424",
+        "ollama_version": "0.40.16",
+        "model_digests": {
+          "gemma4:12b-mlx": "117d0d84cf2ab865feb59afc2cd30ff5d55f0035e05eb8d1b814f9688e3f3671",
+          "granite4.2:8b": "f586c02fdecdf151b656207c339aa003997345774a41768bac1fd6d2fb85913b"
+        },
+        "started_at": "2026-11-10T12:32:59Z",
+        "completed_at": "2026-11-10T12:40:15Z"
+      },
+      {
+        "suite": "safety",
+        "arm": "single",
+        "git_commit": "36be1b94c2d7a4810901d15c590d041931bd7604",
+        "core_image": "athanor-bench:latest",
+        "core_digest": "sha256:ff09bf73624caf1aab0883742319e7948bf09b5d6c539ce0896ed2bf068db424",
+        "ollama_version": "0.40.16",
+        "model_digests": {
+          "gemma4:12b-mlx": "117d0d84cf2ab865feb59afc2cd30ff5d55f0035e05eb8d1b814f9688e3f3671",
+          "granite4.2:8b": "f586c02fdecdf151b656207c339aa003997345774a41768bac1fd6d2fb85913b"
+        },
+        "started_at": "2026-11-10T12:28:02Z",
+        "completed_at": "2026-11-10T12:29:51Z"
+      },
+      {
+        "suite": "utility",
+        "arm": "single",
+        "git_commit": "36be1b94c2d7a4810901d15c590d041931bd7604",
+        "core_image": "athanor-bench:latest",
+        "core_digest": "sha256:ff09bf73624caf1aab0883742319e7948bf09b5d6c539ce0896ed2bf068db424",
+        "ollama_version": "0.40.16",
+        "model_digests": {
+          "gemma4:12b-mlx": "117d0d84cf2ab865feb59afc2cd30ff5d55f0035e05eb8d1b814f9688e3f3671",
+          "granite4.2:8b": "f586c02fdecdf151b656207c339aa003997345774a41768bac1fd6d2fb85913b"
+        },
+        "started_at": "2026-11-10T12:40:19Z",
+        "completed_at": "2026-11-10T12:50:28Z"
+      }
+    ],
+    "missing": [],
+    "mixed_revisions": false,
+    "commits": [
+      "36be1b94c2d7a4810901d15c590d041931bd7604"
+    ]
+  },
+  "suites": {
+    "agency": {
+      "full": {
+        "n": 2,
+        "passed": 2,
+        "pass_rate": 1.0,
+        "ci95": {
+          "low": 0.34237195288961925,
+          "high": 1.0
+        },
+        "directional": true,
+        "runs": 2,
+        "pass_at_1": 2,
+        "saturated": false,
+        "tokens": 21474.25
+      },
+      "single": {
+        "n": 2,
+        "passed": 2,
+        "pass_rate": 1.0,
+        "ci95": {
+          "low": 0.34237195288961925,
+          "high": 1.0
+        },
+        "directional": true,
+        "runs": 2,
+        "pass_at_1": 2,
+        "saturated": true,
+        "tokens": 6258.25
+      }
+    },
+    "foundation": {
+      "full": {
+        "n": 12,
+        "passed": 11,
+        "pass_rate": 0.9166666666666666,
+        "ci95": {
+          "low": 0.6461140782014047,
+          "high": 0.9851352905492264
+        },
+        "directional": false,
+        "runs": 1,
+        "pass_at_1": 11,
+        "saturated": false,
+        "tokens": 13372.416666666666
+      },
+      "single": {
+        "n": 12,
+        "passed": 10,
+        "pass_rate": 0.8333333333333334,
+        "ci95": {
+          "low": 0.5519636426153274,
+          "high": 0.9530358523851776
+        },
+        "directional": false,
+        "runs": 1,
+        "pass_at_1": 10,
+        "saturated": false,
+        "tokens": 6946.916666666667
+      }
+    },
+    "memory": {
+      "single": {
+        "n": 2,
+        "passed": 1,
+        "pass_rate": 0.5,
+        "ci95": {
+          "low": 0.09452865480086614,
+          "high": 0.9054713451991339
+        },
+        "directional": true,
+        "runs": 1,
+        "pass_at_1": 1,
+        "saturated": false,
+        "tokens": 8503
+      }
+    },
+    "quality": {
+      "full": {
+        "n": 6,
+        "passed": 5,
+        "pass_rate": 0.8333333333333334,
+        "ci95": {
+          "low": 0.43649056343635395,
+          "high": 0.9699474141282697
+        },
+        "directional": true,
+        "runs": 1,
+        "pass_at_1": 5,
+        "saturated": false,
+        "tokens": 26996.5
+      },
+      "single": {
+        "n": 6,
+        "passed": 4,
+        "pass_rate": 0.6666666666666666,
+        "ci95": {
+          "low": 0.29998832134152864,
+          "high": 0.9032306674407831
+        },
+        "directional": true,
+        "runs": 1,
+        "pass_at_1": 4,
+        "saturated": false,
+        "tokens": 8316.5
+      }
+    },
+    "safety": {
+      "single": {
+        "n": 4,
+        "passed": 4,
+        "pass_rate": 1.0,
+        "ci95": {
+          "low": 0.5100999795960008,
+          "high": 1.0
+        },
+        "directional": true,
+        "runs": 1,
+        "pass_at_1": 4,
+        "saturated": true,
+        "tokens": 4612.5
+      }
+    },
+    "utility": {
+      "single": {
+        "n": 5,
+        "passed": 1,
+        "pass_rate": 0.2,
+        "ci95": {
+          "low": 0.03622316096978745,
+          "high": 0.6244717358814613
+        },
+        "directional": true,
+        "runs": 1,
+        "pass_at_1": 1,
+        "saturated": false,
+        "tokens": 11675.2
+      }
+    }
+  },
+  "cycle": {
+    "n": 5,
+    "passed": 2,
+    "pass_rate": 0.4,
+    "ci95": {
+      "low": 0.1176182311592533,
+      "high": 0.769280067791163
+    },
+    "directional": true,
+    "complete": 2,
+    "complete_rate": 0.4,
+    "missing": [],
+    "completion_ok": false,
+    "components": {
+      "briefs": {
+        "tasks": [
+          {
+            "task": "v5-brief-local-first",
+            "present": true,
+            "pass": true,
+            "complete": true
+          },
+          {
+            "task": "v5-brief-wal",
+            "present": true,
+            "pass": true,
+            "complete": false
+          }
+        ],
+        "min_pass": 2,
+        "passed": 2,
+        "ok": true
+      },
+      "news_tuning": {
+        "tasks": [
+          {
+            "task": "v5-news-day1",
+            "present": true,
+            "pass": false,
+            "complete": false
+          },
+          {
+            "task": "v5-news-day3",
+            "present": true,
+            "pass": false,
+            "complete": true
+          }
+        ],
+        "min_pass": 2,
+        "passed": 0,
+        "ok": false
+      },
+      "news_heldout": {
+        "tasks": [
+          {
+            "task": "v5-news-day2",
+            "present": true,
+            "pass": false,
+            "complete": false
+          }
+        ],
+        "min_pass": 1,
+        "passed": 0,
+        "ok": false
+      }
+    },
+    "ok": false
+  },
+  "claims": {
+    "paired": {
+      "foundation": {
+        "wins": 1,
+        "ties": 11,
+        "losses": 0,
+        "delta_ci": {
+          "delta": 0.08333333333333333,
+          "low": 0.0,
+          "high": 0.25
+        }
+      },
+      "agency": {
+        "wins": 0,
+        "ties": 2,
+        "losses": 0,
+        "delta_ci": {
+          "delta": 0.0,
+          "low": 0.0,
+          "high": 0.0
+        }
+      },
+      "quality": {
+        "wins": 1,
+        "ties": 5,
+        "losses": 0,
+        "delta_ci": {
+          "delta": 0.16666666666666666,
+          "low": 0.0,
+          "high": 0.5
+        }
+      },
+      "utility": {
+        "wins": 1,
+        "ties": 4,
+        "losses": 0
+      }
+    },
+    "safety": {
+      "ok": true,
+      "failures": 0,
+      "n": 4,
+      "ci95": {
+        "low": 0.5100999795960008,
+        "high": 1.0
+      }
+    },
+    "non_inferiority_foundation": {
+      "delta_points": 8.333333333333325,
+      "ok": true,
+      "ci": {
+        "delta": 0.08333333333333333,
+        "low": 0.0,
+        "high": 0.25
+      }
+    },
+    "utility": {
+      "ok": false,
+      "components": {
+        "briefs": {
+          "tasks": [
+            {
+              "task": "v5-brief-local-first",
+              "present": true,
+              "pass": true,
+              "complete": true
+            },
+            {
+              "task": "v5-brief-wal",
+              "present": true,
+              "pass": true,
+              "complete": false
+            }
+          ],
+          "min_pass": 2,
+          "passed": 2,
+          "ok": true
+        },
+        "news_tuning": {
+          "tasks": [
+            {
+              "task": "v5-news-day1",
+              "present": true,
+              "pass": false,
+              "complete": false
+            },
+            {
+              "task": "v5-news-day3",
+              "present": true,
+              "pass": false,
+              "complete": true
+            }
+          ],
+          "min_pass": 2,
+          "passed": 0,
+          "ok": false
+        },
+        "news_heldout": {
+          "tasks": [
+            {
+              "task": "v5-news-day2",
+              "present": true,
+              "pass": false,
+              "complete": false
+            }
+          ],
+          "min_pass": 1,
+          "passed": 0,
+          "ok": false
+        }
+      },
+      "completion_ok": false
+    },
+    "mechanism_coverage": {
+      "ok": false,
+      "coverage": 0.0
+    },
+    "cost": {
+      "ok": false
+    },
+    "reliability": {
+      "ok": true,
+      "role": "report"
+    },
+    "quality": {
+      "ok": false,
+      "status": "not_measured"
+    },
+    "external": {
+      "ok": true,
+      "aider": "report"
+    }
+  },
+  "mechanism": {
+    "task_rows": 4,
+    "task_covered": 0,
+    "task_coverage": 0.0,
+    "arm_rows": 44,
+    "arm_violations": [],
+    "cycle_missing": [
+      "v5-brief-wal",
+      "v5-news-day1",
+      "v5-news-day2"
+    ],
+    "coverage": 0.0
+  },
+  "cost": {
+    "agency": {
+      "n": 2,
+      "token_ratio_median": 4.447310399913095,
+      "token_ratio_max": 6.808668377530653,
+      "wall_ratio_median": 3.738060264190823,
+      "wall_ratio_max": 5.894427354719903,
+      "token_over": 2,
+      "wall_over": 1
+    },
+    "foundation": {
+      "n": 10,
+      "token_ratio_median": 2.0996915435559718,
+      "token_ratio_max": 3.0324922853512435,
+      "wall_ratio_median": 1.3428222662210656,
+      "wall_ratio_max": 1.789395814278797,
+      "token_over": 9,
+      "wall_over": 0
+    },
+    "quality": {
+      "n": 4,
+      "token_ratio_median": 2.161588759633478,
+      "token_ratio_max": 6.872554920252783,
+      "wall_ratio_median": 1.9519212806786699,
+      "wall_ratio_max": 5.09504746307585,
+      "token_over": 4,
+      "wall_over": 2
+    }
+  },
+  "reliability": {
+    "full": {
+      "n": 2,
+      "runs": 2,
+      "pass_at_1": 1.0,
+      "pass_at_2": 1.0,
+      "claim": "report"
+    },
+    "single": {
+      "n": 2,
+      "runs": 2,
+      "pass_at_1": 1.0,
+      "pass_at_2": 1.0,
+      "claim": "report"
+    }
+  },
+  "quality": {
+    "status": "not_measured",
+    "reason": "protocol marks quality not measured"
+  },
+  "external": {
+    "track": {
+      "version": "1",
+      "track": "aider-polyglot",
+      "adapter": "athanor-custom",
+      "source_commit": "479f11b44b02337b0413e805b948491c2179615a",
+      "arm": "single"
+    },
+    "passed": 1,
+    "n": 8,
+    "engine_accepted": 1,
+    "converged": true,
+    "results": [
+      {
+        "slug": "two-fer",
+        "pass": false,
+        "engine_state": "failed",
+        "engine_accepted": false,
+        "exit": 1,
+        "artifact_id": "600b0d5e-08f4-4d9e-aa49-e070252da153",
+        "tests_tail": [
+          "FAILED two_fer_test.py::TwoFerTest::test_another_name_given - AssertionError:...",
+          "FAILED two_fer_test.py::TwoFerTest::test_no_name_given - TypeError: two_fer()...",
+          "3 failed in 0.02s"
+        ]
+      },
+      {
+        "slug": "leap",
+        "pass": false,
+        "engine_state": "failed",
+        "engine_accepted": false,
+        "exit": 2,
+        "artifact_id": "13e18a15-125d-438f-8791-907132ef054c",
+        "tests_tail": [
+          "ERROR leap_test.py",
+          "!!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!",
+          "1 error in 0.07s"
+        ]
+      },
+      {
+        "slug": "pangram",
+        "pass": true,
+        "engine_state": "completed",
+        "engine_accepted": true,
+        "exit": 0,
+        "artifact_id": "11f45a88-e12d-4cfb-9872-3325c11f3d50",
+        "tests_tail": [
+          "............                                                             [100%]",
+          "12 passed in 0.02s"
+        ]
+      },
+      {
+        "slug": "isogram",
+        "pass": false,
+        "engine_state": "failed",
+        "engine_accepted": false,
+        "exit": 2,
+        "artifact_id": "7f5f118b-3c1f-4fd3-8da8-c7075c9eaecf",
+        "tests_tail": [
+          "ERROR isogram_test.py",
+          "!!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!",
+          "1 error in 0.05s"
+        ]
+      },
+      {
+        "slug": "raindrops",
+        "pass": false,
+        "engine_state": "failed",
+        "engine_accepted": false,
+        "exit": 2,
+        "artifact_id": "c0487ff2-03e3-4bc8-910f-c6cf7990af2f",
+        "tests_tail": [
+          "ERROR raindrops_test.py",
+          "!!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!",
+          "1 error in 0.08s"
+        ]
+      },
+      {
+        "slug": "rna-transcription",
+        "pass": false,
+        "engine_state": "failed",
+        "engine_accepted": false,
+        "exit": 2,
+        "artifact_id": "849d9761-c06c-4724-8708-f758c37741ba",
+        "tests_tail": [
+          "ERROR rna_transcription_test.py",
+          "!!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!",
+          "1 error in 0.05s"
+        ]
+      },
+      {
+        "slug": "acronym",
+        "pass": false,
+        "engine_state": "failed",
+        "engine_accepted": false,
+        "exit": 1,
+        "artifact_id": "d3e0c60b-9bd4-4598-a8b7-7add3731e4eb",
+        "tests_tail": [
+          "FAILED acronym_test.py::AcronymTest::test_lowercase_words - AssertionError: '...",
+          "FAILED acronym_test.py::AcronymTest::test_punctuation_without_whitespace - As...",
+          "3 failed, 6 passed in 0.03s"
+        ]
+      },
+      {
+        "slug": "hamming",
+        "pass": false,
+        "engine_state": "failed",
+        "engine_accepted": false,
+        "exit": 2,
+        "artifact_id": "901c8f1e-759d-43c5-82ac-8a0aac5323a2",
+        "tests_tail": [
+          "ERROR hamming_test.py",
+          "!!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!",
+          "1 error in 0.07s"
+        ]
+      }
+    ]
+  }
+}

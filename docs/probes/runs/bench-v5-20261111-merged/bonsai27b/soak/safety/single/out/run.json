@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "runtime": "core-pod",
+  "diagnostic": false,
+  "host_class": "linux/arm64",
+  "core_image": "athanor-bench:latest",
+  "core_digest": "sha256:1e615e9b71b15d6f1245d438a7d40ac2125e6cbe85e4387af2944c85636e4802",
+  "ollama_url": "http://host.containers.internal:11435",
+  "ollama_version": "0.40.16",
+  "model": "bonsai-2:27b",
+  "models": [
+    "bonsai-2:27b"
+  ],
+  "model_digests": {
+    "bonsai-2:27b": "f3c4f42086593225d8be9bb4270658d0e05f5232fb2b5e8faa49ef74d2cc843a"
+  },
+  "git_commit": "4737cf57a574c65816ec2b892c2a0d2547380fb9",
+  "task_count": 4,
+  "passes": 1,
+  "rows": 4,
+  "started_at": "2026-11-11T03:47:44Z",
+  "completed_at": "2026-11-11T03:51:35Z",
+  "complete": true
+}
