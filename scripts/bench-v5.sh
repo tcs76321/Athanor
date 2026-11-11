@@ -120,7 +120,10 @@ if [ ! -f "$dir/aider/complete" ]; then
 	touch "$dir/aider/complete"
 fi
 
+BENCH_V5_PROTOCOL_JSON="$dir/protocol.json" make bench-v5-protocol
+
 python3 eval/bench/v5/analyze.py -root "$dir" -model "$model" \
+	-protocol-json "$dir/protocol.json" \
 	-json "$dir/v5-report.json" -md "$dir/v5-report.md"
 
 echo "bench-v5: $model done — $dir/v5-report.md"

@@ -150,6 +150,62 @@ corpus-check-v2:
 corpus-digest-v2:
 	@./scripts/corpus-digest.sh write eval/bench/v2
 
+# v4 and v5. `corpus-check-all` is the CI gate: it covers v1 (root digest),
+# v2, v4, and v5. v3 has no digest (historical paired experiment).
+corpus-check-v4:
+	@./scripts/corpus-digest.sh check eval/bench/v4
+
+corpus-check-v5:
+	@./scripts/corpus-digest.sh check eval/bench/v5
+
+corpus-digest-v4:
+	@./scripts/corpus-digest.sh write eval/bench/v4
+
+corpus-digest-v5:
+	@./scripts/corpus-digest.sh write eval/bench/v5
+
+corpus-check-all: corpus-check
+	@./scripts/corpus-digest.sh check eval/bench/v2
+	@./scripts/corpus-digest.sh check eval/bench/v4
+	@./scripts/corpus-digest.sh check eval/bench/v5
+
+# v5 report integrity. The analyzer reads a JSON rendering of the protocol so
+# it needs no YAML dependency; verify.py recomputes the report from the
+# committed raw rows and fails on a stale number, a moved digest, a missing
+# claim, or inconsistent provenance.
+BENCH_V5_EVIDENCE     ?= docs/probes/runs/bench-v5-20261111-merged
+BENCH_V5_PROTOCOL     ?= eval/bench/v5/protocol.yaml
+BENCH_V5_PROTOCOL_JSON ?= /tmp/athanor-v5-protocol.json
+BENCH_V5_VERIFY_FLAGS ?= -allow-mixed
+BENCH_V5_MODEL        ?= bonsai27b
+
+bench-v5-protocol:
+	@CGO_ENABLED=1 go run -tags sqlite_fts5 ./tools/bench protocol-json \
+		-protocol $(BENCH_V5_PROTOCOL) -out $(BENCH_V5_PROTOCOL_JSON)
+
+bench-v5-report: bench-v5-protocol
+	@python3 eval/bench/v5/analyze.py -root $(BENCH_V5_EVIDENCE)/bonsai27b \
+		-model bonsai27b -protocol-json $(BENCH_V5_PROTOCOL_JSON) \
+		-json $(BENCH_V5_EVIDENCE)/bonsai27b-v5-report.json \
+		-md $(BENCH_V5_EVIDENCE)/bonsai27b-v5-report.md
+	@python3 eval/bench/v5/analyze.py -root $(BENCH_V5_EVIDENCE)/gemma12b \
+		-model gemma12b -protocol-json $(BENCH_V5_PROTOCOL_JSON) \
+		-json $(BENCH_V5_EVIDENCE)/gemma12b-v5-report.json \
+		-md $(BENCH_V5_EVIDENCE)/gemma12b-v5-report.md
+
+bench-v5-verify: bench-v5-protocol corpus-check-v5
+	@python3 eval/bench/v5/verify_test.py
+	@python3 eval/bench/v5/verify.py -self-test
+	@python3 eval/bench/v5/verify.py -evidence $(BENCH_V5_EVIDENCE)/bonsai27b \
+		-report $(BENCH_V5_EVIDENCE)/bonsai27b-v5-report.json \
+		-protocol-json $(BENCH_V5_PROTOCOL_JSON) $(BENCH_V5_VERIFY_FLAGS)
+	@python3 eval/bench/v5/verify.py -evidence $(BENCH_V5_EVIDENCE)/gemma12b \
+		-report $(BENCH_V5_EVIDENCE)/gemma12b-v5-report.json \
+		-protocol-json $(BENCH_V5_PROTOCOL_JSON) $(BENCH_V5_VERIFY_FLAGS)
+
+bench-v5:
+	@sh scripts/bench-v5.sh $(BENCH_V5_MODEL)
+
 # The 6-item smoke subset (docs/frozen-corpus-v1.md §8) for engine-surface
 # changes. A fresh output dir by default; set SOAK_SMOKE_OUT to keep the run.
 # Cognitive-loop diagnostic (docs/probes/ceiling-diagnostic.md). Not the frozen

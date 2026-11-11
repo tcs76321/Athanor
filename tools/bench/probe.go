@@ -194,6 +194,8 @@ func main() {
 		runQualityPairwise(os.Args[2:])
 	case "verify-models":
 		runVerifyModels(os.Args[2:])
+	case "protocol-json":
+		runProtocolJSON(os.Args[2:])
 	default:
 		usage()
 		os.Exit(2)
@@ -221,6 +223,7 @@ commands:
   quality-report compare full vs single rubric scores with a clustered interval
   quality-pairwise compare single/full artifacts blind, both orders, two judges
   verify-models check the frozen protocol roster against the local Ollama digests
+  protocol-json render the YAML protocol as JSON for the analyzer/verify gate
 
 Run each command with -h for its flags. Protocol:
 docs/probes/m3-t7-quality-probe.md

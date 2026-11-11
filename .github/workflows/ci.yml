@@ -38,8 +38,8 @@ jobs:
         run: make test-race
       - name: Frozen corpus digests
         run: |
-          make corpus-check
-          make corpus-check-v2
+          make corpus-check-all
+          make bench-v5-verify
 
   # The supported host matrix includes macOS; the Linux job cannot catch a
   # darwin-only build/tag regression. Podman probes are not run here (GitHub's
