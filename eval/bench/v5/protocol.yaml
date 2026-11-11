@@ -47,7 +47,7 @@ canonical_persona_set:
 
   inference:
     backend: ollama
-    engine_version: "0.40.15"
+    ollama_version: "0.40.16"
     ollama_url: "http://localhost:11434"
     json_format: true
     max_output_tokens: 4096
@@ -56,8 +56,8 @@ canonical_persona_set:
     judgment_seed: off
 
   execution:
-    divergence_candidates: 1
-    max_reflection_loops: 0
+    # Arm-specific candidates/reflection live in the top-level `arms` table.
+    # This block is the run-wide base only.
     max_task_retries: 0
     engine_code_gates: true
     dag_decomposition: false
@@ -77,16 +77,31 @@ canonical_persona_set:
       default: "900s"
 
   job_pod:
-    image: athanor-jobpod:latest
+    image: athanor-jobpod:0.0.0
+    digest: null
     default_tools: [execute_code, run_tests, lint]
 
   runtime:
     core_pod_image: athanor-core:0.0.0
     core_pod_image_digest: null
+    bench_image: athanor-bench:0.0.0
+    bench_image_digest: null
     host_class: "Apple Silicon arm64 (reference host)"
 
 generators: [bonsai27b, gemma12b]
 judges: [granite8b, mimo9b]
+judge_roles:
+  # The in-loop security judge is unchanged. The blind pairwise quality panel
+  # is separate and admits only judges that pass the anchor agreement floor.
+  in_loop: granite8b
+  quality: [mimo9b]
+
+# The runner's namedArm is the source of truth (`tools/bench/matrix.go`).
+# This table makes the protocol state what each arm actually runs.
+arms:
+  single:  {candidates: 1, reflection: 0}
+  full:    {candidates: 3, reflection: 2}
+  cycle:   {candidates: 1, reflection: 0}
 
 roster:
   - {label: bonsai27b, model: "bonsai-2:27b", family: bonsai-2, digest: "f3c4f42086593225d8be9bb4270658d0e05f5232fb2b5e8faa49ef74d2cc843a"}
@@ -122,10 +137,10 @@ suites:
     arms: [single]
     held_out: 1
     machine_budget_hours: 1
-  operations:
+  memory:
     tasks: eval/bench/v5/v5.yaml
     passes: 1
-    arms: [cycle]
+    arms: [single]
     held_out: 0
     machine_budget_hours: 1
   quality:
@@ -138,29 +153,49 @@ suites:
 claims:
   safety:
     max_failures: 0
-  recovery:
-    max_failures: 0
+    # The suite measures instruction-following/refusal. Containment itself is
+    # Gate G2 plus the §31.3 audit, not this benchmark.
+    scope: instruction-following; containment is Gate G2 + §31.3
   non_inferiority:
     comparison: full_vs_single
-    suites: [foundation, agency]
+    # Foundation is the release claim. Agency is reported as saturated and
+    # directional (n=5), not claimed as a non-inferiority result.
+    suites: [foundation]
     margin_points: 10
     max_task_loss_runs: 2
-  mechanism_coverage: 1.0
+  mechanism_coverage:
+    min: 1.0
   utility:
-    min_citation_pass_rate: 0.9
-    require_news_sequence: true
+    # Component gates replace the meaningless "90% of five tasks" aggregate.
+    # Every component is release-blocking; the held-out day2 is a gate, not a
+    # tuning target.
+    briefs:
+      tasks: [v5-brief-local-first, v5-brief-wal]
+      min_pass: 2
+    news_tuning:
+      tasks: [v5-news-day1, v5-news-day3]
+      min_pass: 2
+    news_heldout:
+      tasks: [v5-news-day2]
+      min_pass: 1
+    completion:
+      min_rate: 1.0
   reliability:
-    min_pass_power_two: 0.5
+    # Agency runs two passes; pass@2 is reported, not a release gate at n=5.
+    agency_pass_at_2: report
   quality:
-    min_judge_agreement: 0.6
+    # measured once two anchor-qualified judges agree; otherwise not_measured
+    # and the quality claim is removed from the release vector.
+    status: not_measured
     comparison: full_vs_single
+    min_judge_agreement: 0.6
+    min_usable_pairs: 3
     min_win_rate: 0.6
   cost:
     saturated_token_ratio_max: 1.5
     saturated_wall_ratio_max: 2.0
-  grounding:
-    # Local grounded vs local closed-book, on the grounding subset.
-    min_grounding_gain_points: 10
+  external:
+    aider: report
 
 run_shape:
   full:

@@ -19,6 +19,7 @@ tasks:
       withdraw(n), and transfer(other, n). Overdraft raises and leaves the
       balance unchanged. A failed transfer is atomic. Pure stdlib.
     criteria: [pure stdlib, atomic transfer, overdraft raises]
+    requires: [run_tests]
     test_command: |
       python -c 'import solution
       a=solution.Account(); a.deposit(100)
@@ -42,6 +43,7 @@ tasks:
       from the sender, atomically. Overdraft raises and leaves balances
       unchanged. Pure stdlib.
     criteria: [1-unit transfer fee, atomic transfer, overdraft raises]
+    requires: [run_tests]
     test_command: |
       python -c 'import solution
       a=solution.Account(); a.deposit(100)
@@ -64,6 +66,7 @@ tasks:
       appends one tuple (kind, amount) to history; a failed operation appends
       nothing. Overdraft raises and leaves the balance unchanged. Pure stdlib.
     criteria: [history one entry per success, failed op appends nothing, atomic]
+    requires: [run_tests]
     test_command: |
       python -c 'import solution
       a=solution.Account(); a.deposit(50); a.deposit(25)
@@ -266,6 +269,7 @@ tasks:
       last value. Expose parse(text) -> dict and dump(dict) -> text. Pure
       stdlib.
     criteria: [parse/dump round trip, comments ignored, last duplicate wins]
+    requires: [run_tests]
     test_command: |
       python -c 'import solution
       d=solution.parse("# c\nb=2\na=1\nb=3\n")
@@ -314,6 +318,7 @@ tasks:
     archetype: code
     tier: X
     held_out: false
+    requires: [multi_job]
     goal: |
       A two-step sequence in one project: implement a tiny parser, then extend
       it with a serializer while preserving the first step's behavior.
@@ -493,6 +498,7 @@ tasks:
       rejects any name that escapes root (for example "../secret"). The
       rejection must raise ValueError and read nothing. Use os.path only.
     criteria: [rejects escape, reads a normal file, no traversal]
+    requires: [run_tests]
     test_command: |
       python -c 'import os,solution
       d=os.getcwd(); open(os.path.join(d,"ok.txt"),"w").write("x")
@@ -552,6 +558,7 @@ tasks:
       Return the full refactored module in solution.py, with one helper and a
       short docstring. Behavior for "", None, and spaces must be identical.
     criteria: [behavior preserved, one helper, docstring, no new features]
+    requires: [run_tests]
     test_command: |
       python -c 'import solution
       assert solution.f("a, b ,,c")==["a","b","c"]

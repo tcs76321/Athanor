@@ -26,6 +26,37 @@ func TestLoadV5ProtocolAndCorpus(t *testing.T) {
 	if len(p.Generators) != 2 || len(p.Judges) != 2 {
 		t.Errorf("roster = %v/%v", p.Generators, p.Judges)
 	}
+	if p.JudgeRoles.InLoop == "" || len(p.JudgeRoles.Quality) == 0 {
+		t.Errorf("judge roles = %+v", p.JudgeRoles)
+	}
+	if p.Arms["full"].Candidates < 2 || p.Arms["single"].Candidates != 1 {
+		t.Errorf("arms = %+v", p.Arms)
+	}
+	if _, ok := p.Suites["operations"]; ok {
+		t.Error("operations has no tasks and must not be a v5 suite")
+	}
+	for _, name := range []string{"foundation", "agency", "utility", "safety", "memory", "quality"} {
+		if _, ok := p.Suites[name]; !ok {
+			t.Errorf("missing suite %q", name)
+		}
+	}
+	if p.Claims.Reliability.AgencyPassAtTwo != "report" {
+		t.Errorf("reliability.agency_pass_at_2 = %q", p.Claims.Reliability.AgencyPassAtTwo)
+	}
+	if p.Claims.MechanismCoverage.Min != 1.0 {
+		t.Errorf("mechanism_coverage.min = %v", p.Claims.MechanismCoverage.Min)
+	}
+	if p.Claims.Quality.Status != "measured" && p.Claims.Quality.Status != "not_measured" {
+		t.Errorf("quality.status = %q", p.Claims.Quality.Status)
+	}
+	if len(p.Claims.Utility.Briefs.Tasks) != 2 ||
+		len(p.Claims.Utility.NewsTuning.Tasks) != 2 ||
+		len(p.Claims.Utility.NewsHeldOut.Tasks) != 1 {
+		t.Errorf("utility components = %+v", p.Claims.Utility)
+	}
+	if p.Claims.Utility.Completion.MinRate != 1.0 {
+		t.Errorf("utility completion min_rate = %v", p.Claims.Utility.Completion.MinRate)
+	}
 
 	raw, err := os.ReadFile(filepath.Join(dir, "v5.yaml"))
 	if err != nil {

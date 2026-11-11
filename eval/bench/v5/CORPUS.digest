@@ -31,5 +31,5 @@ d7ec5e92302e79a310760e7e02c16c0a0d7650cb3de9c997c8c68395b5c7c5e0  eval/bench/v5/
 d590a281f1151cfb4229d2865a10d68dcba719b9f95af5a9b021df88d4df52c2  eval/bench/v5/fixtures/news-wire/day3/wire/source-c-005.md
 24364ea1332b20f0b326e629182d987f01bd5c8c3f64b16b7f1e75bbb0a4b2ff  eval/bench/v5/fixtures/sources-local-first/sources/local-first.md
 42ea06b2fe2acabbc8cf017e428ccd0d3f9a05bed305176f7dda820a1d78bbcf  eval/bench/v5/fixtures/sources-wal/sources/wal.md
-ad905f4a14b886084fc1a7192b85c1c83d5151ee826c23d6df32a151ac389557  eval/bench/v5/protocol.yaml
-5224b72b4fdc4fe93eb0bd5967ba1849fde542b38d25e1112391ac151838964d  eval/bench/v5/v5.yaml
+224210fbfdf3601a28ca8fba24fd487658cddfcff970728567f95c05d0f12881  eval/bench/v5/protocol.yaml
+0f0c59656d76848bf05735bd4a1eb5708a8209de75b2f1bdd0e18f362efce6b1  eval/bench/v5/v5.yaml
