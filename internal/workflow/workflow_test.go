@@ -366,10 +366,32 @@ func TestNewsTemplateStatesUpdateContract(t *testing.T) {
 		t.Errorf("condense update contract = %q", condense)
 	}
 	synth, _ := byID["synthesize"].Config["instructions"].(string)
-	for _, want := range []string{"new id", "earlier id appears only under Previously reported"} {
+	for _, want := range []string{"new id", "earlier id appears only under Previously reported", "# New"} {
 		if !strings.Contains(synth, want) {
 			t.Errorf("synthesize update contract missing %q: %q", want, synth)
 		}
+	}
+	specs, err := Compile(tpl.Graph, CompileOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, s := range specs {
+		if s.Key != "synthesize" {
+			continue
+		}
+		if s.Checks == nil || len(s.Checks.NoRepeatIDsAcrossSections) != 1 {
+			t.Errorf("synthesize checks = %+v, want the id rule", s.Checks)
+			continue
+		}
+		rule := s.Checks.NoRepeatIDsAcrossSections[0]
+		if rule.New != "New" || rule.Old != "Previously reported" || rule.Pattern == "" {
+			t.Errorf("id rule = %+v", rule)
+		}
+		found = true
+	}
+	if !found {
+		t.Fatal("compiled graph has no synthesize task")
 	}
 }
 

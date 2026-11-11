@@ -64,6 +64,41 @@ func TestChecksVerifier_MustContainAny(t *testing.T) {
 	}
 }
 
+// TestChecksVerifier_NoRepeatIDsAcrossSections pins the generic news update
+// guard: an id may appear in New or Previously reported, never both.
+func TestChecksVerifier_NoRepeatIDsAcrossSections(t *testing.T) {
+	r := Default()
+	checks := &project.ExecutionChecks{
+		NoRepeatIDsAcrossSections: []project.SectionIDRule{
+			{New: "New", Old: "Previously reported", Pattern: `story-[0-9]{3}`},
+		},
+	}
+	good := "# New\nstory-005 is new.\n\n# Previously reported\nstory-001 is old.\n\n# Sources\nwire\n"
+	if res := r.Run(Input{Archetype: project.ArchetypeDocument, Content: good, Checks: checks}); !res.HardPassed {
+		t.Errorf("distinct ids rejected: %+v", res)
+	}
+	bad := "# New\nstory-001 update (story-005).\n\n# Previously reported\nstory-001 was old.\n\n# Sources\nwire\n"
+	res := r.Run(Input{Archetype: project.ArchetypeDocument, Content: bad, Checks: checks})
+	if !res.HardDecisive() || res.HardPassed {
+		t.Fatalf("overlap accepted: %+v", res)
+	}
+	if !containsReason(res.Reasons, "appears in both") {
+		t.Errorf("reasons = %v", res.Reasons)
+	}
+	missing := "# New\nstory-005.\n\n# Sources\nwire\n"
+	if res := r.Run(Input{Archetype: project.ArchetypeDocument, Content: missing, Checks: checks}); res.HardPassed {
+		t.Error("missing Previously reported section passed the id rule")
+	}
+	invalid := &project.ExecutionChecks{
+		NoRepeatIDsAcrossSections: []project.SectionIDRule{
+			{New: "New", Old: "Previously reported", Pattern: `[`},
+		},
+	}
+	if res := r.Run(Input{Archetype: project.ArchetypeDocument, Content: good, Checks: invalid}); res.HardPassed {
+		t.Error("invalid id pattern passed")
+	}
+}
+
 func TestChecksVerifier_ParagraphsWords(t *testing.T) {
 	r := Default()
 	// Exactly four paragraphs.

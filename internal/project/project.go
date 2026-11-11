@@ -193,6 +193,11 @@ type ExecutionChecks struct {
 	// heading contains Noun (or, failing that, in the document body). It
 	// generalizes eval/bench's count_alternatives_min / count_risks_min.
 	MinItems []ItemCount `json:"min_items,omitempty"`
+	// NoRepeatIDsAcrossSections rejects an id that appears in both a "new"
+	// section and an "old/previously reported" section. It is the generic
+	// structural form of the news update contract: an updated story is new
+	// under its new id; the earlier id belongs only under Previously reported.
+	NoRepeatIDsAcrossSections []SectionIDRule `json:"no_repeat_ids_across_sections,omitempty"`
 
 	// Data checks. The JSON-Schema subset validates shape; these pin the
 	// array-level constraints a schema cannot express without minItems /
@@ -212,6 +217,15 @@ type ItemCount struct {
 	Min  int    `json:"min"`
 }
 
+// SectionIDRule requires that an id matching Pattern never appears in both the
+// New and Old sections. It is deliberately generic: the news template supplies
+// `story-[0-9]{3}`, but any section/id pair works.
+type SectionIDRule struct {
+	New     string `json:"new"`
+	Old     string `json:"old"`
+	Pattern string `json:"pattern"`
+}
+
 // IsZero reports whether no check is declared.
 func (c ExecutionChecks) IsZero() bool {
 	return len(c.RequiredSections) == 0 && len(c.StrictSectionOrder) == 0 &&
@@ -219,6 +233,7 @@ func (c ExecutionChecks) IsZero() bool {
 		len(c.ForbiddenPhrases) == 0 && len(c.MustContain) == 0 &&
 		len(c.MustContainAny) == 0 &&
 		!c.NoHeadings && !c.NoPlaceholders && len(c.MinItems) == 0 &&
+		len(c.NoRepeatIDsAcrossSections) == 0 &&
 		c.ArrayLength == 0 && c.ArrayUniqueBy == "" && c.ArraySortedBy == "" &&
 		len(c.JSONFieldMatches) == 0
 }
@@ -244,7 +259,7 @@ func (c *ExecutionChecks) Describe() []string {
 		out = append(out, fmt.Sprintf("exactly %d prose paragraphs", c.ExactParagraphs))
 	}
 	for _, section := range c.RequiredSections {
-		out = append(out, fmt.Sprintf("required section: %q", section))
+		out = append(out, fmt.Sprintf("required markdown heading: %q", "# "+section))
 	}
 	if len(c.StrictSectionOrder) > 0 {
 		out = append(out, "sections must appear in this order: "+quoteList(c.StrictSectionOrder))
@@ -268,6 +283,10 @@ func (c *ExecutionChecks) Describe() []string {
 		if item.Min > 0 {
 			out = append(out, fmt.Sprintf("at least %d %s item(s)", item.Min, item.Noun))
 		}
+	}
+	for _, rule := range c.NoRepeatIDsAcrossSections {
+		out = append(out, fmt.Sprintf("an id matching %q must not appear in both %q and %q",
+			rule.Pattern, rule.New, rule.Old))
 	}
 	if c.ArrayLength > 0 {
 		out = append(out, fmt.Sprintf("exactly %d array item(s)", c.ArrayLength))

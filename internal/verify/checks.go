@@ -2,6 +2,7 @@ package verify
 
 import (
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -119,6 +120,9 @@ func (checksVerifier) Verify(in Input) Verdict {
 		got := checkBulletsInSection(in.Content, strings.ToLower(it.Noun))
 		check(got >= it.Min, "fewer than "+strconv.Itoa(it.Min)+" "+it.Noun+" items")
 	}
+	for _, rule := range c.NoRepeatIDsAcrossSections {
+		verifySectionIDRule(in.Content, rule, check)
+	}
 
 	if total == 0 {
 		// The declared set held only no-op entries (e.g. a Min item with
@@ -162,6 +166,69 @@ func checkOrderedSections(content string) []string {
 }
 
 func checkHasHeading(content string) bool { return checksHeadingRE.MatchString(content) }
+
+// checkSections returns normalized heading -> body text. A repeated heading
+// keeps the last body, matching the benchmark scorer's map behavior.
+func checkSections(content string) map[string]string {
+	out := map[string]string{}
+	current := ""
+	for _, line := range strings.Split(content, "\n") {
+		if m := checksHeadingRE.FindStringSubmatch(line); m != nil {
+			current = normalizeCheckName(m[1])
+			if _, ok := out[current]; !ok {
+				out[current] = ""
+			}
+			continue
+		}
+		if current != "" {
+			out[current] += line + "\n"
+		}
+	}
+	return out
+}
+
+// verifySectionIDRule enforces the generic "same id in both sections" rule. A
+// missing section or an invalid pattern is a hard failure, never a silent pass.
+func verifySectionIDRule(content string, rule project.SectionIDRule, check func(bool, string)) {
+	if strings.TrimSpace(rule.New) == "" || strings.TrimSpace(rule.Old) == "" ||
+		strings.TrimSpace(rule.Pattern) == "" {
+		check(false, "id rule requires new, old, and pattern")
+		return
+	}
+	sections := checkSections(content)
+	newBody, okNew := sections[normalizeCheckName(rule.New)]
+	oldBody, okOld := sections[normalizeCheckName(rule.Old)]
+	if !okNew || !okOld {
+		check(false, "id rule missing section "+strconv.Quote(rule.New)+" or "+strconv.Quote(rule.Old))
+		return
+	}
+	re, err := regexp.Compile(rule.Pattern)
+	if err != nil {
+		check(false, "invalid id pattern "+strconv.Quote(rule.Pattern))
+		return
+	}
+	newIDs := map[string]bool{}
+	for _, id := range re.FindAllString(newBody, -1) {
+		newIDs[id] = true
+	}
+	overlap := map[string]bool{}
+	for _, id := range re.FindAllString(oldBody, -1) {
+		if newIDs[id] {
+			overlap[id] = true
+		}
+	}
+	if len(overlap) == 0 {
+		check(true, "")
+		return
+	}
+	ids := make([]string, 0, len(overlap))
+	for id := range overlap {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	check(false, "id appears in both "+strconv.Quote(rule.New)+" and "+
+		strconv.Quote(rule.Old)+": "+strings.Join(ids, ", "))
+}
 
 // isSubsequence reports whether every wanted section appears in order within
 // the document's headings.

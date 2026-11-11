@@ -217,6 +217,9 @@ func TestExecutionChecksDescribeIsDeterministic(t *testing.T) {
 		ForbiddenPhrases: []string{"click here"},
 		MustContainAny:   []string{"cannot", "unable"},
 		MinItems:         []ItemCount{{Noun: "risks", Min: 2}},
+		NoRepeatIDsAcrossSections: []SectionIDRule{
+			{New: "New", Old: "Previously reported", Pattern: `story-[0-9]{3}`},
+		},
 		ArrayLength:      2,
 		ArrayUniqueBy:    "id",
 		ArraySortedBy:    "id",
@@ -226,10 +229,11 @@ func TestExecutionChecksDescribeIsDeterministic(t *testing.T) {
 	joined := strings.Join(lines, "\n")
 	for _, want := range []string{
 		"at most 110",
-		`required section: "Context"`,
+		`required markdown heading: "# Context"`,
 		`must not contain: "click here"`,
 		`must contain at least one of: "cannot" → "unable"`,
 		"at least 2 risks",
+		`an id matching "story-[0-9]{3}" must not appear in both "New" and "Previously reported"`,
 		"exactly 2 array item(s)",
 		`unique by "id"`,
 		`sorted ascending by "id"`,

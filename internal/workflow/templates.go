@@ -103,10 +103,13 @@ func NewsTemplate() Template {
 					Config: map[string]any{"instructions": "Merge duplicate story ids across sources. An update is a new wire item with a new id; the earlier id is a reference, never a New item."}},
 				{ID: "synthesize", Kind: KindSynthesize, Title: "Write the brief",
 					Config: map[string]any{
-						"instructions": "Use the headings New, Previously reported, and Sources. Cite the wire item id for every item. Every New item carries the id of the wire item that reported it this run. An updated story appears under its new id; the earlier id appears only under Previously reported. If there is nothing new, say so under New and do not repeat old ids there.",
+						"instructions": "Use the markdown headings `# New`, `# Previously reported`, and `# Sources`. Cite the wire item id for every item. Every New item carries the id of the wire item that reported it this run. An updated story appears under its new id; the earlier id appears only under Previously reported. If there is nothing new, say so under New and do not repeat old ids there.",
 						"checks": map[string]any{
 							"required_sections": []string{"New", "Previously reported", "Sources"},
 							"max_words":         450,
+							"no_repeat_ids_across_sections": []map[string]any{
+								{"new": "New", "old": "Previously reported", "pattern": `story-[0-9]{3}`},
+							},
 						},
 					}},
 				{ID: "verify", Kind: KindVerify, Title: "Check citations and coverage"},
