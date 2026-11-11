@@ -393,10 +393,18 @@ func (r *runnerConfig) stopDaemon(cmd *exec.Cmd) {
 // the probe submits the goal explicitly, so the default would run every task
 // twice.
 func projectCreateBody(g sampleGoal, name string) map[string]any {
-	return map[string]any{
+	body := map[string]any{
 		"name": name, "archetype": g.Archetype, "goal": g.Goal,
 		"start": false,
 	}
+	// The single-arm utility tasks read their declared sources from the
+	// project's repository. The cycle path already passes them; without this
+	// the engine's withProjectSources has nothing to inject and a one-shot
+	// brief can only fail.
+	if len(g.Sources) > 0 {
+		body["sources"] = g.Sources
+	}
+	return body
 }
 
 // dataSchemaFor reads a data task's declared JSON Schema. The corpus path is

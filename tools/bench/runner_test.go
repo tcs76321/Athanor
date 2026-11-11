@@ -23,6 +23,22 @@ func TestProjectCreateBodyDisablesAutoStart(t *testing.T) {
 	}
 }
 
+func TestProjectCreateBodyIncludesSources(t *testing.T) {
+	body := projectCreateBody(sampleGoal{
+		Archetype: "document",
+		Goal:      "brief the source",
+		Sources:   []string{"local-first.md", "wal.md"},
+	}, "task-name")
+	sources, ok := body["sources"].([]string)
+	if !ok || len(sources) != 2 || sources[0] != "local-first.md" || sources[1] != "wal.md" {
+		t.Errorf("sources = %#v, want the declared source list", body["sources"])
+	}
+	empty := projectCreateBody(sampleGoal{Archetype: "document", Goal: "g"}, "n")
+	if _, ok := empty["sources"]; ok {
+		t.Error("empty sources should not be sent")
+	}
+}
+
 // TestDataSchemaForFailsLoudly pins P0-2: a declared but missing schema is a
 // run error, not a silently disabled verifier.
 func TestDataSchemaForFailsLoudly(t *testing.T) {
