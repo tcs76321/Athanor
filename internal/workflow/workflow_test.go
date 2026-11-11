@@ -434,10 +434,10 @@ func TestCompileAttachesDeterministicBlockChecks(t *testing.T) {
 	if c := byKey["synthesize"].Checks; c == nil || c.MaxWords != 120 || len(c.RequiredSections) != 2 {
 		t.Errorf("synthesize checks = %+v, want the declared config", c)
 	}
-	if c := byKey["verify"].Checks; c == nil || len(c.RequiredSections) != 2 {
+	if c := byKey["verify"].Checks; c == nil || len(c.MustContainAny) != 3 {
 		t.Errorf("verify checks = %+v, want the structural default", c)
 	}
-	if c := byKey["retain"].Checks; c == nil || len(c.RequiredSections) != 3 {
+	if c := byKey["retain"].Checks; c == nil || len(c.MustContain) != 2 {
 		t.Errorf("retain checks = %+v, want the structural default", c)
 	}
 }

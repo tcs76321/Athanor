@@ -297,6 +297,7 @@ tasks:
     language: python
     held_out: false
     repo: eval/bench/v5/fixtures/ag-contract-01
+    solution_file: wireformat/codec.py
     test_command: |
       cd "$REPO" && python -m pytest -q
     goal: |

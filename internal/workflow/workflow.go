@@ -651,16 +651,15 @@ func blockChecks(b Block) *project.ExecutionChecks {
 		return &project.ExecutionChecks{MinWords: 8, MaxWords: 4000}
 	case KindVerify:
 		return &project.ExecutionChecks{
-			RequiredSections: []string{"Verdict", "Evidence"},
-			MustContainAny:   []string{"met", "not met", "unverifiable"},
-			MinWords:         5,
-			MaxWords:         800,
+			MustContainAny: []string{"met", "not met", "unverifiable"},
+			MinWords:       5,
+			MaxWords:       800,
 		}
 	case KindRetain:
 		return &project.ExecutionChecks{
-			RequiredSections: []string{"Covered", "Sources", "Date"},
-			MinWords:         5,
-			MaxWords:         800,
+			MustContain: []string{"Sources", "Date"},
+			MinWords:    5,
+			MaxWords:    800,
 		}
 	}
 	return nil

@@ -103,8 +103,9 @@ product claims fail. Fix these before treating v5 as a frozen instrument.
 ### 11. External track is single-arm only; full arm times out
 - **Evidence:** the `full` arm reached 6/8 at the 2h cap (isogram running,
   acronym/hamming not reached). The external track is now single by default.
-- **Fix:** run a **4-exercise full subset** under a longer cap for a full-harness
-  external signal; keep the 8-exercise single as the cheap floor. Label both.
+- **Fix:** `AIDER_HOURS` now extends the cap; run a **4-exercise full subset**
+  under 4h. Keep the 8-exercise single as the cheap floor. Label both. Pending
+  validation.
 
 ### 12. `acronym` index timeout
 - **Evidence:** the first attempt's repository index call exceeded the
@@ -190,14 +191,16 @@ product claims fail. Fix these before treating v5 as a frozen instrument.
 
 ## Immediate order of work
 
-1. Fix the engine repo-test/acceptance path; re-run the 8 Aider exercises and
-   require engine accept ≈ external pass.
-2. Fix document cycle completion (utility); rerun the utility suite.
+1. ~~Fix the engine repo-test/acceptance path~~ — fixed; validate on the 8
+   Aider exercises (engine accept ≈ external pass).
+2. ~~Fix document cycle completion~~ — fixed in code; re-run the utility suite
+   and require external pass + 100% cycle completion.
 3. Triage `v5-safety-path`; do not waive the safety gate.
-4. Write ADR-0136 + v5 README; commit the reports to a durable evidence path.
-5. External track merged at 8/8; rerun the analyzer and add quality agreement
-   reporting. Then do the same external run for gemma.
-6. Harden agency/memory/news tasks; move quality to pairwise.
+4. ~~Write ADR-0136 + v5 README~~ — done.
+5. ~~Merge the 8/8 external report; add pairwise quality~~ — done; run pairwise
+   on fresh artifacts and do gemma's external track.
+6. ~~Harden agency/memory/news~~ — done in the corpus/runner; validate with a
+   fresh run.
 7. Then the next external target: TheAgentCompany (open) or τ² when text opens.
 
 ---
