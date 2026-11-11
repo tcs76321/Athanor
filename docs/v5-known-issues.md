@@ -7,16 +7,16 @@ This is the working issue register from the v5 build and the first 2×2 + extern
 runs. It is intentionally blunt: the benchmark is doing its job, and several
 product claims fail. Fix these before treating v5 as a frozen instrument.
 
-**Freeze readiness: not ready.** The P0 engine fixes validate (external/engine
-convergence, safety, cycle completion, memory), but the reconciliation bundle
-still has real reds: the utility evidence is 3/5 (day1 and brief-wal are not
-committed), mechanism coverage is 0% on the four `requires` rows, cost exceeds
-the envelope on the saturated slice, and quality is `not_measured`. The
-authoritative report is
+**Freeze readiness: not ready.** The Phase 5b rerun closes the harness gaps:
+single-arm utility is 5/5 for both generators, cycle completion is 5/5 for
+both, and the scheduler now surfaces a blocked-only cycle instead of leaving it
+running. The remaining reds are real: held-out day2 fails for both generators,
+gemma's brief-wal fails, mechanism coverage is 0% on the four `requires` rows,
+cost exceeds the envelope on the saturated slice, and quality is
+`not_measured`. The authoritative report is
 [`docs/probes/runs/bench-v5-20261111-merged/`](probes/runs/bench-v5-20261111-merged/README.md);
-the older postfix reports are explicitly superseded. v5 stays
-`status: candidate` and `cut: pending` until a single-revision freeze run clears
-the release-blocking gates.
+v5 stays `status: candidate` and `cut: pending` until a single-revision freeze
+run clears the release-blocking gates.
 
 ---
 
@@ -121,16 +121,20 @@ the release-blocking gates.
   `correction_injected: true` on the second task.
 
 ### 10. News day2/day3 semantics — DAY3 FIXED, DAY2 STILL RED
-- **Evidence:** day1 and day3 pass after the post-fix utility rerun; day2 still
-  puts the updated story's old id (`story-001`/`story-004`) in New.
-- **Fix:** the day3 check was too strict: it forbade every story id anywhere,
-  contradicting the task's "Previously reported" heading. It is now a
-  `new_items_section` check that allows repeats under Previously reported and
-  still fails a repeat in New. The news template states the general update
-  contract (new id in New; the earlier id only under Previously reported).
-- **Held out:** day2 is not tuned on. It remains a red held-out claim. A general
-  product fix (for example, a structural New-section check that forces a repair)
-  is the next step, not a task-specific prompt edit.
+- **Evidence:** day1 and day3 pass for both generators. Day2 still puts the
+  updated story's old id (`story-001`/`story-004`) in New; bonsai's cycle now
+  completes 7/7 but the external check is red. Gemma's brief-wal also remains
+  red in the cycle arm.
+- **Fix:** the day3 check was too strict; it now allows repeats under Previously
+  reported. The markdown heading contract is explicit in the prompt, and the
+  single-arm runner passes the declared sources. A generic
+  `no_repeat_ids_across_sections` verifier exists, but the default news template
+  does not use it: without a known old-id list it rejects a valid update that
+  references the new id under both sections. The probe's `new_items_section`
+  check remains the precise label.
+- **Held out:** day2 is not tuned on. It remains a red held-out claim. Wiring
+  the known old ids into the cycle, or a news-specific previous-id feed, is the
+  next product step.
 
 ### 11. External track is single-arm only; full arm times out
 - **Evidence:** the `full` arm reached 6/8 at the 2h cap (isogram running,
@@ -253,14 +257,17 @@ the release-blocking gates.
 5. ~~Merge the 8/8 exploratory external report; add pairwise quality~~ — the
    one-shot external run is 4/8 and engine-convergent. Run gemma’s external
    track and pairwise quality next.
-6. ~~Harden agency/memory/news~~ — corpus/runner changes are in; the
-   reconciliation bundle shows cycle completion but the utility evidence is
-   3/5. The 90% aggregate is replaced by component gates.
-7. Rerun the full five-task utility suite for both generators (single + cycle)
-   after the day3 check and template contract fix; update the merged evidence.
-8. Rerun the affected suites at one commit for the freeze; set `status: frozen`
+6. ~~Harden agency/memory/news~~ — the Phase 5b rerun gives single-arm utility
+   5/5 for both generators and cycle completion 5/5. The 90% aggregate is
+   replaced by component gates.
+7. ~~Rerun the full five-task utility suite for both generators~~ — done;
+   held-out day2 remains red for both and gemma's brief-wal remains red.
+8. Resolve the remaining release-blocking reds: day2 (known old ids in the
+   cycle), mechanism coverage (agency `requires`), cost envelope, and quality
+   (established or explicitly `not_measured`).
+9. Rerun the affected suites at one commit for the freeze; set `status: frozen`
    and `cut: 0.0.0` only when the release-blocking claims are green.
-9. Then the next external target: TheAgentCompany (open) or τ² when text opens.
+10. Then the next external target: TheAgentCompany (open) or τ² when text opens.
 
 ---
 
