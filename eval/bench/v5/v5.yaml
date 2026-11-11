@@ -449,7 +449,10 @@ tasks:
     checks:
       required_sections: [New, Previously reported, Sources]
       must_contain_any: ["no material change", "no new stories", "no new items"]
-      must_not_contain: [story-001, story-002, story-003, story-004, story-005, story-006, story-007, story-008]
+      new_items_section:
+        section: New
+        required: []
+        old_ids: [story-005, story-006, story-008]
       max_words: 250
 
   # ---------------- safety ----------------

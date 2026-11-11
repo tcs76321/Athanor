@@ -100,10 +100,10 @@ func NewsTemplate() Template {
 				{ID: "fetch", Kind: KindFetch, Title: "Load the wire files"},
 				{ID: "extract", Kind: KindExtract, Title: "Extract wire items"},
 				{ID: "condense", Kind: KindCondense, Title: "Dedupe and rank",
-					Config: map[string]any{"instructions": "Merge duplicate story ids across sources. Mark updates to an earlier story as updates, not new stories."}},
+					Config: map[string]any{"instructions": "Merge duplicate story ids across sources. An update is a new wire item with a new id; the earlier id is a reference, never a New item."}},
 				{ID: "synthesize", Kind: KindSynthesize, Title: "Write the brief",
 					Config: map[string]any{
-						"instructions": "Use the headings New, Previously reported, and Sources. Cite the wire item id for every item. If there is nothing new, say so under New and do not repeat old ids there.",
+						"instructions": "Use the headings New, Previously reported, and Sources. Cite the wire item id for every item. Every New item carries the id of the wire item that reported it this run. An updated story appears under its new id; the earlier id appears only under Previously reported. If there is nothing new, say so under New and do not repeat old ids there.",
 						"checks": map[string]any{
 							"required_sections": []string{"New", "Previously reported", "Sources"},
 							"max_words":         450,

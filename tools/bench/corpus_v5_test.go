@@ -152,6 +152,32 @@ func TestV5FileCitations(t *testing.T) {
 	}
 }
 
+// TestV5NewsNoChangeSection pins the day-3 contract: a repeated item may be
+// listed under Previously reported, but never under New. The old check forbade
+// every story id anywhere, which contradicted the task's own headings.
+func TestV5NewsNoChangeSection(t *testing.T) {
+	checks := map[string]any{
+		"new_items_section": map[string]any{
+			"section":  "New",
+			"required": []any{},
+			"old_ids":  []any{"story-005", "story-006", "story-008"},
+		},
+		"must_contain_any": []any{"no new stories", "no material change"},
+	}
+	good := "# New\n\nNo new stories today.\n\n# Previously reported\n\n- story-005 (repeat)\n- story-006 (repeat)\n- story-008 (repeat)\n\n# Sources\n\n- wire/source-a-006.md\n"
+	if pass, results := runChecks(checks, good); !pass {
+		t.Fatalf("valid no-change report failed: %+v", results)
+	}
+	bad := "# New\n\n- story-005 again\n\n# Previously reported\n\n- story-006\n- story-008\n\n# Sources\n\n- wire/source-a-006.md\n"
+	if pass, _ := runChecks(checks, bad); pass {
+		t.Error("a repeated item in New passed")
+	}
+	empty := "# New\n\nNo new stories.\n\n# Previously reported\n\nNothing new.\n\n# Sources\n\n- wire/source-a-006.md\n"
+	if pass, results := runChecks(checks, empty); !pass {
+		t.Errorf("a report with no old ids should pass: %+v", results)
+	}
+}
+
 // TestV5NewsNewItemsSection pins the run-2 contract: new ids in New, old ids
 // only under Previously reported.
 func TestV5NewsNewItemsSection(t *testing.T) {

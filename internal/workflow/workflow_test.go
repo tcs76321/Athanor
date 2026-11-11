@@ -352,6 +352,27 @@ func TestBuiltinTemplatesValidate(t *testing.T) {
 	}
 }
 
+func TestNewsTemplateStatesUpdateContract(t *testing.T) {
+	tpl, ok := TemplateByID("news-report")
+	if !ok {
+		t.Fatal("news-report missing")
+	}
+	byID := map[string]Block{}
+	for _, b := range tpl.Graph.Blocks {
+		byID[b.ID] = b
+	}
+	condense, _ := byID["condense"].Config["instructions"].(string)
+	if !strings.Contains(condense, "new id") || !strings.Contains(condense, "never a New item") {
+		t.Errorf("condense update contract = %q", condense)
+	}
+	synth, _ := byID["synthesize"].Config["instructions"].(string)
+	for _, want := range []string{"new id", "earlier id appears only under Previously reported"} {
+		if !strings.Contains(synth, want) {
+			t.Errorf("synthesize update contract missing %q: %q", want, synth)
+		}
+	}
+}
+
 func TestCompileFoldsSourcesIntoResearchAndFetch(t *testing.T) {
 	specs, err := Compile(linearGraph(), CompileOptions{
 		CycleID: "c1", Sources: []string{"https://example.com/a", "https://example.com/b"},
