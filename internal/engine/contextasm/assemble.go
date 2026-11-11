@@ -326,12 +326,16 @@ func (a *Assembler) Prepare(ctx context.Context, req PrepareRequest) (Prepared, 
 		}
 	}
 
+	checks := req.Project.Execution.Checks
+	if task.Checks != nil {
+		checks = task.Checks
+	}
 	res, err := prompt.Assemble(prompt.Input{
 		Phase:                  req.Phase,
 		Project:                prompt.Project{Name: req.Project.Name, Archetype: capability, Goal: req.Project.Goal},
 		Task:                   prompt.Task{Title: task.Title, Description: task.Description, TestCommand: req.Project.TestCommand()},
 		Criteria:               task.Criteria,
-		Checks:                 req.Project.Execution.Checks.Describe(),
+		Checks:                 checks.Describe(),
 		DataSchema:             req.Project.Execution.DataSchema,
 		AllowQuestions:         req.AllowQuestions,
 		Notebook:               a.notebookLines(ctx, req.Job.ID),

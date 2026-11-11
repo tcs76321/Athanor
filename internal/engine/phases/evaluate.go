@@ -261,15 +261,28 @@ func (d *Deps) evaluateCandidate(ctx context.Context, j job.Job, p project.Proje
 	}
 
 	// F4-T3: objective deterministic evidence is authoritative. When a hard
-	// verifier applied (code tests/lint), its pass/fail overrides the LLM's
-	// prose; the model may still add missing_criteria/security_issues the
-	// parser cannot see. A heuristic verifier (text structure) advises via
-	// the prompt but does not override.
+	// verifier applied (code tests/lint, declared checks), its pass/fail
+	// decides acceptance; the model may still add missing_criteria as advisory
+	// quality notes, but must not veto a candidate the deterministic verifier
+	// passed. A hard security finding still blocks. A heuristic verifier (text
+	// structure) advises via the prompt but does not override.
 	if ver.HardDecisive() {
-		verdict.Passed = ver.HardPassed && len(verdict.MissingCriteria) == 0 && len(verdict.SecurityIssues) == 0
 		if ver.HardPassed {
+			// The judge's prose objections are advisory once a hard verifier
+			// passed. Keep them in the audit trail, but do not let them leak
+			// into the record fields that downstream acceptance/repair code
+			// treats as blockers.
+			if len(verdict.MissingCriteria) > 0 {
+				d.audit(ctx, j.ID, map[string]any{
+					"event": "judge_criteria_advisory", "artifact_id": cand.ID,
+					"missing_criteria": verdict.MissingCriteria,
+				})
+			}
+			verdict.MissingCriteria = nil
+			verdict.Passed = len(verdict.SecurityIssues) == 0
 			verdict.FailedTests = nil
 		} else {
+			verdict.Passed = false
 			// M9-T1: keep the real failure output so the repair loop can fix
 			// it; the judge still only sees the short reason in MissingCriteria.
 			if out := strings.TrimSpace(vin.TestOutput); out != "" {

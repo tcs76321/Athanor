@@ -97,6 +97,35 @@ func TestVerifyCandidate_RequireDocsWiring(t *testing.T) {
 	}
 }
 
+// TestCodeJob_HardPassIsNotVetoedByJudgeMissingCriteria pins the P0 fix: a
+// passing test run decides acceptance; the judge may add advisory
+// missing_criteria but cannot reject the candidate on prose alone.
+func TestCodeJob_HardPassIsNotVetoedByJudgeMissingCriteria(t *testing.T) {
+	zero := 0
+	e := newEnvWithCfg(t, func(c *config.Config) {
+		off := false
+		c.Execution.RequireTestsForCode = &off
+		c.Execution.RequireDocumentationForCode = &off
+		c.Execution.MaxReflectionLoops = &zero
+	})
+	for i := 0; i < 8; i++ {
+		e.ollama.evalVerdicts = append(e.ollama.evalVerdicts,
+			`{"passed":false,"score":0.2,"failed_tests":[],"missing_criteria":["judge says style is weak"],"security_issues":[],"style_issues":[],"better_than_previous":false,"confidence":0.9,"summary":"tests pass but the judge dislikes it"}`)
+	}
+	e.runner.WithExit(0)
+
+	jobID := e.submitCode(t)
+	e.eng.Run(context.Background(), jobID)
+
+	j, err := e.jobs.Get(context.Background(), jobID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if j.State != job.StateCompleted {
+		t.Fatalf("state = %s, want completed (hard test pass must decide acceptance)", j.State)
+	}
+}
+
 // TestCodeJob_FailsWhenGatesUnsatisfied is the end-to-end proof: a code job
 // with the tests gate on and no runner cannot be accepted, and exhausts
 // reflection into `failed`.

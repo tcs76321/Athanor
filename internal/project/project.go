@@ -139,6 +139,11 @@ type Execution struct {
 	// Empty means "use RepositoryPath as the root"; when both are empty the
 	// fixture is refused rather than reading an arbitrary host path.
 	FixtureRoot string `json:"fixture_root,omitempty"`
+	// SolutionFile is the relative filename a single-file code candidate is
+	// staged under (e.g. `raindrops.py`). It is the explicit form of the
+	// module-name inference runCodeInPod otherwise performs from the test
+	// command. Empty keeps the historical `solution.py` / inference behavior.
+	SolutionFile string `json:"solution_file,omitempty"`
 	// DataSchema is the JSON Schema a `data` candidate must validate against
 	// (M9-T3). Operator-supplied (never from the model); empty means the LLM
 	// judge decides, as before.
@@ -357,7 +362,12 @@ type Task struct {
 	// Recurring/triggered execution is backlog; every decomposed task is
 	// one_time today (migration 0017).
 	TaskType string
+	// Criteria is the task's acceptance criteria (free text).
 	Criteria []string
+	// Checks is the optional task-level deterministic acceptance set. When
+	// non-nil it replaces the project-wide execution checks for this task;
+	// nil falls back to the project setting.
+	Checks *ExecutionChecks
 	// DependsOn lists the IDs of tasks that must finish before this one
 	// (the §7.3 dependency edges). Empty for a root task.
 	DependsOn []string
@@ -391,8 +401,11 @@ type TaskSpec struct {
 	Description string
 	DependsOn   []string
 	Criteria    []string
-	Budget      dag.Budget
-	Priority    int
+	// Checks is the optional task-level deterministic acceptance set compiled
+	// from a workflow block. nil falls back to the project execution checks.
+	Checks   *ExecutionChecks
+	Budget   dag.Budget
+	Priority int
 	// AllowedTools optionally overrides the capability default for this task.
 	// It is validated against the closed §25 set by CreateDAG.
 	AllowedTools []string

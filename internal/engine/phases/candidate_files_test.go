@@ -1,6 +1,10 @@
 package phases
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/tcs76321/athanor/internal/project"
+)
 
 // TestCandidateFiles pins the ADR-0065 tree detection: no markers is a single
 // solution.py; `=== FILE: path ===` blocks are a multi-file tree; a hostile
@@ -36,6 +40,27 @@ func TestCandidateModuleName(t *testing.T) {
 	for _, c := range cases {
 		if got := candidateModuleName(c.cmd); got != c.want {
 			t.Errorf("candidateModuleName(%q) = %q, want %q", c.cmd, got, c.want)
+		}
+	}
+}
+
+// TestDeclaredCandidatePath pins the explicit artifact name: a project that
+// declares raindrops.py stages the candidate there instead of falling back to
+// solution.py, and a hostile declaration is ignored.
+func TestDeclaredCandidatePath(t *testing.T) {
+	cases := []struct {
+		declared, inferred, want string
+	}{
+		{"raindrops.py", "solution.py", "raindrops.py"},
+		{"pkg/mod.py", "solution.py", "pkg/mod.py"},
+		{"", "exprlang.py", "exprlang.py"},
+		{"../evil.py", "solution.py", "solution.py"},
+		{"/tmp/evil.py", "solution.py", "solution.py"},
+	}
+	for _, c := range cases {
+		p := project.Project{Execution: project.Execution{SolutionFile: c.declared}}
+		if got := declaredCandidatePath(p, c.inferred); got != c.want {
+			t.Errorf("declaredCandidatePath(%q, %q) = %q, want %q", c.declared, c.inferred, got, c.want)
 		}
 	}
 }

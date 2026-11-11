@@ -661,15 +661,15 @@ func (r *Repo) EnvelopeFor(ctx context.Context, jobID string, defaultEnv toolenv
 // the Go field mapping cannot drift.
 const taskColumns = `id, project_id, COALESCE(goal_id, ''), COALESCE(parent_task_id, ''),
 	title, COALESCE(description, ''), COALESCE(capability, ''), status, task_type, depends_on_json,
-	acceptance_criteria_json, budget_json, priority, allowed_tools_json, retry_baseline, COALESCE(cycle_id, '')`
+	acceptance_criteria_json, budget_json, priority, allowed_tools_json, retry_baseline, COALESCE(cycle_id, ''), COALESCE(checks_json, '')`
 
 // scanTask reads one row produced by taskColumns.
 func scanTask(row interface{ Scan(...any) error }) (Task, error) {
 	var t Task
-	var depsJSON, criteriaJSON, budgetJSON, allowedToolsJSON string
+	var depsJSON, criteriaJSON, budgetJSON, allowedToolsJSON, checksJSON string
 	if err := row.Scan(&t.ID, &t.ProjectID, &t.GoalID, &t.ParentID, &t.Title, &t.Description,
 		&t.Capability, &t.Status, &t.TaskType, &depsJSON, &criteriaJSON, &budgetJSON, &t.Priority, &allowedToolsJSON,
-		&t.RetryBaseline, &t.CycleID); err != nil {
+		&t.RetryBaseline, &t.CycleID, &checksJSON); err != nil {
 		return Task{}, err
 	}
 	if depsJSON != "" && depsJSON != "[]" {
@@ -693,6 +693,13 @@ func scanTask(row interface{ Scan(...any) error }) (Task, error) {
 		if err := json.Unmarshal([]byte(allowedToolsJSON), &t.AllowedTools); err != nil {
 			return Task{}, fmt.Errorf("decoding allowed_tools for task %s: %w", t.ID, err)
 		}
+	}
+	if checksJSON != "" && checksJSON != "null" {
+		var checks ExecutionChecks
+		if err := json.Unmarshal([]byte(checksJSON), &checks); err != nil {
+			return Task{}, fmt.Errorf("decoding checks for task %s: %w", t.ID, err)
+		}
+		t.Checks = &checks
 	}
 	return t, nil
 }

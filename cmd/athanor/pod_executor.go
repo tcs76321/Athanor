@@ -123,6 +123,14 @@ func (a *podExecutorAdapter) RunCode(ctx context.Context, jobID string, req tool
 	})
 }
 
+// workDirEnv exports the repository work tree path for task test commands.
+// A corpus command may legitimately say `cd "$REPO"`; without this the shell
+// expands an unset variable, which happens to no-op in some shells and fails
+// in others. The value is the same tree RunTests already uses as its cwd.
+func workDirEnv() string {
+	return "export REPO=" + podWork + "; "
+}
+
 // RunTests runs the task's configured test command through `sh -c` in the
 // scratch dir so a command line like `pytest -q` (or `python -c "import
 // solution; ..."`) sees the file RunCode wrote. `req.Command` is the
@@ -132,13 +140,13 @@ func (a *podExecutorAdapter) RunCode(ctx context.Context, jobID string, req tool
 // validated the run_tests envelope (known-issues L6). The base image must
 // provide a POSIX shell (ADR-0024 §6).
 func (a *podExecutorAdapter) RunTests(ctx context.Context, jobID string, req toolenvelope.ExecuteRequest) (toolenvelope.ExecuteResult, error) {
-	return a.exec(ctx, jobID, jobpod.ExecSpec{Command: []string{"sh", "-c", prepWorkDir() + " && cd " + podWork + " && " + req.Command}})
+	return a.exec(ctx, jobID, jobpod.ExecSpec{Command: []string{"sh", "-c", workDirEnv() + prepWorkDir() + " && cd " + podWork + " && " + req.Command}})
 }
 
 // Lint is RunTests with the linter command (the default `ruff check .` is
 // resolved server-side before the call); the same containment note applies.
 func (a *podExecutorAdapter) Lint(ctx context.Context, jobID string, req toolenvelope.ExecuteRequest) (toolenvelope.ExecuteResult, error) {
-	return a.exec(ctx, jobID, jobpod.ExecSpec{Command: []string{"sh", "-c", prepWorkDir() + " && cd " + podWork + " && " + req.Command}})
+	return a.exec(ctx, jobID, jobpod.ExecSpec{Command: []string{"sh", "-c", workDirEnv() + prepWorkDir() + " && cd " + podWork + " && " + req.Command}})
 }
 
 // ReadFile reads one repository-relative file from the staged snapshot. The

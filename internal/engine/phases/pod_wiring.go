@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"path"
 	"strings"
 	"time"
 
@@ -85,7 +86,7 @@ func (d *Deps) runCodeInPod(ctx context.Context, j job.Job, p project.Project, t
 	// command is the executor.
 	if len(files) == 1 && files[0].Path == "solution.py" {
 		if language == project.LanguagePython {
-			if name := candidateModuleName(p.TestCommand()); name != "" {
+			if name := declaredCandidatePath(p, candidateModuleName(p.TestCommand())); name != "" {
 				files[0].Path = name
 			}
 		} else {
@@ -159,6 +160,22 @@ func (d *Deps) runCodeInPod(ctx context.Context, j job.Job, p project.Project, t
 // JSON manifest is decoded; anything else is a single solution.py. Pure.
 func candidateFiles(content string) ([]toolenvelope.File, error) {
 	return toolenvelope.CandidateFiles(content)
+}
+
+// declaredCandidatePath returns the explicit solution filename when the
+// project declares one, falling back to the module name inferred from the test
+// command. The declared path is repository-relative and may live in a
+// subdirectory; absolute paths and traversal are refused rather than trusted.
+func declaredCandidatePath(p project.Project, inferred string) string {
+	declared := strings.TrimSpace(p.Execution.SolutionFile)
+	if declared == "" {
+		return inferred
+	}
+	clean := path.Clean(strings.ReplaceAll(declared, "\\", "/"))
+	if clean == "." || clean == ".." || path.IsAbs(clean) || strings.HasPrefix(clean, "../") {
+		return inferred
+	}
+	return clean
 }
 
 // candidateModuleName infers the file name a single-file code candidate should

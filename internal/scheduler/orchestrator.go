@@ -98,9 +98,34 @@ func (s *Scheduler) trackCycle(ctx context.Context, tasks []project.Task) {
 		slog.Error("scheduler: loading goal status for cycle", "goal", tasks[0].GoalID, "err", err)
 		return
 	}
+	if status == "decomposed" && stalledOnBlocked(tasks) {
+		// A cycle with a blocked leaf and no task able to make progress cannot
+		// finish until an operator resets it. Report that immediately instead
+		// of leaving the cycle "running" forever (the v5 utility stall).
+		status = "blocked"
+	}
 	if err := s.cycles.TrackGoal(ctx, tasks[0].CycleID, status); err != nil {
 		slog.Error("scheduler: tracking cycle state", "cycle", tasks[0].CycleID, "err", err)
 	}
+}
+
+// stalledOnBlocked reports whether at least one task is blocked and no task is
+// still able to make progress. Completed siblings do not make the graph
+// runnable; a single blocked leaf does.
+func stalledOnBlocked(tasks []project.Task) bool {
+	if len(tasks) == 0 {
+		return false
+	}
+	blocked := false
+	for _, t := range tasks {
+		switch t.Status {
+		case project.TaskBlocked:
+			blocked = true
+		case project.TaskPending, project.TaskReady, project.TaskRunning, project.TaskPaused:
+			return false
+		}
+	}
+	return blocked
 }
 
 // Start schedules the ready leaves of a goal and returns the new job IDs.
@@ -320,6 +345,9 @@ func (s *Scheduler) Reset(ctx context.Context, taskID string) ([]string, error) 
 	}
 	if err := s.projects.RecomputeGoalStatus(ctx, t.GoalID); err != nil {
 		return started, err
+	}
+	if tasks, err = s.projects.TasksByGoal(ctx, t.GoalID); err == nil {
+		s.trackCycle(ctx, tasks)
 	}
 	return started, nil
 }

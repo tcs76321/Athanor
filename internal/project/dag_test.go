@@ -35,6 +35,29 @@ func TestCreateDAGPersistsCycleID(t *testing.T) {
 	}
 }
 
+func TestCreateDAGPersistsTaskChecks(t *testing.T) {
+	r, _ := openRepo(t)
+	ctx := context.Background()
+	p, _, err := r.Create(ctx, "checks", ArchetypeCode, validGoal, "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	checks := &ExecutionChecks{RequiredSections: []string{"Verdict"}, MaxWords: 120}
+	_, tasks, err := r.CreateDAG(ctx, p.ID, "Build a small cycle with one task.", []TaskSpec{
+		{Key: "a", Title: "A", Checks: checks},
+	})
+	if err != nil {
+		t.Fatalf("CreateDAG: %v", err)
+	}
+	loaded, err := r.Task(ctx, tasks[0].ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if loaded.Checks == nil || loaded.Checks.MaxWords != 120 || len(loaded.Checks.RequiredSections) != 1 {
+		t.Fatalf("loaded checks = %+v, want the declared set", loaded.Checks)
+	}
+}
+
 func TestCreateDAGPersistsGraph(t *testing.T) {
 	r, s := openRepo(t)
 	ctx := context.Background()

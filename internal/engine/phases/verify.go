@@ -35,6 +35,9 @@ func (d *Deps) verifyCandidate(ctx context.Context, j job.Job, p project.Project
 		DataSchema: p.Execution.DataSchema,
 		Checks:     p.Execution.Checks,
 	}
+	if t.Checks != nil {
+		in.Checks = t.Checks
+	}
 	// F5 (ADR-0058): the code acceptance gates. An explicit false restores
 	// the pre-F5 behavior; the config resolver applies the true default.
 	if d.Cfg != nil {

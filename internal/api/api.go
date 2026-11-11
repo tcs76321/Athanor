@@ -398,6 +398,9 @@ type projectExecution struct {
 	FixtureRoot string `json:"fixture_root"`
 	// DataSchema is the JSON Schema a data task must validate against (M9-T3).
 	DataSchema string `json:"data_schema"`
+	// SolutionFile is the relative filename a single-file code candidate is
+	// staged under. Empty keeps the engine's module-name inference.
+	SolutionFile string `json:"solution_file"`
 	// Checks is the operator-declared machine-checkable constraint set
 	// (M9, ADR-0070) enforced deterministically for a text/document task.
 	Checks *project.ExecutionChecks `json:"checks"`
@@ -500,6 +503,7 @@ func executionFromRequest(req *projectExecution) project.Execution {
 		FixturePath:  req.FixturePath,
 		FixtureRoot:  req.FixtureRoot,
 		DataSchema:   req.DataSchema,
+		SolutionFile: req.SolutionFile,
 		Checks:       req.Checks,
 	}
 }

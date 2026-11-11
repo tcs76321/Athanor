@@ -102,6 +102,14 @@ func (r *Repo) createDAG(ctx context.Context, projectID, goalText, approvedPlanI
 		if err != nil {
 			return "", nil, fmt.Errorf("marshalling budget: %w", err)
 		}
+		var checksJSON any
+		if s.Checks != nil {
+			raw, merr := json.Marshal(s.Checks)
+			if merr != nil {
+				return "", nil, fmt.Errorf("marshalling checks for task %q: %w", s.Key, merr)
+			}
+			checksJSON = string(raw)
+		}
 		capability := s.Capability
 		if !ValidCapability(capability) {
 			capability = InferTaskCapability(s.Title+" "+s.Description, p.Capabilities, p.RepositoryPath)
@@ -123,10 +131,10 @@ func (r *Repo) createDAG(ctx context.Context, projectID, goalText, approvedPlanI
 		}
 		if _, err := tx.ExecContext(ctx,
 			`INSERT INTO tasks (id, project_id, goal_id, parent_task_id, title, description,
-			        depends_on_json, acceptance_criteria_json, budget_json, allowed_tools_json, priority, capability, cycle_id)
-			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			        depends_on_json, acceptance_criteria_json, budget_json, allowed_tools_json, priority, capability, cycle_id, checks_json)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			idsByKey[s.Key], projectID, goalID, parentID, s.Title, s.Description,
-			string(depsJSON), criteriaJSON, string(budgetJSON), toolsJSON, s.Priority, capability, nullIfEmpty(s.CycleID),
+			string(depsJSON), criteriaJSON, string(budgetJSON), toolsJSON, s.Priority, capability, nullIfEmpty(s.CycleID), checksJSON,
 		); err != nil {
 			return "", nil, fmt.Errorf("inserting task %q: %w", s.Key, err)
 		}

@@ -125,7 +125,7 @@ func TestPodExecutor_RunTests_UsesShell(t *testing.T) {
 	if res.ExitCode != 1 {
 		t.Errorf("exit = %d, want 1", res.ExitCode)
 	}
-	want := []string{"sh", "-c", prepWorkDir() + " && cd /tmp/work && pytest -q"}
+	want := []string{"sh", "-c", workDirEnv() + prepWorkDir() + " && cd /tmp/work && pytest -q"}
 	if len(f.got.Command) != len(want) {
 		t.Fatalf("command = %v, want %v", f.got.Command, want)
 	}

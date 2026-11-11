@@ -110,6 +110,32 @@ func TestTrackGoalMapsTerminalStatus(t *testing.T) {
 	}
 }
 
+func TestTrackGoalMapsBlockedAndReset(t *testing.T) {
+	_, r := openStore(t)
+	ctx := context.Background()
+	c, err := r.Create(ctx, "p1", KindOperate, "Write the daily brief.")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := r.TrackGoal(ctx, c.ID, "running"); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.TrackGoal(ctx, c.ID, "blocked"); err != nil {
+		t.Fatal(err)
+	}
+	got, _ := r.Get(ctx, c.ID)
+	if got.State != StateAwaitingReview {
+		t.Fatalf("blocked state = %q, want awaiting_review", got.State)
+	}
+	if err := r.TrackGoal(ctx, c.ID, "running"); err != nil {
+		t.Fatal(err)
+	}
+	got, _ = r.Get(ctx, c.ID)
+	if got.State != StateRunning {
+		t.Errorf("reset state = %q, want running", got.State)
+	}
+}
+
 func TestCreateRejectsBadInput(t *testing.T) {
 	_, r := openStore(t)
 	ctx := context.Background()

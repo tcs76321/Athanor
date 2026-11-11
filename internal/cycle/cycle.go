@@ -227,6 +227,19 @@ func (r *Repo) TrackGoal(ctx context.Context, cycleID, goalStatus string) error 
 		return r.SetState(ctx, cycleID, StateCompleted)
 	case "failed":
 		return r.SetState(ctx, cycleID, StateFailed)
+	case "blocked":
+		// A blocked-only goal needs operator action. awaiting_review is the
+		// honest non-terminal state; Reset returns it to running.
+		return r.SetState(ctx, cycleID, StateAwaitingReview)
+	case "running":
+		c, err := r.Get(ctx, cycleID)
+		if err != nil {
+			return err
+		}
+		if c.State == StateAwaitingReview || c.State == StatePaused {
+			return r.SetState(ctx, cycleID, StateRunning)
+		}
+		return nil
 	default:
 		return nil
 	}
