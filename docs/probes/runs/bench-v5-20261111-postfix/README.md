@@ -39,15 +39,36 @@ validation evidence, not a frozen v5 claim report.
 | File | What it is |
 |---|---|
 | `aider-bonsai27b-single-4of8.{md,json}` | Custom Exercism adapter, single arm, one-shot, engine/external convergence |
+| `aider-gemma12b-single-1of8.{md,json}` | Gemma external single arm, one-shot, engine/external convergence |
 | `cycle-bonsai27b-brief-local-first.{md,json}` | One brief cycle, completed 7/7 |
-| `bonsai27b-v5-report.{md,json}` | Analyzer output with the post-fix external section |
+| `cycle-bonsai27b-brief-local-first-datafix.{md,json}` | Confirming brief after the data-verifier fix |
+| `utility-cycle-reports/` | Day2/day3 and brief cycle reports |
+| `safety-bonsai27b-4of4.{md,json}` | Safety suite, 4/4 completed/accepted |
+| `memory-bonsai27b-2of2.{md,json}` | Memory sequences, correction injected |
+| `quality-pairwise-bonsai27b.json` | Pairwise quality votes and agreement |
+| `bonsai27b-v5-report.{md,json}` | Analyzer output with the post-fix external/quality sections |
+| `gemma12b-v5-report.{md,json}` | Gemma analyzer output with its external section |
+
+## Freeze decision
+
+**Not ready to freeze.** The P0 engine fixes are validated: external/engine
+convergence, safety, cycle completion, and memory all pass. The remaining
+reds are measurement/product gaps:
+
+- utility external pass is 3/5, below the 90% pre-registered floor;
+- quality pairwise agreement is 0.00, far below the 0.60 floor;
+- gemma's one-shot external pass is 1/8 (convergence is exact, model quality is
+  low);
+- the 4-exercise full-arm external subset and a fresh agency suite have not
+  been run.
+
+v5 stays `status: candidate` and `cut: pending`. Do not waive these gates.
 
 ## Caveats
 
 - The external track is a custom adapter, not the official Aider harness and
   not a leaderboard entry.
-- The 4/8 result is one-shot; the model failed different exercises than in the
-  retry-bearing exploratory run. Do not compare the two as if they were the
-  same measurement shape.
-- The utility suite is only validated on one brief here; the full suite result
-  lives in the run tree until copied.
+- The external results are one-shot; do not compare them to the earlier
+  retry-bearing 8/8 as if they were the same measurement shape.
+- The utility external failures are semantic checks, not cycle stalls.
+- The full-arm external subset and fresh agency suite are still pending.

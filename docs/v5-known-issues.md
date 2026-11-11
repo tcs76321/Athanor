@@ -7,6 +7,12 @@ This is the working issue register from the v5 build and the first 2×2 + extern
 runs. It is intentionally blunt: the benchmark is doing its job, and several
 product claims fail. Fix these before treating v5 as a frozen instrument.
 
+**Freeze readiness: not ready.** The P0 engine fixes now validate
+(external/engine convergence, safety, cycle completion, memory), but utility
+external pass is 3/5, quality pairwise agreement is 0.00, and a fresh agency
+suite plus the full-arm external subset are still pending. v5 stays
+`status: candidate` and `cut: pending`.
+
 ---
 
 ## P0 — blocks a credible v5 claim or freeze
@@ -91,13 +97,13 @@ product claims fail. Fix these before treating v5 as a frozen instrument.
   quality claim is **not established**. The old pointwise scores are reference
   only.
 
-### 8. Agency suite is saturated — HARDENED
+### 8. Agency suite is saturated — HARDENED (not re-run)
 - **Evidence:** the pre-fix suite was 100% on both arms/generators with two
   tasks.
 - **Fix:** added three harder tasks: observation-driven multi-file repair, a
   multi-module wire-format contract, and a two-step long-horizon sequence. The
   suite is only evidence if it now discriminates; a 100% rerun is reported as
-  saturated.
+  saturated. A fresh agency run is still pending.
 
 ### 9. Memory correction sequence fails — FIXED
 - **Evidence:** the pre-fix two-step sequence failed at the first step.
