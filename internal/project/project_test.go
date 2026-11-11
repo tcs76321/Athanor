@@ -220,6 +220,9 @@ func TestExecutionChecksDescribeIsDeterministic(t *testing.T) {
 		NoRepeatIDsAcrossSections: []SectionIDRule{
 			{New: "New", Old: "Previously reported", Pattern: `story-[0-9]{3}`},
 		},
+		ForbiddenIDsInSections: []ForbiddenIDsInSection{
+			{Section: "New", IDs: []string{"story-001", "story-004"}},
+		},
 		ArrayLength:      2,
 		ArrayUniqueBy:    "id",
 		ArraySortedBy:    "id",
@@ -234,6 +237,7 @@ func TestExecutionChecksDescribeIsDeterministic(t *testing.T) {
 		`must contain at least one of: "cannot" → "unable"`,
 		"at least 2 risks",
 		`an id matching "story-[0-9]{3}" must not appear in both "New" and "Previously reported"`,
+		`these ids must not appear under "New": story-001, story-004`,
 		"exactly 2 array item(s)",
 		`unique by "id"`,
 		`sorted ascending by "id"`,

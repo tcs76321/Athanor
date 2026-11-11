@@ -99,6 +99,33 @@ func TestChecksVerifier_NoRepeatIDsAcrossSections(t *testing.T) {
 	}
 }
 
+// TestChecksVerifier_ForbiddenIDsInSection pins the precise news rule: the
+// task's known old ids must not appear under New.
+func TestChecksVerifier_ForbiddenIDsInSection(t *testing.T) {
+	r := Default()
+	checks := &project.ExecutionChecks{
+		ForbiddenIDsInSections: []project.ForbiddenIDsInSection{
+			{Section: "New", IDs: []string{"story-001", "story-004"}},
+		},
+	}
+	good := "# New\nstory-005 is new.\n\n# Previously reported\nstory-001 and story-004 are old.\n"
+	if res := r.Run(Input{Archetype: project.ArchetypeDocument, Content: good, Checks: checks}); !res.HardPassed {
+		t.Errorf("old ids only under Previously reported rejected: %+v", res)
+	}
+	bad := "# New\nstory-001 was updated by story-005.\n\n# Previously reported\nstory-001 is old.\n"
+	res := r.Run(Input{Archetype: project.ArchetypeDocument, Content: bad, Checks: checks})
+	if !res.HardDecisive() || res.HardPassed {
+		t.Fatalf("old id under New accepted: %+v", res)
+	}
+	if !containsReason(res.Reasons, "appears under \"New\"") {
+		t.Errorf("reasons = %v", res.Reasons)
+	}
+	missing := "# Previously reported\nstory-001 is old.\n"
+	if res := r.Run(Input{Archetype: project.ArchetypeDocument, Content: missing, Checks: checks}); res.HardPassed {
+		t.Error("missing New section passed the forbidden-id rule")
+	}
+}
+
 func TestChecksVerifier_ParagraphsWords(t *testing.T) {
 	r := Default()
 	// Exactly four paragraphs.

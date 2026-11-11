@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 	"unicode/utf8"
 
@@ -198,6 +199,9 @@ type ExecutionChecks struct {
 	// structural form of the news update contract: an updated story is new
 	// under its new id; the earlier id belongs only under Previously reported.
 	NoRepeatIDsAcrossSections []SectionIDRule `json:"no_repeat_ids_across_sections,omitempty"`
+	// ForbiddenIDsInSections rejects known ids in the named section. It is the
+	// precise news rule: the task's known old ids must not appear under New.
+	ForbiddenIDsInSections []ForbiddenIDsInSection `json:"forbidden_ids_in_sections,omitempty"`
 
 	// Data checks. The JSON-Schema subset validates shape; these pin the
 	// array-level constraints a schema cannot express without minItems /
@@ -226,6 +230,14 @@ type SectionIDRule struct {
 	Pattern string `json:"pattern"`
 }
 
+// ForbiddenIDsInSection rejects a known id in the named section. The benchmark's
+// `new_items_section.old_ids` are the precise old-id list; the cycle probe
+// injects this rule into the draft synthesize block.
+type ForbiddenIDsInSection struct {
+	Section string   `json:"section"`
+	IDs     []string `json:"ids"`
+}
+
 // IsZero reports whether no check is declared.
 func (c ExecutionChecks) IsZero() bool {
 	return len(c.RequiredSections) == 0 && len(c.StrictSectionOrder) == 0 &&
@@ -234,6 +246,7 @@ func (c ExecutionChecks) IsZero() bool {
 		len(c.MustContainAny) == 0 &&
 		!c.NoHeadings && !c.NoPlaceholders && len(c.MinItems) == 0 &&
 		len(c.NoRepeatIDsAcrossSections) == 0 &&
+		len(c.ForbiddenIDsInSections) == 0 &&
 		c.ArrayLength == 0 && c.ArrayUniqueBy == "" && c.ArraySortedBy == "" &&
 		len(c.JSONFieldMatches) == 0
 }
@@ -287,6 +300,10 @@ func (c *ExecutionChecks) Describe() []string {
 	for _, rule := range c.NoRepeatIDsAcrossSections {
 		out = append(out, fmt.Sprintf("an id matching %q must not appear in both %q and %q",
 			rule.Pattern, rule.New, rule.Old))
+	}
+	for _, rule := range c.ForbiddenIDsInSections {
+		out = append(out, fmt.Sprintf("these ids must not appear under %q: %s",
+			rule.Section, strings.Join(rule.IDs, ", ")))
 	}
 	if c.ArrayLength > 0 {
 		out = append(out, fmt.Sprintf("exactly %d array item(s)", c.ArrayLength))

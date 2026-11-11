@@ -123,6 +123,9 @@ func (checksVerifier) Verify(in Input) Verdict {
 	for _, rule := range c.NoRepeatIDsAcrossSections {
 		verifySectionIDRule(in.Content, rule, check)
 	}
+	for _, rule := range c.ForbiddenIDsInSections {
+		verifyForbiddenIDsInSection(in.Content, rule, check)
+	}
 
 	if total == 0 {
 		// The declared set held only no-op entries (e.g. a Min item with
@@ -228,6 +231,35 @@ func verifySectionIDRule(content string, rule project.SectionIDRule, check func(
 	sort.Strings(ids)
 	check(false, "id appears in both "+strconv.Quote(rule.New)+" and "+
 		strconv.Quote(rule.Old)+": "+strings.Join(ids, ", "))
+}
+
+// verifyForbiddenIDsInSection rejects known ids in a named section. This is the
+// precise news rule: the task's old ids must not appear under New, even if the
+// model also lists them under Previously reported.
+func verifyForbiddenIDsInSection(content string, rule project.ForbiddenIDsInSection, check func(bool, string)) {
+	if strings.TrimSpace(rule.Section) == "" || len(rule.IDs) == 0 {
+		check(false, "forbidden-id rule requires section and ids")
+		return
+	}
+	sections := checkSections(content)
+	body, ok := sections[normalizeCheckName(rule.Section)]
+	if !ok {
+		check(false, "forbidden-id rule missing section "+strconv.Quote(rule.Section))
+		return
+	}
+	var hits []string
+	for _, id := range rule.IDs {
+		id = strings.TrimSpace(id)
+		if id != "" && strings.Contains(body, id) {
+			hits = append(hits, id)
+		}
+	}
+	sort.Strings(hits)
+	if len(hits) > 0 {
+		check(false, "id appears under "+strconv.Quote(rule.Section)+": "+strings.Join(hits, ", "))
+		return
+	}
+	check(true, "")
 }
 
 // isSubsequence reports whether every wanted section appears in order within

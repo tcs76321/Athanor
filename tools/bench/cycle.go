@@ -8,6 +8,7 @@
 package main
 
 import (
+	"bytes"
 	"database/sql"
 	"encoding/json"
 	"flag"
@@ -21,6 +22,8 @@ import (
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
+
+	"github.com/tcs76321/athanor/internal/workflow"
 )
 
 type cycleConfig struct {
@@ -146,6 +149,22 @@ func runOneCycle(client *http.Client, base string, c *cycleConfig, name, goal st
 	if err != nil {
 		return res, fmt.Errorf("create cycle: %w", err)
 	}
+	// The task's declared old ids are the only precise old-id list. Inject them
+	// into the draft synthesize block so the engine can reject an old id placed
+	// under New. Without this the engine has only the generic overlap rule,
+	// which cannot tell a new id from an old one.
+	if section, ids := oldIDsFromChecks(checks); len(ids) > 0 {
+		graph, gerr := fetchCycleGraph(client, base, cycleID)
+		if gerr != nil {
+			return res, fmt.Errorf("read draft graph: %w", gerr)
+		}
+		if !applyTaskChecks(&graph, section, ids) {
+			return res, fmt.Errorf("cycle template %q has no synthesize block for the old-id rule", template)
+		}
+		if serr := saveCycleGraph(client, base, cycleID, graph); serr != nil {
+			return res, fmt.Errorf("save draft graph: %w", serr)
+		}
+	}
 	res.CycleID = cycleID
 	goalID, err := startCycle(client, base, cycleID)
 	if err != nil {
@@ -258,6 +277,103 @@ func createCycle(client *http.Client, base, projectID, template string) (string,
 		return "", fmt.Errorf("empty cycle id in %q", loc)
 	}
 	return id, nil
+}
+
+// oldIDsFromChecks returns the task's precise old-id list from a
+// `new_items_section` check. It returns the section name (default "New") and
+// the ids; an empty list means the task does not declare this rule.
+func oldIDsFromChecks(checks map[string]any) (string, []string) {
+	raw, ok := checks["new_items_section"]
+	if !ok {
+		return "", nil
+	}
+	m, ok := raw.(map[string]any)
+	if !ok {
+		return "", nil
+	}
+	section, _ := m["section"].(string)
+	if strings.TrimSpace(section) == "" {
+		section = "New"
+	}
+	var ids []string
+	switch v := m["old_ids"].(type) {
+	case []string:
+		ids = append(ids, v...)
+	case []any:
+		for _, item := range v {
+			if s, ok := item.(string); ok && strings.TrimSpace(s) != "" {
+				ids = append(ids, s)
+			}
+		}
+	}
+	return section, ids
+}
+
+// applyTaskChecks injects the precise old-id rule into the first synthesize
+// block of a draft cycle graph. It returns false when the graph has no
+// synthesize block, which is a template/probe mismatch.
+func applyTaskChecks(graph *workflow.Graph, section string, ids []string) bool {
+	if len(ids) == 0 {
+		return false
+	}
+	for i := range graph.Blocks {
+		if graph.Blocks[i].Kind != workflow.KindSynthesize {
+			continue
+		}
+		cfg := graph.Blocks[i].Config
+		if cfg == nil {
+			cfg = map[string]any{}
+		}
+		checks, _ := cfg["checks"].(map[string]any)
+		if checks == nil {
+			checks = map[string]any{}
+		}
+		checks["forbidden_ids_in_sections"] = []map[string]any{
+			{"section": section, "ids": ids},
+		}
+		cfg["checks"] = checks
+		graph.Blocks[i].Config = cfg
+		return true
+	}
+	return false
+}
+
+func fetchCycleGraph(client *http.Client, base, cycleID string) (workflow.Graph, error) {
+	var graph workflow.Graph
+	resp, err := client.Get(base + "/ui/cycles/" + cycleID + "/graph.json")
+	if err != nil {
+		return graph, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+		return graph, fmt.Errorf("graph status %d: %s", resp.StatusCode, body)
+	}
+	var view struct {
+		Graph workflow.Graph `json:"graph"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&view); err != nil {
+		return graph, err
+	}
+	return view.Graph, nil
+}
+
+func saveCycleGraph(client *http.Client, base, cycleID string, graph workflow.Graph) error {
+	data, err := json.Marshal(graph)
+	if err != nil {
+		return err
+	}
+	resp, err := client.Post(base+"/ui/cycles/"+cycleID+"/graph", "application/json",
+		bytes.NewReader(data))
+	if err != nil {
+		return err
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+		return fmt.Errorf("save status %d: %s", resp.StatusCode, body)
+	}
+	return nil
 }
 
 func startCycle(client *http.Client, base, cycleID string) (string, error) {
