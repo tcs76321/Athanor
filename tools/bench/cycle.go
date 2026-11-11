@@ -331,11 +331,15 @@ func applyTaskChecks(graph *workflow.Graph, taskChecks map[string]any) bool {
 		if checks == nil {
 			checks = map[string]any{}
 		}
-		for _, key := range []string{"required_sections", "must_contain", "must_contain_any", "forbidden_phrases"} {
+		for _, key := range []string{"required_sections", "must_contain", "must_contain_any", "forbidden_phrases", "allowed_sources"} {
 			if v, ok := taskChecks[key]; ok {
 				checks[key] = v
 				applied = true
 			}
+		}
+		if v, ok := taskChecks["cite_every_paragraph"]; ok {
+			checks["cite_every_paragraph"] = v
+			applied = true
 		}
 		if v, ok := taskChecks["must_not_contain"]; ok {
 			checks["forbidden_phrases"] = v

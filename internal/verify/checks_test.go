@@ -126,6 +126,32 @@ func TestChecksVerifier_ForbiddenIDsInSection(t *testing.T) {
 	}
 }
 
+// TestChecksVerifier_CiteEveryParagraph pins the citation contract: every
+// substantive paragraph names an allowed source.
+func TestChecksVerifier_CiteEveryParagraph(t *testing.T) {
+	r := Default()
+	checks := &project.ExecutionChecks{
+		CiteEveryParagraph: true,
+		AllowedSources:     []string{"wal.md"},
+	}
+	good := "# What changed\n\nWAL lets readers and a writer proceed concurrently (wal.md).\n\n# Why it matters\n\nA checkpoint moves frames back into the database (wal.md).\n"
+	if res := r.Run(Input{Archetype: project.ArchetypeDocument, Content: good, Checks: checks}); !res.HardPassed {
+		t.Errorf("cited paragraphs rejected: %+v", res)
+	}
+	bad := "# What changed\n\nWAL lets readers and a writer proceed concurrently (wal.md).\n\n# Why it matters\n\nA checkpoint moves frames back into the database without a citation.\n"
+	res := r.Run(Input{Archetype: project.ArchetypeDocument, Content: bad, Checks: checks})
+	if !res.HardDecisive() || res.HardPassed {
+		t.Fatalf("uncited paragraph accepted: %+v", res)
+	}
+	if !containsReason(res.Reasons, "uncited paragraphs") {
+		t.Errorf("reasons = %v", res.Reasons)
+	}
+	noSources := &project.ExecutionChecks{CiteEveryParagraph: true}
+	if res := r.Run(Input{Archetype: project.ArchetypeDocument, Content: good, Checks: noSources}); res.HardPassed {
+		t.Error("cite_every_paragraph without allowed_sources passed")
+	}
+}
+
 func TestChecksVerifier_ParagraphsWords(t *testing.T) {
 	r := Default()
 	// Exactly four paragraphs.

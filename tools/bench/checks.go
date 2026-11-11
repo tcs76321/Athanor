@@ -307,7 +307,8 @@ func checksToExecution(checks map[string]any) map[string]any {
 	}
 	out := map[string]any{}
 	for _, k := range []string{
-		"required_sections", "strict_section_order", "must_contain", "must_contain_any", "forbidden_phrases",
+		"required_sections", "strict_section_order", "must_contain", "must_contain_any",
+		"forbidden_phrases", "allowed_sources",
 	} {
 		if v, ok := checks[k]; ok {
 			// YAML parses an unquoted numeric token (e.g. `[POST, 202]`) as an
@@ -315,6 +316,14 @@ func checksToExecution(checks map[string]any) map[string]any {
 			// rather than rejecting the project with a 400.
 			out[k] = toStrings(v)
 		}
+	}
+	if v, ok := checks["must_not_contain"]; ok {
+		if _, exists := out["forbidden_phrases"]; !exists {
+			out["forbidden_phrases"] = toStrings(v)
+		}
+	}
+	if v, ok := checks["cite_every_paragraph"]; ok && toBool(v) {
+		out["cite_every_paragraph"] = true
 	}
 	for _, k := range []string{
 		"exact_paragraphs", "max_words", "min_words",

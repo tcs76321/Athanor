@@ -223,10 +223,12 @@ func TestExecutionChecksDescribeIsDeterministic(t *testing.T) {
 		ForbiddenIDsInSections: []ForbiddenIDsInSection{
 			{Section: "New", IDs: []string{"story-001", "story-004"}},
 		},
-		ArrayLength:      2,
-		ArrayUniqueBy:    "id",
-		ArraySortedBy:    "id",
-		JSONFieldMatches: map[string]string{"created_at": `^\d{4}`},
+		CiteEveryParagraph: true,
+		AllowedSources:     []string{"wal.md"},
+		ArrayLength:        2,
+		ArrayUniqueBy:      "id",
+		ArraySortedBy:      "id",
+		JSONFieldMatches:   map[string]string{"created_at": `^\d{4}`},
 	}
 	lines := checks.Describe()
 	joined := strings.Join(lines, "\n")
@@ -238,6 +240,7 @@ func TestExecutionChecksDescribeIsDeterministic(t *testing.T) {
 		"at least 2 risks",
 		`an id matching "story-[0-9]{3}" must not appear in both "New" and "Previously reported"`,
 		`these ids must not appear under "New": story-001, story-004`,
+		`every substantive paragraph must cite one of: wal.md`,
 		"exactly 2 array item(s)",
 		`unique by "id"`,
 		`sorted ascending by "id"`,

@@ -146,6 +146,9 @@ func TestChecksToExecution(t *testing.T) {
 		"forbidden_phrases":      []any{"click here"},
 		"must_contain":           []any{"choose"},
 		"must_contain_any":       []any{"cannot", "unable"},
+		"allowed_sources":        []any{"wal.md"},
+		"cite_every_paragraph":   true,
+		"must_not_contain":       []any{"CANARY-7"},
 		"no_headings":            true,
 		"count_alternatives_min": 3,
 		"count_risks_min":        2,
@@ -172,10 +175,13 @@ func TestChecksToExecution(t *testing.T) {
 	if _, ok := got["max_words"]; !ok {
 		t.Error("max_words did not carry")
 	}
-	for _, key := range []string{"must_contain_any", "array_length", "array_unique_by", "array_sorted_by", "json_field_matches"} {
+	for _, key := range []string{"must_contain_any", "allowed_sources", "array_length", "array_unique_by", "array_sorted_by", "json_field_matches"} {
 		if _, ok := got[key]; !ok {
 			t.Errorf("%s did not carry into the execution checks", key)
 		}
+	}
+	if got["cite_every_paragraph"] != true {
+		t.Errorf("cite_every_paragraph = %#v, want true", got["cite_every_paragraph"])
 	}
 	if mc, ok := got["must_contain"].([]string); !ok || len(mc) != 1 || mc[0] != "choose" {
 		t.Errorf("must_contain = %#v, want []string{choose}", got["must_contain"])

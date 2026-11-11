@@ -126,6 +126,14 @@ func (checksVerifier) Verify(in Input) Verdict {
 	for _, rule := range c.ForbiddenIDsInSections {
 		verifyForbiddenIDsInSection(in.Content, rule, check)
 	}
+	if c.CiteEveryParagraph {
+		if len(c.AllowedSources) == 0 {
+			check(false, "cite_every_paragraph requires allowed_sources")
+		} else {
+			missing, total := uncitedParagraphs(in.Content, c.AllowedSources)
+			check(missing == 0, "uncited paragraphs: "+strconv.Itoa(missing)+"/"+strconv.Itoa(total))
+		}
+	}
 
 	if total == 0 {
 		// The declared set held only no-op entries (e.g. a Min item with
@@ -260,6 +268,33 @@ func verifyForbiddenIDsInSection(content string, rule project.ForbiddenIDsInSect
 		return
 	}
 	check(true, "")
+}
+
+// uncitedParagraphs counts substantive prose blocks that name none of the
+// allowed sources. It mirrors the benchmark's cite_every_paragraph rule: skip
+// headings and blocks shorter than ten fields.
+func uncitedParagraphs(content string, allowed []string) (missing, total int) {
+	for _, block := range strings.Split(content, "\n\n") {
+		block = strings.TrimSpace(block)
+		if block == "" || strings.HasPrefix(block, "#") {
+			continue
+		}
+		if len(strings.Fields(block)) < 10 {
+			continue
+		}
+		total++
+		cited := false
+		for _, a := range allowed {
+			if a != "" && strings.Contains(block, a) {
+				cited = true
+				break
+			}
+		}
+		if !cited {
+			missing++
+		}
+	}
+	return missing, total
 }
 
 // isSubsequence reports whether every wanted section appears in order within

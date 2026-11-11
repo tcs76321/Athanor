@@ -202,6 +202,11 @@ type ExecutionChecks struct {
 	// ForbiddenIDsInSections rejects known ids in the named section. It is the
 	// precise news rule: the task's known old ids must not appear under New.
 	ForbiddenIDsInSections []ForbiddenIDsInSection `json:"forbidden_ids_in_sections,omitempty"`
+	// CiteEveryParagraph requires every substantive paragraph to name one of
+	// AllowedSources. It mirrors eval/bench's cite_every_paragraph /
+	// allowed_sources contract (ADR-0135).
+	CiteEveryParagraph bool     `json:"cite_every_paragraph,omitempty"`
+	AllowedSources     []string `json:"allowed_sources,omitempty"`
 
 	// Data checks. The JSON-Schema subset validates shape; these pin the
 	// array-level constraints a schema cannot express without minItems /
@@ -247,6 +252,7 @@ func (c ExecutionChecks) IsZero() bool {
 		!c.NoHeadings && !c.NoPlaceholders && len(c.MinItems) == 0 &&
 		len(c.NoRepeatIDsAcrossSections) == 0 &&
 		len(c.ForbiddenIDsInSections) == 0 &&
+		!c.CiteEveryParagraph && len(c.AllowedSources) == 0 &&
 		c.ArrayLength == 0 && c.ArrayUniqueBy == "" && c.ArraySortedBy == "" &&
 		len(c.JSONFieldMatches) == 0
 }
@@ -304,6 +310,9 @@ func (c *ExecutionChecks) Describe() []string {
 	for _, rule := range c.ForbiddenIDsInSections {
 		out = append(out, fmt.Sprintf("these ids must not appear under %q: %s",
 			rule.Section, strings.Join(rule.IDs, ", ")))
+	}
+	if c.CiteEveryParagraph {
+		out = append(out, "every substantive paragraph must cite one of: "+strings.Join(c.AllowedSources, ", "))
 	}
 	if c.ArrayLength > 0 {
 		out = append(out, fmt.Sprintf("exactly %d array item(s)", c.ArrayLength))
