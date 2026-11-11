@@ -44,17 +44,32 @@ type pairwisePair struct {
 }
 
 type pairwiseReport struct {
-	Generators      []string       `json:"generators"`
-	Judges          []string       `json:"judges"`
-	Pairs           []pairwisePair `json:"pairs"`
-	Tasks           []pairwiseTask `json:"tasks"`
-	SingleWins      int            `json:"single_wins"`
-	FullWins        int            `json:"full_wins"`
-	Ties            int            `json:"ties"`
-	Decisive        int            `json:"decisive"`
-	WinRate         float64        `json:"win_rate"`
-	Agreement       float64        `json:"agreement"`
-	SelfConsistency float64        `json:"self_consistency"`
+	Generators       []string          `json:"generators"`
+	Judges           []string          `json:"judges"`
+	JudgeDiagnostics []judgeDiagnostic `json:"judge_diagnostics,omitempty"`
+	Pairs            []pairwisePair    `json:"pairs"`
+	Tasks            []pairwiseTask    `json:"tasks"`
+	SingleWins       int               `json:"single_wins"`
+	FullWins         int               `json:"full_wins"`
+	Ties             int               `json:"ties"`
+	Decisive         int               `json:"decisive"`
+	UsablePairs      int               `json:"usable_pairs"`
+	MinUsablePairs   int               `json:"min_usable_pairs"`
+	WinRate          float64           `json:"win_rate"`
+	Agreement        float64           `json:"agreement"`
+	SelfConsistency  float64           `json:"self_consistency"`
+}
+
+// judgeDiagnostic is the per-judge evidence behind the agreement number. A
+// judge that always picks the first artifact is not measuring quality, even if
+// its votes look decisive.
+type judgeDiagnostic struct {
+	Judge                 string  `json:"judge"`
+	Votes                 int     `json:"votes"`
+	Errors                int     `json:"errors"`
+	SelfConsistency       float64 `json:"self_consistency"`
+	OrderInconsistentRate float64 `json:"order_inconsistent_rate"`
+	Agreement             float64 `json:"agreement"`
 }
 
 func runQualityPairwise(args []string) {
@@ -66,6 +81,7 @@ func runQualityPairwise(args []string) {
 	judgesCSV := fs.String("judges", "granite4.2:8b,mimo-v2.6:9b-mxfp8", "comma-separated judges")
 	outPath := fs.String("out", "quality-pairwise.json", "output JSON")
 	minAgreement := fs.Float64("min-agreement", 0.6, "fail below this pair-agreement floor")
+	minUsablePairs := fs.Int("min-usable-pairs", 3, "fail below this many usable pairs")
 	_ = fs.Parse(args)
 	if *singlePath == "" || *fullPath == "" {
 		fmt.Fprintln(os.Stderr, "quality-pairwise: -single and -full are required")
@@ -166,19 +182,32 @@ func runQualityPairwise(args []string) {
 	if report.Decisive > 0 {
 		report.WinRate = float64(report.FullWins) / float64(report.Decisive)
 	}
-	report.Agreement, report.SelfConsistency = pairwiseAgreement(report.Pairs, len(judges))
+	report.MinUsablePairs = *minUsablePairs
+	report.Agreement, report.SelfConsistency, report.UsablePairs, report.JudgeDiagnostics =
+		pairwiseDiagnostics(report.Pairs, judges)
 	report.Generators = pairwiseGenerators(single)
 	if err := writeJSON(*outPath, report); err != nil {
 		fmt.Fprintln(os.Stderr, "quality-pairwise: write:", err)
 		os.Exit(1)
 	}
-	fmt.Printf("wrote %s (%d pairs, full win rate %.2f, agreement %.2f)\n",
-		*outPath, len(report.Pairs), report.WinRate, report.Agreement)
-	if report.Agreement > 0 && report.Agreement < *minAgreement {
+	fmt.Printf("wrote %s (%d pairs, %d usable, full win rate %.2f, agreement %.2f)\n",
+		*outPath, len(report.Pairs), report.UsablePairs, report.WinRate, report.Agreement)
+	if report.UsablePairs < *minUsablePairs {
+		fmt.Fprintf(os.Stderr, "quality-pairwise: only %d usable pairs (min %d); quality claim not supported\n",
+			report.UsablePairs, *minUsablePairs)
+		os.Exit(1)
+	}
+	if !pairwiseClaimSupported(report.Agreement, report.UsablePairs, *minUsablePairs, *minAgreement) {
 		fmt.Fprintf(os.Stderr, "quality-pairwise: agreement %.2f below %.2f; quality claim not supported\n",
 			report.Agreement, *minAgreement)
 		os.Exit(1)
 	}
+}
+
+// pairwiseClaimSupported is the single floor rule. Zero agreement is a
+// failure, never a "no data" pass.
+func pairwiseClaimSupported(agreement float64, usable, minUsable int, minAgreement float64) bool {
+	return usable >= minUsable && agreement >= minAgreement
 }
 
 // pairwiseOnce asks one judge to pick A or B. When reverse is true the full
@@ -315,45 +344,106 @@ func reconcilePairWinner(forward, reverse string) string {
 	}
 }
 
-// pairwiseAgreement returns inter-judge majority agreement and per-judge
-// forward/reverse self-consistency.
-func pairwiseAgreement(pairs []pairwisePair, judges int) (agreement, self float64) {
-	if judges < 2 {
-		return 0, 0
+// pairwiseDiagnostics returns inter-judge agreement, per-judge forward/reverse
+// self-consistency, the number of usable pairs, and the per-judge evidence.
+// A pair is usable for agreement only when both judges produced a consistent
+// (non-"inconsistent") reconciled winner. A tiny denominator is reported, never
+// silently treated as agreement.
+func pairwiseDiagnostics(pairs []pairwisePair, judges []string) (agreement, self float64, usable int, diags []judgeDiagnostic) {
+	type acc struct {
+		votes, errors, selfOK, orderBad int
+		agree, agreeTotal               int
 	}
-	agree, total := 0, 0
+	accs := map[string]*acc{}
+	for _, judge := range judges {
+		accs[judge] = &acc{}
+	}
 	for _, p := range pairs {
-		if len(p.Votes) < 2 {
-			continue
-		}
-		a, b := p.Votes[0].Winner, p.Votes[1].Winner
-		if a == "" || b == "" || a == "inconsistent" || b == "inconsistent" {
-			continue
-		}
-		total++
-		if a == b {
-			agree++
-		}
-	}
-	if total > 0 {
-		agreement = float64(agree) / float64(total)
-	}
-	selfAgree, selfTotal := 0, 0
-	for _, p := range pairs {
+		byJudge := map[string]pairwiseVote{}
 		for _, v := range p.Votes {
-			if v.Forward == "" || v.Reverse == "" {
-				continue
+			a := accs[v.Judge]
+			if a == nil {
+				a = &acc{}
+				accs[v.Judge] = a
 			}
-			selfTotal++
-			if v.Forward == v.Reverse {
-				selfAgree++
+			a.votes++
+			if v.ErrorText != "" {
+				a.errors++
+			}
+			if v.Forward != "" && v.Reverse != "" {
+				if v.Forward == v.Reverse {
+					a.selfOK++
+				} else {
+					a.orderBad++
+				}
+			}
+			byJudge[v.Judge] = v
+		}
+		// Inter-judge agreement over the first two consistent judges.
+		var consistent []string
+		for _, v := range p.Votes {
+			if v.Winner != "" && v.Winner != "inconsistent" {
+				consistent = append(consistent, v.Winner)
+			}
+		}
+		if len(consistent) >= 2 {
+			usable++
+			for i := 0; i < len(p.Votes); i++ {
+				for j := i + 1; j < len(p.Votes); j++ {
+					a, okA := byJudge[p.Votes[i].Judge]
+					b, okB := byJudge[p.Votes[j].Judge]
+					if !okA || !okB || a.Winner == "" || b.Winner == "" ||
+						a.Winner == "inconsistent" || b.Winner == "inconsistent" {
+						continue
+					}
+					accs[a.Judge].agreeTotal++
+					accs[b.Judge].agreeTotal++
+					if a.Winner == b.Winner {
+						accs[a.Judge].agree++
+						accs[b.Judge].agree++
+					}
+				}
 			}
 		}
 	}
-	if selfTotal > 0 {
-		self = float64(selfAgree) / float64(selfTotal)
+	selfCount, voteCount := 0, 0
+	for _, judge := range judges {
+		a := accs[judge]
+		if a == nil {
+			continue
+		}
+		voteCount += a.votes
+		selfCount += a.selfOK
+		d := judgeDiagnostic{Judge: judge, Votes: a.votes, Errors: a.errors}
+		if a.votes > 0 {
+			// Order consistency is over pairs with two non-empty verdicts.
+			orderTotal := a.selfOK + a.orderBad
+			if orderTotal > 0 {
+				d.SelfConsistency = float64(a.selfOK) / float64(orderTotal)
+				d.OrderInconsistentRate = float64(a.orderBad) / float64(orderTotal)
+			}
+		}
+		if a.agreeTotal > 0 {
+			d.Agreement = float64(a.agree) / float64(a.agreeTotal)
+		}
+		diags = append(diags, d)
 	}
-	return agreement, self
+	// Inter-judge agreement is the mean of the per-judge agreement rates on
+	// pairs where both were consistent.
+	totalRate, rated := 0.0, 0
+	for _, d := range diags {
+		if d.Agreement > 0 || d.Votes > 0 {
+			totalRate += d.Agreement
+			rated++
+		}
+	}
+	if rated > 0 {
+		agreement = totalRate / float64(rated)
+	}
+	if voteCount > 0 {
+		self = float64(selfCount) / float64(voteCount)
+	}
+	return agreement, self, usable, diags
 }
 
 func pairwiseTasks(pairs []pairwisePair) []pairwiseTask {

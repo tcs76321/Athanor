@@ -381,7 +381,7 @@ func runQuality(args []string) {
 		os.Exit(1)
 	}
 	fmt.Printf("wrote %s (agreement %.3f)\n", *outPath, report.Agreement)
-	if report.Agreement > 0 && report.Agreement < *minAgreement {
+	if report.Agreement < *minAgreement {
 		fmt.Fprintf(os.Stderr, "quality: judge agreement %.3f is below the %.2f floor; the quality claim is not supported\n",
 			report.Agreement, *minAgreement)
 		os.Exit(1)

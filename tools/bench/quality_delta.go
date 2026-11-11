@@ -212,7 +212,7 @@ func runQualityReport(args []string) {
 	} else {
 		fmt.Print(md)
 	}
-	if report.Agreement > 0 && report.Agreement < *minAgreement {
+	if report.Agreement < *minAgreement {
 		fmt.Fprintf(os.Stderr, "quality-report: judge agreement %.3f is below the %.2f floor; the quality claim is not supported\n",
 			report.Agreement, *minAgreement)
 		os.Exit(1)
