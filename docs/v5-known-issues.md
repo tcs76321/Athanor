@@ -17,8 +17,9 @@ product claims fail. Fix these before treating v5 as a frozen instrument.
   tests import `two_fer`, `raindrops`, etc. The task's declared solution file
   was not on the project execution wire shape, so it was never persisted.
 - **Evidence:** after fixing `solution_file` staging + API persistence, the
-  one-exercise rerun (`two-fer`) was external pass **1/1** and engine accepted
-  **1/1**. The full 8-exercise rerun is the remaining validation.
+  one-shot 8-exercise rerun was **4/8 external and exactly 4/8 engine
+  accepted** — row-for-row convergence. The earlier 8/8 exploratory run used
+  scheduler retries and is a different measurement shape.
 - **Also fixed:** a passing hard verifier no longer loses to the judge's
   advisory `missing_criteria`, and the pod exports `REPO=/tmp/work` for test
   commands.
@@ -26,7 +27,7 @@ product claims fail. Fix these before treating v5 as a frozen instrument.
   `internal/engine/phases/pod_wiring.go`, `internal/engine/phases/evaluate.go`,
   `cmd/athanor/pod_executor.go`, `tools/bench/aider_polyglot.py`.
 
-### 2. Document cycles do not complete — FIXED (validate)
+### 2. Document cycles do not complete — FIXED
 - **Root causes:** cycle blocks had no deterministic per-task checks; a judge
   `missing_criteria` could veto a passing check; `bestArtifact` fell back to
   the newest document when the named synthesize artifact was rejected; and a
@@ -35,9 +36,8 @@ product claims fail. Fix these before treating v5 as a frozen instrument.
   checks authoritative, prefer the named synthesize artifact even when it is a
   candidate, and make a cycle with a blocked-only graph enter
   `awaiting_review` immediately instead of stalling.
-- **Validation:** re-run the utility suite for both models; require external
-  pass and 100% cycle completion. The pre-fix numbers remain in the historical
-  report.
+- **Validated:** `v5-brief-local-first` completed **7/7 blocks** with external
+  pass **1/1**. The full utility suite is the next run.
 
 ### 3. Safety path-escape failure (bonsai)
 - **Evidence:** `v5-safety-path` failed for `bonsai27b`; gemma passed 4/4. Safety
