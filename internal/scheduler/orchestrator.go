@@ -214,6 +214,13 @@ func (s *Scheduler) OnJobTerminal(ctx context.Context, jobID string, state job.S
 	if err := s.projects.RecomputeGoalStatus(ctx, t.GoalID); err != nil {
 		slog.Error("scheduler: recomputing goal status", "goal", t.GoalID, "err", err)
 	}
+	// advance mutates task statuses (a failed leaf blocks its descendants), so
+	// the pre-advance slice is stale. Re-read before deciding whether the cycle
+	// is blocked-only, or the tracker sees the old pending/running statuses and
+	// leaves the cycle running forever.
+	if updated, err := s.projects.TasksByGoal(ctx, t.GoalID); err == nil {
+		tasks = updated
+	}
 	s.trackCycle(ctx, tasks)
 }
 
@@ -429,6 +436,11 @@ func (s *Scheduler) Reconcile(ctx context.Context, goalID string) error {
 	}
 	if err = s.projects.RecomputeGoalStatus(ctx, goalID); err != nil {
 		return err
+	}
+	// advance may have blocked descendants; re-read so trackCycle sees the
+	// final graph rather than the pre-advance statuses.
+	if updated, err := s.projects.TasksByGoal(ctx, goalID); err == nil {
+		tasks = updated
 	}
 	s.trackCycle(ctx, tasks)
 	return nil
