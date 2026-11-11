@@ -120,11 +120,17 @@ the release-blocking gates.
 - **Validated:** both memory sequences pass; the correction sequence records
   `correction_injected: true` on the second task.
 
-### 10. News day2/day3 semantics — TEMPLATE HARDENED
-- **Evidence:** day1 external pass; day2/day3 failed their new/old/no-op checks.
-- **Fix:** the news template now states the no-change and update rules in the
-  synthesize block; the block's required sections are deterministic checks.
-  The held-out day2 is not tuned on. Re-run all three days after the cycle fix.
+### 10. News day2/day3 semantics — DAY3 FIXED, DAY2 STILL RED
+- **Evidence:** day1 and day3 pass after the post-fix utility rerun; day2 still
+  puts the updated story's old id (`story-001`/`story-004`) in New.
+- **Fix:** the day3 check was too strict: it forbade every story id anywhere,
+  contradicting the task's "Previously reported" heading. It is now a
+  `new_items_section` check that allows repeats under Previously reported and
+  still fails a repeat in New. The news template states the general update
+  contract (new id in New; the earlier id only under Previously reported).
+- **Held out:** day2 is not tuned on. It remains a red held-out claim. A general
+  product fix (for example, a structural New-section check that forces a repair)
+  is the next step, not a task-specific prompt edit.
 
 ### 11. External track is single-arm only; full arm times out
 - **Evidence:** the `full` arm reached 6/8 at the 2h cap (isogram running,
