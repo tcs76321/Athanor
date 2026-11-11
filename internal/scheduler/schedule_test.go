@@ -87,6 +87,24 @@ func TestBlockedPropagatesFromBlockedDep(t *testing.T) {
 	}
 }
 
+func TestStalledOnBlockedOnlyWhenNoProgress(t *testing.T) {
+	cases := []struct {
+		name    string
+		tasks   []project.Task
+		stalled bool
+	}{
+		{"all blocked", []project.Task{{Status: project.TaskBlocked}, {Status: project.TaskCompleted}}, true},
+		{"one still running", []project.Task{{Status: project.TaskBlocked}, {Status: project.TaskRunning}}, false},
+		{"no blocked", []project.Task{{Status: project.TaskCompleted}}, false},
+		{"empty", nil, false},
+	}
+	for _, c := range cases {
+		if got := stalledOnBlocked(c.tasks); got != c.stalled {
+			t.Errorf("%s: stalledOnBlocked = %v, want %v", c.name, got, c.stalled)
+		}
+	}
+}
+
 func TestReadyMissingDepIsNotReady(t *testing.T) {
 	tasks := []project.Task{task("A", project.TaskPending, "", "ghost")}
 	if got := Ready(tasks); len(got) != 0 {
