@@ -98,12 +98,14 @@ commit; the claims table carries the load-bearing rows.
 No correctness findings are open as of 2026-11-06. The following are explicit
 policy/coverage decisions rather than defects:
 
-- **Retention/archival.** The decision is recorded in
-  [ADR-0127](adr/0127-retention-and-archival.md): 365-day event/daydream/budget/
-  alarm archival to gzip JSONL, a guarded append-only exception, configurable
-  archive keeping (forever by default), and accepted artifacts/corrections/
-  quarantine kept. Implementation is pending; until it lands, nothing is pruned
-  and backups snapshot the database only.
+- **Retention/archival (implemented 2026-11-11).** [ADR-0127](adr/0127-retention-and-archival.md)
+  is live: `internal/retention` archives events/daydream/budget/alarm rows older
+  than 365 days to gzip JSONL under a guarded append-only exception, and
+  `cmd/athanor/retention.go` runs it daily at `retention.run_at`. Archive keeping
+  is configurable (forever by default); accepted artifacts, corrections, and
+  quarantine rows are not pruned. Proof: `TestArchiveEventsMovesOldRows`,
+  `TestGuardStillBlocksNormalDelete`, `TestPruneArchivesByAge`, and the
+  `docs/claims.md` retention row.
 - **Budget mid-job deferral.** A budget-deferred job pauses, but no scheduler
   re-drives it when the next window replenishes. ADR-0091 already lists
   mid-job deferral as open.

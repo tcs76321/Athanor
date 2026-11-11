@@ -7,9 +7,11 @@ ARCHITECTURE §23, §28; `internal/retention`, `internal/store`, `internal/backu
 
 The event log is append-only by trigger; artifacts, corrections, and strategy
 rows are never pruned. A system built to run continuously accumulates these
-forever. The known-issues ledger records retention as an open 0.0.x decision.
-Deleting audit rows would break the append-only invariant; keeping everything
-forever makes the live table slow and the state volume grow without bound.
+forever. The known-issues ledger recorded retention as an open 0.0.x decision
+until the implementation landed in `internal/retention` and
+`cmd/athanor/retention.go`. Deleting audit rows would break the append-only
+invariant; keeping everything forever makes the live table slow and the state
+volume grow without bound.
 
 ## Decision
 
