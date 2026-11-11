@@ -109,9 +109,134 @@ func TestSupersededPhrases(t *testing.T) {
 	}
 }
 
-var backtickRe = regexp.MustCompile("`([a-z_]+)`")
+// TestCurrentBenchmarkIsConsistent pins the release line: eval/bench/CURRENT
+// names the instrument 0.0.0 is gated on, its protocol exists, and its
+// status/cut pair is coherent. A frozen cut cannot still say "candidate", and a
+// pending cut cannot claim to be frozen.
+func TestCurrentBenchmarkIsConsistent(t *testing.T) {
+	root, err := findModuleRoot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(filepath.Join(root, "eval", "bench", "CURRENT"))
+	if err != nil {
+		t.Fatalf("eval/bench/CURRENT: %v", err)
+	}
+	current := strings.TrimSpace(string(raw))
+	if current == "" {
+		t.Fatal("eval/bench/CURRENT is empty")
+	}
+	protoPath := filepath.Join(root, "eval", "bench", current, "protocol.yaml")
+	data, err := os.ReadFile(protoPath)
+	if err != nil {
+		t.Fatalf("current benchmark %q has no protocol: %v", current, err)
+	}
+	var p struct {
+		Version   int    `yaml:"version"`
+		Benchmark string `yaml:"benchmark"`
+		Cut       string `yaml:"cut"`
+		Status    string `yaml:"status"`
+	}
+	if err := yaml.Unmarshal(data, &p); err != nil {
+		t.Fatalf("parse %s: %v", protoPath, err)
+	}
+	if p.Benchmark != current {
+		t.Errorf("protocol benchmark %q != CURRENT %q", p.Benchmark, current)
+	}
+	if p.Cut == "pending" && p.Status != "candidate" {
+		t.Errorf("cut=pending requires status=candidate, got %q", p.Status)
+	}
+	if p.Cut != "pending" && p.Status != "frozen" {
+		t.Errorf("cut=%q requires status=frozen, got %q", p.Cut, p.Status)
+	}
+}
 
-// TestClosedToolSetMatchesArchitecture compares the nine-tool paragraph in
+// TestRoadmapAndChangelogTrackCurrentBenchmark keeps the release-line docs
+// honest. The ROADMAP must name the current instrument, the changelog must
+// mention it, and the top-most changelog section must carry the latest ADR.
+// After a release cut, the top section becomes the release section; the test
+// follows it rather than assuming "Unreleased" forever.
+func TestRoadmapAndChangelogTrackCurrentBenchmark(t *testing.T) {
+	root, err := findModuleRoot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(filepath.Join(root, "eval", "bench", "CURRENT"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	current := strings.TrimSpace(string(raw))
+
+	roadmap, err := os.ReadFile(filepath.Join(root, "ROADMAP.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(roadmap), current) {
+		t.Errorf("ROADMAP.md does not mention the current benchmark %q", current)
+	}
+
+	changelog, err := os.ReadFile(filepath.Join(root, "CHANGELOG.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(changelog), current) {
+		t.Errorf("CHANGELOG.md does not mention the current benchmark %q", current)
+	}
+
+	latest := latestADRNumber(t, root)
+	top := topChangelogSection(string(changelog))
+	if top == "" {
+		t.Fatal("CHANGELOG.md has no top-level section")
+	}
+	if !strings.Contains(top, "ADR-"+latest) {
+		t.Errorf("the top CHANGELOG section does not mention the latest ADR-%s", latest)
+	}
+}
+
+// latestADRNumber returns the highest four-digit ADR number on disk.
+func latestADRNumber(t *testing.T, root string) string {
+	t.Helper()
+	matches, err := filepath.Glob(filepath.Join(root, "docs", "adr", "*.md"))
+	if err != nil || len(matches) == 0 {
+		t.Fatalf("no ADR files: %v", err)
+	}
+	re := regexp.MustCompile(`^(\d{4})-`)
+	max := ""
+	for _, m := range matches {
+		if sub := re.FindStringSubmatch(filepath.Base(m)); len(sub) == 2 && sub[1] > max {
+			max = sub[1]
+		}
+	}
+	if max == "" {
+		t.Fatal("no numbered ADR file")
+	}
+	return max
+}
+
+// topChangelogSection returns the first `## ` section after the H1 title.
+func topChangelogSection(changelog string) string {
+	lines := strings.Split(changelog, "\n")
+	start := -1
+	for i, line := range lines {
+		if strings.HasPrefix(line, "## ") {
+			start = i
+			break
+		}
+	}
+	if start < 0 {
+		return ""
+	}
+	end := len(lines)
+	for i := start + 1; i < len(lines); i++ {
+		if strings.HasPrefix(lines[i], "## ") {
+			end = i
+			break
+		}
+	}
+	return strings.Join(lines[start:end], "\n")
+}
+
+var backtickRe = regexp.MustCompile("`([a-z_]+)`") // TestClosedToolSetMatchesArchitecture compares the nine-tool paragraph in
 // ARCHITECTURE §25 with the executable closed set. Adding a tool to the code
 // without the table (or vice versa) fails here.
 func TestClosedToolSetMatchesArchitecture(t *testing.T) {

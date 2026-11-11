@@ -226,20 +226,17 @@ Then watch it work in real time from the Watch View, or queue it and check the M
   per-major controlled study — the soak is one run shape — and it must report
   MCE-sensitive mechanism metrics (retrieval, context/KV, compaction), not just
   pass rates ([ADR-0075](docs/adr/0075-frozen-corpus-compass.md)).
-- **Benchmark v2 — post-P0 full run (2026-11-02).** **32/41 (78%)** deterministic
-  on the canonical 9B set: H 23/26 (88%), X 9/15 (60%), held-out 6/10, code
-  16/18 (89%; **X code 4/6**), data 3/5 (60%; up from 0/5), document 8/13
-  (62%; down from 13/13), text 5/5. All 18 code rows carry a recorded
-  `tests_ran` label: 16 test passes, 16 engine accepts, **0 test-pass/engine-reject
-  mismatches**, all accepted without the judge ([ADR-0092](docs/adr/0092-benchmark-label-integrity.md)).
-  The aggregate is +2 over the pre-P0 baseline, but it is a trade: code/X/data
-  improved and five document tasks regressed on `max_words`. Details:
-  [docs/probes/bench-v2-p0-findings.md](docs/probes/bench-v2-p0-findings.md);
-  baseline: [docs/probes/bench-v2-findings.md](docs/probes/bench-v2-findings.md);
-  focused X-code: [docs/probes/bench-xcode-p0.md](docs/probes/bench-xcode-p0.md).
-  A focused five-task document rerun (2026-11-06) passed **5/5**, but it ran on
-  the host and is diagnostic only; the aggregate stays 32/41 until the next full
-  Core Pod slice ([runner](docs/probes/bench-v2-doc-rerun-20261106.md)).
+- **Benchmark v5 — the 0.0.0 instrument (candidate).** v5 is the benchmark
+  0.0.0 is gated on ([ADR-0136](docs/adr/0136-v5-grounded-agency-benchmark.md)):
+  two local generators, a pinned roster, deterministic/external labels, and a
+  committed reconciliation report
+  ([evidence](docs/probes/runs/bench-v5-20261111-merged/README.md)). The utility
+  claim is component-gated (briefs, tuning news, held-out day2, completion);
+  the old "90% of five tasks" aggregate is no longer a claim. Quality is
+  `not_measured` until two anchor-qualified judges agree. `make bench-v5-verify`
+  recomputes the report from committed rows and fails on a stale number, a
+  moved digest, or a ghost claim. v2 remains the historical pilot
+  ([findings](docs/probes/bench-v2-p0-findings.md)).
 - **Daemon on loopback** (`http://127.0.0.1:7420`). Config falls back to built-in defaults when `config.yaml` is absent; missing config is not an error on a fresh clone. `/healthz` reports status, version, uptime.
 - **CLI client.** `project create`, `goal submit`, `job watch`, `artifacts`, `freeze`, `unfreeze`, `doctor`, `models`. Talks to the Core Pod over loopback, except `doctor` and `models`, which inspect the local host directly.
 - **Doctor (M7-T5).** `athanor doctor` checks rootless Podman, Git, Ollama reachability, every persona model (with `ollama pull` remediation), memory, disk, state-dir writability, the Job Pod image, §12.6 context feasibility, and the network posture — failing loudly on hard prerequisites and warning on advisories. [ADR-0050](docs/adr/0050-doctor.md).

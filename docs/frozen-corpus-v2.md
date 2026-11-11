@@ -1,5 +1,9 @@
 # Frozen benchmark v2 (0.0.0) — the hard H/X corpus
 
+> **Historical (2026-11-11):** v2 was the 0.0.0-era pilot. The 0.0.0 benchmark
+> is the current instrument (`eval/bench/CURRENT`, v5 today; [ADR-0136](adr/0136-v5-grounded-agency-benchmark.md)).
+> This document remains the v2 record and is not the release gate.
+
 **Status:** frozen (v2, cut 2026-10-18; first full run 2026-10-25) · **Refs:**
 [ADR-0075](adr/0075-frozen-corpus-compass.md) (frozen benchmark, amendment),
 [bench-v1-findings.md](bench-v1-findings.md) (the pilot audit),

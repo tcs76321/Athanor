@@ -1,6 +1,6 @@
 # ADR 0135 — v4 is the utility/cycle benchmark
 
-**Status:** Accepted · **Date:** 2026-11-10 ·
+**Status:** Superseded by [ADR-0136](0136-v5-grounded-agency-benchmark.md) for the 0.0.0 benchmark · **Date:** 2026-11-10 ·
 **Refs:** [ADR-0075](0075-frozen-corpus-compass.md),
 [ADR-0092](0092-benchmark-label-integrity.md),
 [ADR-0116](0116-benchmark-portfolio.md),

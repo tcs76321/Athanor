@@ -10,6 +10,28 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### v5 is the 0.0.0 benchmark (2026-11-11)
+
+- **Release line.** v5 is the instrument 0.0.0 is gated on; if v5 cannot meet
+  its release-blocking gates, v6 becomes the 0.0.0 instrument. v2/v3/v4 are
+  historical. [ADR-0136](docs/adr/0136-v5-grounded-agency-benchmark.md).
+- **Utility is component-gated.** The "90% of five tasks" aggregate was a 5/5
+  perfection gate that could not be statistically established at n=5. The claim
+  is now briefs 2/2, tuning news 2/2, held-out day2 1/1, and completion 5/5.
+- **Ghost claims removed.** `operations` (no tasks), `recovery` (G7/24h soak),
+  and `grounding` (needs a closed-book arm) are not v5 claims. `cost`,
+  `mechanism_coverage`, and `reliability` (pass@1/pass@2) are computed.
+- **Judge roles split.** The in-loop security judge and the blind pairwise
+  quality panel are separate; the panel admits only anchor-qualified judges.
+- **Evidence reconciled.** `docs/probes/runs/bench-v5-20261111-merged/` merges
+  the post-fix safety/memory/cycle reruns; the stale reports are explicitly
+  superseded. `make bench-v5-verify` recomputes a report from committed rows and
+  fails on a stale number, a moved digest, a ghost claim, or missing provenance.
+- **Retention claim.** ADR-0127 is implemented in `internal/retention` and
+  wired at `cmd/athanor/retention.go`; the known-issues ledger now says so.
+- **Corpus checks.** `make corpus-check-all` covers v1/v2/v4/v5, and the v1
+  manifest excludes every nested version.
+
 ### Project intake — one intent, two decisions (2026-11-09)
 
 - **One required field.** A guided project is created from the goal; name,

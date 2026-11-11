@@ -1,6 +1,11 @@
-# Frozen benchmark v3 — plan (cut at 1.0.0)
+# Frozen benchmark v3 — plan (historical)
 
-**Status:** planning · **Refs:** [ADR-0116](adr/0116-benchmark-portfolio.md),
+> **Historical (2026-11-11):** v3 was the paired 0.x experiment. It was
+> superseded by v4 and then v5; the 0.0.0 benchmark is the current instrument
+> (`eval/bench/CURRENT`, v5 today; [ADR-0136](adr/0136-v5-grounded-agency-benchmark.md)).
+> This plan is retained as the v3 record.
+
+**Status:** superseded · **Refs:** [ADR-0116](adr/0116-benchmark-portfolio.md),
 [ADR-0075](adr/0075-frozen-corpus-compass.md),
 [ADR-0092](adr/0092-benchmark-label-integrity.md),
 [ceiling diagnostic](probes/ceiling-diagnostic.md)

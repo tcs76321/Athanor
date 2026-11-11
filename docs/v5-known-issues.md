@@ -7,11 +7,16 @@ This is the working issue register from the v5 build and the first 2×2 + extern
 runs. It is intentionally blunt: the benchmark is doing its job, and several
 product claims fail. Fix these before treating v5 as a frozen instrument.
 
-**Freeze readiness: not ready.** The P0 engine fixes now validate
-(external/engine convergence, safety, cycle completion, memory), but utility
-external pass is 3/5, quality pairwise agreement is 0.00, and a fresh agency
-suite plus the full-arm external subset are still pending. v5 stays
-`status: candidate` and `cut: pending`.
+**Freeze readiness: not ready.** The P0 engine fixes validate (external/engine
+convergence, safety, cycle completion, memory), but the reconciliation bundle
+still has real reds: the utility evidence is 3/5 (day1 and brief-wal are not
+committed), mechanism coverage is 0% on the four `requires` rows, cost exceeds
+the envelope on the saturated slice, and quality is `not_measured`. The
+authoritative report is
+[`docs/probes/runs/bench-v5-20261111-merged/`](probes/runs/bench-v5-20261111-merged/README.md);
+the older postfix reports are explicitly superseded. v5 stays
+`status: candidate` and `cut: pending` until a single-revision freeze run clears
+the release-blocking gates.
 
 ---
 
