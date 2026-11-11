@@ -65,6 +65,15 @@ purpose; details live in `ARCHITECTURE.md`, `ROADMAP.md`, and `DEVELOPMENT.md`.
   must not send keystrokes to a process the tool runner started;
   if a previous command appears hung, the agent stops, reports the
   state, and waits for the human.
+- **Never wait by polling.** Do not run `sleep`, sleep loops, or
+  `sleep N; tail ...` to check on background work. A background job
+  notifies when it finishes; inspect its output only when that
+  notification arrives, or when there is a concrete, non-wait reason
+  (for example, deciding whether to intervene in a failed job). Do not
+  start a second shell just to watch a first. This rule exists because
+  a `sleep 420; tail ...` wait command was backgrounded alongside the
+  real benchmark run, which looked like a third active shell and
+  obscured what was actually working.
 
 ## Git and pagers
 
