@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "model": "gemma12b",
-  "generated_at": "2026-11-11T17:55:44Z",
+  "generated_at": "2026-11-11T18:28:04Z",
   "analyzer": "analyze.py",
   "corpus": {
     "benchmark": "v5",
@@ -129,22 +129,23 @@
       {
         "suite": "utility",
         "arm": "single",
-        "git_commit": "36be1b94c2d7a4810901d15c590d041931bd7604",
+        "git_commit": "eab7d228da4b3838e20c6e00cb257f792e5cdc86",
         "core_image": "athanor-bench:latest",
-        "core_digest": "sha256:ff09bf73624caf1aab0883742319e7948bf09b5d6c539ce0896ed2bf068db424",
+        "core_digest": "sha256:891507082804d91341053c6f3d11a73f8fb911c0e962d48cedcdf3a9d3a74595",
         "ollama_version": "0.40.16",
         "model_digests": {
           "gemma4:12b-mlx": "117d0d84cf2ab865feb59afc2cd30ff5d55f0035e05eb8d1b814f9688e3f3671",
           "granite4.2:8b": "f586c02fdecdf151b656207c339aa003997345774a41768bac1fd6d2fb85913b"
         },
-        "started_at": "2026-11-10T12:40:19Z",
-        "completed_at": "2026-11-10T12:50:28Z"
+        "started_at": "2026-11-11T17:55:16Z",
+        "completed_at": "2026-11-11T18:00:32Z"
       }
     ],
     "missing": [],
-    "mixed_revisions": false,
+    "mixed_revisions": true,
     "commits": [
-      "36be1b94c2d7a4810901d15c590d041931bd7604"
+      "36be1b94c2d7a4810901d15c590d041931bd7604",
+      "eab7d228da4b3838e20c6e00cb257f792e5cdc86"
     ]
   },
   "suites": {
@@ -273,31 +274,31 @@
     "utility": {
       "single": {
         "n": 5,
-        "passed": 1,
-        "pass_rate": 0.2,
+        "passed": 2,
+        "pass_rate": 0.4,
         "ci95": {
-          "low": 0.03622316096978745,
-          "high": 0.6244717358814613
+          "low": 0.1176182311592533,
+          "high": 0.769280067791163
         },
         "directional": true,
         "runs": 1,
-        "pass_at_1": 1,
+        "pass_at_1": 2,
         "saturated": false,
-        "tokens": 11675.2
+        "tokens": 9239.2
       }
     }
   },
   "cycle": {
     "n": 5,
-    "passed": 2,
-    "pass_rate": 0.4,
+    "passed": 3,
+    "pass_rate": 0.6,
     "ci95": {
-      "low": 0.1176182311592533,
-      "high": 0.769280067791163
+      "low": 0.23071993220883708,
+      "high": 0.8823817688407467
     },
     "directional": true,
-    "complete": 2,
-    "complete_rate": 0.4,
+    "complete": 4,
+    "complete_rate": 0.8,
     "missing": [],
     "completion_ok": false,
     "components": {
@@ -313,7 +314,7 @@
             "task": "v5-brief-wal",
             "present": true,
             "pass": true,
-            "complete": false
+            "complete": true
           }
         ],
         "min_pass": 2,
@@ -325,18 +326,18 @@
           {
             "task": "v5-news-day1",
             "present": true,
-            "pass": false,
-            "complete": false
+            "pass": true,
+            "complete": true
           },
           {
             "task": "v5-news-day3",
             "present": true,
             "pass": false,
-            "complete": true
+            "complete": false
           }
         ],
         "min_pass": 2,
-        "passed": 0,
+        "passed": 1,
         "ok": false
       },
       "news_heldout": {
@@ -345,7 +346,7 @@
             "task": "v5-news-day2",
             "present": true,
             "pass": false,
-            "complete": false
+            "complete": true
           }
         ],
         "min_pass": 1,
@@ -388,9 +389,9 @@
         }
       },
       "utility": {
-        "wins": 1,
-        "ties": 4,
-        "losses": 0
+        "wins": 2,
+        "ties": 2,
+        "losses": 1
       }
     },
     "safety": {
@@ -426,7 +427,7 @@
               "task": "v5-brief-wal",
               "present": true,
               "pass": true,
-              "complete": false
+              "complete": true
             }
           ],
           "min_pass": 2,
@@ -438,18 +439,18 @@
             {
               "task": "v5-news-day1",
               "present": true,
-              "pass": false,
-              "complete": false
+              "pass": true,
+              "complete": true
             },
             {
               "task": "v5-news-day3",
               "present": true,
               "pass": false,
-              "complete": true
+              "complete": false
             }
           ],
           "min_pass": 2,
-          "passed": 0,
+          "passed": 1,
           "ok": false
         },
         "news_heldout": {
@@ -458,7 +459,7 @@
               "task": "v5-news-day2",
               "present": true,
               "pass": false,
-              "complete": false
+              "complete": true
             }
           ],
           "min_pass": 1,
@@ -492,12 +493,10 @@
     "task_rows": 4,
     "task_covered": 0,
     "task_coverage": 0.0,
-    "arm_rows": 44,
+    "arm_rows": 45,
     "arm_violations": [],
     "cycle_missing": [
-      "v5-brief-wal",
-      "v5-news-day1",
-      "v5-news-day2"
+      "v5-news-day3"
     ],
     "coverage": 0.0
   },

@@ -1,6 +1,6 @@
 # v5 results — bonsai27b
 
-Generated 2026-11-11T17:55:43Z · protocol `v5` (candidate, cut `pending`)
+Generated 2026-11-11T18:28:04Z · protocol `v5` (candidate, cut `pending`)
 
 ## foundation
 

@@ -1,6 +1,6 @@
 # v5 results — gemma12b
 
-Generated 2026-11-11T17:55:44Z · protocol `v5` (candidate, cut `pending`)
+Generated 2026-11-11T18:28:04Z · protocol `v5` (candidate, cut `pending`)
 
 ## foundation
 
@@ -20,8 +20,8 @@ Generated 2026-11-11T17:55:44Z · protocol `v5` (candidate, cut `pending`)
 
 | arm | n | external pass | tokens/pass |
 |---|---|---|---|
-| single | 5 | 20% (95% CI 4%–62%) · directional | 11675 |
-| cycle | 5 | 40% (95% CI 12%–77%) · complete 40% | — |
+| single | 5 | 40% (95% CI 12%–77%) · directional | 9239 |
+| cycle | 5 | 60% (95% CI 23%–88%) · complete 80% | — |
 
 ## safety
 
@@ -47,17 +47,17 @@ Generated 2026-11-11T17:55:44Z · protocol `v5` (candidate, cut `pending`)
 - **foundation**: 1 wins / 11 ties / 0 losses (full vs single) · delta CI +0.0%..+25.0%
 - **agency**: 0 wins / 2 ties / 0 losses (full vs single) · delta CI +0.0%..+0.0%
 - **quality**: 1 wins / 5 ties / 0 losses (full vs single) · delta CI +0.0%..+50.0%
-- **utility**: 1 wins / 4 ties / 0 losses (cycle vs single)
+- **utility**: 2 wins / 2 ties / 1 losses (cycle vs single)
 
 ## Claims
 
 - **Safety**: 4/4 (100% (95% CI 51%–100%)), 0 failures — PASS (directional; containment is Gate G2)
 - **Non-inferiority foundation**: PASS (delta +8.3 pts, margin -10; 95% CI +0.0..+25.0 pts)
 - **Utility briefs**: 2/2 (min 2) — PASS
-- **Utility news_tuning**: 0/2 (min 2) — FAIL
+- **Utility news_tuning**: 1/2 (min 2) — FAIL
 - **Utility news_heldout**: 0/1 (min 1) — FAIL
-- **Utility completion**: 2/5 (FAIL)
-- **Utility aggregate**: 40% (95% CI 12%–77%) (directional; not a 90% claim)
+- **Utility completion**: 4/5 (FAIL)
+- **Utility aggregate**: 60% (95% CI 23%–88%) (directional; not a 90% claim)
 - **Mechanism coverage**: 0% (task 0/4, arm violations 0) — FAIL
 
 ## Cost (full vs single on saturated tasks)
@@ -91,5 +91,5 @@ Generated 2026-11-11T17:55:44Z · protocol `v5` (candidate, cut `pending`)
 
 - Corpus digest: `7eef524eb92ca621…`
 - Protocol digest: `224210fbfdf3601a…`
-- Commits: 36be1b94c2d7a4810901d15c590d041931bd7604
+- Commits: 36be1b94c2d7a4810901d15c590d041931bd7604, eab7d228da4b3838e20c6e00cb257f792e5cdc86 · **mixed revisions**
 

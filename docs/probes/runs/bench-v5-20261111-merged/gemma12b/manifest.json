@@ -41,9 +41,9 @@
     {
       "suite": "utility",
       "arm": "single",
-      "source": "tools/bench/results/v5/gemma12b/soak/utility/single",
-      "supersedes": "",
-      "reason": "",
+      "source": "tools/bench/results/v5-phase4/gemma12b/soak/utility/single",
+      "supersedes": "tools/bench/results/v5/gemma12b/soak/utility/single",
+      "reason": "post-fix corpus: day3 no-change check and the general news update contract",
       "results": true,
       "run": true
     },
@@ -87,9 +87,9 @@
   "cycle": [
     {
       "task": "",
-      "source": "tools/bench/results/v5/gemma12b/cycle/out/cycle-gemma12b.json",
-      "supersedes": "",
-      "reason": "pre-fix cycle run; utility report marks completion honestly",
+      "source": "tools/bench/results/v5-phase4/gemma12b/cycle/out/cycle-gemma12b.json",
+      "supersedes": "tools/bench/results/v5/gemma12b/cycle/out/cycle-gemma12b.json",
+      "reason": "post-fix utility cycle; day3 stalled at 4/7 and is reported as running",
       "copied": true,
       "tasks": [
         "v5-brief-local-first",

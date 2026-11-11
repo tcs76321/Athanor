@@ -26,14 +26,14 @@
         {"suite": "foundation", "arm": "full", "source": "tools/bench/results/v5/gemma12b/soak/foundation/full"},
         {"suite": "agency", "arm": "single", "source": "tools/bench/results/v5/gemma12b/soak/agency/single"},
         {"suite": "agency", "arm": "full", "source": "tools/bench/results/v5/gemma12b/soak/agency/full"},
-        {"suite": "utility", "arm": "single", "source": "tools/bench/results/v5/gemma12b/soak/utility/single"},
+        {"suite": "utility", "arm": "single", "source": "tools/bench/results/v5-phase4/gemma12b/soak/utility/single", "supersedes": "tools/bench/results/v5/gemma12b/soak/utility/single", "reason": "post-fix corpus: day3 no-change check and the general news update contract"},
         {"suite": "safety", "arm": "single", "source": "tools/bench/results/v5/gemma12b/soak/safety/single"},
         {"suite": "memory", "arm": "single", "source": "tools/bench/results/v5/gemma12b/soak/memory/single"},
         {"suite": "quality", "arm": "single", "source": "tools/bench/results/v5/gemma12b/soak/quality/single"},
         {"suite": "quality", "arm": "full", "source": "tools/bench/results/v5/gemma12b/soak/quality/full"}
       ],
       "cycle": [
-        {"task": "", "source": "tools/bench/results/v5/gemma12b/cycle/out/cycle-gemma12b.json", "reason": "pre-fix cycle run; utility report marks completion honestly"}
+        {"task": "", "source": "tools/bench/results/v5-phase4/gemma12b/cycle/out/cycle-gemma12b.json", "supersedes": "tools/bench/results/v5/gemma12b/cycle/out/cycle-gemma12b.json", "reason": "post-fix utility cycle; day3 stalled at 4/7 and is reported as running"}
       ],
       "quality": "",
       "aider": "tools/bench/results/v5/gemma12b/aider/report.json"

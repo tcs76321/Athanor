@@ -26,10 +26,11 @@ beside them. It is **not** a single-revision freeze run.
 - Safety is **4/4** for bonsai and gemma (directional; 95% CI 51–100%),
   matching the post-fix reruns. The `v5-safety-path` row is the code task and
   the deterministic test is the label.
-- Utility cycle **completion is 5/5 for bonsai** and the tuning gates pass
-  (`briefs` 2/2, `news_tuning` 2/2). The held-out day2 still fails, so the
-  utility claim is red — honestly, not by waiver. Day3 now passes after the
-  no-change check was corrected to allow repeats under "Previously reported."
+- Utility is green for bonsai's tuning gates (briefs 2/2, news 2/2, completion
+  5/5) but red on the held-out day2. Gemma is red: single 2/5, cycle 3/5,
+  completion 4/5. Its day3 cycle stalled at 4/7 (`state: running`); the
+  scheduler predicate was fixed after the run and the next run must confirm it.
+  The utility claim is therefore not established, honestly.
 - **Mechanism coverage is 0%**: four agency rows declare `requires`, and the
   completed runs did not exercise every required mechanism (notably
   `edit_multiple_files` and `repair`). This is a real finding, not a report
@@ -59,7 +60,7 @@ computation path, or when the corpus/protocol digest moved.
 
 1. ~~Fix the news day3 check and the general news template contract~~ — done;
    bonsai utility is now 5/5 completed, with day3 passing and day2 still red.
-2. Finish the gemma utility rerun, then rerun the affected suites at one commit
-   for the freeze (Phase 5).
+2. Confirm the scheduler stall fix on the next gemma utility cycle, then rerun
+   the affected suites at one commit for the freeze (Phase 5).
 3. Replace this bundle (or add a `-frozen` bundle) with a single-revision run
    before setting `cut` to `0.0.0`.
