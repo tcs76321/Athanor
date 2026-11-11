@@ -179,6 +179,7 @@ execution:
   require_tests_for_code: %t
   require_documentation_for_code: %t
   dag_decomposition: %t
+  max_task_retries: 0
 `,
 		orDefault(p.OllamaURL, "http://localhost:11434"), seedPolicy, addr, allowBuf.String(),
 		wideModel, wideFamily, m.ContextTarget,

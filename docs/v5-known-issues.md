@@ -107,13 +107,16 @@ product claims fail. Fix these before treating v5 as a frozen instrument.
   under 4h. Keep the 8-exercise single as the cheap floor. Label both. Pending
   validation.
 
-### 12. `acronym` index timeout
+### 12. `acronym` index timeout / hidden retries — MITIGATED
 - **Evidence:** the first attempt's repository index call exceeded the
-  10-minute client timeout and the job produced no artifact; the retry passed
-  the official tests (9/9).
-- **Fix:** investigate sync index latency for a 67-chunk repo, decouple index
-  from job start, raise/soften the timeout, and keep retries classified as
-  infrastructure, not model failures.
+  client timeout; the retry passed 9/9. A later external run showed the probe
+  returning on the first failed job while the scheduler retried the task in
+  the background, so two tasks ran at once and the next job timed out.
+- **Fix:** the benchmark config now sets `max_task_retries: 0` (one job per
+  task; the `full` arm's internal candidates/reflection are untouched), and
+  the external adapter passes `-skip-index` so a wedged index cannot consume
+  the per-task budget. Keep retries classified as infrastructure, not model
+  failures.
 
 ### 13. `analyze.py` correctness gaps — FIXED
 - Unrun arms are omitted/`—` instead of 0%.

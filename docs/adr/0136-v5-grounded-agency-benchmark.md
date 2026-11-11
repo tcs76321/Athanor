@@ -41,6 +41,11 @@ judge ([ADR-0092](0092-benchmark-label-integrity.md)). Engine acceptance,
 cycle completion, judge scores, and mechanism telemetry are reported
 separately.
 
+Each benchmark task gets one scheduler job (`max_task_retries: 0`). The `full`
+arm's multiple candidates and reflection are inside that job; the benchmark
+does not hide a retry behind a row. The external track may skip the repository
+index pass because its official tests do not depend on it.
+
 ### 3. Claim suites
 
 - **foundation** — atomic code, data, document, and text tasks; paired

@@ -58,6 +58,7 @@ canonical_persona_set:
   execution:
     divergence_candidates: 1
     max_reflection_loops: 0
+    max_task_retries: 0
     engine_code_gates: true
     dag_decomposition: false
 

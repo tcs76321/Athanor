@@ -18,6 +18,10 @@ reported separately (ADR-0092).
 - `cycle` — the project's declared block graph (daily brief or news report),
   compiled to a DAG and run by the scheduler.
 
+Each task gets one scheduler job (`max_task_retries: 0`), so a benchmark row is
+the outcome of one engine run, not a hidden retry. The `full` arm's multiple
+candidates and reflection happen inside that job.
+
 The corpus is `v5.yaml` (foundation, agency, utility, safety, memory, quality).
 Utility tasks use local `sources/` and `wire/` fixtures, not network fixtures.
 Cycle tasks are scored on the produced artifact's deterministic checks; cycle
