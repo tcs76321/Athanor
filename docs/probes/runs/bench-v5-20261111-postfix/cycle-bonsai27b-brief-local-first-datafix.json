@@ -1,0 +1,52 @@
+{
+  "version": 4,
+  "arm": "cycle",
+  "model": "bonsai27b",
+  "started_at": "2026-11-11T02:02:46Z",
+  "tasks": [
+    {
+      "id": "v5-brief-local-first",
+      "pass": true,
+      "cycle_id": "ee106f4d-9667-4749-b5bb-816eeb655f49",
+      "state": "completed",
+      "artifact_id": "3cc1dae4-5fc4-48a6-8e72-ef9785dc3d64",
+      "engine_accepted": false,
+      "complete": true,
+      "blocks": 7,
+      "blocks_completed": 7,
+      "checks": [
+        {
+          "Kind": "required_sections",
+          "Pass": true,
+          "Advisory": false,
+          "Detail": "missing: "
+        },
+        {
+          "Kind": "max_words",
+          "Pass": true,
+          "Advisory": false,
+          "Detail": "words=127 max=250"
+        },
+        {
+          "Kind": "allowed_sources",
+          "Pass": true,
+          "Advisory": false,
+          "Detail": "unlisted: "
+        },
+        {
+          "Kind": "cite_every_paragraph",
+          "Pass": true,
+          "Advisory": false,
+          "Detail": "uncited=0/0"
+        },
+        {
+          "Kind": "must_contain",
+          "Pass": true,
+          "Advisory": false,
+          "Detail": "missing: "
+        }
+      ],
+      "duration_s": 596.069234195
+    }
+  ]
+}

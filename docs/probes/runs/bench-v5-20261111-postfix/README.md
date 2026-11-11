@@ -14,7 +14,9 @@ validation evidence, not a frozen v5 claim report.
   and the external scorer now agree row-for-row. The earlier 8/8 came from a
   different shape with scheduler retries; these 8 exercises are one-shot.
 - **Cycle brief (`v5-brief-local-first`): 1/1 external pass, 7/7 blocks,
-  cycle completed.** The previous cycle stalled at 5–6/7.
+  cycle completed.** The previous cycle stalled at 5–6/7. A second confirming
+  run after the data-capability verifier fix also completed 7/7; see
+  `cycle-bonsai27b-brief-local-first-datafix.{md,json}`.
 - **Full utility suite:** pending in the run tree
   `tools/bench/results/v5-validation/bonsai27b/utility/`.
 
