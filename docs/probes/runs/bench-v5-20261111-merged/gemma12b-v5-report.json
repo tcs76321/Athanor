@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "model": "gemma12b",
-  "generated_at": "2026-11-11T16:03:24Z",
+  "generated_at": "2026-11-11T17:55:44Z",
   "analyzer": "analyze.py",
   "corpus": {
     "benchmark": "v5",
@@ -10,7 +10,7 @@
     "cut": "pending",
     "protocol_sha256": "224210fbfdf3601a28ca8fba24fd487658cddfcff970728567f95c05d0f12881",
     "digest_file": "eval/bench/v5/CORPUS.digest",
-    "digest_sha256": "7e6999e39e89e1b2e15e8ddeae98c3f08278cb0ed54276ae343fe9c6c186a06a"
+    "digest_sha256": "7eef524eb92ca6216c8bb8c041cf382a543f2975024020698e3028e1aa2dadf7"
   },
   "provenance": {
     "runs": [

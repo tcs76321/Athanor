@@ -66,6 +66,12 @@ def merge_soak(model_cfg, out, manifest):
 
 
 def merge_cycle(model_cfg, out, manifest):
+    cycle_dir = os.path.join(out, "cycle")
+    # A merge replaces the whole cycle set: a stale per-task file must not
+    # compete with the new canonical file in the analyzer's glob.
+    if os.path.isdir(cycle_dir):
+        for old in glob.glob(os.path.join(cycle_dir, "cycle-*.json")):
+            os.remove(old)
     for entry in model_cfg.get("cycle", []):
         src = entry["source"]
         task_id = entry.get("task", "")

@@ -41,9 +41,9 @@
     {
       "suite": "utility",
       "arm": "single",
-      "source": "tools/bench/results/v5/bonsai27b/soak/utility/single",
-      "supersedes": "",
-      "reason": "",
+      "source": "tools/bench/results/v5-phase4/bonsai27b/soak/utility/single",
+      "supersedes": "tools/bench/results/v5/bonsai27b/soak/utility/single",
+      "reason": "post-fix corpus: day3 no-change check and the general news update contract",
       "results": true,
       "run": true
     },
@@ -86,32 +86,16 @@
   ],
   "cycle": [
     {
-      "task": "v5-brief-local-first",
-      "source": "tools/bench/results/v5-validation/bonsai27b/cycle-brief2/out/cycle-bonsai27b.json",
-      "supersedes": "tools/bench/results/v5-validation/bonsai27b/cycle-brief/out/cycle-bonsai27b.json",
-      "reason": "confirming run after the data-capability verifier fix",
+      "task": "",
+      "source": "tools/bench/results/v5-phase4/bonsai27b/cycle/out/cycle-bonsai27b.json",
+      "supersedes": "tools/bench/results/v5-validation/bonsai27b/cycle-brief2/out/cycle-bonsai27b.json",
+      "reason": "full five-task post-fix utility cycle run; all cycles completed 7/7",
       "copied": true,
       "tasks": [
-        "v5-brief-local-first"
-      ]
-    },
-    {
-      "task": "v5-news-day2",
-      "source": "tools/bench/results/v5-validation/bonsai27b/news-day2/out/cycle-bonsai27b.json",
-      "supersedes": "",
-      "reason": "post-fix cycle completion; external check still fails (held out)",
-      "copied": true,
-      "tasks": [
-        "v5-news-day2"
-      ]
-    },
-    {
-      "task": "v5-news-day3",
-      "source": "tools/bench/results/v5-validation/bonsai27b/news-day3/out/cycle-bonsai27b.json",
-      "supersedes": "",
-      "reason": "post-fix cycle completion; external check fails on the too-strict must_not_contain",
-      "copied": true,
-      "tasks": [
+        "v5-brief-local-first",
+        "v5-brief-wal",
+        "v5-news-day1",
+        "v5-news-day2",
         "v5-news-day3"
       ]
     }

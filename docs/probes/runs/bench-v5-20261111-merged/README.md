@@ -13,8 +13,8 @@ beside them. It is **not** a single-revision freeze run.
 | quality single/full | original | unchanged |
 | safety single | post-fix `v5-validation/bonsai27b/safety2` | deterministic verifier authoritative over the LLM security opinion |
 | memory single | post-fix `v5-validation/bonsai27b/memory2` | correction injection |
-| utility single | original | unchanged |
-| utility cycle | post-fix brief + day2 + day3 | **3 of 5 tasks**; day1 and brief-wal are not in the committed evidence |
+| utility single | post-fix `v5-phase4/bonsai27b` | day3 no-change check + general update contract |
+| utility cycle | post-fix `v5-phase4/bonsai27b` | **5 of 5 tasks**; all cycles completed 7/7 |
 | Aider single | original | external track, 4/8 bonsai, 1/8 gemma |
 | quality-pairwise | original bonsai | granite position bias; quality is `not_measured` |
 
@@ -26,10 +26,10 @@ beside them. It is **not** a single-revision freeze run.
 - Safety is **4/4** for bonsai and gemma (directional; 95% CI 51–100%),
   matching the post-fix reruns. The `v5-safety-path` row is the code task and
   the deterministic test is the label.
-- Utility cycle **completion is 3/5 for bonsai** because two reports are
-  missing. The component gates correctly fail (`briefs` 1/2, `news_tuning`
-  0/2, `news_heldout` 0/1). Do not read the earlier "5/5" claim from this
-  bundle; it is not evidenced here.
+- Utility cycle **completion is 5/5 for bonsai** and the tuning gates pass
+  (`briefs` 2/2, `news_tuning` 2/2). The held-out day2 still fails, so the
+  utility claim is red — honestly, not by waiver. Day3 now passes after the
+  no-change check was corrected to allow repeats under "Previously reported."
 - **Mechanism coverage is 0%**: four agency rows declare `requires`, and the
   completed runs did not exercise every required mechanism (notably
   `edit_multiple_files` and `repair`). This is a real finding, not a report
@@ -57,8 +57,9 @@ computation path, or when the corpus/protocol digest moved.
 
 ## What comes next
 
-1. Fix the news day3 check and the general news template contract (Phase 4).
-2. Rerun the full five-task utility suite for both generators.
-3. Rerun the affected suites at one commit for the freeze (Phase 5).
-4. Replace this bundle (or add a `-frozen` bundle) with a single-revision run
+1. ~~Fix the news day3 check and the general news template contract~~ — done;
+   bonsai utility is now 5/5 completed, with day3 passing and day2 still red.
+2. Finish the gemma utility rerun, then rerun the affected suites at one commit
+   for the freeze (Phase 5).
+3. Replace this bundle (or add a `-frozen` bundle) with a single-revision run
    before setting `cut` to `0.0.0`.

@@ -4,7 +4,7 @@
   "diagnostic": false,
   "host_class": "linux/arm64",
   "core_image": "athanor-bench:latest",
-  "core_digest": "sha256:ff09bf73624caf1aab0883742319e7948bf09b5d6c539ce0896ed2bf068db424",
+  "core_digest": "sha256:891507082804d91341053c6f3d11a73f8fb911c0e962d48cedcdf3a9d3a74595",
   "ollama_url": "http://host.containers.internal:11435",
   "ollama_version": "0.40.16",
   "model": "bonsai-2:27b",
@@ -16,11 +16,11 @@
     "bonsai-2:27b": "f3c4f42086593225d8be9bb4270658d0e05f5232fb2b5e8faa49ef74d2cc843a",
     "granite4.2:8b": "f586c02fdecdf151b656207c339aa003997345774a41768bac1fd6d2fb85913b"
   },
-  "git_commit": "36be1b94c2d7a4810901d15c590d041931bd7604",
+  "git_commit": "39af05c051010d7a41ffa7ba9f569d773eb5b918",
   "task_count": 5,
   "passes": 1,
   "rows": 5,
-  "started_at": "2026-11-10T08:20:40Z",
-  "completed_at": "2026-11-10T08:41:52Z",
+  "started_at": "2026-11-11T16:17:58Z",
+  "completed_at": "2026-11-11T16:34:10Z",
   "complete": true
 }

@@ -1,6 +1,6 @@
 # v5 results — gemma12b
 
-Generated 2026-11-11T16:03:24Z · protocol `v5` (candidate, cut `pending`)
+Generated 2026-11-11T17:55:44Z · protocol `v5` (candidate, cut `pending`)
 
 ## foundation
 
@@ -89,7 +89,7 @@ Generated 2026-11-11T16:03:24Z · protocol `v5` (candidate, cut `pending`)
 
 ## Provenance
 
-- Corpus digest: `7e6999e39e89e1b2…`
+- Corpus digest: `7eef524eb92ca621…`
 - Protocol digest: `224210fbfdf3601a…`
 - Commits: 36be1b94c2d7a4810901d15c590d041931bd7604
 
