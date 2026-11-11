@@ -289,13 +289,13 @@ func waitCycle(client *http.Client, base, cycleID, goalID string, db *sql.DB, ti
 		if err != nil {
 			return "", err
 		}
-		switch state {
-		case "completed", "failed", "cancelled":
+		if cycleWaitTerminal(state) {
 			return state, nil
-		case "awaiting_review", "paused":
+		}
+		if state == "paused" {
 			// The brief/news templates have no human gate; a pause is a stall,
 			// not a pass. Fail fast rather than burning the timeout.
-			return state, fmt.Errorf("cycle stalled in state %q", state)
+			return state, fmt.Errorf("cycle paused in state %q", state)
 		}
 		active, aerr := activeTasks(db, goalID)
 		if aerr == nil {
@@ -313,6 +313,18 @@ func waitCycle(client *http.Client, base, cycleID, goalID string, db *sql.DB, ti
 		}
 		time.Sleep(interval)
 	}
+}
+
+// cycleWaitTerminal reports whether waitCycle should stop polling. completed,
+// failed, and cancelled are terminal outcomes; awaiting_review is terminal for
+// the probe because a blocked-only cycle cannot make progress without an
+// operator, but it is not a pass (runOneCycle records the state separately).
+func cycleWaitTerminal(state string) bool {
+	switch state {
+	case "completed", "failed", "cancelled", "awaiting_review":
+		return true
+	}
+	return false
 }
 
 // activeTasks counts tasks that can still make progress. A cycle with none and
