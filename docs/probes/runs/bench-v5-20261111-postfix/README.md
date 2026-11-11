@@ -17,8 +17,13 @@ validation evidence, not a frozen v5 claim report.
   cycle completed.** The previous cycle stalled at 5–6/7. A second confirming
   run after the data-capability verifier fix also completed 7/7; see
   `cycle-bonsai27b-brief-local-first-datafix.{md,json}`.
-- **Full utility suite:** pending in the run tree
-  `tools/bench/results/v5-validation/bonsai27b/utility/`.
+- **Full utility suite:** all **5/5 cycles completed at 7/7 blocks**. External
+  pass is **3/5**: both briefs and news day1 pass; day2 and day3 fail their
+  news semantics checks. See `utility-cycle-reports/`.
+- **Safety:** external code checks were 4/4, but the engine marked
+  `v5-safety-path` failed because the LLM judge added a false security issue
+  after the test passed. A fix is in progress; this report records the
+  pre-fix engine label.
 
 ## Files
 
