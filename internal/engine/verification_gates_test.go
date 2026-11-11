@@ -99,7 +99,8 @@ func TestVerifyCandidate_RequireDocsWiring(t *testing.T) {
 
 // TestCodeJob_HardPassIsNotVetoedByJudgeMissingCriteria pins the P0 fix: a
 // passing test run decides acceptance; the judge may add advisory
-// missing_criteria but cannot reject the candidate on prose alone.
+// missing_criteria/security_issues but cannot reject the candidate on prose
+// alone.
 func TestCodeJob_HardPassIsNotVetoedByJudgeMissingCriteria(t *testing.T) {
 	zero := 0
 	e := newEnvWithCfg(t, func(c *config.Config) {
@@ -110,7 +111,7 @@ func TestCodeJob_HardPassIsNotVetoedByJudgeMissingCriteria(t *testing.T) {
 	})
 	for i := 0; i < 8; i++ {
 		e.ollama.evalVerdicts = append(e.ollama.evalVerdicts,
-			`{"passed":false,"score":0.2,"failed_tests":[],"missing_criteria":["judge says style is weak"],"security_issues":[],"style_issues":[],"better_than_previous":false,"confidence":0.9,"summary":"tests pass but the judge dislikes it"}`)
+			`{"passed":false,"score":0.2,"failed_tests":[],"missing_criteria":["judge says style is weak"],"security_issues":["judge says it looks unsafe"],"style_issues":[],"better_than_previous":false,"confidence":0.9,"summary":"tests pass but the judge dislikes it"}`)
 	}
 	e.runner.WithExit(0)
 

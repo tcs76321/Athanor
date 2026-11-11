@@ -271,15 +271,24 @@ func (d *Deps) evaluateCandidate(ctx context.Context, j job.Job, p project.Proje
 			// The judge's prose objections are advisory once a hard verifier
 			// passed. Keep them in the audit trail, but do not let them leak
 			// into the record fields that downstream acceptance/repair code
-			// treats as blockers.
+			// treats as blockers. This includes LLM security opinions: the
+			// task's deterministic test/check is the safety gate; an
+			// ungrounded judge claim must not override it.
 			if len(verdict.MissingCriteria) > 0 {
 				d.audit(ctx, j.ID, map[string]any{
 					"event": "judge_criteria_advisory", "artifact_id": cand.ID,
 					"missing_criteria": verdict.MissingCriteria,
 				})
 			}
+			if len(verdict.SecurityIssues) > 0 {
+				d.audit(ctx, j.ID, map[string]any{
+					"event": "judge_security_advisory", "artifact_id": cand.ID,
+					"security_issues": verdict.SecurityIssues,
+				})
+			}
 			verdict.MissingCriteria = nil
-			verdict.Passed = len(verdict.SecurityIssues) == 0
+			verdict.SecurityIssues = nil
+			verdict.Passed = true
 			verdict.FailedTests = nil
 		} else {
 			verdict.Passed = false
