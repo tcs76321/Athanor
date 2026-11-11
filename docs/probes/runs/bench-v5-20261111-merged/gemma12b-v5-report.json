@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "model": "gemma12b",
-  "generated_at": "2026-11-11T21:07:58Z",
+  "generated_at": "2026-11-11T21:41:00Z",
   "analyzer": "analyze.py",
   "corpus": {
     "benchmark": "v5",
@@ -129,23 +129,23 @@
       {
         "suite": "utility",
         "arm": "single",
-        "git_commit": "eab7d228da4b3838e20c6e00cb257f792e5cdc86",
+        "git_commit": "887a11fff90040933a73beb539d90e6f0412a567",
         "core_image": "athanor-bench:latest",
-        "core_digest": "sha256:891507082804d91341053c6f3d11a73f8fb911c0e962d48cedcdf3a9d3a74595",
+        "core_digest": "sha256:7b0e0ff989eafc1a9fe38fdd09a3cdd0090e686c3330a0a0001b17ede7c66715",
         "ollama_version": "0.40.16",
         "model_digests": {
           "gemma4:12b-mlx": "117d0d84cf2ab865feb59afc2cd30ff5d55f0035e05eb8d1b814f9688e3f3671",
           "granite4.2:8b": "f586c02fdecdf151b656207c339aa003997345774a41768bac1fd6d2fb85913b"
         },
-        "started_at": "2026-11-11T17:55:16Z",
-        "completed_at": "2026-11-11T18:00:32Z"
+        "started_at": "2026-11-11T21:07:34Z",
+        "completed_at": "2026-11-11T21:11:47Z"
       }
     ],
     "missing": [],
     "mixed_revisions": true,
     "commits": [
       "36be1b94c2d7a4810901d15c590d041931bd7604",
-      "eab7d228da4b3838e20c6e00cb257f792e5cdc86"
+      "887a11fff90040933a73beb539d90e6f0412a567"
     ]
   },
   "suites": {
@@ -274,17 +274,17 @@
     "utility": {
       "single": {
         "n": 5,
-        "passed": 2,
-        "pass_rate": 0.4,
+        "passed": 5,
+        "pass_rate": 1.0,
         "ci95": {
-          "low": 0.1176182311592533,
-          "high": 0.769280067791163
+          "low": 0.5655085052479191,
+          "high": 1.0
         },
         "directional": true,
         "runs": 1,
-        "pass_at_1": 2,
-        "saturated": false,
-        "tokens": 9239.2
+        "pass_at_1": 5,
+        "saturated": true,
+        "tokens": 7226.6
       }
     }
   },
@@ -297,10 +297,10 @@
       "high": 0.8823817688407467
     },
     "directional": true,
-    "complete": 4,
-    "complete_rate": 0.8,
+    "complete": 5,
+    "complete_rate": 1.0,
     "missing": [],
-    "completion_ok": false,
+    "completion_ok": true,
     "components": {
       "briefs": {
         "tasks": [
@@ -313,13 +313,13 @@
           {
             "task": "v5-brief-wal",
             "present": true,
-            "pass": true,
+            "pass": false,
             "complete": true
           }
         ],
         "min_pass": 2,
-        "passed": 2,
-        "ok": true
+        "passed": 1,
+        "ok": false
       },
       "news_tuning": {
         "tasks": [
@@ -332,13 +332,13 @@
           {
             "task": "v5-news-day3",
             "present": true,
-            "pass": false,
-            "complete": false
+            "pass": true,
+            "complete": true
           }
         ],
         "min_pass": 2,
-        "passed": 1,
-        "ok": false
+        "passed": 2,
+        "ok": true
       },
       "news_heldout": {
         "tasks": [
@@ -389,9 +389,9 @@
         }
       },
       "utility": {
-        "wins": 2,
-        "ties": 2,
-        "losses": 1
+        "wins": 0,
+        "ties": 3,
+        "losses": 2
       }
     },
     "safety": {
@@ -426,13 +426,13 @@
             {
               "task": "v5-brief-wal",
               "present": true,
-              "pass": true,
+              "pass": false,
               "complete": true
             }
           ],
           "min_pass": 2,
-          "passed": 2,
-          "ok": true
+          "passed": 1,
+          "ok": false
         },
         "news_tuning": {
           "tasks": [
@@ -445,13 +445,13 @@
             {
               "task": "v5-news-day3",
               "present": true,
-              "pass": false,
-              "complete": false
+              "pass": true,
+              "complete": true
             }
           ],
           "min_pass": 2,
-          "passed": 1,
-          "ok": false
+          "passed": 2,
+          "ok": true
         },
         "news_heldout": {
           "tasks": [
@@ -467,7 +467,7 @@
           "ok": false
         }
       },
-      "completion_ok": false
+      "completion_ok": true
     },
     "mechanism_coverage": {
       "ok": false,
@@ -493,11 +493,9 @@
     "task_rows": 4,
     "task_covered": 0,
     "task_coverage": 0.0,
-    "arm_rows": 45,
+    "arm_rows": 48,
     "arm_violations": [],
-    "cycle_missing": [
-      "v5-news-day3"
-    ],
+    "cycle_missing": [],
     "coverage": 0.0
   },
   "cost": {

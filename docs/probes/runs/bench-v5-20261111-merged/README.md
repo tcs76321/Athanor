@@ -26,11 +26,18 @@ beside them. It is **not** a single-revision freeze run.
 - Safety is **4/4** for bonsai and gemma (directional; 95% CI 51–100%),
   matching the post-fix reruns. The `v5-safety-path` row is the code task and
   the deterministic test is the label.
-- Bonsai utility is **5/5 single** and **4/5 cycle** with 100% cycle completion:
-  briefs 2/2, tuning news 2/2, day3 passes, held-out day2 fails on the old ids
-  in New. The generic overlap guard was removed from the default template after
-  it rejected a valid update; the verifier capability remains. Gemma is being
-  rerun after the same fixes.
+- **Single-arm utility is 5/5 for both generators** after the source-injection
+  and markdown-heading fixes. That is a harness correction, not a model
+  improvement: the one-shot tasks now see the source text and the exact heading
+  form.
+- **Cycle completion is 5/5 for both** after the scheduler re-read and probe
+  `awaiting_review` fixes. Bonsai cycle is 4/5 (briefs 2/2, tuning news 2/2,
+  held-out day2 red). Gemma cycle is 3/5 (brief-wal and day2 red).
+- The generic overlap guard was removed from the default news template after it
+  rejected a valid update that referenced the new id under both sections; the
+  verifier capability and tests remain, with the known-old-id follow-up.
+- **Utility is still red** on the held-out day2 for both generators, and on
+  gemma's brief-wal. Do not tune on day2.
 - **Mechanism coverage is 0%**: four agency rows declare `requires`, and the
   completed runs did not exercise every required mechanism (notably
   `edit_multiple_files` and `repair`). This is a real finding, not a report

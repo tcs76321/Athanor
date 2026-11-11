@@ -4,7 +4,7 @@
   "diagnostic": false,
   "host_class": "linux/arm64",
   "core_image": "athanor-bench:latest",
-  "core_digest": "sha256:891507082804d91341053c6f3d11a73f8fb911c0e962d48cedcdf3a9d3a74595",
+  "core_digest": "sha256:7b0e0ff989eafc1a9fe38fdd09a3cdd0090e686c3330a0a0001b17ede7c66715",
   "ollama_url": "http://host.containers.internal:11435",
   "ollama_version": "0.40.16",
   "model": "gemma4:12b-mlx",
@@ -16,11 +16,11 @@
     "gemma4:12b-mlx": "117d0d84cf2ab865feb59afc2cd30ff5d55f0035e05eb8d1b814f9688e3f3671",
     "granite4.2:8b": "f586c02fdecdf151b656207c339aa003997345774a41768bac1fd6d2fb85913b"
   },
-  "git_commit": "eab7d228da4b3838e20c6e00cb257f792e5cdc86",
+  "git_commit": "887a11fff90040933a73beb539d90e6f0412a567",
   "task_count": 5,
   "passes": 1,
   "rows": 5,
-  "started_at": "2026-11-11T17:55:16Z",
-  "completed_at": "2026-11-11T18:00:32Z",
+  "started_at": "2026-11-11T21:07:34Z",
+  "completed_at": "2026-11-11T21:11:47Z",
   "complete": true
 }
