@@ -211,7 +211,14 @@ the release-blocking gates.
 
 ## Already fixed (keep, add tests)
 
-- Local `sources/` and `wire/` injection into task prompts.
+- Local `sources/` and `wire/` injection into task prompts; the single-arm
+  project create now carries the corpus task's declared `sources` (2026-11-11),
+  so one-shot briefs see the same text as cycle tasks.
+- Required sections are rendered as `# Heading` in the declared-checks prompt,
+  matching the strict markdown-heading parser (2026-11-11).
+- The news cycle carries a generic `no_repeat_ids_across_sections` guard, and
+  the probe treats `awaiting_review` as a terminal blocked cycle rather than a
+  running stall (2026-11-11).
 - Source-agnostic research/fetch/extract contracts (URL or file name).
 - Cycle probe exports the **best candidate** when the engine rejects.
 - Cycle probe detects stalls instead of waiting out the timeout.
