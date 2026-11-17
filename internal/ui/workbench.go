@@ -79,8 +79,9 @@ func (u *UI) handleWorkbench(w http.ResponseWriter, r *http.Request) {
 		for _, t := range tasks {
 			row := workbenchTask{Title: t.Title, Key: t.ID, State: string(t.Status)}
 			if jobs, jerr := u.deps.Jobs.ByTask(ctx, t.ID); jerr == nil && len(jobs) > 0 {
-				row.JobID = jobs[0].ID
-				row.State = string(jobs[0].State)
+				latest := jobs[len(jobs)-1] // ByTask is oldest-first
+				row.JobID = latest.ID
+				row.State = string(latest.State)
 			}
 			view.Tasks = append(view.Tasks, row)
 			if len(view.Tasks) >= 30 {
