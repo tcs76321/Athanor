@@ -47,6 +47,7 @@ import (
 	"github.com/tcs76321/athanor/internal/budget"
 	"github.com/tcs76321/athanor/internal/config"
 	"github.com/tcs76321/athanor/internal/corrections"
+	"github.com/tcs76321/athanor/internal/coverage"
 	"github.com/tcs76321/athanor/internal/engine/contextasm"
 	"github.com/tcs76321/athanor/internal/engine/jobstate"
 	"github.com/tcs76321/athanor/internal/engine/phases"
@@ -322,6 +323,9 @@ type Engine struct {
 	// memoryWriter is the ADR-0114 completed-job summary seam. nil disables
 	// the write (the M1 walk still runs).
 	memoryWriter MemoryWriter
+	// coverage is the recurring-cycle ledger (ADR-0141). nil disables the
+	// retain write; the cycle still completes.
+	coverage CoverageWriter
 	// verifiers is the F4-T3 deterministic verification registry. nil uses
 	// verify.Default(), so the engine always has a verifier set.
 	verifiers *verify.Registry
@@ -535,6 +539,15 @@ type MemoryWriter interface {
 
 // SetMemoryWriter wires the ADR-0114 job-summary writer.
 func (e *Engine) SetMemoryWriter(w MemoryWriter) { e.memoryWriter = w }
+
+// CoverageWriter is the recurring-cycle ledger seam (ADR-0141). *coverage.Repo
+// satisfies it; nil disables the retain write.
+type CoverageWriter interface {
+	Record(ctx context.Context, projectID, namespace string, items []coverage.Item) error
+}
+
+// SetCoverageWriter wires the ADR-0141 coverage ledger.
+func (e *Engine) SetCoverageWriter(w CoverageWriter) { e.coverage = w }
 
 // SetPauseGate wires the §24 power pause signal (M7-T1). A nil gate means
 // the engine never pauses for power.
@@ -1668,6 +1681,10 @@ func (e *Engine) finalizeTerminal(ctx context.Context, jobID string, j job.Job) 
 	// ADR-0091: close the horizon grant with actual spend before any teardown
 	// that can block.
 	e.settleHorizon(ctx, jobID)
+	// ADR-0141: a completed retain block records what the cycle covered so
+	// the next run can suppress repeats. It must run before teardown so a
+	// crash still leaves the ledger write idempotent on retry.
+	e.recordCoverage(ctx, j)
 	// M6-T2 (ADR-0033): let the scheduler advance the graph.
 	e.signalTerminal(ctx, jobID, j.State)
 	// M2-T4b.5 (ADR-0024 §2): a terminal job's Job Pod has no further use;

@@ -28,6 +28,7 @@ import (
 	"github.com/tcs76321/athanor/internal/config"
 	"github.com/tcs76321/athanor/internal/control"
 	"github.com/tcs76321/athanor/internal/corrections"
+	"github.com/tcs76321/athanor/internal/coverage"
 	"github.com/tcs76321/athanor/internal/cycle"
 	"github.com/tcs76321/athanor/internal/dag"
 	"github.com/tcs76321/athanor/internal/daydream"
@@ -403,6 +404,10 @@ func run(configPath, addr, stateDir string, container bool) error {
 	// ADR-0114: a completed job leaves a deterministic summary the retriever
 	// can find for later jobs in the same project.
 	eng.SetMemoryWriter(mceRT.CompactStore)
+	// ADR-0141: the recurring-cycle ledger. A completed retain block records
+	// what the cycle covered so the next compile can suppress repeats.
+	coverageRepo := coverage.NewRepo(st)
+	eng.SetCoverageWriter(coverageRepo)
 	// M6-T8c (ADR-0039): the §20.4 interruption queue.
 	interruptionsRepo := interruptions.NewRepo(st)
 	eng.SetInterruptionStore(interruptionsRepo)
@@ -901,7 +906,7 @@ func run(configPath, addr, stateDir string, container bool) error {
 	defer stopTriggers()
 	go trigger.NewRunner(triggerRepo, templateLauncher{
 		projects: projectRepo, cycles: cycleRepo,
-		deps:    firstuse.Deps{Projects: projectRepo, Events: st, Freezer: killSwitch},
+		deps:    firstuse.Deps{Projects: projectRepo, Events: st, Freezer: killSwitch, Coverage: coverageRepo},
 		starter: sched,
 	}).Run(triggerCtx)
 

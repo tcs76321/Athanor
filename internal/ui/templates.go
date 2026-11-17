@@ -475,12 +475,13 @@ const projectBody = `
 <h2 id="scheduled">Scheduled cycles</h2>
 <div class="card">
   <table>
-    <thead><tr><th>Template</th><th>Schedule (UTC)</th><th>Next run</th><th>State</th><th></th></tr></thead>
+    <thead><tr><th>Template</th><th>Schedule</th><th>Timezone</th><th>Next run</th><th>State</th><th></th></tr></thead>
     <tbody>
     {{range .Scheduled}}
       <tr>
         <td class="mono">{{.TemplateID}}</td>
         <td class="mono">{{if .Spec}}{{.Spec}}{{else}}manual{{end}}</td>
+        <td class="mono muted">{{.Timezone}}</td>
         <td class="mono muted">{{if .NextRunAt}}{{.NextRunAt}}{{else}}—{{end}}</td>
         <td><span class="pill">{{if .Enabled}}enabled{{else}}paused{{end}}</span></td>
         <td>

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/tcs76321/athanor/internal/architect"
+	"github.com/tcs76321/athanor/internal/coverage"
 	"github.com/tcs76321/athanor/internal/firstuse"
 	"github.com/tcs76321/athanor/internal/ids"
 )
@@ -105,6 +106,7 @@ func (u *UI) handleNewApprove(w http.ResponseWriter, r *http.Request) {
 	}
 	deps := firstuse.Deps{
 		Projects: u.deps.Projects, Events: u.deps.Store, Freezer: u.deps.Freezer,
+		Coverage: coverage.NewRepo(u.deps.Store),
 	}
 	if u.deps.Indexer != nil {
 		deps.Indexer = uiPreindexer{inner: u.deps.Indexer}

@@ -51,6 +51,10 @@ const (
 	// ModePlain: the response was text/plain and passed through
 	// verbatim (still injection-scanned).
 	ModePlain ReaderMode = "plain"
+	// ModeFeed: the response was RSS/Atom/RDF and was normalized to a
+	// bounded item list (still injection-scanned). A feed is a first-class
+	// research source; the daily-news path uses it.
+	ModeFeed ReaderMode = "feed"
 )
 
 // ReaderResult is the product of a Reader Mode extraction.
@@ -151,6 +155,23 @@ func (r *reader) Extract(ctx context.Context, resp *Response) (*ReaderResult, er
 			Markdown:  md,
 			SourceURL: resp.URL,
 			Mode:      ModePlain,
+			Truncated: resp.Truncated,
+		}, nil
+	case "application/rss+xml", "application/atom+xml", "application/xml", "text/xml":
+		doc, err := parseFeed(resp.Body)
+		if err != nil {
+			r.auditRejected(ctx, resp, "not_readable")
+			return nil, ErrNotReadable
+		}
+		md := renderFeed(doc)
+		if err := r.scanAndReject(ctx, resp.URL, md); err != nil {
+			return nil, err
+		}
+		r.auditApplied(ctx, resp, ModeFeed, len(md))
+		return &ReaderResult{
+			Markdown:  md,
+			SourceURL: resp.URL,
+			Mode:      ModeFeed,
 			Truncated: resp.Truncated,
 		}, nil
 	default:

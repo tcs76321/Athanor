@@ -10,6 +10,24 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Daily news: feeds, coverage, and local-time schedules (2026-11-17)
+
+- **RSS/Atom/RDF feeds are readable.** The Reader's content-type gate accepts
+  `application/rss+xml`, `application/atom+xml`, `application/xml`, and
+  `text/xml`, normalizes the feed to a bounded item list (50 items, sanitized
+  summaries), and returns `mode=feed`. The same injection scan and audit path
+  apply.
+- **A coverage ledger enforces no-repeat.** `coverage_items` (migration 0052)
+  records what a retain block covered; the next compile adds those ids as
+  forbidden under `New`, so a repeat is a deterministic verifier failure.
+  [ADR-0141](docs/adr/0141-coverage-ledger.md).
+- **Schedules are local time.** `triggers.timezone` (migration 0053) makes the
+  cron fields local while `next_run_at` stays UTC; the new-cycle form defaults
+  to the server's local zone and shows the timezone on the project page.
+  [ADR-0142](docs/adr/0142-timezone-aware-schedules.md).
+- **News template carries the contract.** The synthesize block declares
+  `coverage_namespace: news`; the retain block writes the fenced coverage JSON.
+
 ### Engine-driven research discovery (2026-11-17)
 
 - **`search_web` is live in the loop.** A research block's `queries` config

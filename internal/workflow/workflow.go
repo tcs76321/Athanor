@@ -683,6 +683,13 @@ func description(b Block, spec BlockSpec, opts CompileOptions) string {
 			parts = append(parts, "SEARCH QUERIES:\n- "+strings.Join(qs, "\n- "))
 		}
 	}
+	if b.Kind == KindRetain {
+		if ns := configString(b.Config["coverage_namespace"]); ns != "" {
+			parts = append(parts, "COVERAGE NAMESPACE: "+ns)
+			parts = append(parts, "End the artifact with a fenced block exactly like this, listing every item seen this run:\n"+
+				"```coverage\n{\"items\":[{\"id\":\"<item id>\",\"title\":\"<short title>\"}]}\n```")
+		}
+	}
 	if (b.Kind == KindResearch || b.Kind == KindFetch) && len(opts.Sources) > 0 {
 		var sb strings.Builder
 		sb.WriteString("Sources to use:")
@@ -752,6 +759,12 @@ func criteria(config map[string]any, defaults []string) []string {
 	default:
 		return nil
 	}
+}
+
+// configString reads one trimmed string from a block's free-form config.
+func configString(raw any) string {
+	s, _ := raw.(string)
+	return strings.TrimSpace(s)
 }
 
 // configStrings reads a string list from a block's free-form config. Both

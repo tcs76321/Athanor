@@ -36,11 +36,14 @@ const timeFormat = time.RFC3339
 
 // Record is one trigger row.
 type Record struct {
-	ID             string
-	ProjectID      string
-	TemplateID     string
-	Kind           Kind
-	Spec           string
+	ID         string
+	ProjectID  string
+	TemplateID string
+	Kind       Kind
+	Spec       string
+	// Timezone is the IANA location the cron fields are interpreted in.
+	// next_run_at stays UTC.
+	Timezone       string
 	Enabled        bool
 	NextRunAt      string
 	LastRunAt      string
@@ -55,13 +58,20 @@ type Repo struct{ store *store.Store }
 // NewRepo returns a repository over s.
 func NewRepo(s *store.Store) *Repo { return &Repo{store: s} }
 
-const columns = `id, project_id, template_id, kind, spec, enabled,
+const columns = `id, project_id, template_id, kind, spec, COALESCE(timezone, 'UTC'), enabled,
 	COALESCE(next_run_at, ''), COALESCE(last_run_at, ''), idempotency_key,
 	created_at, updated_at`
 
-// Ensure creates or updates the trigger for a (project, template, kind). A
-// schedule's next_run_at is the next matching minute after now.
+// Ensure creates or updates the trigger for a (project, template, kind) in
+// UTC. It is the compatibility wrapper for callers with no timezone choice.
 func (r *Repo) Ensure(ctx context.Context, projectID, templateID string, kind Kind, spec string, enabled bool) (Record, error) {
+	return r.EnsureIn(ctx, projectID, templateID, kind, spec, enabled, "UTC")
+}
+
+// EnsureIn creates or updates a trigger whose schedule is interpreted in
+// timezone (an IANA name; empty means UTC). A schedule's next_run_at is the
+// next matching minute in that location, stored as UTC.
+func (r *Repo) EnsureIn(ctx context.Context, projectID, templateID string, kind Kind, spec string, enabled bool, timezone string) (Record, error) {
 	if strings.TrimSpace(projectID) == "" {
 		return Record{}, fmt.Errorf("trigger: project id is required")
 	}
@@ -69,6 +79,14 @@ func (r *Repo) Ensure(ctx context.Context, projectID, templateID string, kind Ki
 		return Record{}, fmt.Errorf("trigger: unknown kind %q", kind)
 	}
 	spec = strings.TrimSpace(spec)
+	timezone = strings.TrimSpace(timezone)
+	if timezone == "" {
+		timezone = "UTC"
+	}
+	loc, locErr := time.LoadLocation(timezone)
+	if locErr != nil {
+		return Record{}, fmt.Errorf("trigger: timezone %q: %w", timezone, locErr)
+	}
 	if kind == KindSchedule {
 		if _, err := backup.ParseCron(spec); err != nil {
 			return Record{}, fmt.Errorf("trigger: %w", err)
@@ -83,7 +101,7 @@ func (r *Repo) Ensure(ctx context.Context, projectID, templateID string, kind Ki
 	case errors.Is(err, sql.ErrNoRows):
 		next := ""
 		if kind == KindSchedule {
-			n, ok := NextRun(spec, now)
+			n, ok := NextRunIn(spec, now, loc)
 			if !ok {
 				return Record{}, fmt.Errorf("trigger: schedule %q never fires", spec)
 			}
@@ -91,9 +109,9 @@ func (r *Repo) Ensure(ctx context.Context, projectID, templateID string, kind Ki
 		}
 		id := ids.New()
 		if _, err := r.store.DB().ExecContext(ctx,
-			`INSERT INTO triggers (id, project_id, template_id, kind, spec, enabled, next_run_at)
-			 VALUES (?, ?, ?, ?, ?, ?, NULLIF(?, ''))`,
-			id, projectID, templateID, string(kind), spec, enabled, next,
+			`INSERT INTO triggers (id, project_id, template_id, kind, spec, timezone, enabled, next_run_at)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, NULLIF(?, ''))`,
+			id, projectID, templateID, string(kind), spec, timezone, enabled, next,
 		); err != nil {
 			return Record{}, fmt.Errorf("trigger: insert: %w", err)
 		}
@@ -104,16 +122,16 @@ func (r *Repo) Ensure(ctx context.Context, projectID, templateID string, kind Ki
 
 	next := ""
 	if kind == KindSchedule {
-		n, ok := NextRun(spec, now)
+		n, ok := NextRunIn(spec, now, loc)
 		if !ok {
 			return Record{}, fmt.Errorf("trigger: schedule %q never fires", spec)
 		}
 		next = n.Format(timeFormat)
 	}
 	if _, err := r.store.DB().ExecContext(ctx,
-		`UPDATE triggers SET kind = ?, spec = ?, enabled = ?, next_run_at = NULLIF(?, ''),
+		`UPDATE triggers SET kind = ?, spec = ?, timezone = ?, enabled = ?, next_run_at = NULLIF(?, ''),
 		 updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?`,
-		string(kind), spec, enabled, next, existing,
+		string(kind), spec, timezone, enabled, next, existing,
 	); err != nil {
 		return Record{}, fmt.Errorf("trigger: update: %w", err)
 	}
@@ -212,7 +230,11 @@ func (r *Repo) SetEnabled(ctx context.Context, id string, enabled bool) error {
 			return err
 		}
 		if tr.Kind == KindSchedule {
-			n, ok := NextRun(tr.Spec, time.Now().UTC())
+			loc, lerr := time.LoadLocation(tr.Timezone)
+			if lerr != nil {
+				loc = time.UTC
+			}
+			n, ok := NextRunIn(tr.Spec, time.Now().UTC(), loc)
 			if ok {
 				next = n.Format(timeFormat)
 			}
@@ -228,19 +250,34 @@ func (r *Repo) SetEnabled(ctx context.Context, id string, enabled bool) error {
 	return nil
 }
 
-// NextRun is the next matching minute after from.
+// NextRun is the next matching minute after from, in UTC.
 func NextRun(spec string, from time.Time) (time.Time, bool) {
+	return NextRunIn(spec, from, time.UTC)
+}
+
+// NextRunIn interprets the cron fields in loc and returns the next matching
+// minute as UTC. A nil/invalid location falls back to UTC; DST is whatever
+// time.Add produces in the location, which is the same rule a user expects
+// from a local calendar schedule.
+func NextRunIn(spec string, from time.Time, loc *time.Location) (time.Time, bool) {
 	s, err := backup.ParseCron(spec)
 	if err != nil {
 		return time.Time{}, false
 	}
-	return s.Next(from)
+	if loc == nil {
+		loc = time.UTC
+	}
+	n, ok := s.Next(from.In(loc))
+	if !ok {
+		return time.Time{}, false
+	}
+	return n.UTC(), true
 }
 
 func scan(row interface{ Scan(...any) error }) (Record, error) {
 	var tr Record
 	var kind string
-	err := row.Scan(&tr.ID, &tr.ProjectID, &tr.TemplateID, &kind, &tr.Spec,
+	err := row.Scan(&tr.ID, &tr.ProjectID, &tr.TemplateID, &kind, &tr.Spec, &tr.Timezone,
 		&tr.Enabled, &tr.NextRunAt, &tr.LastRunAt, &tr.IdempotencyKey,
 		&tr.CreatedAt, &tr.UpdatedAt)
 	tr.Kind = Kind(kind)

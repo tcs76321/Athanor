@@ -46,7 +46,11 @@ func (r *Runner) Tick(ctx context.Context) (int, error) {
 		if err := ctx.Err(); err != nil {
 			return launched, err
 		}
-		next, ok := NextRun(tr.Spec, now)
+		loc, lerr := time.LoadLocation(tr.Timezone)
+		if lerr != nil {
+			loc = time.UTC
+		}
+		next, ok := NextRunIn(tr.Spec, now, loc)
 		if !ok || !next.After(now) {
 			r.logger.Warn("trigger: schedule has no future slot", "trigger", tr.ID, "spec", tr.Spec)
 			if err := r.repo.SetEnabled(ctx, tr.ID, false); err != nil {

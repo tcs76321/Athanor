@@ -154,6 +154,7 @@ func StartDraft(ctx context.Context, deps Deps, cycles *cycle.Repo, starter Star
 	if err := workflow.Validate(graph, workflow.DefaultLimits()); err != nil {
 		return ApproveResult{}, err
 	}
+	graph = injectCoverage(ctx, deps.Coverage, p.ID, graph)
 	manifest, err := source.LoadLocal(p.RepositoryPath,
 		source.ProjectSpecs(p.Sources, []string{"wire"}), source.DefaultLimits())
 	if err != nil {

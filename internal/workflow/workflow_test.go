@@ -415,6 +415,41 @@ func TestCompileFoldsSourcesIntoResearchAndFetch(t *testing.T) {
 	}
 }
 
+func TestNewsTemplateCarriesTheCoverageContract(t *testing.T) {
+	tpl, ok := TemplateByID("news-report")
+	if !ok {
+		t.Fatal("news-report template missing")
+	}
+	var synthesize, retain *Block
+	for i := range tpl.Graph.Blocks {
+		switch tpl.Graph.Blocks[i].Kind {
+		case KindSynthesize:
+			synthesize = &tpl.Graph.Blocks[i]
+		case KindRetain:
+			retain = &tpl.Graph.Blocks[i]
+		}
+	}
+	if synthesize == nil || retain == nil {
+		t.Fatal("news template needs a synthesize and retain block")
+	}
+	if configString(synthesize.Config["coverage_namespace"]) != "news" {
+		t.Errorf("synthesize coverage_namespace = %v", synthesize.Config["coverage_namespace"])
+	}
+	specs, err := Compile(tpl.Graph, CompileOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, s := range specs {
+		if s.Key == "retain" {
+			for _, want := range []string{"COVERAGE NAMESPACE: news", "```coverage"} {
+				if !strings.Contains(s.Description, want) {
+					t.Errorf("retain description missing %q: %q", want, s.Description)
+				}
+			}
+		}
+	}
+}
+
 func TestCompileTurnsResearchQueriesIntoAQueryBlock(t *testing.T) {
 	g := Graph{Blocks: []Block{{ID: "research", Kind: KindResearch,
 		Config: map[string]any{"queries": []any{"local first software", "sqlite WAL mode"}}}}}

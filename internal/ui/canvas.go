@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/tcs76321/athanor/internal/coverage"
 	"github.com/tcs76321/athanor/internal/cycle"
 	"github.com/tcs76321/athanor/internal/firstuse"
 	"github.com/tcs76321/athanor/internal/workflow"
@@ -187,7 +188,8 @@ func (u *UI) handleCycleStart(w http.ResponseWriter, r *http.Request) {
 		u.writeJSON(w, http.StatusNotFound, map[string]any{"ok": false, "error": "cycle not found"})
 		return
 	}
-	deps := firstuse.Deps{Projects: u.deps.Projects, Events: u.deps.Store, Freezer: u.deps.Freezer}
+	deps := firstuse.Deps{Projects: u.deps.Projects, Events: u.deps.Store, Freezer: u.deps.Freezer,
+		Coverage: coverage.NewRepo(u.deps.Store)}
 	res, err := firstuse.StartDraft(ctx, deps, u.deps.Cycles, u.deps.Starter, c.ID)
 	if err != nil {
 		u.writeJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": err.Error()})

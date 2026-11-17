@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/tcs76321/athanor/internal/coverage"
 	"github.com/tcs76321/athanor/internal/job"
 	"github.com/tcs76321/athanor/internal/project"
 	"github.com/tcs76321/athanor/internal/store"
@@ -51,6 +52,9 @@ type Deps struct {
 	Indexer  Indexer
 	Events   *store.Store
 	Freezer  Freezer
+	// Coverage is the recurring-cycle ledger (ADR-0141). nil disables the
+	// no-repeat check injection; a cycle still runs.
+	Coverage *coverage.Repo
 }
 
 // Input is one project create. Start false creates metadata only: the guided

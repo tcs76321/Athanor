@@ -8,6 +8,7 @@ import (
 
 	"github.com/tcs76321/athanor/internal/artifact"
 	"github.com/tcs76321/athanor/internal/corrections"
+	"github.com/tcs76321/athanor/internal/coverage"
 	"github.com/tcs76321/athanor/internal/firstuse"
 	"github.com/tcs76321/athanor/internal/job"
 	"github.com/tcs76321/athanor/internal/project"
@@ -98,6 +99,7 @@ func (u *UI) handleProjectCreate(w http.ResponseWriter, r *http.Request) {
 	deps := firstuse.Deps{
 		Projects: u.deps.Projects, Jobs: u.deps.Jobs, Engine: u.deps.Engine,
 		Events: u.deps.Store, Freezer: u.deps.Freezer,
+		Coverage: coverage.NewRepo(u.deps.Store),
 	}
 	if u.deps.Indexer != nil {
 		deps.Indexer = uiPreindexer{inner: u.deps.Indexer}

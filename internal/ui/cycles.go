@@ -4,6 +4,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/tcs76321/athanor/internal/firstuse"
 	"github.com/tcs76321/athanor/internal/trigger"
@@ -44,7 +45,7 @@ func (u *UI) handleNewCycle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	u.render(w, "New cycle — "+p.Name, newCycleBody, map[string]any{
-		"Project": p, "Templates": templateCards(),
+		"Project": p, "Templates": templateCards(), "LocalTimezone": time.Local.String(),
 	})
 }
 
@@ -76,13 +77,17 @@ func (u *UI) handleCreateCycle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	schedule := strings.TrimSpace(r.FormValue("schedule"))
+	timezone := strings.TrimSpace(r.FormValue("timezone"))
+	if timezone == "" {
+		timezone = "UTC"
+	}
 	if u.deps.Triggers != nil {
 		for _, tr := range tpl.Triggers {
 			spec := tr.Spec
 			if tr.Kind == workflow.TriggerSchedule && schedule != "" {
 				spec = schedule
 			}
-			if _, err := u.deps.Triggers.Ensure(ctx, p.ID, tpl.ID, trigger.Kind(tr.Kind), spec, tr.Enabled); err != nil {
+			if _, err := u.deps.Triggers.EnsureIn(ctx, p.ID, tpl.ID, trigger.Kind(tr.Kind), spec, tr.Enabled, timezone); err != nil {
 				slog.Warn("ui: recording cycle trigger", "project", p.ID, "template", tpl.ID, "err", err)
 			}
 		}
@@ -124,9 +129,11 @@ const newCycleBody = `
     </ul>
     <form method="post" action="/ui/projects/{{$.Project.ID}}/cycles">
       <input type="hidden" name="template_id" value="{{.ID}}">
-      {{if .Schedule}}<label class="field"><span>Schedule (5-field cron, UTC)</span>
+      {{if .Schedule}}<label class="field"><span>Schedule (5-field cron, local time)</span>
         <input name="schedule" value="{{.Schedule}}" maxlength="80"></label>
-      <p class="muted small">Enabled when you create the draft; the scheduler starts a new cycle at the next matching minute.</p>
+      <label class="field"><span>Timezone</span>
+        <input name="timezone" value="{{$.LocalTimezone}}" maxlength="64" placeholder="UTC"></label>
+      <p class="muted small">Enabled when you create the draft; the scheduler starts a new cycle at the next matching minute in this timezone.</p>
       {{end}}
       <button class="btn primary">Create draft</button>
     </form>

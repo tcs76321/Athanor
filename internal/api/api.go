@@ -16,6 +16,7 @@ import (
 	"github.com/tcs76321/athanor/internal/artifact"
 	"github.com/tcs76321/athanor/internal/control"
 	"github.com/tcs76321/athanor/internal/corrections"
+	"github.com/tcs76321/athanor/internal/coverage"
 	"github.com/tcs76321/athanor/internal/decompose"
 	"github.com/tcs76321/athanor/internal/firstuse"
 	"github.com/tcs76321/athanor/internal/hitl"
@@ -442,7 +443,7 @@ func (a *API) handleProjectCreate(w http.ResponseWriter, r *http.Request) {
 	start := req.Start != nil && *req.Start
 	deps := firstuse.Deps{
 		Projects: a.projects, Jobs: a.jobs, Engine: a.engine,
-		Events: a.db, Freezer: a.freezer,
+		Events: a.db, Freezer: a.freezer, Coverage: coverage.NewRepo(a.db),
 	}
 	if bounded, ok := a.indexer.(BoundedIndexRunner); ok {
 		deps.Indexer = firstUseIndexer{inner: bounded}
