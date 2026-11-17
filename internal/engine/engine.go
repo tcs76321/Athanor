@@ -407,6 +407,14 @@ type Deps struct {
 	Evictor         Evictor
 	ContextProvider ContextProvider
 	Pods            PodLifecycle
+	// Network is the ADR-0139 egress access-request seam. nil only audits a
+	// policy denial.
+	Network NetworkRequester
+}
+
+// NetworkRequester files a HITL request for a URL base the gateway denied.
+type NetworkRequester interface {
+	RequestNetworkAccess(ctx context.Context, projectID, jobID, rawURL, reason string) error
 }
 
 func New(d Deps) *Engine {
@@ -444,6 +452,7 @@ func New(d Deps) *Engine {
 	e.phaseDeps = &phases.Deps{
 		Cfg: cfg, Runtime: phaseHost{e}, State: e.state,
 		Jobs: d.Jobs, Projects: d.Projects, Artifacts: d.Artifacts, Eval: d.Evaluation,
+		Network: d.Network,
 	}
 	return e
 }
@@ -548,6 +557,14 @@ type CoverageWriter interface {
 
 // SetCoverageWriter wires the ADR-0141 coverage ledger.
 func (e *Engine) SetCoverageWriter(w CoverageWriter) { e.coverage = w }
+
+// SetNetworkRequester wires the ADR-0139 egress access-request seam. It is a
+// setter because the HITL repository is constructed after the engine.
+func (e *Engine) SetNetworkRequester(n NetworkRequester) {
+	if e.phaseDeps != nil {
+		e.phaseDeps.Network = n
+	}
+}
 
 // SetPauseGate wires the §24 power pause signal (M7-T1). A nil gate means
 // the engine never pauses for power.

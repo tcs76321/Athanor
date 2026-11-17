@@ -394,6 +394,9 @@ func run(configPath, addr, stateDir string, container bool) error {
 	netgrantRepo := netgrant.NewRepo(st)
 	hitlSvc.SetApprover(hitl.TypeNetworkAccess,
 		networkGrantApprover{grants: netgrantRepo, ttl: 30 * 24 * time.Hour}.Approve)
+	// A denied research fetch files one request per host; approval creates the
+	// grant the next run uses.
+	eng.SetNetworkRequester(networkRequester{repo: hitlRepo})
 	// M6-T6 (ADR-0037): CorrectionRecords. The engine reports phase failures
 	// through the sink; the API serves the §18.4 rejection form and lists.
 	correctionsRepo := corrections.NewRepo(st)

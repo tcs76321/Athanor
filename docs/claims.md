@@ -198,6 +198,17 @@ demo. A claim without a proof is either removed or marked as a target.
 | A started non-scheduler job marks its task running atomically | 2026-11-08 lifecycle fix | `internal/firstuse.StartTaskJob`; `TestCreateRunsPreindexThenStartsTheJob` | **proven** |
 | A restart cannot re-run a task whose job already completed | 2026-11-08 lifecycle fix | `internal/scheduler.Reconcile`; `TestReconcileSettlesPendingTaskWithCompletedJob`, `TestReconcileAdoptsPendingTaskWithUnfinishedJob` | **proven** |
 
+| External content is labeled as data, not instructions | ADR-0137 | `internal/prompt/untrusted.go`; `TestUntrustedWrapsAndLabels`, `TestUntrustedStripsDelimiterSpoof`, `TestStaticSystemStatesAuthorityOrder` | **proven** |
+| A local source read cannot follow a symlink or escape the repository | ADR-0138 | `internal/source`; `TestLoadLocalRejectsSymlink`, `TestLoadLocalRejectsTraversal`, `TestGateSourceReadsGoThroughContainment` | **proven** |
+| A research block can discover sources through search_web | ADR-0140 | `internal/engine/phases/research.go`; `TestDiverge_SearchDiscoversAndFetchesSource`, `TestExtractSearchQueries` | **proven with a fake gateway; a live search engine is the host check** |
+| A task without the fetch_url grant does not run research | ADR-0140 | `internal/engine/phases/diverge.go`; `TestDiverge_SkipsResearchWithoutFetchGrant` | **proven** |
+| RSS/Atom/RDF feeds are readable and bounded | ADR-0141 context | `internal/gateway/feed.go`; `TestParseFeedRSS`, `TestParseFeedAtom`, `TestParseFeedRDF`, `TestParseFeedCapsItemsAndFields` | **proven** |
+| A recurring cycle's retained ids are forbidden under New next run | ADR-0141 | `internal/coverage`, `internal/firstuse/coverage.go`; `TestInjectCoverageAddsForbiddenOldIDs`, `TestRecordRecentAndKeys` | **proven with a fake artifact; a live two-day cycle is the demo** |
+| A schedule is interpreted in its trigger timezone and stored UTC | ADR-0142 | `internal/trigger`; `TestNextRunInRespectsTimezone`, `TestNextRunInHandlesDST`, `TestEnsureInStoresTimezone` | **proven** |
+| A project can add an egress URL base without editing global config | ADR-0139 | `internal/netgrant`, `cmd/athanor/netgrant.go`; `TestNetworkRequesterAndGrantApprover`, `TestCreateAndListActive` | **proven with a fake HITL queue; a live fetch is the host check** |
+| A denied fetch files one access request per project+host | ADR-0139 | `internal/engine/phases/research.go`, `cmd/athanor/netgrant.go`; `TestNetworkRequesterAndGrantApprover` | **proven** |
+| The workbench shows reports, sources, grants, coverage, and the next run | ADR-0143 | `internal/ui/workbench.go`; `TestWorkbenchShowsGrantsCoverageAndSources`, `TestRevokeRejectsForeignGrant` | **proven** |
+
 ## Rule
 
 When a code or behavior change falsifies a row, update the row in the same

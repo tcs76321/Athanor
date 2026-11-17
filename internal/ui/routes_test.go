@@ -48,6 +48,7 @@ GET /ui/projects/{id}
 GET /ui/projects/{id}/canvas
 GET /ui/projects/{id}/cycles/new
 GET /ui/projects/{id}/onboarding
+GET /ui/projects/{id}/workbench
 GET /ui/reviews
 GET /ui/runtime
 GET /ui/search
@@ -70,6 +71,7 @@ POST /ui/jobs/{id}/control
 POST /ui/jobs/{id}/note
 POST /ui/mode
 POST /ui/models/pool
+POST /ui/network/allowlist
 POST /ui/models/qualify
 POST /ui/models/qualify/deep
 POST /ui/new/approve
@@ -79,6 +81,7 @@ POST /ui/projects/{id}/corrections
 POST /ui/projects/{id}/cycles
 POST /ui/projects/{id}/execution
 POST /ui/projects/{id}/goals
+POST /ui/projects/{id}/grants/{grantID}/revoke
 POST /ui/projects/{id}/index
 POST /ui/projects/{id}/intent
 POST /ui/projects/{id}/onboarding

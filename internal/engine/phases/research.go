@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"regexp"
 	"strings"
 	"time"
@@ -132,6 +133,16 @@ func extractSearchQueries(text string, max int) []string {
 	return out
 }
 
+// urlHost returns the lowercase hostname of a URL, or "" when it does not
+// parse. It is used only to dedupe access requests.
+func urlHost(raw string) string {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return ""
+	}
+	return strings.ToLower(u.Hostname())
+}
+
 // allowsTool reports whether the task's envelope grants tool by name. The
 // block compiler writes the closed-set names into AllowedTools; an empty list
 // means "daemon default", which is handled by the internal API, not here.
@@ -250,6 +261,11 @@ func (d *Deps) researchContext(ctx context.Context, j job.Job, p project.Project
 		return local, nil
 	}
 
+	// One access request per denied host per job. The request is HITL: the
+	// operator approves a project URL base and the next run can fetch it
+	// (ADR-0139). A denial is still a soft-fail this run.
+	requested := map[string]bool{}
+
 	var b strings.Builder
 	for _, u := range urls {
 		if fctx.Err() != nil {
@@ -272,6 +288,22 @@ func (d *Deps) researchContext(ctx context.Context, j job.Job, p project.Project
 			d.audit(ctx, j.ID, map[string]any{
 				"event": "research_fetch", "url": u, "outcome": "denied",
 			})
+			if d.Network != nil {
+				if host := urlHost(u); host != "" && !requested[host] {
+					requested[host] = true
+					if rerr := d.Network.RequestNetworkAccess(ctx, p.ID, j.ID, u,
+						"research source denied by the gateway policy"); rerr != nil {
+						d.audit(ctx, j.ID, map[string]any{
+							"event": "network_access_request", "url": u, "outcome": "error",
+							"detail": rerr.Error(),
+						})
+					} else {
+						d.audit(ctx, j.ID, map[string]any{
+							"event": "network_access_request", "url": u, "outcome": "filed",
+						})
+					}
+				}
+			}
 			continue
 		case err != nil:
 			d.audit(ctx, j.ID, map[string]any{

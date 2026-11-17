@@ -101,6 +101,35 @@ personas:
 	}
 }
 
+func TestUpdateNetworkAllowlist(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	original := `version: 2
+network:
+  default_policy: deny
+  allow_list:
+    - existing.test
+`
+	if err := os.WriteFile(path, []byte(original), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := UpdateNetworkAllowlist(path, []string{"New.Test", "existing.test", " "}); err != nil {
+		t.Fatalf("UpdateNetworkAllowlist: %v", err)
+	}
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"existing.test", "new.test"}
+	if len(cfg.Network.AllowList) != len(want) {
+		t.Fatalf("allow_list = %v, want %v", cfg.Network.AllowList, want)
+	}
+	for i := range want {
+		if cfg.Network.AllowList[i] != want[i] {
+			t.Errorf("allow_list[%d] = %q, want %q", i, cfg.Network.AllowList[i], want[i])
+		}
+	}
+}
+
 func TestUpdatePersonasRejectsUnknownRole(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.yaml")

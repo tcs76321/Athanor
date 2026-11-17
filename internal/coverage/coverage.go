@@ -100,6 +100,27 @@ func (r *Repo) Recent(ctx context.Context, projectID, namespace string, limit in
 	return out, rows.Err()
 }
 
+// Namespaces lists the ledgers a project has written, newest first.
+func (r *Repo) Namespaces(ctx context.Context, projectID string) ([]string, error) {
+	rows, err := r.store.DB().QueryContext(ctx,
+		`SELECT namespace, MAX(last_seen_at) AS seen
+		   FROM coverage_items WHERE project_id = ?
+		  GROUP BY namespace ORDER BY seen DESC, namespace`, projectID)
+	if err != nil {
+		return nil, fmt.Errorf("coverage: namespaces: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	var out []string
+	for rows.Next() {
+		var ns, seen string
+		if err := rows.Scan(&ns, &seen); err != nil {
+			return nil, err
+		}
+		out = append(out, ns)
+	}
+	return out, rows.Err()
+}
+
 // Keys is the id-only projection the compiler injects into the synthesize
 // check.
 func (r *Repo) Keys(ctx context.Context, projectID, namespace string, limit int) ([]string, error) {

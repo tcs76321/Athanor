@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -63,6 +64,62 @@ func UpdatePersonas(path string, updates map[string]PersonaConfig) error {
 		}
 	}
 
+	out, err := yaml.Marshal(root)
+	if err != nil {
+		return fmt.Errorf("encoding config: %w", err)
+	}
+	return writeConfigFile(path, out, data)
+}
+
+// UpdateNetworkAllowlist adds host suffixes to network.allow_list in an
+// existing config, preserving the rest of the document and validating the
+// result. The running gateway keeps its old policy until the Core restarts;
+// callers must tell the operator.
+func UpdateNetworkAllowlist(path string, hosts []string) error {
+	if path == "" {
+		return fmt.Errorf("config path is empty")
+	}
+	if len(hosts) == 0 {
+		return nil
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("reading config: %w", err)
+	}
+	var doc yaml.Node
+	if err := yaml.Unmarshal(data, &doc); err != nil {
+		return fmt.Errorf("parsing config: %w", err)
+	}
+	if len(doc.Content) == 0 || doc.Content[0].Kind != yaml.MappingNode {
+		return fmt.Errorf("config root is not a mapping")
+	}
+	root := doc.Content[0]
+	network := mappingValue(root, "network")
+	if network == nil {
+		network = &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
+		root.Content = append(root.Content,
+			&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: "network"},
+			network)
+	}
+	allow := mappingValue(network, "allow_list")
+	if allow == nil {
+		allow = &yaml.Node{Kind: yaml.SequenceNode, Tag: "!!seq"}
+		network.Content = append(network.Content,
+			&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: "allow_list"},
+			allow)
+	}
+	seen := map[string]bool{}
+	for _, n := range allow.Content {
+		seen[n.Value] = true
+	}
+	for _, host := range hosts {
+		host = strings.ToLower(strings.TrimSpace(host))
+		if host == "" || seen[host] {
+			continue
+		}
+		allow.Content = append(allow.Content, &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: host})
+		seen[host] = true
+	}
 	out, err := yaml.Marshal(root)
 	if err != nil {
 		return fmt.Errorf("encoding config: %w", err)

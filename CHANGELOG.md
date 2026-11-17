@@ -10,6 +10,25 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Operator workbench (2026-11-17)
+
+- **One daily surface.** `/ui/projects/{id}/workbench` shows the latest accepted
+  artifacts, declared sources and allowlist status, project egress grants with
+  revoke, the coverage ledger by namespace, and scheduled triggers with
+  timezone and next run. [ADR-0143](docs/adr/0143-operator-workbench.md).
+- **Global allowlist write-back.** A disallowed source offers "Add to global
+  allowlist"; the config writer preserves comments, validates the result,
+  writes a backup atomically, and marks a restart required. The running gateway
+  keeps its old policy until the Core restarts.
+- **Grant revoke is project-scoped.** A cross-project grant id is a 404.
+
+### Engine access requests (2026-11-17)
+
+- **A denied research fetch files a request.** One `network_access` HITL
+  request per (project, host) is created when the gateway denies a source;
+  approval creates a 30-day project grant. This is the agent half of ADR-0139,
+  live at the phase boundary.
+
 ### Daily news: feeds, coverage, and local-time schedules (2026-11-17)
 
 - **RSS/Atom/RDF feeds are readable.** The Reader's content-type gate accepts

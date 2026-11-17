@@ -90,6 +90,12 @@ type ToolRunner interface {
 	SearchWeb(ctx context.Context, jobID string, req toolenvelope.SearchWebRequest) (toolenvelope.SearchWebResponse, error)
 }
 
+// NetworkRequester files a HITL request for a URL base that the gateway policy
+// denied (ADR-0139). A nil seam simply audits the denial.
+type NetworkRequester interface {
+	RequestNetworkAccess(ctx context.Context, projectID, jobID, rawURL, reason string) error
+}
+
 // Deps is everything a phase needs. Config, repositories, and the runner are
 // fixed at construction; Runtime is live so post-construction seam wiring still
 // takes effect.
@@ -101,6 +107,8 @@ type Deps struct {
 	Projects  *project.Repo
 	Artifacts *artifact.Store
 	Eval      *evaluation.Repo
+	// Network is the ADR-0139 access-request seam. nil only audits a denial.
+	Network NetworkRequester
 }
 
 // Step runs the phase named by the job's current state. The root handles

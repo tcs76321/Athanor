@@ -458,7 +458,8 @@ const projectBody = `
 <h1>{{.Project.Name}} <span class="pill">{{join .Project.Capabilities}}</span></h1>
 <p class="sub">{{.Project.Goal}}</p>
 <div class="actions">
-  <a class="btn primary" href="/ui/projects/{{.Project.ID}}/canvas">Canvas</a>
+  <a class="btn primary" href="/ui/projects/{{.Project.ID}}/workbench">Workbench</a>
+  <a class="btn secondary" href="/ui/projects/{{.Project.ID}}/canvas">Canvas</a>
   <a class="btn secondary" href="/ui/projects/{{.Project.ID}}/cycles/new">New cycle</a>
   <a class="btn" href="/ui/projects/{{.Project.ID}}/onboarding">Onboarding / explore</a>
   <a class="btn secondary" href="#submit-goal">Submit a goal</a>
