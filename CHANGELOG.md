@@ -10,6 +10,19 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Contained source layer (2026-11-17)
+
+- **One reader, one containment path.** `internal/source` loads declared
+  source files and the news wire through `airlock/paths` (`OpenNoFollow`,
+  symlink refusal, per-file/total caps) and returns a manifest of loaded and
+  skipped sources. `firstuse` and `engine/contextasm` no longer call
+  `os.ReadFile`; a structural gate keeps it that way.
+  [ADR-0138](docs/adr/0138-contained-source-layer.md).
+- **Visible failures.** A missing, binary, oversized, or symlinked source is a
+  named skip instead of a silent omission.
+- **Deterministic text.** Loaded sources are sorted and hashed; the prompt
+  rendering goes through the ADR-0137 untrusted block.
+
 ### Untrusted content and instruction hierarchy (2026-11-17)
 
 - **Provenance at the prompt boundary.** Fetched sources, local sources, the

@@ -3,10 +3,7 @@ package contextasm
 import (
 	"context"
 	"fmt"
-	"io/fs"
 	"log/slog"
-	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 
@@ -20,6 +17,7 @@ import (
 	"github.com/tcs76321/athanor/internal/notebook"
 	"github.com/tcs76321/athanor/internal/project"
 	"github.com/tcs76321/athanor/internal/prompt"
+	"github.com/tcs76321/athanor/internal/source"
 	"github.com/tcs76321/athanor/internal/toolenvelope"
 )
 
@@ -167,50 +165,18 @@ func (a *Assembler) withProjectSources(p project.Project, task project.Task) pro
 	if p.RepositoryPath == "" || strings.Contains(task.Description, "SOURCE MATERIAL") {
 		return task
 	}
-	var b strings.Builder
-	total := 0
-	for _, name := range p.Sources {
-		clean := filepath.Base(name)
-		data, err := os.ReadFile(filepath.Join(p.RepositoryPath, "sources", clean))
-		if err != nil || len(data) == 0 {
-			continue
-		}
-		text := string(data)
-		if len(text) > maxUpstreamBlockChars {
-			text = text[:maxUpstreamBlockChars] + "…"
-		}
-		if total+len(text) > maxUpstreamTotalChars {
-			break
-		}
-		fmt.Fprintf(&b, "\n\n%s", prompt.Untrusted("local source: "+name, strings.TrimSpace(text)))
-		total += len(text)
+	manifest, err := source.LoadLocal(p.RepositoryPath,
+		source.ProjectSpecs(p.Sources, []string{"wire"}), source.DefaultLimits())
+	if err != nil {
+		slog.Warn("contextasm: loading project sources", "project", p.ID, "err", err)
+		return task
 	}
-	// The local news wire is source material too.
-	_ = filepath.WalkDir(filepath.Join(p.RepositoryPath, "wire"), func(path string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".md") || total > maxUpstreamTotalChars {
-			return nil
-		}
-		data, rerr := os.ReadFile(path)
-		if rerr != nil {
-			return nil
-		}
-		text := string(data)
-		if len(text) > maxUpstreamBlockChars {
-			text = text[:maxUpstreamBlockChars] + "…"
-		}
-		rel, _ := filepath.Rel(p.RepositoryPath, path)
-		if total+len(text) > maxUpstreamTotalChars {
-			return fs.SkipAll
-		}
-		fmt.Fprintf(&b, "\n\n%s", prompt.Untrusted("wire source: "+rel, strings.TrimSpace(text)))
-		total += len(text)
-		return nil
-	})
-	if b.Len() == 0 {
+	block := manifest.PromptBlock(maxUpstreamTotalChars)
+	if block == "" {
 		return task
 	}
 	task.Description = strings.TrimRight(task.Description, "\n") +
-		"\n\nSOURCE MATERIAL (authoritative; cite the file name, do not invent facts):" + b.String()
+		"\n\nSOURCE MATERIAL (authoritative; cite the file name, do not invent facts):\n\n" + block
 	return task
 }
 
