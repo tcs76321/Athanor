@@ -10,6 +10,24 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Engine-driven research discovery (2026-11-17)
+
+- **`search_web` is live in the loop.** A research block's `queries` config
+  compiles to a `SEARCH QUERIES:` list; the engine runs up to three through
+  the gateway, dedupes the hits with explicit URLs, and fetches them under the
+  same policy. With no explicit query and the search profile configured, the
+  block searches its own title + goal once.
+  [ADR-0140](docs/adr/0140-engine-driven-research-discovery.md).
+- **Research is tool-gated.** Only a task whose envelope grants `fetch_url`
+  runs the sub-step; synthesize/verify/retain no longer refetch the project's
+  sources.
+- **The typed edge carries data.** A research/fetch task reads its upstream
+  block's accepted output and extracts URLs from it, so `research -> fetch`
+  is a real handoff. The audit rows separate `research_search`,
+  `research_source`, and `research_fetch`.
+- **Canvas.**
+  Research blocks gain a "Search queries (one per line)" inspector field.
+
 ### Two-level network policy and URL-base grants (2026-11-17)
 
 - **Global + project policy.** Precedence is global deny > project deny >

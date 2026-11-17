@@ -31,6 +31,9 @@ type fakeRunner struct {
 	// URL, plus a global failure override.
 	fetches  map[string]string
 	fetchErr error
+	// Search discovery knobs (SearchWeb).
+	searchResults []toolenvelope.SearchResult
+	searchErr     error
 }
 
 type fakeCall struct {
@@ -55,6 +58,15 @@ func (f *fakeRunner) WithFetch(url, markdown string) *fakeRunner {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.fetches[url] = markdown
+	return f
+}
+
+// WithSearch returns the given hits for every SearchWeb call.
+func (f *fakeRunner) WithSearch(results []toolenvelope.SearchResult, err error) *fakeRunner {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.searchResults = results
+	f.searchErr = err
 	return f
 }
 
@@ -149,6 +161,15 @@ func (f *fakeRunner) ReadFile(_ context.Context, jobID string, req toolenvelope.
 // fetches holds the canned fetch outcomes (M4-T7 research sub-step).
 // The key is the requested URL; a missing key means "success with
 // the canned markdown". fetchErr / fetchDisallow override globally.
+func (f *fakeRunner) SearchWeb(_ context.Context, _ string, req toolenvelope.SearchWebRequest) (toolenvelope.SearchWebResponse, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.searchErr != nil {
+		return toolenvelope.SearchWebResponse{}, f.searchErr
+	}
+	return toolenvelope.SearchWebResponse{Query: req.Query, Results: append([]toolenvelope.SearchResult(nil), f.searchResults...)}, nil
+}
+
 func (f *fakeRunner) FetchURL(_ context.Context, jobID string, req toolenvelope.FetchURLRequest) (toolenvelope.FetchURLResponse, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()

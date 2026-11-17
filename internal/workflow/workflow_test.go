@@ -415,6 +415,21 @@ func TestCompileFoldsSourcesIntoResearchAndFetch(t *testing.T) {
 	}
 }
 
+func TestCompileTurnsResearchQueriesIntoAQueryBlock(t *testing.T) {
+	g := Graph{Blocks: []Block{{ID: "research", Kind: KindResearch,
+		Config: map[string]any{"queries": []any{"local first software", "sqlite WAL mode"}}}}}
+	specs, err := Compile(g, CompileOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	desc := specs[0].Description
+	for _, want := range []string{"SEARCH QUERIES:", "- local first software", "- sqlite WAL mode"} {
+		if !strings.Contains(desc, want) {
+			t.Errorf("research description missing %q: %q", want, desc)
+		}
+	}
+}
+
 func TestCompileUsesDefaultAcceptanceWhenConfigOmitsIt(t *testing.T) {
 	g := Graph{Blocks: []Block{{ID: "research", Kind: KindResearch}}}
 	specs, err := Compile(g, CompileOptions{})

@@ -121,9 +121,19 @@ func (d *Deps) phaseDivergeN(ctx context.Context, j job.Job) error {
 	// extracted markdown into every candidate's prompt. Soft-fails
 	// per source; an empty string means no sources (the sub-step is
 	// a silent no-op for tasks without URLs).
-	research, err := d.researchContext(ctx, j, p, t)
-	if err != nil {
-		return fmt.Errorf("research sub-step: %w", err)
+	//
+	// Only a task whose envelope grants fetch_url runs the sub-step. Before
+	// this guard every block in a URL-bearing project refetched the same
+	// sources, including synthesize/verify/retain where a fresh fetch is
+	// pure cost. The block graph already carries the grant, so it is the
+	// right gate.
+	var research string
+	if allowsTool(t, "fetch_url") {
+		upstream := d.Runtime.UpstreamText(ctx, p.ID, t.DependsOn)
+		research, err = d.researchContext(ctx, j, p, t, upstream)
+		if err != nil {
+			return fmt.Errorf("research sub-step: %w", err)
+		}
 	}
 
 	// H1: a prior reflection's proposal guides the retry so it is a real

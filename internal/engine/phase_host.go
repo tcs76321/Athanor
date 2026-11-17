@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"strings"
 
 	"github.com/tcs76321/athanor/internal/artifact"
 	"github.com/tcs76321/athanor/internal/engine/acceptance"
@@ -33,6 +34,34 @@ func (h phaseHost) Plan(ctx context.Context, j job.Job, p project.Project, t pro
 
 func (h phaseHost) RoleFor(plan policy.Plan, phase, fallback string) string {
 	return h.e.roleFor(plan, phase, fallback)
+}
+
+// UpstreamText is the phase-side read of completed dependency output. The
+// research/fetch blocks use it to turn a typed `urls` edge into actual fetch
+// targets; a missing seam or a read error is an empty string (the block still
+// has its own sources).
+func (h phaseHost) UpstreamText(ctx context.Context, projectID string, taskIDs []string) string {
+	if h.e.dependencies == nil || len(taskIDs) == 0 {
+		return ""
+	}
+	outs, err := h.e.dependencies.TaskOutputs(ctx, projectID, taskIDs)
+	if err != nil {
+		return ""
+	}
+	var b strings.Builder
+	for _, o := range outs {
+		text := strings.TrimSpace(o.Content)
+		if text == "" {
+			continue
+		}
+		if b.Len() > 0 {
+			b.WriteString("\n\n")
+		}
+		b.WriteString(o.Title)
+		b.WriteString("\n")
+		b.WriteString(text)
+	}
+	return b.String()
 }
 
 func (h phaseHost) Contexts(ctx context.Context, j job.Job) (project.Project, project.Task, error) {

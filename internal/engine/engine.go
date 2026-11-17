@@ -165,6 +165,11 @@ type ToolRunner interface {
 	// toolenvelope.ErrToolDisallowed and the research sub-step
 	// soft-fails that source.
 	FetchURL(ctx context.Context, jobID string, req toolenvelope.FetchURLRequest) (toolenvelope.FetchURLResponse, error)
+	// SearchWeb runs one configured search-engine query and returns the
+	// extracted result links (M4-T7, ADR-0019 §4). The research sub-step
+	// uses it for source discovery; an unconfigured engine is a typed
+	// soft-fail, not a job failure.
+	SearchWeb(ctx context.Context, jobID string, req toolenvelope.SearchWebRequest) (toolenvelope.SearchWebResponse, error)
 }
 
 // GitCommitter is the §14 Git-as-undo seam: it records an accepted

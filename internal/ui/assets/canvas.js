@@ -17,6 +17,7 @@
   const inspectorBody = document.getElementById("canvas-inspector-body");
   const inspTitle = document.getElementById("insp-title");
   const inspInstructions = document.getElementById("insp-instructions");
+  const inspQueries = document.getElementById("insp-queries");
   const inspAcceptance = document.getElementById("insp-acceptance");
   const inspMeta = document.getElementById("insp-meta");
   const connectBox = document.getElementById("insp-connect-box");
@@ -199,6 +200,7 @@
     inspectorBody.hidden = false;
     inspTitle.value = b.title || (spec && spec.title) || "";
     inspInstructions.value = (b.config && b.config.instructions) || "";
+    inspQueries.value = ((b.config && b.config.queries) || []).join("\n");
     inspAcceptance.value = ((b.config && b.config.acceptance) || []).join("\n");
     inspMeta.textContent = "";
     if (spec) {
@@ -255,6 +257,9 @@
     b.config = b.config || {};
     if (inspInstructions.value.trim()) b.config.instructions = inspInstructions.value.trim();
     else delete b.config.instructions;
+    const queries = inspQueries.value.split("\n").map((s) => s.trim()).filter(Boolean);
+    if (queries.length) b.config.queries = queries;
+    else delete b.config.queries;
     const acc = inspAcceptance.value.split("\n").map((s) => s.trim()).filter(Boolean);
     if (acc.length) b.config.acceptance = acc;
     else delete b.config.acceptance;

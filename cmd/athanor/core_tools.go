@@ -14,6 +14,7 @@ import (
 // *gatewayToolAdapter; the interface exists so the routing is testable).
 type gatewayFetcher interface {
 	FetchURL(ctx context.Context, req toolenvelope.FetchURLRequest) (*toolenvelope.FetchURLResponse, error)
+	SearchWeb(ctx context.Context, req toolenvelope.SearchWebRequest) (*toolenvelope.SearchWebResponse, error)
 }
 
 // envelopeLookup resolves a job's tool envelope. *project.Repo implements it.
@@ -57,6 +58,36 @@ func (c *coreFetch) FetchURL(ctx context.Context, jobID string, req toolenvelope
 	return *res, nil
 }
 
+// SearchWeb executes search_web in the Core, with the same envelope check and
+// typed-error mapping as FetchURL.
+func (c *coreFetch) SearchWeb(ctx context.Context, jobID string, req toolenvelope.SearchWebRequest) (toolenvelope.SearchWebResponse, error) {
+	if c.gateway == nil {
+		return toolenvelope.SearchWebResponse{}, errors.New("core search: gateway is not configured")
+	}
+	if c.envelopes != nil {
+		env, err := c.envelopes.EnvelopeFor(ctx, jobID, c.defaultEnv)
+		if err != nil {
+			return toolenvelope.SearchWebResponse{}, fmt.Errorf("core search: tool envelope: %w", err)
+		}
+		if !env.Allows(toolenvelope.ToolSearchWeb) {
+			return toolenvelope.SearchWebResponse{}, toolenvelope.ErrToolDisallowed
+		}
+	}
+	req.JobID = jobID
+	res, err := c.gateway.SearchWeb(ctx, req)
+	switch {
+	case errors.Is(err, internalapi.ErrFetchDenied):
+		return toolenvelope.SearchWebResponse{}, toolenvelope.ErrPolicyDenied
+	case errors.Is(err, internalapi.ErrSearchNotConfigured):
+		return toolenvelope.SearchWebResponse{}, err
+	case err != nil:
+		return toolenvelope.SearchWebResponse{}, err
+	case res == nil:
+		return toolenvelope.SearchWebResponse{}, errors.New("core search: empty response")
+	}
+	return *res, nil
+}
+
 // hybridRunner sends Core tools to the Core and pod tools to the Job Pod.
 // Without this split, a text-only cycle (research, fetch, condense) fails every
 // fetch with "no active pod" even though no pod is needed.
@@ -83,4 +114,8 @@ func (h hybridRunner) ReadFile(ctx context.Context, jobID string, req toolenvelo
 
 func (h hybridRunner) FetchURL(ctx context.Context, jobID string, req toolenvelope.FetchURLRequest) (toolenvelope.FetchURLResponse, error) {
 	return h.core.FetchURL(ctx, jobID, req)
+}
+
+func (h hybridRunner) SearchWeb(ctx context.Context, jobID string, req toolenvelope.SearchWebRequest) (toolenvelope.SearchWebResponse, error) {
+	return h.core.SearchWeb(ctx, jobID, req)
 }

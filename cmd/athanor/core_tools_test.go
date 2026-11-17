@@ -20,6 +20,10 @@ func (f *fakeGatewayFetch) FetchURL(context.Context, toolenvelope.FetchURLReques
 	return f.res, f.err
 }
 
+func (f *fakeGatewayFetch) SearchWeb(context.Context, toolenvelope.SearchWebRequest) (*toolenvelope.SearchWebResponse, error) {
+	return &toolenvelope.SearchWebResponse{}, f.err
+}
+
 type fakeEnvelopes struct {
 	env toolenvelope.Envelope
 	err error

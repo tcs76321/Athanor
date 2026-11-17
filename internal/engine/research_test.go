@@ -213,6 +213,72 @@ func (p *pickRunner) FetchURL(ctx context.Context, jobID string, req toolenvelop
 	return p.ToolRunner.FetchURL(ctx, jobID, req)
 }
 
+// TestDiverge_SkipsResearchWithoutFetchGrant proves the tool gate: a task
+// whose envelope does not grant fetch_url does not fetch the URLs in its
+// prose. Before the gate, every block in a URL-bearing project refetched the
+// same sources.
+func TestDiverge_SkipsResearchWithoutFetchGrant(t *testing.T) {
+	env := newEnv(t)
+	_, _, jobID := env.createProjectTask(t, "text",
+		"Summarize local-first software, grounded in https://docs.test/local-first.")
+	env.runner.WithFetch("https://docs.test/local-first", "should not be fetched")
+
+	env.eng.Run(context.Background(), jobID)
+
+	j, err := env.jobs.Get(context.Background(), jobID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if j.State != job.StateCompleted {
+		t.Fatalf("state = %s, want completed", j.State)
+	}
+	if out := researchOutcomes(t, env, jobID); len(out) != 0 {
+		t.Errorf("research ran without a fetch_url grant: %v", out)
+	}
+}
+
+// TestDiverge_SearchDiscoversAndFetchesSource proves the discovery half:
+// a research task with a SEARCH QUERIES list and the search_web grant runs the
+// query, then fetches the returned hit through the same gateway path.
+func TestDiverge_SearchDiscoversAndFetchesSource(t *testing.T) {
+	env := newEnv(t)
+	_, _, jobID := env.createProjectTask(t, "text", "Research the local-first software movement.")
+	env.runner.WithSearch([]toolenvelope.SearchResult{
+		{Title: "Local-first", URL: "https://docs.test/found"},
+	}, nil)
+	env.runner.WithFetch("https://docs.test/found", "local-first keeps data on the device")
+	if _, err := env.db.DB().Exec(
+		`UPDATE tasks SET allowed_tools_json = '["fetch_url","search_web"]',
+		 description = description || char(10) || char(10) || 'SEARCH QUERIES:' || char(10) || '- local first software'
+		 WHERE id = (SELECT task_id FROM jobs WHERE id = ?)`, jobID); err != nil {
+		t.Fatal(err)
+	}
+
+	env.eng.Run(context.Background(), jobID)
+
+	j, err := env.jobs.Get(context.Background(), jobID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if j.State != job.StateCompleted {
+		t.Fatalf("state = %s, want completed", j.State)
+	}
+	out := researchOutcomes(t, env, jobID)
+	if out["fetched"] != 1 {
+		t.Errorf("outcomes = %v, want fetched=1 from the discovered source", out)
+	}
+	var searched bool
+	recs, _ := env.db.QueryEvents(context.Background(), store.EventFilter{JobID: jobID})
+	for _, r := range recs {
+		if strings.Contains(r.DataJSON, `"event":"research_search"`) && strings.Contains(r.DataJSON, `"outcome":"completed"`) {
+			searched = true
+		}
+	}
+	if !searched {
+		t.Error("no completed research_search audit row")
+	}
+}
+
 // TestDiverge_InjectsResearchIntoCandidates is the phase-level
 // integration proof: a job whose goal declares URLs runs the research
 // sub-step inside phaseDivergeN and every divergence candidate's
@@ -224,6 +290,13 @@ func TestDiverge_InjectsResearchIntoCandidates(t *testing.T) {
 	_, _, jobID := env.createProjectTask(t, "text",
 		"Summarize the state of local-first software, grounded in https://docs.test/local-first.")
 	env.runner.WithFetch("https://docs.test/local-first", "local-first means data stays on your device.")
+	// The research sub-step is gated on the task's fetch_url grant (a
+	// synthesize/verify block has no grant and must not refetch).
+	if _, err := env.db.DB().Exec(
+		`UPDATE tasks SET allowed_tools_json = '["fetch_url"]'
+		 WHERE id = (SELECT task_id FROM jobs WHERE id = ?)`, jobID); err != nil {
+		t.Fatal(err)
+	}
 
 	env.eng.Run(context.Background(), jobID)
 

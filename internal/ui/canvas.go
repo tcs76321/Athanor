@@ -263,6 +263,7 @@ const canvasBody = `
       <div id="canvas-inspector-body" hidden>
         <label class="field"><span>Title</span><input id="insp-title" type="text" maxlength="120"></label>
         <label class="field"><span>Instructions</span><textarea id="insp-instructions" rows="5"></textarea></label>
+        <label class="field"><span>Search queries (one per line; research blocks)</span><textarea id="insp-queries" rows="3"></textarea></label>
         <label class="field"><span>Acceptance (one per line)</span><textarea id="insp-acceptance" rows="5"></textarea></label>
         <div class="canvas-insp-meta" id="insp-meta"></div>
         <div class="actions">

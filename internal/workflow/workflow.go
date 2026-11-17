@@ -678,6 +678,11 @@ func description(b Block, spec BlockSpec, opts CompileOptions) string {
 	if s, ok := b.Config["instructions"].(string); ok && strings.TrimSpace(s) != "" {
 		parts = append(parts, s)
 	}
+	if b.Kind == KindResearch {
+		if qs := configStrings(b.Config["queries"]); len(qs) > 0 {
+			parts = append(parts, "SEARCH QUERIES:\n- "+strings.Join(qs, "\n- "))
+		}
+	}
 	if (b.Kind == KindResearch || b.Kind == KindFetch) && len(opts.Sources) > 0 {
 		var sb strings.Builder
 		sb.WriteString("Sources to use:")
@@ -741,6 +746,25 @@ func criteria(config map[string]any, defaults []string) []string {
 		for _, x := range v {
 			if s, ok := x.(string); ok {
 				out = append(out, s)
+			}
+		}
+		return out
+	default:
+		return nil
+	}
+}
+
+// configStrings reads a string list from a block's free-form config. Both
+// []string (YAML/programmatic) and []any (JSON round-trip) are accepted.
+func configStrings(raw any) []string {
+	switch v := raw.(type) {
+	case []string:
+		return v
+	case []any:
+		out := make([]string, 0, len(v))
+		for _, x := range v {
+			if s, ok := x.(string); ok && strings.TrimSpace(s) != "" {
+				out = append(out, strings.TrimSpace(s))
 			}
 		}
 		return out

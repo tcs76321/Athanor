@@ -54,6 +54,10 @@ type Runtime interface {
 	Plan(ctx context.Context, j job.Job, p project.Project, t project.Task) policy.Plan
 	RoleFor(plan policy.Plan, phase, fallback string) string
 	Contexts(ctx context.Context, j job.Job) (project.Project, project.Task, error)
+	// UpstreamText returns the completed dependency tasks' accepted output,
+	// bounded by the caller. It is how a research/fetch block discovers URLs
+	// an upstream block found (the typed urls port's data-plane half).
+	UpstreamText(ctx context.Context, projectID string, taskIDs []string) string
 	Audit(ctx context.Context, jobID string, data map[string]any)
 	AuditComputePlan(ctx context.Context, jobID, stage string, plan policy.Plan)
 	AuditVerification(ctx context.Context, jobID, where string, r verify.Result)
@@ -83,6 +87,7 @@ type ToolRunner interface {
 	RunLint(ctx context.Context, jobID string, req toolenvelope.ExecuteRequest) (toolenvelope.ExecuteResult, error)
 	ReadFile(ctx context.Context, jobID string, req toolenvelope.ReadFileRequest) (toolenvelope.ReadFileResponse, error)
 	FetchURL(ctx context.Context, jobID string, req toolenvelope.FetchURLRequest) (toolenvelope.FetchURLResponse, error)
+	SearchWeb(ctx context.Context, jobID string, req toolenvelope.SearchWebRequest) (toolenvelope.SearchWebResponse, error)
 }
 
 // Deps is everything a phase needs. Config, repositories, and the runner are
@@ -246,7 +251,7 @@ func (d *Deps) BestPassingCandidate(ctx context.Context, j job.Job) (artifact.Ar
 }
 
 func (d *Deps) ResearchContext(ctx context.Context, j job.Job, p project.Project, t project.Task) (string, error) {
-	return d.researchContext(ctx, j, p, t)
+	return d.researchContext(ctx, j, p, t, "")
 }
 
 func (d *Deps) PhaseCompare(ctx context.Context, j job.Job) error {
