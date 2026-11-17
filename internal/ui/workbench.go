@@ -20,7 +20,12 @@ type workbenchView struct {
 	Coverage  []coverageView
 	Triggers  []trigger.Record
 	Sources   []sourceStatus
+	Tasks     []workbenchTask
 	HasCycles bool
+}
+
+type workbenchTask struct {
+	Title, Key, State, JobID string
 }
 
 type coverageView struct {
@@ -68,6 +73,19 @@ func (u *UI) handleWorkbench(w http.ResponseWriter, r *http.Request) {
 	if u.deps.Cycles != nil {
 		if list, err := u.deps.Cycles.ListByProject(ctx, p.ID); err == nil {
 			view.HasCycles = len(list) > 0
+		}
+	}
+	if tasks, err := u.deps.Projects.TasksByProject(ctx, p.ID); err == nil {
+		for _, t := range tasks {
+			row := workbenchTask{Title: t.Title, Key: t.ID, State: string(t.Status)}
+			if jobs, jerr := u.deps.Jobs.ByTask(ctx, t.ID); jerr == nil && len(jobs) > 0 {
+				row.JobID = jobs[0].ID
+				row.State = string(jobs[0].State)
+			}
+			view.Tasks = append(view.Tasks, row)
+			if len(view.Tasks) >= 30 {
+				break
+			}
 		}
 	}
 	u.render(w, "Workbench — "+p.Name, workbenchBody, map[string]any{
@@ -144,6 +162,22 @@ const workbenchBody = `
   <a class="btn secondary" href="/ui/projects/{{.Project.ID}}/canvas">Canvas</a>
   {{if .View.HasCycles}}<a class="btn secondary" href="/ui/projects/{{.Project.ID}}/cycles/new">New cycle</a>{{end}}
 </div>
+
+<h2>Current cycle</h2>
+{{if .View.Tasks}}
+<table>
+  <thead><tr><th>Block</th><th>State</th><th>Run</th></tr></thead>
+  <tbody>
+  {{range .View.Tasks}}
+    <tr>
+      <td>{{.Title}}</td>
+      <td><span class="pill {{stateClass .State}}">{{.State}}</span></td>
+      <td>{{if .JobID}}<a class="mono" href="/ui/jobs/{{.JobID}}">open</a>{{else}}<span class="muted">not run</span>{{end}}</td>
+    </tr>
+  {{end}}
+  </tbody>
+</table>
+{{else}}<p class="muted">No tasks yet. Create a cycle from a template.</p>{{end}}
 
 <h2>Latest accepted work</h2>
 {{if .View.Accepted}}
