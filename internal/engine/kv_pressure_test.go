@@ -485,6 +485,11 @@ func TestKVCacheAssemblyEvictsInsteadOfReachingCritical(t *testing.T) {
 		t.Fatal(err)
 	}
 	if j.State != job.StateCompleted {
+		if recs, err := e.db.QueryEvents(context.Background(), store.EventFilter{JobID: jobID}); err == nil {
+			for _, r := range recs {
+				t.Logf("event: %s", r.DataJSON)
+			}
+		}
 		t.Fatalf("job state = %s, want completed (the ladder relieved the pressure)", j.State)
 	}
 

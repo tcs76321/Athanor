@@ -51,8 +51,10 @@ func TestWithUpstreamAppendsDependencyOutputs(t *testing.T) {
 	if !strings.Contains(got.Description, "Generate three options.") {
 		t.Error("original description lost")
 	}
-	if !strings.Contains(got.Description, "UPSTREAM RESULT — Game Direction Research") ||
-		!strings.Contains(got.Description, "three candidate directions") {
+	if !strings.Contains(got.Description, "SOURCE: upstream result: Game Direction Research") ||
+		!strings.Contains(got.Description, "three candidate directions") ||
+		!strings.Contains(got.Description, "<<<UNTRUSTED DATA") ||
+		!strings.Contains(got.Description, "<<<END UNTRUSTED DATA>>>") {
 		t.Errorf("description = %q", got.Description)
 	}
 }

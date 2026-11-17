@@ -182,7 +182,7 @@ func (a *Assembler) withProjectSources(p project.Project, task project.Task) pro
 		if total+len(text) > maxUpstreamTotalChars {
 			break
 		}
-		fmt.Fprintf(&b, "\n\n--- %s ---\n%s", name, strings.TrimSpace(text))
+		fmt.Fprintf(&b, "\n\n%s", prompt.Untrusted("local source: "+name, strings.TrimSpace(text)))
 		total += len(text)
 	}
 	// The local news wire is source material too.
@@ -202,7 +202,7 @@ func (a *Assembler) withProjectSources(p project.Project, task project.Task) pro
 		if total+len(text) > maxUpstreamTotalChars {
 			return fs.SkipAll
 		}
-		fmt.Fprintf(&b, "\n\n--- %s ---\n%s", rel, strings.TrimSpace(text))
+		fmt.Fprintf(&b, "\n\n%s", prompt.Untrusted("wire source: "+rel, strings.TrimSpace(text)))
 		total += len(text)
 		return nil
 	})
@@ -242,7 +242,9 @@ func (a *Assembler) withUpstream(ctx context.Context, req PrepareRequest, task p
 		} else if len(text) > remaining {
 			text = text[:remaining]
 		}
-		fmt.Fprintf(&b, "\n\nUPSTREAM RESULT — %s\n%s", out.Title, text)
+		// Upstream work is model output derived from earlier context; it is
+		// reference material, not an instruction channel (W2 trust boundary).
+		fmt.Fprintf(&b, "\n\n%s", prompt.Untrusted("upstream result: "+out.Title, text))
 		total += len(text)
 	}
 	if b.Len() == 0 {

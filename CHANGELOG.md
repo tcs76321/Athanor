@@ -10,6 +10,22 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Untrusted content and instruction hierarchy (2026-11-17)
+
+- **Provenance at the prompt boundary.** Fetched sources, local sources, the
+  news wire, and upstream block output now render through
+  `prompt.Untrusted`, which labels the text as data, names its source, and
+  strips delimiter spoofing. The static system prompt states the authority
+  order (system > operator/project/task > tool results/external content).
+  [ADR-0137](docs/adr/0137-untrusted-content-and-instruction-hierarchy.md).
+- **Token accounting is additive.** `EstimateTokens` counts ASCII bytes at
+  4/byte and non-ASCII runes at one token each. A single em dash no longer
+  inflates an ASCII-heavy prompt ~4x, so the §10.5 ladder and §10.4 gate agree
+  about the same text.
+- **UI structure.** `internal/ui/ui.go` is split by surface (dashboard,
+  projects, watch, artifacts, render, diff) and the route table is pinned by
+  `internal/ui/routes_test.go`.
+
 ### v5 is the 0.0.0 benchmark (2026-11-11)
 
 - **Release line.** v5 is the instrument 0.0.0 is gated on; if v5 cannot meet

@@ -11,6 +11,7 @@ import (
 	"github.com/tcs76321/athanor/internal/job"
 	"github.com/tcs76321/athanor/internal/llm"
 	"github.com/tcs76321/athanor/internal/project"
+	"github.com/tcs76321/athanor/internal/prompt"
 	"github.com/tcs76321/athanor/internal/toolenvelope"
 )
 
@@ -164,7 +165,9 @@ func (d *Deps) researchContext(ctx context.Context, j job.Job, p project.Project
 			"event": "research_fetch", "url": u, "outcome": "fetched",
 			"mode": res.Mode, "bytes": len(md), "truncated": res.Truncated,
 		})
-		fmt.Fprintf(&b, "\n\n### Source: %s\n\n%s\n", u, md)
+		// External bytes are evidence, not instructions: frame the fetched
+		// markdown as a labeled untrusted block (W2 trust boundary).
+		fmt.Fprintf(&b, "\n\n%s\n", prompt.Untrusted("fetched source: "+u, md))
 	}
 	if b.Len() == 0 {
 		return local, nil

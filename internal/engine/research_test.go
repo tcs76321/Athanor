@@ -102,7 +102,7 @@ func TestResearchContext_FetchesAndFormats(t *testing.T) {
 	if err != nil {
 		t.Fatalf("researchContext: %v", err)
 	}
-	if !strings.Contains(block, "### Source: https://docs.test/a") ||
+	if !strings.Contains(block, "SOURCE: fetched source: https://docs.test/a") ||
 		!strings.Contains(block, "alpha markdown") ||
 		!strings.Contains(block, "fake source markdown for https://docs.test/b") {
 		t.Errorf("block = %q, want both attributed sources", block)
