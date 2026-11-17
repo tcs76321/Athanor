@@ -345,6 +345,7 @@ func applyDefaults(c *Config) {
 	setInt(&c.Recovery.MaxContextCompactions, 3)
 
 	setStr(&c.Network.DefaultPolicy, "deny")
+	setStr(&c.Network.Profile, "local-only")
 	setInt(&c.Network.RateLimitPerMinute, 30)
 	if c.Network.MaxResponseBytes == 0 {
 		c.Network.MaxResponseBytes = 10485760

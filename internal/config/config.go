@@ -845,12 +845,23 @@ type Recovery struct {
 // Network configures the Internet Gated Reader (§21.5)
 // and the external API Host-header allowlist (ADR-0011).
 type Network struct {
-	DefaultPolicy               string   `yaml:"default_policy"`
-	AllowList                   []string `yaml:"allow_list"`
-	RateLimitPerMinute          int      `yaml:"rate_limit_per_minute"`
-	MaxResponseBytes            int64    `yaml:"max_response_bytes"`
-	ReaderModeDefault           *bool    `yaml:"reader_mode_default"`
-	BrowserModeRequiresApproval *bool    `yaml:"browser_mode_requires_approval"`
+	DefaultPolicy string `yaml:"default_policy"`
+	// Profile selects a built-in baseline (local-only, research, custom).
+	// Its deny entries are merged with DenyList; its allow entries with
+	// AllowList. The profile never overrides default_policy.
+	Profile string `yaml:"profile"`
+	// AllowList and DenyList are host suffixes; a leading-dot suffix
+	// matches subdomains. Deny wins over allow.
+	AllowList []string `yaml:"allow_list"`
+	DenyList  []string `yaml:"deny_list"`
+	// BlocklistPath is an optional local threat-intel file (host suffixes,
+	// IPs, and CIDRs, one per line). It is read at boot; Athanor never
+	// downloads threat intel.
+	BlocklistPath               string `yaml:"blocklist_path"`
+	RateLimitPerMinute          int    `yaml:"rate_limit_per_minute"`
+	MaxResponseBytes            int64  `yaml:"max_response_bytes"`
+	ReaderModeDefault           *bool  `yaml:"reader_mode_default"`
+	BrowserModeRequiresApproval *bool  `yaml:"browser_mode_requires_approval"`
 	// ExternalAPIHostAllowlist is the set of
 	// "host:port" pairs the external API accepts
 	// (ADR-0011 §D1). Requests whose Host header is

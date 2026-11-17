@@ -421,6 +421,9 @@ func TestDefaultYAMLRoundTrip(t *testing.T) {
 		if len(c.Network.AllowList) == 0 {
 			c.Network.AllowList = nil
 		}
+		if len(c.Network.DenyList) == 0 {
+			c.Network.DenyList = nil
+		}
 		if len(c.Logging.Categories) == 0 {
 			c.Logging.Categories = nil
 		}
@@ -454,6 +457,9 @@ func TestExampleConfigMatchesDefaults(t *testing.T) {
 	for _, c := range []*Config{example, def} {
 		if len(c.Network.AllowList) == 0 {
 			c.Network.AllowList = nil
+		}
+		if len(c.Network.DenyList) == 0 {
+			c.Network.DenyList = nil
 		}
 		if len(c.Logging.Categories) == 0 {
 			c.Logging.Categories = nil

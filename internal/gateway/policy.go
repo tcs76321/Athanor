@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/url"
 	"strings"
+	"time"
 )
 
 // Policy is the §21.5 gateway's pure decision function (M4-T5,
@@ -40,6 +41,11 @@ type Policy struct {
 	// §3); it ships because operators will widen the
 	// allowlist to escape the smell otherwise.
 	denyList []string
+
+	// denyNets is the operator's local IP/CIDR blocklist. It is checked
+	// against every resolved IP after the private-IP guard, so an allowed
+	// hostname that resolves to a listed address is refused.
+	denyNets []*net.IPNet
 
 	// insecureSkipPrivateIPGuard disables the
 	// §21.5 DNS-rebinding guard's CIDR check.
@@ -104,6 +110,9 @@ type PolicyOptions struct {
 	DefaultPolicy string
 	AllowList     []string
 	DenyList      []string
+	// DenyNets is the local IP/CIDR blocklist. Entries may be bare IPs
+	// (treated as /32 or /128) or CIDRs. Invalid entries fail construction.
+	DenyNets []string
 	// InsecureSkipPrivateIPGuard disables the
 	// §21.5 DNS-rebinding guard's CIDR check.
 	// Setting this to true makes a hostname that
@@ -134,10 +143,15 @@ func NewPolicyWithOptions(o PolicyOptions) (*Policy, error) {
 	if err != nil {
 		return nil, err
 	}
+	nets, err := parseDenyNets(o.DenyNets)
+	if err != nil {
+		return nil, err
+	}
 	return &Policy{
 		defaultPolicy:              o.DefaultPolicy,
 		allowList:                  al,
 		denyList:                   dl,
+		denyNets:                   nets,
 		insecureSkipPrivateIPGuard: o.InsecureSkipPrivateIPGuard,
 	}, nil
 }
@@ -171,6 +185,36 @@ func normalizeHostList(in []string, field string) ([]string, error) {
 
 // isASCII reports whether every byte in s is < 0x80. The
 // fast path is a single pass; the function is inlinable.
+// parseDenyNets parses the local blocklist's IP/CIDR entries. A bare IP is
+// treated as a single-address network so the check has one shape.
+func parseDenyNets(in []string) ([]*net.IPNet, error) {
+	out := make([]*net.IPNet, 0, len(in))
+	for _, raw := range in {
+		entry := strings.TrimSpace(raw)
+		if entry == "" {
+			return nil, fmt.Errorf("gateway: deny_nets contains an empty entry")
+		}
+		if strings.Contains(entry, "/") {
+			_, n, err := net.ParseCIDR(entry)
+			if err != nil {
+				return nil, fmt.Errorf("gateway: deny_nets entry %q: %w", entry, err)
+			}
+			out = append(out, n)
+			continue
+		}
+		ip := net.ParseIP(entry)
+		if ip == nil {
+			return nil, fmt.Errorf("gateway: deny_nets entry %q is not an IP or CIDR", entry)
+		}
+		bits := 32
+		if ip.To4() == nil {
+			bits = 128
+		}
+		out = append(out, &net.IPNet{IP: ip, Mask: net.CIDRMask(bits, bits)})
+	}
+	return out, nil
+}
+
 func isASCII(s string) bool {
 	for i := 0; i < len(s); i++ {
 		if s[i] >= 0x80 {
@@ -259,6 +303,11 @@ const (
 	// malformed, has a non-http(s) scheme, or has no
 	// host.
 	DecisionInvalidURL
+	// DecisionDeniedBlocklist is returned when a host or one
+	// of its resolved IPs matches the operator's local
+	// blocklist. It is appended so the existing decision
+	// values stay stable.
+	DecisionDeniedBlocklist
 )
 
 // Eval evaluates the policy on a URL. It parses the URL,
@@ -273,6 +322,18 @@ const (
 //
 // The function is safe to call concurrently.
 func (p *Policy) Eval(ctx context.Context, rawURL string, r Resolver) (EvalResult, error) {
+	return p.EvalScoped(ctx, rawURL, Scope{}, time.Now(), r)
+}
+
+// EvalScoped evaluates the global policy plus one project's scope: its hard
+// deny list and its time-bounded URL-base grants. The precedence is:
+//
+//	global deny > project deny > project grant > global allow > default.
+//
+// The private/metadata guard always runs after an allow and always wins. A
+// grant matches scheme + exact host + a cleaned path prefix, so a grant for
+// /v1/ cannot be widened with /v1/../admin.
+func (p *Policy) EvalScoped(ctx context.Context, rawURL string, scope Scope, now time.Time, r Resolver) (EvalResult, error) {
 	u, err := url.Parse(rawURL)
 	if err != nil {
 		return EvalResult{Decision: DecisionInvalidURL, Reason: "invalid_url"}, fmt.Errorf("%w: %v", ErrInvalidURL, err)
@@ -302,6 +363,21 @@ func (p *Policy) Eval(ctx context.Context, rawURL string, r Resolver) (EvalResul
 			return EvalResult{Decision: DecisionDeniedDenyList, Host: host, Reason: "denied_denylist"}, ErrDeniedDenyList
 		}
 	}
+	// A project deny is more specific than a global allow, so it is checked
+	// before any grant or allow. A global deny still wins over a project
+	// allow because it was checked first.
+	for _, deny := range scope.Deny {
+		if matchHost(host, strings.ToLower(strings.TrimSpace(deny))) {
+			return EvalResult{Decision: DecisionDeniedDenyList, Host: host, Reason: "denied_project_denylist"}, ErrDeniedDenyList
+		}
+	}
+	// Grants are the project-scoped allow path. They are matched on the full
+	// URL (scheme + exact host + cleaned path prefix), not on the host alone.
+	for _, g := range scope.Grants {
+		if g.Matches(u, now) {
+			return p.allowAfterGuard(ctx, host, r, "allowed_grant")
+		}
+	}
 	// Allowlist. When defaultPolicy is "deny" (the
 	// shipped default) and the host is not in the
 	// allowlist, the request is refused. When
@@ -321,12 +397,12 @@ func (p *Policy) Eval(ctx context.Context, rawURL string, r Resolver) (EvalResul
 	if !allowed {
 		return EvalResult{Decision: DecisionDeniedOffList, Host: host, Reason: "denied_off_list"}, ErrDeniedOffList
 	}
+	return p.allowAfterGuard(ctx, host, r, "allowed")
+}
 
-	// At this point the host is permitted. The
-	// DNS-rebinding guard is the next check: the
-	// resolver returns the current IPs, and any
-	// non-routable IP is a refusal. The guard is the
-	// §21.5 SSRF defense (ADR-0017 §4).
+// allowAfterGuard runs the §21.5 DNS-rebinding guard for an otherwise
+// permitted URL and returns the allow decision with the pinned IPs.
+func (p *Policy) allowAfterGuard(ctx context.Context, host string, r Resolver, reason string) (EvalResult, error) {
 	addrs, err := r.LookupIPAddr(ctx, host)
 	if err != nil {
 		return EvalResult{Decision: DecisionDeniedPrivateIP, Host: host, Reason: "resolver_error"}, fmt.Errorf("gateway: resolving %q: %w", host, err)
@@ -338,13 +414,19 @@ func (p *Policy) Eval(ctx context.Context, rawURL string, r Resolver) (EvalResul
 	for _, ip := range ips {
 		if isNonRoutable(ip) {
 			if p.insecureSkipPrivateIPGuard {
-				// Test-only escape hatch.
-				// Production never sets
-				// this; see ADR-0017 §4.
+				// Test-only escape hatch. Production never sets this; see
+				// ADR-0017 §4.
 				continue
 			}
 			return EvalResult{Decision: DecisionDeniedPrivateIP, Host: host, ResolvedIPs: ips, Reason: "denied_private_ip"}, ErrDeniedPrivateIP
 		}
 	}
-	return EvalResult{Decision: DecisionAllowed, Host: host, ResolvedIPs: ips, Reason: "allowed"}, nil
+	for _, ip := range ips {
+		for _, n := range p.denyNets {
+			if n.Contains(ip) {
+				return EvalResult{Decision: DecisionDeniedBlocklist, Host: host, ResolvedIPs: ips, Reason: "denied_blocklist"}, ErrDeniedBlocklist
+			}
+		}
+	}
+	return EvalResult{Decision: DecisionAllowed, Host: host, ResolvedIPs: ips, Reason: reason}, nil
 }

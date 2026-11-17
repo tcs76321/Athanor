@@ -45,6 +45,7 @@ import (
 	"github.com/tcs76321/athanor/internal/jobpod"
 	"github.com/tcs76321/athanor/internal/llm"
 	"github.com/tcs76321/athanor/internal/logging"
+	"github.com/tcs76321/athanor/internal/netgrant"
 	"github.com/tcs76321/athanor/internal/notebook"
 	"github.com/tcs76321/athanor/internal/operator"
 	"github.com/tcs76321/athanor/internal/planning"
@@ -387,6 +388,11 @@ func run(configPath, addr, stateDir string, container bool) error {
 	// M6-T5 (ADR-0036): approval of a git_push request runs the push.
 	hitlSvc.SetApprover(hitl.TypeGitPush,
 		gitPushApprover{git: gitAdapter, projects: projectRepo, events: st}.Approve)
+	// ADR-0139: approval of a network-access request creates a project-scoped,
+	// time-bounded egress grant. Rejection or expiry changes nothing.
+	netgrantRepo := netgrant.NewRepo(st)
+	hitlSvc.SetApprover(hitl.TypeNetworkAccess,
+		networkGrantApprover{grants: netgrantRepo, ttl: 30 * 24 * time.Hour}.Approve)
 	// M6-T6 (ADR-0037): CorrectionRecords. The engine reports phase failures
 	// through the sink; the API serves the §18.4 rejection form and lists.
 	correctionsRepo := corrections.NewRepo(st)
@@ -641,7 +647,8 @@ func run(configPath, addr, stateDir string, container bool) error {
 	// One gateway adapter serves both the internal API (pod callers) and the
 	// engine's Core fetch path.
 	gatewayToolAdapter := newGatewayToolAdapter(gw, cfg.Network.SearchEngineURLTemplate,
-		cfg.Network.MaxResponseBytes, cfg.Limits.MaxConcurrentFetches)
+		cfg.Network.MaxResponseBytes, cfg.Limits.MaxConcurrentFetches,
+		job.NewRepository(st), netgrantRepo)
 	coreFetchRunner.gateway = gatewayToolAdapter
 	internalapi.New(tokenStoreAdapter{podMgr}, project.NewRepo(st), st,
 		project.NewRepo(st), defaultEnv,

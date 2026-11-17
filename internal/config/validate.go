@@ -246,6 +246,11 @@ func validateRaw(c *Config) error {
 	default:
 		return fmt.Errorf("network.default_policy must be \"deny\" or \"allow\", got %q", p)
 	}
+	switch p := c.Network.Profile; p {
+	case "", "local-only", "research", "custom":
+	default:
+		return fmt.Errorf("network.profile must be local-only, research, or custom, got %q", p)
+	}
 	// ADR-0011: the external API Host-header
 	// allowlist must contain valid "host:port"
 	// entries. Empty entries are rejected; an

@@ -45,6 +45,13 @@ type Client interface {
 	Fetch(ctx context.Context, req *http.Request) (*Response, error)
 }
 
+// ScopedClient is the project-aware fetch surface (ADR-0139). The concrete
+// client implements it; callers that only have the Client interface can
+// type-assert. A zero Scope is exactly Fetch.
+type ScopedClient interface {
+	FetchScoped(ctx context.Context, req *http.Request, scope Scope) (*Response, error)
+}
+
 // Response is the gateway's return type. It is a thin
 // wrapper over the standard library's `*http.Response`
 // that flattens the size-cap truncation decision into a
@@ -194,13 +201,23 @@ func NewClient(opts Options) (Client, error) {
 // 301/302/303 chains with per-hop policy re-evaluation,
 // per-hop rate limiting, and a per-hop pinned-IP dial.
 func (c *httpClient) Fetch(ctx context.Context, req *http.Request) (*Response, error) {
+	return c.fetch(ctx, req, Scope{})
+}
+
+// FetchScoped is Fetch with one project's grants and deny list. Redirect hops
+// re-evaluate the same scope, so a grant cannot be escaped by a redirect.
+func (c *httpClient) FetchScoped(ctx context.Context, req *http.Request, scope Scope) (*Response, error) {
+	return c.fetch(ctx, req, scope)
+}
+
+func (c *httpClient) fetch(ctx context.Context, req *http.Request, scope Scope) (*Response, error) {
 	if req == nil || req.URL == nil {
 		return nil, errors.New("gateway: Fetch requires a non-nil request with a URL")
 	}
 	currentURL := req.URL.String()
 	var chain []string
 	for hop := 0; ; hop++ {
-		res, err := c.fetchOnce(ctx, req, hop, chain)
+		res, err := c.fetchOnce(ctx, req, hop, chain, scope)
 		if err != nil {
 			return nil, err
 		}
@@ -283,14 +300,14 @@ func redirectTarget(base *url.URL, res *Response) (string, bool) {
 // → audit event. The per-hop `network` event carries the
 // hop index and, from hop 1 on, the accumulated redirect
 // chain (ADR-0019 §3).
-func (c *httpClient) fetchOnce(ctx context.Context, req *http.Request, hop int, chain []string) (*Response, error) {
+func (c *httpClient) fetchOnce(ctx context.Context, req *http.Request, hop int, chain []string, scope Scope) (*Response, error) {
 	start := c.clock()
 	requestID := newRequestID()
 
 	// Step 1: policy evaluation. A policy refusal
 	// returns an error and a nil body; the audit
 	// row carries the decision.
-	policyRes, err := c.policy.Eval(ctx, req.URL.String(), c.resolver)
+	policyRes, err := c.policy.EvalScoped(ctx, req.URL.String(), scope, c.clock(), c.resolver)
 	if err != nil {
 		c.auditDenied(ctx, requestID, req.URL.String(), policyRes, time.Since(start), hop, chain)
 		return nil, err

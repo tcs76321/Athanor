@@ -51,7 +51,31 @@ func startGateway(stateDir string, st *store.Store, netCfg config.Network, readS
 	// fatal so an operator who fat-fingers the
 	// config sees the error at startup, not at
 	// first fetch.
-	policy, err := gateway.NewPolicy(netCfg.DefaultPolicy, netCfg.AllowList, nil)
+	allow := append([]string(nil), netCfg.AllowList...)
+	deny := append([]string(nil), netCfg.DenyList...)
+	if netCfg.Profile != "" {
+		prof, ok := gateway.ProfileByName(netCfg.Profile)
+		if !ok {
+			return GatewayParts{}, fmt.Errorf("gateway: unknown network profile %q", netCfg.Profile)
+		}
+		allow = append(append([]string(nil), prof.Allow...), allow...)
+		deny = append(append([]string(nil), prof.Deny...), deny...)
+	}
+	var denyNets []string
+	if netCfg.BlocklistPath != "" {
+		hosts, nets, berr := gateway.LoadBlocklistFile(netCfg.BlocklistPath)
+		if berr != nil {
+			return GatewayParts{}, berr
+		}
+		deny = append(deny, hosts...)
+		denyNets = append(denyNets, nets...)
+	}
+	policy, err := gateway.NewPolicyWithOptions(gateway.PolicyOptions{
+		DefaultPolicy: netCfg.DefaultPolicy,
+		AllowList:     allow,
+		DenyList:      deny,
+		DenyNets:      denyNets,
+	})
 	if err != nil {
 		return GatewayParts{}, fmt.Errorf("gateway: building policy: %w", err)
 	}
@@ -80,7 +104,9 @@ func startGateway(stateDir string, st *store.Store, netCfg config.Network, readS
 	}
 	logger.Info("gateway: constructed",
 		"default_policy", netCfg.DefaultPolicy,
-		"allow_list_size", len(netCfg.AllowList),
+		"profile", netCfg.Profile,
+		"allow_list_size", len(allow),
+		"deny_list_size", len(deny),
 		"rate_limit_per_minute", netCfg.RateLimitPerMinute,
 		"max_response_bytes", netCfg.MaxResponseBytes,
 		"reader_mode", netCfg.ReaderMode(),

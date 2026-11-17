@@ -205,9 +205,20 @@ func (u *UI) handleProjectOnboardingPost(w http.ResponseWriter, r *http.Request)
 			u.fail(w, fmt.Errorf("the approval queue is not configured"))
 			return
 		}
+		scheme := "https"
+		prefix := "/"
+		if parsed, perr := url.Parse(source); perr == nil {
+			if parsed.Scheme == "http" || parsed.Scheme == "https" {
+				scheme = parsed.Scheme
+			}
+			if parsed.Path != "" {
+				prefix = parsed.Path
+			}
+		}
 		payload, _ := json.Marshal(map[string]any{
-			"host": host, "url": source, "project": projectID,
-			"instruction": "Add this host to network.allow_list in config.yaml, then restart or reload the Core. The UI does not rewrite network policy.",
+			"scheme": scheme, "host": host, "path_prefix": prefix,
+			"url": source, "project": projectID, "ttl_hours": 30 * 24,
+			"reason": "operator requested access from the project page",
 		})
 		expires := time.Now().Add(24 * time.Hour)
 		if _, err := u.deps.HITLRepo.Create(ctx, hitl.Request{

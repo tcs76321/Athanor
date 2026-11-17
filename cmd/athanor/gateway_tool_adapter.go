@@ -4,12 +4,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"net/url"
 	"strings"
 	"text/template"
+	"time"
 
 	"github.com/tcs76321/athanor/internal/gateway"
 	"github.com/tcs76321/athanor/internal/internalapi"
+	"github.com/tcs76321/athanor/internal/job"
+	"github.com/tcs76321/athanor/internal/netgrant"
 	"github.com/tcs76321/athanor/internal/toolenvelope"
 )
 
@@ -42,6 +46,10 @@ type gatewayToolAdapter struct {
 	// fetchSem bounds concurrent outbound tool fetches across all jobs
 	// (limits.max_concurrent_fetches). nil means no bound.
 	fetchSem chan struct{}
+	// jobs and grants resolve a job's project scope: its unexpired,
+	// unrevoked egress grants (ADR-0139). Nil disables scoping.
+	jobs   *job.Repository
+	grants *netgrant.Repo
 }
 
 // newGatewayToolAdapter returns the internalapi.ToolGateway for the
@@ -49,15 +57,56 @@ type gatewayToolAdapter struct {
 // (validated at config load); an empty value leaves search_web
 // inert. responseCap is network.max_response_bytes. maxConcurrentFetches
 // is limits.max_concurrent_fetches (0 or negative = unbounded).
-func newGatewayToolAdapter(parts GatewayParts, searchTemplate string, responseCap int64, maxConcurrentFetches int) *gatewayToolAdapter {
+func newGatewayToolAdapter(parts GatewayParts, searchTemplate string, responseCap int64, maxConcurrentFetches int,
+	jobs *job.Repository, grants *netgrant.Repo) *gatewayToolAdapter {
 	if responseCap <= 0 {
 		responseCap = 10485760
 	}
-	a := &gatewayToolAdapter{parts: parts, searchTemplate: searchTemplate, maxSearchResults: 10, responseCap: responseCap}
+	a := &gatewayToolAdapter{
+		parts: parts, searchTemplate: searchTemplate, maxSearchResults: 10,
+		responseCap: responseCap, jobs: jobs, grants: grants,
+	}
 	if maxConcurrentFetches > 0 {
 		a.fetchSem = make(chan struct{}, maxConcurrentFetches)
 	}
 	return a
+}
+
+// scopeFor resolves a job's project and its active grants. A lookup failure
+// yields an empty scope: the global policy still applies, and a grant is never
+// invented from a missing job.
+func (a *gatewayToolAdapter) scopeFor(ctx context.Context, jobID string) gateway.Scope {
+	if a.jobs == nil || a.grants == nil || jobID == "" {
+		return gateway.Scope{}
+	}
+	j, err := a.jobs.Get(ctx, jobID)
+	if err != nil || j.ProjectID == "" {
+		return gateway.Scope{}
+	}
+	active, err := a.grants.ActiveForProject(ctx, j.ProjectID, time.Now())
+	if err != nil {
+		return gateway.Scope{ProjectID: j.ProjectID}
+	}
+	out := make([]gateway.Grant, 0, len(active))
+	for _, g := range active {
+		grant := gateway.Grant{
+			Scheme: g.Scheme, Host: g.Host, PathPrefix: g.PathPrefix, Reason: g.Reason,
+		}
+		if g.ExpiresAt != nil {
+			grant.ExpiresAt = *g.ExpiresAt
+		}
+		out = append(out, grant)
+	}
+	return gateway.Scope{ProjectID: j.ProjectID, Grants: out}
+}
+
+// fetch applies the job's project scope when the concrete client supports it.
+func (a *gatewayToolAdapter) fetch(ctx context.Context, client gateway.Client, req *http.Request, jobID string) (*gateway.Response, error) {
+	scope := a.scopeFor(ctx, jobID)
+	if scoped, ok := client.(gateway.ScopedClient); ok && scope.ProjectID != "" {
+		return scoped.FetchScoped(ctx, req, scope)
+	}
+	return client.Fetch(ctx, req)
 }
 
 // acquireFetch reserves a fetch slot, or waits for one. The returned
@@ -97,7 +146,7 @@ func (a *gatewayToolAdapter) FetchURL(ctx context.Context, req toolenvelope.Fetc
 	if err != nil {
 		return nil, fmt.Errorf("gateway tool: build request: %w", err)
 	}
-	resp, err := a.parts.Client.Fetch(ctx, httpReq)
+	resp, err := a.fetch(ctx, a.parts.Client, httpReq, req.JobID)
 	if err != nil {
 		return nil, a.mapFetchError(err)
 	}
@@ -112,7 +161,7 @@ func (a *gatewayToolAdapter) FetchURL(ctx context.Context, req toolenvelope.Fetc
 	// One re-fetch at a halved cap (ADR-0019 §6). A nil
 	// NewClientWithCap skips the retry (tests may construct the
 	// adapter without the factory).
-	if retry := a.retryWithHalvedCap(ctx, req.URL, extracted); retry != nil {
+	if retry := a.retryWithHalvedCap(ctx, req.URL, extracted, req.JobID); retry != nil {
 		extracted = *retry
 	}
 	return a.fetchResponse(resp, extracted), nil
@@ -121,7 +170,7 @@ func (a *gatewayToolAdapter) FetchURL(ctx context.Context, req toolenvelope.Fetc
 // retryWithHalvedCap re-fetches the URL with a halved response cap
 // and returns the better extraction, or nil when the retry is
 // impossible or produced nothing larger.
-func (a *gatewayToolAdapter) retryWithHalvedCap(ctx context.Context, rawURL string, first extraction) *extraction {
+func (a *gatewayToolAdapter) retryWithHalvedCap(ctx context.Context, rawURL string, first extraction, jobID string) *extraction {
 	if a.parts.NewClientWithCap == nil {
 		return nil
 	}
@@ -133,7 +182,7 @@ func (a *gatewayToolAdapter) retryWithHalvedCap(ctx context.Context, rawURL stri
 	if err != nil {
 		return nil
 	}
-	resp, err := halvedClient.Fetch(ctx, httpReq)
+	resp, err := a.fetch(ctx, halvedClient, httpReq, jobID)
 	if err != nil {
 		return nil
 	}
@@ -210,7 +259,7 @@ func (a *gatewayToolAdapter) SearchWeb(ctx context.Context, req toolenvelope.Sea
 	if err != nil {
 		return nil, errors.Join(internalapi.ErrFetchFailed, err)
 	}
-	resp, err := a.parts.Client.Fetch(ctx, httpReq)
+	resp, err := a.fetch(ctx, a.parts.Client, httpReq, req.JobID)
 	if err != nil {
 		return nil, a.mapFetchError(err)
 	}

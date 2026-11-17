@@ -52,6 +52,11 @@ var scopeCarryingFields = map[string]bool{
 var scopeConstrainedRequestTypes = map[string]string{
 	"ContextSwapRequest": "handleContextSwap",
 	"QueryMemoryRequest": "handleQueryMemory",
+	// FetchURL/SearchWeb carry a json:"-" JobID stamped by the handler from
+	// the authenticated context; the gateway adapter uses it to resolve the
+	// project's grants (ADR-0139). A pod cannot set it over the wire.
+	"FetchURLRequest":  "handleFetchURL",
+	"SearchWebRequest": "handleSearchWeb",
 }
 
 // TestGateScopeIsolation is the structural proof described in the
@@ -116,8 +121,11 @@ func TestGateScopeIsolation(t *testing.T) {
 			t.Errorf("handler %s for %q not found under internalapi; the scope constraint has no home", handler, typ)
 			continue
 		}
-		if !strings.Contains(content, "req.Scope") {
-			t.Errorf("%s declares %s but does not reference req.Scope; a pod-supplied scope may be trusted (scope isolation gate)", path, handler)
+		for _, field := range detected[typ] {
+			if !strings.Contains(content, "req."+field) {
+				t.Errorf("%s declares %s.%s but the handler does not reference req.%s; a pod-supplied scope may be trusted (scope isolation gate)",
+					path, typ, field, field)
+			}
 		}
 	}
 }

@@ -13,7 +13,7 @@ import (
 func TestCyclesMigrationBackfillsLegacyCycle(t *testing.T) {
 	s, _ := openTemp(t)
 	db := s.DB()
-	if err := Migrate(db, migrationsExcept(t, "0048", "0049", "0050"), ""); err != nil {
+	if err := Migrate(db, migrationsExcept(t, "0048", "0049", "0050", "0051"), ""); err != nil {
 		t.Fatalf("migrate to 47: %v", err)
 	}
 	if got := VersionOf(t, db); got != 47 {

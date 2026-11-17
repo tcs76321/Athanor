@@ -57,6 +57,10 @@ type FetchURLRequest struct {
 	// Tool names the closed-set tool ("fetch_url"). Defense-in-depth
 	// double-check, same as ExecuteRequest.Tool.
 	Tool Tool `json:"tool"`
+	// JobID is set server-side by the internal API after bearer-token
+	// authentication; `json:"-"` keeps it out of the wire body so a job
+	// cannot choose another job's project scope.
+	JobID string `json:"-"`
 	// URL is the absolute http(s) URL to fetch. The gateway Policy
 	// re-validates it (allowlist, deny-list, DNS-rebinding guard);
 	// this field's only server-side check is scheme/host sanity so
@@ -93,6 +97,8 @@ type SearchWebRequest struct {
 	Tool           Tool   `json:"tool"`
 	Query          string `json:"query"`
 	TimeoutSeconds int    `json:"timeout_seconds,omitempty"`
+	// JobID is set server-side by the internal API (see FetchURLRequest).
+	JobID string `json:"-"`
 }
 
 // SearchResult is one extracted result link from the engine's results

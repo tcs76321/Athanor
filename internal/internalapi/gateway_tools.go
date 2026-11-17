@@ -105,6 +105,7 @@ func (a *API) handleFetchURL(w http.ResponseWriter, r *http.Request) {
 	// Defense-in-depth: stamp the tool identity before dispatch, the
 	// same contract ExecuteRequest.Tool documents for the pod tools.
 	req.Tool = toolenvelope.ToolFetchURL
+	req.JobID = jobID
 	ctx, cancel := toolTimeout(r.Context(), req.TimeoutSeconds)
 	defer cancel()
 	res, err := a.gateway.FetchURL(ctx, req)
@@ -151,6 +152,7 @@ func (a *API) handleSearchWeb(w http.ResponseWriter, r *http.Request) {
 	// Defense-in-depth: stamp the tool identity before dispatch, the
 	// same contract ExecuteRequest.Tool documents for the pod tools.
 	req.Tool = toolenvelope.ToolSearchWeb
+	req.JobID = jobID
 	ctx, cancel := toolTimeout(r.Context(), req.TimeoutSeconds)
 	defer cancel()
 	res, err := a.gateway.SearchWeb(ctx, req)

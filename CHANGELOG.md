@@ -10,6 +10,29 @@ New entries are appended at the top. Do not rewrite history.
 
 ## Unreleased
 
+### Two-level network policy and URL-base grants (2026-11-17)
+
+- **Global + project policy.** Precedence is global deny > project deny >
+  project grant > global allow > default, with the private/metadata guard
+  always last. Grants are `scheme://host/path-prefix`, exact-host, optionally
+  expiring, and stored in `network_grants` (migration 0051).
+  [ADR-0139](docs/adr/0139-two-level-network-policy.md).
+- **Approval creates access.** A `network_access` HITL request now creates a
+  project grant on approval; the UI's project-page request writes the grant
+  payload instead of telling the operator to edit config and restart.
+- **Built-in profiles.** `network.profile` selects `local-only` (default),
+  `research` (search engines + common research/docs sources), or `custom`. The
+  profile merges with explicit allow/deny lists and never disables the guard.
+- **Local blocklist.** `network.blocklist_path` reads host/IP/CIDR entries at
+  boot; no threat intel is downloaded. Host entries join the deny list, IPs
+  are checked against the resolved addresses.
+- **Scoped fetch.** The internal API stamps the authenticated job ID on the
+  request; the gateway resolves the job's project and active grants and calls
+  `FetchScoped`, so redirect hops stay inside the same scope.
+- **Pod scope hardening.** The scope-isolation gate now checks every
+  scope-carrying field, not just `Scope`; `query_memory` rejects a
+  `project_id` that is not the caller's own project.
+
 ### Contained source layer (2026-11-17)
 
 - **One reader, one containment path.** `internal/source` loads declared

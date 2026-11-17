@@ -35,6 +35,12 @@ var ErrDeniedDenyList = errors.New("gateway: host in deny_list")
 
 var ErrDeniedPrivateIP = errors.New("gateway: host resolved to non-routable IP")
 
+// ErrDeniedBlocklist is returned when a host or a resolved IP matches the
+// operator's local threat-intel blocklist (`network.blocklist_path`). It is
+// distinct from the private-IP guard: the guard is structural and always on,
+// while the blocklist is operator-supplied and reviewed.
+var ErrDeniedBlocklist = errors.New("gateway: host or IP in the local blocklist")
+
 var ErrIDNNotSupported = errors.New("gateway: non-ASCII host rejected (IDN not supported in M4-T5)")
 
 var ErrInvalidURL = errors.New("gateway: invalid URL")

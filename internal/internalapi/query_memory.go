@@ -71,6 +71,21 @@ func (a *API) handleQueryMemory(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	// ProjectID is an optional narrower scope. It must be the caller's own
+	// project; a pod cannot name another project and rely on the store's
+	// filter. (The Core-side adapter uses the same field for a trusted
+	// direct query; this is the pod-facing constraint.)
+	if req.ProjectID != "" {
+		pid := ""
+		if a.projects != nil {
+			pid, _ = a.projects.JobProject(r.Context(), jobID)
+		}
+		if pid == "" || req.ProjectID != pid {
+			a.auditReject(r.Context(), jobID, toolenvelope.ToolQueryMemory, "project not permitted")
+			writeError(w, http.StatusForbidden, "query_memory: project_id must be the caller's project")
+			return
+		}
+	}
 
 	// The per-job envelope gate. Gate G2's
 	// TestGateG2ToolEnvelopeBypassImpossible requires this handler file to

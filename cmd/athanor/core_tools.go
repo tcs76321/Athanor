@@ -44,6 +44,7 @@ func (c *coreFetch) FetchURL(ctx context.Context, jobID string, req toolenvelope
 			return toolenvelope.FetchURLResponse{}, toolenvelope.ErrToolDisallowed
 		}
 	}
+	req.JobID = jobID
 	res, err := c.gateway.FetchURL(ctx, req)
 	switch {
 	case errors.Is(err, internalapi.ErrFetchDenied):

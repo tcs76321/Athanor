@@ -321,8 +321,10 @@ func TestSSRF_ProductionWireNeverSkipsPrivateIPGuard(t *testing.T) {
 		t.Fatalf("NewPolicy-built policy Eval err = %v, want ErrDeniedPrivateIP (the guard must be on in production)", err)
 	}
 
-	// 2. Structural: cmd/athanor must never reference the escape
-	// hatch or the options constructor.
+	// 2. Structural: cmd/athanor must never reference the guard's escape
+	// hatch. NewPolicyWithOptions is allowed because it is how the profile
+	// and local blocklist are wired; the guard stays on by default and the
+	// forbidden identifier below is the only way to disable it.
 	entries, err := os.ReadDir("../../cmd/athanor")
 	if err != nil {
 		t.Fatal(err)
@@ -336,7 +338,7 @@ func TestSSRF_ProductionWireNeverSkipsPrivateIPGuard(t *testing.T) {
 		if rerr != nil {
 			t.Fatal(rerr)
 		}
-		for _, forbidden := range []string{"InsecureSkipPrivateIPGuard", "NewPolicyWithOptions"} {
+		for _, forbidden := range []string{"InsecureSkipPrivateIPGuard"} {
 			if strings.Contains(string(raw), forbidden) {
 				t.Errorf("cmd/athanor/%s references %q; the production wire must never weaken the private-IP guard (ADR-0017 §4)",
 					name, forbidden)
