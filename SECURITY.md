@@ -92,6 +92,28 @@ mistake them for gaps:
   is guarded by the Host allowlist (DNS rebinding) and the
   `Sec-Fetch-Site`/`Origin` check (CSRF). Any local process on the machine can
   drive it; remote access is SSH port forwarding, never an exposed listener.
+- **Indirect prompt injection is contained, not eliminated.** Fetched pages,
+  feeds, local source files, and upstream block output are labeled
+  `UNTRUSTED DATA` in the prompt and the static system prompt states the
+  authority order ([ADR-0137](docs/adr/0137-untrusted-content-and-instruction-hierarchy.md)).
+  The enforceable boundary remains capability containment: the model cannot
+  invoke tools, the engine executes a closed set, egress is gateway-only, and
+  irreversible actions are HITL-gated. A successful injection can still mislead
+  a report, poison memory, or plant a link; deterministic checks and human
+  review are the mitigation, not a claim that the model is immune.
+- **Local source reads are contained.** Declared sources and the news wire are
+  read through `internal/source` → `airlock/paths` (`O_NOFOLLOW`, symlink
+  refusal, per-file/total caps); a structural gate forbids a direct
+  `os.ReadFile` in the source-reading packages
+  ([ADR-0138](docs/adr/0138-contained-source-layer.md)).
+- **Network policy has two levels.** The global policy is the ceiling
+  (default-deny, profile, allow/deny lists, reserved/metadata guard). A project
+  can hold time-bounded URL-base grants approved through HITL; a grant never
+  overrides a global deny and never disables the guard
+  ([ADR-0139](docs/adr/0139-two-level-network-policy.md)). The optional local
+  blocklist is read from disk; Athanor does not download threat intel, and a
+  bundled static "known malicious IP" list is deliberately not shipped because
+  it goes stale.
 - **The model cannot invoke tools** (ADR-0080). The engine runs operations on
   a candidate; the prompt says so. A text/document artifact that is a
   tool-call transcript is a model failure, not a capability.
