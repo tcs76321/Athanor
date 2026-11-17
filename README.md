@@ -226,6 +226,22 @@ Then watch it work in real time from the Watch View, or queue it and check the M
   per-major controlled study — the soak is one run shape — and it must report
   MCE-sensitive mechanism metrics (retrieval, context/KV, compaction), not just
   pass rates ([ADR-0075](docs/adr/0075-frozen-corpus-compass.md)).
+- **Research and daily news (0.0.x).** A research block can discover sources
+  through the configured search engine, fetch them through the allowlisted
+  gateway, and cite them; a denied host files a one-click project grant request
+  instead of failing silently. News cycles read a local `wire/` directory or
+  an RSS/Atom/RDF feed, enforce the `New` / `Previously reported` split with a
+  **coverage ledger**, and schedule in local time. The project **workbench**
+  shows the latest report, sources, grants, coverage, and next run.
+  [Demo](docs/demo-research-news.md); decisions in
+  [ADR-0137](docs/adr/0137-untrusted-content-and-instruction-hierarchy.md),
+  [ADR-0138](docs/adr/0138-contained-source-layer.md),
+  [ADR-0139](docs/adr/0139-two-level-network-policy.md),
+  [ADR-0140](docs/adr/0140-engine-driven-research-discovery.md),
+  [ADR-0141](docs/adr/0141-coverage-ledger.md),
+  [ADR-0142](docs/adr/0142-timezone-aware-schedules.md), and
+  [ADR-0143](docs/adr/0143-operator-workbench.md).
+
 - **Benchmark v5 — the 0.0.0 instrument (candidate).** v5 is the benchmark
   0.0.0 is gated on ([ADR-0136](docs/adr/0136-v5-grounded-agency-benchmark.md)):
   two local generators, a pinned roster, deterministic/external labels, and a
