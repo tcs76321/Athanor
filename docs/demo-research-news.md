@@ -17,6 +17,13 @@ the frozen corpus is untouched.
 - The workbench shows the report, sources, grants, coverage, and the next run
   in one place.
 
+> **State storage.** Use the Core Pod's Podman-managed state volume (the
+> installer does). Do **not** bind-mount the state directory on macOS: the
+> 2026-11-17 live demo did, and `PRAGMA integrity_check` reported a malformed
+> database after two jobs. SQLite locking over a host bind mount is the known
+> risk (`ARCHITECTURE.md` §4 persistence rules); a named volume is the
+> supported shape.
+
 ## 1. Local research (no network)
 
 Put a source in a repository under the mounted repos directory:
@@ -53,6 +60,14 @@ network:
 
 The search engine host must be on the profile/list; result hosts still need a
 grant or a global allow entry.
+
+> **Public engines may block automated requests.** The live 2026-11-17 run
+> reached DuckDuckGo's HTML endpoint and got a page with no extractable result
+> links (`research_search` completed with `results=0`). The plumbing is fine;
+> the engine chose not to serve results. A local **SearXNG** instance (add its
+> host to `allow_list`) is the reliable choice. The research block still
+> produces an honest "no sources" result, and the trace names the zero-result
+> query.
 
 1. Create a research project with a goal such as "What changed in SQLite WAL
    mode this year?" and no repository.
@@ -131,6 +146,22 @@ stored instant logic.
 - `network_access_request` — filed when a denial is actionable.
 - `coverage_recorded` — items written by retain.
 - The prompt trace shows the `UNTRUSTED DATA` block around each source.
+
+## Live evidence — 2026-11-17
+
+Run on macOS / Podman 6.0.2 / Ollama, Core Pod image built from this tree,
+`bonsai-2:9b` + `granite4.2:8b`, `divergence_candidates: 1`.
+
+| Check | Result |
+|---|---|
+| Core Pod boot + health | pass |
+| Local source research (`sources/note.md`) | pass — the accepted brief cited `note.md` in every paragraph, `Sources Used` listed it |
+| Research search | query executed; DuckDuckGo HTML returned 0 extractable links; `research_search completed results=0` |
+| Hostile results page | `ExtractLinks` returns structure; `Scan` rejects the hostile hit; `Extract` remains fail-closed (`TestExtractLinksSkipsWholePageGate`) |
+| State bind mount | **failed integrity** after the live run — use a Podman volume, as the production installer does |
+
+The local-source run is the end-to-end proof that the research path works with a
+local model. The search run is an honest engine limitation, not a code failure.
 
 ## 6. Honest limitations
 

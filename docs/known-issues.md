@@ -115,6 +115,13 @@ policy/coverage decisions rather than defects:
 - **`judge_persona` under the pool.** The measured pool's actual cross-family
   cast is authoritative; the legacy `judge_persona` role is advisory/fallback
   when a selector is present.
+- **Public search engines may not serve automated HTML.** `search_web` is a
+  configured HTML endpoint, not a crawler. The 2026-11-17 live run reached
+  DuckDuckGo's HTML endpoint but got zero extractable result links; the
+  research block honestly reported no sources. Use a local SearXNG (allowlisted)
+  or another engine that serves static results. This is an engine-availability
+  limitation, not a gateway defect; the trace records
+  `research_search completed results=0`.
 
 
 ---
