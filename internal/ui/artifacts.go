@@ -1,12 +1,15 @@
 package ui
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
 
 	"github.com/tcs76321/athanor/internal/corrections"
 	"github.com/tcs76321/athanor/internal/review"
+	"github.com/tcs76321/athanor/internal/store"
 	"github.com/tcs76321/athanor/internal/strategy"
 )
 
@@ -71,13 +74,40 @@ func (u *UI) handleArtifact(w http.ResponseWriter, r *http.Request) {
 		files = nil
 		contentText = ""
 	}
+	externalSources := externalSourceCount(ctx, u, a.JobID)
 	u.render(w, "Artifact "+a.ID, artifactBody, map[string]any{
 		"Artifact": a, "Content": contentText, "Reviews": reviews,
+		"ExternalDerived": externalSources > 0, "ExternalSources": externalSources,
 		"Project": p, "Outcome": outcome, "HasOutcome": hasOutcome, "Issues": issues,
 		"Exported": r.URL.Query().Get("exported") != "", "CanExport": u.exporter != nil,
 		"Mode": string(mode), "Files": files, "Size": size, "Branch": artifactBranch(a, p),
 		"DownloadName": downloadName(a),
 	})
+}
+
+// externalSourceCount reports how many fetched sources fed this job. The
+// research sub-step audits one `research_fetch` row per fetched source; the
+// artifact page uses the count to mark the output as external-derived. It is a
+// display/audit signal, not a gate: daily-news export must keep working.
+func externalSourceCount(ctx context.Context, u *UI, jobID string) int {
+	if jobID == "" || u.deps.Store == nil {
+		return 0
+	}
+	events, err := u.deps.Store.QueryEvents(ctx, store.EventFilter{JobID: jobID, Limit: 500})
+	if err != nil {
+		return 0
+	}
+	n := 0
+	for _, e := range events {
+		var d struct {
+			Event   string `json:"event"`
+			Outcome string `json:"outcome"`
+		}
+		if json.Unmarshal([]byte(e.DataJSON), &d) == nil && d.Event == "research_fetch" && d.Outcome == "fetched" {
+			n++
+		}
+	}
+	return n
 }
 
 // handleArtifactDownload serves the artifact's exact stored bytes as an

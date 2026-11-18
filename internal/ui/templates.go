@@ -855,6 +855,7 @@ const artifactBody = `
   {{if .Project}}· <a href="/ui/projects/{{.Project.ID}}">{{.Project.Name}}</a>{{end}}
   · job <a href="/ui/jobs/{{.Artifact.JobID}}" class="mono">{{.Artifact.JobID | short}}</a>
 </p>
+{{if .ExternalDerived}}<div class="notice">External-derived: this artifact used {{.ExternalSources}} fetched source(s). Treat its claims as grounded in those sources; review them before relying on the output.</div>{{end}}
 {{if .Exported}}<div class="notice">Export written to the workspace <code>exports/</code> directory.</div>{{end}}
 <div class="actions">
   <a class="btn" href="/ui/artifacts/{{.Artifact.ID}}/download" download="{{.DownloadName}}">Download the exact bytes</a>

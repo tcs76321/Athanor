@@ -21,6 +21,10 @@ New entries are appended at the top. Do not rewrite history.
   writes a backup atomically, and marks a restart required. The running gateway
   keeps its old policy until the Core restarts.
 - **Grant revoke is project-scoped.** A cross-project grant id is a 404.
+- **External-derived artifacts are labeled.** An artifact whose job fetched
+  research sources shows "External-derived: N fetched source(s)" on its page;
+  the daily-news export still works, while the operator can see that the
+  output is grounded in external bytes rather than the model's own knowledge.
 
 ### Engine access requests (2026-11-17)
 

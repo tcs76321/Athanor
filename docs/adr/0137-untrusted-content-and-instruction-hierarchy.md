@@ -72,6 +72,7 @@ ADR closes.
 - The markers are visible to the model and to a human reading a trace; they are
   not a guarantee that the model obeys. Deterministic verifiers, citation
   checks, and the closed tool set remain the enforceable controls.
-- A future slice adds taint propagation (an artifact derived from external
-  content is labeled and reviewed before export) and an optional
-  extract-then-generate quarantine mode. Neither is required for this ADR.
+- An artifact page now labels an output that used fetched sources with a
+  count ("External-derived: N fetched source(s)"). That is the taint label;
+  the full review-before-export gate and the optional extract-then-generate
+  quarantine mode remain the next security slice.

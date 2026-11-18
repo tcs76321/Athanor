@@ -1418,3 +1418,19 @@ func TestArtifactView(t *testing.T) {
 		}
 	}
 }
+
+// TestArtifactMarksExternalDerivation proves the taint label: a job that
+// fetched a source says so on its artifact, without blocking export.
+func TestArtifactMarksExternalDerivation(t *testing.T) {
+	fx := setup(t)
+	if _, err := fx.ui.deps.Store.AppendEvent(context.Background(), store.Event{
+		Category: "inference", JobID: fx.artifact.JobID,
+		Data: map[string]any{"event": "research_fetch", "outcome": "fetched", "url": "https://docs.test/a"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	_, body := get(t, fx.ts.URL+"/ui/artifacts/"+fx.artifact.ID)
+	if !strings.Contains(body, "External-derived") || !strings.Contains(body, "1 fetched source") {
+		t.Fatalf("artifact page missing the external-derived notice:\n%s", body)
+	}
+}
