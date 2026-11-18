@@ -133,6 +133,17 @@ func extractSearchQueries(text string, max int) []string {
 	return out
 }
 
+// autoSearchQuery is the one query a research block runs when it declares no
+// explicit queries. The project goal is the intent; the block title ("Find
+// today's sources") is a label and would dilute the query, so it is only the
+// fallback when the goal is empty.
+func autoSearchQuery(title, goal string) string {
+	if g := strings.TrimSpace(goal); g != "" {
+		return g
+	}
+	return strings.TrimSpace(title)
+}
+
 // urlHost returns the lowercase hostname of a URL, or "" when it does not
 // parse. It is used only to dedupe access requests.
 func urlHost(raw string) string {
@@ -182,7 +193,7 @@ func (d *Deps) researchContext(ctx context.Context, j job.Job, p project.Project
 	// box without hardcoding a topic in the template.
 	if len(queries) == 0 && allowsTool(t, "search_web") && d.Cfg != nil &&
 		strings.TrimSpace(d.Cfg.Network.SearchEngineURLTemplate) != "" {
-		if q := strings.TrimSpace(t.Title + " " + p.Goal); q != "" {
+		if q := autoSearchQuery(t.Title, p.Goal); q != "" {
 			queries = []string{q}
 		}
 	}

@@ -39,6 +39,15 @@ func TestExtractSearchQueries(t *testing.T) {
 	}
 }
 
+func TestAutoSearchQueryUsesTheGoalNotTheBlockLabel(t *testing.T) {
+	if got := autoSearchQuery("Find today's sources", "What is new in local-first software?"); got != "What is new in local-first software?" {
+		t.Errorf("query = %q, want the project goal", got)
+	}
+	if got := autoSearchQuery("Find today's sources", "  "); got != "Find today's sources" {
+		t.Errorf("empty goal query = %q, want the title fallback", got)
+	}
+}
+
 func TestExtractSourceURLs(t *testing.T) {
 	cases := []struct {
 		name string
