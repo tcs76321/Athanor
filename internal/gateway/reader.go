@@ -39,6 +39,14 @@ type Reader interface {
 	//                          heuristic (fail-closed: the raw HTML
 	//                          is never returned as a fallback).
 	Extract(ctx context.Context, resp *Response) (*ReaderResult, error)
+	// ExtractLinks is the search-results path: it runs the same HTML
+	// sanitize/render pipeline but does NOT scan the whole page. A search
+	// results page is link structure, not prompt material; the caller scans
+	// each title/snippet with Scan and drops hostile hits. This is why one
+	// adversarial snippet cannot make search unusable.
+	ExtractLinks(ctx context.Context, resp *Response) (*ReaderResult, error)
+	// Scan applies the Reader's scanner set to one text block.
+	Scan(ctx context.Context, sourceURL, text string) error
 }
 
 // ReaderMode names the extraction path that produced a ReaderResult.
@@ -144,7 +152,7 @@ func (r *reader) Extract(ctx context.Context, resp *Response) (*ReaderResult, er
 	ctype := strings.ToLower(strings.TrimSpace(strings.Split(raw, ";")[0]))
 	switch ctype {
 	case "text/html", "application/xhtml+xml":
-		return r.extractHTML(ctx, resp)
+		return r.extractHTML(ctx, resp, true)
 	case "text/plain":
 		md := string(resp.Body)
 		if err := r.scanAndReject(ctx, resp.URL, md); err != nil {
@@ -182,9 +190,36 @@ func (r *reader) Extract(ctx context.Context, resp *Response) (*ReaderResult, er
 	}
 }
 
+// ExtractLinks runs the sanitize/render pipeline for a search-results page
+// without the whole-page injection gate. The returned markdown is structural
+// link material; the caller must scan each hit it forwards.
+func (r *reader) ExtractLinks(ctx context.Context, resp *Response) (*ReaderResult, error) {
+	if resp == nil || resp.Body == nil {
+		return nil, fmt.Errorf("gateway: ExtractLinks requires a fetched Response with a Body")
+	}
+	if !r.enabled {
+		return nil, ErrReaderDisabled
+	}
+	raw := resp.Header.Get("Content-Type")
+	ctype := strings.ToLower(strings.TrimSpace(strings.Split(raw, ";")[0]))
+	switch ctype {
+	case "text/html", "application/xhtml+xml":
+		return r.extractHTML(ctx, resp, false)
+	default:
+		r.auditRejected(ctx, resp, "not_readable")
+		return nil, ErrNotReadable
+	}
+}
+
+// Scan applies the reader's scanner set to one text block (a search hit's
+// title and snippet). A hit that trips the set is dropped by the caller.
+func (r *reader) Scan(ctx context.Context, sourceURL, text string) error {
+	return r.scanAndReject(ctx, sourceURL, text)
+}
+
 // extractHTML runs the readability → sanitize → markdown →
 // injection-scan path for an HTML response.
-func (r *reader) extractHTML(ctx context.Context, resp *Response) (*ReaderResult, error) {
+func (r *reader) extractHTML(ctx context.Context, resp *Response, scan bool) (*ReaderResult, error) {
 	// Step 2: readability extraction from the already-fetched bytes.
 	// The gateway stays the single fetch point: FromReader parses an
 	// io.Reader; only FromURL would fetch, and it is never called
@@ -231,9 +266,13 @@ func (r *reader) extractHTML(ctx context.Context, resp *Response) (*ReaderResult
 	md := renderMarkdown(doc)
 
 	// Step 5: prompt-injection scan over the exact bytes handed to
-	// the caller. Non-clean → no markdown leaves the reader.
-	if err := r.scanAndReject(ctx, resp.URL, md); err != nil {
-		return nil, err
+	// the caller. Non-clean → no markdown leaves the reader. The search
+	// path (ExtractLinks) skips this whole-page gate and scans each
+	// extracted hit instead.
+	if scan {
+		if err := r.scanAndReject(ctx, resp.URL, md); err != nil {
+			return nil, err
+		}
 	}
 
 	r.auditApplied(ctx, resp, ModeReadability, len(md))

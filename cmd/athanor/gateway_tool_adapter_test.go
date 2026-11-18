@@ -50,6 +50,12 @@ func (f *fakeReader) Extract(_ context.Context, resp *gateway.Response) (*gatewa
 	return &gateway.ReaderResult{Markdown: string(resp.Body), Mode: gateway.ModePlain, SourceURL: resp.URL}, nil
 }
 
+func (f *fakeReader) ExtractLinks(ctx context.Context, resp *gateway.Response) (*gateway.ReaderResult, error) {
+	return f.Extract(ctx, resp)
+}
+
+func (f *fakeReader) Scan(context.Context, string, string) error { return nil }
+
 func newAdapter(parts GatewayParts, template string) *gatewayToolAdapter {
 	return newGatewayToolAdapter(parts, template, 10<<20, 0, nil, nil)
 }
@@ -139,6 +145,12 @@ func (m *multiResultReader) Extract(_ context.Context, _ *gateway.Response) (*ga
 	m.calls++
 	return m.results[idx], nil
 }
+
+func (m *multiResultReader) ExtractLinks(ctx context.Context, resp *gateway.Response) (*gateway.ReaderResult, error) {
+	return m.Extract(ctx, resp)
+}
+
+func (m *multiResultReader) Scan(context.Context, string, string) error { return nil }
 
 // capFactory records the caps requested through the NewClientWithCap
 // seam and returns a client carrying the second canned response.

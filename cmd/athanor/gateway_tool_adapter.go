@@ -263,16 +263,22 @@ func (a *gatewayToolAdapter) SearchWeb(ctx context.Context, req toolenvelope.Sea
 	if err != nil {
 		return nil, a.mapFetchError(err)
 	}
-	extracted, exErr := a.extract(ctx, resp)
+	// A results page is link structure, not prompt material: skip the
+	// whole-page injection gate, then scan each hit's title+snippet and drop
+	// the hostile ones. One poisoned snippet must not make search unusable.
+	extracted, exErr := a.parts.Reader.ExtractLinks(ctx, resp)
 	if exErr != nil {
-		return nil, exErr
+		return nil, errors.Join(internalapi.ErrContentRejected, exErr)
 	}
-	hits, err := gateway.ExtractSearchHits(extracted.markdown, engineURL, a.maxSearchResults)
+	hits, err := gateway.ExtractSearchHits(extracted.Markdown, engineURL, a.maxSearchResults)
 	if err != nil {
 		return nil, errors.Join(internalapi.ErrFetchFailed, err)
 	}
 	results := make([]toolenvelope.SearchResult, 0, len(hits))
 	for _, h := range hits {
+		if err := a.parts.Reader.Scan(ctx, engineURL, h.Title+"\n"+h.Snippet); err != nil {
+			continue
+		}
 		results = append(results, toolenvelope.SearchResult{Title: h.Title, URL: h.URL, Snippet: h.Snippet})
 	}
 	engine := ""
